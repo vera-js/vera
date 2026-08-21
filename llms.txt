@@ -24,11 +24,9 @@ it correctly. Everything else is standard Custom Elements and lit-html, which mo
 > - Tests: ~55 checks under `node --test` + jsdom against BUILT artifacts, green in CI. A real
 >   browser layer is chosen but not yet installed, so shadow DOM, upgrade timing and
 >   `adoptedStyleSheets` behaviour is asserted under emulation only.
-> - **Known renderer defect (open).** Sibling child-expressions in one parent that each toggle
->   between a template and `''` can corrupt the render and throw
->   `Cannot read properties of null (reading 'nextSibling')` from `ChildPart._clear`. Prefer a
->   stable template shape — see "Stable shapes" under the renderer below. This is a correctness
->   bug, not a security issue.
+> - Fixed in 0.1.2: `ChildPart._clear` could walk off the end of the child list when several
+>   sibling child-expressions in one parent each toggled between a template and `''`. If you are
+>   on 0.1.0 or 0.1.1, upgrade.
 
 ---
 
@@ -239,10 +237,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
 - Bindings inside comments and dynamic tag names are not supported (values consumed, ignored).
 - **Stable shapes beat conditional swaps.** Rendering the same element every pass and toggling
-  `hidden` is faster than swapping one subtree for another — template identity holds and the
-  clear/insert path never runs. It is also currently required for correctness: several sibling
-  parts in one parent that each flip between a template and `''` can trip an open defect in
-  `ChildPart._clear` and throw mid-render.
+  `hidden` is faster than swapping one subtree for another — template identity holds, so the
+  renderer updates values in place instead of tearing down and rebuilding. Both forms are
+  correct; this one is cheaper.
 
   ```js
   // fragile — two sibling parts, both swapping between a template and ''
@@ -439,7 +436,7 @@ blob. Bare specifiers inside resolve through the page's import map.
 5. **No `{...spread}` on an element.** Allowed on components only.
 6. **JS + JSX only.** Nothing strips TypeScript types in the browser; TSX needs the build path.
 7. **Prefer stable shapes over conditional swaps** — see the renderer section. Toggling `hidden`
-   avoids both the clear/insert churn and an open defect in `ChildPart._clear`.
+   keeps template identity and skips the clear/insert churn.
 8. **Reach for `hidden={…}`, not `?hidden=${…}`, inside JSX.** Boolean attributes bound in JSX
    compile to the `?attr` form for you.
 

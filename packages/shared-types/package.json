@@ -8,7 +8,7 @@
     "url": "git+https://github.com/vera-js/vera.git",
     "directory": "packages/shared-types"
   },
-  "author": "VeraJS",
+  "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "types": "./dist/development/vera-shared-types.d.ts",
   "type": "module",

@@ -596,12 +596,21 @@ class TextPart implements Part {
     }
     if (value == null || typeof value === 'object') {
       /**
-       * Upgrade in place: only now does a marker comment come into existence, anchored where the
-       * text sits, and the full part inherits the committed text state and delegates forever.
+       * Upgrade in place: marker comments come into existence only now, anchored around the text
+       * node, and the full part inherits the committed text state and delegates forever.
+       *
+       * BOTH markers are ours. Borrowing `this._text.nextSibling` as the end instead would hand
+       * this part a boundary owned by the NEXT part — and the next part removes that very node
+       * when it upgrades and clears its own text. The stale reference then makes `_clear()` walk
+       * past the end of the child list. Owning both anchors also makes `_end === null` mean
+       * exactly one thing: the root part, which really does own its container.
        */
       const start = comment();
-      this._text.parentNode!.insertBefore(start, this._text);
-      const part = new ChildPart(start, this._text.nextSibling);
+      const end = comment();
+      const parent = this._text.parentNode!;
+      parent.insertBefore(start, this._text);
+      parent.insertBefore(end, this._text.nextSibling);
+      const part = new ChildPart(start, end);
       part._mode = TEXT;
       part._text = this._text;
       part._value = this._value;
@@ -664,9 +673,14 @@ class ChildPart implements Part {
       parent.appendChild(this._start);
     } else {
       let node = this._start.nextSibling;
-      while (node !== this._end) {
-        const next = node!.nextSibling;
-        parent.removeChild(node!);
+      /**
+       * `node !== null` is a backstop, not an expected exit. Reaching the end of the child list
+       * without meeting `_end` means something detached this part's boundary; stopping leaves
+       * nodes behind, which beats throwing out of the middle of a render pass.
+       */
+      while (node !== null && node !== this._end) {
+        const next = node.nextSibling;
+        parent.removeChild(node);
         node = next;
       }
     }

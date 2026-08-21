@@ -8,7 +8,7 @@
     "url": "git+https://github.com/vera-js/vera.git",
     "directory": "packages/shared-utils"
   },
-  "author": "VeraJS",
+  "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "main": "./dist/vera-shared-utils.min.js",
   "types": "./dist/development/vera-shared-utils.d.ts",

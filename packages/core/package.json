@@ -1,6 +1,6 @@
 {
   "name": "@verajs/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publishConfig": {
     "access": "public"
   },
@@ -11,7 +11,7 @@
     "url": "git+https://github.com/vera-js/vera.git",
     "directory": "packages/core"
   },
-  "author": "VeraJS",
+  "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "main": "./dist/vera.min.js",
   "types": "./dist/development/vera.d.ts",
@@ -111,7 +111,7 @@
     "buildless"
   ],
   "dependencies": {
-    "@verajs/inserts": "^0.1.1"
+    "@verajs/inserts": "^0.1.2"
   },
   "sideEffects": true
 }

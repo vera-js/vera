@@ -1,6 +1,6 @@
 {
   "name": "@verajs/autoloader",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publishConfig": {
     "access": "public"
   },
@@ -11,7 +11,7 @@
     "url": "git+https://github.com/vera-js/vera.git",
     "directory": "packages/autoloader"
   },
-  "author": "VeraJS",
+  "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "main": "./dist/vera-autoloader.min.js",
   "types": "./dist/development/vera-autoloader.d.ts",
