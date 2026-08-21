@@ -277,9 +277,19 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   //    -> <li><label><input type="checkbox">${…}</label></li>
   ```
 
-  API: `startProfiling()`, `stopProfiling(): ProfileReport`, `isProfiling()`,
-  `profile(fn)` and `formatReport(report)`. `ProfileReport` carries `frames`, `ms`,
-  `slowestFrameMs`, `updates`, `creates`, `rebuilds` and `churn[]` (`{from, to, count, where}`).
+  For live feedback while clicking around, `showProfiler()` mounts a panel in the corner and
+  returns a function that removes it:
+
+  ```js
+  import { showProfiler } from '@verajs/renderer/profiler';
+  const close = showProfiler();          // { corner, interval, rows } all optional
+  ```
+
+  API: `startProfiling()`, `stopProfiling(): ProfileReport`, `getReport(): ProfileReport`,
+  `isProfiling()`, `profile(fn)`, `formatReport(report)` and `showProfiler(options?)`.
+  `ProfileReport` carries `frames`, `ms`, `slowestFrameMs`, `updates`, `creates`, `rebuilds` and
+  `churn[]` (`{from, to, count, where}`). The panel is plain DOM in a shadow root — it never
+  renders itself through the renderer, so it does not appear in its own numbers.
 
   There is no production build of this entry, and there is nothing to strip from one: the
   renderer's instrumentation sits behind a `__DEV__` constant the build folds to `false`, so

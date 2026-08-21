@@ -36,6 +36,10 @@ import {
   PROFILE_FRAME_END,
 } from './renderer.js';
 import type { ChildPart } from './renderer.js';
+import { mountOverlay } from './overlay.js';
+import type { OverlayOptions } from './overlay.js';
+
+export type { OverlayOptions } from './overlay.js';
 
 export { render, keyed, hold } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
@@ -181,19 +185,22 @@ export const startProfiling = () => {
   _setProfileHook(hook);
 };
 
+/** What has been measured so far, without ending the session. Drives the live overlay. */
+export const getReport = (): ProfileReport => ({
+  frames,
+  ms: totalMs,
+  slowestFrameMs: slowestMs,
+  updates,
+  creates,
+  rebuilds,
+  churn: [...churn.values()].sort((a, b) => b.count - a.count),
+});
+
 /** Stop collecting and return what was measured. Safe to call when not profiling. */
 export const stopProfiling = (): ProfileReport => {
   _setProfileHook(null);
   active = false;
-  return {
-    frames,
-    ms: totalMs,
-    slowestFrameMs: slowestMs,
-    updates,
-    creates,
-    rebuilds,
-    churn: [...churn.values()].sort((a, b) => b.count - a.count),
-  };
+  return getReport();
 };
 
 export const isProfiling = () => active;
@@ -207,6 +214,20 @@ export const profile = <T>(fn: () => T): { result: T; report: ProfileReport } =>
     stopProfiling();
     throw error;
   }
+};
+
+/**
+ * Mounts a live panel in the corner of the page and starts profiling. Returns a function that
+ * removes it and stops. Plain DOM in a closed shadow root — it never renders itself through the
+ * renderer, which would fold its own commits into the numbers it reports.
+ */
+export const showProfiler = (options?: OverlayOptions): (() => void) => {
+  startProfiling();
+  const unmount = mountOverlay(getReport, isProfiling, { start: startProfiling, stop: stopProfiling }, options);
+  return () => {
+    unmount();
+    stopProfiling();
+  };
 };
 
 /** Human-readable summary. The overlay renders the same data; this is for a console or a log. */

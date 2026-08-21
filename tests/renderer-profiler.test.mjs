@@ -125,3 +125,43 @@ test('a thrown render still stops profiling', () => {
   }, /boom/);
   assert.equal(isProfiling(), false, 'not left armed after a throw');
 });
+
+// ── overlay ─────────────────────────────────────────────────────────────────
+
+test('the overlay mounts, reports churn, and unmounts cleanly', async () => {
+  const { showProfiler } = await import(
+    '../packages/renderer/dist/development/vera-renderer-profiler.js'
+  );
+  const before = document.body.childElementCount;
+  const close = showProfiler({ interval: 5 });
+
+  assert.equal(isProfiling(), true, 'showing the panel starts profiling');
+  const host = document.body.lastElementChild;
+  assert.ok(host.shadowRoot, 'mounted into a shadow root');
+
+  const swap = (on) => (on ? html`<a>on</a>` : html`<b>off</b>`);
+  for (let i = 0; i < 4; i++) render(swap(i % 2 === 0), el);
+
+  await new Promise((r) => setTimeout(r, 30));
+  const text = host.shadowRoot.textContent;
+  assert.match(text, /Torn down, not updated/, 'surfaces churn');
+  assert.match(text, /rebuilt/);
+  assert.match(text, /\?hidden=/, 'shows the fix');
+
+  close();
+  assert.equal(document.body.childElementCount, before, 'panel removed');
+  assert.equal(isProfiling(), false, 'closing stops profiling');
+});
+
+test('the overlay does not measure itself', async () => {
+  const { showProfiler, getReport } = await import(
+    '../packages/renderer/dist/development/vera-renderer-profiler.js'
+  );
+  const close = showProfiler({ interval: 5 });
+  /** Let it repaint several times with no app renders at all. */
+  await new Promise((r) => setTimeout(r, 40));
+  const report = getReport();
+  close();
+  assert.equal(report.frames, 0, 'repainting the panel is not a render frame');
+  assert.equal(report.updates + report.creates + report.rebuilds, 0, 'and commits nothing');
+});
