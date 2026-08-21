@@ -1,6 +1,6 @@
 {
   "name": "@verajs/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publishConfig": {
     "access": "public"
   },
@@ -111,7 +111,7 @@
     "buildless"
   ],
   "dependencies": {
-    "@verajs/inserts": "^0.1.0"
+    "@verajs/inserts": "^0.1.1"
   },
   "sideEffects": true
 }
