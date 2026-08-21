@@ -57,8 +57,9 @@ builds**.
 The shape of the product:
 
 - **`@verajs/core`** covers most of what people actually need.
-- **A module system** lets people use the prebuilt modules — `autoloader`, `map-support`, `renderer`,
-  `router`, `ssr` — or write their own.
+- **A module system** lets people use the prebuilt modules — `autoloader`, `jsx`, `renderer`,
+  `router`, `ssr` — or write their own. (`map-support` was retired: reactive `Map`/`Set` moved into
+  core, which is most of core's growth from 2 333 B to 3 101 B gzipped.)
 - At minimum you need **a renderer**. Everything else is opt-in.
 
 **History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head

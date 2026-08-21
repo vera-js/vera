@@ -5,22 +5,26 @@ heavier libraries on most builds.
 
 No virtual DOM. No framework runtime shipped to the client. No runtime dependencies.
 
+<!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 4.1 KB | **1.94 KB** |
-| `@verajs/renderer` | 7.4 KB | 3.00 KB |
-| `@verajs/router` | 5.0 KB | 2.41 KB |
-| `@verajs/autoloader` | 737 B | 488 B |
-| `@verajs/map-support` | 527 B | 384 B |
-| `@verajs/inserts` | 794 B | 530 B |
+| `@verajs/core` | 7.26 KB | **3.03 KB** |
+| `@verajs/renderer` | 8.86 KB | 3.53 KB |
+| `@verajs/router` | 6.26 KB | 2.77 KB |
+| `@verajs/autoloader` | 1 007 B | 612 B |
+| `@verajs/inserts` | 455 B | 322 B |
+<!--/size:table.modules-->
 
-A typical app — core plus a renderer — is **about 3.6 KB gzipped**. For comparison, `react` +
-`react-dom` is roughly 45 KB gzipped.
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.9 KB<!--/size:app.kb--> gzipped**. For
+comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
-`@verajs/core` on its own cannot render; it ships no renderer. 3.6 KB is the number that matters.
+`@verajs/core` on its own cannot render; it ships no renderer. <!--size:app.kb-->5.9 KB<!--/size:app.kb--> is the number that matters.
+Reproduce it with `npm run build && node bench/size.mjs`.
 
-> **Status: pre-release, under active overhaul.** Nothing is published to npm yet. The structure and
-> tooling are being reworked, after which the project gets an honest viability evaluation.
+> **Status: early, pre-1.0.** Published to npm as of 2026-08-21 — `core`, `renderer`, `router`,
+> `autoloader`, `inserts`, `jsx` and `ssr` are live at 0.1.2, each with a provenance attestation.
+> The structure and tooling are still being reworked, after which the project gets an honest
+> viability evaluation.
 
 ---
 
@@ -32,11 +36,11 @@ module system is open — use the prebuilt ones or write your own.
 **At minimum you need a renderer.** Everything else is your choice.
 
 ```
-@verajs/core          reactive state, hooks, lifecycle, rendering
+@verajs/core          reactive state (incl. Map and Set), hooks, lifecycle, rendering
 @verajs/renderer      keyed template renderer; beats lit-html across the board  (or bring your own)
 @verajs/router        tiny router with nested routes, wildcards, params
 @verajs/autoloader    lazy-loads custom elements on discovery
-@verajs/map-support   reactive Map and Set
+@verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
 ```
 

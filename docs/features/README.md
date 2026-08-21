@@ -6,9 +6,9 @@ Source material for how VeraJS gets described publicly.
 gives the command that regenerates it, and names the honest caveat. Anything published will meet
 readers who check — a claim that does not survive checking costs more than not making it.
 
-Numbers were taken on 2026-08-19 against Vue 3.5.41, Solid 1.9.15, Preact 10.29.8 +
-signals-core 1.14.4, Lit 3.3.3, Van.js 1.6.1, React 18.3.1. Regenerate with `node bench/size.mjs`
-and `node bench/reactivity.mjs`.
+Numbers were taken on 2026-08-21 against VeraJS 0.1.2, Vue 3.5.41, Solid 1.9.15, Preact 10.29.8 +
+signals-core 1.14.4, Lit 3.3.3, Van.js 1.6.1, petite-vue 0.4.1, Alpine.js 3.16.2, React 19.2.8.
+Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 ---
 
@@ -16,7 +16,7 @@ and `node bench/reactivity.mjs`.
 
 | | Claim | Strength |
 | --- | --- | --- |
-| [Size](size.md) | 3.5 KB for a working app — 2nd smallest of 8, 1.7x under Lit | **Strong** — measured |
+| [Size](size.md) | <!--size:app.kb-->5.9 KB<!--/size:app.kb--> for a working app — level with Lit and Preact, 10x under React | **Medium** — measured, but no longer a lead |
 | [Buildless](buildless.md) | Works in CodePen with no toolchain at all | **Strong** — architectural |
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
 | [No base class](no-base-class.md) | Attaches to a plain `HTMLElement`; retrofittable | **Strong** — structural, Lit cannot match |
@@ -26,7 +26,7 @@ and `node bench/reactivity.mjs`.
 
 ## The one-line pitch
 
-> A 3.5 KB reactive framework on native web components. No build step, no base class, no dependency
+> A <!--size:app.kb-->5.9 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no dependency
 > arrays — and the only one that gives you batched *and* per-change effects.
 
 ## What NOT to claim
@@ -37,11 +37,12 @@ Being wrong once in public costs more than every correct claim gains.
   and the hiring pool. The claim invites judgement on the one axis you cannot win.
 - **Not "fastest".** Solid compiles to direct DOM updates; VeraJS re-runs templates and diffs. Its
   update ceiling is Vue/React-class. See [performance.md](performance.md).
-- **Not "1.78 KB".** That is core alone, which cannot render. The honest number is 3.5 KB.
+- **Not "<!--size:core.gzip-->3.03 KB<!--/size:core.gzip-->".** That is core alone, which cannot render. The honest number is <!--size:app.kb-->5.9 KB<!--/size:app.kb-->.
 - **Not "production ready".** One maintainer, pre-1.0, and the browser test layer is still
   pending (the node+jsdom suite and CI are real). Say "early" plainly.
-- **Not "smaller than everything".** Van.js is smaller. Say "second smallest" and name it — being
-  the one who volunteers the exception is worth more than the half-point.
+- **Not "smallest" or "smaller than Lit".** Van.js and Solid are both smaller, and VeraJS + own
+  renderer is now marginally *larger* than Lit. Size is a par claim, not a differentiator — name
+  the exceptions yourself, because the reader who checks will find them.
 
 ## Where the positioning should aim
 

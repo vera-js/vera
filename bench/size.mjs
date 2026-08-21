@@ -191,3 +191,33 @@ console.log('');
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(ok.map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })), null, 2));
 }
+
+/**
+ * `--snapshot` commits these results so the docs can be generated without the nine competing
+ * frameworks installed. The per-module sizes are recorded alongside, so `sync-size-claims.mjs`
+ * can tell whether the snapshot still describes the current build: if `dist` has moved and the
+ * snapshot has not, the comparative table is stale and CI says so.
+ */
+if (process.argv.includes('--snapshot')) {
+  const { readFileSync, writeFileSync } = await import('node:fs');
+  const DIST = {
+    core: 'packages/core/dist/vera.min.js',
+    renderer: 'packages/renderer/dist/vera-renderer.min.js',
+    router: 'packages/router/dist/vera-router.min.js',
+    autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
+    inserts: 'packages/inserts/dist/vera-inserts.min.js',
+  };
+  const modules = {};
+  for (const [pkg, file] of Object.entries(DIST)) {
+    const buf = readFileSync(file);
+    modules[pkg] = { raw: buf.length, gzip: gzipSync(buf).length };
+  }
+  const out = {
+    taken: new Date().toISOString().slice(0, 10),
+    method: 'esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync',
+    modules,
+    apps: ok.map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })),
+  };
+  writeFileSync('bench/size-snapshot.json', JSON.stringify(out, null, 2) + '\n');
+  console.log('  wrote bench/size-snapshot.json');
+}

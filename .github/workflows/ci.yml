@@ -23,4 +23,9 @@ jobs:
       - run: npm ci
       - run: node scripts/sync-packages.mjs
       - run: npm run build
+      # Published size claims are generated from the build. This fails if any of them has drifted,
+      # or if bench/size-snapshot.json no longer describes the current dist. The competing
+      # frameworks are NOT needed here: per-module sizes come from dist, and the cross-framework
+      # table is verified for staleness rather than regenerated.
+      - run: node scripts/sync-size-claims.mjs --check
       - run: npm test
