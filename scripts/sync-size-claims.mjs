@@ -44,6 +44,7 @@ const TARGETS = [
   'llms.txt',
   'docs/features/README.md',
   'docs/features/size.md',
+  'docs/features/zero-dependencies.md',
   // The per-package READMEs are what npm serves on each package page, and the only ones that ship
   // inside a tarball. The root README ships nowhere.
   ...MODULES.map((m) => `packages/${m.pkg}/README.md`),
@@ -134,6 +135,22 @@ if (snapshot && !snapshotStale) {
     values[`app.${slug}.bytes`] = bytes(a.gzip);
     values[`app.${slug}.kb`] = kb(a.gzip, 1);
   }
+
+  blocks['table.deps'] = [
+    '| Framework | third-party deps | what they are |',
+    '| --- | ---: | --- |',
+    ...[...apps]
+      .sort((a, b) => a.depsThirdParty - b.depsThirdParty || a.gzip - b.gzip)
+      .map((a) => {
+        const label = a.name.startsWith('VeraJS') ? `**${a.name}**` : a.name;
+        const n = a.depsThirdParty;
+        const n2 = a.name.startsWith('VeraJS') ? `**${n}**` : String(n);
+        const names = a.depsThirdPartyNames ?? [];
+        const shown = names.slice(0, 4).map((x) => `\`${x}\``).join(', ');
+        const rest = names.length > 4 ? `, +${names.length - 4} more` : '';
+        return `| ${label} | ${n2} | ${n === 0 ? '—' : shown + rest} |`;
+      }),
+  ].join('\n');
 
   blocks['table.evidence'] = [
     '| Framework | gzip | vs smallest |',

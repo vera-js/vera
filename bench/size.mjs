@@ -212,12 +212,83 @@ if (process.argv.includes('--snapshot')) {
     const buf = readFileSync(file);
     modules[pkg] = { raw: buf.length, gzip: gzipSync(buf).length };
   }
+  /**
+   * Transitive runtime dependency count per contender. Walks `dependencies` only — devDependencies
+   * are irrelevant to what a consumer installs. Resolution checks bench/node_modules first, then
+   * the repo root, matching how the bundler above resolves them.
+   */
+  const { existsSync } = await import('node:fs');
+  const { join, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const BENCH = dirname(fileURLToPath(import.meta.url));
+  const manifest = (name) => {
+    for (const base of [join(BENCH, 'node_modules', name), join(process.cwd(), 'node_modules', name)]) {
+      const pj = join(base, 'package.json');
+      if (existsSync(pj)) return JSON.parse(readFileSync(pj, 'utf8'));
+    }
+    return null;
+  };
+  const countDeps = (roots) => {
+    const stack = [...roots];
+    const seen = new Set();
+    let unresolved = 0;
+    while (stack.length) {
+      const n = stack.pop();
+      if (seen.has(n)) continue;
+      const pj = manifest(n);
+      if (!pj) {
+        // Never report a count that silently skipped a package it could not find.
+        unresolved++;
+        continue;
+      }
+      if (!roots.includes(n)) seen.add(n);
+      stack.push(...Object.keys(pj.dependencies ?? {}));
+    }
+    /**
+     * First-party packages are split out. `@verajs/core` depends on `@verajs/inserts`, so a bare
+     * total would read as "1 dependency" and invite exactly the correction the claim is trying to
+     * survive. Third-party count is the number that means anything to a consumer auditing a tree.
+     */
+    const thirdParty = [...seen].filter((n) => !n.startsWith('@verajs/')).sort();
+    return { count: seen.size, thirdParty, unresolved };
+  };
+
+  /** Bare specifiers each contender's app imports, i.e. what a consumer installs. */
+  const ROOTS = {
+    'VeraJS + own renderer': ['@verajs/core', '@verajs/renderer'],
+    'VeraJS + lit-html': ['@verajs/core', 'lit-html'],
+    Lit: ['lit'],
+    'Van.js': ['vanjs-core'],
+    'Preact + signals': ['preact', '@preact/signals-core'],
+    Solid: ['solid-js'],
+    Vue: ['vue'],
+    'Alpine.js': ['alpinejs'],
+    'petite-vue': ['petite-vue'],
+    React: ['react', 'react-dom'],
+  };
+
   const out = {
     taken: new Date().toISOString().slice(0, 10),
     method: 'esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync',
     modules,
-    apps: ok.map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })),
+    apps: ok.map(({ name, note, raw, gzip }) => {
+      const d = ROOTS[name] ? countDeps(ROOTS[name]) : null;
+      return {
+        name, note, raw, gzip,
+        deps: d?.count ?? null,
+        depsThirdParty: d?.thirdParty?.length ?? null,
+        depsThirdPartyNames: d?.thirdParty ?? null,
+        depsUnresolved: d?.unresolved ?? 0,
+      };
+    }),
   };
+  const bad = out.apps.filter((a) => a.depsUnresolved > 0);
+  if (bad.length) {
+    console.error('  WARNING: unresolved packages while counting dependencies for:');
+    for (const a of bad) console.error(`    ${a.name} (${a.depsUnresolved} unresolved)`);
+    console.error('  The counts would understate. Run `cd bench && npm install`, then retry.');
+    process.exit(1);
+  }
   writeFileSync('bench/size-snapshot.json', JSON.stringify(out, null, 2) + '\n');
   console.log('  wrote bench/size-snapshot.json');
 }

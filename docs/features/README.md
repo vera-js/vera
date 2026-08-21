@@ -17,6 +17,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 | | Claim | Strength |
 | --- | --- | --- |
 | [Size](size.md) | <!--size:app.kb-->5.9 KB<!--/size:app.kb--> for a working app — level with Lit and Preact, 10x under React | **Medium** — measured, but no longer a lead |
+| [Zero dependencies](zero-dependencies.md) | No third-party runtime deps in any of the seven packages | **Strong** — measured, but shared |
 | [Buildless](buildless.md) | Works in CodePen with no toolchain at all | **Strong** — architectural |
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
 | [No base class](no-base-class.md) | Attaches to a plain `HTMLElement`; retrofittable | **Strong** — structural, Lit cannot match |
@@ -26,8 +27,9 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 ## The one-line pitch
 
-> A <!--size:app.kb-->5.9 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no dependency
-> arrays — and the only one that gives you batched *and* per-change effects.
+> A <!--size:app.kb-->5.9 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no
+> dependencies, no dependency arrays — and the only one that gives you batched *and* per-change
+> effects.
 
 ## What NOT to claim
 
@@ -40,6 +42,9 @@ Being wrong once in public costs more than every correct claim gains.
 - **Not "<!--size:core.gzip-->3.03 KB<!--/size:core.gzip-->".** That is core alone, which cannot render. The honest number is <!--size:app.kb-->5.9 KB<!--/size:app.kb-->.
 - **Not "production ready".** One maintainer, pre-1.0, and the browser test layer is still
   pending (the node+jsdom suite and CI are real). Say "early" plainly.
+- **Not "the only zero-dependency framework".** Van.js, petite-vue and Preact + signals ship zero
+  too, and React ships one. State zero as a property, not a distinction — what is uncommon is
+  holding it across a router, an SSR renderer and a JSX compiler rather than a micro-library.
 - **Not "smallest" or "smaller than Lit".** Van.js and Solid are both smaller, and VeraJS + own
   renderer is now marginally *larger* than Lit. Size is a par claim, not a differentiator — name
   the exceptions yourself, because the reader who checks will find them.

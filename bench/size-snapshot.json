@@ -28,61 +28,141 @@
       "name": "Van.js",
       "note": "vanjs-core",
       "raw": 2426,
-      "gzip": 1219
+      "gzip": 1219,
+      "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
     },
     {
       "name": "Solid",
       "note": "solid-js runtime + web (needs a compiler)",
       "raw": 11119,
-      "gzip": 4446
+      "gzip": 4446,
+      "deps": 3,
+      "depsThirdParty": 3,
+      "depsThirdPartyNames": [
+        "csstype",
+        "seroval",
+        "seroval-plugins"
+      ],
+      "depsUnresolved": 0
     },
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
       "raw": 13245,
-      "gzip": 5686
+      "gzip": 5686,
+      "deps": 2,
+      "depsThirdParty": 1,
+      "depsThirdPartyNames": [
+        "@types/trusted-types"
+      ],
+      "depsUnresolved": 0
     },
     {
       "name": "Lit",
       "note": "lit (LitElement + lit-html)",
       "raw": 15270,
-      "gzip": 5871
+      "gzip": 5871,
+      "deps": 5,
+      "depsThirdParty": 5,
+      "depsThirdPartyNames": [
+        "@lit-labs/ssr-dom-shim",
+        "@lit/reactive-element",
+        "@types/trusted-types",
+        "lit-element",
+        "lit-html"
+      ],
+      "depsUnresolved": 0
     },
     {
       "name": "Preact + signals",
       "note": "preact + @preact/signals-core",
       "raw": 15156,
-      "gzip": 6031
+      "gzip": 6031,
+      "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
     },
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
       "raw": 14819,
-      "gzip": 6091
+      "gzip": 6091,
+      "deps": 1,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
     },
     {
       "name": "petite-vue",
       "note": "petite-vue — buildless Vue subset",
       "raw": 16665,
-      "gzip": 7258
+      "gzip": 7258,
+      "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
     },
     {
       "name": "Alpine.js",
       "note": "alpinejs — attribute-driven, not components",
       "raw": 54450,
-      "gzip": 19438
+      "gzip": 19438,
+      "deps": 2,
+      "depsThirdParty": 2,
+      "depsThirdPartyNames": [
+        "@vue/reactivity",
+        "@vue/shared"
+      ],
+      "depsUnresolved": 0
     },
     {
       "name": "Vue",
       "note": "vue runtime + reactivity",
       "raw": 63617,
-      "gzip": 25259
+      "gzip": 25259,
+      "deps": 22,
+      "depsThirdParty": 22,
+      "depsThirdPartyNames": [
+        "@babel/helper-string-parser",
+        "@babel/helper-validator-identifier",
+        "@babel/parser",
+        "@babel/types",
+        "@jridgewell/sourcemap-codec",
+        "@vue/compiler-core",
+        "@vue/compiler-dom",
+        "@vue/compiler-sfc",
+        "@vue/compiler-ssr",
+        "@vue/reactivity",
+        "@vue/runtime-core",
+        "@vue/runtime-dom",
+        "@vue/server-renderer",
+        "@vue/shared",
+        "csstype",
+        "entities",
+        "estree-walker",
+        "magic-string",
+        "nanoid",
+        "picocolors",
+        "postcss",
+        "source-map-js"
+      ],
+      "depsUnresolved": 0
     },
     {
       "name": "React",
       "note": "react + react-dom",
       "raw": 193377,
-      "gzip": 60356
+      "gzip": 60356,
+      "deps": 1,
+      "depsThirdParty": 1,
+      "depsThirdPartyNames": [
+        "scheduler"
+      ],
+      "depsUnresolved": 0
     }
   ]
 }
