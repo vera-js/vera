@@ -17,7 +17,7 @@ const rows = [
 const template = (state) => html\`
   <section class="wrap">
     <h1>\${state.title}</h1>
-    <output \?hidden=\${state.count === 0}>count: \${state.count}</output>
+    <output ?hidden=\${state.count === 0}>count: \${state.count}</output>
     <input .value=\${state.title} @input=\${() => {}} />
     <ul>\${state.rows.map((row) => html\`<li data-id=\${row.id}>\${row.label}</li>\`)}</ul>
   </section>\`;

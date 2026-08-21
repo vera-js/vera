@@ -22,6 +22,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/sync-packages.mjs
+      # Clean as of this commit, so it can stay clean. It was previously linting dist/ and the
+      # private internal/ clone, which buried the real findings under ~2 200 generated-code errors.
+      - run: npx eslint .
       - run: npm run build
       # Published size claims are generated from the build. This fails if any of them has drifted,
       # or if bench/size-snapshot.json no longer describes the current dist. The competing

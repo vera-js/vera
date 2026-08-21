@@ -17,7 +17,6 @@ import { dts } from 'rollup-plugin-dts';
  * Every entry bundles self-contained in every mode.
  */
 export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, options = {}) => {
-  // eslint-disable-next-line no-undef
   const mode = process.env.MODE;
   const isProduction = mode === 'prod';
   const isTypes = mode === 'types';

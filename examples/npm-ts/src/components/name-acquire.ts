@@ -1,4 +1,4 @@
-import { css, html, init, ref, render } from '@verajs/core';
+import { html, init, render } from '@verajs/core';
 
 customElements.define(
   'name-acquire',

@@ -1,7 +1,7 @@
 import { CSSResultGroup, ComponentElement } from '../types.js';
 
 /** Component classes whose light-DOM styles are already hoisted — one sheet per class, ever. */
-const hoisted = new WeakSet<Function>();
+const hoisted = new WeakSet<object>();
 
 /**
  * Adopts a component's `static styles`. Called by `init`, so components never do this manually.

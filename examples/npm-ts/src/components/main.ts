@@ -1,4 +1,4 @@
-import { html, init, render, useEffect, setRenderer, ref } from '@verajs/core';
+import { html, init, render, useEffect } from '@verajs/core';
 import { hydrate } from '@lit-labs/ssr-client';
 
 import './parent-element.js';

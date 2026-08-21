@@ -169,7 +169,7 @@ function apply(text, file) {
   const seen = new Set();
   const out = text.replace(
     /<!--size:([\w.-]+)-->([\s\S]*?)<!--\/size:\1-->/g,
-    (whole, name, current) => {
+    (whole, name) => {
       seen.add(name);
       const replacement = blocks[name] ?? values[name];
       if (replacement === undefined) {

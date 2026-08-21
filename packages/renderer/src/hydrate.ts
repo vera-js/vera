@@ -96,7 +96,7 @@ const claimValueText = (cursor: Cursor, text: string): Text => {
     return primed;
   }
   if (at === null || at.nodeType !== 3) throw MISMATCH;
-  let node = at as Text;
+  const node = at as Text;
   if (node.data.length > text.length) node.splitText(text.length);
   if (node.data !== text) throw MISMATCH;
   cursor.node = node.nextSibling;

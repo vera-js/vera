@@ -7,7 +7,7 @@
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, setRenderer, setAutoloader, inserts, insert } from '@verajs/core';
+import { setHtml, setRenderer, setAutoloader, inserts } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectInserts } from '@verajs/router';
 import { html, render } from 'lit-html';
