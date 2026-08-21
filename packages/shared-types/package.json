@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vera-js/vera.git",
+    "url": "git+https://github.com/vera-js/vera.git",
     "directory": "packages/shared-types"
   },
   "author": "VeraJS",
