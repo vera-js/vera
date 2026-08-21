@@ -261,6 +261,30 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   HTML), node identity preserved, listeners attached, keyed updates move adopted nodes. Any
   mismatch falls back to a clean render. Never mix the two entries in one app. The base entry
   carries zero hydration code.
+- **Profiling (development only).** `@verajs/renderer/profiler` is another drop-in entry that
+  re-exports the whole renderer API and adds measurement. It exists to make the rule above
+  *visible*: it counts templates committed in place against templates that REPLACED a different
+  template, which destroys and rebuilds the subtree while looking identical from the outside.
+
+  ```js
+  import { render, profile, formatReport } from '@verajs/renderer/profiler';
+  const { report } = profile(() => { /* drive the app */ });
+  console.log(formatReport(report));
+  // 39 updated in place, 2 created, 19 rebuilt (32% of commits)
+  // Template identity churn — these were torn down, not updated:
+  //   10x  at body > main#app > ul.todo-list
+  //       <li class="done"><s>${…}</s></li>
+  //    -> <li><label><input type="checkbox">${…}</label></li>
+  ```
+
+  API: `startProfiling()`, `stopProfiling(): ProfileReport`, `isProfiling()`,
+  `profile(fn)` and `formatReport(report)`. `ProfileReport` carries `frames`, `ms`,
+  `slowestFrameMs`, `updates`, `creates`, `rebuilds` and `churn[]` (`{from, to, count, where}`).
+
+  There is no production build of this entry, and there is nothing to strip from one: the
+  renderer's instrumentation sits behind a `__DEV__` constant the build folds to `false`, so
+  `vera-renderer.min.js` is byte-identical with and without it. Same rule as hydrate — never mix
+  entries in one app.
 
 ### Router
 

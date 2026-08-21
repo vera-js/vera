@@ -6,4 +6,8 @@ and React-style `onClick` bindings, element refs, `keyed()` lists, `hold()` DOM 
 markerless hydration (no framework comments in server HTML). SSR apps import from `/hydrate`;
 everyone else pays zero hydration bytes.
 
+`@verajs/renderer/profiler` is a development-only entry that reports how many templates were
+committed in place versus torn down and rebuilt, naming the template pairs that churn and where.
+It costs production nothing — the instrumentation is removed by the build, not merely unused.
+
 Wire once: `setRenderer(render)` from `@verajs/core`.

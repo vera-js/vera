@@ -632,6 +632,27 @@ const TEXT = 1;
 const TEMPLATE = 2;
 const LIST = 3;
 
+/**
+ * Development-only profiling hook, armed by `@verajs/renderer/profiler`. Null until something
+ * arms it, so an unprofiled development render pays one null check per template commit.
+ *
+ * Every reference sits behind `__DEV__`, which `defineDev()` folds to `false` before terser runs —
+ * so the declaration, the constants and every call site are removed from the production bundle.
+ * Verified by byte comparison, not assumed.
+ */
+const PROFILE_UPDATE = 0; // same template identity — values committed in place
+const PROFILE_CREATE = 1; // first template into an empty part
+const PROFILE_REBUILD = 2; // template identity CHANGED — subtree torn down and rebuilt
+const PROFILE_FRAME_START = 3;
+const PROFILE_FRAME_END = 4;
+
+type ProfileHook = (kind: number, subject: unknown, shape: TemplateStringsArray | null) => void;
+let _profileHook: ProfileHook | null = null;
+/** @internal */
+const _setProfileHook = (fn: ProfileHook | null) => {
+  _profileHook = fn;
+};
+
 class ChildPart implements Part {
   _start: Comment;
   /** Exclusive end of this part's range; null means "to the end of the parent". */
@@ -723,8 +744,17 @@ class ChildPart implements Part {
        * them, in practice), commit costs one identity compare before touching the values.
        */
       if (this._shape === value.strings) {
+        if (__DEV__ && _profileHook) _profileHook(PROFILE_UPDATE, this, value.strings);
         this._instance!._update(value.values);
         return;
+      }
+      /**
+       * Reaching here with a template already committed means the identity changed, so the
+       * subtree below is about to be destroyed and rebuilt rather than updated. That is what
+       * `?hidden=${…}` over a swapped subtree exists to avoid, and it is otherwise invisible.
+       */
+      if (__DEV__ && _profileHook) {
+        _profileHook(this._mode === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, value.strings);
       }
       const template = getTemplate(value);
       if (this._mode !== EMPTY) this._clear();
@@ -1022,6 +1052,7 @@ const rootParts = new WeakMap<Node, ChildPart>();
  * this entry carries zero hydration code.
  */
 export const render = (result: unknown, container: Node) => {
+  if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) {
     const marker = comment();
@@ -1029,6 +1060,7 @@ export const render = (result: unknown, container: Node) => {
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   part._set(result);
+  if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };
 
 // ── INTERNAL SURFACE — imported by ./hydrate.ts, never re-exported by src/index.ts ─────────────
@@ -1054,6 +1086,12 @@ export {
   isTemplateResult,
   instanceWalker,
   rootParts,
+  _setProfileHook,
+  PROFILE_UPDATE,
+  PROFILE_CREATE,
+  PROFILE_REBUILD,
+  PROFILE_FRAME_START,
+  PROFILE_FRAME_END,
 };
 /** @internal */
 export type { Part, Item, TemplatePart };

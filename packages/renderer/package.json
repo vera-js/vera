@@ -26,6 +26,10 @@
       "types": "./dist/development/vera-renderer-hydrate.d.ts",
       "development": "./dist/development/vera-renderer-hydrate.js",
       "default": "./dist/vera-renderer-hydrate.min.js"
+    },
+    "./profiler": {
+      "types": "./dist/development/vera-renderer-profiler.d.ts",
+      "default": "./dist/development/vera-renderer-profiler.js"
     }
   },
   "files": [

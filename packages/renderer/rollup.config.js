@@ -2,13 +2,31 @@ import { defaultRollupConfig } from '../../defaultRollupConfig.js';
 import pkg from './package.json' with { type: 'json' };
 
 /**
- * Two entries. The base renderer carries no hydration code; `hydrate` is a secondary entry that
- * arms it. In DEV the hydrate build keeps `./renderer.js` external (one shared module, one
- * state); in PROD it is a standalone SUPERSET bundle — renderer + adoption minified in one terser
- * pass, so mangled internals agree by construction. A CDN SSR page points its importmap's
- * `@verajs/renderer` at the hydrate bundle; nothing else changes.
+ * Three entries. The base renderer carries no hydration and no profiling code; `hydrate` and
+ * `profiler` are secondary entries that add one each.
+ *
+ * Every entry is a standalone SUPERSET bundle in every mode — `external` is empty, so each one
+ * inlines its own copy of `./renderer.js`. That is what makes the mangled internals agree within a
+ * bundle, and it is also why **two entries must never be loaded side by side**: each copy has its
+ * own template cache, marker and root-part map, so the second would render into state the first
+ * cannot see. Substitute, do not add — a CDN page points its importmap's `@verajs/renderer` at
+ * whichever bundle it wants and nothing else changes.
+ *
+ * (An earlier version of this comment said the DEV hydrate build kept `./renderer.js` external.
+ * It never did — `dist/development/vera-renderer-hydrate.js` has no imports and declares its own
+ * `rootParts`. The substitute-don't-add rule was always the real constraint.)
  */
+/**
+ * The profiler is built for development and types only. Its instrumentation lives behind `__DEV__`,
+ * which the production build folds to `false` — so a production profiler bundle would collect
+ * nothing, from property-mangled output, at the cost of shipping a second renderer.
+ */
+const isProduction = process.env.MODE === 'prod';
+
 export default [
   defaultRollupConfig(pkg.filename, [], /^_[a-z]/),
   defaultRollupConfig(`${pkg.filename}-hydrate`, [], /^_[a-z]/, { input: 'src/hydrate.ts' }),
+  ...(isProduction
+    ? []
+    : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),
 ];
