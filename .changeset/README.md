@@ -3,9 +3,14 @@
 Independent versioning per package (the decision of record — `CLAUDE.md`). Day to day:
 
 1. `npx changeset` — describe what changed and pick bumps.
-2. Merge to master — the release workflow opens/updates a "Version Packages" PR.
-3. Merge that PR — packages publish to npm automatically, authenticated by npm Trusted
-   Publishing (OIDC). There is no `NPM_TOKEN`; nothing to rotate, leak or expire.
+2. `npx changeset version` — bump versions and write CHANGELOGs.
+3. Review the diff. This is the release gate.
+4. Commit and push to master.
 
-First-time publish can also be done locally: `npm run build && npx changeset publish` after
-`npm login` (publishes every public package whose version is not yet on npm).
+CI publishes everything on master that is not yet on npm, authenticated by npm Trusted Publishing
+(OIDC), and pushes a git tag per published version. There is no `NPM_TOKEN`; nothing to rotate,
+leak or expire. A push with no version change is a green no-op — `changeset publish` skips anything
+already published.
+
+There is deliberately no "Version Packages" PR: the version bump is reviewed locally instead, which
+keeps the release path free of both a repository-wide permission grant and a stored credential.

@@ -178,8 +178,11 @@ Every consumption mode gets a suite asserting the same API surface.
 ## Versioning
 
 **Independent per package** — `@verajs/autoloader` has no reason to bump because `@verajs/core` did.
-Changesets is set up (`.changeset/`, release workflow publishes on Version-PR merge, authenticated
-by npm **Trusted Publishing** (OIDC) — no `NPM_TOKEN` exists anywhere in the pipeline).
+Changesets is set up (`.changeset/`). Releases are cut locally — `npx changeset version`, review
+the diff, commit, push — and CI publishes whatever is not yet on npm, authenticated by npm
+**Trusted Publishing** (OIDC). No `NPM_TOKEN` exists anywhere in the pipeline, and there is
+deliberately no Version PR. The trust binding names `vera-js/vera` + `release.yml`, so **renaming
+that workflow file breaks publishing** for every package.
 `shared-types`/`shared-utils` are private — inlined everywhere, never published.
 
 ## Known gaps

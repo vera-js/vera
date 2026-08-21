@@ -3,14 +3,25 @@ on:
   push:
     branches: [master]
 concurrency: release-${{ github.ref }}
+
+# Releases are cut locally: `npx changeset version` bumps versions and writes
+# CHANGELOGs, you review the diff, commit and push. This workflow publishes
+# whatever is on master and not yet on npm. `changeset publish` skips anything
+# already published, so an ordinary push is a green no-op.
+#
+# Deliberately no Version PR. See internal/docs/RELEASE-DESIGN.md for the full
+# reasoning and for how to move to a PR-based flow if this repo ever gets more
+# than one maintainer.
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
+      # Push a git tag per published version. Declared here so the grant lives
+      # in the diff, not in an invisible repository setting.
       contents: write
-      pull-requests: write
-      # Trusted Publishing: npm verifies this workflow's OIDC identity. No NPM_TOKEN anywhere.
-      # The trust binding names vera-js/vera + release.yml, so this file's NAME is load-bearing.
+      # Trusted Publishing: npm verifies this workflow's OIDC identity.
+      # The trust binding names vera-js/vera + release.yml, so this file's
+      # NAME is load-bearing. Renaming it breaks publishing for all packages.
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -22,13 +33,21 @@ jobs:
       - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
-      - name: Version PR, or publish on merge
-        uses: changesets/action@v1
-        with:
-          publish: npx changeset publish
+
+      - name: Note any changesets awaiting a release
+        run: |
+          pending=$(ls .changeset/*.md 2>/dev/null | grep -cv 'README' || true)
+          if [ "${pending:-0}" -gt 0 ]; then
+            echo "::notice::${pending} changeset(s) on master have not been versioned. Nothing will publish until 'npx changeset version' is run and pushed."
+          fi
+
+      - name: Publish to npm
+        run: npx changeset publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Provenance is documented as automatic under OIDC but has been reported inconsistent.
-          # Asking explicitly is free; package.json repository.url must match this repo or the
-          # registry rejects the publish with 422.
+          # Provenance is documented as automatic under OIDC but has been
+          # reported inconsistent. Asking explicitly is free. package.json
+          # repository.url must match this repo or the registry returns 422.
           NPM_CONFIG_PROVENANCE: true
+
+      - name: Push release tags
+        run: git push --tags
