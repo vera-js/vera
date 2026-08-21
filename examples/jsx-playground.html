@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeraJS — React-style components, no build step</title>
+    <!--
+      The CodePen recipe. Serve this repo (`npx vite`) and open /examples/jsx-playground.html —
+      or on CodePen, swap the two local bundle URLs for the jsdelivr ones once published:
+
+        "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js"
+        "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js"
+
+      The in-browser transform is @verajs/jsx's own hand-rolled parser — a few KB, zero
+      dependencies. Real builds still prefer the Vite plugin (zero code shipped at all).
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js"
+        }
+      }
+    </script>
+    <script type="module" src="/packages/jsx/src/standalone.js"></script>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; }
+    </style>
+  </head>
+  <body>
+    <h1>React-style VeraJS — straight from a script tag</h1>
+    <todo-list autofill></todo-list>
+
+    <script type="text/vera-jsx">
+      import { init, createStore, render, setRenderer } from '@verajs/core';
+      import { render as domRender } from '@verajs/renderer';
+
+      setRenderer(domRender);
+
+      /** A render helper — a "function component" living inside templates. */
+      const Empty = ({ children }) => <p><em>{children}</em></p>;
+
+      class TodoList extends HTMLElement {
+        connectedCallback() {
+          init(this, { mode: 'open' });
+          const state = createStore({ draft: '', todos: [] });
+          if (this.hasAttribute('autofill')) state.todos.push({ id: 1, text: 'try the playground', done: true });
+
+          const add = () => {
+            if (!state.draft.trim()) return;
+            state.todos.push({ id: Date.now(), text: state.draft, done: false });
+            state.draft = '';
+          };
+
+          render(() => (
+            <section>
+              <input
+                value={state.draft}
+                placeholder="What needs doing?"
+                onInput={(e) => (state.draft = e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && add()}
+              />
+              <button onClick={add} disabled={state.draft.trim() === ''}>add</button>
+              {state.todos.length === 0 && <Empty>nothing yet — type above</Empty>}
+              <ul>
+                {state.todos.map((todo) => (
+                  <li key={todo.id} style={todo.done ? 'text-decoration: line-through' : ''}>
+                    <label>
+                      <input checked={todo.done} onChange={() => (todo.done = !todo.done)} type="checkbox" />
+                      {todo.text}
+                    </label>
+                    <button onClick={() => (state.todos = state.todos.filter((t) => t.id !== todo.id))}>x</button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ));
+        }
+      }
+      customElements.define('todo-list', TodoList);
+    </script>
+  </body>
+</html>

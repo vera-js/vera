@@ -1,0 +1,126 @@
+import { ComponentElement, ComponentHook, Hook, Signal } from '../types.js';
+import { hooksQueue, currentInstance } from '../store/store.js';
+import { prioritySlot } from '@verajs/shared-utils';
+import { ErrorInsert, inserts } from '@verajs/inserts';
+
+/**
+ * Hands a thrown hook error to the `'error'` insert chain, or reports it if nothing is registered.
+ *
+ * Core deliberately does not rethrow. Hooks on one element run in a single loop, so letting an
+ * error escape stopped every hook after the failing one — a single bad effect took out its
+ * siblings. Isolating here keeps the rest running while leaving the failure visible.
+ */
+export const reportHookError = (error: unknown, element?: ComponentElement) => {
+  const handlers = inserts.get('error');
+  if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)?.(error, element));
+  else console.error(error);
+};
+
+/**
+ * Wraps deferred work so it still runs inside the tracking context of the hook that scheduled it.
+ *
+ * Must be called **synchronously inside a hook callback**, where the hook's own entry is on top of
+ * `hooksQueue`. It captures that entry and re-pushes it around the deferred work.
+ *
+ * Without this, every hook that defers (`useRender` and `useEffect` via `requestAnimationFrame`,
+ * `useLayoutEffect` via a microtask) evaluates its body after the wrapper has already popped, so
+ * `addCallback` finds an empty queue and registers nothing. The consequence is that any property
+ * **first read during a re-render** is never tracked — which silently breaks conditional rendering:
+ * revealing a branch works once, and subsequent changes to state inside that branch do nothing.
+ *
+ * @param work Function to run later, inside the current hook's context
+ * @return A wrapped function safe to hand to rAF or a microtask
+ */
+export const deferInHookContext = <A extends unknown[]>(work: (...args: A) => void) => {
+  const entry = hooksQueue[hooksQueue.length - 1];
+  return (...args: A) => {
+    if (entry) hooksQueue.push(entry);
+    try {
+      work(...args);
+    } catch (error) {
+      /**
+       * Deferred work runs outside the hook loop, so it needs its own isolation. The element is
+       * dereferenced here rather than when the wrapper is built — this runs on every write, and a
+       * `WeakRef.deref()` on that path measured as a 31% write regression on its own.
+       */
+      reportHookError(error, entry?.element?.deref());
+    } finally {
+      if (entry) hooksQueue.pop();
+    }
+  };
+};
+
+/**
+ * Creates a hook that will trigger a callback whenever any state that is inside the hook changes.
+ * Each hook needs a callback and a priority level where lower runs earlier and higher runs later.
+ *
+ * @param hook
+ */
+export function createHook(hook: Hook) {
+  const { element, priority, callback } = hook;
+  const componentElement = element ? new WeakRef(element) : currentInstance.element;
+  const derefElement = componentElement?.deref();
+
+  if (!derefElement || !componentElement || !priority || !callback) {
+    /**
+     * Kept in production builds on purpose: the silent version of this was the framework's most
+     * confusing no-op. The usual cause is a hook registered after `render()` — hooks belong
+     * between `init()` and `render()`, or must be given their element explicitly.
+     */
+    console.warn('[vera] hook ignored — register between init() and render(), or pass the element');
+    return;
+  }
+
+  /**
+   * One entry per hook, reused for every invocation — load-bearing rather than a micro-opt.
+   *
+   * `addCallback` records whatever `WeakRef` is on the queue into the dependency `Set` for each
+   * property the hook reads. Building a **new** `WeakRef` per invocation meant those additions never
+   * deduped, and they were never collected either since their target stays alive. The set grew by
+   * one entry per hook run per tracked property, and every write walked all of it: 692 ns rising to
+   * 1.25 ms after 2 000 re-runs, a 1 810x degradation. Reusing one entry lets `Set.add` dedupe.
+   */
+  const queueEntry: ComponentHook = { callback: null, priority, element: componentElement };
+
+  /**
+   * Establishes the tracking context around every run of the hook — both the initial `runHooks`
+   * pass and every change-driven run from `runCallbacks`.
+   *
+   * @param signal Signal data passed to the hook, for optionally conditional effects
+   */
+  const hookCallback = <V>(signal?: Signal<V>, init?: boolean) => {
+    try {
+      hooksQueue.push(queueEntry);
+      callback!(signal, init);
+    } catch (error) {
+      /**
+       * Isolated rather than rethrown. `runHooks` and `runCallbacks` both iterate an element's hooks
+       * in one loop, so an escaping error skipped every hook after the failing one.
+       */
+      reportHookError(error, derefElement);
+    } finally {
+      /** Ensures hook is always popped, even if an error occurs in the callback */
+      hooksQueue.pop();
+    }
+  };
+
+  /**
+   * The entry references the **wrapper**, not the raw callback, and that is a correctness fix.
+   *
+   * `runCallbacks` derefs whatever this holds and invokes it directly. Pointing it at the raw
+   * callback meant change-driven runs skipped `hookCallback` entirely, so `hooksQueue` was never
+   * pushed and `addCallback` registered nothing — dependencies were only ever recorded during the
+   * initial `runHooks` pass. Anything first read on a later render stayed untracked forever, which
+   * silently froze conditional branches.
+   *
+   * Assigned after the fact because the wrapper and the entry reference each other. The wrapper is
+   * held strongly by the element's `_hooks`, so this WeakRef stays live exactly as long as the
+   * element does — a better lifetime than the raw callback, which a consumer might retain elsewhere.
+   */
+  queueEntry.callback = new WeakRef(hookCallback);
+
+  /** Dense and priority-sorted; `runHooks` walks this on every render. */
+  derefElement._hooks ??= [];
+  derefElement._hookPriorities ??= [];
+  prioritySlot(derefElement._hooks, derefElement._hookPriorities, priority, () => new Set()).add(hookCallback);
+}

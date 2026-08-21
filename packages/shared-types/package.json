@@ -1,0 +1,58 @@
+{
+  "name": "@verajs/shared-types",
+  "version": "0.1.0",
+  "description": "Shared types between a number of VeraJS packages.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vera-js/vera.git",
+    "directory": "packages/shared-types"
+  },
+  "author": "VeraJS",
+  "homepage": "https://verajs.dev",
+  "types": "./dist/development/vera-shared-types.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-shared-types.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:types"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-shared-types",
+  "keywords": [
+    "verajs",
+    "vera",
+    "types"
+  ],
+  "sideEffects": false,
+  "private": true
+}

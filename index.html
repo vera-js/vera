@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeraJS — examples</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 44rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        line-height: 1.55;
+      }
+      h1 {
+        margin-bottom: 0.25rem;
+      }
+      .sub {
+        opacity: 0.7;
+        margin-top: 0;
+      }
+      li {
+        margin-bottom: 1.25rem;
+      }
+      code {
+        background: rgba(128, 128, 128, 0.15);
+        padding: 0.1em 0.35em;
+        border-radius: 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>VeraJS</h1>
+    <p class="sub">One example per consumption mode.</p>
+
+    <ul>
+      <li>
+        <a href="/examples/npm-ts/"><strong>npm + TypeScript</strong></a><br />
+        Bare specifiers resolved by a bundler, as an installed consumer would. Served by this vite
+        dev server, with <code>@verajs/*</code> aliased to package sources.
+      </li>
+
+      <li>
+        <strong>Buildless (CDN / CodePen)</strong><br />
+        Importmap plus native ES modules, no toolchain. Deliberately <em>not</em> served from here —
+        vite would resolve the bare specifiers itself and bypass the importmap, so the example would
+        silently exercise sources instead of the built bundles.
+        <br />
+        Run it with its own plain static server:
+        <br />
+        <code>npm run build &amp;&amp; npm run dev:cdn</code>
+        →
+        <a href="http://localhost:5174/examples/cdn-js/">localhost:5174/examples/cdn-js/</a>
+      </li>
+
+      <li>
+        <strong>SSR</strong><br />
+        Server-side rendering through <code>wc-compiler</code>.
+        <br />
+        <code>npm run dev:ssr</code> → <a href="http://localhost:3000/">localhost:3000</a>
+      </li>
+    </ul>
+  </body>
+</html>

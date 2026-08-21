@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeraJS — buildless</title>
+
+    <!--
+      No build step. No bundler. No transpiler.
+
+      This importmap points at the bundles in this repo, which exist after `npm run build`.
+      To run the exact same source on CodePen, swap these for CDN URLs and change nothing else:
+
+        "@verajs/core":        "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js"
+        "@verajs/router":      "https://cdn.jsdelivr.net/npm/@verajs/router/dist/vera-router.min.js"
+        "@verajs/autoloader":  "https://cdn.jsdelivr.net/npm/@verajs/autoloader/dist/vera-autoloader.min.js"
+        "lit-html":            "https://cdn.jsdelivr.net/npm/lit-html@3.2.0/lit-html.js"
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/router": "/packages/router/dist/vera-router.min.js",
+          "@verajs/autoloader": "/packages/autoloader/dist/vera-autoloader.min.js",
+          "lit-html": "https://cdn.jsdelivr.net/npm/lit-html@3.2.0/lit-html.js"
+        }
+      }
+    </script>
+
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      nav a {
+        margin-right: 0.75rem;
+      }
+      [view='main'] {
+        min-height: 4rem;
+        padding: 0.75rem;
+        border: 1px dashed currentColor;
+        border-radius: 0.375rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>VeraJS — buildless</h1>
+    <p>
+      Everything on this page runs directly in the browser: native ES modules, an importmap, and
+      tagged template literals. Nothing was compiled. Compare with
+      <a href="/examples/npm-ts/">the npm + TypeScript example</a>.
+    </p>
+
+    <demo-app autoloader></demo-app>
+
+    <script type="module" src="./src/index.js"></script>
+  </body>
+</html>

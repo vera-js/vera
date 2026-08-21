@@ -1,0 +1,40 @@
+{
+  "name": "@verajs/jsx",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "JSX/TSX for VeraJS as a build plugin: compiles JSX into the renderer\u2019s tagged templates. Zero runtime cost, zero dependencies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vera-js/vera.git",
+    "directory": "packages/jsx"
+  },
+  "author": "VeraJS",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/types.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/types.d.ts",
+      "default": "./src/index.js"
+    },
+    "./standalone": "./src/standalone.js"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": [
+    "./src/standalone.js"
+  ],
+  "keywords": [
+    "verajs",
+    "vera",
+    "jsx",
+    "tsx",
+    "vite-plugin",
+    "buildless-optional"
+  ]
+}

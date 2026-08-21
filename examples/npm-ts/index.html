@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeraJS — npm + TypeScript</title>
+
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js"></script>
+    <link
+      rel="stylesheet"
+      media="(prefers-color-scheme:light)"
+      href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/themes/light.css" />
+    <link
+      rel="stylesheet"
+      media="(prefers-color-scheme:dark)"
+      href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/themes/dark.css"
+      onload="document.documentElement.classList.add('sl-theme-dark');" />
+  </head>
+  <body>
+    <h1>VeraJS — npm + TypeScript</h1>
+    <p>
+      Imports resolve through bare specifiers (<code>@verajs/core</code>), exactly as an installed
+      consumer would. Compare with <a href="/examples/cdn-js/">the buildless example</a>.
+    </p>
+
+    <main-element autoloader></main-element>
+    <base-element></base-element>
+    <jsx-demo></jsx-demo>
+
+    <!-- Single entry point; it imports the components it needs. -->
+    <script type="module" src="./src/index.ts"></script>
+  </body>
+</html>

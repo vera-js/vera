@@ -1,0 +1,26 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard - private material must never be committed here
+        run: |
+          leaked=$(git ls-files | grep -E '^(internal/|archive/|docs/(VIABILITY|TODO|PUBLISHING)\.md|docs/audits/)' || true)
+          if [ -n "$leaked" ]; then
+            echo "::error::Private paths committed to the public repo:"
+            echo "$leaked"
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-packages.mjs
+      - run: npm run build
+      - run: npm test

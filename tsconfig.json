@@ -1,0 +1,64 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "composite": true,
+    "inlineSources": true,
+    "jsx": "preserve",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "sourceMap": true,
+    "strict": true,
+    "stripInternal": true,
+    "target": "ES2022",
+    "paths": {
+      "@verajs/autoloader": [
+        "./packages/autoloader/src/index.ts"
+      ],
+      "@verajs/core": [
+        "./packages/core/src/index.ts"
+      ],
+      "@verajs/inserts": [
+        "./packages/inserts/src/index.ts"
+      ],
+      "@verajs/renderer": [
+        "./packages/renderer/src/index.ts"
+      ],
+      "@verajs/router": [
+        "./packages/router/src/index.ts"
+      ],
+      "@verajs/shared-types": [
+        "./packages/shared-types/src/index.ts"
+      ],
+      "@verajs/shared-utils": [
+        "./packages/shared-utils/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "./packages/**/*.ts",
+    "./examples/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "**/.wireit",
+    "archive",
+    "examples/ssr-node",
+    "packages/ssr"
+  ]
+}

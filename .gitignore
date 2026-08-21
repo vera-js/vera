@@ -1,0 +1,26 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependency directories
+**/node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.Environment
+
+# Operating system files
+.DS_Store
+Thumbs.debug
+
+# Wireit
+**/.wireit
+
+# Rollup
+**/.rollup.cache
+# Private notes portal (vera-js/internal) — never committed here
+/internal/

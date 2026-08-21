@@ -1,0 +1,33 @@
+{
+  "name": "@verajs/ssr",
+  "version": "0.1.0",
+  "description": "Vera-native server-side rendering. Node-only, plain ESM, zero dependencies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vera-js/vera.git",
+    "directory": "packages/ssr"
+  },
+  "author": "VeraJS",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./src/vera/index.js",
+  "exports": {
+    ".": "./src/vera/index.js",
+    "./vera": "./src/vera/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "keywords": [
+    "ssr",
+    "server side rendering",
+    "declarative shadow dom",
+    "vera",
+    "verajs",
+    "web components"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

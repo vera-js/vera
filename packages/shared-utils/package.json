@@ -1,0 +1,102 @@
+{
+  "name": "@verajs/shared-utils",
+  "version": "0.1.0",
+  "description": "Some utility functions shared between a number of VeraJS packages.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vera-js/vera.git",
+    "directory": "packages/shared-utils"
+  },
+  "author": "VeraJS",
+  "homepage": "https://verajs.dev",
+  "main": "./dist/vera-shared-utils.min.js",
+  "types": "./dist/development/vera-shared-utils.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-shared-utils.d.ts",
+      "development": "./dist/development/vera-shared-utils.js",
+      "default": "./dist/vera-shared-utils.min.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-shared-utils",
+  "keywords": [
+    "verajs",
+    "vera",
+    "utilities"
+  ],
+  "sideEffects": false,
+  "private": true
+}

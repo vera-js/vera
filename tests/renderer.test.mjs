@@ -1,0 +1,407 @@
+/**
+ * Correctness suite for @verajs/renderer.
+ *
+ * Tests the BUILT artifact (`dist/development`), not the source, so a build or bundling defect
+ * fails here too. Run with `npm test` (node --test + jsdom).
+ */
+import { test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+
+const dom = new JSDOM('<!doctype html><body></body>');
+globalThis.document = dom.window.document;
+globalThis.HTMLElement = dom.window.HTMLElement;
+globalThis.Node = dom.window.Node;
+
+const { render, keyed, hold } = await import('../packages/renderer/dist/development/vera-renderer.js');
+
+/** The shape core's built-in `html` tag produces. */
+const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
+const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });
+
+let el;
+beforeEach(() => {
+  el = document.createElement('div');
+  document.body.appendChild(el);
+});
+
+/** innerHTML with marker comments stripped, for readable assertions. */
+const read = (n = el) => n.innerHTML.replace(/<!--[^>]*-->/g, '');
+
+// ── text ────────────────────────────────────────────────────────────────────
+
+test('renders and updates text', () => {
+  render(html`<p>${'a'}</p>`, el);
+  assert.equal(read(), '<p>a</p>');
+  render(html`<p>${'b'}</p>`, el);
+  assert.equal(read(), '<p>b</p>');
+});
+
+test('numbers and zero render as text', () => {
+  render(html`<p>${0}</p>`, el);
+  assert.equal(read(), '<p>0</p>');
+  render(html`<p>${42}</p>`, el);
+  assert.equal(read(), '<p>42</p>');
+});
+
+test('null and undefined clear a child', () => {
+  render(html`<p>${'x'}</p>`, el);
+  render(html`<p>${null}</p>`, el);
+  assert.equal(read(), '<p></p>');
+  render(html`<p>${'y'}</p>`, el);
+  assert.equal(read(), '<p>y</p>');
+  render(html`<p>${undefined}</p>`, el);
+  assert.equal(read(), '<p></p>');
+});
+
+test('unchanged text does not touch the node', () => {
+  /** One template FUNCTION: identity is per call site, so re-render must reuse the instance. */
+  const t = (v) => html`<p>${v}</p>`;
+  render(t('same'), el);
+  const node = el.querySelector('p').firstChild.nextSibling; // after the marker comment
+  render(t('same'), el);
+  assert.ok(el.querySelector('p').firstChild.nextSibling === node);
+});
+
+test('multiple text parts in one element', () => {
+  render(html`<p>${'a'}-${'b'}</p>`, el);
+  assert.equal(read(), '<p>a-b</p>');
+  render(html`<p>${'c'}-${'d'}</p>`, el);
+  assert.equal(read(), '<p>c-d</p>');
+});
+
+// ── attributes ──────────────────────────────────────────────────────────────
+
+test('full-value attribute; null removes it', () => {
+  render(html`<p class="${'x'}"></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('class'), 'x');
+  render(html`<p class="${null}"></p>`, el);
+  assert.equal(el.querySelector('p').hasAttribute('class'), false);
+  render(html`<p class="${'y'}"></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('class'), 'y');
+});
+
+test('attribute with statics around one expression', () => {
+  render(html`<p class="a ${'m'} z"></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('class'), 'a m z');
+});
+
+test('attribute with multiple expressions', () => {
+  render(html`<p class="a ${1} b ${2} c"></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('class'), 'a 1 b 2 c');
+  render(html`<p class="a ${3} b ${4} c"></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('class'), 'a 3 b 4 c');
+});
+
+test('unquoted attribute binding', () => {
+  render(html`<p title=${'t'}></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('title'), 't');
+});
+
+test('entities in attribute statics are decoded', () => {
+  render(html`<p title="a&amp;b ${'c'}"></p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('title'), 'a&b c');
+});
+
+test('quoted static attributes with > inside do not break parsing', () => {
+  render(html`<p title="a>b">${'x'}</p>`, el);
+  assert.equal(el.querySelector('p').getAttribute('title'), 'a>b');
+  assert.equal(el.querySelector('p').textContent, 'x'); // the > did not truncate the tag
+});
+
+test('property binding sets and preserves case', () => {
+  const t = (v) => html`<p .somePropName=${v}></p>`;
+  render(t('v'), el);
+  assert.equal(el.querySelector('p').somePropName, 'v');
+  render(t(42), el);
+  assert.equal(el.querySelector('p').somePropName, 42);
+});
+
+test('boolean attribute toggles', () => {
+  render(html`<input ?disabled=${true} />`, el);
+  assert.equal(el.querySelector('input').hasAttribute('disabled'), true);
+  render(html`<input ?disabled=${false} />`, el);
+  assert.equal(el.querySelector('input').hasAttribute('disabled'), false);
+});
+
+test('event binding fires, swaps, and removes', () => {
+  const t = (fn) => html`<button @click=${fn}></button>`;
+  let a = 0;
+  let b = 0;
+  render(t(() => a++), el);
+  const btn = el.querySelector('button');
+  btn.dispatchEvent(new dom.window.Event('click'));
+  assert.equal(a, 1);
+  render(t(() => b++), el);
+  assert.ok(el.querySelector('button') === btn); // same element, handler swapped in place
+  btn.dispatchEvent(new dom.window.Event('click'));
+  assert.equal(a, 1);
+  assert.equal(b, 1);
+  render(t(null), el);
+  btn.dispatchEvent(new dom.window.Event('click'));
+  assert.equal(a, 1);
+  assert.equal(b, 1);
+});
+
+// ── structure ───────────────────────────────────────────────────────────────
+
+test('nested templates and branch switching', () => {
+  const t = (on) => html`<div>${on ? html`<b>${'yes'}</b>` : html`<i>${'no'}</i>`}</div>`;
+  render(t(true), el);
+  assert.equal(read(), '<div><b>yes</b></div>');
+  render(t(false), el);
+  assert.equal(read(), '<div><i>no</i></div>');
+  render(t(true), el);
+  assert.equal(read(), '<div><b>yes</b></div>');
+});
+
+test('root template switch', () => {
+  render(html`<p>${'a'}</p>`, el);
+  render(html`<section>${'b'}</section>`, el);
+  assert.equal(read(), '<section>b</section>');
+});
+
+test('table rows parse correctly', () => {
+  render(html`<table><tbody>${html`<tr><td>${'c'}</td></tr>`}</tbody></table>`, el);
+  assert.equal(read(), '<table><tbody><tr><td>c</td></tr></tbody></table>');
+});
+
+test('textarea (raw text) binding', () => {
+  render(html`<textarea>${'a'}</textarea>`, el);
+  assert.equal(el.querySelector('textarea').textContent, 'a');
+  render(html`<textarea>${'b'}</textarea>`, el);
+  assert.equal(el.querySelector('textarea').textContent, 'b');
+});
+
+test('svg renders in the SVG namespace', () => {
+  render(svg`<circle r=${5}></circle>`, el);
+  const c = el.querySelector('circle');
+  assert.equal(c.namespaceURI, 'http://www.w3.org/2000/svg');
+  assert.equal(c.getAttribute('r'), '5');
+});
+
+test('binding inside a comment is ignored but keeps later values aligned', () => {
+  render(html`<!--${'gone'}--><p>${'kept'}</p>`, el);
+  assert.equal(el.querySelector('p').textContent, 'kept');
+});
+
+test('element-position: refs fire, junk is ignored, alignment holds', () => {
+  let seen = null;
+  const box = { value: null };
+  render(html`<div ${(n) => (seen = n)} class="${'c'}"><input ${box} />${'t'}</div>`, el);
+  const d = el.querySelector('div');
+  assert.ok(seen === d); // callback ref got the element
+  assert.ok(box.value === el.querySelector('input')); // object ref got .value assigned
+  assert.equal(d.getAttribute('class'), 'c'); // later bindings still aligned
+  assert.equal(d.textContent, 't');
+  render(html`<div ${'junk'} class="${'c2'}">${'t2'}</div>`, el); // non-ref value: ignored, no throw
+  assert.equal(el.querySelector('div').getAttribute('class'), 'c2');
+});
+
+test('a ref runs once per distinct value, not once per render', () => {
+  let calls = 0;
+  const r = (n) => n && calls++;
+  const t = (v) => html`<p ${r}>${v}</p>`;
+  render(t('a'), el);
+  render(t('b'), el);
+  assert.equal(calls, 1);
+});
+
+test('two containers are independent', () => {
+  const el2 = document.createElement('div');
+  document.body.appendChild(el2);
+  render(html`<p>${'one'}</p>`, el);
+  render(html`<p>${'two'}</p>`, el2);
+  assert.equal(read(), '<p>one</p>');
+  assert.equal(read(el2), '<p>two</p>');
+});
+
+// ── lists ───────────────────────────────────────────────────────────────────
+
+const row = (r) => keyed(r.id, html`<li>${r.id}:${r.label}</li>`);
+const data = (...ids) => ids.map((id) => ({ id, label: 'L' + id }));
+/** One call site for the list wrapper too — identity is per call site. */
+const ul = (rows) => html`<ul>${rows}</ul>`;
+const items = () => [...el.querySelectorAll('li')];
+const texts = () => items().map((n) => n.textContent);
+const sameNodes = (actual, expected) => {
+  assert.equal(actual.length, expected.length);
+  for (let i = 0; i < actual.length; i++) assert.ok(actual[i] === expected[i], `node ${i} identity`);
+};
+
+test('unkeyed list grows and shrinks', () => {
+  const li = (n) => html`<li>${n}</li>`;
+  render(ul([1, 2].map(li)), el);
+  assert.deepEqual(texts(), ['1', '2']);
+  render(ul([1, 2, 3, 4].map(li)), el);
+  assert.deepEqual(texts(), ['1', '2', '3', '4']);
+  render(ul([9].map(li)), el);
+  assert.deepEqual(texts(), ['9']);
+});
+
+test('keyed swap moves nodes instead of rewriting them', () => {
+  render(ul(data(1, 2, 3, 4).map(row)), el);
+  const [a, b, c, d] = items();
+  render(ul(data(1, 3, 2, 4).map(row)), el);
+  assert.deepEqual(texts(), ['1:L1', '3:L3', '2:L2', '4:L4']);
+  sameNodes(items(), [a, c, b, d]); // the SAME nodes, reordered
+});
+
+test('keyed reverse preserves node identity', () => {
+  render(ul(data(1, 2, 3, 4, 5).map(row)), el);
+  const before = items();
+  render(ul(data(5, 4, 3, 2, 1).map(row)), el);
+  sameNodes(items(), before.slice().reverse());
+});
+
+test('keyed remove from the middle', () => {
+  render(ul(data(1, 2, 3, 4, 5).map(row)), el);
+  render(ul(data(1, 2, 4, 5).map(row)), el);
+  assert.deepEqual(texts(), ['1:L1', '2:L2', '4:L4', '5:L5']);
+});
+
+test('keyed insert into the middle', () => {
+  render(ul(data(1, 2, 4, 5).map(row)), el);
+  const before = items();
+  render(ul(data(1, 2, 3, 4, 5).map(row)), el);
+  assert.deepEqual(texts(), ['1:L1', '2:L2', '3:L3', '4:L4', '5:L5']);
+  assert.ok(items()[0] === before[0]);
+  assert.ok(items()[4] === before[3]);
+});
+
+test('keyed update in place', () => {
+  render(ul(data(1, 2, 3).map(row)), el);
+  const before = items();
+  render(ul([{ id: 1, label: 'L1' }, { id: 2, label: 'CHANGED' }, { id: 3, label: 'L3' }].map(row)), el);
+  assert.deepEqual(texts(), ['1:L1', '2:CHANGED', '3:L3']);
+  sameNodes(items(), before);
+});
+
+test('keyed clear and refill', () => {
+  render(ul(data(1, 2, 3).map(row)), el);
+  render(ul([]), el);
+  assert.deepEqual(texts(), []);
+  render(ul(data(7, 8).map(row)), el);
+  assert.deepEqual(texts(), ['7:L7', '8:L8']);
+});
+
+test('keyed arbitrary shuffle', () => {
+  render(ul(data(1, 2, 3, 4, 5, 6).map(row)), el);
+  const before = items();
+  render(ul(data(4, 6, 1, 5, 3).map(row)), el);
+  assert.deepEqual(texts(), ['4:L4', '6:L6', '1:L1', '5:L5', '3:L3']);
+  sameNodes(items(), [before[3], before[5], before[0], before[4], before[2]]);
+  render(ul(data(3, 1, 2).map(row)), el);
+  assert.deepEqual(texts(), ['3:L3', '1:L1', '2:L2']);
+});
+
+test('list of primitives', () => {
+  const t = (v) => html`<p>${v}</p>`;
+  render(t(['a', 'b', 'c']), el);
+  assert.equal(el.querySelector('p').textContent, 'abc');
+  render(t(['x', 'y']), el);
+  assert.equal(el.querySelector('p').textContent, 'xy');
+});
+
+test('list next to static siblings stays inside its range', () => {
+  const t = (rows) => html`<ul><li>first</li>${rows}<li>last</li></ul>`;
+  render(t(data(1, 2).map(row)), el);
+  assert.deepEqual(texts(), ['first', '1:L1', '2:L2', 'last']);
+  render(t([]), el);
+  assert.deepEqual(texts(), ['first', 'last']);
+  render(t(data(9).map(row)), el);
+  assert.deepEqual(texts(), ['first', '9:L9', 'last']);
+});
+
+test('list switching to a template and back', () => {
+  const t = (v) => html`<div>${v}</div>`;
+  render(t(data(1, 2).map(row)), el);
+  assert.equal(el.querySelectorAll('li').length, 2);
+  render(t(html`<b>solo</b>`), el);
+  assert.equal(read(), '<div><b>solo</b></div>');
+  render(t(data(3).map(row)), el);
+  assert.deepEqual(texts(), ['3:L3']);
+});
+
+// ── the paths the optimizations made riskiest ───────────────────────────────
+
+test('keyed item that changes template shape under the same key (element-mode demote)', () => {
+  const rowA = (r) => keyed(r.id, html`<li>A:${r.label}</li>`);
+  const rowB = (r) => keyed(r.id, html`<li class="b">B:${r.label}</li>`);
+  render(ul(data(1, 2, 3).map(rowA)), el);
+  assert.deepEqual(texts(), ['A:L1', 'A:L2', 'A:L3']);
+  // same keys, two items switch to a different template shape
+  render(ul([rowB({ id: 1, label: 'L1' }), rowA({ id: 2, label: 'L2' }), rowB({ id: 3, label: 'L3' })]), el);
+  assert.deepEqual(texts(), ['B:L1', 'A:L2', 'B:L3']);
+  assert.equal(items()[0].getAttribute('class'), 'b');
+  // and back again, plus a reorder in the same pass
+  render(ul([rowA({ id: 3, label: 'L3' }), rowA({ id: 1, label: 'L1' })]), el);
+  assert.deepEqual(texts(), ['A:L3', 'A:L1']);
+});
+
+test('multi-root keyed items reconcile and move correctly (markered path)', () => {
+  const pair = (r) => keyed(r.id, html`<li>${r.id}a</li><li>${r.id}b</li>`);
+  render(ul(data(1, 2, 3).map(pair)), el);
+  assert.deepEqual(texts(), ['1a', '1b', '2a', '2b', '3a', '3b']);
+  render(ul(data(3, 1).map(pair)), el);
+  assert.deepEqual(texts(), ['3a', '3b', '1a', '1b']);
+  render(ul(data(2, 3, 1).map(pair)), el);
+  assert.deepEqual(texts(), ['2a', '2b', '3a', '3b', '1a', '1b']);
+});
+
+test('mixed single-root and multi-root keyed items', () => {
+  const one = (r) => keyed(r.id, html`<li>${r.id}solo</li>`);
+  const two = (r) => keyed(r.id, html`<li>${r.id}a</li><li>${r.id}b</li>`);
+  render(ul([one({ id: 1 }), two({ id: 2 }), one({ id: 3 })]), el);
+  assert.deepEqual(texts(), ['1solo', '2a', '2b', '3solo']);
+  render(ul([one({ id: 3 }), two({ id: 2 }), one({ id: 1 })]), el);
+  assert.deepEqual(texts(), ['3solo', '2a', '2b', '1solo']);
+});
+
+// ── hold(): cache-style DOM preservation ────────────────────────────────────
+
+test('hold() preserves DOM and element state across a toggle', () => {
+  const editor = () => html`<input class="ed" />`;
+  const viewer = (v) => html`<p>view:${v}</p>`;
+  const t = (mode, v) => html`<div>${hold(mode ? editor() : viewer(v))}</div>`;
+
+  render(t(true), el);
+  const input = el.querySelector('input');
+  input.value = 'typed by the user'; // element state, not framework state
+
+  render(t(false, 1), el);
+  assert.equal(el.querySelector('input'), null);
+  assert.equal(el.querySelector('p').textContent, 'view:1');
+
+  render(t(true), el);
+  assert.ok(el.querySelector('input') === input); // the SAME element came back
+  assert.equal(el.querySelector('input').value, 'typed by the user');
+
+  render(t(false, 2), el); // and the held branch still takes fresh values
+  assert.equal(el.querySelector('p').textContent, 'view:2');
+});
+
+test('hold() updates values in place when the template does not change', () => {
+  const t = (v) => html`<div>${hold(html`<b>${v}</b>`)}</div>`;
+  render(t('x'), el);
+  const b = el.querySelector('b');
+  render(t('y'), el);
+  assert.ok(el.querySelector('b') === b);
+  assert.equal(b.textContent, 'y');
+});
+
+// ── React-shaped event bindings: onClick ≡ @click, buildless ───────────────────────────────────
+test('onClick-style bindings attach listeners; onclick stays an attribute', () => {
+  let clicks = 0;
+  render(html`<button onClick=${() => clicks++} onDblClick=${() => clicks++}>go</button>`, el);
+  const button = el.querySelector('button');
+  button.dispatchEvent(new dom.window.Event('click'));
+  button.dispatchEvent(new dom.window.Event('dblclick'));
+  assert.equal(clicks, 2, 'onClick and onDblClick both fire');
+  assert.equal(button.hasAttribute('onClick'), false, 'no attribute residue');
+
+  const el2 = document.createElement('div');
+  render(html`<i onclick=${'alert(1)'}></i>`, el2);
+  assert.equal(el2.querySelector('i').getAttribute('onclick'), 'alert(1)',
+    'all-lowercase onclick remains a plain attribute (inline-handler HTML)');
+});

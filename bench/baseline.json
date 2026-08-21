@@ -1,0 +1,20 @@
+{
+  "N": 200000,
+  "W": 20000,
+  "sink": 9600000,
+  "metrics": {
+    "plain object, flat": 0.3310999999999922,
+    "plain object, 2 hops": 0.32850000000001955,
+    "store untracked, flat": 43.213100000000054,
+    "store untracked, 2 hops": 137.9137999999998,
+    "store TRACKED, flat": 36.3746000000001,
+    "store TRACKED, 2 hops": 123.88560000000007,
+    "tracked + insert, flat": 41.94430000000011,
+    "tracked + insert, 2 hops": 140.17970000000014,
+    "writes + propagation": 18.110200000000077
+  },
+  "identity": {
+    "nested === nested": true,
+    "deep === deep": true
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "@verajs/internal",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.15.0",
+    "npm": ">=7.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "wireit",
+    "dev:cdn": "wireit",
+    "dev:ssr": "wireit",
+    "build": "wireit",
+    "preview": "wireit",
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "check": "node scripts/sync-packages.mjs",
+    "release": "npm run build && changeset publish"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "./packages/autoloader:build",
+        "./packages/core:build",
+        "./packages/inserts:build",
+        "./packages/renderer:build",
+        "./packages/router:build",
+        "./packages/shared-types:build",
+        "./packages/shared-utils:build"
+      ]
+    },
+    "dev": {
+      "command": "vite --strictPort"
+    },
+    "preview": {
+      "command": "vite preview"
+    },
+    "dev:cdn": {
+      "command": "node examples/cdn-js/serve.js",
+      "dependencies": [
+        "build"
+      ],
+      "service": true
+    },
+    "dev:ssr": {
+      "command": "node examples/ssr-node/server.js",
+      "dependencies": [
+        "build"
+      ],
+      "service": true
+    }
+  },
+  "dependencies": {
+    "@lit-labs/ssr-client": "^1.1.7",
+    "lit-html": "^3.2.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.1",
+    "@eslint/js": "^9.39.5",
+    "@lit-labs/ssr": "^3.2.2",
+    "@preact/signals-core": "^1.14.4",
+    "@rollup/plugin-terser": "^1.0.0",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "alpinejs": "^3.16.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "globals": "^17.11.0",
+    "jsdom": "^25.0.1",
+    "lit": "^3.3.3",
+    "petite-vue": "^0.4.1",
+    "preact": "^10.29.8",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "rollup": "^4.62.4",
+    "rollup-plugin-dts": "^6.5.1",
+    "solid-js": "^1.9.15",
+    "tslib": "^2.8.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vanjs-core": "^1.6.1",
+    "vite": "^8.2.2",
+    "vue": "^3.5.41",
+    "wireit": "^0.14.13"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
+}
