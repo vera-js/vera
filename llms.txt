@@ -18,8 +18,17 @@ it correctly. Everything else is standard Custom Elements and lit-html, which mo
 >   confirmed fastest of 7 implementations on create-10k/append/select/swap; prefer it over lit-html.
 > - Render scheduling defaults to `requestAnimationFrame` — settled: the browser benchmarks were
 >   won on that default. `setRenderScheduler(microtask)` remains for apps that want Lit/Vue timing.
-> - Nothing is published to npm yet; install paths below are aspirational.
-> - No tests, no CI. Treat behaviour claims here as documented intent, not verified guarantees.
+> - Published to npm as of 2026-08-21. `@verajs/core`, `renderer`, `router`, `autoloader`,
+>   `inserts`, `jsx` and `ssr` are live; every release from 0.1.1 carries a GitHub Actions
+>   provenance attestation (`npm audit signatures`).
+> - Tests: ~55 checks under `node --test` + jsdom against BUILT artifacts, green in CI. A real
+>   browser layer is chosen but not yet installed, so shadow DOM, upgrade timing and
+>   `adoptedStyleSheets` behaviour is asserted under emulation only.
+> - **Known renderer defect (open).** Sibling child-expressions in one parent that each toggle
+>   between a template and `''` can corrupt the render and throw
+>   `Cannot read properties of null (reading 'nextSibling')` from `ChildPart._clear`. Prefer a
+>   stable template shape — see "Stable shapes" under the renderer below. This is a correctness
+>   bug, not a security issue.
 
 ---
 
@@ -229,6 +238,26 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
 - Bindings inside comments and dynamic tag names are not supported (values consumed, ignored).
+- **Stable shapes beat conditional swaps.** Rendering the same element every pass and toggling
+  `hidden` is faster than swapping one subtree for another — template identity holds and the
+  clear/insert path never runs. It is also currently required for correctness: several sibling
+  parts in one parent that each flip between a template and `''` can trip an open defect in
+  `ChildPart._clear` and throw mid-render.
+
+  ```js
+  // fragile — two sibling parts, both swapping between a template and ''
+  html`<section>
+    ${items.length === 0 ? html`<p>empty</p>` : html`<ul>${rows}</ul>`}
+    ${busy ? html`<p>loading</p>` : ''}
+  </section>`
+
+  // preferred — one shape, visibility toggled
+  html`<section>
+    <p ?hidden=${items.length > 0}>empty</p>
+    <ul ?hidden=${items.length === 0}>${rows}</ul>
+    <p ?hidden=${!busy}>loading</p>
+  </section>`
+  ```
 - Hydration is a drop-in entry: SSR apps `import { render } from '@verajs/renderer/hydrate'`
   (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) and the
   first render ADOPTS server-rendered children — markerless (no framework comments in server
@@ -348,18 +377,90 @@ the price of the modules being genuinely independent of core.
 
 ---
 
+## Buildless JSX — the whole recipe
+
+For CodePen, a demo or a single-file app. Copy this shape; it works with no toolchain at all.
+
+```html
+<!-- BOTH specifiers are required: the transform auto-injects `html` from @verajs/core and
+     `keyed` from @verajs/renderer, so a missing renderer entry fails at import time. -->
+<script type="importmap">
+{ "imports": {
+    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.1.1/dist/vera.min.js",
+    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer.min.js"
+} }
+</script>
+
+<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.1.1/src/standalone.js"></script>
+
+<my-app></my-app>
+
+<script type="text/vera-jsx">
+  import { init, createStore, render, setRenderer } from '@verajs/core';
+  import { render as domRender, keyed } from '@verajs/renderer';
+  setRenderer(domRender);
+
+  const state = createStore({ n: 0 });
+
+  /* Function components are TEMPLATE FACTORIES, not custom elements.
+     <Row a={x}>kid</Row> compiles to Row({ a: x, children: ["kid"] }). */
+  const Row = ({ label, onPick }) => <li onClick={onPick}>{label}</li>;
+
+  class MyApp extends HTMLElement {
+    connectedCallback() {
+      init(this);                       // light DOM; init(this, { mode: 'open' }) for shadow
+      render(() => (
+        <ul>
+          {[1, 2, 3].map((i) => keyed(i, <Row label={`row ${i}`} onPick={() => state.n = i} />))}
+        </ul>
+      ));
+    }
+  }
+  customElements.define('my-app', MyApp);
+</script>
+```
+
+**Why it works.** `standalone.js` finds every `script[type="text/vera-jsx"]` on `DOMContentLoaded`,
+runs the same zero-dependency transform the Vite plugin uses, and imports the result as a module
+blob. Bare specifiers inside resolve through the page's import map.
+
+**Rules that trip up generators, in order of how often they bite:**
+
+1. **Both import-map entries.** `@verajs/core` alone is not enough — any `key={}` emits `keyed()`
+   from `@verajs/renderer`.
+2. **One block is one module.** Static imports hoist, so `setRenderer(domRender)` at the top of the
+   block runs before any `customElements.define` below it. The "define before setRenderer" hazard
+   only applies across separate files.
+3. **Function components are not elements.** They compile to plain calls returning templates.
+   Children arrive as `props.children`, an **array**. No hooks-in-function-components; state lives
+   in a store and reactivity comes from the `render()` call in the custom element.
+4. **`style` must be a string.** `style={{color:'red'}}` is a compile error; use
+   `` style={`color:${c}`} ``.
+5. **No `{...spread}` on an element.** Allowed on components only.
+6. **JS + JSX only.** Nothing strips TypeScript types in the browser; TSX needs the build path.
+7. **Prefer stable shapes over conditional swaps** — see the renderer section. Toggling `hidden`
+   avoids both the clear/insert churn and an open defect in `ChildPart._clear`.
+8. **Reach for `hidden={…}`, not `?hidden=${…}`, inside JSX.** Boolean attributes bound in JSX
+   compile to the `?attr` form for you.
+
+**Testing one of these without a browser:** import `transformJsx` from `@verajs/jsx`, compile the
+block, and run it under jsdom with `pretendToBeVisual: true` (the default render scheduler is
+`requestAnimationFrame`, so tests must await a frame). If the app uses `Math.random`, seed it —
+DOM-shape-dependent bugs are otherwise intermittent and will waste your time.
+
+---
+
 ## Not supported
 
 Say so rather than inventing an API:
 
-- **JSX/TSX is an opt-in BUILD plugin, never a requirement**: `@verajs/jsx` compiles JSX into
-  the same tagged templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`,
-  `key`→`keyed()`, components become function calls, `{...spread}` on elements is a compile
-  error). Zero runtime cost; buildless stays the baseline — and `onClick=${fn}` works in raw
-  templates too. For playgrounds (CodePen, demos): `@verajs/jsx/standalone` transforms
-  `<script type="text/vera-jsx">` blocks in the browser — zero dependencies, a few KB (its own
-  parser; no TS/Babel). JS+JSX only there (TSX types need the build path). JSX styles the templates only: components remain platform classes (no hooks-in-
-  function-components). No decorators ever (cannot run without a build step).
+- **JSX/TSX is opt-in, never a requirement.** `@verajs/jsx` compiles JSX into the same tagged
+  templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`, `key`→`keyed()`,
+  components become function calls, `{...spread}` on elements is a compile error). Zero runtime
+  cost via the Vite plugin; buildless stays the baseline, and `onClick=${fn}` works in raw
+  templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
+  the templates only: components remain platform classes, so there are no hooks in function
+  components. No decorators ever (they cannot run without a build step).
 - **No `computed`.** It is a ten-line `'proxy-handler'` insert — the worked example is
   `examples/cdn-js/src/inserts/computed.js` — or compute inline.
 - **No Suspense, concurrent rendering, server components, or devtools.**

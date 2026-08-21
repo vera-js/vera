@@ -7,7 +7,16 @@ code, so they are not re-litigated.
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
 - **AI-facing API spec:** `llms.txt` at the root (convention puts it there, like `robots.txt`).
   Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source
-  of truth. Update it in the same pass as any API change.
+  of truth. Update it in the same pass as any API change. It carries the complete **buildless JSX
+  recipe** (import map + `@verajs/jsx/standalone`), which is the fastest path to a working
+  single-file demo.
+- **Writing templates:** prefer a stable shape with `?hidden=${…}` over swapping subtrees
+  conditionally. It preserves template identity, skips the clear/insert path, and avoids an open
+  defect in `ChildPart._clear` — `internal/docs/TODO.md` and `internal/repros/childpart-clear/`.
+- **Testing a component without a browser:** compile with `transformJsx`, run under jsdom with
+  `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
+  `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
+  and bisecting them produces contradictory results.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 
