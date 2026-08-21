@@ -24,6 +24,26 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
 
   const file = fileName + (isProduction ? '.min.js' : isTypes ? '.d.ts' : '.js');
 
+  /**
+   * `__DEV__` is folded to a literal before terser runs, so development-only code — the profiler
+   * instrumentation among it — costs production zero bytes. Terser's `dead_code` then deletes
+   * `if (false) { … }` outright. A tiny plugin rather than @rollup/plugin-replace: the repo ships
+   * no runtime dependencies and there is no reason for the build to grow one for six lines.
+   *
+   * Guard development-only work as `if (__DEV__) { … }` at statement level. That is the shape
+   * terser eliminates cleanly; a `__DEV__ &&` expression inside a hot path survives as a
+   * conditional in the AST until terser folds it, which it does, but the statement form is the one
+   * to reach for so the intent reads.
+   */
+  const defineDev = () => {
+    return {
+      name: 'define-dev',
+      renderChunk(code) {
+        return { code: code.replace(/\b__DEV__\b/g, isProduction ? 'false' : 'true'), map: null };
+      },
+    };
+  };
+
   const removeEslintComments = () => {
     return {
       name: 'remove-eslint-comments',
@@ -61,6 +81,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
     },
     external: !isProduction ? dependencies ?? [] : [],
     plugins: [
+      defineDev(),
       typescript({
         outDir: isProduction ? 'dist/' : 'dist/development/',
         compilerOptions: {

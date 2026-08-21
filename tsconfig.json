@@ -49,6 +49,9 @@
       ]
     }
   },
+  // Inherited by every package tsconfig, which override `include` but not `files`. Declares the
+  // `__DEV__` build constant so development-only code type-checks in each package.
+  "files": ["./globals.d.ts"],
   "include": [
     "./packages/**/*.ts",
     "./examples/**/*"
