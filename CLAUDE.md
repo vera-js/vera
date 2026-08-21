@@ -178,11 +178,24 @@ Every consumption mode gets a suite asserting the same API surface.
 ## Versioning
 
 **Independent per package** — `@verajs/autoloader` has no reason to bump because `@verajs/core` did.
-Changesets is set up (`.changeset/`). Releases are cut locally — `npx changeset version`, review
-the diff, commit, push — and CI publishes whatever is not yet on npm, authenticated by npm
-**Trusted Publishing** (OIDC). No `NPM_TOKEN` exists anywhere in the pipeline, and there is
-deliberately no Version PR. The trust binding names `vera-js/vera` + `release.yml`, so **renaming
-that workflow file breaks publishing** for every package.
+Changesets is set up (`.changeset/`). Full process in **`docs/RELEASING.md`** — read it before
+touching versions, `.changeset/`, or `release.yml`. The loop:
+
+```sh
+npx changeset version && node scripts/tag-release.mjs && git push --follow-tags
+```
+
+CI publishes whatever master has that npm does not, authenticated by npm **Trusted Publishing**
+(OIDC). Three invariants that silently break publishing if violated:
+
+- **`release.yml` must keep its name** — the trust binding on all seven packages names
+  `vera-js/vera` + `release.yml`.
+- **`repository.url` must stay `git+https://github.com/vera-js/vera.git`** — the registry compares
+  it against provenance and rejects a mismatch with 422.
+- **Never add an `NPM_TOKEN`.** No secret exists in the release path; failures are fixed in the
+  trust configuration, not with a credential.
+
+There is deliberately no Version PR (reasoning: `internal/docs/RELEASE-DESIGN.md`).
 `shared-types`/`shared-utils` are private — inlined everywhere, never published.
 
 ## Known gaps

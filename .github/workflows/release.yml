@@ -16,9 +16,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      # Push a git tag per published version. Declared here so the grant lives
-      # in the diff, not in an invisible repository setting.
-      contents: write
+      # Read-only on the repo. Tags are created locally when the release is cut
+      # (scripts/tag-release.mjs), so this workflow never needs write access.
+      contents: read
       # Trusted Publishing: npm verifies this workflow's OIDC identity.
       # The trust binding names vera-js/vera + release.yml, so this file's
       # NAME is load-bearing. Renaming it breaks publishing for all packages.
@@ -48,6 +48,3 @@ jobs:
           # reported inconsistent. Asking explicitly is free. package.json
           # repository.url must match this repo or the registry returns 422.
           NPM_CONFIG_PROVENANCE: true
-
-      - name: Push release tags
-        run: git push --tags

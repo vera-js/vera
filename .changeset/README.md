@@ -14,3 +14,5 @@ already published.
 
 There is deliberately no "Version Packages" PR: the version bump is reviewed locally instead, which
 keeps the release path free of both a repository-wide permission grant and a stored credential.
+
+Full process, invariants and troubleshooting: [`docs/RELEASING.md`](../docs/RELEASING.md).

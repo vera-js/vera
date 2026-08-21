@@ -176,6 +176,7 @@ dist/<name>.min.js              minified, fully standalone           (CDN, <scri
 - [`CLAUDE.md`](CLAUDE.md) — project parameters and conventions
 - [`docs/CODE-PRINCIPLES.md`](docs/CODE-PRINCIPLES.md) — the bar every change must clear
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the render pipeline and insert system
+- [`docs/RELEASING.md`](docs/RELEASING.md) — how a change becomes a published version
 - [`packages/ssr/README.md`](packages/ssr/README.md) — the three SSR strategies
 
 ## License

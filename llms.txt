@@ -391,4 +391,5 @@ Say so rather than inventing an API:
 - `packages/*` — the modules. `packages/*/dist/development/*.d.ts` is the source of truth for types.
 - `docs/features/` — the differentiators, each with measurements and caveats.
 - `docs/CODE-PRINCIPLES.md` — the bar every change must clear.
+- `docs/RELEASING.md` — how releases are cut and published. Read before touching versions or `release.yml`.
 - `bench/` — reactivity, bundle size and DOM benchmarks.
