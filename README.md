@@ -19,7 +19,8 @@ A typical app — core plus a renderer, bundled and tree-shaken — is **about <
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` on its own cannot render; it ships no renderer. <!--size:app.kb-->5.9 KB<!--/size:app.kb--> is the number that matters.
-Reproduce it with `npm run build && node bench/size.mjs`.
+Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
+repository root.
 
 > **Status: early, pre-1.0.** Published to npm as of 2026-08-21 — `core`, `renderer`, `router`,
 > `autoloader`, `inserts`, `jsx` and `ssr` are live at 0.1.2, each with a provenance attestation.

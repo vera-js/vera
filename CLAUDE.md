@@ -162,6 +162,9 @@ packages/          published framework modules; each independent
 examples/          hand-run playgrounds, one per consumption mode
 tests/             self-running; never requires a human to look at a page
 bench/             performance harness; `--compare` gives before/after numbers
+                   NOT a workspace member — it has its own package.json holding the ten
+                   competing frameworks, so a root `npm ci` installs none of them.
+                   `cd bench && npm install` before running any comparative benchmark.
 docs/              principles, architecture, feature claims  (public)
 internal/          private portal — strategy, todos, audits, archive. Gitignored here.
 ```

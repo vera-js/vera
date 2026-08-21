@@ -1,5 +1,18 @@
 # Benchmarks
 
+## Install first
+
+The competing frameworks live here, not in the root `package.json`, so a root `npm ci` does not
+pull ten frameworks in for contributors or for CI:
+
+```bash
+cd bench && npm install
+```
+
+`bench/` is deliberately **not** a workspace member. Run the harnesses from the repository root as
+shown below — they resolve `@verajs/*` from the built `dist`, and the competitors from
+`bench/node_modules`.
+
 Three harnesses:
 
 | | What it measures |
@@ -32,8 +45,15 @@ walked on every read, so how they are stored shows up in that row and nowhere el
 ## Size
 
 ```bash
+cd bench && npm install && cd ..     # once
 npm run build && node bench/size.mjs
+node bench/size.mjs --snapshot       # refresh bench/size-snapshot.json, which the docs generate from
 ```
+
+`size-snapshot.json` is committed so `scripts/sync-size-claims.mjs` can regenerate the published
+comparative table without the ten frameworks installed. CI cannot rebuild it, but it does check that
+the snapshot still describes the current `dist` — so a build that moves bytes fails until the
+snapshot is refreshed.
 
 Bundles a minimal but **working** reactive counter per framework with esbuild (minified,
 `NODE_ENV=production`, tree-shaken) and gzips it. Gzipping a raw `dist` file instead would ignore

@@ -1,0 +1,24 @@
+{
+  "name": "@verajs/bench",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Competing frameworks, installed only when a benchmark is actually run. Deliberately NOT a workspace member: a root `npm ci` must not pull ten frameworks in for contributors or CI.",
+  "type": "module",
+  "scripts": {
+    "size": "cd .. && node bench/size.mjs",
+    "size:snapshot": "cd .. && node bench/size.mjs --snapshot",
+    "dom": "cd .. && node bench/dom/build.mjs"
+  },
+  "devDependencies": {
+    "@preact/signals-core": "^1.14.4",
+    "alpinejs": "^3.16.2",
+    "lit": "^3.3.3",
+    "petite-vue": "^0.4.1",
+    "preact": "^10.29.8",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "solid-js": "^1.9.15",
+    "vanjs-core": "^1.6.1",
+    "vue": "^3.5.41"
+  }
+}

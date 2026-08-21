@@ -81,13 +81,14 @@ You only ship what you use — the modules are independent. See [module-system.m
 ## Reproduce
 
 ```bash
+cd bench && npm install && cd ..     # the competing frameworks, installed on demand
 npm run build && node bench/size.mjs
 ```
 
 The claims on this page are generated. After a build that moves bytes:
 
 ```bash
-node bench/size.mjs --snapshot        # refresh the cross-framework table
+node bench/size.mjs --snapshot        # refresh the cross-framework table (needs bench/ installed)
 node scripts/sync-size-claims.mjs     # rewrite every claim from the measurements
 ```
 
