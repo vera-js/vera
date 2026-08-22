@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-A keyed, template-identity renderer (<!--size:renderer.gzip-->3.53 KB<!--/size:renderer.gzip--> gzip): tagged templates, `.prop`/`?bool`/`@event`
+A keyed, template-identity renderer (<!--size:renderer.gzip-->3.54 KB<!--/size:renderer.gzip--> gzip): tagged templates, `.prop`/`?bool`/`@event`
 and React-style `onClick` bindings, element refs, `keyed()` lists, `hold()` DOM preservation.
 `@verajs/renderer/hydrate` is a drop-in superset whose first render ADOPTS server-rendered DOM —
 markerless hydration (no framework comments in server HTML). SSR apps import from `/hydrate`;

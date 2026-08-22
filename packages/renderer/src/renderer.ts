@@ -684,14 +684,24 @@ class ChildPart implements Part {
 
   _clear() {
     const parent = this._start.parentNode!;
+    const end = this._end;
     /**
      * When this part owns its parent's entire contents, one `textContent = ''` replaces removing
      * every node individually. For a 1 000-row table body that is the difference between ~22 ms
      * (lit-html's per-node teardown) and ~5 ms.
+     *
+     * A part owns the whole parent when nothing precedes its start AND nothing follows its end —
+     * `_end === null` (a root part, which runs to the end by definition) or `_end` is the last
+     * child. The second case is the common one and used to miss this path entirely: every list
+     * written as `<tbody>${rows}</tbody>` sits inside a template, and since 0.1.2 a nested part
+     * always owns an end marker, so `_end === null` alone never held for it.
+     *
+     * Re-appending both anchors in order restores the part's boundary exactly as it was.
      */
-    if (this._start.previousSibling === null && this._end === null) {
+    if (this._start.previousSibling === null && (end === null || end.nextSibling === null)) {
       parent.textContent = '';
       parent.appendChild(this._start);
+      if (end !== null) parent.appendChild(end);
     } else {
       let node = this._start.nextSibling;
       /**

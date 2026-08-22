@@ -439,3 +439,51 @@ test('markup in a keyed list item is text too', () => {
   assert.equal(el.querySelector('i'), null);
   assert.equal(el.querySelectorAll('li').length, 2);
 });
+
+// ── clear: the whole-parent fast path ───────────────────────────────────────
+//
+// `ChildPart._clear()` replaces per-node removal with one `parent.textContent = ''` when the part
+// owns the parent's entire contents. Since 0.1.2 a nested part always owns an end marker, so the
+// original `_end === null` condition only ever matched a ROOT part and never the common
+// `<tbody>${rows}</tbody>` shape. The condition now also accepts "end is the last child".
+//
+// That makes the destructive path fire in more places, so these pin the boundary: it must never
+// run when anything else shares the parent.
+
+test('clearing a whole-parent list leaves the parent empty and reusable', () => {
+  const view = (xs) => html`<table><tbody>${xs.map((x) => keyed(x, html`<tr><td>${x}</td></tr>`))}</tbody></table>`;
+  render(view([1, 2, 3]), el);
+  assert.equal(el.querySelectorAll('tr').length, 3);
+  render(view([]), el);
+  assert.equal(el.querySelectorAll('tr').length, 0);
+  /** The part must still work after the destructive clear — its anchors were re-appended. */
+  render(view([7, 8]), el);
+  assert.equal(read(), '<table><tbody><tr><td>7</td></tr><tr><td>8</td></tr></tbody></table>');
+});
+
+test('clearing one part never destroys a sibling sharing the parent', () => {
+  const view = (a, b) => html`<div>${a.map((x) => keyed(x, html`<i>${x}</i>`))}${b.map((x) => keyed(x, html`<b>${x}</b>`))}</div>`;
+  render(view([1, 2], [8, 9]), el);
+  assert.equal(read(), '<div><i>1</i><i>2</i><b>8</b><b>9</b></div>');
+
+  /** Clearing the FIRST list must leave the second intact — nothing follows it, so a naive
+      whole-parent clear would take both. */
+  render(view([], [8, 9]), el);
+  assert.equal(read(), '<div><b>8</b><b>9</b></div>', 'second list survived');
+
+  /** And the reverse: clearing the second must leave the first. */
+  render(view([1, 2], []), el);
+  assert.equal(read(), '<div><i>1</i><i>2</i></div>', 'first list survived');
+
+  /** Both still update afterwards. */
+  render(view([4], [5]), el);
+  assert.equal(read(), '<div><i>4</i><b>5</b></div>');
+});
+
+test('a list with static siblings in the parent clears only itself', () => {
+  const view = (xs) => html`<ul><li>head</li>${xs.map((x) => keyed(x, html`<li>${x}</li>`))}<li>tail</li></ul>`;
+  render(view([1, 2]), el);
+  assert.equal(read(), '<ul><li>head</li><li>1</li><li>2</li><li>tail</li></ul>');
+  render(view([]), el);
+  assert.equal(read(), '<ul><li>head</li><li>tail</li></ul>', 'static siblings survive');
+});
