@@ -9,6 +9,32 @@ import { gzipSync } from 'node:zlib';
 const require = createRequire(import.meta.url);
 const esbuild = require(process.cwd() + '/node_modules/esbuild/lib/main.js');
 
+/**
+ * Svelte needs compiling — `.svelte` components through `compile`, `.svelte.js` rune modules
+ * through `compileModule`. Everything else in this benchmark is plain JS, so this is the only
+ * framework that needs a build step, which is itself worth knowing when reading the results.
+ */
+const sveltePlugin = () => ({
+  name: 'svelte',
+  setup(build) {
+    let compiler;
+    build.onLoad({ filter: /\.svelte$/ }, async (args) => {
+      compiler ??= await import(process.cwd() + '/bench/node_modules/svelte/src/compiler/index.js');
+      const { readFileSync } = await import('node:fs');
+      const source = readFileSync(args.path, 'utf8');
+      const { js } = compiler.compile(source, { filename: args.path, generate: 'client' });
+      return { contents: js.code, loader: 'js' };
+    });
+    build.onLoad({ filter: /\.svelte\.js$/ }, async (args) => {
+      compiler ??= await import(process.cwd() + '/bench/node_modules/svelte/src/compiler/index.js');
+      const { readFileSync } = await import('node:fs');
+      const source = readFileSync(args.path, 'utf8');
+      const { js } = compiler.compileModule(source, { filename: args.path, generate: 'client' });
+      return { contents: js.code, loader: 'js' };
+    });
+  },
+});
+
 const out = await esbuild.build({
   entryPoints: ['bench/dom/main.js'],
   /**
@@ -25,6 +51,7 @@ const out = await esbuild.build({
   write: false,
   absWorkingDir: process.cwd(),
   define: { 'process.env.NODE_ENV': '"production"' },
+  plugins: [sveltePlugin()],
 });
 
 const code = out.outputFiles[0].text;

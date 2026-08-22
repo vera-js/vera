@@ -422,6 +422,103 @@ const solidImpl = (mount) => {
   };
 };
 
+/* ── Preact ─────────────────────────────────────────────────────────────────── */
+
+import { createElement as ph, render as preactRender } from 'preact';
+import { useState as pUseState } from 'preact/hooks';
+import { memo as pMemo } from 'preact/compat';
+
+/**
+ * Preact renders synchronously by default, so unlike React there is no `flushSync` — the operation
+ * has finished writing the DOM by the time the setter returns.
+ */
+const preactImpl = (mount) => {
+  const host = document.createElement('div');
+  mount.appendChild(host);
+
+  let setRows, setSelected;
+
+  const Row = pMemo(({ row, selected }) =>
+    ph('tr', { class: selected ? 'selected' : undefined },
+      ph('td', null, row.id),
+      ph('td', null, ph('a', null, row.label)),
+      ph('td', null, ph('a', null, 'x'))
+    )
+  );
+
+  function App() {
+    const [rows, _setRows] = pUseState([]);
+    const [selected, _setSelected] = pUseState(-1);
+    setRows = _setRows;
+    setSelected = _setSelected;
+    return ph('table', null,
+      ph('tbody', null, rows.map((r) => ph(Row, { key: r.id, row: r, selected: selected === r.id })))
+    );
+  }
+
+  preactRender(ph(App), host);
+
+  let current = [];
+  return {
+    create: (n, seed) => { current = buildData(n, seed); setRows(current); },
+    append: (n, seed) => { current = current.concat(buildData(n, seed)); setRows(current); },
+    updateEvery10th: () => {
+      const next = current.slice();
+      for (let i = 0; i < next.length; i += 10) next[i] = { ...next[i], label: next[i].label + ' !!!' };
+      current = next; setRows(current);
+    },
+    swap: () => {
+      const next = current.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      current = next; setRows(current);
+    },
+    select: (i) => { const id = current[i]?.id ?? -1; setSelected(id); },
+    remove: (i) => { const next = current.slice(); next.splice(i, 1); current = next; setRows(current); },
+    clear: () => { current = []; setRows(current); },
+    teardown: () => { preactRender(null, host); host.remove(); },
+  };
+};
+
+/* ── Svelte ─────────────────────────────────────────────────────────────────── */
+
+import { mount as svelteMount, unmount as svelteUnmount, flushSync as svelteFlush } from 'svelte';
+import SvelteRows from './svelte/Rows.svelte';
+import { store as svelteStore } from './svelte/state.svelte.js';
+
+/**
+ * The only entry here that needs a compiler — `.svelte` and `.svelte.js` are compiled by the
+ * esbuild plugin in `build.mjs`. `flushSync` makes Svelte's scheduled work synchronous so an
+ * operation is timed the same way as React's `flushSync` and everyone else's synchronous writes.
+ */
+const svelteImpl = (mount) => {
+  const host = document.createElement('div');
+  mount.appendChild(host);
+  svelteStore.rows = [];
+  svelteStore.selected = -1;
+  const app = svelteMount(SvelteRows, { target: host });
+
+  const sync = (fn) => svelteFlush(fn);
+  let current = [];
+  return {
+    create: (n, seed) => { current = buildData(n, seed); sync(() => (svelteStore.rows = current)); },
+    append: (n, seed) => { current = current.concat(buildData(n, seed)); sync(() => (svelteStore.rows = current)); },
+    updateEvery10th: () => {
+      const next = current.slice();
+      for (let i = 0; i < next.length; i += 10) next[i] = { ...next[i], label: next[i].label + ' !!!' };
+      current = next; sync(() => (svelteStore.rows = current));
+    },
+    swap: () => {
+      const next = current.slice();
+      if (next.length > 998) { const t = next[1]; next[1] = next[998]; next[998] = t; }
+      current = next; sync(() => (svelteStore.rows = current));
+    },
+    select: (i) => { const id = current[i]?.id ?? -1; sync(() => (svelteStore.selected = id)); },
+    remove: (i) => { const next = current.slice(); next.splice(i, 1); current = next; sync(() => (svelteStore.rows = current)); },
+    clear: () => { current = []; sync(() => (svelteStore.rows = current)); },
+    teardown: () => { svelteUnmount(app); host.remove(); },
+  };
+};
+
 export const IMPLEMENTATIONS = [
   { name: 'VeraJS', note: 'core + lit-html', factory: veraImpl },
   { name: 'VeraJS own', note: 'core + @verajs/renderer', factory: veraOwnImpl },
@@ -429,5 +526,7 @@ export const IMPLEMENTATIONS = [
   { name: 'Solid', note: 'solid-js, no JSX', factory: solidImpl },
   { name: 'Vue', note: 'vue runtime, h()', factory: vueImpl },
   { name: 'Van.js', note: 'vanjs-core', factory: vanImpl },
+  { name: 'Svelte', note: 'svelte 5 runes (needs a compiler)', factory: svelteImpl },
+  { name: 'Preact', note: 'preact + hooks', factory: preactImpl },
   { name: 'React', note: 'react-dom, flushSync', factory: reactImpl },
 ];

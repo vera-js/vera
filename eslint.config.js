@@ -61,6 +61,17 @@ export default [
     rules: { '@typescript-eslint/no-unused-expressions': 'off' },
   },
 
+  /**
+   * Svelte rune modules. `$state` and friends are compiler intrinsics, not imports — they exist
+   * only until `svelte/compiler` rewrites them, so eslint has no way to know they are legitimate.
+   */
+  {
+    files: ['**/*.svelte.js'],
+    languageOptions: {
+      globals: { $state: 'readonly', $derived: 'readonly', $effect: 'readonly', $props: 'readonly' },
+    },
+  },
+
   /** Build tooling, benchmarks, tests and the example servers run in Node. */
   {
     files: [
