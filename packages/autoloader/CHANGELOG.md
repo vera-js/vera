@@ -1,5 +1,13 @@
 # @verajs/autoloader
 
+## 0.1.3
+
+### Patch Changes
+
+- cbf56b2: Correct the published size figures and generate them from the build instead of maintaining them by
+  hand. Every `~N KB gzip` claim in a package README is now produced by `scripts/sync-size-claims.mjs`
+  from the actual `dist` bundle, and CI fails if any of them drifts.
+
 ## 0.1.2
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @verajs/renderer
 
+## 0.1.3
+
+### Patch Changes
+
+- cbf56b2: Correct the published size figures and generate them from the build instead of maintaining them by
+  hand. Every `~N KB gzip` claim in a package README is now produced by `scripts/sync-size-claims.mjs`
+  from the actual `dist` bundle, and CI fails if any of them drifts.
+- 090e845: Add `@verajs/renderer/profiler`, a development-only render profiler. It counts templates committed
+  in place against templates that replaced a *different* template — which destroys and rebuilds the
+  subtree while looking identical from the outside — and names the template pairs that churn, where
+  they are, and how often. `formatReport()` prints a summary; `showProfiler()` mounts a live panel
+  in the corner of the page for feedback while clicking through the app.
+  
+  Production is unaffected: the instrumentation sits behind a `__DEV__` constant the build folds
+  away, and `vera-renderer.min.js` is byte-identical with and without it.
+
 ## 0.1.2
 
 ### Patch Changes

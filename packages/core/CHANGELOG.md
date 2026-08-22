@@ -1,5 +1,60 @@
 # @verajs/core
 
+## 0.2.0
+
+### Minor Changes
+
+- a6a6509: **Breaking:** `static styles` adoption has moved out of core into the new `@verajs/styles` package,
+  and `adoptStyles` is no longer exported from `@verajs/core`. Wire it once at your app entry:
+  
+  ```js
+  import { insert } from '@verajs/core';
+  import { adoptStyles } from '@verajs/styles';
+  insert('init', adoptStyles, 50);
+  ```
+  
+  A component declaring `static styles` with nothing adopting them now warns once in development,
+  naming the three lines to add. Production is unaffected — the warning is behind `__DEV__`.
+  
+  Core drops from 3 101 B to 2 801 B gzipped, and a working app (core + renderer) from 6 091 B to
+  5 759 B — below Lit and Preact + signals again. Apps that use `static styles` add `@verajs/styles`
+  (520 B) back; apps that do not simply stop paying for it.
+  
+  `@verajs/inserts` gains a fifth extension point, `'init'`, which core dispatches once per element
+  after its shadow root exists and before its first render. That is the seam the extraction needed,
+  and it is available to any module that wants to see every component as it comes to life.
+- 3160255: **Breaking:** core no longer ships a default renderer. `@verajs/core` on its own cannot render;
+  wire one once at your app entry:
+  
+  ```js
+  import { setRenderer } from '@verajs/core';
+  import { render as domRender } from '@verajs/renderer';
+  setRenderer(domRender);
+  ```
+  
+  `render()` with no renderer registered now warns once in development, naming those exact lines.
+  Production carries no warning — it is behind `__DEV__`.
+  
+  The default renderer existed so core alone would render *something* without a renderer module. It
+  did not deliver that: it serialized to a string and assigned `innerHTML`, so `@event`, `.prop` and
+  `?bool` bindings ended up in the DOM as literal attributes. Both README quick-starts relied on it
+  and both were broken — they rendered `<button @click="">Clicked 0 times</button>` and clicking did
+  nothing. Both are fixed and verified in this release.
+  
+  Core drops from 2 801 B to 2 577 B gzipped, and a working app from 5 759 B to 5 588 B.
+  
+  `defaultRenderer` is no longer exported. If you were using it deliberately, the closest equivalent
+  is `@verajs/renderer`, which is what every documented path already used.
+
+### Patch Changes
+
+- cbf56b2: Correct the published size figures and generate them from the build instead of maintaining them by
+  hand. Every `~N KB gzip` claim in a package README is now produced by `scripts/sync-size-claims.mjs`
+  from the actual `dist` bundle, and CI fails if any of them drifts.
+- Updated dependencies [a6a6509]
+- Updated dependencies [cbf56b2]
+  - @verajs/inserts@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
