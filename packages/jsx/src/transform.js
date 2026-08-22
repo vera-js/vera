@@ -55,6 +55,15 @@ const collapseText = (raw) => {
 export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
   if (!/<[A-Za-z>]/.test(code)) return code;
 
+  /**
+   * The emitted call sites must use the SAME identifiers the injected imports bind. These were
+   * previously read only where the imports are written, so `{ html: ['h', 'my-lib'] }` imported `h`
+   * and then emitted `html\`…\`` — code referencing a name that was never imported. Resolving them
+   * here keeps the two in step by construction.
+   */
+  const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
+  const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer'];
+
   const state = { usedHtml: false, usedKeyed: false };
 
   /** An expression slice with any JSX roots inside it transformed (bottom-up, offsets stable). */
@@ -82,10 +91,10 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     };
     emitInto(node, tpl, true);
     state.usedHtml = true;
-    let out = 'html`' + parts.reduce((acc, p, i) => acc + (i ? '${' + exprs[i - 1] + '}' : '') + p, '') + '`';
+    let out = htmlName + '`' + parts.reduce((acc, p, i) => acc + (i ? '${' + exprs[i - 1] + '}' : '') + p, '') + '`';
     if (key !== null) {
       state.usedKeyed = true;
-      out = `keyed(${key}, ${out})`;
+      out = `${keyedName}(${key}, ${out})`;
     }
     return out;
   };
@@ -230,8 +239,6 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
 
   /** Auto-inject imports for what the emitted code uses (opt out with options.inject: false). */
   if (options.inject !== false) {
-    const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
-    const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer'];
     const has = (name) => new RegExp(`(^|\\n)import[^;\\n]*[{,\\s]${name}[\\s,}][^;\\n]*from`).test(out);
     let inject = '';
     if (state.usedHtml && !has(htmlName)) inject += `import { ${htmlName} } from '${htmlFrom}';\n`;

@@ -24,6 +24,9 @@ jobs:
       - run: node scripts/sync-packages.mjs
       # Clean as of this commit, so it can stay clean. It was previously linting dist/ and the
       # private internal/ clone, which buried the real findings under ~2 200 generated-code errors.
+      # The build transpiles TypeScript but does not fail on type errors, so without this the
+      # type layer gates nothing — a real error sat in hydrate.ts until the 2026-08-22 audit.
+      - run: npm run typecheck
       - run: npx eslint .
       - run: npm run build
       # Published size claims are generated from the build. This fails if any of them has drifted,

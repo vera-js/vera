@@ -322,7 +322,9 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
 const clearPreservingStyles = (container: Node) => {
   let node = container.firstChild;
   while (node !== null) {
-    const next: Node | null = node.nextSibling;
+    /** `nextSibling` already yields `ChildNode | null`; annotating it `Node` widened it and broke
+     * the assignment back into `node`, which `firstChild` typed as `ChildNode | null`. */
+    const next: ChildNode | null = node.nextSibling;
     if (!(node.nodeType === 1 && (node as Element).hasAttribute('vera-styles'))) container.removeChild(node);
     node = next;
   }
