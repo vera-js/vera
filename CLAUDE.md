@@ -183,7 +183,12 @@ collaborator — the public ones in this repo, the private ones in `vera-js/inte
 ## Testing
 
 Two layers. **Fast layer (installed):** `node --test` + jsdom in `tests/*.test.mjs` — ~170 checks
-against built artifacts, one `npm test`, CI-ready. **Browser-truth layer (chosen, not yet
+against built artifacts, CI-ready. **Every suite runs twice**, against `dist/development/*.js` and
+against `dist/*.min.js` — `npm test`, `npm run test:prod`, or `npm run test:all`. They are different
+programs: production mangles properties, folds `__DEV__` to `false` and deletes the branches, drops
+`console.log`, and inlines workspace dependencies. `tests/dist.mjs` resolves the artifact; a suite
+never hard-codes a path. `tests/cdn-cross-bundle.test.mjs` covers the two-registry `connectInserts`
+condition, which **only exists in the production build** — verified to fail if `_p` is ever mangled. **Browser-truth layer (chosen, not yet
 installed):** `@web/test-runner`, in a real browser — shadow DOM, custom element upgrade timing and
 `adoptedStyleSheets` are emulated under a fake DOM, and for this framework a pass under emulation
 is weak evidence. The jsdom suites are the regression net; browser suites are the release gate.

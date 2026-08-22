@@ -17,7 +17,9 @@
     "preview": "wireit",
     "test": "node --test \"tests/**/*.test.mjs\"",
     "check": "node scripts/sync-packages.mjs",
-    "release": "npm run build && changeset publish"
+    "release": "npm run build && changeset publish",
+    "test:prod": "VERA_DIST=production node --test \"tests/**/*.test.mjs\"",
+    "test:all": "npm test && npm run test:prod"
   },
   "wireit": {
     "build": {

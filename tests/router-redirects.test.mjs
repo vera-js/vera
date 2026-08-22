@@ -1,8 +1,9 @@
 /**
  * Migrated from the audit-session verification suites (scratchpad, 2026-08-20). Tests BUILT
- * artifacts (dist/development), so build defects fail here too. Plain pass/fail scripts under
+ * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
+import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div></div>', { url: 'http://localhost/A' });
 const { window } = dom;
@@ -12,7 +13,7 @@ globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
 const tick = () => new Promise((r) => setTimeout(r, 25));
 
-const { initRouter, navigate } = await import(new URL('../packages/router/dist/development/vera-router.js', import.meta.url).href);
+const { initRouter, navigate } = await load('router');
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', name)); };
 

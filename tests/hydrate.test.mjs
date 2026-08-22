@@ -3,6 +3,7 @@
  * shims own globals) adopted by the REAL renderer build in jsdom. Assertions center on IDENTITY —
  * hydration means the server DOM survives, listeners attach, and updates mutate adopted nodes.
  */
+import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
@@ -32,7 +33,7 @@ assert.ok(serverHtml.includes('hello ssr') && !serverHtml.includes('<!--'), 'ser
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render, keyed } = await import('../packages/renderer/dist/development/vera-renderer-hydrate.js');
+const { render, keyed } = await load('renderer/hydrate');
 const html = (strings, ...values) => ({ strings, values });
 
 const container = dom.window.document.getElementById('root');

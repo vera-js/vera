@@ -3,6 +3,7 @@
  * renderer build in jsdom, proving the emitted templates hit the same engine paths (identity,
  * keyed reconciliation, events) as hand-written ones.
  */
+import { load } from './dist.mjs';
 import { transformJsx } from '../packages/jsx/src/index.js';
 import { JSDOM } from 'jsdom';
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
@@ -14,7 +15,7 @@ import assert from 'node:assert/strict';
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render, keyed } = await import('../packages/renderer/dist/development/vera-renderer.js');
+const { render, keyed } = await load('renderer');
 const html = (strings, ...values) => ({ strings, values });
 
 const dir = mkdtempSync(join(tmpdir(), 'vera-jsx-'));

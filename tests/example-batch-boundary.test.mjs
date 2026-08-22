@@ -1,14 +1,15 @@
 /**
  * Migrated from the audit-session verification suites (scratchpad, 2026-08-20). Tests BUILT
- * artifacts (dist/development), so build defects fail here too. Plain pass/fail scripts under
+ * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
+import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div id="host"></div>');
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.document = dom.window.document;
 const host = dom.window.document.getElementById('host');
-const core = await import(new URL('../packages/core/dist/development/vera.js', import.meta.url).href);
+const core = await load('core');
 const { batch, batching } = await import(new URL('../examples/cdn-js/src/inserts/batch.js', import.meta.url).href);
 const { errorBoundary } = await import(new URL('../examples/cdn-js/src/inserts/error-boundary.js', import.meta.url).href);
 let pass = 0, fail = 0;

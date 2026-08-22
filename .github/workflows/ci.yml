@@ -31,4 +31,8 @@ jobs:
       # frameworks are NOT needed here: per-module sizes come from dist, and the cross-framework
       # table is verified for staleness rather than regenerated.
       - run: node scripts/sync-size-claims.mjs --check
+      # Twice, against different programs. dist/development keeps workspace deps external and
+      # keeps __DEV__ code; dist/*.min.js mangles properties, drops console.log, eliminates dead
+      # branches and inlines workspace deps. A pass against one says nothing about the other.
       - run: npm test
+      - run: npm run test:prod

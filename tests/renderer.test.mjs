@@ -1,9 +1,10 @@
 /**
  * Correctness suite for @verajs/renderer.
  *
- * Tests the BUILT artifact (`dist/development`), not the source, so a build or bundling defect
+ * Tests the BUILT artifacts — development AND production (see `./dist.mjs`) — so a build defect
  * fails here too. Run with `npm test` (node --test + jsdom).
  */
+import { load } from './dist.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -13,7 +14,7 @@ globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Node = dom.window.Node;
 
-const { render, keyed, hold } = await import('../packages/renderer/dist/development/vera-renderer.js');
+const { render, keyed, hold } = await load('renderer');
 
 /** The shape core's built-in `html` tag produces. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });

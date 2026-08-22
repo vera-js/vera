@@ -1,8 +1,9 @@
 /**
  * Migrated from the audit-session verification suites (scratchpad, 2026-08-20). Tests BUILT
- * artifacts (dist/development), so build defects fail here too. Plain pass/fail scripts under
+ * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
+import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div id="app" autoloader></div>', { url: 'http://localhost/' });
 const { window } = dom;
@@ -11,7 +12,7 @@ globalThis.customElements = window.customElements;
 globalThis.document = window.document;
 
 const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
-const { initAutoloader } = await import(new URL('../packages/autoloader/dist/development/vera-autoloader.js', import.meta.url).href);
+const { initAutoloader } = await load('autoloader');
 /** jsdom's selector engine lacks :defined — emulate exactly that one selector. */
 const origQSA = window.Element.prototype.querySelectorAll;
 window.Element.prototype.querySelectorAll = function (sel) {

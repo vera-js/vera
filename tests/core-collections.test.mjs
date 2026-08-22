@@ -1,10 +1,11 @@
 /**
  * Migrated from the audit-session verification suites (scratchpad, 2026-08-20). Tests BUILT
- * artifacts (dist/development), so build defects fail here too. Plain pass/fail scripts under
+ * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
 // Collections integrated in core: zero wiring, driven through a real store + hook.
-const core = await import(new URL('../packages/core/dist/development/vera.js', import.meta.url).href);
+import { load } from './dist.mjs';
+const core = await load('core');
 const { JSDOM } = await import('jsdom');
 const dom = new JSDOM('<div id="host"></div>');
 globalThis.HTMLElement = dom.window.HTMLElement;

@@ -1,15 +1,16 @@
 /**
  * Migrated from the audit-session verification suites (scratchpad, 2026-08-20). Tests BUILT
- * artifacts (dist/development), so build defects fail here too. Plain pass/fail scripts under
+ * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
+import { distUrl, load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div id="app"></div>');
 globalThis.document = dom.window.document;
 const app = dom.window.document.getElementById('app');
 
 // core: registers defaultRenderer into its inserts instance at import
-const core = await import(new URL('../packages/core/dist/development/vera.js', import.meta.url).href);
+const core = await load('core');
 const { html, inserts, setRenderer, defaultRenderer } = core;
 const renderVia = (map, template, el) => map.get('render').forEach((cb) => cb(template, el));
 
@@ -58,7 +59,7 @@ renderVia(inserts, html`<span>back</span>`, app);
 check('defaultRenderer restorable', app.textContent === 'back' && inserts.get('render').length === 1);
 
 // 10. registry-only copies (module-standalone bundles): NO default renderer
-const REG = new URL('../packages/inserts/dist/development/vera-inserts.js', import.meta.url).href;
+const REG = distUrl('inserts');
 const A = await import(REG + '?copy=a');
 const B = await import(REG + '?copy=b');
 check('standalone registry ships no renderer', !A.inserts.get('render'));

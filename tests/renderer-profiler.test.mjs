@@ -6,6 +6,7 @@
  * looking identical from the outside. These tests assert that distinction directly, against the
  * BUILT development artifact.
  */
+import { load, isProduction } from './dist.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -20,9 +21,16 @@ globalThis.Node = dom.window.Node;
  * the stack runs out. Node's own `performance` is already global and is what the profiler uses.
  */
 
-const { render, startProfiling, stopProfiling, isProfiling, profile, formatReport } = await import(
-  '../packages/renderer/dist/development/vera-renderer-profiler.js'
-);
+/**
+ * `@verajs/renderer/profiler` is deliberately not built for production — its instrumentation sits
+ * behind `__DEV__`, which the production build folds to `false`, so a production profiler would
+ * measure code that is no longer there. The production pass therefore has nothing to exercise
+ * here, and skips rather than failing to resolve a bundle that is not meant to exist.
+ */
+const skip = isProduction;
+const { render, startProfiling, stopProfiling, isProfiling, profile, formatReport } = skip
+  ? {}
+  : await load('renderer/profiler');
 
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
@@ -33,7 +41,7 @@ beforeEach(() => {
   document.body.appendChild(el);
 });
 
-test('a stable template shape reports updates and no rebuilds', () => {
+test('a stable template shape reports updates and no rebuilds', { skip }, () => {
   const view = (n) => html`<p>count: ${n}</p>`;
   const { report } = profile(() => {
     for (let i = 0; i < 5; i++) render(view(i), el);
@@ -45,7 +53,7 @@ test('a stable template shape reports updates and no rebuilds', () => {
   assert.equal(report.frames, 5);
 });
 
-test('swapping subtrees is reported as churn, with both shapes and a location', () => {
+test('swapping subtrees is reported as churn, with both shapes and a location', { skip }, () => {
   const swap = (on) => (on ? html`<a href="/x">on</a>` : html`<b>off</b>`);
   const { report } = profile(() => {
     for (let i = 0; i < 6; i++) render(swap(i % 2 === 0), el);
@@ -62,7 +70,7 @@ test('swapping subtrees is reported as churn, with both shapes and a location', 
   assert.notEqual(worst.from, worst.to);
 });
 
-test('the documented fix actually removes the churn it reports', () => {
+test('the documented fix actually removes the churn it reports', { skip }, () => {
   /** The same UI as the swap test, written as one stable shape per the house guidance. */
   const stable = (on) => html`<span ?hidden=${!on}>on</span><span ?hidden=${on}>off</span>`;
   const { report } = profile(() => {
@@ -73,7 +81,7 @@ test('the documented fix actually removes the churn it reports', () => {
   assert.equal(report.churn.length, 0);
 });
 
-test('a render nested inside another folds into one frame', () => {
+test('a render nested inside another folds into one frame', { skip }, () => {
   const inner = document.createElement('div');
   document.body.appendChild(inner);
   /**
@@ -89,7 +97,7 @@ test('a render nested inside another folds into one frame', () => {
   assert.equal(report.frames, 1, 'the inner render does not count as its own frame');
 });
 
-test('profiling is off by default and reports nothing after stopping', () => {
+test('profiling is off by default and reports nothing after stopping', { skip }, () => {
   assert.equal(isProfiling(), false);
   render(html`<p>${1}</p>`, el);
   startProfiling();
@@ -105,7 +113,7 @@ test('profiling is off by default and reports nothing after stopping', () => {
   assert.equal(second.frames, 0);
 });
 
-test('the report reads as guidance, not just numbers', () => {
+test('the report reads as guidance, not just numbers', { skip }, () => {
   const swap = (on) => (on ? html`<a>on</a>` : html`<b>off</b>`);
   const { report } = profile(() => {
     render(swap(true), el);
@@ -117,7 +125,7 @@ test('the report reads as guidance, not just numbers', () => {
   assert.match(text, /\?hidden=/, 'points at the fix');
 });
 
-test('a thrown render still stops profiling', () => {
+test('a thrown render still stops profiling', { skip }, () => {
   assert.throws(() => {
     profile(() => {
       throw new Error('boom');
@@ -128,10 +136,8 @@ test('a thrown render still stops profiling', () => {
 
 // ── overlay ─────────────────────────────────────────────────────────────────
 
-test('the overlay mounts, reports churn, and unmounts cleanly', async () => {
-  const { showProfiler } = await import(
-    '../packages/renderer/dist/development/vera-renderer-profiler.js'
-  );
+test('the overlay mounts, reports churn, and unmounts cleanly', { skip }, async () => {
+  const { showProfiler } = await load('renderer/profiler');
   const before = document.body.childElementCount;
   const close = showProfiler({ interval: 5 });
 
@@ -153,10 +159,8 @@ test('the overlay mounts, reports churn, and unmounts cleanly', async () => {
   assert.equal(isProfiling(), false, 'closing stops profiling');
 });
 
-test('the overlay does not measure itself', async () => {
-  const { showProfiler, getReport } = await import(
-    '../packages/renderer/dist/development/vera-renderer-profiler.js'
-  );
+test('the overlay does not measure itself', { skip }, async () => {
+  const { showProfiler, getReport } = await load('renderer/profiler');
   const close = showProfiler({ interval: 5 });
   /** Let it repaint several times with no app renders at all. */
   await new Promise((r) => setTimeout(r, 40));
