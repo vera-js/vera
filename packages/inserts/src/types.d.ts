@@ -45,14 +45,25 @@ export type SetHandlerInsert = <T extends object>(
  */
 export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
 
+/**
+ * Runs when `init()` sets an element up — after its shadow root exists, before its first render.
+ * The extension point for anything that needs to see every component as it comes to life:
+ * `static styles` adoption (`@verajs/styles`), instrumentation, per-element registration.
+ *
+ * Core dispatches it and knows nothing about what is registered. With nothing registered it is one
+ * `Map.get` returning `undefined`, once per element.
+ */
+export type InitInsert = (element: HTMLElement) => void;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
   'set-handler': SetHandlerInsert;
   'error': ErrorInsert;
+  'init': InitInsert;
 };
 
 export type Inserts = Map<
   keyof InsertFunctionMap,
-  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert)[]
+  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert)[]
 >;

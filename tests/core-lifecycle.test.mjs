@@ -16,6 +16,13 @@ const flushRaf = () => { const q = rafQ; rafQ = []; q.forEach((f) => f()); };
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
 const core = await load('core');
+/**
+ * Style adoption moved to its own package in 0.2.0. `insert` comes from core so the registration
+ * lands in the map core reads — taking it from `@verajs/inserts` would write to a different copy
+ * in the production build and silently do nothing.
+ */
+const { adoptStyles } = await load('styles');
+core.insert('init', adoptStyles, 50);
 const app = window.document.getElementById('app');
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };

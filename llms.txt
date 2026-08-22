@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->5.9 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->5.6 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -204,6 +204,27 @@ import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { initAutoloader } from '@verajs/autoloader';
 import { render, keyed } from '@verajs/renderer';
 ```
+
+### Styles (`@verajs/styles`)
+
+`static styles` adoption. **Not in core since 0.2.0** — most apps do not use it and every app was
+paying for it. Wire once at your app entry:
+
+```js
+import { insert } from '@verajs/core';
+import { adoptStyles } from '@verajs/styles';
+insert('init', adoptStyles, 50);
+```
+
+Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style vera-styles>` for plain
+strings); light DOM is hoisted to the document once per component class, wrapped in
+`@scope (tag-name) { … }`. `applyStyles(styles, element)` is exported for manual use. Omit the
+wiring and a component with `static styles` renders unstyled — core warns once, in development.
+
+**Take `insert` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js` inlines
+the registry into every bundle, so registering through your own copy writes to a map core never
+reads: it works in development and silently does nothing in production. This applies to any module
+that registers an insert.
 
 ### Renderer (`@verajs/renderer`)
 

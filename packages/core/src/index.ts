@@ -1,6 +1,5 @@
 export * from '@verajs/inserts';
 export type * from './types.js';
-export { adoptStyles } from './modules/adoptStyles.js';
 export { createHook } from './modules/createHook.js';
 export { createStore } from './modules/createStore.js';
 export { deps } from './modules/deps.js';

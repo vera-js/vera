@@ -8,17 +8,18 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 7.26 KB | **3.03 KB** |
+| `@verajs/core` | 6.40 KB | **2.74 KB** |
 | `@verajs/renderer` | 8.86 KB | 3.53 KB |
 | `@verajs/router` | 6.26 KB | 2.77 KB |
 | `@verajs/autoloader` | 1 007 B | 612 B |
+| `@verajs/styles` | 993 B | 520 B |
 | `@verajs/inserts` | 455 B | 322 B |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.9 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.6 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
-`@verajs/core` on its own cannot render; it ships no renderer. <!--size:app.kb-->5.9 KB<!--/size:app.kb--> is the number that matters.
+`@verajs/core` on its own cannot render; it ships no renderer. <!--size:app.kb-->5.6 KB<!--/size:app.kb--> is the number that matters.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
@@ -41,6 +42,7 @@ module system is open — use the prebuilt ones or write your own.
 @verajs/renderer      keyed template renderer; beats lit-html across the board  (or bring your own)
 @verajs/router        tiny router with nested routes, wildcards, params
 @verajs/autoloader    lazy-loads custom elements on discovery
+@verajs/styles        adopts `static styles` — shadow sheets, @scope for light DOM
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
 ```

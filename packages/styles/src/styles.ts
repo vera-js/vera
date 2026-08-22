@@ -1,14 +1,13 @@
-import { CSSResultGroup, ComponentElement } from '../types.js';
+import type { CSSResultGroup, StyledElement } from './types.js';
 
 /** Component classes whose light-DOM styles are already hoisted — one sheet per class, ever. */
 const hoisted = new WeakSet<object>();
 
 /**
- * Adopts a component's `static styles`. Called by `init`, so components never do this manually.
- *
- * @param element The element to adoptStyles on
+ * Adopts a component's `static styles`. Registered as an `'init'` insert by this package's entry,
+ * so components never call it and core never has to know about styling.
  */
-export const adoptStyles = (element: ComponentElement) => {
+export const adoptStyles = (element: StyledElement) => {
   applyStyles((element.constructor as unknown as { styles: CSSResultGroup | CSSResultGroup[] }).styles, element);
 };
 
@@ -29,12 +28,10 @@ export const adoptStyles = (element: ComponentElement) => {
  * @param styles Can be an object with styleSheet and cssText properties, an array of those, or a string.
  * @param element The element to apply styles to.
  */
-export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, element: ComponentElement) => {
+export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, element: StyledElement) => {
   if (!styles) return;
   const shadowRoot = element.shadowRoot;
   const stylesArray = Array.isArray(styles) ? styles : [styles];
-
-  // TODO Adapt for SSR
 
   if (shadowRoot) {
     const styleSheets: CSSStyleSheet[] = [];

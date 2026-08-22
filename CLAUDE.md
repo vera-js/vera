@@ -58,8 +58,9 @@ The shape of the product:
 
 - **`@verajs/core`** covers most of what people actually need.
 - **A module system** lets people use the prebuilt modules — `autoloader`, `jsx`, `renderer`,
-  `router`, `ssr` — or write their own. (`map-support` was retired: reactive `Map`/`Set` moved into
-  core, which is most of core's growth from 2 333 B to 3 101 B gzipped.)
+  `router`, `ssr`, `styles` — or write their own. (`map-support` was retired: reactive `Map`/`Set`
+  moved into core. `styles` went the other way in 0.2.0 — `static styles` adoption left core,
+  recovering 300 B gzipped for every app that does not use it.)
 - At minimum you need **a renderer**. Everything else is opt-in.
 
 **History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head
@@ -102,8 +103,21 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   `vera.min.js` *and* `vera-router.min.js` therefore yields **two separate `inserts` Maps**.
 - That is exactly why **`connectInserts(inserts)`** exists, and why the CDN entry point must call it.
   This is not a bug. Do not "fix" it by making bundles share state.
-- In the npm/bundler path everything resolves to one `@verajs/inserts` instance, so `connectInserts`
-  is a harmless no-op.
+- **Corrected 2026-08-22.** This previously said the npm/bundler path resolves to one
+  `@verajs/inserts` instance, making `connectInserts` a harmless no-op. **That is true only under
+  the `development` condition.** A production bundler build resolves `exports.default` —
+  `dist/*.min.js` — which inlines the registry, so core and router each get their own. Measured:
+  bundling `@verajs/core` + a second package yields **1** registry with `--conditions development`
+  and **2** without. `examples/npm-ts` calling `connectInserts` is therefore necessary, not
+  ceremonial.
+- **Rule for anything that registers an insert: take `insert` from `@verajs/core`, never from
+  `@verajs/inserts`.** Core's own function writes to the map core reads, in every build. Registering
+  through your own copy works in development and silently does nothing in production — it does not
+  throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
+  way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
+- Core's `defaultRenderer` registers itself at module scope and is fine, because it lives *inside*
+  core's bundle with no boundary to cross. `@verajs/ssr` self-wires correctly by taking
+  `setRenderer` and `insert` from core.
 
 `dist/development/*.js` keeps workspace deps **external** (the consumer's bundler dedupes them);
 `dist/*.min.js` inlines them (standalone). Both outputs are intentional.

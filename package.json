@@ -30,7 +30,8 @@
         "./packages/renderer:build",
         "./packages/router:build",
         "./packages/shared-types:build",
-        "./packages/shared-utils:build"
+        "./packages/shared-utils:build",
+        "./packages/styles:build"
       ]
     },
     "dev": {

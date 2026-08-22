@@ -82,3 +82,29 @@ test('same-priority registration replaces rather than duplicates, across bundles
   router.insert('render', () => {}, 50);
   assert.equal(core.inserts.get('render').length, 1, 'one entry at priority 50, not two');
 });
+
+// ── the rule for extension packages ─────────────────────────────────────────
+
+test('registering through a foreign @verajs/inserts copy never reaches core', async () => {
+  const standalone = await load('inserts');
+  assert.notEqual(standalone.inserts, core.inserts, 'a separately loaded registry is its own map');
+
+  const before = core.inserts.get('init')?.length ?? 0;
+  standalone.insert('init', () => {}, 90);
+
+  /**
+   * The trap, in executable form, and it holds in BOTH builds — whether a second copy exists at all
+   * depends on the build and on how the module was resolved, which is exactly what makes it
+   * treacherous. `@verajs/styles` was first written to register through its own copy: it passed
+   * every development test and did nothing whatsoever in a production build.
+   *
+   * Nothing throws. The registration simply lands somewhere core never looks.
+   */
+  assert.equal(core.inserts.get('init')?.length ?? 0, before, 'core cannot see a foreign registry');
+});
+
+test('registering through core.insert reaches core in every build', () => {
+  const before = core.inserts.get('init')?.length ?? 0;
+  core.insert('init', () => {}, 91);
+  assert.equal(core.inserts.get('init').length, before + 1, 'core’s own insert always lands');
+});

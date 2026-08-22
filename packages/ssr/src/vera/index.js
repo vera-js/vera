@@ -15,7 +15,18 @@ import { installShims, registry, hoistedStyles } from './shim.js';
 import { serializeTemplate } from './serializer.js';
 
 installShims();
-const { setRenderer } = await import('@verajs/core');
+const { setRenderer, insert } = await import('@verajs/core');
+/**
+ * `static styles` moved out of core in 0.2.0 (`@verajs/styles`). Server rendering must still
+ * serialize them — the markup a browser produces includes the component's styles — and nothing on
+ * the server cares about the bytes, so SSR wires the adopter unconditionally rather than making
+ * every caller remember to.
+ *
+ * `insert` comes from core, not from `@verajs/inserts`, so the registration lands in the map core
+ * actually reads. Exactly why `setRenderer` above is taken from core too.
+ */
+const { adoptStyles } = await import('@verajs/styles');
+insert('init', adoptStyles, 50);
 
 /** The server renderer: template object in, markup into the (shadow) container shim. */
 setRenderer((template, container) => {

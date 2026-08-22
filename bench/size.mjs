@@ -205,6 +205,7 @@ if (process.argv.includes('--snapshot')) {
     renderer: 'packages/renderer/dist/vera-renderer.min.js',
     router: 'packages/router/dist/vera-router.min.js',
     autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
+    styles: 'packages/styles/dist/vera-styles.min.js',
     inserts: 'packages/inserts/dist/vera-inserts.min.js',
   };
   const modules = {};

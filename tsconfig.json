@@ -41,7 +41,10 @@
       "@verajs/router": [
         "./packages/router/src/index.ts"
       ],
-      "@verajs/shared-types": [
+      "@verajs/styles": [
+      "./packages/styles/src/index.ts"
+    ],
+    "@verajs/shared-types": [
         "./packages/shared-types/src/index.ts"
       ],
       "@verajs/shared-utils": [

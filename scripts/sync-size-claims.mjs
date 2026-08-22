@@ -35,6 +35,7 @@ const MODULES = [
   { pkg: 'renderer', dist: 'packages/renderer/dist/vera-renderer.min.js', what: 'keyed template renderer, refs, `hold`' },
   { pkg: 'router', dist: 'packages/router/dist/vera-router.min.js', what: 'nested routes, params, wildcards, redirects, scroll memory' },
   { pkg: 'autoloader', dist: 'packages/autoloader/dist/vera-autoloader.min.js', what: 'lazy component discovery' },
+  { pkg: 'styles', dist: 'packages/styles/dist/vera-styles.min.js', what: '`static styles` adoption, shadow and light DOM' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
 ];
 
