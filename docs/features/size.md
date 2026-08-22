@@ -2,8 +2,8 @@
 
 ## The claim
 
-**A working VeraJS app is about <!--size:app.kb-->5.6 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->5 759 B<!--/size:app.bytes-->) — <!--size:app.rank-->5th<!--/size:app.rank--> of
-<!--size:app.count-->11<!--/size:app.count--> frameworks measured, level with Lit and Preact, and 10x smaller than React.**
+**A working VeraJS app is about <!--size:app.kb-->5.5 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->5 588 B<!--/size:app.bytes-->) — <!--size:app.rank-->4th<!--/size:app.rank--> of
+<!--size:app.count-->10<!--/size:app.count--> frameworks measured, level with Lit and Preact, and 10x smaller than React.**
 
 ## The evidence
 
@@ -14,10 +14,9 @@ tree-shaken, gzipped:
 | Framework | gzip | vs smallest |
 | --- | ---: | ---: |
 | Van.js | 1 219 B | 1.0x |
-| **VeraJS core alone** | **2 335 B** | 1.9x |
 | Solid *(needs a compiler)* | 4 446 B | 3.6x |
-| **VeraJS + lit-html** | **5 360 B** | 4.4x |
-| **VeraJS + own renderer** | **5 759 B** | 4.7x |
+| **VeraJS + lit-html** | **5 172 B** | 4.2x |
+| **VeraJS + own renderer** | **5 588 B** | 4.6x |
 | Lit | 5 871 B | 4.8x |
 | Preact + signals | 6 031 B | 4.9x |
 | petite-vue | 7 258 B | 6.0x |
@@ -34,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->6 415 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->5 759 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->6 191 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->5 588 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -43,32 +42,28 @@ by 20-30 bytes.
 
 ## The honest framing
 
-**Lead with <!--size:app.kb-->5.6 KB<!--/size:app.kb-->, not <!--size:app.verajs-core-alone.kb-->2.3 KB<!--/size:app.verajs-core-alone.kb-->.** Core alone *does* render —
-`defaultRenderer` handles templates and plain strings, escaping every interpolated value — and at
-<!--size:app.verajs-core-alone.bytes-->2 335 B<!--/size:app.verajs-core-alone.bytes--> it is second smallest on the table. But it renders for **display
-only**: `@event`, `.prop` and `?bool` need a renderer module and otherwise leak into the markup as
-literal attributes, and each update rewrites the subtree through `innerHTML`, so node identity and
-anything the user typed are lost.
+**There is no smaller honest number than <!--size:app.kb-->5.5 KB<!--/size:app.kb-->.** Core ships no
+renderer — `render()` with none registered warns and paints nothing — so "core alone" is not a tier
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->2.52 KB<!--/size:core.gzip--> as an
+app size would be a bait-and-switch.
 
-Quoting it as "a working app" is technically defensible and reads as a bait-and-switch to the first
-person who adds a form. Quote it for what it is: the floor for a live-updating readout with no
-inputs.
-
-*(An earlier version of this page said core "ships no renderer and cannot render anything". That
-was simply wrong — verified 2026-08-22 by rendering reactive state with core and nothing else.)*
+*(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
+rendered text but silently dropped `@event`/`.prop`/`?bool` into the markup as literal attributes,
+so the README's own counter did not work. It was removed rather than repaired — see
+`internal/docs/TODO.md`.)*
 
 **Name Van.js and Solid.** Both are smaller, and volunteering that buys more credibility than any
 claim to be smallest. Both are fair trades to explain: Van.js has no keyed reconciliation, so any
 list change rebuilds the list; Solid needs its compiler.
 
 **The Solid comparison, stated precisely:** Solid is <!--size:app.solid.bytes-->4 446 B<!--/size:app.solid.bytes--> and requires its compiler;
-VeraJS + own renderer is <!--size:app.bytes-->5 759 B<!--/size:app.bytes--> and requires nothing. That is the price of needing no
+VeraJS + own renderer is <!--size:app.bytes-->5 588 B<!--/size:app.bytes--> and requires nothing. That is the price of needing no
 toolchain — say it exactly that way, because a reader who checks will find the numbers.
 
 **VeraJS undercuts Lit again, but say it precisely.** VeraJS + own renderer
-(<!--size:app.bytes-->5 759 B<!--/size:app.bytes-->) is below Lit (<!--size:app.lit.bytes-->5 871 B<!--/size:app.lit.bytes-->) and
+(<!--size:app.bytes-->5 588 B<!--/size:app.bytes-->) is below Lit (<!--size:app.lit.bytes-->5 871 B<!--/size:app.lit.bytes-->) and
 Preact + signals (<!--size:app.preact-signals.bytes-->6 031 B<!--/size:app.preact-signals.bytes-->); the lit-html pairing
-(<!--size:app.verajs-lit-html.bytes-->5 360 B<!--/size:app.verajs-lit-html.bytes-->) is lower still. It was *above* Lit until
+(<!--size:app.verajs-lit-html.bytes-->5 172 B<!--/size:app.verajs-lit-html.bytes-->) is lower still. It was *above* Lit until
 0.2.0 — moving `static styles` out to `@verajs/styles` recovered 300 B of core — so quote the
 measured figure rather than a remembered one.
 
@@ -86,7 +81,7 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 2 801 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/core` | 2 577 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 3 614 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 2 840 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 612 B | lazy component discovery |

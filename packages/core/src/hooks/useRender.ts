@@ -4,6 +4,9 @@ import { inserts } from '@verajs/inserts';
 import { renderScheduler } from '../modules/setRenderScheduler.js';
 import { Renderer } from '@verajs/shared-types';
 
+/** One warning per page, not per render. */
+let warnedNoRenderer = false;
+
 export const useRender = (template: unknown, element: ComponentElement, ...args: unknown[]) => {
   /** Set while a pass is queued, so N writes in a tick still produce one render. */
   let queued = false;
@@ -14,7 +17,26 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
       const interiorCallback = deferInHookContext(<V>(props?: Signal<V>) => {
         /** `typeof`, not `instanceof Function` — realm-safe (iframes, vm) and cheaper. */
         const _template = typeof template === 'function' ? (template as RenderTemplate)(props) : template;
-        inserts.get('render')?.forEach((callback) => {
+        const renderers = inserts.get('render');
+
+        if (__DEV__) {
+          /**
+           * Core ships no renderer of its own, so nothing rendering is the expected first mistake.
+           * Silence here looks like a broken component; this names the two missing lines instead.
+           */
+          if (!renderers?.length && !warnedNoRenderer) {
+            warnedNoRenderer = true;
+            console.warn(
+              `[vera] render() called with no renderer registered — nothing will appear.\n` +
+                `Wire one once, at your app entry:\n\n` +
+                `  import { setRenderer } from '@verajs/core';\n` +
+                `  import { render } from '@verajs/renderer';\n` +
+                `  setRenderer(render);\n`
+            );
+          }
+        }
+
+        renderers?.forEach((callback) => {
           (callback as Renderer)?.(_template, element, ...args);
         });
       });

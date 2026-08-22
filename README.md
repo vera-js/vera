@@ -8,7 +8,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 6.40 KB | **2.74 KB** |
+| `@verajs/core` | 5.95 KB | **2.52 KB** |
 | `@verajs/renderer` | 8.86 KB | 3.53 KB |
 | `@verajs/router` | 6.26 KB | 2.77 KB |
 | `@verajs/autoloader` | 1 007 B | 612 B |
@@ -16,12 +16,12 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/inserts` | 455 B | 322 B |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.6 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.5 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` renders on its own — it ships a small default renderer — but only for display:
 `@event`, `.prop` and `?bool` bindings need a renderer module, and every update replaces the
-subtree, so form state does not survive. <!--size:app.kb-->5.6 KB<!--/size:app.kb--> is the number for an app you can interact with.
+subtree, so form state does not survive. <!--size:app.kb-->5.5 KB<!--/size:app.kb--> is the number for an app you can interact with.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
@@ -63,16 +63,17 @@ used on their own or with another framework entirely.
   {
     "imports": {
       "@verajs/core": "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
-      "lit-html": "https://cdn.jsdelivr.net/npm/lit-html@3/lit-html.js"
+      "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js"
     }
   }
 </script>
 
 <script type="module">
-  import { init, createStore, render, setHtml } from '@verajs/core';
-  import { html } from 'lit-html';
+  import { init, createStore, render, setRenderer, html } from '@verajs/core';
+  import { render as domRender } from '@verajs/renderer';
 
-  setHtml(html);
+  /** Core ships no renderer. Wire one once, here, and nothing else needs to know. */
+  setRenderer(domRender);
 
   customElements.define(
     'click-counter',
@@ -92,17 +93,21 @@ used on their own or with another framework entirely.
 <click-counter></click-counter>
 ```
 
+`html` comes from core and needs no `setHtml` — `@verajs/renderer` accepts the shape it produces.
+To use lit-html instead, swap the renderer and tell core about its tag:
+`setRenderer(litRender); setHtml(litHtml);`
+
 ### npm + TypeScript
 
 ```bash
-npm install @verajs/core lit-html
+npm install @verajs/core @verajs/renderer
 ```
 
 ```ts
-import { init, createStore, render, useEffect, setHtml } from '@verajs/core';
-import { html } from 'lit-html';
+import { init, createStore, render, useEffect, setRenderer, html } from '@verajs/core';
+import { render as domRender } from '@verajs/renderer';
 
-setHtml(html);
+setRenderer(domRender);
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {

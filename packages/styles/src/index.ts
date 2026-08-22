@@ -16,8 +16,7 @@
  * and silently doing nothing in production. Taking `insert` from `@verajs/core` sidesteps the
  * question entirely: it is core's own function, writing to the map core reads, in every build.
  *
- * `@verajs/ssr` wires its server renderer the same way, and core's own `defaultRenderer` registers
- * at module scope only because it lives *inside* core's bundle, with no boundary to cross.
+ * `@verajs/ssr` wires its server renderer exactly the same way, for exactly this reason.
  *
  * Priority 50 is the convention for a default implementation — register below 50 to run first, or
  * at 50 to replace this entirely.

@@ -406,3 +406,36 @@ test('onClick-style bindings attach listeners; onclick stays an attribute', () =
   assert.equal(el2.querySelector('i').getAttribute('onclick'), 'alert(1)',
     'all-lowercase onclick remains a plain attribute (inline-handler HTML)');
 });
+
+// ── value injection ─────────────────────────────────────────────────────────
+//
+// Interpolated values are DATA, never markup. The renderer writes them with `.data` and
+// `setAttribute` rather than parsing HTML, so this is structural rather than a sanitiser — which
+// is exactly why it deserves assertions. These moved here from `inserts-registry.test.mjs` when
+// core's default renderer (and its escaping) was removed in 0.2.0.
+
+test('a text value containing markup renders as text, not elements', () => {
+  render(html`<div>${'<img src=x onerror=alert(1)>'}</div>`, el);
+  assert.equal(el.querySelector('img'), null, 'no element is created from a value');
+  assert.equal(el.querySelector('div').textContent, '<img src=x onerror=alert(1)>');
+});
+
+test('a value cannot break out of an attribute', () => {
+  render(html`<div title="${'" onmouseover="steal()'}">x</div>`, el);
+  const div = el.querySelector('div');
+  assert.equal(div.getAttribute('onmouseover'), null, 'no attribute is injected');
+  assert.equal(div.getAttribute('title'), '" onmouseover="steal()', 'the quote is data, kept verbatim');
+});
+
+test('a value cannot introduce a script element', () => {
+  render(html`<div>${'</div><script>alert(1)</script>'}</div>`, el);
+  assert.equal(el.querySelector('script'), null);
+});
+
+test('markup in a keyed list item is text too', () => {
+  const rows = (xs) => html`<ul>${xs.map((x) => keyed(x, html`<li>${x}</li>`))}</ul>`;
+  render(rows(['<b>a</b>', '<i>b</i>']), el);
+  assert.equal(el.querySelector('b'), null);
+  assert.equal(el.querySelector('i'), null);
+  assert.equal(el.querySelectorAll('li').length, 2);
+});

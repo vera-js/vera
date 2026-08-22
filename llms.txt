@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->5.6 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->5.5 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -72,14 +72,17 @@ setHtml(html);          // the template tag
 setRenderer(litRender); // what writes to the DOM
 ```
 
-**Zero-module quick start:** with no renderer registered, **core's** built-in `defaultRenderer`
-renders `html` templates — interpolated values are HTML-escaped, re-renders replace content, and
-plain string templates are injected raw (author-trusted). Listeners: use inline `onclick="…"`
-markup or delegate from the host/shadow root (it survives re-renders). Sigil bindings (`@event`,
-`.prop`, `?bool`, refs, keyed lists) do nothing under the default — a one-time console warning
-points at `@verajs/renderer`, which is the upgrade path. The default ships in core only: a
-standalone module bundle loaded without core (e.g. `vera-router.min.js` alone) renders nothing
-until `setRenderer` is called.
+**Core ships no renderer.** `render()` with none registered paints nothing and warns once in
+development, naming the two lines to add. Wire one at your app entry:
+
+```js
+import { setRenderer } from '@verajs/core';
+import { render as domRender } from '@verajs/renderer';
+setRenderer(domRender);
+```
+
+Core's `html` needs no `setHtml` with `@verajs/renderer` — it already produces the shape the
+renderer accepts. lit-html works too: `setRenderer(litRender); setHtml(litHtml);`
 
 **Order matters.** A component that defines itself before `setRenderer` renders through that
 default — content appears, but sigil bindings are dead until the real renderer is set. Static
@@ -130,7 +133,6 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
 | `setRenderer` | `(renderer) => void` | Swap what writes to the DOM. From `@verajs/core` (re-exported from inserts). |
-| `defaultRenderer` | `(content, container) => void` | Core's zero-module fallback (escaped templates, raw strings). `setRenderer(defaultRenderer)` restores it after a swap. |
 | `setRenderScheduler` | `(scheduler) => void` | Defaults to `requestAnimationFrame`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |

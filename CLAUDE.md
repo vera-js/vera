@@ -115,9 +115,9 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   through your own copy works in development and silently does nothing in production — it does not
   throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
   way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
-- Core's `defaultRenderer` registers itself at module scope and is fine, because it lives *inside*
-  core's bundle with no boundary to cross. `@verajs/ssr` self-wires correctly by taking
-  `setRenderer` and `insert` from core.
+- `@verajs/ssr` self-wires correctly by taking `setRenderer` and `insert` from core. (Core used to
+  self-register a default renderer at module scope, which was safe only because it lived *inside*
+  core's bundle with no boundary to cross; it was removed in 0.2.0.)
 
 `dist/development/*.js` keeps workspace deps **external** (the consumer's bundler dedupes them);
 `dist/*.min.js` inlines them (standalone). Both outputs are intentional.

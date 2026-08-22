@@ -14,7 +14,6 @@ measured in [size.md](size.md):
 | Framework | third-party deps | what they are |
 | --- | ---: | --- |
 | Van.js | 0 | — |
-| **VeraJS core alone** | **null** |  |
 | **VeraJS + own renderer** | **0** | — |
 | Preact + signals | 0 | — |
 | petite-vue | 0 | — |

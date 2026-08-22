@@ -39,22 +39,6 @@ const CONTENDERS = [
       });`,
   },
   {
-    name: 'VeraJS core alone',
-    note: 'core only — display-only reactive rendering, no sigils, no keyed lists',
-    code: `
-      import { init, createStore, render, html } from '@verajs/core';
-      // No setRenderer: core's built-in defaultRenderer handles templates and plain strings.
-      // Display-only by necessity — @event/.prop/?bool need a renderer module, and every update
-      // replaces the subtree via innerHTML, so form state does not survive.
-      customElements.define('x-app', class extends HTMLElement {
-        connectedCallback() {
-          init(this, { mode: 'open' });
-          const s = createStore({ n: 0 });
-          render(() => html\`<p>\${s.n}</p>\`);
-        }
-      });`,
-  },
-  {
     name: 'VeraJS + lit-html',
     note: 'core + lit-html',
     code: `
