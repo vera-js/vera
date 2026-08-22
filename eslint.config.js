@@ -62,6 +62,19 @@ export default [
   },
 
   /**
+   * Browser suites. `it`/`describe` come from the test runner's framework, the code runs in a real
+   * browser, and chai's `expect(x).to.be.true` is an expression statement by design — the rule
+   * cannot tell it from a mistake.
+   */
+  {
+    files: ['tests/browser/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.mocha },
+    },
+    rules: { '@typescript-eslint/no-unused-expressions': 'off' },
+  },
+
+  /**
    * Svelte rune modules. `$state` and friends are compiler intrinsics, not imports — they exist
    * only until `svelte/compiler` rewrites them, so eslint has no way to know they are legitimate.
    */

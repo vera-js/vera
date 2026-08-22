@@ -20,7 +20,8 @@
     "typecheck": "node scripts/typecheck.mjs",
     "release": "npm run build && changeset publish",
     "test:prod": "VERA_DIST=production node --test \"tests/**/*.test.mjs\"",
-    "test:all": "npm test && npm run test:prod"
+    "test:browser": "web-test-runner --config web-test-runner.config.mjs",
+    "test:all": "npm test && npm run test:prod && npm run test:browser"
   },
   "wireit": {
     "build": {
@@ -63,9 +64,12 @@
   "devDependencies": {
     "@changesets/cli": "^3.0.1",
     "@eslint/js": "^9.39.5",
+    "@esm-bundle/chai": "^4.3.4-fix.0",
     "@lit-labs/ssr": "^3.2.2",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
+    "@web/test-runner": "^1.0.0",
+    "@web/test-runner-playwright": "^1.0.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "globals": "^17.11.0",

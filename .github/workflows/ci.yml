@@ -39,3 +39,8 @@ jobs:
       # branches and inlines workspace deps. A pass against one says nothing about the other.
       - run: npm test
       - run: npm run test:prod
+      # The browser-truth layer. jsdom has no adoptedStyleSheets, no CSSScopeRule, does not parse
+      # declarative shadow DOM and runs no layout engine — so @verajs/styles and hydration had
+      # never executed their real paths anywhere. These suites are the only place they do.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
