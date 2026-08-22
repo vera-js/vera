@@ -2,8 +2,8 @@
 
 ## The claim
 
-**A working VeraJS app is about <!--size:app.kb-->5.6 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->5 759 B<!--/size:app.bytes-->) — <!--size:app.rank-->4th<!--/size:app.rank--> of
-<!--size:app.count-->10<!--/size:app.count--> frameworks measured, level with Lit and Preact, and 10x smaller than React.**
+**A working VeraJS app is about <!--size:app.kb-->5.6 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->5 759 B<!--/size:app.bytes-->) — <!--size:app.rank-->5th<!--/size:app.rank--> of
+<!--size:app.count-->11<!--/size:app.count--> frameworks measured, level with Lit and Preact, and 10x smaller than React.**
 
 ## The evidence
 
@@ -14,6 +14,7 @@ tree-shaken, gzipped:
 | Framework | gzip | vs smallest |
 | --- | ---: | ---: |
 | Van.js | 1 219 B | 1.0x |
+| **VeraJS core alone** | **2 335 B** | 1.9x |
 | Solid *(needs a compiler)* | 4 446 B | 3.6x |
 | **VeraJS + lit-html** | **5 360 B** | 4.4x |
 | **VeraJS + own renderer** | **5 759 B** | 4.7x |
@@ -42,9 +43,19 @@ by 20-30 bytes.
 
 ## The honest framing
 
-**Lead with <!--size:app.kb-->5.6 KB<!--/size:app.kb-->, not <!--size:core.gzip-->2.74 KB<!--/size:core.gzip-->.** Core alone is <!--size:core.gzip-->2.74 KB<!--/size:core.gzip--> gzipped but ships no renderer and cannot
-render anything. Quoting it is technically true and reads as a bait-and-switch to exactly the
-audience that checks size claims.
+**Lead with <!--size:app.kb-->5.6 KB<!--/size:app.kb-->, not <!--size:app.verajs-core-alone.kb-->2.3 KB<!--/size:app.verajs-core-alone.kb-->.** Core alone *does* render —
+`defaultRenderer` handles templates and plain strings, escaping every interpolated value — and at
+<!--size:app.verajs-core-alone.bytes-->2 335 B<!--/size:app.verajs-core-alone.bytes--> it is second smallest on the table. But it renders for **display
+only**: `@event`, `.prop` and `?bool` need a renderer module and otherwise leak into the markup as
+literal attributes, and each update rewrites the subtree through `innerHTML`, so node identity and
+anything the user typed are lost.
+
+Quoting it as "a working app" is technically defensible and reads as a bait-and-switch to the first
+person who adds a form. Quote it for what it is: the floor for a live-updating readout with no
+inputs.
+
+*(An earlier version of this page said core "ships no renderer and cannot render anything". That
+was simply wrong — verified 2026-08-22 by rendering reactive state with core and nothing else.)*
 
 **Name Van.js and Solid.** Both are smaller, and volunteering that buys more credibility than any
 claim to be smallest. Both are fair trades to explain: Van.js has no keyed reconciliation, so any

@@ -39,7 +39,9 @@ Being wrong once in public costs more than every correct claim gains.
   and the hiring pool. The claim invites judgement on the one axis you cannot win.
 - **Not "fastest".** Solid compiles to direct DOM updates; VeraJS re-runs templates and diffs. Its
   update ceiling is Vue/React-class. See [performance.md](performance.md).
-- **Not "<!--size:core.gzip-->2.74 KB<!--/size:core.gzip-->".** That is core alone, which cannot render. The honest number is <!--size:app.kb-->5.6 KB<!--/size:app.kb-->.
+- **Not "<!--size:app.verajs-core-alone.kb-->2.3 KB<!--/size:app.verajs-core-alone.kb--> for a working app".** Core alone renders, but display-only —
+  no `@event`/`.prop`/`?bool`, and updates wipe form state. The number for an interactive app is
+  <!--size:app.kb-->5.6 KB<!--/size:app.kb-->. Quote the small one only with the caveat attached.
 - **Not "production ready".** One maintainer, pre-1.0, and the browser test layer is still
   pending (the node+jsdom suite and CI are real). Say "early" plainly.
 - **Not "the only zero-dependency framework".** Van.js, petite-vue and Preact + signals ship zero

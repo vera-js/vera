@@ -39,6 +39,16 @@
       "depsUnresolved": 0
     },
     {
+      "name": "VeraJS core alone",
+      "note": "core only — display-only reactive rendering, no sigils, no keyed lists",
+      "raw": 5106,
+      "gzip": 2335,
+      "deps": null,
+      "depsThirdParty": null,
+      "depsThirdPartyNames": null,
+      "depsUnresolved": 0
+    },
+    {
       "name": "Solid",
       "note": "solid-js runtime + web (needs a compiler)",
       "raw": 11119,
