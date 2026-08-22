@@ -91,7 +91,15 @@ try {
     target: 'es2022',
     write: false,
     absWorkingDir: process.cwd(),
-    define: { 'process.env.NODE_ENV': '"production"' },
+    define: {
+      'process.env.NODE_ENV': '"production"',
+      /**
+       * These harnesses resolve `@verajs/*` through tsconfig `paths` to TypeScript SOURCE, so
+       * the `__DEV__` constant is not folded for them the way the rollup build folds it.
+       * `false` matches production, which is what a benchmark should be measuring.
+       */
+      __DEV__: 'false',
+    },
     logLevel: 'silent',
   });
   bundle = out.outputFiles[0].text;
