@@ -1,5 +1,5 @@
 ---
-'@verajs/renderer': minor
+'@verajs/renderer': patch
 ---
 
 Add `@verajs/renderer/profiler`, a development-only render profiler. It counts templates committed

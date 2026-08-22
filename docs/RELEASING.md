@@ -37,6 +37,37 @@ everything already published**. A push with no version change is a green no-op.
 Authentication is **npm Trusted Publishing (OIDC)**: npm verifies the workflow's identity directly.
 There is no `NPM_TOKEN`, and no secret of any kind in the release path.
 
+## What the numbers mean
+
+**While the packages are `0.x`, the MINOR position is the breaking boundary** — not the major one.
+That is not a stylistic choice; it is what every consumer's lockfile already does:
+
+```
+^0.1.2  ->  0.1.3   installs automatically
+^0.1.2  ->  0.2.0   does NOT install
+```
+
+So during `0.x`:
+
+| Change | Bump | Consequence |
+| --- | --- | --- |
+| Bug fix | patch | Reaches everyone on `^0.1.x` automatically |
+| New, backwards-compatible API | **patch** | Reaches everyone automatically — which is the point |
+| Anything that breaks existing code | **minor** | Nobody upgrades into it unwittingly |
+
+Shipping a *feature* as a minor during `0.x` gets this backwards twice over: it withholds an
+additive change from every existing consumer, and it spends the only signal that means "this will
+break you" on something that will not.
+
+**After `1.0.0`, ordinary semver applies** — major for breaking, minor for features, patch for
+fixes, exactly as React, Vue, Lit, Solid and Preact all do. None of those projects are in `0.x`, so
+they are the model for afterwards, not for now.
+
+Changesets defaults to 1.0+ semantics, so a feature must be marked `patch` deliberately while we
+are pre-1.0. Reaching `1.0.0` is what removes the footgun.
+
+---
+
 ## Invariants — breaking any of these breaks publishing
 
 - **`release.yml` must keep its name.** The trusted-publisher binding on each of the seven packages

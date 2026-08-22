@@ -193,7 +193,12 @@ Every consumption mode gets a suite asserting the same API surface.
 
 **Independent per package** — `@verajs/autoloader` has no reason to bump because `@verajs/core` did.
 Changesets is set up (`.changeset/`). Full process in **`docs/RELEASING.md`** — read it before
-touching versions, `.changeset/`, or `release.yml`. The loop:
+touching versions, `.changeset/`, or `release.yml`.
+
+**While we are `0.x`, MINOR is the breaking boundary, not major** — `^0.1.2` installs `0.1.3` but
+never `0.2.0`, so that is where npm already draws the line. Features and fixes are both **patch**;
+minor is reserved for breaking changes. Changesets defaults to 1.0+ semantics, so a feature has to
+be marked `patch` deliberately. Ordinary semver resumes at `1.0.0`. The loop:
 
 ```sh
 npx changeset version && node scripts/tag-release.mjs && git push --follow-tags
