@@ -36,17 +36,17 @@
       "@verajs/core": [
         "./packages/core/src/index.ts"
       ],
-      "@verajs/computed": [
-        "./packages/computed/src/index.ts"
-      ],
       "@verajs/inserts": [
         "./packages/inserts/src/index.ts"
       ],
       "@verajs/renderer": [
         "./packages/renderer/src/index.ts"
       ],
-      "@verajs/spread": [
-        "./packages/spread/src/index.ts"
+      "@verajs/reactivity": [
+        "./packages/reactivity/src/index.ts"
+      ],
+      "@verajs/renderer/spread": [
+        "./packages/renderer/src/spread.ts"
       ],
       "@verajs/router": [
         "./packages/router/src/index.ts"

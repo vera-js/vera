@@ -1,26 +1,31 @@
 {
-  "name": "@verajs/computed",
+  "name": "@verajs/reactivity",
   "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },
-  "description": "Memoised derived values for VeraJS. Evaluates once per change, not once per read, and only when something it actually depends on moves.",
+  "description": "Reactivity primitives VeraJS core does not ship: memoised derived values, and more to come. Each reachable on its own subpath so a buildless page loads only what it uses.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",
-    "directory": "packages/computed"
+    "directory": "packages/reactivity"
   },
   "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
-  "main": "./dist/vera-computed.min.js",
-  "types": "./dist/development/vera-computed.d.ts",
+  "main": "./dist/vera-reactivity.min.js",
+  "types": "./dist/development/vera-reactivity.d.ts",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/development/vera-computed.d.ts",
-      "development": "./dist/development/vera-computed.js",
-      "default": "./dist/vera-computed.min.js"
+      "types": "./dist/development/vera-reactivity.d.ts",
+      "development": "./dist/development/vera-reactivity.js",
+      "default": "./dist/vera-reactivity.min.js"
+    },
+    "./computed": {
+      "types": "./dist/development/vera-reactivity-computed.d.ts",
+      "development": "./dist/development/vera-reactivity-computed.js",
+      "default": "./dist/vera-reactivity-computed.min.js"
     }
   },
   "files": [
@@ -97,17 +102,18 @@
       ]
     }
   },
-  "filename": "vera-computed",
+  "filename": "vera-reactivity",
+  "dependencies": {
+    "@verajs/core": "^0.2.1"
+  },
   "keywords": [
     "verajs",
     "vera",
+    "reactivity",
     "computed",
     "memo",
     "derived",
-    "reactivity"
+    "store"
   ],
-  "sideEffects": false,
-  "dependencies": {
-    "@verajs/core": "^0.2.1"
-  }
+  "sideEffects": false
 }

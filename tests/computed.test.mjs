@@ -1,5 +1,5 @@
 /**
- * `@verajs/computed` — memoised derived values.
+ * `@verajs/reactivity/computed` — memoised derived values.
  *
  * The distinction being tested is against a plain function, not against nothing. `() => a + b` runs
  * on every read; a computed runs once per *change*, and only when something it actually read moves.
@@ -11,7 +11,7 @@ import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
-const { computed } = await load('computed');
+const { computed } = await load('reactivity/computed');
 const dom = new JSDOM('<body></body>');
 globalThis.HTMLElement = dom.window.HTMLElement;
 

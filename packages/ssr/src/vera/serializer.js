@@ -163,7 +163,7 @@ const serializeValue = (value, raw = false) => {
     /** Template-shaped (core's html, by shape) recurses. */
     if (value.strings) return serializeTemplate(value);
     /**
-     * A spread (`@verajs/spread`) at element position. It hands back resolved bindings and this
+     * A spread (`@verajs/renderer/spread`) at element position. It hands back resolved bindings and this
      * decides what reaches markup: attributes and truthy booleans do, form properties do because
      * hydration reads them back, and events and other properties are client state. Escaping happens
      * here and only here — principle #8 puts it at the render boundary, not at the source.

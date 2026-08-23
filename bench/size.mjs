@@ -206,8 +206,8 @@ if (process.argv.includes('--snapshot')) {
     router: 'packages/router/dist/vera-router.min.js',
     autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
     styles: 'packages/styles/dist/vera-styles.min.js',
-    spread: 'packages/spread/dist/vera-spread.min.js',
-    computed: 'packages/computed/dist/vera-computed.min.js',
+    spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
+    computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',
     inserts: 'packages/inserts/dist/vera-inserts.min.js',
   };
   const modules = {};

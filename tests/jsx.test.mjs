@@ -139,14 +139,14 @@ console.log('parser edges ok');
 //
 // `{...props}` used to be a compile error, on the grounds that the template language had no spread
 // part. It has one now — an expression in element position, resolved at runtime by
-// `@verajs/spread` — so JSX emits the same thing a hand-written template would.
+// `@verajs/renderer/spread` — so JSX emits the same thing a hand-written template would.
 {
   const out = T('const v = <div {...props} class="base">hi</div>;');
   assert.ok(out.includes('html`<div ${spread(props)} class="base">hi</div>`'),
     'spread emits an element-position expression, written attributes intact');
   /** `T` disables injection so the edge tests compare bare output; these need it on. */
   const injected = (code) => transformJsx(code, 'spread.jsx');
-  assert.ok(injected('const v = <div {...props} />;').includes("import { spread } from '@verajs/spread';"),
+  assert.ok(injected('const v = <div {...props} />;').includes("import { spread } from '@verajs/renderer/spread';"),
     'the import is injected, like html and keyed');
 
   // An expression, not just an identifier.
@@ -163,12 +163,12 @@ console.log('parser edges ok');
 
   // Already imported: do not inject a second time.
   assert.equal(
-    (injected("import { spread } from '@verajs/spread';\nconst v = <div {...p} />;").match(/@verajs\/spread/g) ?? []).length,
+    (injected("import { spread } from '@verajs/renderer/spread';\nconst v = <div {...p} />;").match(/@verajs\/renderer\/spread/g) ?? []).length,
     1,
     'an existing import is respected');
 
   // No spread, no import.
-  assert.ok(!injected('const v = <div id="x" />;').includes('@verajs/spread'), 'unused, uninjected');
+  assert.ok(!injected('const v = <div id="x" />;').includes('@verajs/renderer/spread'), 'unused, uninjected');
 
   // Components still take spread as a plain object argument — unchanged.
   assert.ok(T('const v = <App {...props} a={1} />;').includes('App({'), 'component spread untouched');

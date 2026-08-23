@@ -37,8 +37,9 @@ const PACKAGES = {
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
   '@verajs/inserts': 'inserts',
-  '@verajs/computed': 'computed',
-  '@verajs/spread': 'spread',
+  '@verajs/reactivity': 'reactivity',
+  '@verajs/reactivity/computed': 'reactivity/computed',
+  '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/styles': 'styles',
 };
 
@@ -52,7 +53,8 @@ const PACKAGES = {
  * `setRenderer` from a recipe fails the run.
  */
 const resolveImports = (code, generation) =>
-  code.replace(/from ['"](@verajs\/[a-z]+)['"]/g, (whole, spec) =>
+  /** `[a-z/]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too. */
+  code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, spec) =>
     PACKAGES[spec] ? `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'` : whole
   );
 
@@ -189,9 +191,8 @@ const recipes = readmes.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
-  'packages/computed/README.md': 1,
-  'packages/renderer/README.md': 1,
-  'packages/spread/README.md': 1,
+  'packages/reactivity/README.md': 1,
+  'packages/renderer/README.md': 2,
   'packages/styles/README.md': 2,
 };
 

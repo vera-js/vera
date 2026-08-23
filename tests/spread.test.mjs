@@ -1,5 +1,5 @@
 /**
- * `@verajs/spread` — `<div ${spread(props)}>`, bindings whose names are not known at parse time.
+ * `@verajs/renderer/spread` — `<div ${spread(props)}>`, bindings whose names are not known at parse time.
  *
  * Tests the BUILT artifacts, development and production (see `./dist.mjs`).
  *
@@ -26,7 +26,7 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
   globalThis[k] = dom.window[k];
 
 const { render } = await load('renderer');
-const { spread } = await load('spread');
+const { spread } = await load('renderer/spread');
 
 /** The shape core's built-in `html` tag produces, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });

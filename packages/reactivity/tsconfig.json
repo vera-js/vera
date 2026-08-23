@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.json",
   "include": [
     "src/**/*",
+    "../core/src/**/*",
+    "../inserts/src/**/*",
     "../shared-utils/src/**/*",
     "../shared-types/src/**/*"
   ]

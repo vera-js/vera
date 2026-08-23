@@ -30,6 +30,11 @@
     "./profiler": {
       "types": "./dist/development/vera-renderer-profiler.d.ts",
       "default": "./dist/development/vera-renderer-profiler.js"
+    },
+    "./spread": {
+      "types": "./dist/development/vera-renderer-spread.d.ts",
+      "development": "./dist/development/vera-renderer-spread.js",
+      "default": "./dist/vera-renderer-spread.min.js"
     }
   },
   "files": [

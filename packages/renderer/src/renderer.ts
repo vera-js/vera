@@ -462,7 +462,7 @@ class AttrPart implements Part {
      * React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a capital —
      * all-lowercase `onclick` stays a plain attribute (legal inline-handler HTML).
      *
-     * `@verajs/spread` repeats these rules rather than importing them. Sharing them through
+     * `@verajs/renderer/spread` repeats these rules rather than importing them. Sharing them through
      * `@verajs/shared-utils` was tried and reverted: the shared form has to return both the kind and
      * the name, and the tuple it allocates cost this bundle 10 B. Principle #5 allows deliberate
      * duplication where two things can legitimately diverge; here #7 decides it — weight is the

@@ -23,7 +23,6 @@ export const isProduction = process.env.VERA_DIST === 'production';
 
 /** Bundle name -> the `filename` its package.json declares. */
 const ENTRY = {
-  computed: ['computed', 'vera-computed'],
   core: ['core', 'vera'],
   renderer: ['renderer', 'vera-renderer'],
   'renderer/hydrate': ['renderer', 'vera-renderer-hydrate'],
@@ -31,7 +30,9 @@ const ENTRY = {
   router: ['router', 'vera-router'],
   autoloader: ['autoloader', 'vera-autoloader'],
   inserts: ['inserts', 'vera-inserts'],
-  spread: ['spread', 'vera-spread'],
+  'reactivity/computed': ['reactivity', 'vera-reactivity-computed'],
+  reactivity: ['reactivity', 'vera-reactivity'],
+  'renderer/spread': ['renderer', 'vera-renderer-spread'],
   styles: ['styles', 'vera-styles'],
 };
 

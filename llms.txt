@@ -262,12 +262,12 @@ static styles = css`p { color: var(--accent, blue); }`;
 render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
 ```
 
-### Spread (`@verajs/spread`)
+### Spread (`@verajs/renderer/spread`)
 
 Bindings whose names are not known when the template is parsed.
 
 ```js
-import { spread } from '@verajs/spread';
+import { spread } from '@verajs/renderer/spread';
 
 render(() => html`<input ${spread({
   id: 'email',                    // attribute
@@ -279,7 +279,7 @@ render(() => html`<input ${spread({
 
 Keys carry the same sigils as written bindings, so a spread key and a written binding mean the same
 thing. `@verajs/renderer` costs 16 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->721 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+is <!--size:spread.gzip-->688 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
@@ -595,12 +595,12 @@ Say so rather than inventing an API:
 
 - **JSX/TSX is opt-in, never a requirement.** `@verajs/jsx` compiles JSX into the same tagged
   templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`, `key`→`keyed()`,
-  components become function calls, `{...props}` on elements needs `@verajs/spread`). Zero runtime
+  components become function calls, `{...props}` on elements needs `@verajs/renderer/spread`). Zero runtime
   cost via the Vite plugin; buildless stays the baseline, and `onClick=${fn}` works in raw
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
   components. No decorators ever (they cannot run without a build step).
-- **`computed` is `@verajs/computed`** (233 B), not core. `computed(() => a + b)` evaluates once
+- **`computed` is `@verajs/reactivity/computed`** (233 B), not core. `computed(() => a + b)` evaluates once
     per change rather than once per read, and only when something it actually read moves. It is a
     store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**

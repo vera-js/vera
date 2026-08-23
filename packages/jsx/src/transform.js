@@ -20,7 +20,7 @@ import { findRoots } from './parser.js';
  *   ref={r}                       -> element-position ${r}
  *   key={k} (on a JSX root)       -> keyed(k, html`…`)
  *   style                         -> a STRING (object styles are a compile error)
- *   {...spread} on an element     -> `${spread(props)}` via @verajs/spread
+ *   {...spread} on an element     -> `${spread(props)}` via @verajs/renderer/spread
  */
 
 const BOOLEAN_ATTRIBUTES = new Set([
@@ -63,7 +63,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
    */
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer'];
-  const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/spread'];
+  const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
 
   const state = { usedHtml: false, usedKeyed: false };
 
@@ -136,7 +136,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     if (attribute.spread) {
       /**
        * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is
-       * the same shape: an expression in element position. `@verajs/spread` resolves the sigils in
+       * the same shape: an expression in element position. `@verajs/renderer/spread` resolves the sigils in
        * the keys at runtime, which is the point — a template cannot know the names.
        */
       state.usedSpread = true;

@@ -13,8 +13,8 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/router` | 6.33 KB | 2.80 KB |
 | `@verajs/autoloader` | 1 007 B | 612 B |
 | `@verajs/styles` | 1.02 KB | 549 B |
-| `@verajs/spread` | 1.40 KB | 721 B |
-| `@verajs/computed` | 287 B | 233 B |
+| `@verajs/spread` | 1.24 KB | 688 B |
+| `@verajs/computed` | 298 B | 241 B |
 | `@verajs/inserts` | 523 B | 360 B |
 <!--/size:table.modules-->
 

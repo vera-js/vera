@@ -36,8 +36,8 @@ const MODULES = [
   { pkg: 'router', dist: 'packages/router/dist/vera-router.min.js', what: 'nested routes, params, wildcards, redirects, scroll memory' },
   { pkg: 'autoloader', dist: 'packages/autoloader/dist/vera-autoloader.min.js', what: 'lazy component discovery' },
   { pkg: 'styles', dist: 'packages/styles/dist/vera-styles.min.js', what: '`static styles` adoption, shadow and light DOM' },
-  { pkg: 'spread', dist: 'packages/spread/dist/vera-spread.min.js', what: '`${spread(props)}` — runtime-named bindings' },
-  { pkg: 'computed', dist: 'packages/computed/dist/vera-computed.min.js', what: 'memoised derived values' },
+  { pkg: 'spread', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-spread.min.js', what: '`${spread(props)}` — runtime-named bindings' },
+  { pkg: 'computed', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-computed.min.js', what: 'memoised derived values' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
 ];
 
@@ -50,7 +50,12 @@ const TARGETS = [
   'docs/features/zero-dependencies.md',
   // The per-package READMEs are what npm serves on each package page, and the only ones that ship
   // inside a tarball. The root README ships nowhere.
-  ...MODULES.map((m) => `packages/${m.pkg}/README.md`),
+  /**
+   * A claim's key and the README carrying it are no longer the same name. `spread` is an entry of
+   * `@verajs/renderer` and `computed` one of `@verajs/reactivity`, so `dir` says where the README
+   * lives when it differs from the claim key. Deduplicated, since one README can hold several.
+   */
+  ...new Set(MODULES.map((m) => `packages/${m.dir ?? m.pkg}/README.md`)),
 ];
 
 const SNAPSHOT = 'bench/size-snapshot.json';

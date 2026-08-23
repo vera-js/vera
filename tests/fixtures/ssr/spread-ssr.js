@@ -1,5 +1,5 @@
 import { init, render, html } from '@verajs/core';
-import { spread } from '@verajs/spread';
+import { spread } from '@verajs/renderer/spread';
 
 export default class SpreadSsr extends HTMLElement {
   connectedCallback() {

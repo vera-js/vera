@@ -1,16 +1,32 @@
-# @verajs/computed
+# @verajs/reactivity
 
-Memoised derived values (<!--size:computed.gzip-->233 B<!--/size:computed.gzip--> gzip).
+Reactivity primitives `@verajs/core` deliberately does not ship. Each extends core's **store**, and
+none is needed by every app — which is exactly the split the module system exists to make.
+
+| Entry | | |
+| --- | ---: | --- |
+| `@verajs/reactivity/computed` | <!--size:computed.gzip-->241 B<!--/size:computed.gzip--> | memoised derived values |
+
+Import from the package root and a bundler tree-shakes to what you used; point an import map at a
+subpath and a buildless page downloads only that one. The subpath entries are **additive** — each
+keeps `@verajs/core` external rather than inlining it, so loading two still leaves one core, one
+insert registry and one store identity.
 
 ```sh
-npm i @verajs/computed
+npm i @verajs/reactivity
+```
+
+## `computed` — memoised derived values
+
+```sh
+npm i @verajs/reactivity
 ```
 
 <!-- recipe -->
 ```js
 import { init, createStore, render, setRenderer, html } from '@verajs/core';
 import { render as domRender } from '@verajs/renderer';
-import { computed } from '@verajs/computed';
+import { computed } from '@verajs/reactivity';
 
 setRenderer(domRender);
 

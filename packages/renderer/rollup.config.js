@@ -26,6 +26,13 @@ const isProduction = process.env.MODE === 'prod';
 export default [
   defaultRollupConfig(pkg.filename, [], /^_[a-z]/),
   defaultRollupConfig(`${pkg.filename}-hydrate`, [], /^_[a-z]/, { input: 'src/hydrate.ts' }),
+  /**
+   * `spread` is the one entry here that is **additive** rather than a substitute. The others inline
+   * `./renderer.js` and carry their own template cache, so two of them must never load together;
+   * this one imports nothing at all — it talks to whatever renderer is present through the
+   * `_$apply$` protocol — so it is safe alongside any of them.
+   */
+  defaultRollupConfig(`${pkg.filename}-spread`, [], /^_[a-z]/, { input: 'src/spread.ts' }),
   ...(isProduction
     ? []
     : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),

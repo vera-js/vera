@@ -1,11 +1,11 @@
 /**
- * `@verajs/spread` on the server.
+ * `@verajs/renderer/spread` on the server.
  *
  * The renderer drops everything at element position as a client concern, which is right for a ref
  * and wrong for a spread: a spread carries *attributes*, and attributes are exactly what server
  * markup is made of. Lit's spread PR flagged SSR as unresolved; this is the half that makes it work.
  *
- * The division of labour is the interesting part. `@verajs/spread` knows what a key *means* —
+ * The division of labour is the interesting part. `@verajs/renderer/spread` knows what a key *means* —
  * `.value` is a property, `?disabled` a boolean, `onClick` an event — and hands back resolved
  * bindings. `@verajs/ssr` decides what belongs in markup and does every bit of the escaping, so the
  * escape boundary stays in one place per principle #8 and a new binding source cannot introduce a
@@ -102,7 +102,7 @@ test('after hydration, releasing a key restores the server value — deliberatel
                    'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
     globalThis[k] = dom.window[k];
   const { render } = await import('../packages/renderer/dist/development/vera-renderer-hydrate.js');
-  const { spread } = await import('../packages/spread/dist/development/vera-spread.js');
+  const { spread } = await import('../packages/renderer/dist/development/vera-renderer-spread.js');
   const tag = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
   const host = dom.window.document.createElement('div');
@@ -156,7 +156,7 @@ test('server and client render the same attributes for a shadowing spread', asyn
                    'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
     globalThis[k] = dom.window[k];
   const { render } = await import('../packages/renderer/dist/development/vera-renderer.js');
-  const { spread } = await import('../packages/spread/dist/development/vera-spread.js');
+  const { spread } = await import('../packages/renderer/dist/development/vera-renderer-spread.js');
   const tag = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
   const host = dom.window.document.createElement('div');

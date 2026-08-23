@@ -23,12 +23,12 @@
       "gzip": 549
     },
     "spread": {
-      "raw": 1429,
-      "gzip": 721
+      "raw": 1273,
+      "gzip": 688
     },
     "computed": {
-      "raw": 287,
-      "gzip": 233
+      "raw": 298,
+      "gzip": 241
     },
     "inserts": {
       "raw": 523,
