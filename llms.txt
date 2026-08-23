@@ -129,6 +129,8 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 | Export | Signature | Notes |
 | --- | --- | --- |
 | `render` | `(template, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. |
+| `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
+| `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | Replaceable via `setHtml`. Core's built-in produces a lit-compatible object. |
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
@@ -168,6 +170,24 @@ state.n = 1; state.n = 2; state.n = 3;
 
 ⚠️ `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
 write or use `useEffect`.
+
+### SVG and MathML
+
+Content inside `<svg>` or `<math>` needs its own tag, because the namespace is decided when the
+markup is parsed and cannot be fixed afterwards:
+
+```js
+import { html, svg } from '@verajs/core';
+
+render(() => html`
+  <svg viewBox="0 0 10 10">
+    ${svg`<circle cx=${x} cy=${y} r=${r} fill=${color} />`}
+  </svg>
+`);
+```
+
+`html` alone would produce an `HTMLUnknownElement` named `circle`, which parses fine and never
+renders. Bindings, keyed lists and in-place updates all work the same inside these tags.
 
 ### The signal argument
 
@@ -457,7 +477,15 @@ Semantics worth stating:
 - Reactivity is **per-entry, not deep**: values returned by `get` are raw, so mutating
   `map.get(k).x` is untracked — replace the entry instead. `'_global'` is the reserved
   every-change channel key.
-- Method identity is stable (`map.get === map.get`); `Date`/`WeakMap` are never proxied.
+- Method identity is stable (`map.get === map.get`).
+- **`Map` and `Set` only.** `WeakMap`, `WeakSet`, `Date` and `RegExp` are never proxied: mutating one
+  in a store succeeds and simply does not re-render, leaving the DOM stale. Replace the value
+  instead — `state.when = new Date(t)` is a property write and is fully reactive.
+
+  The weak collections are not an oversight waiting to be fixed. Per-key dependencies are stored in
+  a `Map` keyed by the entry key, so tracking `weakMap.get(obj)` would hold `obj` strongly and
+  defeat the weakness the type exists for. Supporting them means a second, weak dependency
+  structure in core — worth doing on evidence, not before.
 
 ---
 

@@ -67,11 +67,9 @@ export const insert = <K extends keyof InsertFunctionMap>(
 export const connectInserts = (newInserts: Inserts) => {
   const previous = inserts as Map<keyof InsertFunctionMap, Chain>;
   inserts = newInserts;
-  if (previous !== newInserts) {
-    previous.forEach((chain, name) => {
-      chain._p?.forEach((priority, i) => insert(name, chain[i], priority));
-    });
-  }
+  previous.forEach((chain, name) => {
+    chain._p?.forEach((priority, i) => insert(name, chain[i], priority));
+  });
 };
 
 export const setRenderer = (renderer: Renderer) => {

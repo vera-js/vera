@@ -59,3 +59,34 @@ check('clear re-runs keyed hook', keyedRuns === k0 + 2);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
+
+/**
+ * The reactivity boundary, pinned.
+ *
+ * `Map` and `Set` are proxied; `WeakMap`, `WeakSet`, `Date` and `RegExp` are not. Mutating an
+ * unproxied one succeeds and simply does not re-render, which is the failure mode worth asserting —
+ * silence, not an error.
+ *
+ * The weak collections are excluded deliberately rather than pending. Per-key dependencies live in
+ * a `Map` keyed by the entry key, so tracking `weakMap.get(obj)` would hold `obj` strongly and
+ * defeat the weakness the type exists for. Supporting them needs a second, weak dependency
+ * structure in core.
+ */
+const boundaryKey = {};
+const boundary = core.createStore({
+  set: new Set(), map: new Map(),
+  weakSet: new WeakSet(), weakMap: new WeakMap(), when: new Date(0), pattern: /x/,
+});
+/** A proxied collection hands back a stable bound method; a raw one hands back the native one. */
+const isProxied = (value, method) => value[method] !== Object.getPrototypeOf(value)[method];
+
+check('Set is proxied', isProxied(boundary.set, 'add'));
+check('Map is proxied', isProxied(boundary.map, 'get'));
+check('WeakSet is not proxied', !isProxied(boundary.weakSet, 'add'));
+check('WeakMap is not proxied', !isProxied(boundary.weakMap, 'get'));
+
+boundary.weakMap.set(boundaryKey, 1);
+check('a WeakMap in a store still works, it is only untracked', boundary.weakMap.get(boundaryKey) === 1);
+boundary.when.setTime(5);
+check('so does a Date', boundary.when.getTime() === 5);
+
