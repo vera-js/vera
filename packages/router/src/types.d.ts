@@ -63,9 +63,6 @@ export interface RouteSnapshot {
 export type RouteMeta = Record<string, unknown>;
 
 export type Route = {
-  pattern?: string;
-  keys?: string[];
-  regExp?: RegExp;
   matchFunction?: MatchFunction<ParamData>;
   /** How specific this route's complete pattern is — routes are matched most-specific first. */
   score?: number;

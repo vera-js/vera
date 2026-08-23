@@ -16,7 +16,10 @@ export const initRouter = (
   routerOptions: RouterOptions
 ): RouterMethods => {
   const { view, focusView = true, handleInitial = true } = routerOptions;
-  // TODO Set up minified error handling
+  /**
+   * Thrown rather than warned: without a view there is no outlet, so every navigation would return
+   * false and the router would look inert with nothing to explain it.
+   */
   if (!element || !view) throw new Error('Set an element and view');
 
   /** Deferred to first init so importing the router stays side-effect-free (and Node-safe). */

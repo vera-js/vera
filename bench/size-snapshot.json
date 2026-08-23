@@ -11,8 +11,8 @@
       "gzip": 3662
     },
     "router": {
-      "raw": 8043,
-      "gzip": 3496
+      "raw": 8095,
+      "gzip": 3509
     },
     "autoloader": {
       "raw": 1007,

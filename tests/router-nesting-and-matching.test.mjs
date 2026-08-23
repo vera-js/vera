@@ -222,6 +222,44 @@ const app = (routes, options = {}) => {
   router.deleteRouter();
 }
 
+// ── a view name is data, not a selector ───────────────────────────────────────────────────────
+/**
+ * `view` may be a function, and its result may derive from URL params — so the name is
+ * attacker-influenced. It used to be interpolated into `[view="…"]` with only `"` escaped, which is
+ * not enough: `a\\"` becomes `a\\\\"`, read by CSS as a literal backslash followed by a string
+ * terminator. A crafted URL threw a DOMException out of `navigate`, and a payload that parsed would
+ * have picked an element the author never marked as an outlet.
+ *
+ * Nothing builds a selector from the name now, so there is no grammar left to escape into.
+ */
+{
+  const element = window.document.createElement('div');
+  element.innerHTML = '<main view="public"></main><aside view="admin">SECRET</aside>';
+  window.document.body.appendChild(element);
+  const painted = [];
+  insert('render', (template, view) => painted.push(view.getAttribute('view')), 40);
+  const router = initRouter(element, { view: 'public', focusView: false, handleInitial: false });
+  router.addRoutes([{ path: '/v/:name', view: (params) => params.name, component: () => 'ATTACKER' }]);
+
+  await navigate('/v/public', 'navigate');
+  check('a plain view name still resolves', painted.pop() === 'public');
+
+  for (const payload of ['a\\"], [view="admin', 'a\\"], aside /*', 'a\\', '*', '[view]']) {
+    painted.length = 0;
+    let threw = null;
+    try {
+      await navigate('/v/' + encodeURIComponent(payload), 'navigate');
+    } catch (error) {
+      threw = error.constructor.name;
+    }
+    check(`a crafted view name neither throws nor matches: ${JSON.stringify(payload)}`,
+      threw === null && painted.length === 0, threw ?? JSON.stringify(painted));
+  }
+  check('the element it was aiming at is untouched',
+    element.querySelector('[view="admin"]').textContent === 'SECRET');
+  router.deleteRouter();
+}
+
 // ── history helpers ───────────────────────────────────────────────────────────────────────────
 check('back, forward and go are exported', [back, forward, go].every((f) => typeof f === 'function'));
 

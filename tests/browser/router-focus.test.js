@@ -65,7 +65,8 @@ it('with nothing focusable, the view root itself takes focus', async () => {
 
   const focused = document.activeElement;
   expect(focused.id, 'the section took focus').to.equal('plain');
-  expect(focused.tabIndex, 'and was made focusable to receive it').to.equal(0);
+  /** `-1` takes focus from script without adding a permanent tab stop; `0` would add one. */
+  expect(focused.tabIndex, 'made focusable without joining the tab order').to.equal(-1);
   app.el.remove();
 });
 

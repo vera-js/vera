@@ -337,8 +337,8 @@ const routeChange = async (
   id: number,
   result: NonNullable<ReturnType<typeof getRoute>>
 ) => {
+  /** No data means `deleteRouter` ran between the match and here; there is nothing to route. */
   const elementData = elementsData.get(element);
-  // TODO Minified error use Error helper function
   if (!elementData) return false;
 
   const { params = {}, route } = result;
@@ -379,13 +379,25 @@ const routeChange = async (
     const processedView = rawView instanceof Function ? rawView(params, currentRoute, previousRoute) : rawView;
 
     /**
-     * Get the view on the page. Quoted so names that need quoting (and a `view` function's
-     * URL-param-derived results) cannot break the selector.
+     * Found by scanning `[view]` and comparing the attribute, rather than by building a selector
+     * around the name.
+     *
+     * A `view` function's result can derive from URL params, so the name is attacker-influenced. It
+     * used to be interpolated into `[view="…"]` with only `"` escaped, and escaping a quote is not
+     * enough: `a\"` becomes `a\\"`, which CSS reads as a literal backslash and then a string
+     * terminator, so the value escapes the selector it was quoted into. In practice a crafted URL
+     * threw a `DOMException` out of `navigate` — an unhandled rejection that killed the navigation —
+     * and a selector that parsed would have chosen an element the author never marked as an outlet.
+     * Comparing strings has no grammar to escape into and costs 3 B.
      */
-    const levelView =
-      processedView instanceof HTMLElement
-        ? processedView
-        : (searchRoot.querySelector(`[view="${String(processedView).replace(/"/g, '\\"')}"]`) as HTMLElement);
+    const wanted = String(processedView);
+    let levelView = processedView instanceof HTMLElement ? processedView : (null as unknown as HTMLElement);
+    if (!levelView)
+      for (const candidate of searchRoot.querySelectorAll('[view]'))
+        if (candidate.getAttribute('view') === wanted) {
+          levelView = candidate as HTMLElement;
+          break;
+        }
 
     if (!levelView) {
       if (__DEV__ && link.parent)
@@ -394,7 +406,6 @@ const routeChange = async (
             `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
             `parent's template has to render the outlet its children route into.`
         );
-      // TODO Minified error use Error helper function
       return false;
     }
 

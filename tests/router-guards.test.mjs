@@ -137,7 +137,12 @@ const makeApp = (routes) => {
   await clickTo('/f-plain');
   const focused = document.activeElement;
   check('focusView: with nothing focusable, the view root takes focus', focused?.id === 'plain');
-  check('focusView: and is made focusable to receive it', focused?.tabIndex === 0);
+  /**
+   * `-1`, not `0`. Both take focus from script; only `0` also inserts the element into the tab
+   * sequence, and nothing ever takes it back out — so routing to a view with no focusable content
+   * used to leave a new tab stop on the page each time.
+   */
+  check('focusView: made focusable without joining the tab order', focused?.tabIndex === -1);
 
   check('a link without the route attribute is left to the browser', (() => {
     const plain = document.createElement('a');

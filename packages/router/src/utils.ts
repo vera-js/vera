@@ -9,8 +9,6 @@ import {
 import { emit } from './events.js';
 import { stripTrailingSlash } from '@verajs/shared-utils';
 
-export { stripTrailingSlash };
-
 /**
  * Aliases
  */
@@ -69,7 +67,13 @@ export const focusView = (view: HTMLElement) => {
   if (firstFocusableElement) {
     firstFocusableElement.focus();
   } else {
-    firstChild.tabIndex = 0; // Ensure tabIndex is set before focusing
+    /**
+     * `-1`, not `0`. Both make the element focusable from script, but `0` also inserts it into the
+     * tab sequence — permanently, since nothing takes it back off — so routing to a view with no
+     * focusable content left a new tab stop on the page every time. `-1` is the standard shape for
+     * a programmatic focus target.
+     */
+    firstChild.tabIndex = -1;
     firstChild.focus();
   }
 };
