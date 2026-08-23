@@ -228,6 +228,18 @@ the registry into every bundle, so registering through your own copy writes to a
 reads: it works in development and silently does nothing in production. This applies to any module
 that registers an insert.
 
+**`static styles` is not reactive, and does not need to be.** The sheet is adopted once — per
+element for shadow DOM, per class ever for light DOM — and is shared by every instance of the class,
+so reassigning `MyComponent.styles` does nothing and mutating the sheet would hit every instance.
+What changes goes in custom properties: `var()` re-resolves whenever one changes, custom properties
+inherit through the shadow boundary, and neither needs a re-adopt.
+
+```js
+static styles = css`p { color: var(--accent, blue); }`;
+// …
+render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
+```
+
 ### Renderer (`@verajs/renderer`)
 
 A keyed, template-identity renderer, <!--size:renderer.gzip-->3.54 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
