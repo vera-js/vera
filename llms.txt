@@ -565,10 +565,14 @@ instance; then `define` upgrades it synchronously, the field initializer runs, a
 overwritten with `undefined`. Nothing throws. The component renders empty and the bug looks like
 broken reactivity.
 
-`@verajs/renderer` restores values **it** bound and warns in development (production carries
-neither the check nor the message). A property assigned imperatively is not recoverable — the
-renderer never saw it, and by the time `init()` runs the value is already gone. So `declare` is
-the rule, and the renderer's rescue is a safety net, not a substitute.
+`@verajs/renderer` **warns in development** when a bound property is replaced during upgrade, and
+production carries neither the check nor the message. It does not repair it, deliberately: a repair
+would cover `item?: Thing` but not `item = someDefault`, so the same mistake would behave two ways
+depending on spelling — and a property assigned imperatively is unrecoverable by anyone, since the
+renderer never saw it and class fields initialise the instant `super()` returns, before either the
+constructor body or `connectedCallback` can look. `declare` is the rule, not a suggestion.
+
+`npx eslint` flags it too, if you use the config in this repo.
 
 ## Repository
 
