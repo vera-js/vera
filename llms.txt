@@ -534,6 +534,19 @@ Say so rather than inventing an API:
   `'error'` insert). Write batching/transactions: `examples/cdn-js/src/inserts/batch.js` (the
   `'set-handler'` insert).
 - **No context/DI primitive.** Use a module-level store, or a `WeakMap` plus a DOM walk.
+- **No `unsafeHTML`.** Interpolated values are escaped at the render boundary, always, and there is
+  no sanctioned way to opt out — a rendering library is an XSS engine if it ships one, because the
+  helper then appears in tutorials and code review reads it as blessed. If you genuinely have
+  trusted markup, write the sink yourself through an element ref:
+
+  ```js
+  render(html`<div ${(el) => (el.innerHTML = trustedMarkup)}></div>`, host);
+  ```
+
+  The friction is the feature. That line is greppable, obviously yours, and reviewable as the
+  security decision it is. Sanitize before it — `DOMPurify.sanitize(dirty)` — unless the markup is
+  genuinely your own. Note the renderer owns the element's children, so put the sink on an element
+  whose content nothing else binds.
 - **SSR is real and dependency-free**: `@verajs/ssr` renders components to declarative shadow
   DOM server-side (import it before core); `@verajs/renderer/hydrate` adopts the markup
   client-side. Comment-free server HTML; `keyed`/`hold` are client-only (use `.map` in SSR).

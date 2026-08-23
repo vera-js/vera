@@ -6,6 +6,22 @@ and React-style `onClick` bindings, element refs, `keyed()` lists, `hold()` DOM 
 markerless hydration (no framework comments in server HTML). SSR apps import from `/hydrate`;
 everyone else pays zero hydration bytes.
 
+## Escaping, and the deliberate absence of `unsafeHTML`
+
+Every interpolated value is escaped at the render boundary. There is no `unsafeHTML` and there will
+not be one: shipping a sanctioned opt-out puts an XSS sink in the public API, where it reads as
+blessed in tutorials and in review.
+
+Trusted markup goes through an element ref, so you write the sink yourself:
+
+```js
+render(html`<div ${(el) => (el.innerHTML = trustedMarkup)}></div>`, host);
+```
+
+Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
+(`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
+children nothing else binds — the renderer owns the content of elements it renders into.
+
 `@verajs/renderer/profiler` is a development-only entry that reports how many templates were
 committed in place versus torn down and rebuilt, naming the template pairs that churn and where.
 `showProfiler()` puts the same information in a live panel in the corner of the page. It costs
