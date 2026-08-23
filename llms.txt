@@ -230,7 +230,7 @@ that registers an insert.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.61 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.54 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 

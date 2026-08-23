@@ -1,24 +1,29 @@
 /**
- * A `.prop=${…}` binding on a custom element that has not upgraded yet must survive the upgrade.
+ * A `.prop=${…}` binding on a custom element that has not upgraded yet is destroyed when the
+ * element upgrades, and the framework reports it rather than repairing it.
  *
- * This is the autoloader's normal case, not an edge case: a parent template renders
- * `<child-element .item=${store}>` and the autoloader only then fetches the child's module. The
- * property lands as an own property on an un-upgraded instance. When the module calls
- * `customElements.define`, the browser upgrades **synchronously** and the class's field
- * initializers run — and under ES2022 class-field semantics (`useDefineForClassFields`, the
- * default at target ES2022) a declared field compiles to a [[Define]]. So `item?: Thing` emits
- * `item;`, i.e. `Object.defineProperty(this, 'item', { value: undefined })`, and the bound value
- * is gone before the component ever reads it.
+ * The mechanism: the property lands as an own property on an un-upgraded instance. When the
+ * definition arrives — lazily imported, code-split, or a module that simply had not run yet —
+ * `customElements.define` upgrades **synchronously** and the class's field initializers execute.
+ * At target ES2022, where `useDefineForClassFields` is on, a field declaration is a `[[Define]]`:
+ * `item?: Thing` emits `item;`, i.e. `Object.defineProperty(this, 'item', { value: undefined })`.
+ * The bound value is gone before the component reads it, and nothing throws.
  *
- * Writing the field as `declare item?: Thing` avoids it, but that is a rule every consumer has to
- * know. The renderer re-applies the value once the definition exists instead — and only if the
- * slot was actually clobbered, so a component that assigns the property itself keeps its own value.
+ * Repair was implemented and then removed deliberately, which is what most of this file pins down.
+ * Re-applying the value when the slot came back `undefined` handled `item?: Thing` but not
+ * `item = someDefault` — that overwrites with the default and never looks clobbered, so the repair
+ * was silently partial and made one mistake behave two different ways depending on spelling. It
+ * also cost 74 B in every app while leaving `declare` mandatory regardless, because a property
+ * assigned imperatively cannot be recovered by anyone: the renderer never saw it, and by the time
+ * `init()` runs in `connectedCallback` the value is already gone.
+ *
+ * Detection covers both spellings and costs production nothing.
  */
 import { JSDOM } from 'jsdom';
 import { readFile } from 'node:fs/promises';
-import { load, isProduction } from './dist.mjs';
+import { load, isProduction, distUrl } from './dist.mjs';
 
-const dom = new JSDOM('<!doctype html><body><div id="host"></div></body>', { pretendToBeVisual: true });
+const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'customElements', 'HTMLElement', 'Node', 'Element', 'Event',
                  'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[k] = dom.window[k];
@@ -27,84 +32,83 @@ const { render } = await load('renderer');
 /** The shape core's built-in `html` tag produces, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
+const mount = () => { const h = document.createElement('div'); document.body.appendChild(h); return h; };
 
 let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => ok ? pass++ : (fail++, console.log('FAIL:', name, extra));
 
-const host = document.getElementById('host');
+/** Captures warnings for one upgrade, so each case is measured on its own. */
+const warned = [];
+const realWarn = console.warn;
+console.warn = (...args) => warned.push(args.join(' '));
+const since = () => { const n = warned.length; return () => warned.slice(n); };
+
 const store = { message: 'Hello Dark World' };
 
-/** 1. Bind to a tag nothing has defined yet — exactly what the autoloader leaves behind. */
-render(html`<pre-upgrade-child .item=${store}></pre-upgrade-child>`, host);
+/* ── the binding lands before the definition exists ───────────────────────────────────────────── */
+let host = mount();
+render(html`<preup-undef .item=${store}></preup-undef>`, host);
 await frame();
-const child = host.querySelector('pre-upgrade-child');
-check('binding applies before upgrade', child.item === store);
+const undef = host.querySelector('preup-undef');
+check('binding applies before upgrade', undef.item === store);
 
-/** 2. The definition arrives, carrying the plain class field that ES2022 turns into a [[Define]]. */
-class PreUpgradeChild extends HTMLElement {
-  item = undefined;
-}
-customElements.define('pre-upgrade-child', PreUpgradeChild);
-check('define upgrades synchronously', child instanceof PreUpgradeChild);
-
-/** 3. `whenDefined` settles on a microtask, so the re-apply lands here. */
+let took = since();
+customElements.define('preup-undef', class extends HTMLElement { item; });
+check('define upgrades synchronously', undef instanceof customElements.get('preup-undef'));
+check('the class field clobbers the bound value', undef.item === undefined,
+  `got ${JSON.stringify(undef.item)}`);
 await frame();
-check('bound property survives the upgrade', child.item === store,
-  `got ${JSON.stringify(child.item)}`);
+check(`${isProduction ? 'production is silent' : 'development warns'} about a bare field`,
+  took().filter((w) => w.includes('item')).length === (isProduction ? 0 : 1));
 
-/** 4. A component that sets the property itself must keep its own value, not have it overwritten. */
-const own = { message: 'chosen by the component' };
-render(html`<pre-upgrade-opinionated .item=${store}></pre-upgrade-opinionated>`, host);
+/* ── the spelling the removed repair could not see ────────────────────────────────────────────── */
+host = mount();
+render(html`<preup-default .count=${5}></preup-default>`, host);
 await frame();
-const opinionated = host.querySelector('pre-upgrade-opinionated');
-class Opinionated extends HTMLElement {
-  constructor() { super(); this.item = own; }
-}
-customElements.define('pre-upgrade-opinionated', Opinionated);
+const dflt = host.querySelector('preup-default');
+took = since();
+customElements.define('preup-default', class extends HTMLElement { count = 0; });
 await frame();
-check('a component keeps a value it assigned itself', opinionated.item === own,
-  `got ${JSON.stringify(opinionated.item)}`);
+check('a field with a default also destroys the binding', dflt.count === 0,
+  `got ${JSON.stringify(dflt.count)}`);
+check(`${isProduction ? 'production is silent' : 'development warns'} about a defaulted field too`,
+  took().filter((w) => w.includes('count')).length === (isProduction ? 0 : 1),
+  'this is the case the removed repair handled silently and wrongly');
 
-/** 5. Already-defined elements must not pay for any of this. */
-class Defined extends HTMLElement {}
-customElements.define('pre-upgrade-defined', Defined);
-render(html`<pre-upgrade-defined .item=${store}></pre-upgrade-defined>`, host);
+/* ── nothing wrong, nothing said ──────────────────────────────────────────────────────────────── */
+customElements.define('preup-defined', class extends HTMLElement {});
+host = mount();
+took = since();
+render(html`<preup-defined .item=${store}></preup-defined>`, host);
 await frame();
-check('already-defined element gets the property', host.querySelector('pre-upgrade-defined').item === store);
+check('an already-defined element keeps the property', host.querySelector('preup-defined').item === store);
+check('and says nothing', took().length === 0, took().join(' | '));
 
-/** 6. A plain built-in must not be routed through customElements at all. */
+host = mount();
+took = since();
 render(html`<input .value=${'typed'} />`, host);
 await frame();
-check('plain elements still take properties', host.querySelector('input').value === 'typed');
+check('plain built-ins still take properties', host.querySelector('input').value === 'typed');
+check('and say nothing', took().length === 0, took().join(' | '));
 
-/**
- * 7. The warning. Reaching the restore proves a class field clobbered a bound value, so this fires
- * only on a real defect. It also teaches the case the renderer cannot fix — a property assigned
- * imperatively before upgrade, which nothing ever saw and nothing can restore. Development only:
- * `__DEV__` folds to `false` before terser, so production carries neither the check nor the string.
- */
-const warnings = [];
-const realWarn = console.warn;
-console.warn = (...args) => warnings.push(args.join(' '));
+/* ── a definition that never clobbers must stay quiet ─────────────────────────────────────────── */
+host = mount();
+render(html`<preup-clean .item=${store}></preup-clean>`, host);
+await frame();
+const clean = host.querySelector('preup-clean');
+took = since();
+customElements.define('preup-clean', class extends HTMLElement {});   // what `declare` emits
+await frame();
+check('a `declare`d field keeps the bound value', clean.item === store);
+check('and warns about nothing', took().length === 0, took().join(' | '));
 
-render(html`<pre-upgrade-warned .item=${store}></pre-upgrade-warned>`, host);
-await frame();
-class PreUpgradeWarned extends HTMLElement {
-  item = undefined;
-}
-customElements.define('pre-upgrade-warned', PreUpgradeWarned);
-await frame();
 console.warn = realWarn;
 
-const warned = warnings.filter((w) => w.includes('class field') && w.includes('item'));
+/* ── production carries none of it ────────────────────────────────────────────────────────────── */
 if (isProduction) {
-  check('production carries no warning', warned.length === 0, `got ${warned.length}`);
-  check('production strips the warning text from the bundle',
-    !(await readFile(new URL('../packages/renderer/dist/vera-renderer.min.js', import.meta.url), 'utf8'))
-      .includes('declare'));
-} else {
-  check('development warns once, naming the property', warned.length === 1, `got ${warned.length}`);
-  check('the warning tells you to use declare', warned[0]?.includes('declare item'), warned[0]);
+  const bundle = await readFile(new URL(distUrl('renderer')), 'utf8');
+  check('production drops the whenDefined subscription', !bundle.includes('whenDefined'));
+  check('production drops the message', !bundle.includes('declare'));
 }
 
 console.log(`${pass} passed, ${fail} failed`);

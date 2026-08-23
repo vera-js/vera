@@ -501,37 +501,51 @@ class AttrPart implements Part {
         const name = this._name;
         target[name] = value;
         /**
-         * A property set on a custom element that has not upgraded yet lands as an own property on
-         * the instance. When its definition arrives — lazily imported, code-split, or simply a
-         * module that had not run — `customElements.define` upgrades synchronously and the class's
-         * field initializers execute. Under ES2022 class-field semantics a declared field is a
-         * [[Define]], so `item?: T` overwrites what the binding just set with `undefined`.
+         * Detection only, and deliberately not repair.
          *
-         * Re-applied once the definition exists, and only if the slot really was clobbered, so a
-         * component that assigns the property itself keeps what it chose.
+         * A property set on a custom element that has not upgraded yet lands as an own property on
+         * the instance. When the definition arrives — lazily imported, code-split, or a module that
+         * simply had not run — `customElements.define` upgrades synchronously and the class's field
+         * initializers execute. At target ES2022 a field declaration is a `[[Define]]`, so
+         * `item?: T` emits `item;` and overwrites the bound value with `undefined`. Nothing throws;
+         * it reads as broken reactivity.
+         *
+         * Repairing it was tried and removed. Re-applying when the slot came back `undefined`
+         * covered `item?: T` but not `item = someDefault`, which overwrites with the default and
+         * never looks clobbered — so the repair was silently partial, and made the bug intermittent
+         * across two spellings of the same mistake. It also cost 74 B in every app while leaving
+         * `declare` mandatory anyway, because a property assigned imperatively is unrecoverable:
+         * the renderer never saw it, and by the time `init()` runs the value is already gone.
+         *
+         * So this is `__DEV__`-only and production pays nothing — no check, no message, no
+         * `whenDefined` subscription. Lit reached the same place from the other direction and
+         * throws (`lit.dev/msg/class-field-shadowing`); a warning suffices here because Vera has no
+         * prototype accessors to shadow permanently — the damage is one lost value, not a property
+         * that never updates again.
          */
-        const tag = this._element.localName;
-        if (tag.indexOf('-') > 0 && !customElements.get(tag)) {
-          customElements.whenDefined(tag).then(() => {
-            if (target[name] === undefined) {
-              target[name] = value;
+        if (__DEV__) {
+          const tag = this._element.localName;
+          if (tag.indexOf('-') > 0 && !customElements.get(tag)) {
+            customElements.whenDefined(tag).then(() => {
               /**
-               * Reaching here proves a class field overwrote a bound value, so there are no false
-               * positives to weigh — and the same field silently destroys any property assigned
-               * imperatively before upgrade, which nothing can recover because the renderer never
-               * saw it. Said once, where the user can act on it. Lit reached the same conclusion
-               * and throws outright; a warning is enough here, because unlike Lit's prototype
-               * accessors nothing stays broken after the value is restored.
+               * States what was observed rather than diagnosing it. A class field is the usual
+               * cause by a wide margin, but a component that assigns the property itself during
+               * upgrade produces the same observation, and that is a legitimate — if confusing —
+               * thing to do, since the renderer's dirty check will not re-apply the bound value on
+               * the next render either.
                */
-              if (__DEV__)
+              if (target[name] !== value)
                 console.warn(
-                  `@verajs/renderer: <${tag}> declares a class field for \`${name}\`, which ` +
-                    `overwrote the value bound by \`.${name}=\${…}\` when the element upgraded. ` +
-                    `Restored it. Write the field as \`declare ${name}?: …\` — a plain field also ` +
-                    `wipes properties assigned imperatively before upgrade, which cannot be restored.`
+                  `@verajs/renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
+                    `while the element upgraded. A class field is the usual cause: at ES2022 ` +
+                    `\`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites ` +
+                    `whatever was set beforehand — write it \`declare ${name}?: …\` instead, which ` +
+                    `emits nothing. A plain field also wipes properties assigned imperatively, ` +
+                    `which cannot be detected at all. Ignore this if the component replaced the ` +
+                    `value on purpose.`
                 );
-            }
-          });
+            });
+          }
         }
       } else if (kind === BOOLEAN) {
         if (!isFirst || (value as boolean)) this._element.toggleAttribute(this._name, !!value);
