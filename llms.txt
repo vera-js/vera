@@ -528,6 +528,12 @@ Semantics worth stating:
   second location is tried only if the first fails.
 - A failed load dispatches `vera:autoload-error` on the element (bubbles, composed,
   `detail: { tag, src, error }`) as well as logging, so an app can render a fallback.
+- The returned function carries `preload(...tags)` (adds `<link rel="modulepreload">`, bounded the
+  same way, never defines anything) and `retry(tag)` (forgets a failure and re-scans watched roots).
+- Passing a **ShadowRoot** to it watches that root with no `autoloader` attribute — handing it over
+  is the opt-in, and the only way into a component that never marked itself.
+- `{ sweep: false }` skips the document sweep at creation; use it when a page runs more than one
+  autoloader, or each adopts every marked host.
 - `autoload-ignore` excludes that element only, not its subtree.
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.

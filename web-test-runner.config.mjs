@@ -37,7 +37,18 @@ export default {
     .split(',')
     .map((product) => product.trim())
     .filter(Boolean)
-    .map((product) => playwrightLauncher({ product })),
+    .map((product) =>
+      playwrightLauncher({
+        product,
+        /**
+         * Chromium only, and only useful to the memory suites: `window.gc` lets a test prove a node
+         * is collectable rather than assume it. jsdom cannot answer this — it reports an observed
+         * node as retained even after `disconnect()`, which is its own bookkeeping. Ignored by the
+         * other engines, whose suites skip those checks.
+         */
+        launchOptions: product === 'chromium' ? { args: ['--js-flags=--expose-gc'] } : undefined,
+      })
+    ),
   testFramework: {
     config: { timeout: 5000 },
   },

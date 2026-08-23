@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->905 B<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1.10 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -73,6 +73,11 @@ initAutoloader(import.meta.url, 'components', { extension: '.ts' });
 **`extension`** defaults to `.js`, with or without the leading dot. Set `.ts` so a TypeScript dev
 server can autoload sources directly — it will not serve `foo.js` when only `foo.ts` exists.
 
+**`sweep`** defaults to `true` — the document is swept once for `[autoloader]` hosts as the
+autoloader is created, which is what makes hand-written markup work. Set `false` when a page runs
+more than one autoloader, or each will adopt every marked host and they will race to load the same
+tags from their own directories.
+
 **`resolve(tag, dir)`** replaces URL building entirely, for a layout `dir/tag.ext` cannot express:
 
 ```js
@@ -126,13 +131,45 @@ document.addEventListener('vera:autoload-error', ({ detail }) => {
 An element that has not arrived *yet* needs no hook — it is simply un-upgraded, which is what
 `:not(:defined)` in your CSS is for.
 
+## Warming and recovering
+
+```js
+const autoload = initAutoloader(import.meta.url, 'components');
+
+autoload.preload('user-card', 'order-table');   // fetch and compile, do not run
+autoload.retry('user-card');                    // forget a failure, try again where it appears
+```
+
+`preload` adds `<link rel="modulepreload">` for a component you know is coming — a route's shell,
+something below the fold — so the later `import()` is a cache hit. It is bounded exactly as a load
+is, and it never defines anything.
+
+`retry` clears the memo for a tag and re-scans every watched root. Pair it with
+`vera:autoload-error`, which hands you the tag:
+
+```js
+addEventListener('vera:autoload-error', ({ detail }) => {
+  if (navigator.onLine) return;
+  addEventListener('online', () => autoload.retry(detail.tag), { once: true });
+});
+```
+
+## Reaching a shadow root nothing marked
+
+An observer cannot cross a shadow boundary, so a component that never marks itself is out of reach —
+including a third-party one holding tags of yours. Hand the root over directly and it is watched;
+passing it *is* the opt-in, so no attribute is required:
+
+```js
+autoload(someWidget.shadowRoot);
+```
+
 ## What it does not do
 
-Watching does not cross into a child component's shadow root — a `MutationObserver` cannot, by
-design — so a child that hosts lazily-loaded elements of its own marks itself `autoloader`. Vera
-components get this automatically, because the `'render'` insert offers each one up as it renders.
-
-There is no preloading and no retry after a failure.
+Watching does not cross into a child component's shadow root on its own — a `MutationObserver`
+cannot, by design — so a child that hosts lazily-loaded elements of its own marks itself
+`autoloader`, or has its root handed over as above. Vera components get this automatically, because
+the `'render'` insert offers each one up as it renders.
 
 ## What it costs
 
@@ -140,6 +177,11 @@ One `MutationObserver` object watches every marked root, and a mutation only not
 its own ancestor chain — so watched subtrees that are not the ones changing cost nothing. Measured
 in Chromium: 1 000 registrations left unrelated DOM work at 0.900 µs against 0.933 µs with none, and
 watching a root adds ~0.6 µs per mutation batch into it.
+
+Observers are never disconnected, and do not need to be: a removed node observed by a live observer
+is still collectable — measured in Chromium with `--expose-gc`, and pinned by
+`tests/browser/memory.test.js`. (jsdom disagrees, and disagrees even after `disconnect()`, which is
+its own bookkeeping rather than the observer contract.)
 
 This replaced a rescan of each marked component's whole tree on every render, which cost 0.46 µs for
 a 10-node component, 3.4 µs at 100 nodes and **32.5 µs at 1 000** — on every render, for the life of

@@ -198,3 +198,94 @@ it('refuses an autoload-dir that resolves outside the entry directory', async ()
   expect(customElements.get('esc-one')).to.equal(undefined);
   element.remove();
 });
+
+/* ── preload ─────────────────────────────────────────────────────────────────────────────────── */
+it('preload warms a module without running it', async () => {
+  const autoloader = initAutoloader(entry, 'components', { sweep: false });
+  autoloader.preload('preloaded-widget');
+
+  const link = [...document.head.querySelectorAll('link[rel="modulepreload"]')]
+    .find((l) => l.href.includes('preloaded-widget'));
+  expect(link, 'a modulepreload link was added').to.exist;
+  expect(link.href).to.contain('/components/preloaded-widget.js');
+  await settle();
+  expect(customElements.get('preloaded-widget'), 'warming must not define it').to.equal(undefined);
+
+  /** And the warmed URL is the one the loader then asks for. */
+  const element = host('<preloaded-widget></preloaded-widget>');
+  autoloader(element);
+  await until(() => customElements.get('preloaded-widget'));
+  expect(customElements.get('preloaded-widget')).to.be.a('function');
+  element.remove();
+  link.remove();
+});
+
+it('preload refuses a tag that would resolve outside the base', () => {
+  const refused = [];
+  const original = console.error;
+  console.error = (...args) => refused.push(args.join(' '));
+  initAutoloader(entry, '../../..', { sweep: false }).preload('escaped-widget');
+  console.error = original;
+  expect(refused.filter((m) => m.includes('refused'))).to.have.length(1);
+});
+
+/* ── retry ───────────────────────────────────────────────────────────────────────────────────── */
+/**
+ * A failed load is permanent for the page, which is right for a component that does not exist and
+ * wrong for one lost to a dropped connection. `vera:autoload-error` hands you the tag; this is what
+ * you do with it.
+ */
+it('retry forgets a failure and tries again where the tag appears', async () => {
+  const original = console.error;
+  const errors = [];
+  console.error = (...args) => errors.push(args.join(' '));
+
+  const autoloader = initAutoloader(entry, 'missing-dir', { sweep: false });
+  const element = host('<flaky-widget></flaky-widget>');
+  autoloader(element);
+  await until(() => errors.length > 0);
+  expect(customElements.get('flaky-widget'), 'the first attempt failed').to.equal(undefined);
+
+  /** The component is reachable now — a second autoloader stands in for the network coming back. */
+  const working = initAutoloader(entry, 'components', { sweep: false });
+  working(host('<flaky-widget></flaky-widget>'));
+  await settle();
+  console.error = original;
+
+  /** Without retry the tag stays memoised as failed on the first autoloader. */
+  autoloader.retry('flaky-widget');
+  await until(() => customElements.get('flaky-widget'));
+  expect(customElements.get('flaky-widget'), 'reachable after retry').to.be.a('function');
+  element.remove();
+});
+
+/* ── a shadow root handed over directly ──────────────────────────────────────────────────────── */
+/**
+ * An observer cannot cross a shadow boundary, so a component that does not mark itself is out of
+ * reach — including a third-party one holding tags of yours. Passing the root *is* the opt-in.
+ */
+it('watches a shadow root it is handed, without an autoloader attribute', async () => {
+  const outsider = document.createElement('div');
+  document.body.appendChild(outsider);
+  const root = outsider.attachShadow({ mode: 'open' });
+  root.innerHTML = '<shadowed-widget></shadowed-widget>';
+
+  const autoloader = initAutoloader(entry, 'components', { sweep: false });
+  autoloader(outsider);
+  await settle();
+  expect(customElements.get('shadowed-widget'), 'the host never opted in').to.equal(undefined);
+
+  autoloader(root);
+  await until(() => customElements.get('shadowed-widget'));
+  expect(customElements.get('shadowed-widget'), 'handing over the root is the opt-in').to.be.a('function');
+  outsider.remove();
+});
+
+/* ── sweep ───────────────────────────────────────────────────────────────────────────────────── */
+it('sweep: false leaves existing marked hosts alone', async () => {
+  const element = host('<unswept-widget></unswept-widget>');
+  initAutoloader(entry, 'components', { sweep: false });
+  await settle();
+  expect(customElements.get('unswept-widget')).to.equal(undefined);
+  element.remove();
+});
