@@ -497,7 +497,25 @@ class AttrPart implements Part {
           if (!isFirst) this._element.removeAttribute(this._name);
         } else this._element.setAttribute(this._name, value as string);
       } else if (kind === PROPERTY) {
-        (this._element as unknown as Record<string, unknown>)[this._name] = value;
+        const target = this._element as unknown as Record<string, unknown>;
+        const name = this._name;
+        target[name] = value;
+        /**
+         * A property set on a custom element that has not upgraded yet lands as an own property on
+         * the instance. When its definition arrives — which for an autoloaded component is always
+         * after the binding ran — `customElements.define` upgrades synchronously and the class's
+         * field initializers execute. Under ES2022 class-field semantics a declared field is a
+         * [[Define]], so `item?: T` overwrites what the binding just set with `undefined`.
+         *
+         * Re-applied once the definition exists, and only if the slot really was clobbered, so a
+         * component that assigns the property itself keeps what it chose.
+         */
+        const tag = this._element.localName;
+        if (tag.indexOf('-') > 0 && !customElements.get(tag)) {
+          customElements.whenDefined(tag).then(() => {
+            if (target[name] === undefined) target[name] = value;
+          });
+        }
       } else if (kind === BOOLEAN) {
         if (!isFirst || (value as boolean)) this._element.toggleAttribute(this._name, !!value);
       } else if (kind === EVENT) {

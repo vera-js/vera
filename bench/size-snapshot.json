@@ -1,5 +1,5 @@
 {
-  "taken": "2026-08-22",
+  "taken": "2026-08-23",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -7,8 +7,8 @@
       "gzip": 2577
     },
     "renderer": {
-      "raw": 9123,
-      "gzip": 3623
+      "raw": 9289,
+      "gzip": 3697
     },
     "router": {
       "raw": 6414,
@@ -67,8 +67,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 13572,
-      "gzip": 5600,
+      "raw": 13734,
+      "gzip": 5665,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
