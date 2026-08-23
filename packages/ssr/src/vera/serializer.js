@@ -156,7 +156,13 @@ const foldSpread = (out, entries) => {
 };
 
 const serializeValue = (value, raw = false) => {
-  if (value == null || value === false) return '';
+  /**
+   * Only `null` and `undefined` are empty, exactly as on the client — `false` and `0` render.
+   * `false` used to serialize as empty here, which made `${cond && 'x'}` emit nothing on the server
+   * and the text `false` in the browser: a silent content difference on a static page, and a full
+   * re-render on a hydrated one.
+   */
+  if (value == null) return '';
   if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, raw)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {

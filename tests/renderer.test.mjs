@@ -487,3 +487,66 @@ test('a list with static siblings in the parent clears only itself', () => {
   render(view([]), el);
   assert.equal(read(), '<ul><li>head</li><li>tail</li></ul>', 'static siblings survive');
 });
+
+// ── DOM nodes at a child position ───────────────────────────────────────────
+
+/**
+ * A node renders as itself rather than being coerced to `[object HTMLElement]`. This is what makes
+ * a template able to hold something another library owns — a charting canvas, a map container, an
+ * editor instance — without an element ref and a manual `append`.
+ */
+test('a DOM node renders as itself', () => {
+  const span = document.createElement('span');
+  span.textContent = 'mine';
+  render(html`<div>${span}</div>`, el);
+  assert.equal(el.querySelector('span'), span, 'the very same node, not a copy');
+  assert.equal(read(), '<div><span>mine</span></div>');
+});
+
+test('a document fragment renders its children', () => {
+  const template = document.createElement('template');
+  template.innerHTML = '<b>x</b><i>y</i>';
+  render(html`<div>${template.content.cloneNode(true)}</div>`, el);
+  assert.equal(read(), '<div><b>x</b><i>y</i></div>');
+});
+
+test('one node replaces another', () => {
+  const a = document.createElement('a');
+  const b = document.createElement('b');
+  render(html`<div>${a}</div>`, el);
+  render(html`<div>${b}</div>`, el);
+  assert.equal(read(), '<div><b></b></div>');
+  assert.equal(el.querySelector('a'), null, 'the previous node left');
+});
+
+test('re-rendering the same node does not duplicate it', () => {
+  const a = document.createElement('a');
+  render(html`<div>${a}</div>`, el);
+  render(html`<div>${a}</div>`, el);
+  render(html`<div>${a}</div>`, el);
+  assert.equal(el.querySelectorAll('a').length, 1);
+});
+
+test('a node position moves to text and back', () => {
+  const a = document.createElement('a');
+  a.textContent = 'A';
+  render(html`<div>${a}</div>`, el);
+  render(html`<div>${'text'}</div>`, el);
+  assert.equal(read(), '<div>text</div>');
+  render(html`<div>${a}</div>`, el);
+  assert.equal(el.querySelector('a'), a, 'the node came back');
+  render(html`<div>${null}</div>`, el);
+  assert.equal(read(), '<div></div>');
+});
+
+test('nodes render inside arrays and keyed lists', () => {
+  const nodes = [1, 2, 3].map((n) => {
+    const li = document.createElement('li');
+    li.textContent = n;
+    return li;
+  });
+  render(html`<ul>${nodes}</ul>`, el);
+  assert.equal(read(), '<ul><li>1</li><li>2</li><li>3</li></ul>');
+  render(html`<ul>${nodes.map((node, i) => keyed(i, node))}</ul>`, el);
+  assert.equal(el.querySelectorAll('li')[0], nodes[0], 'keyed items hold the node itself');
+});

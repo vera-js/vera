@@ -89,4 +89,26 @@ render(html`<span>${'fresh'}</span>`, bad);
 assert.equal(bad.textContent, 'fresh', 'mismatch fell back to clean render');
 assert.equal(bad.querySelectorAll('p').length, 0, 'stale markup cleared');
 
+// 5. a value the server cannot have rendered mismatches — it never throws out of render()
+//    Adoption used to spread whatever reached this branch, so a plain object raised
+//    `TypeError: value is not iterable` and escaped the MISMATCH guard, taking the page down where
+//    every other disagreement with the server degrades quietly.
+const opaque = dom.window.document.createElement('div');
+opaque.innerHTML = '<p>server</p>';
+render(html`<p>${{ a: 1 }}</p>`, opaque);
+assert.equal(opaque.textContent, '[object Object]', 'an opaque object fell back instead of throwing');
+
+// 6. a client-only DOM node adopts WITHOUT giving up hydration
+//    The server rendered nothing for it (it has no document to build one), so there is nothing to
+//    claim — the node is inserted and the surrounding server DOM is still adopted in place.
+const withNode = dom.window.document.createElement('div');
+withNode.innerHTML = '<p>server</p>';
+const serverP = withNode.querySelector('p');
+const clientOnly = dom.window.document.createElement('span');
+clientOnly.textContent = 'client';
+render(html`<p>server${clientOnly}</p>`, withNode);
+assert.equal(withNode.querySelector('p'), serverP, 'server <p> still adopted alongside a client node');
+assert.equal(withNode.querySelector('span'), clientOnly, 'the client node was inserted');
+assert.equal(withNode.textContent, 'serverclient');
+
 console.log('hydrate ok — markerless adoption, identity preserved, fallback safe');

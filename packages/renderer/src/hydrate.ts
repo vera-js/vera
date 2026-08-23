@@ -27,6 +27,7 @@ import {
   IGNORED,
   TEMPLATE,
   LIST,
+  NODE,
   comment,
   doc,
   toText,
@@ -210,13 +211,34 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
     part._instance = adoptInstance(getTemplate(value), value.values, cursor);
     part._shape = value.strings;
     part._mode = TEMPLATE;
-  } else {
+  } else if ((value as Node).nodeType !== undefined) {
+    /**
+     * A DOM node is client-only by construction — the server has no document to have built one, so
+     * it rendered nothing here and there is nothing to adopt. Inserting it at the cursor (which has
+     * not moved, because no server node was claimed) puts it exactly where the end marker is about
+     * to go, and leaves the part in the same state a client-side commit would.
+     */
+    cursor.parent.insertBefore(value as Node, cursorSplit(cursor));
+    part._value = value;
+    part._mode = NODE;
+  } else if (Array.isArray(value) || typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
     const list: unknown[] = Array.isArray(value) ? value : [...(value as Iterable<unknown>)];
     const items: Item[] = [];
     for (const entry of list) items.push(adoptItem(cursor, entry));
     part._items = items;
     part._keyedList = list.length > 0 && (list[0] as TemplateResult)?.key !== undefined;
     part._mode = LIST;
+  } else {
+    /**
+     * Anything else — a plain object, a Promise, a class instance — the client commits as
+     * `String(value)`, and the server serializer emits nothing for it. The two cannot be reconciled,
+     * so this is a mismatch like any other and the caller renders fresh.
+     *
+     * It has to be said explicitly: spreading a non-iterable throws a `TypeError`, and the guard in
+     * `tryAdopt` only swallows `MISMATCH`. That escaped hydration and took the page down, where
+     * every other disagreement with the server degrades quietly.
+     */
+    throw MISMATCH;
   }
 
   const end = comment();

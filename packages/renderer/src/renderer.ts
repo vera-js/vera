@@ -702,6 +702,7 @@ const EMPTY = 0;
 const TEXT = 1;
 const TEMPLATE = 2;
 const LIST = 3;
+const NODE = 4;
 
 /**
  * Development-only profiling hook, armed by `@verajs/renderer/profiler`. Null until something
@@ -845,6 +846,20 @@ class ChildPart implements Part {
       this._instance = instance;
       this._shape = value.strings;
       this._mode = TEMPLATE;
+      return;
+    }
+    if ((value as Node).nodeType !== undefined) {
+      /**
+       * A DOM node renders as itself — a canvas a charting library owns, a `<template>`'s content,
+       * an element built by hand. Placed after the template check and before the list check
+       * because `nodeType` is one property read and nothing else that reaches here has one.
+       */
+      if (this._mode !== NODE || this._value !== value) {
+        if (this._mode !== EMPTY) this._clear();
+        this._insert(value as Node);
+        this._value = value;
+        this._mode = NODE;
+      }
       return;
     }
     if (Array.isArray(value)) {
@@ -1161,6 +1176,7 @@ export {
   IGNORED,
   TEMPLATE,
   LIST,
+  NODE,
   comment,
   doc,
   toText,
