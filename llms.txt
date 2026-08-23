@@ -478,12 +478,11 @@ gives you two registries. Reconcile once at startup:
 ```js
 import { inserts } from '@verajs/core';
 import { connectInserts } from '@verajs/router';
-connectInserts(inserts);   // FIRST — before setRenderer, setAutoloader or any insert()
+connectInserts(inserts);
 ```
 
-**Order matters.** `connectInserts` replaces the registry rather than merging into it, so anything
-registered before it becomes unreachable — silently, since nothing throws and the callback lands in
-a map nobody reads. Development builds warn; production carries neither the check nor the message.
+Order does not matter — anything registered before the call is replayed into the new registry at its
+original priority.
 
 Unnecessary under a bundler, where everything resolves to one instance. This is deliberate — it is
 the price of the modules being genuinely independent of core.

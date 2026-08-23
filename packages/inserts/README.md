@@ -1,6 +1,6 @@
 # @verajs/inserts
 
-The VeraJS extension registry (<!--size:inserts.gzip-->322 B<!--/size:inserts.gzip--> gzip). Every
+The VeraJS extension registry (<!--size:inserts.gzip-->365 B<!--/size:inserts.gzip--> gzip). Every
 capability that attaches to VeraJS — renderers, autoloaders, styling, error boundaries, batching —
 attaches through here. It is the module system's backbone rather than a feature.
 
@@ -46,7 +46,7 @@ to replace.
 import { inserts } from '@verajs/core';
 import { connectInserts } from '@verajs/router';
 
-connectInserts(inserts);   // FIRST — before setRenderer, setAutoloader or any insert()
+connectInserts(inserts);
 ```
 
 Each standalone `.min.js` inlines its own copy of this package, so loading `vera.min.js` *and*
@@ -56,11 +56,11 @@ Under a bundler both already resolve to one instance and the call does nothing.
 That is intentional, and it is the price of the modules being genuinely independent of core — not a
 bug to fix by making bundles share global state.
 
-**Order matters.** `connectInserts` replaces the registry rather than merging into it, so anything
-registered beforehand becomes unreachable. Nothing throws; the callback simply lands in a map nobody
-reads. Development builds warn when this happens; production carries neither the check nor the
-message. Merging instead was rejected on weight — this package is inlined into core, the renderer
-and the router, so a byte here is paid three times in the packages least able to afford it.
+**Order does not matter.** Anything registered before the call is replayed into the new registry at
+its original priority, so `connectInserts` can come before or after your `setRenderer`. It used to
+replace the registry outright, which made a `setRenderer` in the wrong place unreachable — silently,
+since nothing throws and the callback simply lands in a map nobody reads. A replayed entry whose
+priority is already taken replaces it, exactly as a direct `insert` would.
 
 ## Convenience wrappers
 

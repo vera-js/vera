@@ -8,13 +8,13 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 5.95 KB | **2.52 KB** |
+| `@verajs/core` | 6.03 KB | **2.55 KB** |
 | `@verajs/renderer` | 8.99 KB | 3.55 KB |
-| `@verajs/router` | 6.26 KB | 2.77 KB |
+| `@verajs/router` | 6.34 KB | 2.81 KB |
 | `@verajs/autoloader` | 1 007 B | 612 B |
 | `@verajs/styles` | 1.02 KB | 549 B |
 | `@verajs/spread` | 1.40 KB | 721 B |
-| `@verajs/inserts` | 455 B | 322 B |
+| `@verajs/inserts` | 530 B | 365 B |
 <!--/size:table.modules-->
 
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.5 KB<!--/size:app.kb--> gzipped**. For

@@ -50,26 +50,28 @@ export const insert = <K extends keyof InsertFunctionMap>(
  * inserts. Required in CDN mode, where each `.min.js` inlines its own copy of this package; a no-op
  * under a bundler resolving everything to one instance.
  *
- * **Call it before registering anything.** It replaces the registry rather than merging into it, so
- * a `setRenderer` or `insert` that ran first is discarded — silently, because nothing throws and
- * the callback simply lands in a map nobody reads afterwards. Merging instead was considered and
- * rejected on weight: this package is inlined into `@verajs/core`, `@verajs/renderer` and
- * `@verajs/router`, so every byte here is paid three times over in exactly the packages where bytes
- * are least negotiable.
+ * Anything already registered here is **replayed into the new registry** at its original priority,
+ * so the call is order-independent. It used not to be: `connectInserts` replaced the map outright,
+ * and a `setRenderer` that ran first became unreachable — silently, since nothing throws and the
+ * callback simply lands in a map nobody reads afterwards. An app that rendered nothing, with no
+ * indication why, from two lines in the wrong order.
  *
- * So it warns instead, in development only — `__DEV__` folds to `false` before terser, and
- * production carries neither the check nor the message.
+ * Replaying rather than warning costs bytes in a package inlined into `@verajs/core`,
+ * `@verajs/renderer` and `@verajs/router` — so it is paid three times over, in the packages least
+ * able to afford it. Worth it here because a trap that requires the reader to know an undocumented
+ * ordering rule is not a documentation problem, and because the loop is dead weight in the ordinary
+ * case: connecting first leaves nothing to replay, and `forEach` over an empty Map is one call.
+ *
+ * A replayed entry whose priority is already taken replaces it, exactly as a direct `insert` would.
  */
 export const connectInserts = (newInserts: Inserts) => {
-  if (__DEV__ && inserts.size && inserts !== newInserts) {
-    console.warn(
-      `[vera] connectInserts() replaced a registry that already had ${inserts.size} insert ` +
-        `chain(s) registered: ${[...inserts.keys()].join(', ')}. Those registrations are now ` +
-        `unreachable — whatever registered them will silently do nothing.\n` +
-        `Call connectInserts() first, before setRenderer/setAutoloader/insert.`
-    );
-  }
+  const previous = inserts as Map<keyof InsertFunctionMap, Chain>;
   inserts = newInserts;
+  if (previous !== newInserts) {
+    previous.forEach((chain, name) => {
+      chain._p?.forEach((priority, i) => insert(name, chain[i], priority));
+    });
+  }
 };
 
 export const setRenderer = (renderer: Renderer) => {

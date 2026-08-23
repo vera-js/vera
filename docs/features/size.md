@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->6 216 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->5 626 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->6 250 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->5 626 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -44,7 +44,7 @@ by 20-30 bytes.
 
 **There is no smaller honest number than <!--size:app.kb-->5.5 KB<!--/size:app.kb-->.** Core ships no
 renderer — `render()` with none registered warns and paints nothing — so "core alone" is not a tier
-anyone can ship. Quoting core's standalone <!--size:core.gzip-->2.52 KB<!--/size:core.gzip--> as an
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->2.55 KB<!--/size:core.gzip--> as an
 app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
@@ -81,13 +81,13 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 2 577 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/core` | 2 611 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 3 639 B | keyed template renderer, refs, `hold` |
-| `@verajs/router` | 2 840 B | nested routes, params, wildcards, redirects, scroll memory |
+| `@verajs/router` | 2 878 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 612 B | lazy component discovery |
 | `@verajs/styles` | 549 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/spread` | 721 B | `${spread(props)}` — runtime-named bindings |
-| `@verajs/inserts` | 322 B | the extension point |
+| `@verajs/inserts` | 365 B | the extension point |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).
