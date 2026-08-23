@@ -59,31 +59,7 @@ const MATHML_RESULT = 3;
 const tag =
   <T extends ResultType>(type: T) =>
   (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
-      // Warn against templates octal escape sequences
-      // We do this here rather than in render so that the warning is closer to the
-      // template definition.
-      // if (DEV_MODE && strings.some((s) => s === undefined)) {
-      //   console.warn(
-      //     'Some template strings are undefined.\n' +
-      //       'This is probably caused by illegal octal escape sequences.'
-      //   );
-      // }
-      // if (DEV_MODE) {
-      //   // Import static-html.js results in a circular dependency which g3 doesn't
-      //   // handle. Instead we know that static values must have the field
-      //   // `_$litStatic$`.
-      //   if (
-      //     values.some((val) => (val as {_$litStatic$: unknown})?.['_$litStatic$'])
-      //   ) {
-      //     issueWarning(
-      //       '',
-      //       `Static values 'literal' or 'unsafeStatic' cannot be used as values to non-static templates.\n` +
-      //         `Please use the static 'html' tag function. See https://lit.dev/docs/templates/expressions/#static-expressions`
-      //     );
-      //   }
-      // }
       return {
-        // This property needs to remain unminified.
         ['_$litType$']: type,
         strings,
         values,
@@ -118,8 +94,6 @@ export const setCss = (
  * An html template literal function used for syntax highlighting. Can be optionally replaced
  * with other options like lit
  */
-// export let html = (strings: TemplateStringsArray, ...values: unknown[]): unknown =>
-//   strings.reduce((acc, str, i) => acc + str + (values[i] !== undefined ? values[i] : ''), '');
 
 export const setHtml = (htmlFunction: (strings: TemplateStringsArray, ...values: unknown[]) => unknown) => {
   /**

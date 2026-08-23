@@ -1,5 +1,6 @@
 import { createHook } from '../modules/createHook.js';
 import { coalesce } from './coalesce.js';
+import { renderScheduler } from '../modules/setRenderScheduler.js';
 import { HookCallback, ComponentElement } from '../types.js';
 
 /**
@@ -16,10 +17,16 @@ import { HookCallback, ComponentElement } from '../types.js';
  */
 export const useEffect = (callback: HookCallback, element?: ComponentElement) => {
   createHook({
-    callback: coalesce(callback, (run) =>
-      /** `typeof` rather than a bare reference: the global is undefined, not falsy, off-browser. */
-      typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : run()
-    ),
+    /**
+     * The same scheduler renders use, rather than a second hardcoded `requestAnimationFrame`.
+     *
+     * It used to inline its own copy — identical to `animationFrame` in `setRenderScheduler`, down
+     * to the `typeof` guard for off-browser environments. That duplicated the knowledge and, worse,
+     * meant `setRenderScheduler(microtask)` moved renders while leaving effects on animation frames:
+     * the two then ran on different clocks, which is not what an author asks for by swapping one
+     * scheduler.
+     */
+    callback: coalesce(callback, (run) => renderScheduler(run)),
     element,
     priority: 75,
   });

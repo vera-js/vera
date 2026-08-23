@@ -3,7 +3,7 @@
  * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
  * node --test: a nonzero exit marks the file failed.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div id="app"></div>', { pretendToBeVisual: true });
 const { window } = dom;
@@ -70,11 +70,16 @@ app.appendChild(se); await tick();
 se.remove(); await tick();
 check('useSyncEffect cleanup runs on removal', syncCleanups >= 1);
 
-// ---- late hook warns ----
+// ---- a hook registered outside init()→render() is ignored ----
+// The warning is __DEV__-only, like every other diagnostic in core: production carries neither the
+// check nor the message. The hook is dropped either way, which is the part that matters.
 let warns = 0; const ow = console.warn; console.warn = () => warns++;
 core.useEffect(() => {});
 console.warn = ow;
-check('late/orphan hook warns instead of silence', warns === 1);
+check(
+  isProduction ? 'late/orphan hook is silent in production' : 'late/orphan hook warns',
+  warns === (isProduction ? 0 : 1)
+);
 
 // ---- _delete real + clean ----
 const raw = { x: 1 };
@@ -116,6 +121,44 @@ app.appendChild(l1); app.appendChild(l2); await tick();
 const headStyles = [...window.document.head.querySelectorAll('style')].filter((st) => st.textContent.includes('em'));
 check('light-DOM styles hoisted once per class', headStyles.length === 1);
 check('no styles injected inside light element', l1.querySelectorAll('style').length === 0);
+
+
+// ---- one scheduler, not two ----
+// `useEffect` used to hardcode its own `requestAnimationFrame`, a byte-for-byte copy of
+// `animationFrame` in setRenderScheduler. Swapping the scheduler therefore moved renders and left
+// effects on frames: an author who chose microtask scheduling precisely to escape the frame
+// boundary still waited one for every effect. Same final order, up to 16 ms later.
+{
+  const order = [];
+  core.setRenderScheduler(core.microtask);
+  class SchedEl extends window.HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      const state = core.createStore({ n: 0 });
+      this._state = state;
+      core.useLayoutEffect(() => { order.push('layout'); void state.n; });
+      core.useEffect(() => { order.push('effect'); void state.n; });
+      core.render(() => { order.push('render'); return core.html`<p>${state.n}</p>`; });
+    }
+  }
+  window.customElements.define('sched-el', SchedEl);
+  const el = window.document.createElement('sched-el');
+  app.appendChild(el);
+  await tick();
+
+  order.length = 0;
+  el._state.n = 1;
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  check('a swapped scheduler moves effects too, not just renders', order.join(',') === 'layout,render,effect',
+    `settled as "${order.join(',')}" without waiting for a frame`);
+  el.remove();
+  /** Back to the default, so nothing after this file inherits a swapped scheduler. */
+  core.setRenderScheduler((run) =>
+    typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : run()
+  );
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

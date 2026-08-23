@@ -67,7 +67,9 @@ export function createHook(hook: Hook) {
      * confusing no-op. The usual cause is a hook registered after `render()` — hooks belong
      * between `init()` and `render()`, or must be given their element explicitly.
      */
-    console.warn('[vera] hook ignored — register between init() and render(), or pass the element');
+    if (__DEV__) {
+      console.warn('[vera] hook ignored — register between init() and render(), or pass the element');
+    }
     return;
   }
 
