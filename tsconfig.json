@@ -57,7 +57,8 @@
   "files": ["./globals.d.ts"],
   "include": [
     "./packages/**/*.ts",
-    "./examples/**/*"
+    "./examples/**/*",
+    "./tests/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
