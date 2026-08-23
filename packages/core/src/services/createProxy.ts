@@ -208,6 +208,15 @@ const createHandler = <T extends object>(
     set(obj: T, prop: Extract<keyof T, string>, value: T[Extract<keyof T, string>], receiver) {
       const prevValue = Reflect.get(obj, prop, receiver);
       if (prevValue === value) return true;
+      /**
+       * Appending to an array moves `length` without ever passing through this trap: assigning
+       * `list[3]` on a three-element array updates `length` as an internal consequence, so a hook
+       * that read `length` was never told. `push` and `unshift` were silently inert while `splice`
+       * and `pop` worked, because those assign `length` explicitly.
+       *
+       * Captured before the write, since the length is what changes.
+       */
+      const grew = Array.isArray(obj) && +prop >= (obj as unknown[]).length;
       const result = Reflect.set(obj, prop, value, receiver);
 
       if (result) {
@@ -224,12 +233,26 @@ const createHandler = <T extends object>(
         });
 
         if (!deferred) runCallbacks(obj, prop, value, prevValue);
+        /** The implicit `length` change an append causes, which nothing else reports. */
+        if (grew) {
+          const length = (obj as unknown[]).length as T[Extract<keyof T, string>];
+          runCallbacks(obj, 'length' as Extract<keyof T, string>, length, +prop as never);
+        }
       }
 
       return result;
     },
+    /**
+     * Deleting a tracked property notified nothing at all, so a hook reading it kept the value it
+     * last saw. `undefined` is the correct new value — it is what a read returns afterwards.
+     */
     deleteProperty(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>) {
+      const had = prop in obj;
+      const prevValue = had ? Reflect.get(obj, prop) : undefined;
       const success = Reflect.deleteProperty(obj, prop);
+      if (success && had) {
+        runCallbacks(obj, prop, undefined as T[Extract<keyof T, string>], prevValue);
+      }
       return success;
     },
   };
