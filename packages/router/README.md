@@ -1,5 +1,204 @@
 # @verajs/router
 
-SPA routing for web components (<!--size:router.gzip-->2.80 KB<!--/size:router.gzip--> gzip): nested routes, params and wildcards, redirects,
-route events with cancellation, hash handling, query strings, `aria-current` active links,
-scroll restoration, programmatic `navigate()`. Standalone — does not require `@verajs/core`.
+SPA routing for web components — <!--size:router.gzip-->2.87 KB<!--/size:router.gzip--> gzipped, no
+build step required.
+
+Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
+`aria-current` active links, scroll restoration, and several independent routers on one page.
+
+**Standalone: it does not require `@verajs/core`.** The router renders through whatever is
+registered on the `'render'` insert, so it works with `@verajs/renderer`, with lit-html, or with a
+renderer you wrote.
+
+```sh
+npm i @verajs/router @verajs/renderer
+```
+
+## A router, whole
+
+```js
+import { initRouter, setRenderer } from '@verajs/router';
+import { render } from '@verajs/renderer';
+import { html } from '@verajs/core';
+
+setRenderer(render);
+
+customElements.define(
+  'app-shell',
+  class extends HTMLElement {
+    connectedCallback() {
+      this.innerHTML = `
+        <nav><a route href="/">Home</a> <a route href="/users">Users</a></nav>
+        <main view="main"></main>`;
+
+      const router = initRouter(this, { view: 'main' });   // 'main' matches [view="main"]
+
+      router.addRoutes([
+        { path: '/', title: 'Home', component: () => html`<p>Home</p>` },
+        { path: '/users', title: 'Users', component: () => html`<ul>…</ul>` },
+        { path: '/users/:id', component: (params) => html`<p>User ${params.id}</p>` },
+        { path: '/*rest', title: 'Not found', component: (params) => html`<p>No ${params.rest}</p>` },
+      ]);
+    }
+  }
+);
+```
+
+Three pieces make that work: an **outlet**, `<main view="main">`, which is where the matched route
+renders; **routed links**, marked with a bare `route` attribute; and the route list.
+
+## Routes
+
+| Key | |
+| --- | --- |
+| `path` | `'/users/:id'`, or a function returning one |
+| `component` | returns the template to render into the outlet. May be `async` |
+| `title` | a string, or a function of the params — sets `document.title` |
+| `action` | runs before the component; load data here. May be `async` |
+| `view` | a different outlet for this route: a name, an element, or a function returning either |
+| `redirect` | send this route elsewhere — a path, or a function of the params |
+| `children` | routes whose paths are prefixed by this one |
+
+`component`, `action`, `title` and `view` all receive `(params, to, from)`, where `to` and `from` are
+route snapshots carrying `path`, `params`, `query` and `trigger`.
+
+**Patterns.** `:name` matches one segment; `*name` matches the rest of the path and gives you an
+array of segments. Everything else is literal — `/file.html` matches only that path, not
+`/fileXhtml`. Params arrive **percent-decoded**, so `/u/John%20Doe` gives you `John Doe`.
+
+**Order decides the match.** Routes are tried in the order you register them and the first match
+wins, so `/users/:id` before `/users/new` makes `/users/new` unreachable. Register literal paths
+before the patterns that would swallow them.
+
+**`children` prefixes paths; it does not nest views.** A parent `/p` with a child `/c` registers
+`/p/c` as a route of its own, and navigating there runs the child alone — the parent's `component`
+does not also render. For a layout that persists across child routes, render it from the parent
+component or give the child route its own `view`.
+
+## Navigating
+
+```js
+import { navigate } from '@verajs/router';
+
+navigate('/users/5');              // pushes a history entry
+navigate('/login', 'replace');     // swaps the current entry — for guards and redirects
+```
+
+Every router on the page follows every navigation, because they all share one URL. History gets one
+entry per user navigation, and none for back/forward or the initial load.
+
+A newer navigation **supersedes** an older one. If a route's `component` fetches and the user clicks
+something else while it is in flight, the abandoned pass stops at its next checkpoint and commits
+nothing — no render, no history entry, no title.
+
+## Guards and events
+
+```js
+router.on('before-route', async (to, from) => {
+  if (to.path.startsWith('/admin') && !(await isAdmin())) {
+    navigate('/login', 'replace');
+    return false;      // cancels
+  }
+});
+```
+
+| Event | |
+| --- | --- |
+| `before-leave` | before leaving the current route. Return `false` to cancel |
+| `before-route` | after `before-leave`, before anything renders. Return `false` to cancel |
+| `after-route` | cleanup, once the route has been applied. Cannot cancel |
+
+**Every handler runs**, even after one cancels, and the results aggregate. A handler that **throws**
+counts as a cancellation — fail-closed, so a bug in a guard cannot let a navigation through it.
+
+The same three are dispatched as DOM events named `vera:before-leave`, `vera:before-route` and
+`vera:after-route`. They bubble, cross shadow boundaries, and carry `{ currentRoute, previousRoute }`
+on `detail`. `preventDefault()` on either `before-` event cancels the navigation, exactly as
+returning `false` does:
+
+```js
+element.addEventListener('vera:before-leave', (e) => {
+  if (formIsDirty) e.preventDefault();
+});
+```
+
+## Links
+
+```html
+<a route href="/users/5">User 5</a>
+```
+
+The `route` attribute is what opts a link in; anything without it is a normal link. Clicks with a
+modifier key or a non-primary button, and links with `target` or `download`, are left to the browser
+— hijacking those is the classic SPA-router etiquette bug.
+
+Routed links must live in the router's own template. A link inside a *child* component's shadow root
+is invisible to the click listener, because retargeting hides it.
+
+**Active links** are marked as the route changes: an exact match gets `.active` and
+`aria-current="page"`; an ancestor of the current path — `/users` while at `/users/5` — gets
+`.active-within`. The ancestor match is on segment boundaries, so `/user` never lights up for
+`/users`, and `aria-current` stays exact-only per the ARIA spec.
+
+## Query strings and hashes
+
+A query rides in the URL but never reaches pattern matching, so `/users?page=2` matches the `/users`
+route. The parsed `URLSearchParams` is `to.query` on every snapshot.
+
+`navigate('/docs#install')` costs a single history entry, scrolls to the anchor and sets `:target`,
+and a deep-linked fragment scrolls once the routed content exists rather than before it. With
+`pushHash: false`, fragments never reach the URL at all — they go to `hashChangeFunction` alone.
+
+## Scrolling
+
+Fresh navigation lands at the top, like a page load. Back and forward restore the position the user
+left that entry at: the router stamps the scroll offset into history state on the way out and
+restores it after the content renders, which is why it sets `history.scrollRestoration = 'manual'` —
+the browser's own restoration fires before a routed view exists.
+
+## Options
+
+```js
+initRouter(element, { view: 'main', focusView: true, handleInitial: true, pushHash: true });
+```
+
+| | |
+| --- | --- |
+| `view` | the outlet: a `[view="…"]` name, an element, or a shadow root. **Required** |
+| `focusView` | move focus into the new view after routing. Default `true` |
+| `handleInitial` | route the landing URL on the first frame. Default `true` |
+| `pushHash` | let fragments reach the URL. Default `true` |
+| `hashChangeFunction` | called with each fragment |
+
+`initRouter` returns `{ addRoutes, deleteRouter, on, off }`. `deleteRouter()` removes the routes,
+the handlers and the link listener — call it if the host element outlives its routing.
+
+## Extending it
+
+| | |
+| --- | --- |
+| `setRenderer(fn)` | what draws a route's template into its outlet |
+| `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
+| `connectInserts(inserts)` | CDN only — see below |
+
+On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own extension registry, so
+they start out as two. `connectInserts` points one at the other:
+
+```js
+import { inserts } from '@verajs/core';
+import { connectInserts } from '@verajs/router';
+
+connectInserts(inserts);
+```
+
+Order does not matter — anything already registered is replayed at its original priority. Under a
+bundler both resolve to one registry and the call does nothing.
+
+## Node and SSR
+
+Importing the router is side-effect-free: window listeners attach on the first `initRouter`, not at
+import time, so `import '@verajs/router'` is safe in Node. Routing itself is browser-only.
+
+## License
+
+MIT

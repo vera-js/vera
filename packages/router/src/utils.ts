@@ -38,9 +38,18 @@ export const emitEvent = async (
     composed: true,
     detail: { currentRoute: to, previousRoute: from },
   });
-  // Must be on document or it can hold onto the element in memory and cause a leak
-  element.ownerDocument?.dispatchEvent(event);
-  return await emit(element, type, to, from);
+  /**
+   * Dispatched on the router element itself. `bubbles` and `composed` then mean what they say —
+   * the event reaches `document` and crosses shadow boundaries — and `cancelable` becomes true in
+   * practice: `preventDefault()` cancels the navigation, alongside a handler returning `false`.
+   *
+   * It used to be dispatched on `element.ownerDocument` instead, so a listener on the router
+   * element never fired at all and `preventDefault()` did nothing. The reason given was a memory
+   * leak; dispatching does not retain a target, and `detail` carries route snapshots rather than
+   * the element, so there was nothing to leak.
+   */
+  const uncancelled = element.dispatchEvent(event);
+  return (await emit(element, type, to, from)) && uncancelled;
 };
 
 /**
@@ -106,8 +115,28 @@ export const getParams = (match: string[], keys: ParsedPatternKey[]) =>
   // The first element in `match` contains the whole string so we have to
   // offset the index by 1.
   Object.fromEntries(
-    keys.map((key, index) => [key.name, key.type === wildcard ? match[index + 1].split('/') : match[index + 1]])
+    keys.map((key, index) => [
+      key.name,
+      key.type === wildcard ? match[index + 1].split('/').map(decode) : decode(match[index + 1]),
+    ])
   );
+
+/**
+ * Params arrive percent-encoded, because that is how they travel in a URL: a link to a user named
+ * `John Doe` is `/u/John%20Doe`, and handing a component that string back verbatim made every
+ * param with a space, slash or accent wrong. Decoding here matches path-to-regexp, whose structure
+ * this deliberately mirrors.
+ *
+ * A malformed escape — a bare `%`, or `%zz` — throws from `decodeURIComponent`, and a URL someone
+ * can type is not a reason to throw out of routing. The raw text is the best answer available.
+ */
+const decode = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
 
 /**
  * Parses a pattern

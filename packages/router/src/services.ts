@@ -44,6 +44,17 @@ const updateHistory = (path: string, trigger: RouteTrigger) => {
 let pendingScroll: [number, number] | undefined;
 
 /**
+ * A navigation is superseded the moment a newer one starts.
+ *
+ * Every `await` in a route change — a guard, an `action`, a `component` that fetches — is a point
+ * where the user can click something else. Without this, the slower earlier navigation finishes
+ * last and overwrites the newer one's rendered view, history entry and `currentPath`: click a slow
+ * route, change your mind, and the app lands on the route you abandoned. Each pass takes a ticket
+ * and stops at the next checkpoint once a newer one exists, so nothing it does is committed.
+ */
+let navigationId = 0;
+
+/**
  * Applies the fragment of a full path+hash navigation, after the path's own history write.
  *
  * For user navigation under `pushHash`, `location.replace('#…')` is the trick: a same-document
@@ -108,11 +119,12 @@ export const attachWindowListeners = () => {
  */
 export const navigate = async (
   path: string,
-  trigger: RouteTrigger,
+  trigger: RouteTrigger = 'navigate',
   origin?: HTMLElement,
   redirectDepth = 0
 ): Promise<boolean> => {
   if (path === state.currentPath) return true;
+  const id = ++navigationId;
 
   const strippedHref = stripTrailingSlash(path);
   const [newPath, hashIndex] = removeHashFragment(strippedHref);
@@ -136,14 +148,22 @@ export const navigate = async (
   }
 
   /**
-   * Redirects resolve **before** any router renders or history is written — they are URL-level,
-   * so the first matching route that declares one wins for the page, and the abandoned path never
-   * costs an entry. A redirected `navigate` stays a push (the target is the real destination);
-   * `popstate`/`init` become `replace`, rewriting the traversed or landing entry to the target.
+   * One matching pass, whose results the routing pass below reuses. Matching twice meant every
+   * route's `RegExp` ran twice per navigation, and a `path` **function** was called — and its
+   * pattern recompiled — twice as well.
+   *
+   * Redirects resolve here, **before** any router renders or history is written — they are
+   * URL-level, so the first matching route that declares one wins for the page, and the abandoned
+   * path never costs an entry. A redirected `navigate` stays a push (the target is the real
+   * destination); `popstate`/`init` become `replace`, rewriting the traversed or landing entry.
    */
+  const matches: [HTMLElement, NonNullable<ReturnType<typeof getRoute>>][] = [];
   for (const elementWeakRef of elements) {
     const element = elementWeakRef.deref();
-    if (!element?.isConnected) continue;
+    if (!element?.isConnected) {
+      elements.delete(elementWeakRef);
+      continue;
+    }
     const match = getRoute(element, matchPath);
     const redirect = match?.route.redirect;
     if (redirect) {
@@ -157,17 +177,14 @@ export const navigate = async (
           : redirect;
       return navigate(target, trigger === 'navigate' ? 'navigate' : 'replace', origin, redirectDepth + 1);
     }
+    if (match) matches.push([element, match]);
   }
 
   let routed = false;
-  for (const elementWeakRef of elements) {
-    const element = elementWeakRef.deref();
-    if (!element?.isConnected) {
-      elements.delete(elementWeakRef);
-      continue;
-    }
+  for (const [element, match] of matches) {
     const shouldFocusView = element === origin || trigger === 'popstate';
-    if (await routeChange(element, matchPath, trigger, shouldFocusView, query)) routed = true;
+    if (await routeChange(element, matchPath, trigger, shouldFocusView, query, id, match)) routed = true;
+    if (id !== navigationId) return false;
   }
   if (!routed) return false;
 
@@ -218,14 +235,13 @@ const routeChange = async (
   path: string,
   trigger: RouteTrigger,
   shouldFocusView: boolean,
-  query?: URLSearchParams
+  query: URLSearchParams | undefined,
+  id: number,
+  result: NonNullable<ReturnType<typeof getRoute>>
 ) => {
   const elementData = elementsData.get(element);
   // TODO Minified error use Error helper function
   if (!elementData) return false;
-
-  const result = getRoute(element, path);
-  if (!result) return false;
 
   const { params = {}, route } = result;
 
@@ -234,6 +250,7 @@ const routeChange = async (
 
   /** Allow route cancellation before leaving route */
   if ((await emitEvent(element, 'before-leave', currentRoute, previousRoute)) === false) return false;
+  if (id !== navigationId) return false;
 
   /** Optional route specific view */
   const rawView = route.view ?? elementData.view;
@@ -260,9 +277,11 @@ const routeChange = async (
 
   /** Allow route cancellation before arriving at route */
   if ((await emitEvent(element, 'before-route', currentRoute, previousRoute)) === false) return false;
+  if (id !== navigationId) return false;
 
   /** Execute action function */
   await route.action?.(params, currentRoute, previousRoute);
+  if (id !== navigationId) return false;
 
   /** Route has changed so we updated currentRoute */
   elementData.currentRoute = currentRoute;
@@ -274,6 +293,8 @@ const routeChange = async (
 
   /** Render component */
   const template = await route.component?.(params, currentRoute, previousRoute);
+  /** The last checkpoint before anything is painted: a superseded pass renders nothing. */
+  if (id !== navigationId) return false;
   inserts.get('render')?.forEach((callback) => {
     (callback as Renderer)?.(template, view);
   });

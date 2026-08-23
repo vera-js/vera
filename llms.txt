@@ -417,19 +417,37 @@ router.addRoutes([
 router.on('before-route', (params) => {});
 ```
 
-Routes support `path`, `title`, `component`, `action`, `children`, `view`. Mark links with a `route`
-attribute: `<a route href="/user/1">`. Render the outlet as `<div view="main"></div>`.
+Routes support `path`, `title`, `component`, `action`, `children`, `view` and `redirect`.
+`component`, `action`, `title` and `view` all receive `(params, to, from)` and may be `async`. Mark
+links with a `route` attribute: `<a route href="/user/1">`. Render the outlet as
+`<div view="main"></div>`.
 
 Semantics worth stating:
-- `navigate(path, 'navigate')` is programmatic navigation. All routers on a page share the URL and
-  all follow every navigation; history gets one entry per user navigation, none for
-  back/forward or initial load.
+- `navigate(path)` is programmatic navigation — the trigger defaults to `'navigate'`. All routers
+  on a page share the URL and all follow every navigation; history gets one entry per user
+  navigation, none for back/forward or initial load.
+- A newer navigation **supersedes** an older one. If a `component` or guard is still awaiting when
+  the user goes somewhere else, the abandoned pass stops at its next checkpoint and commits
+  nothing — no render, no history entry, no title.
+- **Route order decides the match**: routes are tried in registration order and the first match
+  wins, so `/users/:id` registered before `/users/new` makes `/users/new` unreachable.
+- `children` **prefixes paths; it does not nest views.** A parent `/p` with a child `/c` registers
+  `/p/c` as its own route, and navigating there runs the child alone — the parent's `component`
+  does not also render. For a persistent layout, render it from the parent component or give the
+  child route its own `view`.
+- Params arrive **percent-decoded**: `/u/John%20Doe` yields `John Doe`, and each wildcard segment
+  decodes individually. A malformed escape yields the raw text rather than throwing.
 - Window listeners attach on the first `initRouter`, so importing the router is side-effect-free
   and Node-safe (SSR can import it; routing itself is browser-only).
 - Routed links must live in the router's own template — links inside a child component's shadow
   root are invisible to the click listener (event retargeting).
 - A `before-leave`/`before-route` handler returning `false` cancels navigation; a **throwing**
-  handler also cancels (fail-closed). `after-route` is cleanup only and cannot cancel.
+  handler also cancels (fail-closed). `after-route` is cleanup only and cannot cancel. Every
+  handler runs even after one cancels, and the results aggregate.
+- The three events are also dispatched as DOM events on the router element — `vera:before-leave`,
+  `vera:before-route`, `vera:after-route` — bubbling and composed, with
+  `{ currentRoute, previousRoute }` on `detail`. `preventDefault()` on either `before-` event
+  cancels the navigation, exactly as returning `false` does.
 - Pattern metacharacters are literal: `/file.html` matches only that path. `:param` and `*rest`
   are the only special tokens.
 - Hash fragments: `path#hash` navigation costs one history entry, scrolls to the anchor, and sets
