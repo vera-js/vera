@@ -2,7 +2,7 @@ import { RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptio
 import { on, off } from './events.js';
 import { elements, elementsData, routerSettings } from './state.js';
 import { attachWindowListeners, navigate } from './services.js';
-import { addRoutes, deleteRouter } from './methods.js';
+import { addRoutes, deleteRouter, removeRoute } from './methods.js';
 
 /**
  * Inits a router instance and connects it to the lifecycle of an element
@@ -49,6 +49,7 @@ export const initRouter = (
 
   return {
     addRoutes: (routes: RouteOptions[]) => addRoutes(element, routes),
+    removeRoute: (name: string) => removeRoute(element, name),
     /**
      * Where this router is now, with the params and query already parsed. Reading
      * `location.pathname` gives you the string back but not the match, and the snapshot was

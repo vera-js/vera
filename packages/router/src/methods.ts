@@ -26,6 +26,18 @@ const addLinkListener = (element: HTMLElement) => {
     if (!link.hasAttribute('route') || !href) return;
 
     /**
+     * Resolved against where the page is, so `href="edit"`, `href="./edit"` and `href="../"` all
+     * work the way they do in plain HTML — React Router's relative links, without a component to
+     * compute them. An absolute path is unaffected.
+     *
+     * It also settles a link pointing off-site: a `route` attribute on a cross-origin `href` used
+     * to be hijacked and handed to the router as a path, which matched nothing and dead-ended the
+     * click. The browser owns those.
+     */
+    const url = new URL(href, window.location.href);
+    if (url.origin !== window.location.origin) return;
+
+    /**
      * The browser's behavior wins for anything that is not a plain left-click on an in-page
      * link: modified clicks open tabs/windows, `target` aims elsewhere, `download` saves.
      * Hijacking those is the classic SPA-router etiquette bug.
@@ -36,7 +48,7 @@ const addLinkListener = (element: HTMLElement) => {
     if (link.target || link.hasAttribute('download')) return;
 
     e.preventDefault();
-    await navigate(href, 'navigate', element);
+    await navigate(url.pathname + url.search + url.hash, 'navigate', element);
   };
 
   (element.shadowRoot ?? element).addEventListener('click', data.clickHandler);
@@ -49,12 +61,42 @@ const addLinkListener = (element: HTMLElement) => {
  * @param routes
  * @param parentRoute
  */
-export const addRoutes = (element: HTMLElement, routes: RouteOptions[], parentRoute: string = '') => {
+/**
+ * How specific a pattern is, so the most specific route wins rather than the first registered.
+ *
+ * A static segment is worth far more than a `:param`, a required param more than an optional one,
+ * and a `*wildcard` almost nothing — which is what makes a catch-all `/*rest` sit last no matter
+ * where it was declared. Longer patterns out-score shorter ones by summing. React Router ranks the
+ * same way and for the same reason: `/users/new` should beat `/users/:id` without the author
+ * having to remember which line it went on.
+ */
+const specificity = (pattern: string) =>
+  pattern.split('/').reduce((total, segment) => {
+    if (!segment) return total;
+    if (segment[0] === '*') return total + 1;
+    if (segment[0] === ':') return total + (segment.endsWith('?') ? 3 : 4);
+    return total + 10;
+  }, 0);
+
+/** Keeps the router's routes ordered most-specific first, which is the order `getRoute` walks. */
+const insertRoute = (element: HTMLElement, route: Route) => {
+  const routeList = getOrCreate(routers, element, () => [] as Route[]);
+  let at = routeList.length;
+  while (at > 0 && routeList[at - 1].score! < route.score!) at--;
+  routeList.splice(at, 0, route);
+};
+
+export const addRoutes = (
+  element: HTMLElement,
+  routes: RouteOptions[],
+  parentRoute: string = '',
+  parent?: Route
+) => {
   for (let i = 0; i < routes.length; i++) {
     const { path } = routes[i];
     const completePath = parentRoute + path;
 
-    let route: Route = { ...routes[i] };
+    const route: Route = { ...routes[i], parent };
     if (route.name !== undefined && typeof completePath === 'string') {
       if (__DEV__ && names.has(route.name) && names.get(route.name) !== completePath)
         console.warn(
@@ -64,18 +106,56 @@ export const addRoutes = (element: HTMLElement, routes: RouteOptions[], parentRo
       names.set(route.name, completePath);
     }
     if (typeof path !== 'function') {
+      route.matchFunction = routerSettings.match(completePath);
+      route.score = specificity(completePath);
+      /**
+       * Children are registered against this exact object, so a matched child can walk back up to
+       * render its ancestors — see `routeChange`. They must therefore be added *after* the parent
+       * is fully built rather than before.
+       */
       const { children } = routes[i];
-      if (children) {
-        addRoutes(element, children, completePath);
-      }
-      const matchFunction = routerSettings.match(completePath);
-      route = { ...route, matchFunction };
+      if (children) addRoutes(element, children, completePath, route);
+
+      /**
+       * An alias is the same route reachable at another URL, and only the URL differs — the same
+       * component, guards, name and `meta`. It gets its own entry because matching is per-pattern;
+       * everything else is shared with the route it aliases.
+       */
+      const { alias } = routes[i];
+      if (alias !== undefined)
+        for (const aliasPath of Array.isArray(alias) ? alias : [alias]) {
+          const aliasComplete = parentRoute + aliasPath;
+          insertRoute(element, {
+            ...route,
+            matchFunction: routerSettings.match(aliasComplete),
+            score: specificity(aliasComplete),
+          });
+        }
+    } else {
+      /** A `path` function is resolved per navigation, so its specificity is not knowable here. */
+      route.score = 0;
     }
 
-    getOrCreate(routers, element, () => new Set<Route>()).add(route);
+    insertRoute(element, route);
   }
 
   if (!parentRoute) addLinkListener(element);
+};
+
+/**
+ * Removes a named route from a router. The inverse of `addRoutes`, for routes that arrive with a
+ * permission or a feature flag and have to leave again.
+ *
+ * Routes are flat here, so this removes the named route and its aliases — not its children, which
+ * are named and removed in their own right.
+ */
+export const removeRoute = (element: HTMLElement, name: string) => {
+  const routeList = routers.get(element);
+  if (!routeList) return false;
+  const before = routeList.length;
+  for (let i = routeList.length - 1; i >= 0; i--) if (routeList[i].name === name) routeList.splice(i, 1);
+  names.delete(name);
+  return routeList.length < before;
 };
 
 /**

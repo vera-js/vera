@@ -433,12 +433,25 @@ Semantics worth stating:
 - A newer navigation **supersedes** an older one. If a `component` or guard is still awaiting when
   the user goes somewhere else, the abandoned pass stops at its next checkpoint and commits
   nothing — no render, no history entry, no title.
-- **Route order decides the match**: routes are tried in registration order and the first match
-  wins, so `/users/:id` registered before `/users/new` makes `/users/new` unreachable.
-- `children` **prefixes paths; it does not nest views.** A parent `/p` with a child `/c` registers
-  `/p/c` as its own route, and navigating there runs the child alone — the parent's `component`
-  does not also render. For a persistent layout, render it from the parent component or give the
-  child route its own `view`.
+- **The most specific route wins**, not the first registered: static segment > required `:param` >
+  optional `:param?` > `*wildcard`, summed over the pattern, so `/users/new` beats `/users/:id` and
+  a catch-all sits last wherever it was declared. Same ranking as React Router.
+- `children` **renders the whole chain**, outermost first, each level into an outlet the level
+  above rendered. `/settings/profile` renders the `/settings` component into the router's outlet
+  and the child into a `[view]` that component's own template rendered. A view name is resolved
+  inside the level above, so a nested outlet may reuse the router's own name. If the parent renders
+  no matching outlet the route does not apply (and warns in development).
+- `beforeEnter` is a per-route guard, run after the router's `before-route` handlers and before
+  `action`; return `false` to cancel. On a nested route the chain runs outermost first, so a parent
+  can refuse before a child does any work.
+- `alias: '/staff'` (or an array) makes other paths reach the same route, keeping whichever URL was
+  used. Relative to the parent, exactly as `path` is.
+- `router.removeRoute(name)` takes a named route and its aliases back out; `router.deleteRouter()`
+  removes the router entirely.
+- `back()`, `forward()` and `go(n)` are exported alongside `navigate`.
+- Relative hrefs on routed links resolve **as the browser resolves them** — from `/docs/intro`,
+  `href="edit"` is `/docs/edit`, NOT React Router's `/docs/intro/edit`. A cross-origin href is left
+  to the browser.
 - Params arrive **percent-decoded**: `/u/John%20Doe` yields `John Doe`, and each wildcard segment
   decodes individually. A malformed escape yields the raw text rather than throwing.
 - Window listeners attach on the first `initRouter`, so importing the router is side-effect-free

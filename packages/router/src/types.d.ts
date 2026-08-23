@@ -67,6 +67,10 @@ export type Route = {
   keys?: string[];
   regExp?: RegExp;
   matchFunction?: MatchFunction<ParamData>;
+  /** How specific this route's complete pattern is — routes are matched most-specific first. */
+  score?: number;
+  /** The route this one was declared inside, so a match can render its ancestors. */
+  parent?: Route;
 } & RouteOptions;
 
 export interface RouteOptions {
@@ -79,6 +83,13 @@ export interface RouteOptions {
   title?: RouteAction | string;
   /** Arbitrary data for guards to read off the snapshot — see {@link RouteMeta}. */
   meta?: RouteMeta;
+  /**
+   * A guard for this route alone, run after the router's `before-route` handlers and before its
+   * `action`. Return `false` to cancel. On a nested route the chain runs outermost first.
+   */
+  beforeEnter?: RouteAction;
+  /** Other paths that reach this same route. Relative to the parent, exactly as `path` is. */
+  alias?: string | string[];
   children?: RouteOptions[];
   component?: RouteAction;
   action?: RouteAction;
@@ -112,6 +123,8 @@ export interface RouterOptions extends BaseRouterOptions {
 
 export interface RouterMethods {
   addRoutes: (routes: RouteOptions[]) => void;
+  /** Removes a named route and its aliases. Returns whether anything was removed. */
+  removeRoute: (name: string) => boolean;
   /** Where this router is now — `undefined` until it has routed once. */
   readonly currentRoute: RouteSnapshot | undefined;
   deleteRouter: () => void;

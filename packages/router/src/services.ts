@@ -1,5 +1,5 @@
 import { inserts } from '@verajs/inserts';
-import { MatchFunction, ParamData, RouteParams, RouteTarget, RouteTrigger } from './types.js';
+import { MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
 
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
@@ -20,6 +20,15 @@ export const page = 'page';
 export const setMatchFunction = (matchFunction: <P extends ParamData>(routePattern: string) => MatchFunction<P>) => {
   routerSettings.match = matchFunction;
 };
+
+/**
+ * The history stack, by the names the other routers use. `go(-1)` and `back()` are the same call;
+ * both are here because a component that already imports `navigate` should not have to reach for
+ * `window.history` to undo it.
+ */
+export const go = (delta: number) => window.history.go(delta);
+export const back = () => go(-1);
+export const forward = () => go(1);
 
 /**
  * Builds the path for a named route.
@@ -306,6 +315,18 @@ const getRoute = (element: HTMLElement, path: string) => {
  * true once the route has been applied. `after-route` is emitted for cleanup but cannot cancel —
  * the navigation has already happened.
  */
+/**
+ * Routes a single router element to a path (no hash fragment, no history writes — `navigate`
+ * owns both). Returns false when this router has no matching route or an event handler cancelled;
+ * true once the route has been applied. `after-route` is emitted for cleanup but cannot cancel —
+ * the navigation has already happened.
+ *
+ * A **nested** route renders its ancestors too, outermost first, each into a view found inside the
+ * one above it. That is what `children` means now: `/settings/profile` renders the `/settings`
+ * component into the router's outlet, and the `/settings/profile` component into an outlet the
+ * settings template itself rendered. Guards, `beforeEnter` and `action` run down the same chain, so
+ * a parent can refuse before a child does any work.
+ */
 const routeChange = async (
   element: HTMLElement,
   path: string,
@@ -322,6 +343,10 @@ const routeChange = async (
 
   const { params = {}, route } = result;
 
+  /** Outermost first. A route with no `parent` is a chain of one, which is the ordinary case. */
+  const chain: Route[] = [];
+  for (let ancestor: Route | undefined = route; ancestor; ancestor = ancestor.parent) chain.unshift(ancestor);
+
   const previousRoute = elementData.currentRoute;
   const currentRoute = { path, params, query, trigger, meta: route.meta, hash };
 
@@ -329,54 +354,76 @@ const routeChange = async (
   if ((await emitEvent(element, 'before-leave', currentRoute, previousRoute)) === false) return false;
   if (id !== navigationId) return false;
 
-  /** Optional route specific view */
-  const rawView = route.view ?? elementData.view;
-
-  /** If the view is a function, get the result */
-  const processedView = rawView instanceof Function ? rawView(params, currentRoute, previousRoute) : rawView;
-
-  /**
-   * Get the view on the page. Quoted so names that need quoting (and a `view` function's
-   * URL-param-derived results) cannot break the selector.
-   */
-  const view =
-    processedView instanceof HTMLElement
-      ? processedView
-      : ((element.shadowRoot ?? element).querySelector(
-          `[view="${String(processedView).replace(/"/g, '\\"')}"]`
-        ) as HTMLElement);
-
-  // TODO Minified error use Error helper function
-  if (!view) return false;
-
-  /** Get the title */
-  const title = route.title;
-
   /** Allow route cancellation before arriving at route */
   if ((await emitEvent(element, 'before-route', currentRoute, previousRoute)) === false) return false;
   if (id !== navigationId) return false;
 
-  /** Execute action function */
-  await route.action?.(params, currentRoute, previousRoute);
-  if (id !== navigationId) return false;
+  for (const link of chain) {
+    /** A guard belonging to this route alone, and the outer ones get to refuse first. */
+    if ((await link.beforeEnter?.(params, currentRoute, previousRoute)) === false) return false;
+    if (id !== navigationId) return false;
+  }
+
+  /**
+   * Each level renders into a view looked up **inside the level above it**, so a nested outlet may
+   * carry the same `view` name as the one it sits in without the outer query claiming it first.
+   */
+  let searchRoot: HTMLElement | ShadowRoot = element.shadowRoot ?? element;
+  let view!: HTMLElement;
+
+  for (const link of chain) {
+    /** Optional route specific view */
+    const rawView = link.view ?? elementData.view;
+
+    /** If the view is a function, get the result */
+    const processedView = rawView instanceof Function ? rawView(params, currentRoute, previousRoute) : rawView;
+
+    /**
+     * Get the view on the page. Quoted so names that need quoting (and a `view` function's
+     * URL-param-derived results) cannot break the selector.
+     */
+    const levelView =
+      processedView instanceof HTMLElement
+        ? processedView
+        : (searchRoot.querySelector(`[view="${String(processedView).replace(/"/g, '\\"')}"]`) as HTMLElement);
+
+    if (!levelView) {
+      if (__DEV__ && link.parent)
+        console.warn(
+          `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
+            `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
+            `parent's template has to render the outlet its children route into.`
+        );
+      // TODO Minified error use Error helper function
+      return false;
+    }
+
+    /** Execute action function */
+    await link.action?.(params, currentRoute, previousRoute);
+    if (id !== navigationId) return false;
+
+    const template = await link.component?.(params, currentRoute, previousRoute);
+    /** The last checkpoint before anything is painted: a superseded pass renders nothing. */
+    if (id !== navigationId) return false;
+    inserts.get('render')?.forEach((callback) => {
+      (callback as Renderer)?.(template, levelView);
+    });
+
+    /** The next level down looks inside what this one just rendered. */
+    searchRoot = levelView;
+    view = levelView;
+  }
 
   /** Route has changed so we updated currentRoute */
   elementData.currentRoute = currentRoute;
 
   /** Change title to either the title string or the result of the title function if it's a function */
+  const title = route.title;
   if (title)
     element.ownerDocument.title =
       typeof title === 'function' ? (title(params, currentRoute, previousRoute) as string) : title;
 
-  /** Render component */
-  const template = await route.component?.(params, currentRoute, previousRoute);
-  /** The last checkpoint before anything is painted: a superseded pass renders nothing. */
-  if (id !== navigationId) return false;
-  inserts.get('render')?.forEach((callback) => {
-    (callback as Renderer)?.(template, view);
-  });
-
-  /** Focus view if option is set */
+  /** Focus the innermost view if option is set */
   if (elementData.focusView && shouldFocusView) focusView(view);
 
   /** Update active link */
@@ -388,15 +435,6 @@ const routeChange = async (
   return true;
 };
 
-/**
- * Marks the links in this router's own subtree, and **only writes where the answer changed**.
- *
- * This runs for every routed link on every navigation, so it is the router's hottest loop — with
- * 40 links in a nav it was 42% of the cost of a navigation. It used to clear each link and then
- * re-add, which is two attribute writes per link whether or not anything differed: `classList`
- * mutation always runs the update steps, so removing a class the element never had still writes
- * the attribute, and in a browser that is style invalidation on 40 elements to change 2.
- */
 const updateActiveLink = (element: HTMLElement, path: string) => {
   (element.shadowRoot ?? element).querySelectorAll('[route]').forEach((link) => {
     /**

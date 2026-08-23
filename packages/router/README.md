@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.08 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.41 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -60,6 +60,8 @@ renders; **routed links**, marked with a bare `route` attribute; and the route l
 | `children` | routes whose paths are prefixed by this one |
 | `meta` | arbitrary data, carried to guards and components on the snapshot |
 | `name` | a stable handle, so links are built with `resolve()` instead of by hand |
+| `alias` | other paths that reach this same route |
+| `beforeEnter` | a guard for this route alone. Return `false` to cancel |
 
 `component`, `action`, `title` and `view` all receive `(params, to, from)`, where `to` and `from` are
 route snapshots carrying `path`, `params`, `query`, `hash`, `trigger` and `meta`.
@@ -87,14 +89,39 @@ matches the rest of the path and gives you an array of segments. Everything else
 { path: '/users/:id?' }   // matches /users and /users/5
 ```
 
-**Order decides the match.** Routes are tried in the order you register them and the first match
-wins, so `/users/:id` before `/users/new` makes `/users/new` unreachable. Register literal paths
-before the patterns that would swallow them.
+**The most specific route wins**, not the first one registered. A static segment outranks a
+`:param`, a required param outranks an optional one, and a `*wildcard` ranks below everything — so
+`/users/new` beats `/users/:id`, and a catch-all `/*rest` sits last wherever it was declared.
+Longer patterns outrank shorter ones. React Router ranks the same way, and for the same reason:
+where a route went in the list should not decide whether it is reachable.
 
-**`children` prefixes paths; it does not nest views.** A parent `/p` with a child `/c` registers
-`/p/c` as a route of its own, and navigating there runs the child alone — the parent's `component`
-does not also render. For a layout that persists across child routes, render it from the parent
-component or give the child route its own `view`.
+### Nested routes
+
+`children` renders the whole chain, outermost first, each level into an outlet the level above it
+rendered:
+
+```js
+{
+  path: '/settings',
+  component: () => html`<h1>Settings</h1><nav>…</nav><section view="main"></section>`,
+  children: [
+    { path: '/profile', component: () => html`<p>Profile</p>` },
+    { path: '/billing', component: () => html`<p>Billing</p>` },
+  ],
+}
+```
+
+`/settings/profile` renders the settings layout into the router's outlet and the profile view into
+the `<section view="main">` that layout just rendered. `/settings` renders the layout with its outlet
+left empty.
+
+A view name is resolved **inside the level above**, so a nested outlet can reuse the router's own
+name — as above — and nothing outer claims it first. A child may name its own outlet with `view`
+instead. If the parent's template renders no matching outlet the route does not apply, and says so
+in development.
+
+`beforeEnter` and `action` run down the same chain, so a parent can refuse before a child does any
+work.
 
 ## Navigating
 
@@ -104,6 +131,10 @@ import { navigate, resolve } from '@verajs/router';
 navigate('/users/5');                          // pushes a history entry
 navigate('/login', 'replace');                 // swaps the current entry — for guards and redirects
 navigate({ name: 'user', params: { id: 5 } }); // by name
+
+back();                                        // history, by the usual names
+forward();
+go(-2);
 ```
 
 **Named routes.** Give a route a `name` and build its URL with `resolve(name, params)` instead of
@@ -171,8 +202,14 @@ element.addEventListener('vera:before-leave', (e) => {
 ```
 
 The `route` attribute is what opts a link in; anything without it is a normal link. Clicks with a
-modifier key or a non-primary button, and links with `target` or `download`, are left to the browser
-— hijacking those is the classic SPA-router etiquette bug.
+modifier key or a non-primary button, links with `target` or `download`, and links pointing at
+another origin are all left to the browser — hijacking those is the classic SPA-router etiquette bug.
+
+**Relative hrefs work**, resolved exactly as the browser resolves them: from `/docs/intro`,
+`href="edit"` goes to `/docs/edit` and `href="../"` to `/`. This is deliberately *not* React
+Router's `<Link to="edit">`, which would give `/docs/intro/edit` — a `route` attribute must not
+change where a link points, or the same markup would go to two different places depending on
+whether the script ran.
 
 Routed links must live in the router's own template. A link inside a *child* component's shadow root
 is invisible to the click listener, because retargeting hides it.
@@ -240,8 +277,11 @@ initRouter(element, { view: 'main', focusView: true, handleInitial: true, pushHa
 | `hashChangeFunction` | called with each fragment |
 | `scrollBehavior` | replace where the page scrolls to after routing |
 
-`initRouter` returns `{ addRoutes, currentRoute, deleteRouter, on, off }`. `deleteRouter()` removes the routes,
-the handlers and the link listener — call it if the host element outlives its routing.
+`initRouter` returns `{ addRoutes, removeRoute, currentRoute, deleteRouter, on, off }`.
+
+`removeRoute(name)` takes a named route and its aliases back out — for a route that arrived with a
+permission or a feature flag. Routes are flat, so a parent's children are removed by their own
+names. `deleteRouter()` removes everything: the routes, the handlers and the link listener.
 
 ## Extending it
 

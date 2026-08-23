@@ -1,0 +1,229 @@
+/**
+ * Nested views, specificity ranking, aliases, per-route guards, `removeRoute`, relative links.
+ *
+ * Every block tears its router down before the next one builds — routers are page-wide and all of
+ * them follow every navigation, so a catch-all left registered by one block silently satisfies the
+ * next block's assertions.
+ *
+ * Tests BUILT artifacts, development AND production (see ./dist.mjs).
+ */
+import { load } from './dist.mjs';
+import { JSDOM, VirtualConsole } from 'jsdom';
+
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', () => {});
+const dom = new JSDOM('<div></div>', { url: 'http://localhost/start', virtualConsole });
+const { window } = dom;
+window.scrollTo = () => {};
+for (const k of ['HTMLElement', 'CustomEvent', 'PopStateEvent', 'Event', 'MouseEvent', 'Element', 'ShadowRoot', 'URL'])
+  globalThis[k] = window[k];
+globalThis.window = window;
+globalThis.document = window.document;
+globalThis.requestAnimationFrame = () => {};
+
+const { initRouter, navigate, resolve, back, forward, go, insert } = await load('router');
+/** Writes real markup, so a parent's nested outlet exists for its child to render into. */
+insert('render', (template, view) => { view.innerHTML = typeof template === 'string' ? template : ''; }, 50);
+
+let pass = 0, fail = 0;
+const check = (name, cond, extra = '') => (cond ? pass++ : (fail++, console.log('FAIL:', name, extra)));
+
+const app = (routes, options = {}) => {
+  const element = window.document.createElement('div');
+  const view = window.document.createElement('main');
+  view.setAttribute('view', 'main');
+  element.appendChild(view);
+  window.document.body.appendChild(element);
+  const router = initRouter(element, { view: 'main', focusView: false, handleInitial: false, ...options });
+  router.addRoutes(routes);
+  return { router, element, view };
+};
+
+// ── nested views ──────────────────────────────────────────────────────────────────────────────
+/**
+ * `children` renders the whole chain now, outermost first, each level into a view found inside the
+ * one above it. It used to prefix paths and nothing else: `/settings/profile` rendered the child
+ * alone and the parent never ran.
+ */
+{
+  const order = [];
+  const { router, view } = app([
+    {
+      path: '/settings',
+      component: () => { order.push('parent'); return '<h1>Settings</h1><section view="main"></section>'; },
+      children: [
+        { path: '/profile', component: () => { order.push('child'); return '<p>Profile</p>'; } },
+      ],
+    },
+  ]);
+
+  await navigate('/settings/profile', 'navigate');
+  check('a nested route renders parent then child', order.join('>') === 'parent>child', order.join('>'));
+  check('the child renders inside the parent\'s outlet',
+    view.innerHTML === '<h1>Settings</h1><section view="main"><p>Profile</p></section>', view.innerHTML);
+
+  order.length = 0;
+  await navigate('/settings', 'navigate');
+  check('the parent alone renders at its own path', order.join('>') === 'parent', order.join('>'));
+  check('and its outlet is left empty',
+    view.innerHTML === '<h1>Settings</h1><section view="main"></section>', view.innerHTML);
+  router.deleteRouter();
+}
+
+/** A nested outlet may reuse the router's own view name — each level searches inside the last. */
+{
+  const { router, view } = app([
+    {
+      path: '/a',
+      component: () => '<div view="main"></div>',
+      children: [{ path: '/b', component: () => '<div view="main"></div>', children: [{ path: '/c', component: () => 'deep' }] }],
+    },
+  ]);
+  await navigate('/a/b/c', 'navigate');
+  check('three levels nest', view.textContent === 'deep', JSON.stringify(view.textContent));
+  check('and each sits inside the last',
+    view.querySelector('[view="main"] [view="main"]')?.textContent === 'deep',
+    view.innerHTML);
+  router.deleteRouter();
+}
+
+// ── specificity ranking ───────────────────────────────────────────────────────────────────────
+/**
+ * Registered deliberately worst-first. Before ranking, the catch-all declared on line one
+ * swallowed every path and neither of the others was reachable.
+ */
+{
+  const seen = [];
+  const { router } = app([
+    { path: '/*rest', component: () => { seen.push('splat'); return ''; } },
+    { path: '/u/:id', component: () => { seen.push('param'); return ''; } },
+    { path: '/u/new', component: () => { seen.push('literal'); return ''; } },
+  ]);
+  await navigate('/u/new', 'navigate');
+  check('a literal beats a param declared before it', seen.pop() === 'literal');
+  await navigate('/u/7', 'navigate');
+  check('a param beats a catch-all declared before it', seen.pop() === 'param');
+  await navigate('/somewhere/else', 'navigate');
+  check('the catch-all still catches what nothing else does', seen.pop() === 'splat');
+  router.deleteRouter();
+}
+
+{
+  const seen = [];
+  const { router } = app([
+    { path: '/o/:a?', component: () => { seen.push('optional'); return ''; } },
+    { path: '/o/:a', component: () => { seen.push('required'); return ''; } },
+  ]);
+  await navigate('/o/1', 'navigate');
+  check('a required param outranks an optional one', seen.pop() === 'required', seen.join());
+  router.deleteRouter();
+}
+
+// ── alias ─────────────────────────────────────────────────────────────────────────────────────
+{
+  let hits = 0;
+  const { router } = app([{ path: '/team', name: 'team', alias: ['/staff', '/people'], component: () => { hits++; return ''; } }]);
+  await navigate('/team', 'navigate');
+  await navigate('/staff', 'navigate');
+  await navigate('/people', 'navigate');
+  check('every alias reaches the route', hits === 3, `${hits} hits`);
+  check('and the URL stays the one that was used', window.location.pathname === '/people', window.location.pathname);
+  check('resolve still builds the canonical path', resolve('team') === '/team', resolve('team'));
+  router.deleteRouter();
+}
+
+// ── beforeEnter ───────────────────────────────────────────────────────────────────────────────
+{
+  const calls = [];
+  const { router } = app([
+    {
+      path: '/gate',
+      component: () => '<div view="main"></div>',
+      beforeEnter: () => { calls.push('parent'); },
+      children: [{ path: '/inner', component: () => '', beforeEnter: () => { calls.push('child'); } }],
+    },
+  ]);
+  await navigate('/gate/inner', 'navigate');
+  check('beforeEnter runs outermost first', calls.join('>') === 'parent>child', calls.join('>'));
+  router.deleteRouter();
+}
+
+{
+  let rendered = 0;
+  const { router } = app([{ path: '/blocked', beforeEnter: () => false, component: () => { rendered++; return ''; } }]);
+  const routed = await navigate('/blocked', 'navigate');
+  check('beforeEnter returning false cancels', routed === false && rendered === 0, `${routed} / ${rendered}`);
+  router.deleteRouter();
+}
+
+/** A parent refusing must stop the child before it does any work — that is the point of the chain. */
+{
+  let child = 0;
+  const { router } = app([
+    {
+      path: '/pgate',
+      beforeEnter: () => false,
+      component: () => '<div view="main"></div>',
+      children: [{ path: '/deep', component: () => { child++; return ''; } }],
+    },
+  ]);
+  await navigate('/pgate/deep', 'navigate');
+  check('a parent guard stops its child', child === 0, `child ran ${child}x`);
+  router.deleteRouter();
+}
+
+// ── removeRoute ───────────────────────────────────────────────────────────────────────────────
+{
+  const { router } = app([
+    { path: '/temp', name: 'temp', alias: '/tmp', component: () => '' },
+    { path: '/keep', name: 'keep', component: () => '' },
+  ]);
+  check('removeRoute reports what it did', router.removeRoute('temp') === true);
+  check('the route stops matching', (await navigate('/temp', 'navigate')) === false);
+  check('its alias goes with it', (await navigate('/tmp', 'navigate')) === false);
+  check('its name is unregistered', resolve('temp') === '');
+  check('other routes are untouched', (await navigate('/keep', 'navigate')) === true);
+  check('removing it twice is honest', router.removeRoute('temp') === false);
+  router.deleteRouter();
+}
+
+// ── relative and external links ───────────────────────────────────────────────────────────────
+/**
+ * Resolved as a browser resolves an `href`, not as React Router resolves a `<Link to>`. A `route`
+ * attribute must not change where a link points, or the same markup would go to two different
+ * places depending on whether the script ran.
+ */
+{
+  const { router, element } = app([
+    { path: '/docs/intro', component: () => '' },
+    { path: '/docs/edit', component: () => '' },
+    { path: '/other', component: () => '' },
+  ]);
+  const click = async (href) => {
+    const link = window.document.createElement('a');
+    link.setAttribute('route', '');
+    link.setAttribute('href', href);
+    element.appendChild(link);
+    link.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 10));
+  };
+
+  await navigate('/docs/intro', 'navigate');
+  await click('edit');
+  check('a bare relative href resolves against the URL', window.location.pathname === '/docs/edit',
+    window.location.pathname);
+  await click('../other');
+  check('and so does a dot-dot href', window.location.pathname === '/other', window.location.pathname);
+
+  const before = window.location.pathname;
+  await click('https://example.com/other');
+  check('a cross-origin href is left to the browser', window.location.pathname === before,
+    window.location.pathname);
+  router.deleteRouter();
+}
+
+// ── history helpers ───────────────────────────────────────────────────────────────────────────
+check('back, forward and go are exported', [back, forward, go].every((f) => typeof f === 'function'));
+
+console.log(`${pass} passed, ${fail} failed`);
+if (fail) process.exit(1);

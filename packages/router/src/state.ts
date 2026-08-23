@@ -5,7 +5,8 @@ import { getMatch } from './utils.js';
 /**
  * State
  */
-export const routers = new WeakMap<HTMLElement, Set<Route>>();
+/** Most-specific first — the order `getRoute` walks, so registration order does not decide a match. */
+export const routers = new WeakMap<HTMLElement, Route[]>();
 /**
  *  Set with WeakRefs is an iterable fake WeakSet
  */
