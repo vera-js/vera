@@ -20,10 +20,20 @@ generated from it at release time.
 ```sh
 npx changeset version            # bump versions, write CHANGELOGs, consume changesets
 git diff                         # review — this is the release gate
-node scripts/tag-release.mjs     # annotated tag per publishable package
 git add -A && git commit -m "release: 0.x.y"
+node scripts/tag-release.mjs     # annotated tag per publishable package — AFTER the commit
 git push --follow-tags
 ```
+
+**Commit before tagging.** `tag-release.mjs` tags `HEAD`, so running it first points every tag at
+the commit *before* the bump — a `@verajs/core@0.2.1` tag on a tree that still says `0.2.0`. It does
+not break publishing, because CI compares master's manifests against the registry and never reads a
+tag, which is why the ordering was wrong here for several releases without anyone noticing. It does
+make every tag a lie about what it contains.
+
+**And do not skip the commit.** `changeset version` only edits the working tree. If the bumps are
+never committed, the push carries the old versions, CI finds them already on the registry, and the
+release silently publishes nothing while reporting success.
 
 CI then builds and publishes. That's the whole loop — no PR to merge, no button to press, no
 credential anywhere.

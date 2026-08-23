@@ -220,8 +220,15 @@ minor is reserved for breaking changes. Changesets defaults to 1.0+ semantics, s
 be marked `patch` deliberately. Ordinary semver resumes at `1.0.0`. The loop:
 
 ```sh
-npx changeset version && node scripts/tag-release.mjs && git push --follow-tags
+npx changeset version
+git add -A && git commit -m "release: …"    # changeset version only edits the working tree
+node scripts/tag-release.mjs                # tags HEAD — so it must run AFTER the commit
+git push --follow-tags
 ```
+
+Both ordering rules are load-bearing and both were wrong here at some point. Skipping the commit
+publishes nothing while CI reports success; tagging before it points every tag at the pre-bump
+commit. Full walkthrough in `docs/RELEASING.md`.
 
 CI publishes whatever master has that npm does not, authenticated by npm **Trusted Publishing**
 (OIDC). Three invariants that silently break publishing if violated:

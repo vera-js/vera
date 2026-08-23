@@ -1,5 +1,50 @@
 # @verajs/renderer
 
+## 0.1.4
+
+### Patch Changes
+
+- a5b3c36: Make the whole-parent `clear` fast path actually fire for lists inside templates.
+  
+  `ChildPart._clear()` replaces per-node removal with a single `parent.textContent = ''` when the
+  part owns the parent's entire contents. Its condition was `_start` is the first child **and**
+  `_end === null` — but since 0.1.2 a part nested in a template always owns an end marker, so
+  `_end === null` only ever matched a *root* part. Every list written the ordinary way,
+  `<tbody>${rows}</tbody>`, silently took the slow path.
+  
+  The condition now also accepts "`_end` is the last child", which is the same ownership property
+  stated for a part that carries its own boundary, and both anchors are re-appended afterwards.
+  Verified by counting `removeChild` calls: clearing 500 rows from a `<tbody>` went from 500
+  individual removals to zero.
+  
+  Costs 9 B gzipped.
+- 4534fb8: Report, in development, when a class field destroys a `.prop=${…}` binding at upgrade.
+  
+  A property set on a custom element that has not upgraded yet lands as an own property on the
+  instance. When the definition arrives — lazily imported, code-split, or a module that simply had
+  not run — `customElements.define` upgrades synchronously and the class's field initializers
+  execute. At target ES2022, where `useDefineForClassFields` is on, a field declaration is a
+  `[[Define]]`: `item?: Thing` emits `item;`, i.e.
+  `Object.defineProperty(this, 'item', { value: undefined })`. The bound value is gone before the
+  component reads it, nothing throws, and it reads as broken reactivity.
+  
+  Detection rather than repair, deliberately. Repairing it — re-applying the value once the
+  definition existed — covered `item?: Thing` but not `item = someDefault`, which overwrites with the
+  default and so never looks clobbered. That made one mistake behave two different ways depending on
+  spelling, which is worse to diagnose than a consistent failure. It also cost 74 B in every app
+  while leaving `declare` mandatory regardless, since a property assigned imperatively cannot be
+  recovered by anyone: the renderer never saw it, and by the time `init()` runs the value is already
+  gone.
+  
+  The check is `__DEV__`-only, so production carries no `whenDefined` subscription, no comparison and
+  no message — `vera-renderer.min.js` is unchanged at 3 623 B gzipped, verified by asserting both the
+  subscription and the message string are absent from the bundle.
+  
+  Write custom-element fields as `declare item?: Thing`, which emits nothing. An eslint rule and an
+  `llms.txt` section now cover this too. Lit reached the same conclusion from the other direction —
+  for them a class field permanently shadows the prototype accessor, so the property never updates
+  again, and their development build throws (`lit.dev/msg/class-field-shadowing`).
+
 ## 0.1.3
 
 ### Patch Changes
