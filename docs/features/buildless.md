@@ -67,8 +67,8 @@ properties; Solid has the reactivity but needs a compiler.
 Buildless Tailwind means the CDN JIT build, which **collides with Shadow DOM**: Tailwind emits
 global stylesheet rules and a shadow root blocks them by design.
 
-Both escape hatches already exist in core — `adoptStyles` / `adoptedStyleSheets`, or light-DOM
-rendering via `init(element)` with no shadow options. Any example using Tailwind must pick one
+Both escape hatches already exist — `adoptStyles` from `@verajs/styles` (`adoptedStyleSheets`), or
+light-DOM rendering via `init(element)` with no shadow options. Any example using Tailwind must pick one
 explicitly and say which. "Works in the light DOM and silently does not in the shadow DOM" is a trap.
 
 ## Caveat

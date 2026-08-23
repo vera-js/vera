@@ -191,6 +191,7 @@ const recipes = readmes.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/core/README.md': 1,
   'packages/reactivity/README.md': 1,
   'packages/renderer/README.md': 2,
   'packages/styles/README.md': 2,

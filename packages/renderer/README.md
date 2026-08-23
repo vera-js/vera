@@ -1,18 +1,182 @@
 # @verajs/renderer
 
-A keyed, template-identity renderer (<!--size:renderer.gzip-->3.58 KB<!--/size:renderer.gzip--> gzip): tagged templates, `.prop`/`?bool`/`@event`
-and React-style `onClick` bindings, element refs, `keyed()` lists, `hold()` DOM preservation.
-`@verajs/renderer/hydrate` is a drop-in superset whose first render ADOPTS server-rendered DOM —
-markerless hydration (no framework comments in server HTML). SSR apps import from `/hydrate`;
-everyone else pays zero hydration bytes.
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.58 KB<!--/size:renderer.gzip--> gzipped,
+no dependencies, no build step required.
+
+Tagged templates parse once and clone; every render after the first walks only the value slots, so
+updates touch the DOM and nothing else. Lists are keyed by value, not by directive. Server-rendered
+pages hydrate through a separate entry that non-SSR apps never download.
+
+```sh
+npm i @verajs/core @verajs/renderer
+```
+
+## Quick start
+
+`setRenderer` is the only wiring. Core's `html` tag already produces the shape this accepts, so
+there is no second call to make.
+
+<!-- recipe -->
+```js
+import { init, createStore, render, setRenderer, html } from '@verajs/core';
+import { render as domRender } from '@verajs/renderer';
+
+setRenderer(domRender);
+
+customElements.define(
+  'click-counter',
+  class extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      const state = createStore({ count: 0 });
+      render(() => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`);
+    }
+  }
+);
+
+document.body.append(document.createElement('click-counter'));
+```
+
+Without `setRenderer`, core has no renderer at all: `render()` warns once in development and puts
+nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
+
+## Bindings
+
+| Written | Means |
+| --- | --- |
+| `<p>${value}</p>` | child content — see [Values](#values) |
+| `<p title=${value}>` | attribute. `null`/`undefined` **remove** it |
+| `<p class="a ${b} ${c}">` | attribute built from several expressions and the static text between them |
+| `<x-item .item=${value}>` | property assignment, uncoerced — objects, arrays, functions |
+| `<p ?hidden=${value}>` | boolean attribute, present when truthy |
+| `<button @click=${fn}>` | event listener |
+| `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — `onclick` stays a plain attribute |
+| `<input ${fn}>` | element ref: a function is called with the element |
+| `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
+| `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
+
+A ref runs once per **distinct value**, not once per render.
+
+Bindings inside comments, and dynamic tag names, are not supported — the value is consumed and
+ignored.
+
+## Values
+
+What a child position does with each kind of value. These match lit-html exactly, `null` and
+`undefined` included.
+
+| Value | Renders |
+| --- | --- |
+| string, number, `true`, `false`, `0` | as text — `${cond && 'x'}` puts the word `false` on the page |
+| `null`, `undefined` | nothing |
+| a template result | the template, updated in place while its shape holds |
+| an array or iterable | each entry in order; key them with `keyed()` |
+| a DOM node or fragment | itself, moved into place |
+| anything else | `String(value)` |
+
+Strings render as **text**, always. There is no path by which an interpolated value becomes markup
+— see [Trusted HTML](#trusted-html-and-why-there-is-no-unsafehtml).
+
+A DOM node renders as itself, which is how a template holds something another library owns:
+
+```js
+const chart = document.createElement('canvas');
+new Chart(chart, config);
+
+render(html`<figure>${chart}<figcaption>${title}</figcaption></figure>`, host);
+```
+
+## Lists — `keyed()`
+
+```js
+import { render, keyed } from '@verajs/renderer';
+
+render(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>`))}</ul>`, host);
+```
+
+`keyed(key, result)` tags a result with its identity, so a reorder **moves** the existing elements
+instead of rebuilding them — focus, scroll position, form state and running animations all survive.
+There is no `repeat()` to import.
+
+**Key every item in a list, or none of them.** A list is keyed when its first item is, and an
+unkeyed item in a keyed list has no identity to match on.
+
+An unkeyed list is not wrong — it updates each position in place, which is exactly right for a list
+whose order never changes.
+
+## Preserving DOM — `hold()`
+
+```js
+render(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, host);
+```
+
+`hold(result)` parks the DOM it replaces instead of destroying it, keyed by template identity, and
+brings it back when that template returns. lit calls this `cache`. What survives is everything no
+attribute records: what the user typed, which element had focus, a scroll offset, a `<details>` left
+open, a media element's playback position.
+
+It only re-adopts a template it has seen at **that same call site** — two `hold()` calls in
+different templates are two different templates, and neither adopts the other's DOM.
+
+## Write stable shapes
+
+Rendering the same elements every pass and toggling `hidden` is faster than swapping one subtree for
+another. Template identity holds, so values update in place rather than the subtree being torn down
+and rebuilt. Both forms are correct; this one is cheaper.
+
+```js
+// fragile — two sibling parts, each swapping between a template and ''
+html`<section>
+  ${items.length === 0 ? html`<p>empty</p>` : html`<ul>${rows}</ul>`}
+  ${busy ? html`<p>loading</p>` : ''}
+</section>`;
+
+// preferred — one shape, visibility toggled
+html`<section>
+  <p ?hidden=${items.length > 0}>empty</p>
+  <ul ?hidden=${items.length === 0}>${rows}</ul>
+  <p ?hidden=${!busy}>loading</p>
+</section>`;
+```
+
+[`/profiler`](#verajsrendererprofiler) exists to make the difference visible: it counts templates
+committed in place against templates that replaced a different template.
+
+## Entries
+
+| Import | What it adds | Ships in production |
+| --- | --- | --- |
+| `@verajs/renderer` | the renderer | yes |
+| `@verajs/renderer/hydrate` | a superset whose first render adopts server-rendered DOM | yes |
+| `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
+| `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
+
+`/hydrate` and `/profiler` each re-export the whole public API, so they are drop-in replacements for
+the base import. **Never mix two of them in one app** — that loads two renderers with two template
+caches.
+
+## `@verajs/renderer/hydrate`
+
+```js
+import { render } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
+```
+
+The first render into a container that already has children **adopts** them as server output of the
+same template: node identity is preserved, listeners attach, and updates mutate the adopted nodes.
+Hydration here is **markerless** — server HTML carries no framework comments, and the client repairs
+its own anchors into the adopted DOM.
+
+Any disagreement with the server markup clears the container (keeping `<style vera-styles>` tags)
+and renders fresh, so correctness never depends on the server output being right. A DOM node at a
+child position is the one thing the server cannot have rendered; it is inserted without giving up
+adoption of everything around it.
+
+On a CDN page, point the import map's `@verajs/renderer` at `vera-renderer-hydrate.min.js` and
+nothing else changes. Apps that never hydrate download none of this.
 
 ## `@verajs/renderer/spread`
 
-Spread a props object onto an element in a VeraJS template, with names resolved at runtime.
-
-```sh
-npm i @verajs/renderer
-```
+Spread a props object onto an element, with names resolved at runtime.
 
 <!-- recipe -->
 ```js
@@ -43,30 +207,17 @@ customElements.define(
 document.body.append(document.createElement('x-field'));
 ```
 
-Keys carry the same sigils as written bindings — `.prop`, `?bool`, `@event`, React-style `onClick`,
-or a plain attribute — so a spread key and a written binding mean the same thing.
+Keys carry the same sigils as written bindings, so a spread key and a written binding mean the same
+thing.
 
-## What it costs
+Several spreads on one element are supported — each element position owns its own keys, so
+`<div ${spread(a)} ${spread(b)}>` works and neither releases the other's bindings.
 
-`@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you install
-this package. This package is **<!--size:spread.gzip-->688 B<!--/size:spread.gzip-->** gzipped, and
-only apps that import it pay for it.
+Keys are strings carrying sigils, so TypeScript cannot check them against the element's attributes.
+That is a genuine step down from written bindings, and the trade for names that are not known until
+runtime.
 
-Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
-and the spread does one part-dispatch where five written bindings do five.
-
-## Why it is a separate entry
-
-Template renderers bake attribute names into the template at parse time. That is what makes them
-small and fast, and it is why neither this renderer nor lit-html has had spread —
-[lit's spread PR](https://github.com/lit/lit/pull/1960) has been an open draft since 2021.
-
-`@verajs/renderer` itself holds only a protocol: a value at element position carrying `_$apply$` applies
-itself. Everything else lives here, so a renderer that never spreads is 16 B heavier rather than
-176 B. This package imports nothing — not even from the renderer — so it loads alongside any
-renderer that honours the protocol, including your own.
-
-## Removing a key
+### Removing a key
 
 A key that disappears between renders **restores what the element held before the binding existed**.
 
@@ -92,66 +243,90 @@ render(html`<input ${spread({ id: null })} />`, host);   // removes, on either p
 
 One residue worth knowing: `.value`, `.checked` and `.selected` are mirrored to attributes
 server-side so hydration can read them back, and releasing the property does not clear that
-attribute. The property is correct either way; the attribute lingers as the field's *default*
-value.
+attribute. The property is correct either way; the attribute lingers as the field's *default* value.
 
 A released event binding stops dispatching; the listener itself stays registered, which is how
 written `@event` bindings behave too.
 
-## Several spreads on one element
+### What it costs, and why it is a separate entry
 
-Supported. Each element position owns its own keys, so `<div ${spread(a)} ${spread(b)}>` works and
-neither releases the other's bindings.
+`@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you import it.
+The entry itself is **<!--size:spread.gzip-->688 B<!--/size:spread.gzip-->** gzipped, and only apps
+that import it pay for that.
 
-## Types
+Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
+and the spread does one part-dispatch where five written bindings do five.
 
-Keys are strings carrying sigils, so TypeScript cannot check them against the element's attributes
-— this is a genuine step down from written bindings, and the trade for names that are not known
-until runtime.
+Template renderers bake attribute names into the template at parse time. That is what makes them
+small and fast, and it is why neither this renderer nor lit-html has spread built in —
+[lit's spread PR](https://github.com/lit/lit/pull/1960) has been an open draft since 2021.
 
-## Escaping, and the deliberate absence of `unsafeHTML`
+The renderer itself holds only a protocol: a value at element position carrying `_$apply$` applies
+itself. Everything else lives in this entry, which imports nothing — not even from the renderer — so
+it loads alongside any renderer that honours the protocol, including your own.
+
+## `@verajs/renderer/profiler`
+
+```js
+import { render, profile, formatReport } from '@verajs/renderer/profiler';
+
+const { report } = profile(() => { /* drive the app */ });
+console.log(formatReport(report));
+// 39 updated in place, 2 created, 19 rebuilt (32% of commits)
+// Template identity churn — these were torn down, not updated:
+//   10x  at body > main#app > ul.todo-list
+//       <li class="done"><s>${…}</s></li>
+//    -> <li><label><input type="checkbox">${…}</label></li>
+```
+
+`showProfiler()` puts the same numbers in a live panel in the corner of the page and returns a
+function that removes it. The panel is plain DOM in a shadow root — it never renders itself through
+the renderer, so it does not appear in its own measurements.
+
+Full API: `startProfiling()`, `stopProfiling()`, `getReport()`, `isProfiling()`, `profile(fn)`,
+`formatReport(report)`, `showProfiler(options?)`.
+
+This costs production nothing, and there is nothing to strip: the instrumentation sits behind a
+`__DEV__` constant the build folds to `false`, so `vera-renderer.min.js` is byte-identical whether
+or not this entry exists.
+
+## Trusted HTML, and why there is no `unsafeHTML`
 
 Every interpolated value is escaped at the render boundary. There is no `unsafeHTML` and there will
 not be one: shipping a sanctioned opt-out puts an XSS sink in the public API, where it reads as
 blessed in tutorials and in review.
 
-Trusted markup goes through an element ref, so you write the sink yourself:
+Trusted markup goes through a property binding, so you write the sink yourself:
 
 ```js
-render(html`<div ${(el) => (el.innerHTML = trustedMarkup)}></div>`, host);
+render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
 ```
 
 Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
-`@verajs/renderer/profiler` is a development-only entry that reports how many templates were
-committed in place versus torn down and rebuilt, naming the template pairs that churn and where.
-`showProfiler()` puts the same information in a live panel in the corner of the page. It costs
-production nothing — the instrumentation is removed by the build, not merely unused.
+## Absent on purpose
 
-Wire once, at your app entry, before any component defines itself:
+Directives other renderers ship, and what replaces them here.
 
-<!-- recipe -->
-```js
-import { init, createStore, render, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+| Elsewhere | Here |
+| --- | --- |
+| `repeat()` | `keyed()` |
+| `cache()` | `hold()` |
+| `ref()` | an element-position expression, `<input ${myRef}>` |
+| `ifDefined()` | built in — `null`/`undefined` remove an attribute |
+| `classMap()` / `styleMap()` | build the string: `class="base ${extra}"` |
+| `guard()` | reactivity already skips unchanged work |
+| `until()`, `asyncReplace()` | render a loading state and re-render from an effect |
+| `unsafeHTML()` | `.innerHTML=${trusted}`, above |
+| `live()` | not available. A property bound to a value it already holds is not re-applied, so a field the user has typed into keeps their text |
 
-setRenderer(domRender);
+## Types
 
-customElements.define(
-  'click-counter',
-  class extends HTMLElement {
-    connectedCallback() {
-      init(this, { mode: 'open' });
-      const state = createStore({ count: 0 });
-      render(() => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`);
-    }
-  }
-);
+`TemplateResult` is exported for annotating what a template function returns. The rest of the
+surface is inferred.
 
-document.body.append(document.createElement('click-counter'));
-```
+## License
 
-Without `setRenderer`, core has no renderer at all: `render()` warns once in development and puts
-nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
+MIT

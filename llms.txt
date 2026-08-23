@@ -107,7 +107,6 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 | Export | Signature | Notes |
 | --- | --- | --- |
 | `init` | `(element, shadowProps?) => void` | Call first in `connectedCallback`. Pass `{ mode: 'open' }` for shadow DOM; omit for light DOM. |
-| `adoptStyles` | `(element) => void` | Applies `static styles`. `init` calls it for you. Shadow: `adoptedStyleSheets`. Light DOM: hoisted to the document once per class, scoped via `@scope (tag-name)` — component-scoped CSS with no shadow root. |
 
 ### State
 
@@ -211,8 +210,13 @@ and **end** of the batch.
 | --- | --- |
 | `insert` | `(name, callback, priority) => void` — **priority is required** |
 | `inserts` | the registry `Map` |
-| `connectInserts` | `(inserts) => void` — see "CDN" below |
+| `setRenderer` | `(renderer) => void` — registers on `'render'` at priority 50 |
+| `setAutoloader` | `(fn) => void` — registers on `'render'` at priority 75, so discovery runs after the render that produced the markup |
 | `createHook` | `({ callback, priority, element? }) => void` — build your own hook type |
+
+`connectInserts` is **not** a core export. `@verajs/router` exports it, because a standalone
+`vera-router.min.js` inlines its own copy of the registry; you call it on core's `inserts` to point
+one at the other. See "CDN" below.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
 exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
@@ -329,8 +333,15 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - No other directives: no `classMap`/`styleMap` (build class strings, or a 3-line helper), no
   `until` (use state + an effect), no `guard` (reactivity already skips unchanged work), no
   `unsafeHTML` (use a `.innerHTML=${trusted}` property binding for trusted markup).
+- A DOM node or DocumentFragment at a child position renders as itself, moved into place — how a
+  template holds something another library owns (a charting canvas, a map container, an editor).
 - Async values are not special: render a loading state and re-render from an effect.
 - Plain strings render as TEXT, never parsed as HTML (there is no innerHTML sink).
+- Child-position values match lit exactly: only `null`/`undefined` are empty. `false` and `0`
+  RENDER, so `${cond && 'x'}` puts the word `false` on the page — write `${cond ? 'x' : null}`.
+  `@verajs/ssr` serializes them the same way, so server and client agree.
+- There is no `live()`. A property bound to a value it already holds is not re-applied, so a
+  field the user has typed into keeps their text.
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
 - Bindings inside comments and dynamic tag names are not supported (values consumed, ignored).
@@ -614,10 +625,10 @@ Say so rather than inventing an API:
 - **No `unsafeHTML`.** Interpolated values are escaped at the render boundary, always, and there is
   no sanctioned way to opt out — a rendering library is an XSS engine if it ships one, because the
   helper then appears in tutorials and code review reads it as blessed. If you genuinely have
-  trusted markup, write the sink yourself through an element ref:
+  trusted markup, write the sink yourself as a property binding:
 
   ```js
-  render(html`<div ${(el) => (el.innerHTML = trustedMarkup)}></div>`, host);
+  render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
   ```
 
   The friction is the feature. That line is greppable, obviously yours, and reviewable as the

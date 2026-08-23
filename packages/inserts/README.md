@@ -10,6 +10,12 @@ You rarely install this directly: `@verajs/core` and `@verajs/router` re-export 
 import { insert } from '@verajs/core';
 ```
 
+Everything VeraJS does beyond state and templates is registered here, on the same five points and
+the same public function you have. `@verajs/renderer` is a `'render'` insert. `@verajs/styles` is an
+`'init'` insert. An error boundary is an `'error'` insert, and write batching is a `'set-handler'`
+insert — both are a few dozen lines, and both are worked examples in
+[`examples/cdn-js/src/inserts/`](../../examples/cdn-js/src/inserts).
+
 **Take `insert` from the package that owns the extension point, never from `@verajs/inserts`
 directly.** A production `.min.js` inlines this package into every bundle, so registering through a
 separately imported copy writes to a map that package never reads — it works in development and
@@ -39,6 +45,14 @@ path, which cost roughly 238 ns per store read.
 
 Priority 50 is the convention for a default implementation: register below it to run first, or at it
 to replace.
+
+Every callback in a chain runs, in priority order. An insert that wants to change what core does —
+rather than merely watch — says so through its return value, and only `'set-handler'` has one:
+returning `false` suppresses the default propagation, which is what lets a module hold writes back
+and flush them itself.
+
+For a whole new *kind* of hook rather than a new implementation of an existing one, `createHook` in
+`@verajs/core` is the primitive `useEffect` and its siblings are built from.
 
 ## `connectInserts`
 

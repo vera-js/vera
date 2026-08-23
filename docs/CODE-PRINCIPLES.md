@@ -210,8 +210,8 @@ a toolchain. **It is a hard constraint on design, not an aspiration**, and it ru
 
 **Tailwind must work too.** Buildless Tailwind means the CDN JIT build, and it collides with Shadow
 DOM: Tailwind emits global stylesheet rules, and a shadow root blocks them by design. The escape
-hatch already exists in core — `adoptStyles` / `adoptedStyleSheets`, or light-DOM rendering via
-`init(element)` with no shadow options. Any component or example that uses Tailwind must pick one
+hatch already exists — `adoptStyles` from `@verajs/styles` (`adoptedStyleSheets`), or light-DOM
+rendering via `init(element)` with no shadow options. Any component or example that uses Tailwind must pick one
 explicitly and say which; "it works in the light DOM and silently does not in the shadow DOM" is a
 trap for users.
 
