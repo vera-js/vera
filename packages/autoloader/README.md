@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1.10 KB<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->946 B<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -21,7 +21,9 @@ npm i @verajs/autoloader
 import { setAutoloader } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 
-setAutoloader(initAutoloader(import.meta.url, 'components'));
+const autoload = initAutoloader(import.meta.url, 'components');
+setAutoloader(autoload);   // watch every component as it renders
+autoload();                // and scan whatever is already on the page
 ```
 
 ```html
@@ -30,25 +32,39 @@ setAutoloader(initAutoloader(import.meta.url, 'components'));
 </my-page>
 ```
 
-`initAutoloader(rootDir, componentsDir?, options?)` returns a function that starts watching an
-element; calling it twice on the same element does nothing the second time. `setAutoloader`
-registers it on the `'render'` insert, which is how a component that has just rendered gets watched.
-`rootDir` is almost always `import.meta.url`; every component URL is resolved relative to it, and
+`rootDir` is almost always `import.meta.url` — every component URL is resolved relative to it, and
 omitting `componentsDir` puts components beside the entry file.
 
-Creating an autoloader also sweeps the document once for `[autoloader]` hosts, so a page written by
-hand works with no framework involved at all:
+`initAutoloader` returns **one function with three shapes**, plus two helpers:
+
+| | |
+| --- | --- |
+| `autoload()` | scan the page for `[autoloader]` hosts and watch them |
+| `autoload(element)` | watch that component |
+| `autoload(shadowRoot)` | watch that root — no attribute needed, handing it over is the opt-in |
+| `autoload.url(tag)` | the absolute URL it would fetch |
+| `autoload.retry(element)` | forget that this element's tag failed, and try again |
+
+Watching is idempotent: calling it twice on the same root does nothing the second time, which is why
+`setAutoloader` can hand it every component on every render.
+
+Creating an autoloader does nothing on its own — no scanning, no listeners. `autoload()` is how a
+hand-written page works with no framework involved at all, and you can call it again whenever new
+markup lands:
 
 ```html
 <script type="module">
   import { initAutoloader } from '@verajs/autoloader';
-  initAutoloader(import.meta.url, 'components');
+  initAutoloader(import.meta.url, 'components')();
 </script>
 
 <div autoloader>
   <user-card></user-card>   <!-- loads, though nothing here renders -->
 </div>
 ```
+
+A module script is deferred, so it runs after the page has parsed and the markup above is already
+there.
 
 ## Attributes
 
@@ -72,11 +88,6 @@ initAutoloader(import.meta.url, 'components', { extension: '.ts' });
 
 **`extension`** defaults to `.js`, with or without the leading dot. Set `.ts` so a TypeScript dev
 server can autoload sources directly — it will not serve `foo.js` when only `foo.ts` exists.
-
-**`sweep`** defaults to `true` — the document is swept once for `[autoloader]` hosts as the
-autoloader is created, which is what makes hand-written markup work. Set `false` when a page runs
-more than one autoloader, or each will adopt every marked host and they will race to load the same
-tags from their own directories.
 
 **`resolve(tag, dir)`** replaces URL building entirely, for a layout `dir/tag.ext` cannot express:
 
@@ -118,13 +129,13 @@ only if the first attempt fails.
 ## When a component never arrives
 
 A failed load logs, and dispatches `vera:autoload-error` on the element — bubbling and composed,
-with `{ tag, src, error }` on `detail`. That is the hook for rendering around a component that is
+with `{ tag, src, error, element }` on `detail`. That is the hook for rendering around a component that is
 not coming:
 
 ```js
 document.addEventListener('vera:autoload-error', ({ detail }) => {
   report(detail.error);
-  document.querySelectorAll(detail.tag).forEach((el) => el.replaceWith(fallback()));
+  detail.element.replaceWith(fallback());
 });
 ```
 
@@ -133,24 +144,28 @@ An element that has not arrived *yet* needs no hook — it is simply un-upgraded
 
 ## Warming and recovering
 
-```js
-const autoload = initAutoloader(import.meta.url, 'components');
+`autoload.url(tag)` gives you the URL and gets out of the way, so warming is whatever you want it to
+be — `modulepreload` for a component you know is coming, a lower-priority prefetch, priming a service
+worker cache:
 
-autoload.preload('user-card', 'order-table');   // fetch and compile, do not run
-autoload.retry('user-card');                    // forget a failure, try again where it appears
+```js
+const link = document.createElement('link');
+link.rel = 'modulepreload';
+link.href = autoload.url('user-card');
+document.head.appendChild(link);
 ```
 
-`preload` adds `<link rel="modulepreload">` for a component you know is coming — a route's shell,
-something below the fold — so the later `import()` is a cache hit. It is bounded exactly as a load
-is, and it never defines anything.
+It is also the fastest answer to *why is it fetching that?* — the question this module gets asked
+most.
 
-`retry` clears the memo for a tag and re-scans every watched root. Pair it with
-`vera:autoload-error`, which hands you the tag:
+`autoload.retry(element)` forgets that an element's tag failed and tries it again. A failed load is
+otherwise permanent for the page, which is right for a component that does not exist and wrong for
+one lost to a dropped connection. `vera:autoload-error` hands you the element:
 
 ```js
 addEventListener('vera:autoload-error', ({ detail }) => {
   if (navigator.onLine) return;
-  addEventListener('online', () => autoload.retry(detail.tag), { once: true });
+  addEventListener('online', () => autoload.retry(detail.element), { once: true });
 });
 ```
 

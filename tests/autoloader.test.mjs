@@ -38,12 +38,9 @@ const oe = console.error;
 console.error = (...a) => errs.push(a.join(' '));
 
 /**
- * A fresh host per case, torn down after it.
- *
- * Both halves matter now. An autoloader keeps watching once attached — that is the point of the
- * rewrite — and `initAutoloader` sweeps the document for `[autoloader]` hosts as it is created, so
- * a host left behind by one case is adopted by every autoloader a later case builds. Tags that
- * failed to load stay undefined, so those hosts would be re-attempted for the rest of the run.
+ * A fresh host per case, torn down after it. An autoloader keeps watching once attached — that is
+ * the point of the observed model — so a host left behind would still be live when the next case
+ * put markup in it.
  */
 const hosts = [];
 const host = (html = '') => {
@@ -108,6 +105,50 @@ clearHosts();
   check('a failed load dispatches vera:autoload-error', seen.length === 1, JSON.stringify(seen.length));
   check('the event names the tag and the URL',
     seen[0]?.tag === 'absent-widget' && String(seen[0]?.src).includes('/components/absent-widget.js'));
+  check('and carries the element, which is what retry() takes',
+    seen[0]?.element === app.querySelector('absent-widget'));
+}
+
+clearHosts();
+
+// 4b. `autoload()` with no argument scans every marked host on the page
+//
+// This used to happen by itself as the autoloader was created — once, so markup arriving later was
+// never seen, and with two autoloaders on a page each adopting every host.
+{
+  errs.length = 0;
+  const app = host('<swept-widget></swept-widget>');
+  const autoload = initAutoloader(rootDir, 'alt');
+  await tick();
+  check('creating an autoloader touches nothing', errs.length === 0, errs.join(' '));
+  autoload();
+  await tick();
+  /** Asserted on the attempt, so the case needs no fixture of its own. */
+  check('autoload() finds a marked host it was never handed',
+    errs.some((m) => m.includes('/alt/swept-widget.js')), errs.join(' '));
+  void app;
+}
+
+clearHosts();
+
+// 4c. url() is the URL it would fetch, and retry() takes the element that failed
+{
+  const autoload = initAutoloader(rootDir, 'components');
+  check('url() builds the fetch URL', autoload.url('any-widget').endsWith('/components/any-widget.js'),
+    autoload.url('any-widget'));
+  check('url() honours a resolve option',
+    initAutoloader(rootDir, 'c', { resolve: (t, d) => `${d}/${t}/${t}.js` }).url('x-y').endsWith('/c/x-y/x-y.js'));
+
+  errs.length = 0;
+  const app = host('<retried-widget></retried-widget>');
+  const failing = initAutoloader(rootDir, 'missing-dir');
+  failing(app);
+  await tick();
+  check('the first attempt failed', errs.some((m) => m.includes('retried-widget')));
+  errs.length = 0;
+  failing.retry(app.querySelector('retried-widget'));
+  await tick();
+  check('retry() attempts it again', errs.some((m) => m.includes('retried-widget')));
 }
 
 clearHosts();

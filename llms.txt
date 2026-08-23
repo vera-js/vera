@@ -516,7 +516,7 @@ Semantics worth stating:
 - Discovery is **observed, not polled**: a marked component is watched once with a
   `MutationObserver`, so an element is found whenever it enters the DOM — by a render, by
   `innerHTML`, by a third-party widget, or by being in the HTML file already. Creating an
-  autoloader sweeps the document once, so hand-written static markup works with nothing rendering.
+  `autoload()` scans the page on demand, so hand-written static markup works with nothing rendering.
 - Watching is **per-component opt-in**: each component hosting lazily-loaded children needs the
   `autoloader` attribute. An observer cannot cross into a descendant's shadow root, so that child
   marks itself (Vera components are offered up automatically by the `'render'` insert).
@@ -527,13 +527,15 @@ Semantics worth stating:
   `<x-y autoload-dir="alt">` are two URLs for one tag, and a tag can only be defined once. The
   second location is tried only if the first fails.
 - A failed load dispatches `vera:autoload-error` on the element (bubbles, composed,
-  `detail: { tag, src, error }`) as well as logging, so an app can render a fallback.
-- The returned function carries `preload(...tags)` (adds `<link rel="modulepreload">`, bounded the
-  same way, never defines anything) and `retry(tag)` (forgets a failure and re-scans watched roots).
-- Passing a **ShadowRoot** to it watches that root with no `autoloader` attribute — handing it over
-  is the opt-in, and the only way into a component that never marked itself.
-- `{ sweep: false }` skips the document sweep at creation; use it when a page runs more than one
-  autoloader, or each adopts every marked host.
+  `detail: { tag, src, error, element }`) as well as logging, so an app can render a fallback.
+- `initAutoloader` returns ONE function with three shapes: `autoload()` scans the page for
+  `[autoloader]` hosts, `autoload(element)` watches that component, `autoload(shadowRoot)` watches
+  that root (no attribute — handing it over is the opt-in, and the only way into a component that
+  never marked itself). Creating an autoloader has no side effects; `autoload()` is what makes
+  hand-written static markup work, and can be called again whenever new markup lands.
+- It carries `url(tag)` — the absolute URL it would fetch, for warming with `modulepreload`, a
+  prefetch, a service worker, or just to answer "why that URL?" — and `retry(element)`, which
+  forgets that element's tag failed and tries again.
 - `autoload-ignore` excludes that element only, not its subtree.
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.

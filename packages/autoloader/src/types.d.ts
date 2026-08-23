@@ -22,23 +22,16 @@ export type AutoloaderOptions = {
    */
   resolve?: (tag: string, dir: string) => string;
 
-  /**
-   * Whether creating the autoloader sweeps the document for `[autoloader]` hosts. Defaults to
-   * `true`, which is what makes hand-written markup work with nothing rendering.
-   *
-   * Set `false` when a page runs more than one autoloader: without it, each one adopts every marked
-   * host on the page and they race to load the same tags from their own directories.
-   */
-  sweep?: boolean;
 };
 
 /**
- * What {@link initAutoloader} returns: the watch function, with the two operations that only make
- * sense against a particular autoloader's directories and memo.
+ * What {@link initAutoloader} returns: one function with three shapes — no argument scans the page,
+ * an element watches that component, a shadow root watches that root — carrying the two operations
+ * that only make sense against a particular autoloader's directories and memo.
  */
-export type AutoloaderInstance = ((target: Element | ShadowRoot) => void) & {
-  /** Warm a component's module ahead of time with `<link rel="modulepreload">`. */
-  preload: (...tags: string[]) => void;
-  /** Forget that a tag failed, and try again wherever it currently appears. */
-  retry: (tag: string) => void;
+export type AutoloaderInstance = ((target?: Element | ShadowRoot | Document) => void) & {
+  /** The absolute URL this autoloader would fetch for a tag — warm it, prefetch it, or print it. */
+  url: (tag: string, element?: Element) => string;
+  /** Forget that this element's tag failed, and try it again. */
+  retry: (element: Element) => void;
 };

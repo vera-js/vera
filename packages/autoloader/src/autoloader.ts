@@ -24,7 +24,9 @@ import { AutoloaderInstance, AutoloaderOptions } from './types.js';
  * @param options Autoloader options. `extension` sets the file extension appended to the tag name, which lets
  * TypeScript projects autoload `.ts` sources during dev (a dev server will not serve `foo.js` when only `foo.ts`
  * exists). Defaults to `.js`. `resolve` replaces URL building entirely.
- * @return A function that starts watching an element. Safe to call repeatedly — it attaches once.
+ * @return `autoload` — call it with nothing to scan the page, with an element to watch that
+ * component, or with a shadow root to watch that root. Safe to call repeatedly; a root is attached
+ * once. Carries `url(tag)` and `retry(element)`.
  */
 export const initAutoloader = (
   rootDir: string,
@@ -73,20 +75,14 @@ export const initAutoloader = (
   const failed = new Map<string, string>();
 
   /**
-   * Roots under observation, weakly — so attaching is idempotent, and `retry` has something to
-   * re-scan. A `Set` of `WeakRef`s is this repo's iterable stand-in for a `WeakSet`; the router
-   * holds its router elements the same way.
+   * Roots under observation, so attaching is idempotent and cheap to re-attempt.
    *
    * Nothing prunes it, and nothing needs to: an observed node is collectable as soon as the page
    * drops it — measured in Chromium, where a removed node observed by a live observer is collected.
    * (jsdom reports otherwise, and reports it even after `disconnect()`, which is its own
    * bookkeeping rather than the observer contract.)
    */
-  const watched = new Set<WeakRef<Element | ShadowRoot>>();
-  const isWatched = (root: Element | ShadowRoot) => {
-    for (const ref of watched) if (ref.deref() === root) return true;
-    return false;
-  };
+  const watched = new WeakSet<Element | ShadowRoot>();
 
   /**
    * Creates the expected element url location to be appended to the root dir.
@@ -95,11 +91,16 @@ export const initAutoloader = (
    * text-direction attribute (`dir="rtl"` on any i18n page would have silently redirected
    * component loading).
    *
-   * @param element The element the autoloader is discovering
+   * Exposed as `autoload.url(tag)`, which is the whole of what a `preload` helper used to wrap:
+   * with the URL in hand a caller can warm it with `<link rel="modulepreload">`, prefetch it at a
+   * lower priority, prime a service worker, or simply print it to answer "why is it fetching
+   * *that*?" — the question this module gets asked most.
+   *
    * @param tag The element's name
-   * @return The element's expected location to be appended to the root dir
+   * @param element The element being discovered, when there is one — only it can carry `autoload-dir`
+   * @return The absolute URL this autoloader would fetch
    */
-  const elementURL = (element: Element, tag: string) => {
+  const url = (tag: string, element?: Element) => {
     /**
      * Trailing slashes come off, and an empty or root-only directory becomes `.` — the entry file's
      * own directory, which is the only place a bounded URL can be anyway.
@@ -109,8 +110,8 @@ export const initAutoloader = (
      * for components sitting beside the entry, since `componentsDir` is optional — therefore
      * refused every component it was asked for. `autoload-dir="/"` did the same.
      */
-    const dir = (element.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
-    return resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`;
+    const dir = (element?.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
+    return new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
   };
 
   /**
@@ -121,7 +122,7 @@ export const initAutoloader = (
    */
   const load = async (element: Element, tag: string): Promise<void> => {
     if (requested.has(tag)) return;
-    const src = new URL(elementURL(element, tag), rootDir).href;
+    const src = url(tag, element);
     if (attempted.has(src)) return;
     attempted.add(src);
 
@@ -150,7 +151,7 @@ export const initAutoloader = (
         new CustomEvent('vera:autoload-error', {
           bubbles: true,
           composed: true,
-          detail: { tag, src, error },
+          detail: { tag, src, error, element },
         })
       );
       console.error(`Failed to load custom element ${tag} from ${src}:`, error);
@@ -200,7 +201,18 @@ export const initAutoloader = (
    *
    * @param element The element to watch for undefined custom elements within
    */
-  const watch = (target: Element | ShadowRoot) => {
+  const watch = (target: Element | ShadowRoot | Document = document) => {
+    /**
+     * `autoload()` with nothing to point at means "every marked host on the page, right now".
+     *
+     * This used to happen by itself as the autoloader was created, which was wrong twice over: it
+     * fired once, so markup arriving later — fetched, stamped from a template — was never seen and
+     * said nothing about it; and two autoloaders on a page each adopted every marked host and raced
+     * to load the same tags from their own directories, which needed an option to switch off. As a
+     * shape of a function that already exists it costs almost nothing, can be called again whenever
+     * new markup lands, and leaves `initAutoloader` free of side effects.
+     */
+    if ((target as Document).body) return (target as Document).querySelectorAll('[autoloader]').forEach((el) => watch(el));
     let root = target as Element | ShadowRoot;
     /**
      * An `Element` has to opt in; a `ShadowRoot` handed over directly does not, because handing it
@@ -213,8 +225,8 @@ export const initAutoloader = (
       if (element.getAttribute('autoload-ignore') != null) return;
       root = element.shadowRoot ?? element;
     }
-    if (isWatched(root)) return;
-    watched.add(new WeakRef(root));
+    if (watched.has(root)) return;
+    watched.add(root);
     observer.observe(root, { childList: true, subtree: true });
     scan(root);
   };
@@ -224,52 +236,21 @@ export const initAutoloader = (
    * have offered it up. Swept once, as soon as there is a document to sweep — which is the whole
    * point of a buildless framework working from a pasted HTML file.
    */
-  const sweep = () => document.querySelectorAll('[autoloader]').forEach(watch);
-  if (options?.sweep !== false) {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sweep, { once: true });
-    else sweep();
-  }
-
   /**
-   * Fetches and compiles a component's module without running it, for one you know is coming — a
-   * route's shell, something below the fold. `modulepreload` is the platform's own answer, and it
-   * warms the same URL the loader will ask for, so the later `import()` is a cache hit.
+   * Forgets that this element's tag failed, and tries it again.
    *
-   * Bounded exactly as a load is: a tag that resolves outside the entry's directory is refused.
+   * A failed load is otherwise permanent for the page — right for a component that does not exist,
+   * wrong for one lost to a dropped connection. `vera:autoload-error` hands you the element, which
+   * is what makes retrying one thing rather than re-scanning every watched root possible.
    */
-  const preload = (...tags: string[]) => {
-    for (const tag of tags) {
-      const dir = (componentsDir ?? '.').replace(/\/+$/, '') || '.';
-      const src = new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
-      if (!src.startsWith(base)) {
-        console.error(`autoloader: refused ${src} for <${tag}> — resolves outside ${base}`);
-        continue;
-      }
-      const link = document.createElement('link');
-      link.rel = 'modulepreload';
-      link.href = src;
-      document.head.appendChild(link);
-    }
-  };
-
-  /**
-   * Forgets that a tag failed and tries again wherever it currently appears.
-   *
-   * A failed load is otherwise permanent for the page, which is right for a component that does not
-   * exist and wrong for one lost to a dropped connection. Pair it with `vera:autoload-error`, which
-   * hands you the tag.
-   */
-  const retry = (tag: string) => {
+  const retry = (element: Element) => {
+    const tag = element.localName;
     requested.delete(tag);
     const src = failed.get(tag);
     if (src) attempted.delete(src);
     failed.delete(tag);
-    for (const ref of watched) {
-      const root = ref.deref();
-      if (root) scan(root);
-      else watched.delete(ref);
-    }
+    load(element, tag);
   };
 
-  return Object.assign(watch, { preload, retry });
+  return Object.assign(watch, { url, retry });
 };

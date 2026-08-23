@@ -131,12 +131,18 @@ it('finds an element that arrives inside a whole subtree at once', async () => {
   element.remove();
 });
 
-it('finds markup that was already in the document when the autoloader was created', async () => {
+it('autoload() finds markup it was never handed, and only when asked', async () => {
   const element = host('<static-widget></static-widget>');
-  /** No `watch` call at all — the sweep at creation is what has to find this. */
-  initAutoloader(entry, 'components');
+  const autoload = initAutoloader(entry, 'components');
+  await settle();
+  expect(customElements.get('static-widget'), 'creating an autoloader touches nothing')
+    .to.equal(undefined);
+
+  /** No element passed: the whole page, right now. */
+  autoload();
   await until(() => customElements.get('static-widget'));
-  expect(customElements.get('static-widget'), 'static markup loads without any render').to.be.a('function');
+  expect(customElements.get('static-widget'), 'static markup loads with no render involved')
+    .to.be.a('function');
   element.remove();
 });
 
@@ -199,34 +205,30 @@ it('refuses an autoload-dir that resolves outside the entry directory', async ()
   element.remove();
 });
 
-/* ── preload ─────────────────────────────────────────────────────────────────────────────────── */
-it('preload warms a module without running it', async () => {
-  const autoloader = initAutoloader(entry, 'components', { sweep: false });
-  autoloader.preload('preloaded-widget');
+/* ── url() ───────────────────────────────────────────────────────────────────────────────────── */
+/**
+ * The whole of what a `preload` helper used to wrap. With the URL in hand you can warm it however
+ * you like — and do things the helper could not, like priming a service worker.
+ */
+it('url() is the URL the loader will ask for, and warming it works', async () => {
+  const autoload = initAutoloader(entry, 'components');
+  const href = autoload.url('preloaded-widget');
+  expect(href).to.contain('/components/preloaded-widget.js');
 
-  const link = [...document.head.querySelectorAll('link[rel="modulepreload"]')]
-    .find((l) => l.href.includes('preloaded-widget'));
-  expect(link, 'a modulepreload link was added').to.exist;
-  expect(link.href).to.contain('/components/preloaded-widget.js');
+  const link = document.createElement('link');
+  link.rel = 'modulepreload';
+  link.href = href;
+  document.head.appendChild(link);
   await settle();
   expect(customElements.get('preloaded-widget'), 'warming must not define it').to.equal(undefined);
 
-  /** And the warmed URL is the one the loader then asks for. */
   const element = host('<preloaded-widget></preloaded-widget>');
-  autoloader(element);
+  autoload(element);
   await until(() => customElements.get('preloaded-widget'));
-  expect(customElements.get('preloaded-widget')).to.be.a('function');
+  expect(customElements.get('preloaded-widget'), 'the warmed URL is the one it fetched')
+    .to.be.a('function');
   element.remove();
   link.remove();
-});
-
-it('preload refuses a tag that would resolve outside the base', () => {
-  const refused = [];
-  const original = console.error;
-  console.error = (...args) => refused.push(args.join(' '));
-  initAutoloader(entry, '../../..', { sweep: false }).preload('escaped-widget');
-  console.error = original;
-  expect(refused.filter((m) => m.includes('refused'))).to.have.length(1);
 });
 
 /* ── retry ───────────────────────────────────────────────────────────────────────────────────── */
@@ -235,28 +237,33 @@ it('preload refuses a tag that would resolve outside the base', () => {
  * wrong for one lost to a dropped connection. `vera:autoload-error` hands you the tag; this is what
  * you do with it.
  */
-it('retry forgets a failure and tries again where the tag appears', async () => {
+it('retry takes the element the error handed you, and tries it again', async () => {
   const original = console.error;
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
 
-  const autoloader = initAutoloader(entry, 'missing-dir', { sweep: false });
+  const failing = initAutoloader(entry, 'missing-dir');
   const element = host('<flaky-widget></flaky-widget>');
-  autoloader(element);
+  let reported;
+  element.addEventListener('vera:autoload-error', (event) => { reported = event.detail; });
+  failing(element);
   await until(() => errors.length > 0);
   expect(customElements.get('flaky-widget'), 'the first attempt failed').to.equal(undefined);
+  expect(reported.element, 'the event carries the element').to.equal(element.querySelector('flaky-widget'));
 
   /** The component is reachable now — a second autoloader stands in for the network coming back. */
-  const working = initAutoloader(entry, 'components', { sweep: false });
-  working(host('<flaky-widget></flaky-widget>'));
+  const working = initAutoloader(entry, 'components');
+  const other = host('<flaky-widget></flaky-widget>');
+  working(other);
   await settle();
   console.error = original;
 
   /** Without retry the tag stays memoised as failed on the first autoloader. */
-  autoloader.retry('flaky-widget');
+  failing.retry(reported.element);
   await until(() => customElements.get('flaky-widget'));
   expect(customElements.get('flaky-widget'), 'reachable after retry').to.be.a('function');
   element.remove();
+  other.remove();
 });
 
 /* ── a shadow root handed over directly ──────────────────────────────────────────────────────── */
@@ -270,22 +277,14 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
   const root = outsider.attachShadow({ mode: 'open' });
   root.innerHTML = '<shadowed-widget></shadowed-widget>';
 
-  const autoloader = initAutoloader(entry, 'components', { sweep: false });
-  autoloader(outsider);
+  const autoload = initAutoloader(entry, 'components');
+  autoload(outsider);
   await settle();
   expect(customElements.get('shadowed-widget'), 'the host never opted in').to.equal(undefined);
 
-  autoloader(root);
+  autoload(root);
   await until(() => customElements.get('shadowed-widget'));
   expect(customElements.get('shadowed-widget'), 'handing over the root is the opt-in').to.be.a('function');
   outsider.remove();
 });
 
-/* ── sweep ───────────────────────────────────────────────────────────────────────────────────── */
-it('sweep: false leaves existing marked hosts alone', async () => {
-  const element = host('<unswept-widget></unswept-widget>');
-  initAutoloader(entry, 'components', { sweep: false });
-  await settle();
-  expect(customElements.get('unswept-widget')).to.equal(undefined);
-  element.remove();
-});

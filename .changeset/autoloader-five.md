@@ -2,27 +2,36 @@
 '@verajs/autoloader': minor
 ---
 
-`preload`, `retry`, shadow roots by hand, and a `sweep` switch — plus a memory question answered.
+One function, three shapes, two helpers — and 184 B lighter than the version that had five.
 
-**`preload(...tags)`** adds `<link rel="modulepreload">` for a component you know is coming, so the
-later `import()` is a cache hit. Bounded exactly as a load is, and it never defines anything.
+```js
+const autoload = initAutoloader(import.meta.url, 'components');
+setAutoloader(autoload);        // watch every component as it renders
+autoload();                     // scan whatever is already on the page
+autoload(widget.shadowRoot);    // watch a root nothing marked
+autoload.url('user-card');      // the URL it would fetch
+autoload.retry(element);        // forget that this element's tag failed
+```
 
-**`retry(tag)`** forgets that a tag failed and re-scans every watched root. A failed load is
-otherwise permanent for the page — right for a component that does not exist, wrong for one lost to
-a dropped connection. Pairs with `vera:autoload-error`, which hands you the tag.
+**`autoload()` replaces the sweep that used to happen by itself.** Creating an autoloader now has no
+side effects at all — no scanning, no `DOMContentLoaded` listener. The implicit version was wrong
+twice over: it fired once, so markup arriving later was never seen and nothing said so, and two
+autoloaders on a page each adopted every marked host and raced to load the same tags from their own
+directories, which needed a `sweep: false` option to switch off. As a shape of a function that
+already existed it costs almost nothing, can be called again whenever new markup lands, and takes
+the option with it.
 
-**A `ShadowRoot` passed directly is watched**, with no `autoloader` attribute. An observer cannot
-cross a shadow boundary, so a component that never marked itself was unreachable — including a
-third-party one holding tags of yours. Handing the root over *is* the opt-in.
+**`url(tag)` replaces `preload(...tags)`.** Building the URL was all `preload` really did, and having
+it in hand does more than the helper could — `modulepreload`, a lower-priority prefetch, priming a
+service worker, or just printing it to answer "why is it fetching *that*?".
 
-**`{ sweep: false }`** skips the document sweep at creation. Without it, a page running two
-autoloaders has each adopt every marked host, and they race to load the same tags from their own
-directories.
+**`retry(element)` replaces `retry(tag)`**, and `vera:autoload-error` now carries `element` so the
+thing you retry is the thing the event hands you. Retrying one element rather than re-scanning every
+watched root also drops the iterable set of roots that the old shape required.
 
 **Observers are never disconnected, and do not need to be.** A removed node observed by a live
 observer is still collectable — measured in Chromium with `--expose-gc` and pinned by
-`tests/browser/memory.test.js`, which also guards its own control. jsdom reports the opposite, and
-reports it even after `disconnect()`; that is jsdom's bookkeeping, not the observer contract.
+`tests/browser/memory.test.js`, which guards its own control. jsdom reports the opposite, and reports
+it even after `disconnect()`; that is jsdom's bookkeeping, not the observer contract.
 
-905 B to 1 130 B gzipped: preload 109 B, retry 83 B (it needs an iterable set of watched roots),
-the sweep switch 12 B, shadow roots 8 B.
+905 B to 946 B gzipped for all of it.
