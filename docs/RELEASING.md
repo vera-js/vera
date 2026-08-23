@@ -35,6 +35,10 @@ make every tag a lie about what it contains.
 never committed, the push carries the old versions, CI finds them already on the registry, and the
 release silently publishes nothing while reporting success.
 
+You do not have to remember either rule: `tag-release.mjs` refuses to run against a dirty working
+tree, which catches both, because committing first is the only order that leaves the tree clean at
+that point. `--force` overrides it if the pending changes are genuinely unrelated.
+
 CI then builds and publishes. That's the whole loop — no PR to merge, no button to press, no
 credential anywhere.
 
@@ -132,6 +136,29 @@ mean to publish before it has ever shipped.
 
 ## Verifying a release
 
+**First, confirm something actually published.** A green Release run does not mean it did — if the
+version bumps were never committed, CI finds every version already on the registry and does nothing,
+successfully. Read the publish step, which names exactly what it did:
+
+```
+These packages will be published as they were not found in the registry:
+@verajs/core@0.2.1
+```
+
+against the alternative, which is what a no-op release looks like:
+
+```
+8 packages are already published.
+```
+
+Then check the registry. Note that npm's package endpoint lags its version endpoint by minutes, so
+a just-published package can 404 through `npm view` while it is genuinely live — query the version
+directly before concluding anything failed:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' https://registry.npmjs.org/@verajs%2fcore/0.2.1
+```
+
 Every version from 0.1.1 onward carries a provenance attestation binding it to the exact commit and
 workflow that built it:
 
@@ -139,8 +166,11 @@ workflow that built it:
 npm audit signatures
 ```
 
-The npm page for each package shows "Built and signed on GitHub Actions". `0.1.0` predates this — it
-was published from a local machine during bootstrap and has no attestation.
+The npm page for each package shows "Built and signed on GitHub Actions". A package's **first**
+version never has one, and never will: it is published from a local machine because npm will not
+attach a trusted publisher to a package that does not exist yet, and a local publish has no OIDC
+identity to attest with. That applies to `0.1.0` of the original seven and to every package added
+since. Everything published by CI after that is attested.
 
 ## If a release doesn't appear
 

@@ -33,6 +33,9 @@ jobs:
       # or if bench/size-snapshot.json no longer describes the current dist. The competing
       # frameworks are NOT needed here: per-module sizes come from dist, and the cross-framework
       # table is verified for staleness rather than regenerated.
+      # A version bumped on master without its tag means the release was cut wrong. Verification
+      # only — this never writes, and it tolerates a dirty tree so it is safe in CI.
+      - run: node scripts/tag-release.mjs --check
       - run: node scripts/sync-size-claims.mjs --check
       # Twice, against different programs. dist/development keeps workspace deps external and
       # keeps __DEV__ code; dist/*.min.js mangles properties, drops console.log, eliminates dead
