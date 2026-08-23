@@ -29,3 +29,23 @@ and `removeAttribute` on an absent attribute is a no-op.
 The generic `get` chaining helper from `@verajs/shared-utils` is gone from this package, replaced by
 a local get-or-create. Its Array branch, `instanceof` helper and throwing fallback were all inlined
 into the standalone bundle and none of them were reachable — 58 B gzipped.
+
+**Named routes.** `{ path: '/users/:id', name: 'user' }` plus `resolve('user', { id: 5 })`, so a
+link is built from a handle rather than by hand and renaming the path leaves every caller alone —
+the reason both Vue Router and React Router have this. Values are encoded, so a param round-trips
+through the decoding that happens on the way back in; an omitted optional param takes its whole
+segment; a wildcard takes an array. `navigate({ name, params })` is the same call in Vue's shape.
+
+**The fragment is on every snapshot** as `to.hash`. A hash-only change does not re-route, but each
+router's `currentRoute` takes the new fragment and `after-route` fires with `trigger: 'hashchange'`
+— which nothing produced before, despite the trigger being in the public type since 0.1.0.
+
+**Two fragment-navigation bugs, found by asking a real browser.** A fragment navigation fires
+`popstate` as well as `hashchange` — in Chromium, Firefox and WebKit alike. The `popstate` listener
+routed to `location.pathname`, dropping the fragment, so every anchor click read as a move away from
+`/docs#install` to `/docs`: the component ran a second time, guards re-ran under a `'popstate'`
+trigger, and because `popstate` focuses every routed view, an in-page link stole focus. The listener
+now carries the fragment, which also makes traversing back to `/docs#install` restore it instead of
+dropping it. Separately, `currentPath` was recorded after the URL was touched, and touching the URL
+re-enters `navigate` synchronously — so the re-entry compared against a stale path and routed again.
+It is recorded first now.

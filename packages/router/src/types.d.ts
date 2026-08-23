@@ -4,6 +4,9 @@ export type RouteTrigger = 'init' | 'navigate' | 'replace' | 'popstate' | 'hashc
 
 export type RouteParams = Partial<Record<string, string | string[]>>;
 
+/** Where to navigate: a path, or a named route and its params. */
+export type RouteTarget = string | { name: string; params?: RouteParams };
+
 /** Alias — same shape as {@link RouteParams}, kept for path-to-regexp-compatible naming. */
 export type ParamData = RouteParams;
 
@@ -47,6 +50,8 @@ export interface RouteSnapshot {
   trigger?: RouteTrigger;
   /** Whatever the matched route declared as `meta`. */
   meta?: RouteMeta;
+  /** The fragment, `#` included, or `''`. Updated on a hash-only change without re-routing. */
+  hash?: string;
 }
 
 /**
@@ -66,6 +71,11 @@ export type Route = {
 
 export interface RouteOptions {
   path: (() => string) | string;
+  /**
+   * A stable handle for this route, so links and redirects are built from `resolve(name, params)`
+   * rather than by hand. Renaming the path then leaves every caller alone.
+   */
+  name?: string;
   title?: RouteAction | string;
   /** Arbitrary data for guards to read off the snapshot — see {@link RouteMeta}. */
   meta?: RouteMeta;

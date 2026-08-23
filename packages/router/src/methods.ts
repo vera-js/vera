@@ -1,7 +1,7 @@
 import { Route, RouteOptions } from './types.js';
 import { routerSettings } from './state.js';
 import { navigate } from './services.js';
-import { elements, elementsData, getOrCreate, handlers, routers } from './state.js';
+import { elements, elementsData, getOrCreate, handlers, names, routers } from './state.js';
 
 /**
  * Adds a listener to an element that queries for valid links and changes the route if appropriate.
@@ -55,6 +55,14 @@ export const addRoutes = (element: HTMLElement, routes: RouteOptions[], parentRo
     const completePath = parentRoute + path;
 
     let route: Route = { ...routes[i] };
+    if (route.name !== undefined && typeof completePath === 'string') {
+      if (__DEV__ && names.has(route.name) && names.get(route.name) !== completePath)
+        console.warn(
+          `[vera] two routes are named "${route.name}" — "${names.get(route.name)}" and ` +
+            `"${completePath}". The last one registered is the one \`resolve\` will build.`
+        );
+      names.set(route.name, completePath);
+    }
     if (typeof path !== 'function') {
       const { children } = routes[i];
       if (children) {

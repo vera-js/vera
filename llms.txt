@@ -417,12 +417,16 @@ router.addRoutes([
 router.on('before-route', (params) => {});
 ```
 
-Routes support `path`, `title`, `component`, `action`, `children`, `view`, `redirect` and `meta`.
+Routes support `path`, `name`, `title`, `component`, `action`, `children`, `view`, `redirect` and
+`meta`.
 `component`, `action`, `title` and `view` all receive `(params, to, from)` and may be `async`. Mark
 links with a `route` attribute: `<a route href="/user/1">`. Render the outlet as
 `<div view="main"></div>`.
 
 Semantics worth stating:
+- **Named routes**: give a route a `name` and build its URL with `resolve(name, params)` — values
+  are encoded, an omitted `:tab?` takes its segment, a wildcard takes an array. `navigate({ name,
+  params })` is the same call. Names are page-wide; a child registers its complete path.
 - `navigate(path)` is programmatic navigation — the trigger defaults to `'navigate'`. All routers
   on a page share the URL and all follow every navigation; history gets one entry per user
   navigation, none for back/forward or initial load.
@@ -455,8 +459,11 @@ Semantics worth stating:
   `to.meta`, which is where auth flags, layout names and analytics ids belong.
 - `router.currentRoute` is where that router is now — the snapshot, with params and query already
   parsed — or `undefined` until it has routed once.
-- Hash fragments: `path#hash` navigation costs one history entry, scrolls to the anchor, and sets
-  `:target`; deep-linked anchors scroll after the initial route renders. `navigate(path,
+- Hash fragments: the fragment is on every snapshot as `to.hash` (`#` included). A hash-only change
+  does not re-route — the route did not change — but each router's `currentRoute` takes the new
+  fragment and `after-route` fires with `trigger: 'hashchange'`. `path#hash` navigation costs one
+  history entry, scrolls to the anchor, and sets `:target`; deep-linked anchors scroll after the
+  initial route renders. `navigate(path,
   'replace')` swaps the current entry. With `pushHash: false` fragments never reach
   the URL — they go to `hashChangeFunction` only.
 - Redirects: `{ path: '/old', redirect: '/new' }` or ``redirect: (params) => `/user/${params.id}` ``.

@@ -19,7 +19,7 @@ globalThis.window = window;
 globalThis.document = window.document;
 globalThis.requestAnimationFrame = () => {};
 
-const { initRouter, navigate, insert } = await load('router');
+const { initRouter, navigate, resolve, insert } = await load('router');
 insert('render', () => {}, 50);
 
 let pass = 0, fail = 0;
@@ -124,6 +124,77 @@ const app = (routes, options = {}) => {
   check('it receives the destination', calls[1]?.[0] === '/s2', JSON.stringify(calls[1]));
   check('it receives the trigger', calls[1]?.[1] === 'navigate', JSON.stringify(calls[1]));
   check('and it replaces the default scroll', scrolled === 0, `scrollTo called ${scrolled}x`);
+}
+
+// ── named routes ──────────────────────────────────────────────────────────────────────────────
+/**
+ * A name is a handle on a URL, so renaming `/users/:id` leaves every caller alone. Values are
+ * encoded on the way out and decoded on the way back in, so a param round-trips unchanged.
+ */
+{
+  const router = app([
+    { path: '/users/:id', name: 'user', component: () => '' },
+    { path: '/users/:id/edit/:tab?', name: 'user-edit', component: () => '' },
+    { path: '/files/*rest', name: 'file', component: () => '' },
+    { path: '/about', name: 'about', component: () => '' },
+    { path: '/parent', name: 'parent', children: [{ path: '/child', name: 'child', component: () => '' }] },
+  ]);
+
+  check('a name with no params', resolve('about') === '/about', resolve('about'));
+  check('a name with a param', resolve('user', { id: 5 }) === '/users/5', resolve('user', { id: 5 }));
+  check('values are encoded', resolve('user', { id: 'John Doe' }) === '/users/John%20Doe',
+    resolve('user', { id: 'John Doe' }));
+  check('an optional param, supplied', resolve('user-edit', { id: 5, tab: 'perms' }) === '/users/5/edit/perms',
+    resolve('user-edit', { id: 5, tab: 'perms' }));
+  check('an optional param, omitted, takes its segment', resolve('user-edit', { id: 5 }) === '/users/5/edit',
+    resolve('user-edit', { id: 5 }));
+  check('a wildcard takes an array of segments', resolve('file', { rest: ['a', 'b c'] }) === '/files/a/b%20c',
+    resolve('file', { rest: ['a', 'b c'] }));
+  check('a child route registers its complete path', resolve('child') === '/parent/child', resolve('child'));
+  check('an unknown name resolves to nothing', resolve('nope') === '');
+
+  await navigate(resolve('user', { id: 5 }));
+  check('navigate(resolve(…)) lands on the path', router.currentRoute?.params?.id === '5',
+    JSON.stringify(router.currentRoute?.params));
+
+  /** The object form is Vue Router's shape, and is the same call through `resolve`. */
+  await navigate({ name: 'user', params: { id: 'Jo Ann' } });
+  check('navigate({ name, params }) routes', window.location.pathname === '/users/Jo%20Ann', window.location.pathname);
+  check('and the param decodes back on arrival', router.currentRoute?.params?.id === 'Jo Ann',
+    JSON.stringify(router.currentRoute?.params));
+}
+
+// ── the fragment ──────────────────────────────────────────────────────────────────────────────
+/**
+ * `hash` on the snapshot is the half of fragment handling that was missing: `hashChangeFunction`
+ * could react to a fragment, but no route could see which one it was.
+ *
+ * Browser truth for the rest of this lives in `tests/browser/router-hash.test.js` — a fragment
+ * navigation fires `popstate` too, which jsdom models faithfully and which used to cost a second
+ * full route change.
+ */
+{
+  let seen;
+  const router = app([{ path: '/doc', component: (p, to) => { seen = to; return ''; } }]);
+  const after = [];
+  router.on('after-route', (to) => after.push([to.hash, to.trigger]));
+
+  await navigate('/doc#install', 'navigate');
+  check('the fragment reaches the snapshot', seen?.hash === '#install', JSON.stringify(seen?.hash));
+  check('and currentRoute carries it', router.currentRoute?.hash === '#install',
+    JSON.stringify(router.currentRoute?.hash));
+  check('a full navigation carries an empty hash when there is none',
+    (await navigate('/doc2', 'navigate'), seen?.hash === '#install'), 'route unchanged');
+
+  const rendersBefore = seen;
+  await navigate('/doc#usage', 'navigate');
+  await new Promise((r) => setTimeout(r, 10));
+  check('a hash-only change keeps the same route', router.currentRoute?.path === '/doc',
+    router.currentRoute?.path);
+  check('updates the fragment', router.currentRoute?.hash === '#usage', router.currentRoute?.hash);
+  check('and reports it as a hashchange',
+    after.some(([hash, trigger]) => hash === '#usage' && trigger === 'hashchange'), JSON.stringify(after));
+  check('without re-running the component', seen === rendersBefore, 'component re-ran');
 }
 
 console.log(`${pass} passed, ${fail} failed`);

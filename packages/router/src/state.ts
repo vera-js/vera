@@ -14,6 +14,12 @@ export const elementsData = new WeakMap<HTMLElement, ElementsData>();
 export const handlers = new WeakMap<HTMLElement | Document, Map<string, Set<RouteEventHandler>>>();
 export const state = { currentPath: '' };
 
+/**
+ * `name` → the route's complete pattern. Page-wide rather than per-router, because a name is a
+ * handle on a URL and every router on the page shares one URL.
+ */
+export const names = new Map<string, string>();
+
 export const routerSettings: RouterSettings = {
   match: getMatch,
   pushHash: true,

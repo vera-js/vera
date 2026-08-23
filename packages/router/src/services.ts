@@ -1,7 +1,7 @@
 import { inserts } from '@verajs/inserts';
-import { MatchFunction, ParamData, RouteTrigger } from './types.js';
+import { MatchFunction, ParamData, RouteParams, RouteTarget, RouteTrigger } from './types.js';
 
-import { elements, elementsData, routers, routerSettings, state } from './state.js';
+import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
 import { stripTrailingSlash } from '@verajs/shared-utils';
 import { Renderer } from '@verajs/shared-types';
@@ -19,6 +19,37 @@ export const page = 'page';
  */
 export const setMatchFunction = (matchFunction: <P extends ParamData>(routePattern: string) => MatchFunction<P>) => {
   routerSettings.match = matchFunction;
+};
+
+/**
+ * Builds the path for a named route.
+ *
+ * ```js
+ * navigate(resolve('user', { id: 5 }));      //  /users/5
+ * link.href = resolve('user', { id: 5 });
+ * ```
+ *
+ * A name is a handle on a URL, so renaming `/users/:id` to `/people/:id` leaves every caller alone
+ * — which is the whole reason both Vue Router and React Router have this. Values are encoded, so a
+ * param round-trips through the decoding that happens on the way back in. An optional param left
+ * out drops its whole segment, slash included; a wildcard takes an array of segments.
+ *
+ * @param name The route's `name`
+ * @param params Values for the pattern's `:params` and `*wildcards`
+ * @return The path, or `''` if no route carries that name
+ */
+export const resolve = (name: string, params: RouteParams = {}) => {
+  const pattern = names.get(name);
+  if (pattern === undefined) {
+    if (__DEV__) console.warn(`[vera] no route is named "${name}"`);
+    return '';
+  }
+  return pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
+    const value = params[key];
+    /** An absent optional param takes its segment with it; an absent required one is left visible. */
+    if (value === undefined) return token.endsWith('?') ? '' : token;
+    return `/${(Array.isArray(value) ? value : [value]).map(encodeURIComponent).join('/')}`;
+  });
 };
 
 /**
@@ -89,7 +120,21 @@ export const attachWindowListeners = () => {
 
   window.addEventListener('popstate', (e) => {
     pendingScroll = (e.state as { scroll?: [number, number] } | null)?.scroll;
-    navigate(window.location.pathname, 'popstate');
+    /**
+     * The fragment has to travel with the path here, for two reasons that look unrelated and are
+     * the same one.
+     *
+     * A fragment navigation fires `popstate` **as well as** `hashchange` — verified in Chromium,
+     * Firefox and WebKit, and jsdom agrees. Routing to `location.pathname` alone therefore looked
+     * like a move away from `/docs#install` to `/docs`, and every anchor click cost a second, full
+     * route change: the component ran twice, guards re-ran under a `'popstate'` trigger, and since
+     * `popstate` focuses every routed view, clicking an in-page link stole focus. Passing the
+     * whole URL makes `navigate` recognise it as where the page already is, and it returns at once.
+     *
+     * The same line is what makes traversing back to `/docs#install` restore the fragment rather
+     * than dropping it.
+     */
+    navigate(window.location.pathname + window.location.hash, 'popstate');
   });
 
   window.addEventListener('hashchange', () => {
@@ -118,11 +163,13 @@ export const attachWindowListeners = () => {
  * @return true if the page routed (or the change was hash-only)
  */
 export const navigate = async (
-  path: string,
+  target: RouteTarget,
   trigger: RouteTrigger = 'navigate',
   origin?: HTMLElement,
   redirectDepth = 0
 ): Promise<boolean> => {
+  /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
+  const path = typeof target === 'string' ? target : resolve(target.name, target.params);
   if (path === state.currentPath) return true;
   const id = ++navigationId;
 
@@ -138,12 +185,27 @@ export const navigate = async (
   const queryIndex = newPath.indexOf('?');
   const matchPath = queryIndex === -1 ? newPath : newPath.slice(0, queryIndex);
   const query = new URLSearchParams(queryIndex === -1 ? '' : newPath.slice(queryIndex));
+  const hash = hashIndex > 0 ? strippedHref.substring(hashIndex) : hashIndex === 0 ? strippedHref : '';
 
   /** If the path is the same but the hash is the source of the change */
   if ((hashIndex > -1 && newPath === oldPath) || hashIndex === 0) {
-    hashChange(hashIndex > 0 ? strippedHref.substring(hashIndex) : strippedHref);
+    hashChange(hash);
     /** The native hash assignment (under `pushHash`) already created the entry — record only. */
     state.currentPath = path;
+    /**
+     * The route did not change, so nothing re-renders and no guard runs — the browser has already
+     * moved the fragment and there is nothing left to cancel. What every router still owes its
+     * components is an up-to-date snapshot and a way to hear about it, so each one's `currentRoute`
+     * takes the new fragment and `after-route` fires with the `'hashchange'` trigger.
+     */
+    for (const elementWeakRef of elements) {
+      const element = elementWeakRef.deref();
+      const elementData = element && elementsData.get(element);
+      const previousRoute = elementData?.currentRoute;
+      if (!previousRoute) continue;
+      elementData.currentRoute = { ...previousRoute, hash, trigger: 'hashchange' };
+      emitEvent(element, 'after-route', elementData.currentRoute, previousRoute);
+    }
     return true;
   }
 
@@ -183,10 +245,21 @@ export const navigate = async (
   let routed = false;
   for (const [element, match] of matches) {
     const shouldFocusView = element === origin || trigger === 'popstate';
-    if (await routeChange(element, matchPath, trigger, shouldFocusView, query, id, match)) routed = true;
+    if (await routeChange(element, matchPath, trigger, shouldFocusView, query, hash, id, match)) routed = true;
     if (id !== navigationId) return false;
   }
   if (!routed) return false;
+
+  /**
+   * Recorded **before** the URL is touched, because touching it re-enters here.
+   *
+   * `applyHash`'s `location.replace('#…')` fires `popstate` synchronously, and the listener routes
+   * to wherever the URL now points. With this assignment left until the end, that re-entry saw the
+   * *old* `currentPath`, decided the page had moved, and ran the whole route a second time under a
+   * `'popstate'` trigger — which also focuses every routed view, so an anchor click stole focus.
+   * Setting it first makes the re-entry recognise where it already is and return at once.
+   */
+  state.currentPath = path;
 
   /**
    * History first (hashless path, query kept), fragment second: `applyHash` needs the routed
@@ -209,7 +282,6 @@ export const navigate = async (
     else window.scrollTo?.(saved?.[0] ?? 0, saved?.[1] ?? 0);
   }
 
-  state.currentPath = path;
   return true;
 };
 
@@ -240,6 +312,7 @@ const routeChange = async (
   trigger: RouteTrigger,
   shouldFocusView: boolean,
   query: URLSearchParams | undefined,
+  hash: string,
   id: number,
   result: NonNullable<ReturnType<typeof getRoute>>
 ) => {
@@ -250,7 +323,7 @@ const routeChange = async (
   const { params = {}, route } = result;
 
   const previousRoute = elementData.currentRoute;
-  const currentRoute = { path, params, query, trigger, meta: route.meta };
+  const currentRoute = { path, params, query, trigger, meta: route.meta, hash };
 
   /** Allow route cancellation before leaving route */
   if ((await emitEvent(element, 'before-leave', currentRoute, previousRoute)) === false) return false;

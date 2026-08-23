@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->2.89 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.08 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -59,9 +59,10 @@ renders; **routed links**, marked with a bare `route` attribute; and the route l
 | `redirect` | send this route elsewhere — a path, or a function of the params |
 | `children` | routes whose paths are prefixed by this one |
 | `meta` | arbitrary data, carried to guards and components on the snapshot |
+| `name` | a stable handle, so links are built with `resolve()` instead of by hand |
 
 `component`, `action`, `title` and `view` all receive `(params, to, from)`, where `to` and `from` are
-route snapshots carrying `path`, `params`, `query`, `trigger` and `meta`.
+route snapshots carrying `path`, `params`, `query`, `hash`, `trigger` and `meta`.
 
 **`meta` is yours.** The router never reads it — it carries it — which is what lets a guard decide on
 the route's own terms rather than by re-parsing the path it was handed:
@@ -98,11 +99,28 @@ component or give the child route its own `view`.
 ## Navigating
 
 ```js
-import { navigate } from '@verajs/router';
+import { navigate, resolve } from '@verajs/router';
 
-navigate('/users/5');              // pushes a history entry
-navigate('/login', 'replace');     // swaps the current entry — for guards and redirects
+navigate('/users/5');                          // pushes a history entry
+navigate('/login', 'replace');                 // swaps the current entry — for guards and redirects
+navigate({ name: 'user', params: { id: 5 } }); // by name
 ```
+
+**Named routes.** Give a route a `name` and build its URL with `resolve(name, params)` instead of
+by hand, so renaming `/users/:id` to `/people/:id` leaves every caller alone:
+
+```js
+{ path: '/users/:id', name: 'user', component: userView }
+
+resolve('user', { id: 5 });                 //  /users/5
+resolve('user', { id: 'John Doe' });        //  /users/John%20Doe   — encoded to round-trip
+resolve('file', { rest: ['a', 'b'] });      //  /files/a/b          — a wildcard takes segments
+resolve('user-edit', { id: 5 });            //  /users/5/edit       — an omitted `:tab?` takes its segment
+```
+
+Names are page-wide, because a name is a handle on a URL and every router shares one URL. A child
+route registers its complete path, so `resolve('child')` gives `/parent/child`. Two routes claiming
+one name warn in development.
 
 Every router on the page follows every navigation, because they all share one URL. History gets one
 entry per user navigation, and none for back/forward or the initial load.
@@ -173,6 +191,17 @@ route. The parsed `URLSearchParams` is `to.query` on every snapshot.
 and a deep-linked fragment scrolls once the routed content exists rather than before it. With
 `pushHash: false`, fragments never reach the URL at all — they go to `hashChangeFunction` alone.
 
+The fragment is on every snapshot as `to.hash`, `#` included. A **hash-only** change does not
+re-route — the matched route has not changed and the browser has already moved the fragment — but
+each router's `currentRoute` takes the new fragment and `after-route` fires with the `'hashchange'`
+trigger, so a component can respond to it:
+
+```js
+router.on('after-route', (to) => {
+  if (to.trigger === 'hashchange') highlight(to.hash);
+});
+```
+
 ## Scrolling
 
 Fresh navigation lands at the top, like a page load. Back and forward restore the position the user
@@ -219,6 +248,7 @@ the handlers and the link listener — call it if the host element outlives its 
 | | |
 | --- | --- |
 | `setRenderer(fn)` | what draws a route's template into its outlet |
+| `resolve(name, params)` | build a named route's path |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
 | `connectInserts(inserts)` | CDN only — see below |
 
