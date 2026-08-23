@@ -13,7 +13,12 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
  * which is faster and runs against both build conditions.
  *
  *   npm run test:browser              # chromium
- *   npm run test:browser -- --browsers chromium firefox webkit
+ *   npm run test:browser:all          # chromium, firefox, webkit
+ *   VERA_BROWSERS=webkit npm run test:browser
+ *
+ * Selected by environment variable rather than a CLI flag, matching `VERA_DIST`. `--browsers` is
+ * not usable here: `@web/test-runner` rejects it whenever the config defines launchers itself, so
+ * the invocation this comment used to suggest could never have worked.
  *
  * `nodeResolve` is required: the development bundles import `@verajs/inserts` as a bare specifier
  * (that is the point — the consumer's bundler dedupes it), and a browser cannot resolve that alone.
@@ -26,10 +31,13 @@ export default {
    * `adoptedStyleSheets` have their shakiest support there, and both are load-bearing for
    * `@verajs/styles`. Firefox covers a second engine's custom-element and focus semantics.
    *
-   * CI installs chromium only by default — add the others to the workflow when the cost is
-   * acceptable, or run them locally with `--browsers chromium firefox webkit`.
+   * CI installs chromium only by default; `VERA_BROWSERS` selects more.
    */
-  browsers: [playwrightLauncher({ product: 'chromium' })],
+  browsers: (process.env.VERA_BROWSERS ?? 'chromium')
+    .split(',')
+    .map((product) => product.trim())
+    .filter(Boolean)
+    .map((product) => playwrightLauncher({ product })),
   testFramework: {
     config: { timeout: 5000 },
   },

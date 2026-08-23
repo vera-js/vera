@@ -50,5 +50,10 @@ jobs:
       # The browser-truth layer. jsdom has no adoptedStyleSheets, no CSSScopeRule, does not parse
       # declarative shadow DOM and runs no layout engine — so @verajs/styles and hydration had
       # never executed their real paths anywhere. These suites are the only place they do.
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      # Three engines, because one is barely better evidence than none for this framework.
+      # WebKit is the one that matters: `@scope` and `adoptedStyleSheets` have their shakiest
+      # support there and both are load-bearing for @verajs/styles. Firefox covers a second
+      # engine's custom-element and focus semantics. All 29 checks pass on all three; the suite
+      # itself takes ~12s, so the cost here is the browser download, not the run.
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:browser:all

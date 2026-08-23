@@ -196,17 +196,30 @@ collaborator — the public ones in this repo, the private ones in `vera-js/inte
 
 ## Testing
 
-Two layers. **Fast layer (installed):** `node --test` + jsdom in `tests/*.test.mjs` — ~170 checks
-against built artifacts, CI-ready. **Every suite runs twice**, against `dist/development/*.js` and
-against `dist/*.min.js` — `npm test`, `npm run test:prod`, or `npm run test:all`. They are different
-programs: production mangles properties, folds `__DEV__` to `false` and deletes the branches, drops
-`console.log`, and inlines workspace dependencies. `tests/dist.mjs` resolves the artifact; a suite
-never hard-codes a path. `tests/cdn-cross-bundle.test.mjs` covers the two-registry `connectInserts`
-condition, which **only exists in the production build** — verified to fail if `_p` is ever mangled. **Browser-truth layer (chosen, not yet
-installed):** `@web/test-runner`, in a real browser — shadow DOM, custom element upgrade timing and
-`adoptedStyleSheets` are emulated under a fake DOM, and for this framework a pass under emulation
-is weak evidence. The jsdom suites are the regression net; browser suites are the release gate.
-Every consumption mode gets a suite asserting the same API surface.
+Two layers, both installed and both in CI.
+
+**Fast layer:** `node --test` + jsdom in `tests/*.test.mjs` — 143 checks against built artifacts.
+**Every suite runs twice**, against `dist/development/*.js` and against `dist/*.min.js` —
+`npm test`, `npm run test:prod`, or `npm run test:all`. They are different programs: production
+mangles properties, folds `__DEV__` to `false` and deletes the branches, drops `console.log`, and
+inlines workspace dependencies (9 checks are development-only and skip accordingly).
+`tests/dist.mjs` resolves the artifact; a suite never hard-codes a path.
+`tests/cdn-cross-bundle.test.mjs` covers the two-registry `connectInserts` condition, which **only
+exists in the production build** — verified to fail if `_p` is ever mangled.
+
+**Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js` — 29 checks on
+**Chromium, Firefox and WebKit** (`npm run test:browser`, `npm run test:browser:all`, or
+`VERA_BROWSERS=webkit npm run test:browser`; the `--browsers` CLI flag is unusable because the
+config defines its own launchers). Shadow DOM, custom element upgrade timing, `adoptedStyleSheets`
+and `@scope` are emulated or absent under a fake DOM, so for this framework a pass under emulation
+is weak evidence — and so is a pass on one engine. The jsdom suites are the regression net; browser
+suites are the release gate.
+
+**Documented code is executed, not just written.** `tests/docs-recipes.test.mjs` runs the root
+README's quick-starts and every block marked `<!-- recipe -->` in any README, each in its own
+process. Isolation is per-process rather than per-import because under the `development` condition
+workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe missing
+`setRenderer` otherwise passes on a renderer an earlier recipe registered.
 
 ## Versioning
 
@@ -255,4 +268,4 @@ There is deliberately no Version PR (reasoning: `internal/docs/RELEASE-DESIGN.md
   disconnected acorn and possibly regex-based shape identification. It carried a lot of unwanted extra
   material, so whether it is the way forward is **an open discussion requiring experiments**, not a
   settled decision.
-- **Browser test layer (`@web/test-runner`) still to install** — node+jsdom suite, CI, and release tooling exist.
+
