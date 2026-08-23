@@ -74,6 +74,52 @@ let threw = false;
 try { initAutoloader(''); } catch { threw = true; }
 check('missing rootDir throws at init', threw);
 
+// 8. components beside the entry file — the documented call with componentsDir omitted
+//
+// The default was `/`, which built `//tag.js`: protocol-relative, so `new URL` read the tag as a
+// HOST. `initAutoloader(import.meta.url)` refused every component it was asked for, and so did
+// `autoload-dir="/"`. Asserted on the URL rather than on a successful load, so the check does not
+// depend on a fixture existing beside the entry.
+{
+  for (const [label, dir, attr] of [
+    ['componentsDir omitted', undefined, ''],
+    ['componentsDir "/"', '/', ''],
+    ['componentsDir "components/"', 'components/', ''],
+    ['autoload-dir="/"', 'components', ' autoload-dir="/"'],
+  ]) {
+    errs.length = 0;
+    const tag = `beside-${label.replace(/\W+/g, '')}`.toLowerCase();
+    app.innerHTML = `<${tag}${attr}></${tag}>`;
+    initAutoloader(rootDir, dir)(app);
+    await tick();
+    const message = errs.join(' ');
+    const expected = dir === 'components/' ? `/components/${tag}.js` : `/autoloader/${tag}.js`;
+    check(`${label}: resolves inside the entry directory`,
+      !message.includes('refused') && message.includes(expected));
+  }
+}
+
+// 9. `resolve` replaces the URL shape without loosening the bound
+{
+  errs.length = 0;
+  app.innerHTML = '<nested-widget></nested-widget>';
+  initAutoloader(rootDir, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` })(app);
+  await tick();
+  check('resolve builds the URL', errs.join(' ').includes('/components/nested-widget/nested-widget.js'));
+
+  for (const [label, resolveFn] of [
+    ['upward traversal', (tag) => `../../../evil/${tag}.js`],
+    ['absolute URL', (tag) => `https://example.invalid/${tag}.js`],
+  ]) {
+    errs.length = 0;
+    const tag = `res-${label.replace(/\W+/g, '')}`.toLowerCase();
+    app.innerHTML = `<${tag}></${tag}>`;
+    initAutoloader(rootDir, 'components', { resolve: resolveFn })(app);
+    await tick();
+    check(`resolve cannot escape the base: ${label}`, errs.join(' ').includes('refused'));
+  }
+}
+
 console.error = oe;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

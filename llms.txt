@@ -510,6 +510,7 @@ setAutoloader(initAutoloader(import.meta.url, 'components', { extension: '.js' }
 
 Fetches `components/<tag-name><extension>` the first time an undefined element appears inside an
 element carrying the `autoloader` attribute. Use `extension: '.ts'` in a TypeScript dev server.
+`componentsDir` is optional — omit it for components beside the entry file.
 
 Semantics worth stating:
 - Scanning is **per-component opt-in**: each component that hosts lazily-loaded children needs the
@@ -521,6 +522,8 @@ Semantics worth stating:
 - One load attempt per URL per page load: a missing file logs once and is not retried until
   reload.
 - `autoload-ignore` excludes that element only, not its subtree.
+- `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
+  (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.
 
 ### Reactive Map / Set / WeakMap / WeakSet — built into core
 

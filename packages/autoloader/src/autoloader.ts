@@ -1,6 +1,5 @@
 import { AutoloaderOptions } from './types.js';
 import { Autoloader } from '@verajs/shared-types';
-import { stripTrailingSlash } from '@verajs/shared-utils';
 
 /**
  * Inits an autoloader with the provided root directory, component directory and autoloader options.
@@ -25,6 +24,15 @@ export const initAutoloader = (
 
   /** Normalized so callers may pass either `ts` or `.ts` */
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
+
+  /**
+   * `dir/tag.ext` is one layout, and a component library is as likely to use `tag/tag.js`,
+   * `tag/index.js`, or a flat manifest. `resolve` replaces the URL-building step entirely while
+   * leaving the containment check below untouched — so a custom layout cannot be used to escape
+   * the entry's directory. Principle #6 names this module's hard-coded `.js` as the example of the
+   * shape to avoid; the path around it is the same problem one level out.
+   */
+  const resolve = options?.resolve;
 
   /**
    * Every resolved URL must stay inside the entry's own directory. Tag names cannot carry `/`
@@ -54,8 +62,17 @@ export const initAutoloader = (
    * @return The element's expected location to be appended to the root dir
    */
   const elementURL = (element: Element, tag: string) => {
-    const dir = stripTrailingSlash(element.getAttribute('autoload-dir') ?? componentsDir ?? '/');
-    return `${dir}/${tag}${extension}`;
+    /**
+     * Trailing slashes come off, and an empty or root-only directory becomes `.` — the entry file's
+     * own directory, which is the only place a bounded URL can be anyway.
+     *
+     * The default used to be `/`, which built `//tag.js`: a **protocol-relative** URL, so
+     * `new URL` read `tag.js` as a *host*. `initAutoloader(import.meta.url)` — the documented call
+     * for components sitting beside the entry, since `componentsDir` is optional — therefore
+     * refused every component it was asked for. `autoload-dir="/"` did the same.
+     */
+    const dir = (element.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
+    return resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`;
   };
 
   /**
@@ -92,13 +109,16 @@ export const initAutoloader = (
     if (element.getAttribute('autoloader') == null) return;
     if (element.getAttribute('autoload-ignore') != null) return;
     const componentElement = element.shadowRoot ?? element;
+    /**
+     * `:not(:defined)` already means "a custom element awaiting its definition" — a dashless
+     * unknown tag like `<madeupelement>` is defined, and an element leaves the set the moment its
+     * definition lands. The loop used to re-check both by hand; `tests/browser/autoloader.test.js`
+     * pins the selector's semantics in a real engine, which is what made dropping them safe.
+     */
     const elements = componentElement.querySelectorAll(':not(:defined)');
     for (let i = 0; i < elements.length; i++) {
       const el = elements[i];
-      const tag = el.localName;
-      if (tag?.includes('-') && !customElements.get(tag) && el.getAttribute('autoload-ignore') == null) {
-        load(el, tag);
-      }
+      if (el.getAttribute('autoload-ignore') == null) load(el, el.localName);
     }
   };
 
