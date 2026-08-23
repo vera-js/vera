@@ -53,6 +53,23 @@ for (const dir of readdirSync('packages')) {
 }
 
 const existing = new Set(git('tag').split('\n').filter(Boolean));
+
+/**
+ * No tags at all, in a repo that has publishable packages, is a shallow checkout rather than a
+ * repo nobody has ever released. `actions/checkout` fetches neither tags nor history by default,
+ * which made this script report all ten packages as untagged the first time it ran in CI.
+ */
+if (!existing.size && packages.length) {
+  const message =
+    'tag-release: this repository has no tags at all.\n' +
+    '  In CI that means the checkout fetched none — actions/checkout needs `fetch-depth: 0`.\n' +
+    '  Locally it means `git fetch --tags`.';
+  if (check) {
+    console.error(message);
+    process.exit(1);
+  }
+  console.warn(message);
+}
 const missing = [];
 const mismatched = [];
 

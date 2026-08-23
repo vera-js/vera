@@ -92,11 +92,14 @@ test('--force overrides the dirty-tree refusal', () => {
 });
 
 test('--check creates nothing and fails when a tag is missing', () => {
+  // Needs an unrelated tag present, or the tagless-checkout guard below fires first — which is
+  // correct, since a repo with zero tags cannot be told apart from a shallow clone.
   const { dir, git } = repo();
+  git('tag', '-a', 'v0', '-m', 'unrelated');
   const { code, out } = run(dir, ['--check']);
   assert.equal(code, 1);
   assert.match(out, /missing 1 tag/);
-  assert.equal(git('tag').trim(), '', '--check must never write');
+  assert.equal(git('tag').trim(), 'v0', '--check must never write');
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -132,6 +135,21 @@ test('reports an existing tag whose commit names a different version', () => {
   const { out } = run(dir, ['--check']);
   assert.match(out, /name a commit with a different version/);
   assert.match(out, /@x\/thing@2\.0\.0 → tree says 1\.0\.0/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('--check fails loudly on a tagless repo rather than listing every package as missing', () => {
+  /**
+   * A shallow checkout, which is what `actions/checkout` produces by default: no tags and no
+   * history. The first CI run of this script reported all ten packages untagged, which reads as a
+   * botched release rather than a misconfigured job.
+   */
+  const { dir } = repo();
+  const { code, out } = run(dir, ['--check']);
+  assert.equal(code, 1);
+  assert.match(out, /no tags at all/);
+  assert.match(out, /fetch-depth: 0/, 'the message must name the fix');
+  assert.doesNotMatch(out, /missing 1 tag/, 'and must not masquerade as a missing-tag failure');
   rmSync(dir, { recursive: true, force: true });
 });
 

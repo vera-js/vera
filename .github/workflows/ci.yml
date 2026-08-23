@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Tags and full history: `scripts/tag-release.mjs --check` compares each package's
+          # version against the commit its tag names, and the default shallow checkout fetches
+          # neither — which makes every package look untagged.
+          fetch-depth: 0
       - name: Guard - private material must never be committed here
         run: |
           leaked=$(git ls-files | grep -E '^(internal/|archive/|docs/(VIABILITY|TODO|PUBLISHING)\.md|docs/audits/)' || true)
