@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->946 B<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1 002 B<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -79,6 +79,11 @@ of its descendants, so each component that hosts lazily-loaded children carries 
 
 It is `autoload-dir`, never HTML's global `dir` — `dir="rtl"` on any internationalised page would
 otherwise have silently redirected component loading.
+
+**All three are watched, not just read once.** Marking a component `autoloader` after it already has
+a shadow root reaches inside it; repointing `autoload-dir` after a failed attempt tries the new
+location; removing `autoload-ignore` lets an element load. None of that needed a re-insertion, which
+is not a thing that happens.
 
 ## Options
 
@@ -177,6 +182,20 @@ passing it *is* the opt-in, so no attribute is required:
 
 ```js
 autoload(someWidget.shadowRoot);
+```
+
+## Server-rendered pages
+
+Markup from `@verajs/ssr` arrives as declarative shadow DOM, parsed before any script runs, with
+nothing rendering it. `autoload()` reaches through those shadow roots the same as any other, so a
+server-rendered page loads its components with no framework involvement:
+
+```html
+<ssr-shell autoloader>
+  <template shadowrootmode="open">
+    <ssr-child></ssr-child>       <!-- found by autoload() -->
+  </template>
+</ssr-shell>
 ```
 
 ## What it does not do

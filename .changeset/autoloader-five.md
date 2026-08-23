@@ -35,3 +35,9 @@ observer is still collectable — measured in Chromium with `--expose-gc` and pi
 it even after `disconnect()`; that is jsdom's bookkeeping, not the observer contract.
 
 905 B to 946 B gzipped for all of it.
+
+**The three attributes are watched, not read once.** Marking a component `autoloader` after it
+already has a shadow root now reaches inside it — an observer cannot see through a shadow boundary,
+so the attribute is the only thing that can. Repointing `autoload-dir` after a failed attempt tries
+the new location, and removing `autoload-ignore` lets an element load. None of these needed the
+element to be inserted again before anything noticed, which is not a thing that happens. 56 B.

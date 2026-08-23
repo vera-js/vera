@@ -518,7 +518,11 @@ Semantics worth stating:
   `innerHTML`, by a third-party widget, or by being in the HTML file already. Creating an
   `autoload()` scans the page on demand, so hand-written static markup works with nothing rendering.
 - Watching is **per-component opt-in**: each component hosting lazily-loaded children needs the
-  `autoloader` attribute. An observer cannot cross into a descendant's shadow root, so that child
+  `autoloader` attribute. All three attributes are watched, not read once — marking a component
+  `autoloader` later reaches inside a shadow root it already had, repointing `autoload-dir` retries
+  from the new location, and removing `autoload-ignore` lets an element load.
+- Server-rendered pages work: `autoload()` reaches through declarative shadow DOM, so components
+  inside `<template shadowrootmode="open">` load with nothing rendering. An observer cannot cross into a descendant's shadow root, so that child
   marks itself (Vera components are offered up automatically by the `'render'` insert).
 - `autoload-dir="alt"` overrides the directory per element; it must resolve **inside the entry
   file's directory** — absolute URLs, `//host`, and `../` escapes are refused. (It is

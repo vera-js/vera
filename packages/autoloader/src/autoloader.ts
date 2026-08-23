@@ -181,6 +181,20 @@ export const initAutoloader = (
    */
   const observer = new MutationObserver((records) => {
     for (const record of records) {
+      /**
+       * The three attributes are as much a part of discovery as insertion is. `autoloader` can be
+       * put on a component that only becomes a lazy host once some state flips; `autoload-dir` can
+       * be pointed somewhere else after a first attempt failed; `autoload-ignore` can be lifted.
+       * Without watching them, all three needed the element to be inserted again before anything
+       * noticed, which is not a thing that happens.
+       */
+      if (record.type === 'attributes') {
+        const target = record.target as Element;
+        if (record.attributeName === 'autoloader') watch(target);
+        else consider(target);
+        continue;
+      }
+
       const added = record.addedNodes;
       for (let i = 0; i < added.length; i++) {
         const node = added[i];
@@ -227,7 +241,12 @@ export const initAutoloader = (
     }
     if (watched.has(root)) return;
     watched.add(root);
-    observer.observe(root, { childList: true, subtree: true });
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['autoloader', 'autoload-dir', 'autoload-ignore'],
+    });
     scan(root);
   };
 
