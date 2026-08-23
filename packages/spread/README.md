@@ -41,7 +41,7 @@ or a plain attribute — so a spread key and a written binding mean the same thi
 ## What it costs
 
 `@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you install
-this package. This package is **<!--size:spread.gzip-->628 B<!--/size:spread.gzip-->** gzipped, and
+this package. This package is **<!--size:spread.gzip-->721 B<!--/size:spread.gzip-->** gzipped, and
 only apps that import it pay for it.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,

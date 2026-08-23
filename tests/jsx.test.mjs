@@ -94,7 +94,6 @@ assert.equal(italics.length, 2, 'fragment renders multi-root');
 assert.equal(italics[1].textContent, '`tick costs $9', 'backticks and dollar-brace survive');
 
 // ── 5. helpful compile errors ──
-assert.throws(() => transformJsx('const a = <div {...p} />;', 'e.jsx'), /spread attributes are not supported on elements/);
 assert.throws(() => transformJsx('const a = <ul><li key={1}>x</li></ul>;', 'e.jsx'), /key belongs on the JSX root/);
 assert.throws(() => transformJsx('const a = <div style={{ color: c }} />;', 'e.jsx'), /style expects a STRING/);
 
@@ -135,3 +134,44 @@ assert.ok(T('const f = () => <li>row</li>;').includes('html`<li>row</li>`'), 'JS
 assert.ok(T(`const v = <a title="it's fine">t</a>;`).includes(`title="it's fine"`), 'apostrophe in attr string');
 
 console.log('parser edges ok');
+
+// ── spread on elements ────────────────────────────────────────────────────────────────────────
+//
+// `{...props}` used to be a compile error, on the grounds that the template language had no spread
+// part. It has one now — an expression in element position, resolved at runtime by
+// `@verajs/spread` — so JSX emits the same thing a hand-written template would.
+{
+  const out = T('const v = <div {...props} class="base">hi</div>;');
+  assert.ok(out.includes('html`<div ${spread(props)} class="base">hi</div>`'),
+    'spread emits an element-position expression, written attributes intact');
+  /** `T` disables injection so the edge tests compare bare output; these need it on. */
+  const injected = (code) => transformJsx(code, 'spread.jsx');
+  assert.ok(injected('const v = <div {...props} />;').includes("import { spread } from '@verajs/spread';"),
+    'the import is injected, like html and keyed');
+
+  // An expression, not just an identifier.
+  assert.ok(T('const v = <div {...getProps(a, { b: 1 })} />;').includes('${spread(getProps(a, { b: 1 }))}'),
+    'an arbitrary expression spreads');
+
+  // Several on one element — each is its own element-position slot, which the runtime keeps apart.
+  assert.ok(T('const v = <div {...a} {...b} />;').includes('${spread(a)} ${spread(b)}'),
+    'two spreads emit two slots');
+
+  // Ordering is preserved, because attribute order decides who wins.
+  assert.ok(T('const v = <div id="x" {...p} title="y" />;').includes('id="x" ${spread(p)} title="y"'),
+    'source order is preserved');
+
+  // Already imported: do not inject a second time.
+  assert.equal(
+    (injected("import { spread } from '@verajs/spread';\nconst v = <div {...p} />;").match(/@verajs\/spread/g) ?? []).length,
+    1,
+    'an existing import is respected');
+
+  // No spread, no import.
+  assert.ok(!injected('const v = <div id="x" />;').includes('@verajs/spread'), 'unused, uninjected');
+
+  // Components still take spread as a plain object argument — unchanged.
+  assert.ok(T('const v = <App {...props} a={1} />;').includes('App({'), 'component spread untouched');
+
+  console.log('jsx spread ok');
+}

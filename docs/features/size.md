@@ -86,7 +86,7 @@ describing the bytes honestly.)*
 | `@verajs/router` | 2 840 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 612 B | lazy component discovery |
 | `@verajs/styles` | 520 B | `static styles` adoption, shadow and light DOM |
-| `@verajs/spread` | 628 B | `${spread(props)}` — runtime-named bindings |
+| `@verajs/spread` | 721 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/inserts` | 322 B | the extension point |
 <!--/size:table.permodule-->
 

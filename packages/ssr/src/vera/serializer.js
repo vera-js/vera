@@ -113,13 +113,42 @@ export const serializeTemplate = (template) => {
   return out + parts[kinds.length];
 };
 
+/**
+ * Resolved spread bindings to attribute markup. Mirrors the per-kind switch used for written
+ * bindings, so `${spread({ '?disabled': true })}` and `?disabled=${true}` serialize identically.
+ */
+const serializeSpread = (entries) => {
+  let out = '';
+  for (const [kind, name, value] of entries) {
+    if (kind === 'a') {
+      if (value != null && value !== false) out += ` ${name}="${escapeHtml(serializeValue(value, true))}"`;
+    } else if (kind === 'b') {
+      if (value) out += ` ${name}=""`;
+    } else if (kind === 'p' && FORM_ATTRIBUTES.includes(name)) {
+      if (value != null && value !== false) out += ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
+    }
+    /** `e`, and any other property: client state, never markup. */
+  }
+  return out.slice(1); // the element-position slot already carries the separating space
+};
+
 const serializeValue = (value, raw = false) => {
   if (value == null || value === false) return '';
   if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, raw)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
-    /** Template-shaped (core's html, by shape) recurses; anything else (refs…) is client-side. */
-    return value.strings ? serializeTemplate(value) : '';
+    /** Template-shaped (core's html, by shape) recurses. */
+    if (value.strings) return serializeTemplate(value);
+    /**
+     * A spread (`@verajs/spread`) at element position. It hands back resolved bindings and this
+     * decides what reaches markup: attributes and truthy booleans do, form properties do because
+     * hydration reads them back, and events and other properties are client state. Escaping happens
+     * here and only here — principle #8 puts it at the render boundary, not at the source.
+     *
+     * Anything else at element position is a ref, which is a client concern.
+     */
+    if (value._$attrs$) return serializeSpread(value._$attrs$());
+    return '';
   }
   return raw ? String(value) : escapeHtml(value);
 };

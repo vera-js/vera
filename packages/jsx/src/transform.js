@@ -20,7 +20,7 @@ import { findRoots } from './parser.js';
  *   ref={r}                       -> element-position ${r}
  *   key={k} (on a JSX root)       -> keyed(k, html`…`)
  *   style                         -> a STRING (object styles are a compile error)
- *   {...spread} on an element     -> compile error (allowed on components)
+ *   {...spread} on an element     -> `${spread(props)}` via @verajs/spread
  */
 
 const BOOLEAN_ATTRIBUTES = new Set([
@@ -63,6 +63,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
    */
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer'];
+  const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/spread'];
 
   const state = { usedHtml: false, usedKeyed: false };
 
@@ -133,10 +134,15 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
 
   const emitAttribute = (node, attribute, tpl, isRoot) => {
     if (attribute.spread) {
-      throw new JsxError(
-        'spread attributes are not supported on elements (the template language has no spread part) — spread onto components, or set attributes explicitly',
-        code, fileName, attribute.start
-      );
+      /**
+       * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is
+       * the same shape: an expression in element position. `@verajs/spread` resolves the sigils in
+       * the keys at runtime, which is the point — a template cannot know the names.
+       */
+      state.usedSpread = true;
+      tpl.static(' ');
+      tpl.expr(`${spreadName}(${emitExpression(attribute.text, attribute.roots, attribute.valueStart)})`);
+      return;
     }
     let name = attribute.name;
     const bound = attribute.kind === 'expr';
@@ -243,6 +249,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     let inject = '';
     if (state.usedHtml && !has(htmlName)) inject += `import { ${htmlName} } from '${htmlFrom}';\n`;
     if (state.usedKeyed && !has(keyedName)) inject += `import { ${keyedName} } from '${keyedFrom}';\n`;
+    if (state.usedSpread && !has(spreadName)) inject += `import { ${spreadName} } from '${spreadFrom}';\n`;
     out = inject + out;
   }
   return out;

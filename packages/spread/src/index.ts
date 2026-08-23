@@ -145,7 +145,40 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
 }
 
 /**
+ * The server half of the protocol: hand back every binding, resolved, and let the renderer that
+ * asked decide what belongs in markup.
+ *
+ * Deliberately *not* a serializer. This package knows what a key means — `.value` is a property,
+ * `?disabled` a boolean, `onClick` an event — and nothing else. Whether a property belongs in
+ * server markup (`value`, `checked`, `selected` do; the rest are client state) and how a value is
+ * escaped are `@verajs/ssr`'s decisions, and principle #8 wants escaping in exactly one place. So
+ * this returns data, never a string.
+ *
+ * Kinds are single characters rather than the module's numeric constants, because this crosses a
+ * package boundary: `a`ttribute, `b`oolean, `p`roperty, `e`vent.
+ */
+function attributes(this: { _props: Record<string, unknown> }): [string, string, unknown][] {
+  const out: [string, string, unknown][] = [];
+  for (const key in this._props) {
+    const first = key[0];
+    const kind = first === '.' ? 'p' : first === '?' ? 'b' : first === '@' ? 'e' : 'a';
+    if (kind !== 'a') {
+      out.push([kind, key.slice(1), this._props[key]]);
+    } else if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
+      out.push(['e', key.slice(2).toLowerCase(), this._props[key]]);
+    } else {
+      out.push(['a', key, this._props[key]]);
+    }
+  }
+  return out;
+}
+
+/**
  * Branded rather than duck-typed: the element position already means "element ref", and a props bag
  * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
  */
-export const spread = (props: Record<string, unknown>) => ({ _props: props, _$apply$: apply });
+export const spread = (props: Record<string, unknown>) => ({
+  _props: props,
+  _$apply$: apply,
+  _$attrs$: attributes,
+});

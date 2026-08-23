@@ -240,6 +240,46 @@ static styles = css`p { color: var(--accent, blue); }`;
 render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
 ```
 
+### Spread (`@verajs/spread`)
+
+Bindings whose names are not known when the template is parsed.
+
+```js
+import { spread } from '@verajs/spread';
+
+render(() => html`<input ${spread({
+  id: 'email',                    // attribute
+  '.value': draft,                // property
+  '?disabled': busy,              // boolean attribute
+  onInput: (e) => handle(e),      // event — '@input' works too
+})} />`);
+```
+
+Keys carry the same sigils as written bindings, so a spread key and a written binding mean the same
+thing. `@verajs/renderer` costs 16 B for the protocol whether or not you install this; the package
+is <!--size:spread.gzip-->721 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+at parity with writing the bindings out.
+
+**Removing a key restores what the element held before the binding existed** — it does not remove
+it. There is no value meaning "absent" for a property: `undefined` runs through coercing setters so
+dropping `.value` would yield `""`, and `delete` cannot remove a prototype accessor. So
+`<input type="text" ${spread({ type: 'number' })}>` reverts to `type="text"`. Bind `null` to remove.
+On a hydrated page "before the binding" is the server's markup, so a dropped key restores the server
+value — bind `null` if you mean removal there.
+
+Several spreads on one element are fine; each element position owns its own keys.
+
+Keys are strings carrying sigils, so TypeScript cannot check them against the element — the trade
+for names not known until runtime.
+
+SSR serializes a spread: attributes, truthy booleans and the form properties (`value`, `checked`,
+`selected`) reach markup; events and other properties are client state. Escaping stays in
+`@verajs/ssr`, in one place, exactly as for written bindings.
+
+**The protocol is public.** A value at element position carrying `_$apply$(element, part)` applies
+itself, and `_$attrs$()` lets it serialize server-side. Spread is the first user; any renderer
+honouring the protocol can accept any implementation.
+
 ### Renderer (`@verajs/renderer`)
 
 A keyed, template-identity renderer, <!--size:renderer.gzip-->3.55 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
@@ -522,7 +562,7 @@ Say so rather than inventing an API:
 
 - **JSX/TSX is opt-in, never a requirement.** `@verajs/jsx` compiles JSX into the same tagged
   templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`, `key`→`keyed()`,
-  components become function calls, `{...spread}` on elements is a compile error). Zero runtime
+  components become function calls, `{...props}` on elements needs `@verajs/spread`). Zero runtime
   cost via the Vite plugin; buildless stays the baseline, and `onClick=${fn}` works in raw
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
