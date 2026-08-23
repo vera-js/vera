@@ -39,7 +39,13 @@ export const swapCleanup = (previous: HookCleanup | void, next: HookCleanup | vo
 };
 
 /**
- * All of the callbacks for all objects, props, elements, and priorities
+ * All of the callbacks for all objects, props, elements and priorities.
+ *
+ * Declared as a `Map` throughout even though a weak collection stores a `WeakMap` here — see the
+ * note in `createProxy`'s `addCallback`. A union would be honest and unusable: `Map<string, V>` and
+ * `WeakMap<object, V>` share no callable `get`, so every read would need narrowing for a difference
+ * that does not exist at these two call sites. One cast, at the single place the container is
+ * created, is the smaller lie.
  */
 export const proxyCallbacks = new WeakMap<
   object,

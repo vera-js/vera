@@ -57,36 +57,62 @@ check('tracked key re-runs keyed hook', keyedRuns === k0 + 1);
 state.m.clear();
 check('clear re-runs keyed hook', keyedRuns === k0 + 2);
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
 
 /**
- * The reactivity boundary, pinned.
+ * The reactivity boundary.
  *
- * `Map` and `Set` are proxied; `WeakMap`, `WeakSet`, `Date` and `RegExp` are not. Mutating an
- * unproxied one succeeds and simply does not re-render, which is the failure mode worth asserting —
- * silence, not an error.
+ * `Map`, `Set`, `WeakMap` and `WeakSet` are all proxied — the same four Vue supports. `Date` and
+ * `RegExp` are not, in Vue either: their methods read internal slots, so a bare proxy throws
+ * (`this is not a Date object`) and making them reactive would mean wrapping every mutator for a
+ * case whose idiom is to replace the value. `state.when = new Date(t)` is a property write and is
+ * fully reactive.
  *
- * The weak collections are excluded deliberately rather than pending. Per-key dependencies live in
- * a `Map` keyed by the entry key, so tracking `weakMap.get(obj)` would hold `obj` strongly and
- * defeat the weakness the type exists for. Supporting them needs a second, weak dependency
- * structure in core.
+ * The weak collections took a change in how dependencies are stored, not just a type check. Keys
+ * here are the collection's own entry keys, so the ordinary `Map` container would have held every
+ * tracked key alive for as long as the collection — exactly the retention the weak types exist to
+ * avoid. Weak collections get a `WeakMap` container instead, chosen once on the first tracked read.
  */
-const boundaryKey = {};
+const k1 = { id: 1 }, k2 = { id: 2 };
 const boundary = core.createStore({
-  set: new Set(), map: new Map(),
-  weakSet: new WeakSet(), weakMap: new WeakMap(), when: new Date(0), pattern: /x/,
+  weakMap: new WeakMap([[k1, 'a']]), weakSet: new WeakSet([k1]),
+  objMap: new Map([[k1, 'v']]), when: new Date(0), pattern: /x/,
 });
 /** A proxied collection hands back a stable bound method; a raw one hands back the native one. */
 const isProxied = (value, method) => value[method] !== Object.getPrototypeOf(value)[method];
 
-check('Set is proxied', isProxied(boundary.set, 'add'));
-check('Map is proxied', isProxied(boundary.map, 'get'));
-check('WeakSet is not proxied', !isProxied(boundary.weakSet, 'add'));
-check('WeakMap is not proxied', !isProxied(boundary.weakMap, 'get'));
-
-boundary.weakMap.set(boundaryKey, 1);
-check('a WeakMap in a store still works, it is only untracked', boundary.weakMap.get(boundaryKey) === 1);
+check('WeakMap is proxied', isProxied(boundary.weakMap, 'get'));
+check('WeakSet is proxied', isProxied(boundary.weakSet, 'add'));
+check('Date is not proxied', !isProxied(boundary.when, 'getTime'));
 boundary.when.setTime(5);
-check('so does a Date', boundary.when.getTime() === 5);
+check('an unproxied Date still works, it is only untracked', boundary.when.getTime() === 5);
 
+let wRuns = 0, wSnap = '';
+core.createHook({ element: host, priority: 60, callback: () => {
+  wRuns++;
+  wSnap = `${boundary.weakMap.get(k1)}|${boundary.weakSet.has(k2)}|${boundary.objMap.get(k1)}`;
+}});
+[...host._hooks[0]].at(-1)(undefined, true);
+const w0 = wRuns;
+check('weak collections read through', wSnap === 'a|false|v');
+
+boundary.weakMap.set(k1, 'A');
+check('WeakMap.set on a tracked key re-runs', wRuns === w0 + 1 && wSnap.startsWith('A|'));
+boundary.weakSet.add(k2);
+check('WeakSet.add on a tracked key re-runs', wRuns === w0 + 2 && wSnap.includes('|true|'));
+boundary.weakMap.delete(k1);
+check('WeakMap.delete re-runs', wRuns === w0 + 3 && wSnap.startsWith('undefined|'));
+
+boundary.weakMap.set(k2, 'untracked');
+check('a key nothing read does not re-run', wRuns === w0 + 3);
+/** The first is a real change, because the key was just deleted; the second is the no-op. */
+boundary.weakMap.set(k1, 'A');
+check('re-adding a deleted key re-runs', wRuns === w0 + 4);
+boundary.weakMap.set(k1, 'A');
+check('a no-op set is silent', wRuns === w0 + 4);
+
+/** A regular Map keyed by objects must keep the strong container — and its size channel. */
+boundary.objMap.set(k1, 'v2');
+check('object-keyed Map still tracks per key', wRuns === w0 + 5 && wSnap.endsWith('|v2'));
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

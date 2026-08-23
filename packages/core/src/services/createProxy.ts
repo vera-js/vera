@@ -1,5 +1,5 @@
 import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
-import { getType, isSetOrMap, prioritySlot } from '@verajs/shared-utils';
+import { getType, isSetOrMap, isWeakCollection, prioritySlot } from '@verajs/shared-utils';
 import { inserts, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
 import { collectionMethod } from './collections.js';
@@ -35,7 +35,26 @@ const addCallback = <T>(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>)
    * Steady state here is now allocation-free.
    */
   let props = proxyCallbacks.get(obj);
-  if (props === undefined) proxyCallbacks.set(obj, (props = new Map()));
+  if (props === undefined) {
+    /**
+     * A `WeakMap` for a weak collection, a `Map` for everything else — decided once, on the first
+     * tracked read, so the hot path never pays for the check.
+     *
+     * This is what makes `WeakMap` and `WeakSet` supportable at all. Keys here are the collection's
+     * own entry keys, so holding them in a `Map` would keep every tracked key alive for as long as
+     * the collection is — exactly the retention the weak types exist to avoid. Storing them weakly
+     * costs nothing and leaks nothing.
+     *
+     * The two shapes stay interchangeable because only `get` and `set` are ever called on this
+     * container, and a weak collection never reaches the string `'_global'` channel: `set`/`add`/
+     * `delete` *notify* it, which is a `get` and misses harmlessly, while only `entries`/`keys`/
+     * `values`/`forEach` *track* it — and none of those exist on a weak collection.
+     */
+    proxyCallbacks.set(
+      obj,
+      (props = (isWeakCollection(obj) ? new WeakMap() : new Map()) as NonNullable<typeof props>)
+    );
+  }
 
   let elements = props.get(prop);
   if (elements === undefined) props.set(prop, (elements = new Map()));
@@ -91,7 +110,10 @@ const runCallbacks = <T extends object>(
  */
 const isProxyable = (value: unknown) => {
   const type = getType(value);
-  return type === 'object' || type === 'array' || type === 'map' || type === 'set';
+  return (
+    type === 'object' || type === 'array' || type === 'map' || type === 'set' ||
+    type === 'weakmap' || type === 'weakset'
+  );
 };
 
 /**

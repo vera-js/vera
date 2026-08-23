@@ -459,7 +459,7 @@ Semantics worth stating:
   reload.
 - `autoload-ignore` excludes that element only, not its subtree.
 
-### Reactive Map / Set — built into core
+### Reactive Map / Set / WeakMap / WeakSet — built into core
 
 Collections in stores just work; no module, no wiring:
 
@@ -478,14 +478,13 @@ Semantics worth stating:
   `map.get(k).x` is untracked — replace the entry instead. `'_global'` is the reserved
   every-change channel key.
 - Method identity is stable (`map.get === map.get`).
-- **`Map` and `Set` only.** `WeakMap`, `WeakSet`, `Date` and `RegExp` are never proxied: mutating one
-  in a store succeeds and simply does not re-render, leaving the DOM stale. Replace the value
-  instead — `state.when = new Date(t)` is a property write and is fully reactive.
-
-  The weak collections are not an oversight waiting to be fixed. Per-key dependencies are stored in
-  a `Map` keyed by the entry key, so tracking `weakMap.get(obj)` would hold `obj` strongly and
-  defeat the weakness the type exists for. Supporting them means a second, weak dependency
-  structure in core — worth doing on evidence, not before.
+- **`WeakMap` and `WeakSet` are reactive too**, per key, and hold nothing: their dependencies are
+  stored in a `WeakMap`, so a tracked key is still collected once you drop it. They have no `size`
+  and no iteration, so only `get`/`has` subscribe and only `set`/`add`/`delete` notify.
+- **`Date` and `RegExp` are not proxied**, in Vue either. Their methods read internal slots, so a
+  bare proxy throws (`this is not a Date object`), and reactivity would mean wrapping every mutator
+  for a case whose idiom is replacement. `state.when = new Date(t)` is a property write and fully
+  reactive; `state.when.setTime(t)` is not.
 
 ---
 
