@@ -107,7 +107,6 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 | Export | Signature | Notes |
 | --- | --- | --- |
 | `init` | `(element, shadowProps?) => void` | Call first in `connectedCallback`. Pass `{ mode: 'open' }` for shadow DOM; omit for light DOM. |
-| `commit` | `() => void` | Ends setup without rendering: runs the first pass of every hook registered since `init()`. For a component whose whole job is a side effect and which has no markup to draw. `render()` already does this, so you need one or the other, never both. |
 | `adoptStyles` | `(element) => void` | Applies `static styles`. `init` calls it for you. Shadow: `adoptedStyleSheets`. Light DOM: hoisted to the document once per class, scoped via `@scope (tag-name)` — component-scoped CSS with no shadow root. |
 
 ### State
@@ -129,7 +128,7 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `render` | `(template, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. |
+| `render` | `(template?, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. Ends the setup as well as drawing — **call it bare** (`render()`) when the component has no markup, and its effects still run. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | Replaceable via `setHtml`. Core's built-in produces a lit-compatible object. |
@@ -638,9 +637,10 @@ Say so rather than inventing an API:
    an **occupied** priority replaces that entry (this is how `setRenderer` swaps renderers).
 4. `createStore` for large lists → use `shallowRef`.
 5. Forgetting `init(this)` before `render` → nothing renders.
-5b. **Registering hooks and never committing → none of them ever run.** Setup is committed by
-   `render()` or by `commit()`; either runs the first pass of every hook registered since `init()`.
-   Without one, the hooks exist and nothing runs them. Development warns.
+5b. **Registering hooks and never calling `render()` → none of them ever run.** `render()` ends the
+   setup as well as drawing: it runs the first pass of every hook registered since `init()`. A
+   component whose whole job is a side effect has nothing to draw, so it calls `render()` **bare** —
+   no template. Development warns if neither happens.
 6. Hooks after `render()` → ignored with a console warning. Register hooks between `init()` and
    `render()`, or pass the element explicitly.
 7. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.

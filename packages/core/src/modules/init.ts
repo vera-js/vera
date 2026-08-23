@@ -25,10 +25,11 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   currentInstance.element = new WeakRef(element);
 
   /**
-   * Setup has to be committed, by `render()` or by `commit()`. Either one runs the first pass of
-   * every hook registered since `init()` and clears the current instance; without one the hooks
-   * exist and nobody ever runs them. Silent, and easy to write, because a component whose whole job
-   * is a side effect has no obvious reason to render markup.
+   * Setup has to be committed by `render()`, which runs the first pass of every hook registered
+   * since `init()` and then clears the current instance. Without it the hooks exist and nobody ever
+   * runs them — silent, and easy to write, because a component whose whole job is a side effect has
+   * no obvious reason to call something named `render`. Calling it with no template is exactly that
+   * case: commit the setup, draw nothing.
    *
    * Detected without carrying any state: if this element is still the current instance once the
    * synchronous `connectedCallback` has finished, neither was called. A component mounting after
@@ -42,9 +43,9 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
       if (currentInstance.element?.deref() === element && element._hooks?.length) {
         console.warn(
           `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but never ` +
-            `committed, so none of them will ever run.\n` +
-            `Call render() if it draws something, or commit() if it does not:\n\n` +
-            `  import { commit } from '@verajs/core';\n  commit();\n`
+            `called render(), so none of them will ever run.\n` +
+            `render() ends the setup as well as drawing. If there is nothing to draw, call it bare:\n\n` +
+            `  render();\n`
         );
       }
     });

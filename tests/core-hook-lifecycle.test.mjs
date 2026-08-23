@@ -129,35 +129,39 @@ const mount = (setup) => {
   body.removeChild(el);
 }
 
-/* ── committing without rendering ───────────────────────────────────────────────────────────── */
+/* ── render() with nothing to draw ──────────────────────────────────────────────────────────── */
 {
   /**
-   * A component whose whole job is a side effect has nothing to draw. `render()` does two jobs —
-   * declare the markup and commit the setup — and `commit()` is the second without the first.
+   * `render()` has always ended a component's setup as well as declaring its markup. A component
+   * whose whole job is a side effect has nothing to draw, so calling it bare says exactly that —
+   * rather than `render(() => html``)`, which is ceremony pretending to draw.
    *
-   * Committing on a schedule instead was built and rejected: it would have run a headless
-   * component's effects a microtask later than a rendering component's, so identical code had two
-   * orderings depending on whether it drew anything. It also measured larger.
+   * Two alternatives were built and rejected. A separate `commit()` measured 25 B against 6 B and
+   * added a second function to choose between. Committing automatically after `connectedCallback`
+   * measured 31 B and, worse, ran a headless component's effects a microtask later than a rendering
+   * component's — identical code with two orderings depending on whether it drew anything.
    */
   let ran = 0;
   const el = mount((element) => {
     core.init(element);
     const state = core.createStore({ n: 0 });
     element._state = state;
+    element.innerHTML = '<span>pre-existing</span>';
     core.useEffect(() => { ran++; void state.n; });
-    core.commit();
+    core.render();
   });
-  check('commit() runs the first pass synchronously, as render() does', ran === 1);
+  check('a bare render() runs the first pass synchronously', ran === 1);
 
   el._state.n = 1;
   await frame();
   check('and the effect stays subscribed afterwards', ran === 2, `ran ${ran}`);
+  check('existing light DOM is untouched', el.innerHTML === '<span>pre-existing</span>', el.innerHTML);
   body.removeChild(el);
 
-  check('commit() outside a component does nothing', (core.commit(), true));
+  check('a bare render() outside a component does nothing', (core.render(), true));
 }
 
-/* ── the silent case: neither render() nor commit() ─────────────────────────────────────────── */
+/* ── the silent case: render() never called at all ──────────────────────────────────────────── */
 {
   let ran = 0;
   const said = [];
@@ -168,7 +172,7 @@ const mount = (setup) => {
     const state = core.createStore({ n: 0 });
     element._state = state;
     core.useEffect(() => { ran++; void state.n; });
-    /** Neither commit is called, which is the mistake. */
+    /** render() is never called, which is the mistake. */
   });
   await frame();
   console.warn = realWarn;
@@ -177,9 +181,9 @@ const mount = (setup) => {
   if (isProduction) {
     check('production says nothing about it', said.length === 0);
   } else {
-    const warned = said.filter((line) => line.includes('never committed'));
+    const warned = said.filter((line) => line.includes('never called render()'));
     check('development warns it will never run', warned.length === 1, said.join(' | '));
-    check('and points at commit()', warned[0]?.includes('commit()'));
+    check('and says a bare render() is the fix', warned[0]?.includes('call it bare'));
     check('and names the component', warned[0]?.includes(el.localName));
   }
   body.removeChild(el);
