@@ -21,6 +21,14 @@ import { playwrightLauncher } from '@web/test-runner-playwright';
 export default {
   files: 'tests/browser/**/*.test.js',
   nodeResolve: true,
+  /**
+   * WebKit is the one that matters most and the one nothing else would catch: `@scope` and
+   * `adoptedStyleSheets` have their shakiest support there, and both are load-bearing for
+   * `@verajs/styles`. Firefox covers a second engine's custom-element and focus semantics.
+   *
+   * CI installs chromium only by default — add the others to the workflow when the cost is
+   * acceptable, or run them locally with `--browsers chromium firefox webkit`.
+   */
   browsers: [playwrightLauncher({ product: 'chromium' })],
   testFramework: {
     config: { timeout: 5000 },
