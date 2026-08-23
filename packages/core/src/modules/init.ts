@@ -24,6 +24,32 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
 
   currentInstance.element = new WeakRef(element);
 
+  /**
+   * `render()` is what drives the first pass of every hook — it calls `runHooks()` and then clears
+   * `currentInstance.element`. A component that registers effects and never renders therefore does
+   * nothing at all: the hooks exist, and nobody ever runs them. Silent, and easy to write, because a
+   * component whose whole job is a side effect — analytics, syncing, focus management — has no
+   * obvious reason to render anything.
+   *
+   * Detected for free rather than with a flag: if this element is still the current instance once
+   * the synchronous `connectedCallback` has finished, `render()` was never reached. A component that
+   * mounted after this one moves the pointer, so this can miss a case, but it cannot invent one.
+   *
+   * `__DEV__`-only; production carries neither the check nor the message.
+   */
+  if (__DEV__) {
+    queueMicrotask(() => {
+      if (currentInstance.element?.deref() === element && element._hooks?.length) {
+        console.warn(
+          `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but never ` +
+            `called render(), so none of them will ever run.\n` +
+            `render() drives the first pass. A component with no markup still needs one:\n\n` +
+            `  render(() => html\`\`);\n`
+        );
+      }
+    });
+  }
+
   element._hooks = [];
   element._hookPriorities = [];
   element.runHooks = () => {

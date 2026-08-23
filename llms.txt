@@ -637,6 +637,9 @@ Say so rather than inventing an API:
    an **occupied** priority replaces that entry (this is how `setRenderer` swaps renderers).
 4. `createStore` for large lists → use `shallowRef`.
 5. Forgetting `init(this)` before `render` → nothing renders.
+5b. **Registering hooks and never calling `render()` → none of them ever run.** `render()` drives
+   the first pass; without it the hooks are registered and nothing runs them. A component whose whole
+   job is a side effect still needs one — `render(() => html\`\`)` is enough. Development warns.
 6. Hooks after `render()` → ignored with a console warning. Register hooks between `init()` and
    `render()`, or pass the element explicitly.
 7. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
