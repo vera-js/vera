@@ -15,6 +15,23 @@ export const hoistedStyles = [];
 const escapeHtml = (value) =>
   String(value).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
 
+/**
+ * Neutralise a `</style>` sequence inside CSS text.
+ *
+ * `<style>` is a raw-text element: its content is not HTML, so `escapeHtml` cannot be used here —
+ * it would turn every `>` in a selector into `&#62;` and break the stylesheet. The only sequence
+ * that matters is the end tag, because it is the one thing the HTML tokenizer looks for while
+ * inside the element. A value interpolated into `css` and carrying `</style>` therefore closes the
+ * element and everything after it parses as markup.
+ *
+ * `<\/style` is valid CSS — a backslash escape is legal in identifiers and strings, and renders
+ * identically — while the tokenizer no longer matches an end tag. Applied here, at the render
+ * boundary, rather than in `css` itself: escaping at the source would corrupt the constructed
+ * stylesheet path, which is the double-escaping principle #8 warns about. It also catches a
+ * sequence assembled across several interpolations, which source-side escaping cannot see.
+ */
+export const escapeStyleText = (value) => String(value).replace(/<\/(style)/gi, '<\\/$1');
+
 class StyleSheetShim {
   replaceSync(cssText) {
     this.cssText = cssText;
@@ -45,7 +62,7 @@ class ShadowRootShim {
   serialize() {
     const sheets = (this._adopted ?? []).map((sheet) => sheet.cssText ?? '');
     const styles = [...sheets, ...this._styles].filter(Boolean);
-    const styleTags = styles.map((css) => `<style vera-styles>${css}</style>`).join('');
+    const styleTags = styles.map((css) => `<style vera-styles>${escapeStyleText(css)}</style>`).join('');
     return styleTags + this.innerHTML;
   }
 }

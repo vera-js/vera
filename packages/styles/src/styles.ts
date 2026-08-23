@@ -1,5 +1,18 @@
 import type { CSSResultGroup, StyledElement } from './types.js';
 
+/**
+ * Neutralise a `</style>` sequence inside CSS text before it reaches a `<style>` element.
+ *
+ * No engine executes it from `innerHTML` here — `<style>` is a raw-text element, so the fragment
+ * parser creates no nodes; verified in Chromium, Firefox and WebKit. What it does produce is a DOM
+ * whose *serialization* is poisoned, so anything that later re-parses that markup — a server round
+ * trip, a copied `innerHTML` — gets a live handler. `@verajs/ssr` had exactly that hole.
+ *
+ * `<\/style` is valid CSS and renders identically, so escaping costs nothing. Done here at the
+ * sink rather than in core's `css`, which must stay unescaped for the constructed-stylesheet path.
+ */
+const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1');
+
 /** Component classes whose light-DOM styles are already hoisted — one sheet per class, ever. */
 const hoisted = new WeakSet<object>();
 
@@ -42,7 +55,8 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
         const styleElement = document?.createElement('style');
         if (!styleElement) return;
         styleElement.setAttribute('vera-styles', '');
-        styleElement.innerHTML = (style as CSSResultGroup)?.cssText ?? style;
+        /** `textContent`, not `innerHTML`: this is text, and nothing here should ever be parsed. */
+        styleElement.textContent = escapeStyleText(((style as CSSResultGroup)?.cssText ?? style) as string);
         shadowRoot.appendChild(styleElement);
       }
     });
@@ -67,7 +81,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   } else {
     const styleElement = document?.createElement('style');
     if (!styleElement) return;
-    styleElement.innerHTML = scoped;
+    styleElement.textContent = escapeStyleText(scoped);
     document.head.appendChild(styleElement);
   }
 };

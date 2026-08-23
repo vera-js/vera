@@ -11,7 +11,7 @@
  * Client takeover is a re-render in place (the renderer has no `hydrate()` yet — known TODO);
  * for lit-marker hydration, strategy 2 (`@verajs/ssr`) remains available.
  */
-import { installShims, registry, hoistedStyles } from './shim.js';
+import { installShims, registry, hoistedStyles, escapeStyleText } from './shim.js';
 import { serializeTemplate } from './serializer.js';
 
 installShims();
@@ -95,7 +95,13 @@ export const renderToString = async (url, { tag, attributes = '' } = {}) => {
 
   const attrs = attributes ? ` ${attributes}` : '';
   const html = `<${tag}${attrs}>${renderComponent(tag, attributes, 0)}</${tag}>`;
-  return { html, styles: hoistedStyles.join('\n') };
+  /**
+   * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
+   * in their page shell — which makes that their render boundary, and handing them CSS that can
+   * close the element is handing them an XSS. The escape is transparent to the CSS parser, so
+   * there is no reason to make it their problem.
+   */
+  return { html, styles: hoistedStyles.map(escapeStyleText).join('\n') };
 };
 
 export { registry, hoistedStyles, serializeTemplate };

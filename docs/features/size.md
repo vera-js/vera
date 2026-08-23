@@ -69,7 +69,7 @@ measured figure rather than a remembered one.
 
 The renderer still earns its place on speed rather than bytes; see
 [performance.md](performance.md). An app that uses `static styles` adds `@verajs/styles`
-(<!--size:styles.gzip-->520 B<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
+(<!--size:styles.gzip-->549 B<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
 
 *(Size grew as the renderer was rebuilt for template identity and keying, and again when reactive
 Map/Set moved into core and `@verajs/map-support` was retired. Both were deliberate trades. Whether
@@ -85,7 +85,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer` | 3 639 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 2 840 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 612 B | lazy component discovery |
-| `@verajs/styles` | 520 B | `static styles` adoption, shadow and light DOM |
+| `@verajs/styles` | 549 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/spread` | 721 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/inserts` | 322 B | the extension point |
 <!--/size:table.permodule-->

@@ -1,6 +1,6 @@
 # @verajs/styles
 
-`static styles` for VeraJS components (<!--size:styles.gzip-->520 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
+`static styles` for VeraJS components (<!--size:styles.gzip-->549 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
 roots, and `@scope`-wrapped hoisting for light DOM.
 
 <!-- recipe -->

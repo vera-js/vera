@@ -114,3 +114,27 @@ it('applyStyles falls back to a <style> element for a plain string', () => {
   expect(getComputedStyle(el.shadowRoot.querySelector('i')).color).to.equal('rgb(128, 0, 128)');
   el.remove();
 });
+
+it('escaped CSS renders identically to the unescaped original', () => {
+  /**
+   * `@verajs/styles` rewrites `</style` to `<\/style` before it reaches a `<style>` element, so a
+   * value interpolated into `css` cannot poison the DOM's serialization. That is only acceptable if
+   * the escape is invisible to the CSS parser — `\/` is a valid escape for `/`, and this asserts the
+   * engine agrees rather than taking the spec's word for it.
+   */
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync('.a::after { content: "a<\\/style>b" }');
+  const plain = new CSSStyleSheet();
+  plain.replaceSync('.a::after { content: "a</style>b" }');
+
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  host.attachShadow({ mode: 'open' });
+  host.shadowRoot.adoptedStyleSheets = [sheet];
+  host.shadowRoot.innerHTML = '<span class="a"></span>';
+
+  const rendered = getComputedStyle(host.shadowRoot.querySelector('.a'), '::after').content;
+  expect(rendered).to.contain('a</style>b', 'the escape is transparent to the CSS parser');
+  expect(sheet.cssRules[0].style.content).to.equal(plain.cssRules[0].style.content,
+    'and produces the same declared value as the unescaped form');
+});

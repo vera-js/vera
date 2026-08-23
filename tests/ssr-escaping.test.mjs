@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 const { html: markup } = await renderToString(new URL('./fixtures/ssr/xss-ssr.js', import.meta.url));
+const { html: cssMarkup } = await renderToString(new URL('./fixtures/ssr/cssxss-ssr.js', import.meta.url));
 
 /**
  * Read through the `<template>` rather than a shadow root: jsdom does not parse declarative shadow
@@ -77,4 +78,35 @@ test('no element in the tree carries an inline event handler', () => {
 test('the payloads really are present, so nothing above passes vacuously', () => {
   assert.ok(markup.includes('alert(1)'), 'the hostile strings reached the output — inert');
   assert.ok(elements.length > 4, `expected the full tree, parsed ${elements.length} elements`);
+});
+
+test('CSS text cannot break out of the <style> element it is written into', () => {
+  /**
+   * Regression for a real XSS, found 2026-08-23 by sweeping every markup sink in the tree.
+   *
+   * `css` is a plain concatenation and escapes nothing, deliberately — the constructed-stylesheet
+   * path must receive exactly the CSS the author wrote. The server then wrapped that text in
+   * `<style>…</style>`, and `<style>` is a raw-text element: the tokenizer scans it for one thing,
+   * its end tag. A value interpolated into `css` carrying `</style>` closed the element and
+   * everything after it parsed as markup — a real parser built an `<img>` with a live `onerror`.
+   *
+   * The client was never directly exploitable, since fragment parsing into a `<style>` creates no
+   * nodes (verified in all three engines), but it produced a DOM whose serialization was poisoned.
+   *
+   * `escapeHtml` is the wrong tool and would break every stylesheet, because `>` is a child
+   * combinator. Only the end-tag sequence matters, and `<\\/style` is valid CSS.
+   */
+  const dom2 = new JSDOM(`<!doctype html><body>${cssMarkup}</body>`);
+  const tpl = dom2.window.document.querySelector('cssxss-ssr > template');
+  const style = tpl.content.querySelector('style');
+
+  assert.equal(tpl.content.querySelector('img'), null, 'no element was created from the CSS');
+  assert.ok(style, 'the stylesheet is still emitted');
+  assert.ok(style.textContent.includes('TAKEOVER()'), 'the payload survives as inert CSS text');
+  assert.ok(!style.textContent.includes('</style'), 'with no unescaped end tag left in it');
+
+  for (const element of tpl.content.querySelectorAll('*')) {
+    const handlers = [...element.attributes].map((a) => a.name).filter((n) => /^on[a-z]+$/i.test(n));
+    assert.deepEqual(handlers, [], `<${element.localName}> carries ${handlers.join(', ')}`);
+  }
 });
