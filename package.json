@@ -22,7 +22,8 @@
     "test:prod": "VERA_DIST=production node --test \"tests/**/*.test.mjs\"",
     "test:browser": "web-test-runner --config web-test-runner.config.mjs",
     "test:all": "npm test && npm run test:prod && npm run test:browser",
-    "test:browser:all": "VERA_BROWSERS=chromium,firefox,webkit web-test-runner --config web-test-runner.config.mjs"
+    "test:browser:all": "VERA_BROWSERS=chromium,firefox,webkit web-test-runner --config web-test-runner.config.mjs",
+    "gate": "node scripts/gate.mjs"
   },
   "wireit": {
     "build": {

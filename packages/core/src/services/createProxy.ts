@@ -247,12 +247,11 @@ const createHandler = <T extends object>(
      * last saw. `undefined` is the correct new value — it is what a read returns afterwards.
      */
     deleteProperty(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>) {
+      type Value = T[Extract<keyof T, string>];
       const had = prop in obj;
-      const prevValue = had ? Reflect.get(obj, prop) : undefined;
+      const prevValue = (had ? Reflect.get(obj, prop) : undefined) as Value;
       const success = Reflect.deleteProperty(obj, prop);
-      if (success && had) {
-        runCallbacks(obj, prop, undefined as T[Extract<keyof T, string>], prevValue);
-      }
+      if (success && had) runCallbacks(obj, prop, undefined as Value, prevValue);
       return success;
     },
   };
