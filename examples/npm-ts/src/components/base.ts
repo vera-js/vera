@@ -2,7 +2,6 @@ import { init, createStore, useEffect, useLayoutEffect, render } from '@verajs/c
 import { initRouter } from '@verajs/router';
 import { html } from 'lit-html';
 import { globalState } from '../globalState.js';
-/** @ts-expect-error No module declarations */
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 import { testingChunks } from './logic-chunk.js';
 
@@ -116,7 +115,8 @@ class Base extends HTMLElement {
 
     const cleanUpEffects = () => {
       console.log('cleaning up');
-      state._delete();
+      /** Optional on `Store`, so it is called optionally; a store without it has nothing to tear down. */
+  state._delete?.();
     };
 
     const toggleButton = () => {

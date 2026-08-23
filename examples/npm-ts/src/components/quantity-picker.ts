@@ -37,9 +37,9 @@ class QuantityPicker extends HTMLElement {
       checked.value = !checked.value;
     };
 
-    const changeName = (e) => {
+    const changeName = (e: Event) => {
       console.log(e);
-      name.value = e.target.value;
+      name.value = (e.target as HTMLInputElement).value;
     };
 
 

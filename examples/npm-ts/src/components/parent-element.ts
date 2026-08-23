@@ -1,6 +1,9 @@
 import { html, init, render, createStore } from '@verajs/core';
 
 class ParentElement extends HTMLElement {
+  /** Assigned in `connectedCallback`; `declare` so no field initializer is emitted. */
+  declare test: string;
+
   connectedCallback() {
     init(this);
     this.test = 'hello';

@@ -40,8 +40,9 @@ class Footer extends HTMLElement {
 
   connectedCallback() {
     if (!this.shadowRoot) {
-      this.attachShadow({ mode: 'open' });
-      this.shadowRoot.appendChild(template.content.cloneNode(true));
+      /** Use what `attachShadow` returns — `this.shadowRoot` is `ShadowRoot | null` to the compiler. */
+      const root = this.attachShadow({ mode: 'open' });
+      root.appendChild(template.content.cloneNode(true));
     }
   }
 }

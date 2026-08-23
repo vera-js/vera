@@ -24,6 +24,10 @@
     "sourceMap": true,
     "strict": true,
     "stripInternal": true,
+    /** `examples/npm-ts` imports a `.tsx` component directly, because its autoloader fetches
+        `.ts` and that one file is `.tsx`. Vite resolves it; tsc needs telling. */
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "target": "ES2022",
     "paths": {
       "@verajs/autoloader": [

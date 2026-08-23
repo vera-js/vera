@@ -4,11 +4,11 @@ import { globalState } from '../globalState.js';
 import { css, init, createStore, useEffect, render, deps, useLayoutEffect, ref } from '@verajs/core';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
-const generateLargeObject = (depth, breadth) => {
-  function createNestedObject(level) {
+const generateLargeObject = (depth: number, breadth: number) => {
+  function createNestedObject(level: number): Record<string, unknown> | null {
     if (level > depth) return null;
 
-    const obj = {};
+    const obj: Record<string, unknown> = {};
     for (let i = 0; i < breadth; i++) {
       obj[`key${i}`] =
         level % 2 === 0 ? createNestedObject(level + 1) : Array.from({ length: breadth }, (_, idx) => `value${idx}`);
@@ -33,6 +33,9 @@ const inputStyles = css`
 `;
 
 class GoodbyeComponent extends HTMLElement {
+  /** Assigned in `connectedCallback`, called from `disconnectedCallback`. `declare` emits no field. */
+  declare cleanUp: () => void;
+
   static styles = [styles, inputStyles];
 
   connectedCallback() {
@@ -42,11 +45,14 @@ class GoodbyeComponent extends HTMLElement {
       hello: { name: { first: 'hello', last: 'goodbye' } },
       goodbye: 'hello',
       color: 'red',
-      // testSet: new Set(['hello', 'goodbye']),
-      // map: new Map([['hello', 'Little Women']]),
-      // testObject: {
-      //   name: 'testObject',
-      // },
+      /**
+       * Restored: `changeStateMachine` (wired to the "Change state machine" button below) reads all
+       * three. While they were commented out that button threw on click, so the Set/Map/object
+       * reactivity this component exists to exercise was never actually running.
+       */
+      testSet: new Set(['hello', 'goodbye']),
+      map: new Map([['hello', 'Little Women']]),
+      testObject: 'testObject',
       bigTest: { littleTest: 'LITTLE TEST' },
       ...generateLargeObject(20, 100),
     });
@@ -136,11 +142,11 @@ class GoodbyeComponent extends HTMLElement {
       console.log('useEffect *** Global State Hello', globalState.hello);
     });
 
-    const inputHelloNameFirst = (e) => {
-      globalState.hello = e.target.value;
+    const inputHelloNameFirst = (e: Event) => {
+      globalState.hello = (e.target as HTMLInputElement).value;
     };
-    const inputHelloNameLast = (e) => {
-      state.hello.name.last = e.target.value;
+    const inputHelloNameLast = (e: Event) => {
+      state.hello.name.last = (e.target as HTMLInputElement).value;
     };
 
     const changeColor = () => {
