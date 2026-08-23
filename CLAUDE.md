@@ -90,9 +90,13 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 | **CDN / `<script>`** | linked `dist/*.min.js`, no build step, no bundler | `examples/cdn-js/` |
 | **SSR** | Node-only, `@verajs/ssr` | `examples/ssr-node/` |
 
-> **SSR does not meet this bar yet.** The wcc fork needs `@projectevergreen/escodegen-esm`,
-> `acorn-import-attributes` and a vendored `jsx-loader.js`; the Astro path needs `linkedom`. None are
-> installed. First-class *target*, known gaps. See `packages/ssr/README.md`.
+> **SSR is vera-native and has no dependencies** — no wcc, no lit, no acorn, no parse5. The earlier
+> wcc-fork and Astro strategies, which needed `@projectevergreen/escodegen-esm`,
+> `acorn-import-attributes`, a vendored `jsx-loader.js` and `linkedom`, are gone; nothing installs
+> them and nothing needs them. `tests/ssr-native.test.mjs` covers declarative shadow DOM, nesting,
+> escaping, sigil stripping, `static styles` and determinism, and the server→client handoff is
+> exercised for real: `scripts/build-hydration-fixture.mjs` renders through the actual pipeline and
+> the browser suite hydrates that output, with `--check` in CI so the snapshot cannot drift.
 
 ## Modules are independent — by design
 

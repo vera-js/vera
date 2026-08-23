@@ -42,6 +42,10 @@ jobs:
       # only — this never writes, and it tolerates a dirty tree so it is safe in CI.
       - run: node scripts/tag-release.mjs --check
       - run: node scripts/sync-size-claims.mjs --check
+      # The browser suite hydrates a committed snapshot of real @verajs/ssr output, because the
+      # browser cannot run the server pipeline. Unverified, that snapshot drifts and hydration is
+      # validated against markup no server emits — passing green.
+      - run: node scripts/build-hydration-fixture.mjs --check
       # Twice, against different programs. dist/development keeps workspace deps external and
       # keeps __DEV__ code; dist/*.min.js mangles properties, drops console.log, eliminates dead
       # branches and inlines workspace deps. A pass against one says nothing about the other.
