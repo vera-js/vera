@@ -1,0 +1,32 @@
+{
+  "name": "@verajs/tsconfig",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "TypeScript base config for VeraJS components. Turns off useDefineForClassFields so a field declaration cannot silently destroy a property set before the element upgrades.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/tsconfig"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "main": "./base.json",
+  "exports": {
+    ".": "./base.json",
+    "./base.json": "./base.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "base.json"
+  ],
+  "keywords": [
+    "verajs",
+    "vera",
+    "tsconfig",
+    "typescript",
+    "web-components"
+  ]
+}

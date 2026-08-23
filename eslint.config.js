@@ -1,3 +1,4 @@
+import vera from '@verajs/eslint-config';
 import globals from 'globals';
 import pluginJs from '@eslint/js';
 import tseslint from 'typescript-eslint';
@@ -47,40 +48,30 @@ export default [
   {
     files: ['packages/*/src/**/*.{js,ts}', 'examples/**/*.{js,ts}'],
     languageOptions: { globals: { ...globals.browser, __DEV__: 'readonly' } },
-    rules: {
-      /**
-       * Custom-element instance fields must be `declare`, never plain fields.
-       *
-       * At target ES2022 `useDefineForClassFields` is on, so a field declaration compiles to a
-       * `[[Define]]` — `item?: Thing` emits `item;`, i.e.
-       * `Object.defineProperty(this, 'item', { value: undefined })`. That runs during upgrade, and
-       * a custom element is routinely given properties *before* it upgrades: a parent binds
-       * `.item=${store}` while the child's module is still loading, or code assigns to an element
-       * whose definition has not run. The field then silently overwrites the value. Dropping the
-       * initializer does not help — only `declare`, which emits nothing, does.
-       *
-       * `@verajs/renderer` restores values it bound itself and warns in development, but a
-       * property assigned imperatively is unrecoverable: nothing ever saw it. So this stays a
-       * build-time error rather than a convention. `static` is excluded — `static styles` is the
-       * `@verajs/styles` pattern and is never an instance field.
-       *
-       * Lit reached the same rule from the other direction; a class field permanently shadows
-       * their prototype accessors, and their development build throws
-       * (`lit.dev/msg/class-field-shadowing`).
-       */
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector:
-            ':matches(ClassDeclaration, ClassExpression)[superClass.name="HTMLElement"]' +
-            ' > ClassBody > PropertyDefinition[static!=true][declare!=true]',
-          message:
-            'Declare custom-element instance fields with `declare` (e.g. `declare item?: Thing`). ' +
-            'A plain field compiles to a [[Define]] that runs at upgrade and silently overwrites ' +
-            'any value set on the element beforehand.',
-        },
-      ],
-    },
+    /**
+     * The VeraJS rules come from our own published config, so the package is exercised by every
+     * `npx eslint .` here rather than only by its own tests. It carries the reasoning for both
+     * rules; in short, they cover the two mistakes that produce no error at all — a class field on
+     * a custom element, and taking `insert` from `@verajs/inserts` instead of the owning package.
+     *
+     * Only `.rules` is taken, not the config object: spreading that would replace the `files` scope
+     * above with the package's own repo-wide glob, widening the browser globals to everything and
+     * failing the suites that violate both rules deliberately in order to test them.
+     */
+    rules: { ...vera[0].rules },
+  },
+
+  /**
+   * The two packages that own the insert surface re-export it on purpose.
+   *
+   * `export * from '@verajs/inserts'` is what makes `insert` available *from core* and *from
+   * router* — each bundle re-exporting its own inlined copy is precisely the thing the rule exists
+   * to steer consumers toward. ESLint counts a star re-export as importing every restricted name,
+   * which is right for consumer code and wrong for the two modules defining the API.
+   */
+  {
+    files: ['packages/core/src/index.ts', 'packages/router/src/index.ts'],
+    rules: { 'no-restricted-imports': 'off' },
   },
 
   /**

@@ -68,17 +68,53 @@ are pre-1.0. Reaching `1.0.0` is what removes the footgun.
 
 ---
 
+## Adding a package
+
+A new package cannot be published by CI on its first release, because npm will not let a trusted
+publisher be configured for a package that does not exist yet, and CI has no other credential by
+design. The first version goes up by hand; every version after that is an ordinary release.
+
+```sh
+npx changeset version                       # bump everything that has a changeset
+
+# First publish of the new package only. Run this in a real terminal, one package at a time:
+# npm's 2FA approval prints a URL and polls for it, so it needs a TTY and cannot be scripted.
+cd packages/<name> && npm publish && cd ../..
+
+# Attach the trusted publisher, so CI owns it from here on. Needs no 2FA approval.
+npm trust github @verajs/<name> --file release.yml --repo vera-js/vera --allow-publish -y
+npm trust list @verajs/<name>               # confirm before pushing
+
+node scripts/tag-release.mjs
+git push --follow-tags                      # CI publishes everything else
+```
+
+Order matters only in that the manual publish must happen before the push. `changeset publish`
+skips any version already on the registry, so CI sees the new package as done and publishes the
+others — no conflict, no failed job.
+
+Publish one package at a time. `changeset publish` runs them in parallel, which races several
+browser approvals at once and fails; that is what made the original bootstrap awkward.
+
+A brand-new package needs **no changeset**. Changesets describe *changes to* a released package; a
+first release has nothing to describe, and adding one would bump the package past the version you
+mean to publish before it has ever shipped.
+
 ## Invariants — breaking any of these breaks publishing
 
-- **`release.yml` must keep its name.** The trusted-publisher binding on each of the seven packages
+- **`release.yml` must keep its name.** The trusted-publisher binding on each published package
   names `vera-js/vera` + `release.yml`. Renaming or moving the file makes every publish fail until
-  all seven bindings are recreated with `npm trust`.
+  every binding is recreated with `npm trust`.
 - **`repository.url` must stay `git+https://github.com/vera-js/vera.git`** in every manifest. The
   registry compares it against the provenance statement and rejects a mismatch with a 422.
 - **Publishing happens from this repo, and this repo must stay public.** npm provenance requires a
   public source repository.
 - **Never add an `NPM_TOKEN`.** If publishing fails, the fix is in the trust configuration
   (`npm trust list @verajs/<name>`), not a credential.
+- **A brand-new package's first publish cannot use Trusted Publishing.** npm requires the package to
+  exist on the registry before a trusted publisher can be attached to it — the constraint holds for
+  both the website and `npm trust github`. So a new package's first version is published manually
+  and CI takes over from the second. See *Adding a package* below.
 - **Never bump a version by hand.** `changeset version` also updates the internal dependency ranges
   between packages; editing a version field alone silently desynchronises them.
 - **`shared-types` and `shared-utils` are `private: true`** and inlined into every build. They must

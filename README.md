@@ -19,14 +19,15 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.5 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
-`@verajs/core` renders on its own — it ships a small default renderer — but only for display:
-`@event`, `.prop` and `?bool` bindings need a renderer module, and every update replaces the
-subtree, so form state does not survive. <!--size:app.kb-->5.5 KB<!--/size:app.kb--> is the number for an app you can interact with.
+`@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
+displays nothing. A renderer is the one module every app needs, which is why
+<!--size:app.kb-->5.5 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
-> **Status: early, pre-1.0.** Published to npm as of 2026-08-21 — `core`, `renderer`, `router`,
-> `autoloader`, `inserts`, `jsx` and `ssr` are live at 0.1.2, each with a provenance attestation.
+> **Status: early, pre-1.0.** Published to npm since 2026-08-21 — `core`, `renderer`, `router`,
+> `autoloader`, `inserts`, `styles`, `jsx` and `ssr` are live, each with a provenance attestation.
+> Versions are per-package and move independently; npm is the source of truth for current numbers.
 > The structure and tooling are still being reworked, after which the project gets an honest
 > viability evaluation.
 
@@ -47,6 +48,14 @@ module system is open — use the prebuilt ones or write your own.
 @verajs/styles        adopts `static styles` — shadow sheets, @scope for light DOM
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
+```
+
+Two more ship as `devDependencies` rather than runtime modules — nothing imports them, and neither
+adds a byte to your bundle:
+
+```
+@verajs/eslint-config  catches the two VeraJS mistakes that produce no error at all
+@verajs/tsconfig       TypeScript base config; turns off useDefineForClassFields
 ```
 
 The modules are **genuinely independent** — the router and autoloader do not require core, and can be

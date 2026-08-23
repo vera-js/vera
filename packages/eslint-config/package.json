@@ -1,0 +1,32 @@
+{
+  "name": "@verajs/eslint-config",
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Shareable ESLint flat config for VeraJS: catches the two mistakes that fail silently — class fields on custom elements, and registering an insert through @verajs/inserts.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/eslint-config"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js"
+  ],
+  "keywords": [
+    "verajs",
+    "vera",
+    "eslint",
+    "eslintconfig",
+    "web-components"
+  ],
+  "sideEffects": false
+}

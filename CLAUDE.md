@@ -226,8 +226,13 @@ npx changeset version && node scripts/tag-release.mjs && git push --follow-tags
 CI publishes whatever master has that npm does not, authenticated by npm **Trusted Publishing**
 (OIDC). Three invariants that silently break publishing if violated:
 
-- **`release.yml` must keep its name** — the trust binding on all seven packages names
-  `vera-js/vera` + `release.yml`.
+- **`release.yml` must keep its name** — the trust binding on every published package names
+  `vera-js/vera` + `release.yml`. Counting them here only invites drift; `npm trust list` is
+  authoritative.
+- **A brand-new package cannot use Trusted Publishing for its first publish.** npm requires the
+  package to exist before a trusted publisher can be configured, by UI or by `npm trust github`, so
+  the first version goes up manually and CI takes over from the second. Runbook:
+  `internal/docs/PUBLISHING.md`.
 - **`repository.url` must stay `git+https://github.com/vera-js/vera.git`** — the registry compares
   it against provenance and rejects a mismatch with 422.
 - **Never add an `NPM_TOKEN`.** No secret exists in the release path; failures are fixed in the
