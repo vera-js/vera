@@ -1,11 +1,15 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->583 B<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->905 B<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
-The first time an undefined custom element appears inside a component marked `autoloader`, its
-module is fetched and defined. No manifest, no import list, no bundler plugin: the tag name *is* the
-module name.
+When an undefined custom element appears inside a component marked `autoloader`, its module is
+fetched and defined. No manifest, no import list, no bundler plugin: the tag name *is* the module
+name.
+
+Discovery is **observed, not polled**. A marked component is watched once, so an element is found
+whenever it enters the DOM — put there by a render, by `innerHTML`, by a third-party widget, or by
+having been in the HTML file all along.
 
 ```sh
 npm i @verajs/autoloader
@@ -26,10 +30,25 @@ setAutoloader(initAutoloader(import.meta.url, 'components'));
 </my-page>
 ```
 
-`initAutoloader(rootDir, componentsDir?, options?)` returns the discovery function.
-`setAutoloader` registers it on the `'render'` insert at priority 75, so discovery runs *after* the
-render that produced the markup. `rootDir` is almost always `import.meta.url`; every component URL
-is resolved relative to it, and omitting `componentsDir` puts components beside the entry file.
+`initAutoloader(rootDir, componentsDir?, options?)` returns a function that starts watching an
+element; calling it twice on the same element does nothing the second time. `setAutoloader`
+registers it on the `'render'` insert, which is how a component that has just rendered gets watched.
+`rootDir` is almost always `import.meta.url`; every component URL is resolved relative to it, and
+omitting `componentsDir` puts components beside the entry file.
+
+Creating an autoloader also sweeps the document once for `[autoloader]` hosts, so a page written by
+hand works with no framework involved at all:
+
+```html
+<script type="module">
+  import { initAutoloader } from '@verajs/autoloader';
+  initAutoloader(import.meta.url, 'components');
+</script>
+
+<div autoloader>
+  <user-card></user-card>   <!-- loads, though nothing here renders -->
+</div>
+```
 
 ## Attributes
 
@@ -82,18 +101,51 @@ module URL is exactly the thing that needs bounding.
 A custom `resolve` is checked the same way. `rootDir` is your own code and is trusted; everything
 derived from the DOM is not.
 
-## One attempt per URL
+## One attempt per URL, one module per tag
 
-A URL is tried once per page load. A component that 404s logs once and is not retried until reload —
-without that, a missing file cost a network request and a console line on *every* render, and the
-same tag reached through two directories raced to define itself twice.
+A URL is tried once per page load: a component that 404s logs once and is not retried until reload.
+
+A **tag** is loaded once too, which is a different question. `<x-y>` and `<x-y autoload-dir="alt">`
+are two URLs for one tag; both used to import, and the second module's `customElements.define('x-y')`
+threw. A tag can only be defined once, so the second location could never have helped — it is tried
+only if the first attempt fails.
+
+## When a component never arrives
+
+A failed load logs, and dispatches `vera:autoload-error` on the element — bubbling and composed,
+with `{ tag, src, error }` on `detail`. That is the hook for rendering around a component that is
+not coming:
+
+```js
+document.addEventListener('vera:autoload-error', ({ detail }) => {
+  report(detail.error);
+  document.querySelectorAll(detail.tag).forEach((el) => el.replaceWith(fallback()));
+});
+```
+
+An element that has not arrived *yet* needs no hook — it is simply un-upgraded, which is what
+`:not(:defined)` in your CSS is for.
 
 ## What it does not do
 
-Discovery does not descend into a child component's shadow root — that child marks itself
-`autoloader` if it hosts lazily-loaded elements of its own. There is no preloading, no retry, and no
-loading-state hook; a component that has not arrived yet is simply an un-upgraded element, which is
-what `:not(:defined)` in your CSS is for.
+Watching does not cross into a child component's shadow root — a `MutationObserver` cannot, by
+design — so a child that hosts lazily-loaded elements of its own marks itself `autoloader`. Vera
+components get this automatically, because the `'render'` insert offers each one up as it renders.
+
+There is no preloading and no retry after a failure.
+
+## What it costs
+
+One `MutationObserver` object watches every marked root, and a mutation only notifies observers on
+its own ancestor chain — so watched subtrees that are not the ones changing cost nothing. Measured
+in Chromium: 1 000 registrations left unrelated DOM work at 0.900 µs against 0.933 µs with none, and
+watching a root adds ~0.6 µs per mutation batch into it.
+
+This replaced a rescan of each marked component's whole tree on every render, which cost 0.46 µs for
+a 10-node component, 3.4 µs at 100 nodes and **32.5 µs at 1 000** — on every render, for the life of
+the page, long after everything had loaded. Watching `document` instead of each marked root would
+have been the expensive shape: it taxes every DOM mutation in the app by ~47%, because every
+mutation is inside it.
 
 ## License
 

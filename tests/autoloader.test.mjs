@@ -1,18 +1,20 @@
 /**
- * Migrated from the audit-session verification suites (scratchpad, 2026-08-20). Tests BUILT
- * artifacts, development AND production (see ./dist.mjs), so build defects fail here too. Plain pass/fail scripts under
- * node --test: a nonzero exit marks the file failed.
+ * URL building, bounding, and the discovery model — against BUILT artifacts, development AND
+ * production (see ./dist.mjs). Plain pass/fail script under node --test: a nonzero exit fails.
+ *
+ * jsdom has no `:defined`, so the one selector discovery rests on is emulated below. That makes
+ * this suite authoritative about *what URL is fetched and whether it is allowed*, and not about
+ * what gets found in the first place — `tests/browser/autoloader.test.js` owns that, on three
+ * engines.
  */
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
-const dom = new JSDOM('<div id="app" autoloader></div>', { url: 'http://localhost/' });
-const { window } = dom;
-globalThis.HTMLElement = window.HTMLElement;
-globalThis.customElements = window.customElements;
-globalThis.document = window.document;
 
-const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
-const { initAutoloader } = await load('autoloader');
+const dom = new JSDOM('<body></body>', { url: 'http://localhost/' });
+const { window } = dom;
+for (const k of ['HTMLElement', 'customElements', 'document', 'MutationObserver', 'CustomEvent', 'Element'])
+  globalThis[k] = window[k];
+
 /** jsdom's selector engine lacks :defined — emulate exactly that one selector. */
 const origQSA = window.Element.prototype.querySelectorAll;
 window.Element.prototype.querySelectorAll = function (sel) {
@@ -23,63 +25,134 @@ window.Element.prototype.querySelectorAll = function (sel) {
   }
   return origQSA.call(this, sel);
 };
+
+const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
+const { initAutoloader } = await load('autoloader');
+
 const tick = () => new Promise((r) => setTimeout(r, 40));
 let pass = 0, fail = 0;
-const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
+const check = (n, c, extra = '') => { c ? pass++ : (fail++, console.log('FAIL:', n, extra)); };
+
 const errs = [];
-const oe = console.error; console.error = (...a) => errs.push(a.join(' '));
+const oe = console.error;
+console.error = (...a) => errs.push(a.join(' '));
 
-const discover = initAutoloader(rootDir, 'components');
-const app = window.document.getElementById('app');
+/**
+ * A fresh host per case, torn down after it.
+ *
+ * Both halves matter now. An autoloader keeps watching once attached — that is the point of the
+ * rewrite — and `initAutoloader` sweeps the document for `[autoloader]` hosts as it is created, so
+ * a host left behind by one case is adopted by every autoloader a later case builds. Tags that
+ * failed to load stay undefined, so those hosts would be re-attempted for the rest of the run.
+ */
+const hosts = [];
+const host = (html = '') => {
+  const element = window.document.createElement('div');
+  element.setAttribute('autoloader', '');
+  element.innerHTML = html;
+  window.document.body.appendChild(element);
+  hosts.push(element);
+  return element;
+};
+/** Called at the end of each case; nothing may observe another case's markup. */
+const clearHosts = () => {
+  while (hosts.length) hosts.pop().remove();
+  errs.length = 0;
+};
 
-// 1. plain load works, element upgrades
-app.innerHTML = '<probe-widget></probe-widget>';
-discover(app); await tick();
-check('component loads and defines', globalThis.__loads === 1 && !!customElements.get('probe-widget'));
+// 1. a component loads and defines
+{
+  const app = host('<probe-widget></probe-widget>');
+  initAutoloader(rootDir, 'components')(app);
+  await tick();
+  check('component loads and defines', globalThis.__loads === 1 && !!customElements.get('probe-widget'));
+}
 
-// 2. repeated discover does NOT re-attempt (memo)
-discover(app); discover(app); await tick();
-check('no re-attempts for defined tag', globalThis.__loads === 1);
+clearHosts();
 
-// 3. missing file: attempted once, not per render
-app.innerHTML += '<ghost-widget></ghost-widget>';
-discover(app); await tick();
-const errsAfterFirst = errs.length;
-discover(app); discover(app); await tick();
-check('404 attempted once, then memoized', errsAfterFirst >= 1 && errs.length === errsAfterFirst);
+// 2. an element that arrives LATER is still found — the render insert is no longer the only path
+{
+  const app = host();
+  initAutoloader(rootDir, 'alt')(app);
+  await tick();
+  app.innerHTML = '<alt-widget></alt-widget>';
+  await tick();
+  check('an element inserted after attach is found', !!customElements.get('alt-widget'));
+}
 
-// 4. autoload-dir override within base works
-app.innerHTML += '<alt-widget autoload-dir="alt"></alt-widget>';
-discover(app); await tick();
-check('autoload-dir override loads from alt/', !!customElements.get('alt-widget'));
+clearHosts();
 
-// 5. standard HTML dir attribute is IGNORED (i18n page must not break)
-app.innerHTML += '<probe-widget dir="rtl"></probe-widget>';
-const errsBefore = errs.length;
-discover(app); await tick();
-check('dir="rtl" no longer redirects loading', errs.length === errsBefore);
+// 3. a missing file is attempted once, however many times it appears
+{
+  errs.length = 0;
+  const app = host('<ghost-widget></ghost-widget>');
+  initAutoloader(rootDir, 'components')(app);
+  await tick();
+  const after = errs.filter((m) => m.includes('ghost-widget')).length;
+  app.innerHTML += '<ghost-widget></ghost-widget><ghost-widget></ghost-widget>';
+  await tick();
+  check('404 attempted once, then memoized',
+    after >= 1 && errs.filter((m) => m.includes('ghost-widget')).length === after);
+}
+
+clearHosts();
+
+// 4. a failure is reported as a DOM event, so an app can render around it
+{
+  const app = host();
+  initAutoloader(rootDir, 'components')(app);
+  const seen = [];
+  app.addEventListener('vera:autoload-error', (e) => seen.push(e.detail));
+  app.innerHTML = '<absent-widget></absent-widget>';
+  await tick();
+  check('a failed load dispatches vera:autoload-error', seen.length === 1, JSON.stringify(seen.length));
+  check('the event names the tag and the URL',
+    seen[0]?.tag === 'absent-widget' && String(seen[0]?.src).includes('/components/absent-widget.js'));
+}
+
+clearHosts();
+
+// 5. the standard HTML dir attribute is IGNORED (an i18n page must not break)
+{
+  errs.length = 0;
+  const app = host('<probe-widget dir="rtl"></probe-widget>');
+  initAutoloader(rootDir, 'components')(app);
+  await tick();
+  check('dir="rtl" does not redirect loading', errs.length === 0, errs.join(' '));
+}
+
+clearHosts();
 
 // 6. out-of-base values are refused, not fetched
-for (const bad of ['https://example.invalid/x', '//example.invalid/x', '../../outside']) {
-  app.innerHTML += `<esc-widget autoload-dir="${bad}"></esc-widget>`;
+{
+  errs.length = 0;
+  const app = host(
+    ['https://example.invalid/x', '//example.invalid/x', '../../outside']
+      .map((bad, i) => `<esc${i}-widget autoload-dir="${bad}"></esc${i}-widget>`)
+      .join('')
+  );
+  initAutoloader(rootDir, 'components')(app);
+  await tick();
+  check('all three out-of-base escapes refused', errs.filter((m) => m.includes('refused')).length === 3,
+    errs.join(' | '));
 }
-errs.length = 0;
-discover(app); await tick();
-const refusals = errs.filter((m) => m.includes('refused'));
-check('out-of-base autoload-dir refused (3 variants)', refusals.length >= 1 && errs.every((m) => m.includes('refused') || m.includes('Failed')));
-check('at least the absolute+relative escapes refused', refusals.length >= 2);
 
-// 7. missing rootDir throws at init, not per element
-let threw = false;
-try { initAutoloader(''); } catch { threw = true; }
-check('missing rootDir throws at init', threw);
+clearHosts();
+
+// 7. a missing rootDir throws at init, not per element
+{
+  let threw = false;
+  try { initAutoloader(''); } catch { threw = true; }
+  check('missing rootDir throws at init', threw);
+}
+
+clearHosts();
 
 // 8. components beside the entry file — the documented call with componentsDir omitted
 //
 // The default was `/`, which built `//tag.js`: protocol-relative, so `new URL` read the tag as a
 // HOST. `initAutoloader(import.meta.url)` refused every component it was asked for, and so did
-// `autoload-dir="/"`. Asserted on the URL rather than on a successful load, so the check does not
-// depend on a fixture existing beside the entry.
+// `autoload-dir="/"`. Asserted on the URL, so the check does not need a fixture beside the entry.
 {
   for (const [label, dir, attr] of [
     ['componentsDir omitted', undefined, ''],
@@ -88,38 +161,57 @@ check('missing rootDir throws at init', threw);
     ['autoload-dir="/"', 'components', ' autoload-dir="/"'],
   ]) {
     errs.length = 0;
-    const tag = `beside-${label.replace(/\W+/g, '')}`.toLowerCase();
-    app.innerHTML = `<${tag}${attr}></${tag}>`;
+    const tag = `beside${label.replace(/\W+/g, '')}-widget`.toLowerCase();
+    const app = host(`<${tag}${attr}></${tag}>`);
     initAutoloader(rootDir, dir)(app);
     await tick();
     const message = errs.join(' ');
     const expected = dir === 'components/' ? `/components/${tag}.js` : `/autoloader/${tag}.js`;
     check(`${label}: resolves inside the entry directory`,
-      !message.includes('refused') && message.includes(expected));
+      !message.includes('refused') && message.includes(expected), message);
   }
 }
+
+clearHosts();
 
 // 9. `resolve` replaces the URL shape without loosening the bound
 {
   errs.length = 0;
-  app.innerHTML = '<nested-widget></nested-widget>';
+  const app = host('<nested-widget></nested-widget>');
   initAutoloader(rootDir, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` })(app);
   await tick();
-  check('resolve builds the URL', errs.join(' ').includes('/components/nested-widget/nested-widget.js'));
+  check('resolve builds the URL', errs.join(' ').includes('/components/nested-widget/nested-widget.js'),
+    errs.join(' '));
 
   for (const [label, resolveFn] of [
     ['upward traversal', (tag) => `../../../evil/${tag}.js`],
     ['absolute URL', (tag) => `https://example.invalid/${tag}.js`],
   ]) {
     errs.length = 0;
-    const tag = `res-${label.replace(/\W+/g, '')}`.toLowerCase();
-    app.innerHTML = `<${tag}></${tag}>`;
-    initAutoloader(rootDir, 'components', { resolve: resolveFn })(app);
+    const tag = `res${label.replace(/\W+/g, '')}-widget`.toLowerCase();
+    const app2 = host(`<${tag}></${tag}>`);
+    initAutoloader(rootDir, 'components', { resolve: resolveFn })(app2);
     await tick();
-    check(`resolve cannot escape the base: ${label}`, errs.join(' ').includes('refused'));
+    check(`resolve cannot escape the base: ${label}`, errs.join(' ').includes('refused'), errs.join(' '));
   }
 }
 
+clearHosts();
+
+// 10. one tag reached through two directories imports ONE module
+//
+// Both used to import, and the second module's `customElements.define` threw NotSupportedError —
+// reported as a failed load for a component that had in fact loaded fine.
+{
+  errs.length = 0;
+  const app = host('<probe-widget></probe-widget><probe-widget autoload-dir="alt"></probe-widget>');
+  initAutoloader(rootDir, 'components')(app);
+  await tick();
+  check('a second directory for a defined tag is not fetched',
+    !errs.some((m) => m.includes('probe-widget')), errs.join(' | '));
+}
+
+clearHosts();
 console.error = oe;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

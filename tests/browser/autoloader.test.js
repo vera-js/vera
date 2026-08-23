@@ -69,9 +69,8 @@ it('an element stops matching once its definition arrives', () => {
 
 /* ── loading, end to end ─────────────────────────────────────────────────────────────────────── */
 it('discovers an undefined element and defines it from its module', async () => {
-  const discover = initAutoloader(entry, 'components');
   const element = host('<probe-widget></probe-widget>');
-  discover(element);
+  initAutoloader(entry, 'components')(element);
   await until(() => customElements.get('probe-widget'));
 
   expect(customElements.get('probe-widget'), 'the definition arrived').to.be.a('function');
@@ -80,31 +79,105 @@ it('discovers an undefined element and defines it from its module', async () => 
 });
 
 it('autoload-dir moves one element to another directory inside the base', async () => {
-  const discover = initAutoloader(entry, 'components');
   const element = host('<alt-widget autoload-dir="alt"></alt-widget>');
-  discover(element);
+  initAutoloader(entry, 'components')(element);
   await until(() => customElements.get('alt-widget'));
   expect(customElements.get('alt-widget')).to.be.a('function');
   element.remove();
 });
 
 it('an element marked autoload-ignore is left alone', async () => {
-  const discover = initAutoloader(entry, 'components');
   const element = host('<skipped-widget autoload-ignore></skipped-widget>');
-  discover(element);
+  initAutoloader(entry, 'components')(element);
   await settle();
   expect(customElements.get('skipped-widget')).to.equal(undefined);
   element.remove();
 });
 
-it('a host without the autoloader attribute is never scanned', async () => {
-  const discover = initAutoloader(entry, 'components');
+it('a host without the autoloader attribute is never watched', async () => {
   const element = document.createElement('div');
   element.innerHTML = '<unscanned-widget></unscanned-widget>';
   document.body.appendChild(element);
-  discover(element);
+  initAutoloader(entry, 'components')(element);
   await settle();
   expect(customElements.get('unscanned-widget')).to.equal(undefined);
+  element.remove();
+});
+
+/* ── the holes the rescan model could not close ──────────────────────────────────────────────── */
+/**
+ * Each of these was measured as MISSED before the rewrite. A rescan only ever sees what a render
+ * put there, so nothing short of observation could have caught them.
+ */
+it('finds an element inserted after discovery was set up', async () => {
+  const element = host();
+  initAutoloader(entry, 'components')(element);
+  await settle();
+  /** Nothing renders here — this is what any third-party widget or innerHTML call looks like. */
+  element.innerHTML = '<late-arrival-widget></late-arrival-widget>';
+  await until(() => customElements.get('late-arrival-widget'));
+  expect(customElements.get('late-arrival-widget'), 'found after insertion').to.be.a('function');
+  element.remove();
+});
+
+it('finds an element that arrives inside a whole subtree at once', async () => {
+  const element = host();
+  initAutoloader(entry, 'components')(element);
+  await settle();
+  element.innerHTML = '<section><div><deep-arrival-widget></deep-arrival-widget></div></section>';
+  await until(() => customElements.get('deep-arrival-widget'));
+  expect(customElements.get('deep-arrival-widget'), 'a subtree arrives as one added node')
+    .to.be.a('function');
+  element.remove();
+});
+
+it('finds markup that was already in the document when the autoloader was created', async () => {
+  const element = host('<static-widget></static-widget>');
+  /** No `watch` call at all — the sweep at creation is what has to find this. */
+  initAutoloader(entry, 'components');
+  await until(() => customElements.get('static-widget'));
+  expect(customElements.get('static-widget'), 'static markup loads without any render').to.be.a('function');
+  element.remove();
+});
+
+/* ── one tag, one module ─────────────────────────────────────────────────────────────────────── */
+/**
+ * `<x-y>` and `<x-y autoload-dir="alt">` are two URLs for one tag. Both used to import, and the
+ * second module's `customElements.define` threw — reported as a failed load for a component that
+ * had loaded fine.
+ */
+it('does not fetch a second directory for a tag already being loaded', async () => {
+  const failures = [];
+  const original = console.error;
+  console.error = (...args) => failures.push(args.join(' '));
+  const element = host('<dual-widget></dual-widget><dual-widget autoload-dir="alt"></dual-widget>');
+  initAutoloader(entry, 'components')(element);
+  await until(() => customElements.get('dual-widget'));
+  await settle();
+  console.error = original;
+
+  expect(customElements.get('dual-widget')).to.be.a('function');
+  expect(failures, 'no NotSupportedError from a duplicate define').to.have.length(0);
+  element.remove();
+});
+
+/* ── a failure is reportable ─────────────────────────────────────────────────────────────────── */
+it('dispatches vera:autoload-error when a component never arrives', async () => {
+  const original = console.error;
+  console.error = () => {};
+  const element = host();
+  const seen = [];
+  element.addEventListener('vera:autoload-error', (event) => seen.push(event.detail));
+  initAutoloader(entry, 'components')(element);
+  await settle();
+  element.innerHTML = '<never-shipped-widget></never-shipped-widget>';
+  await until(() => seen.length > 0);
+  console.error = original;
+
+  expect(seen, 'one report').to.have.length(1);
+  expect(seen[0].tag).to.equal('never-shipped-widget');
+  expect(seen[0].src).to.contain('/components/never-shipped-widget.js');
+  expect(seen[0].error, 'the underlying failure is carried').to.exist;
   element.remove();
 });
 
@@ -113,12 +186,11 @@ it('refuses an autoload-dir that resolves outside the entry directory', async ()
   const refused = [];
   const original = console.error;
   console.error = (...args) => refused.push(args.join(' '));
-  const discover = initAutoloader(entry, 'components');
   const element = host(`
     <esc-one autoload-dir="https://example.invalid/x"></esc-one>
     <esc-two autoload-dir="//example.invalid/x"></esc-two>
     <esc-three autoload-dir="../../.."></esc-three>`);
-  discover(element);
+  initAutoloader(entry, 'components')(element);
   await until(() => refused.filter((m) => m.includes('refused')).length === 3);
   console.error = original;
 

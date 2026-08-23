@@ -513,14 +513,21 @@ element carrying the `autoloader` attribute. Use `extension: '.ts'` in a TypeScr
 `componentsDir` is optional — omit it for components beside the entry file.
 
 Semantics worth stating:
-- Scanning is **per-component opt-in**: each component that hosts lazily-loaded children needs the
-  `autoloader` attribute (the render insert scans that element's own tree, not descendants'
-  shadow roots).
+- Discovery is **observed, not polled**: a marked component is watched once with a
+  `MutationObserver`, so an element is found whenever it enters the DOM — by a render, by
+  `innerHTML`, by a third-party widget, or by being in the HTML file already. Creating an
+  autoloader sweeps the document once, so hand-written static markup works with nothing rendering.
+- Watching is **per-component opt-in**: each component hosting lazily-loaded children needs the
+  `autoloader` attribute. An observer cannot cross into a descendant's shadow root, so that child
+  marks itself (Vera components are offered up automatically by the `'render'` insert).
 - `autoload-dir="alt"` overrides the directory per element; it must resolve **inside the entry
   file's directory** — absolute URLs, `//host`, and `../` escapes are refused. (It is
   `autoload-dir`, never HTML's global `dir` attribute.)
-- One load attempt per URL per page load: a missing file logs once and is not retried until
-  reload.
+- One load attempt per URL per page load, and one module per **tag** — `<x-y>` and
+  `<x-y autoload-dir="alt">` are two URLs for one tag, and a tag can only be defined once. The
+  second location is tried only if the first fails.
+- A failed load dispatches `vera:autoload-error` on the element (bubbles, composed,
+  `detail: { tag, src, error }`) as well as logging, so an app can render a fallback.
 - `autoload-ignore` excludes that element only, not its subtree.
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.
