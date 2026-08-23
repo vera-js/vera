@@ -194,8 +194,10 @@ and **end** of the batch.
 | `connectInserts` | `(inserts) => void` — see "CDN" below |
 | `createHook` | `({ callback, priority, element? }) => void` — build your own hook type |
 
-Insert points: `'render'`, `'proxy-handler'` (property read), `'set-handler'` (property write,
-return `false` to suppress default propagation), `'error'` (a hook threw).
+Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
+exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
+(property read), `'set-handler'` (property write, return `false` to suppress default propagation),
+`'error'` (a hook threw).
 
 ---
 
@@ -476,8 +478,12 @@ gives you two registries. Reconcile once at startup:
 ```js
 import { inserts } from '@verajs/core';
 import { connectInserts } from '@verajs/router';
-connectInserts(inserts);
+connectInserts(inserts);   // FIRST — before setRenderer, setAutoloader or any insert()
 ```
+
+**Order matters.** `connectInserts` replaces the registry rather than merging into it, so anything
+registered before it becomes unreachable — silently, since nothing throws and the callback lands in
+a map nobody reads. Development builds warn; production carries neither the check nor the message.
 
 Unnecessary under a bundler, where everything resolves to one instance. This is deliberate — it is
 the price of the modules being genuinely independent of core.

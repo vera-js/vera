@@ -45,7 +45,30 @@ export const insert = <K extends keyof InsertFunctionMap>(
   order.splice(slot, 0, priority);
 };
 
+/**
+ * Point this bundle's registry at another one, so two standalone bundles share a single set of
+ * inserts. Required in CDN mode, where each `.min.js` inlines its own copy of this package; a no-op
+ * under a bundler resolving everything to one instance.
+ *
+ * **Call it before registering anything.** It replaces the registry rather than merging into it, so
+ * a `setRenderer` or `insert` that ran first is discarded — silently, because nothing throws and
+ * the callback simply lands in a map nobody reads afterwards. Merging instead was considered and
+ * rejected on weight: this package is inlined into `@verajs/core`, `@verajs/renderer` and
+ * `@verajs/router`, so every byte here is paid three times over in exactly the packages where bytes
+ * are least negotiable.
+ *
+ * So it warns instead, in development only — `__DEV__` folds to `false` before terser, and
+ * production carries neither the check nor the message.
+ */
 export const connectInserts = (newInserts: Inserts) => {
+  if (__DEV__ && inserts.size && inserts !== newInserts) {
+    console.warn(
+      `[vera] connectInserts() replaced a registry that already had ${inserts.size} insert ` +
+        `chain(s) registered: ${[...inserts.keys()].join(', ')}. Those registrations are now ` +
+        `unreachable — whatever registered them will silently do nothing.\n` +
+        `Call connectInserts() first, before setRenderer/setAutoloader/insert.`
+    );
+  }
   inserts = newInserts;
 };
 
