@@ -600,8 +600,12 @@ Say so rather than inventing an API:
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
   components. No decorators ever (they cannot run without a build step).
-- **No `computed`.** It is a ten-line `'proxy-handler'` insert — the worked example is
-  `examples/cdn-js/src/inserts/computed.js` — or compute inline.
+- **`computed` is `@verajs/computed`** (233 B), not core. `computed(() => a + b)` evaluates once
+    per change rather than once per read, and only when something it actually read moves. It is a
+    store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
+    `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**
+    memoise — it re-invokes on every read.
+
 - **No Suspense, concurrent rendering, server components, or devtools.**
   Error boundaries: a worked example is `examples/cdn-js/src/inserts/error-boundary.js` (the
   `'error'` insert). Write batching/transactions: `examples/cdn-js/src/inserts/batch.js` (the

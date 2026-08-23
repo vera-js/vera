@@ -37,6 +37,7 @@ const MODULES = [
   { pkg: 'autoloader', dist: 'packages/autoloader/dist/vera-autoloader.min.js', what: 'lazy component discovery' },
   { pkg: 'styles', dist: 'packages/styles/dist/vera-styles.min.js', what: '`static styles` adoption, shadow and light DOM' },
   { pkg: 'spread', dist: 'packages/spread/dist/vera-spread.min.js', what: '`${spread(props)}` — runtime-named bindings' },
+  { pkg: 'computed', dist: 'packages/computed/dist/vera-computed.min.js', what: 'memoised derived values' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
 ];
 

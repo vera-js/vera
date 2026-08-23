@@ -15,7 +15,7 @@
     "dev:ssr": "wireit",
     "build": "wireit",
     "preview": "wireit",
-    "test": "node --test \"tests/**/*.test.mjs\"",
+    "test": "node --conditions development --test \"tests/**/*.test.mjs\"",
     "check": "node scripts/sync-packages.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "release": "npm run build && changeset publish",
@@ -30,6 +30,7 @@
       "dependencies": [
         "./packages/autoloader:build",
         "./packages/core:build",
+        "./packages/computed:build",
         "./packages/inserts:build",
         "./packages/renderer:build",
         "./packages/router:build",

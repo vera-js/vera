@@ -14,7 +14,14 @@ import { dts } from 'rollup-plugin-dts';
 /**
  * @param options.input Entry file (default `src/index.ts`) — secondary entries like the
  * renderer's `hydrate` build pass their own.
- * Every entry bundles self-contained in every mode.
+ * @param options.alwaysExternal Specifiers kept external in **every** mode, production included.
+ *
+ * Production normally inlines everything so each `.min.js` stands alone, which is right for a
+ * module that shares no runtime state with core — `@verajs/styles` and `@verajs/spread` import
+ * nothing and are wired by the app. It is wrong for a module built *on* core's API: inlining would
+ * give a CDN page a second copy of core, and with it a second insert registry and a second store
+ * identity. `@verajs/computed` calls `createStore` and `createHook`, so core stays external and
+ * resolves through the import map to the one everything else is using.
  */
 export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, options = {}) => {
   const mode = process.env.MODE;
@@ -78,7 +85,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
       sourcemap: true,
 
     },
-    external: !isProduction ? dependencies ?? [] : [],
+    external: !isProduction ? (dependencies ?? []) : (options.alwaysExternal ?? []),
     plugins: [
       defineDev(),
       typescript({

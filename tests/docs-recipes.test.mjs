@@ -37,6 +37,7 @@ const PACKAGES = {
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
   '@verajs/inserts': 'inserts',
+  '@verajs/computed': 'computed',
   '@verajs/spread': 'spread',
   '@verajs/styles': 'styles',
 };
@@ -188,6 +189,7 @@ const recipes = readmes.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  'packages/computed/README.md': 1,
   'packages/renderer/README.md': 1,
   'packages/spread/README.md': 1,
   'packages/styles/README.md': 2,

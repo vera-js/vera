@@ -86,16 +86,22 @@ test('same-priority registration replaces rather than duplicates, across bundles
 // ── the rule for extension packages ─────────────────────────────────────────
 
 test('registering through a foreign @verajs/inserts copy never reaches core', async () => {
-  const standalone = await load('inserts');
+  /**
+   * A cache-busting query, so this is a genuinely separate copy however the specifier resolves.
+   * Loading it plainly used to work by accident: without `--conditions development` core's bare
+   * `@verajs/inserts` fell through to the *production* build while this line loaded the development
+   * one, so they differed for the wrong reason. Once the suite resolved the way a development
+   * consumer does, they became the same module and this assertion inverted.
+   */
+  const standalone = await load('inserts', '?foreign');
   assert.notEqual(standalone.inserts, core.inserts, 'a separately loaded registry is its own map');
 
   const before = core.inserts.get('init')?.length ?? 0;
   standalone.insert('init', () => {}, 90);
 
   /**
-   * The trap, in executable form, and it holds in BOTH builds — whether a second copy exists at all
-   * depends on the build and on how the module was resolved, which is exactly what makes it
-   * treacherous. `@verajs/styles` was first written to register through its own copy: it passed
+   * The trap, in executable form. Whether a second copy exists at all depends on the build *and* on
+   * how the specifier resolved, which is exactly what makes it treacherous — so this forces one. `@verajs/styles` was first written to register through its own copy: it passed
    * every development test and did nothing whatsoever in a production build.
    *
    * Nothing throws. The registration simply lands somewhere core never looks.

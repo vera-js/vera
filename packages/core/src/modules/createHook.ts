@@ -123,4 +123,15 @@ export function createHook(hook: Hook) {
   derefElement._hooks ??= [];
   derefElement._hookPriorities ??= [];
   prioritySlot(derefElement._hooks, derefElement._hookPriorities, priority, () => new Set()).add(hookCallback);
+
+  /**
+   * Handed back so a caller can run the hook itself, which is the only way to record what it reads:
+   * tracking happens while `hooksQueue` holds this entry, and that only happens inside this wrapper.
+   * A component never needs it — `render()` drives the first pass — but anything owning its own
+   * reactive value does, and reaching into `element._hooks` for it is not an API.
+   *
+   * The function already exists; returning it is the difference between a module being able to
+   * build on core and having to reach inside it.
+   */
+  return hookCallback;
 }

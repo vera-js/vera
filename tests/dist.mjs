@@ -23,6 +23,7 @@ export const isProduction = process.env.VERA_DIST === 'production';
 
 /** Bundle name -> the `filename` its package.json declares. */
 const ENTRY = {
+  computed: ['computed', 'vera-computed'],
   core: ['core', 'vera'],
   renderer: ['renderer', 'vera-renderer'],
   'renderer/hydrate': ['renderer', 'vera-renderer-hydrate'],

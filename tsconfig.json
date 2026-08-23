@@ -36,6 +36,9 @@
       "@verajs/core": [
         "./packages/core/src/index.ts"
       ],
+      "@verajs/computed": [
+        "./packages/computed/src/index.ts"
+      ],
       "@verajs/inserts": [
         "./packages/inserts/src/index.ts"
       ],

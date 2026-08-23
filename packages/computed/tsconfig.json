@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "_comment": "Resolves @verajs/core through the root paths alias, so core and its own dependencies must be in this project too.",
+  "include": [
+    "src/**/*",
+    "../core/src/**/*",
+    "../inserts/src/**/*",
+    "../shared-utils/src/**/*",
+    "../shared-types/src/**/*"
+  ]
+}
