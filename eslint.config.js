@@ -47,6 +47,40 @@ export default [
   {
     files: ['packages/*/src/**/*.{js,ts}', 'examples/**/*.{js,ts}'],
     languageOptions: { globals: { ...globals.browser, __DEV__: 'readonly' } },
+    rules: {
+      /**
+       * Custom-element instance fields must be `declare`, never plain fields.
+       *
+       * At target ES2022 `useDefineForClassFields` is on, so a field declaration compiles to a
+       * `[[Define]]` — `item?: Thing` emits `item;`, i.e.
+       * `Object.defineProperty(this, 'item', { value: undefined })`. That runs during upgrade, and
+       * a custom element is routinely given properties *before* it upgrades: a parent binds
+       * `.item=${store}` while the child's module is still loading, or code assigns to an element
+       * whose definition has not run. The field then silently overwrites the value. Dropping the
+       * initializer does not help — only `declare`, which emits nothing, does.
+       *
+       * `@verajs/renderer` restores values it bound itself and warns in development, but a
+       * property assigned imperatively is unrecoverable: nothing ever saw it. So this stays a
+       * build-time error rather than a convention. `static` is excluded — `static styles` is the
+       * `@verajs/styles` pattern and is never an instance field.
+       *
+       * Lit reached the same rule from the other direction; a class field permanently shadows
+       * their prototype accessors, and their development build throws
+       * (`lit.dev/msg/class-field-shadowing`).
+       */
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            ':matches(ClassDeclaration, ClassExpression)[superClass.name="HTMLElement"]' +
+            ' > ClassBody > PropertyDefinition[static!=true][declare!=true]',
+          message:
+            'Declare custom-element instance fields with `declare` (e.g. `declare item?: Thing`). ' +
+            'A plain field compiles to a [[Define]] that runs at upgrade and silently overwrites ' +
+            'any value set on the element beforehand.',
+        },
+      ],
+    },
   },
 
   /**

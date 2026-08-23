@@ -502,8 +502,8 @@ class AttrPart implements Part {
         target[name] = value;
         /**
          * A property set on a custom element that has not upgraded yet lands as an own property on
-         * the instance. When its definition arrives — which for an autoloaded component is always
-         * after the binding ran — `customElements.define` upgrades synchronously and the class's
+         * the instance. When its definition arrives — lazily imported, code-split, or simply a
+         * module that had not run — `customElements.define` upgrades synchronously and the class's
          * field initializers execute. Under ES2022 class-field semantics a declared field is a
          * [[Define]], so `item?: T` overwrites what the binding just set with `undefined`.
          *
@@ -513,7 +513,24 @@ class AttrPart implements Part {
         const tag = this._element.localName;
         if (tag.indexOf('-') > 0 && !customElements.get(tag)) {
           customElements.whenDefined(tag).then(() => {
-            if (target[name] === undefined) target[name] = value;
+            if (target[name] === undefined) {
+              target[name] = value;
+              /**
+               * Reaching here proves a class field overwrote a bound value, so there are no false
+               * positives to weigh — and the same field silently destroys any property assigned
+               * imperatively before upgrade, which nothing can recover because the renderer never
+               * saw it. Said once, where the user can act on it. Lit reached the same conclusion
+               * and throws outright; a warning is enough here, because unlike Lit's prototype
+               * accessors nothing stays broken after the value is restored.
+               */
+              if (__DEV__)
+                console.warn(
+                  `@verajs/renderer: <${tag}> declares a class field for \`${name}\`, which ` +
+                    `overwrote the value bound by \`.${name}=\${…}\` when the element upgraded. ` +
+                    `Restored it. Write the field as \`declare ${name}?: …\` — a plain field also ` +
+                    `wipes properties assigned imperatively before upgrade, which cannot be restored.`
+                );
+            }
           });
         }
       } else if (kind === BOOLEAN) {

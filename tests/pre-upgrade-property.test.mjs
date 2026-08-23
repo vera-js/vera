@@ -15,7 +15,8 @@
  * slot was actually clobbered, so a component that assigns the property itself keeps its own value.
  */
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { readFile } from 'node:fs/promises';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body><div id="host"></div></body>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'customElements', 'HTMLElement', 'Node', 'Element', 'Event',
@@ -75,6 +76,36 @@ check('already-defined element gets the property', host.querySelector('pre-upgra
 render(html`<input .value=${'typed'} />`, host);
 await frame();
 check('plain elements still take properties', host.querySelector('input').value === 'typed');
+
+/**
+ * 7. The warning. Reaching the restore proves a class field clobbered a bound value, so this fires
+ * only on a real defect. It also teaches the case the renderer cannot fix — a property assigned
+ * imperatively before upgrade, which nothing ever saw and nothing can restore. Development only:
+ * `__DEV__` folds to `false` before terser, so production carries neither the check nor the string.
+ */
+const warnings = [];
+const realWarn = console.warn;
+console.warn = (...args) => warnings.push(args.join(' '));
+
+render(html`<pre-upgrade-warned .item=${store}></pre-upgrade-warned>`, host);
+await frame();
+class PreUpgradeWarned extends HTMLElement {
+  item = undefined;
+}
+customElements.define('pre-upgrade-warned', PreUpgradeWarned);
+await frame();
+console.warn = realWarn;
+
+const warned = warnings.filter((w) => w.includes('class field') && w.includes('item'));
+if (isProduction) {
+  check('production carries no warning', warned.length === 0, `got ${warned.length}`);
+  check('production strips the warning text from the bundle',
+    !(await readFile(new URL('../packages/renderer/dist/vera-renderer.min.js', import.meta.url), 'utf8'))
+      .includes('declare'));
+} else {
+  check('development warns once, naming the property', warned.length === 1, `got ${warned.length}`);
+  check('the warning tells you to use declare', warned[0]?.includes('declare item'), warned[0]);
+}
 
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

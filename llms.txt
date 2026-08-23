@@ -540,6 +540,35 @@ Say so rather than inventing an API:
 7. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
 8. An autoloaded file that loads but never calls `customElements.define` for its tag → the
    autoloader waits forever, silently. The module must define the element it is named for.
+9. **TypeScript: a plain class field on a custom element silently destroys values set before the
+   element upgrades.** Use `declare`. See below — this one is invisible and costs you real data.
+
+## TypeScript: always `declare` custom-element fields
+
+```ts
+class ChildElement extends HTMLElement {
+  declare item?: { message: string };   // correct — emits nothing
+  // item?: { message: string };        // WRONG — emits `item;`
+}
+```
+
+At target ES2022 `useDefineForClassFields` is on, so a field *declaration* is a runtime
+instruction: `item?: Thing` compiles to `item;`, which is
+`Object.defineProperty(this, 'item', { value: undefined })`. Omitting the initializer does not
+help; only `declare`, which emits nothing at all, does. Plain JavaScript is unaffected unless you
+write `item = undefined` yourself.
+
+That matters because a custom element is routinely given properties **before it upgrades** — a
+parent binds `.item=${store}` while the child's module is still loading, or code assigns to an
+element whose `customElements.define` has not run yet. The property lands on the un-upgraded
+instance; then `define` upgrades it synchronously, the field initializer runs, and the value is
+overwritten with `undefined`. Nothing throws. The component renders empty and the bug looks like
+broken reactivity.
+
+`@verajs/renderer` restores values **it** bound and warns in development (production carries
+neither the check nor the message). A property assigned imperatively is not recoverable — the
+renderer never saw it, and by the time `init()` runs the value is already gone. So `declare` is
+the rule, and the renderer's rescue is a safety net, not a substitute.
 
 ## Repository
 

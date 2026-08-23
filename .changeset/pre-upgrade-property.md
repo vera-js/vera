@@ -23,6 +23,13 @@ elements and plain built-ins never enter the path — the guard is one `indexOf(
 
 Costs 74 B gzipped. A working app goes 5 600 B to 5 665 B, still below Lit and Preact + signals.
 
-Writing the field as `declare item?: Thing` remains correct and is still needed for a property
-assigned imperatively outside a template, but it is no longer something every consumer has to know
-to use a binding.
+Development builds also warn when a restore happens, naming the property and pointing at `declare`.
+Reaching the restore proves a class field clobbered a bound value, so there are no false positives.
+The warning costs production nothing: `__DEV__` folds to `false` before terser, and the bundle is
+byte-identical with and without it.
+
+Writing the field as `declare item?: Thing` remains the rule and is still required for a property
+assigned imperatively, which cannot be restored — the renderer never saw it. It is simply no longer
+something every consumer must know before a binding will work. Lit reached the same conclusion from
+the other direction: a class field permanently shadows their prototype accessors, and their
+development build throws (`lit.dev/msg/class-field-shadowing`).
