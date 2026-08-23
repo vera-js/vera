@@ -11,4 +11,28 @@ committed in place versus torn down and rebuilt, naming the template pairs that 
 `showProfiler()` puts the same information in a live panel in the corner of the page. It costs
 production nothing — the instrumentation is removed by the build, not merely unused.
 
-Wire once: `setRenderer(render)` from `@verajs/core`.
+Wire once, at your app entry, before any component defines itself:
+
+<!-- recipe -->
+```js
+import { init, createStore, render, setRenderer, html } from '@verajs/core';
+import { render as domRender } from '@verajs/renderer';
+
+setRenderer(domRender);
+
+customElements.define(
+  'click-counter',
+  class extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      const state = createStore({ count: 0 });
+      render(() => html`<button @click=${() => state.count++}>Clicked ${state.count} times</button>`);
+    }
+  }
+);
+
+document.body.append(document.createElement('click-counter'));
+```
+
+Without `setRenderer`, core has no renderer at all: `render()` warns once in development and puts
+nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.

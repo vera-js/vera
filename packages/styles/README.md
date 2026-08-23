@@ -3,6 +3,7 @@
 `static styles` for VeraJS components (<!--size:styles.gzip-->520 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
 roots, and `@scope`-wrapped hoisting for light DOM.
 
+<!-- recipe -->
 ```js
 import { insert } from '@verajs/core';
 import { adoptStyles } from '@verajs/styles';
@@ -47,19 +48,40 @@ against the element's inherited custom properties at computed-style time, not wh
 adopted, so it re-resolves the moment one changes — and custom properties inherit *through* the
 shadow boundary:
 
+<!-- recipe -->
 ```js
-class Tinted extends HTMLElement {
-  static styles = css`p { color: var(--accent, blue); }`;
+import { init, createStore, render, setRenderer, css, html, insert } from '@verajs/core';
+import { render as domRender } from '@verajs/renderer';
+import { adoptStyles } from '@verajs/styles';
 
-  connectedCallback() {
-    init(this, { mode: 'open' });
-    const state = createStore({ accent: 'blue' });
-    render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
+setRenderer(domRender);
+insert('init', adoptStyles, 50);
+
+customElements.define(
+  'x-tinted',
+  class extends HTMLElement {
+    static styles = css`p { color: var(--accent, blue); }`;
+
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      const state = createStore({ accent: 'blue' });
+      render(
+        () => html`
+          <div style="--accent: ${state.accent}">
+            <p>tinted</p>
+            <button @click=${() => (state.accent = 'red')}>Redden</button>
+          </div>
+        `
+      );
+    }
   }
-}
+);
 
-state.accent = 'red';   // re-renders the binding; the adopted sheet re-resolves
+document.body.append(document.createElement('x-tinted'));
 ```
+
+Clicking the button writes `state.accent`, which re-renders the binding; the adopted sheet
+re-resolves `var(--accent)` against the new value. The sheet itself was never touched.
 
 Setting the property on the host works too, from anywhere — `el.style.setProperty('--accent', 'red')`
 — as does inheriting it from an ancestor, and both apply equally to the light-DOM `@scope` path.

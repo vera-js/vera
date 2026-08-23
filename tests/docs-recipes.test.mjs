@@ -8,6 +8,17 @@
  * The code blocks are extracted from README.md and executed as written — not copied here, which
  * would drift the moment someone edits the docs. Bare `@verajs/*` specifiers are rewritten to the
  * built artifacts under test, which is the only transformation applied.
+ *
+ * Two layers. The named tests below cover the root README's quick-starts, where the assertions are
+ * specific — the button increments, the effect fires. Beneath them, every README in the repo is
+ * scanned for blocks marked `<!-- recipe -->`, each of which is executed and must complete without
+ * throwing and without a console warning or error.
+ *
+ * The marked pass exists because the root README is the one file that **does not ship**: tarballs
+ * carry `packages/*​/README.md`, so the documentation users actually receive was the part with no
+ * coverage at all. Marking is opt-in rather than "run every js block" because a README legitimately
+ * contains code that must not run — `@verajs/eslint-config` documents both the wrong and the right
+ * way to write a class field, and executing the wrong one proves nothing.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,14 +40,23 @@ const PACKAGES = {
   '@verajs/styles': 'styles',
 };
 
-/** Point bare specifiers at the artifacts this run is testing. */
-const resolveImports = (code) =>
+/**
+ * Point bare specifiers at the artifacts this run is testing, with a per-recipe cache-buster.
+ *
+ * The query matters more than it looks. Core's insert registry is module-level state, so without a
+ * fresh instance a recipe inherits whatever earlier recipes registered — and a recipe that forgot
+ * `setRenderer` would then pass, carried by a renderer someone else wired. That is precisely the
+ * defect this file was written for, so the harness must not be able to hide it. Verified: dropping
+ * `setRenderer` from a recipe fails the run.
+ */
+const resolveImports = (code, generation) =>
   code.replace(/from ['"](@verajs\/[a-z]+)['"]/g, (whole, spec) =>
-    PACKAGES[spec] ? `from '${distUrl(PACKAGES[spec])}'` : whole
+    PACKAGES[spec] ? `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'` : whole
   );
 
+let generation = 0;
 const runModule = async (code) => {
-  const resolved = resolveImports(code);
+  const resolved = resolveImports(code, generation++);
   await import('data:text/javascript;base64,' + Buffer.from(resolved).toString('base64'));
 };
 
@@ -130,3 +150,69 @@ test('the multi-module CDN snippet wires connectInserts', () => {
   assert.ok(block, 'the multi-module snippet is present');
   assert.match(block.body, /connectInserts\(/, 'it must call connectInserts');
 });
+
+/* ── Marked recipes, every README in the repo ─────────────────────────────────────────────────────
+ *
+ * Opt in by putting `<!-- recipe -->` on the line before a fenced block. The block is then executed
+ * as an ES module under a fresh jsdom and must finish without throwing and without writing to
+ * `console.warn` or `console.error` — VeraJS reports real misuse through those, so a silent recipe
+ * is the actual contract. A block without the marker is documentation only, which is what lets a
+ * README show the wrong way to do something.
+ *
+ * A recipe must be self-contained, imports included. That is a docs property worth enforcing rather
+ * than a limitation to work around: a reader copying one block should get working code, and a block
+ * that only runs given something established earlier in the page cannot be copied.
+ *
+ * Each runs in its own process — see `tests/run-recipe.mjs` for why a cache-busting query is not
+ * enough. Under the production condition the `__DEV__` guards that produce these warnings are
+ * compiled out, so that run checks only that a recipe completes without throwing; the warning
+ * assertions are meaningful in development, which is where a developer would see them.
+ */
+import { globSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+
+const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
+
+const readmes = ['README.md', ...globSync('packages/*/README.md').sort()];
+const recipes = readmes.flatMap((path) => {
+  const text = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  return [...text.matchAll(RECIPE)].map(([, lang, body], i) => ({ path, lang, body, index: i + 1 }));
+});
+
+/**
+ * The inventory, pinned exactly rather than as a floor.
+ *
+ * A recipe losing its marker is invisible otherwise — the suite would simply run one fewer test and
+ * stay green, which is the same shape as the original problem this file exists for. An exact map
+ * means both adding and removing a recipe is a deliberate edit here.
+ */
+const EXPECTED_RECIPES = {
+  'packages/renderer/README.md': 1,
+  'packages/styles/README.md': 2,
+};
+
+test('the marked recipes are exactly the ones we expect', () => {
+  const byFile = {};
+  for (const r of recipes) byFile[r.path] = (byFile[r.path] ?? 0) + 1;
+  assert.deepEqual(byFile, EXPECTED_RECIPES);
+  for (const r of recipes) {
+    assert.ok(['js', 'ts'].includes(r.lang), `${r.path} recipe ${r.index}: only js/ts can be executed`);
+  }
+});
+
+const RUNNER = new URL('./run-recipe.mjs', import.meta.url).pathname;
+
+for (const { path, body, index } of recipes) {
+  test(`${path} — recipe ${index} runs clean`, () => {
+    const resolved = resolveImports(body, `recipe-${index}`);
+    const result = spawnSync('node', [RUNNER, Buffer.from(resolved).toString('base64')], {
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, `${path} recipe ${index} threw:\n${result.stderr}`);
+    assert.deepEqual(
+      JSON.parse(result.stdout || '[]'),
+      [],
+      `${path} recipe ${index} wrote to the console`
+    );
+  });
+}
