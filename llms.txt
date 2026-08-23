@@ -264,8 +264,9 @@ at parity with writing the bindings out.
 it. There is no value meaning "absent" for a property: `undefined` runs through coercing setters so
 dropping `.value` would yield `""`, and `delete` cannot remove a prototype accessor. So
 `<input type="text" ${spread({ type: 'number' })}>` reverts to `type="text"`. Bind `null` to remove.
-On a hydrated page "before the binding" is the server's markup, so a dropped key restores the server
-value — bind `null` if you mean removal there.
+On a hydrated page that restores the *server's* value, because a spread key replaces a static
+attribute in server markup exactly as it overwrites one on the client — the original is gone by
+construction. Bind `null` when you mean removal.
 
 Several spreads on one element are fine; each element position owns its own keys.
 

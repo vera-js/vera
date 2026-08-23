@@ -95,7 +95,9 @@ export const serializeTemplate = (template) => {
     const value = values[i];
     switch (kinds[i]) {
       case TEXT:
-        out += serializeValue(value);
+        /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
+        if (value !== null && typeof value === 'object' && value._$attrs$) out = foldSpread(out, value._$attrs$());
+        else out += serializeValue(value);
         break;
       case BOOLEAN:
         if (value) out += ` ${names[i]}=""`;
@@ -114,22 +116,43 @@ export const serializeTemplate = (template) => {
 };
 
 /**
- * Resolved spread bindings to attribute markup. Mirrors the per-kind switch used for written
- * bindings, so `${spread({ '?disabled': true })}` and `?disabled=${true}` serialize identically.
+ * Fold resolved spread bindings into the tag being built, mirroring what the client does.
+ *
+ * Appending is not enough, and the difference is a correctness bug rather than a nicety.
+ * `<input type="text" ${spread({ type: 'number' })}>` appends a second `type`, and an HTML parser
+ * keeps the **first** duplicate — so the server would render `type="text"` while the client, where
+ * `setAttribute` overwrites, renders `type="number"`. Same template, two answers, and a hydration
+ * mismatch between them.
+ *
+ * So a spread key removes any attribute of that name already written into the open tag before
+ * adding its own — including when it adds nothing, because `?disabled: false` and `id: null` both
+ * *remove* on the client and must remove here too. Kinds that never touch attributes client-side
+ * (events, non-form properties) leave the tag alone.
+ *
+ * Splitting on the last `<` is safe: attribute values are escaped, so no raw `<` can appear inside
+ * one.
  */
-const serializeSpread = (entries) => {
-  let out = '';
+const foldSpread = (out, entries) => {
+  const tagStart = out.lastIndexOf('<');
+  let tag = out.slice(tagStart);
+  let added = '';
+
   for (const [kind, name, value] of entries) {
-    if (kind === 'a') {
-      if (value != null && value !== false) out += ` ${name}="${escapeHtml(serializeValue(value, true))}"`;
-    } else if (kind === 'b') {
-      if (value) out += ` ${name}=""`;
-    } else if (kind === 'p' && FORM_ATTRIBUTES.includes(name)) {
-      if (value != null && value !== false) out += ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
+    const serializes = kind === 'a' || kind === 'b' || (kind === 'p' && FORM_ATTRIBUTES.includes(name));
+    if (!serializes) continue;
+
+    /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */
+    tag = tag.replace(new RegExp(`\\s${name}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i'), '');
+
+    if (kind === 'b') {
+      if (value) added += ` ${name}=""`;
+    } else if (value != null && value !== false) {
+      added += ` ${name}="${escapeHtml(kind === 'p' && value === true ? '' : serializeValue(value, true))}"`;
     }
-    /** `e`, and any other property: client state, never markup. */
   }
-  return out.slice(1); // the element-position slot already carries the separating space
+
+  /** The element-position slot already carries the separating space. */
+  return out.slice(0, tagStart) + tag + (added ? added.slice(1) : '');
 };
 
 const serializeValue = (value, raw = false) => {
@@ -147,7 +170,6 @@ const serializeValue = (value, raw = false) => {
      *
      * Anything else at element position is a ref, which is a client concern.
      */
-    if (value._$attrs$) return serializeSpread(value._$attrs$());
     return '';
   }
   return raw ? String(value) : escapeHtml(value);

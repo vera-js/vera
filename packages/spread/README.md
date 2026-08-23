@@ -68,9 +68,24 @@ render(html`<input type="text" ${spread({})} />`, host);                  // typ
 ```
 
 Not removed — *restored*. The usual framing, "what value means absent", has no answer for a
-property: assigning `undefined` runs through coercing setters, so dropping `.value` yields `""`
-rather than reverting, and `delete` cannot remove a prototype accessor. Asked as "undo what this
-binding did" it is well defined for every kind, and never invents a value you did not write.
+property: `delete` cannot remove a prototype accessor, and assigning `undefined` puts the literal
+string `"undefined"` into a form field. Asked as "undo what this binding did" it is well defined for
+every kind, because it reads the element's own pristine state — `""` for `input.value`, `undefined`
+for a custom element's property.
+
+**On a hydrated page it restores the server's value**, because that is genuinely what was there
+before the binding: the server rendered this same spread, and a spread key *replaces* a static
+attribute in server markup exactly as it overwrites one on the client. The original is gone by
+construction, so bind `null` when you mean removal:
+
+```js
+render(html`<input ${spread({ id: null })} />`, host);   // removes, on either path
+```
+
+One residue worth knowing: `.value`, `.checked` and `.selected` are mirrored to attributes
+server-side so hydration can read them back, and releasing the property does not clear that
+attribute. The property is correct either way; the attribute lingers as the field's *default*
+value.
 
 A released event binding stops dispatching; the listener itself stays registered, which is how
 written `@event` bindings behave too.
