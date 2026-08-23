@@ -25,11 +25,25 @@ connectInserts(inserts);
  * serves the TypeScript sources; a dev server will not answer a request for `hello-component.js`
  * when only `hello-component.ts` exists on disk.
  */
-setAutoloader(
-  initAutoloader(import.meta.url, 'components', {
-    extension: import.meta.env.DEV ? '.ts' : '.js',
-  })
-);
+const autoload = initAutoloader(import.meta.url, 'components', {
+  extension: import.meta.env.DEV ? '.ts' : '.js',
+});
+
+/** Covers every component that renders. */
+setAutoloader(autoload);
+
+/** And this covers what no render touches — the marked host written by hand in index.html. */
+autoload();
+
+/**
+ * A failed load is permanent for the page, which is right for a component that does not exist and
+ * wrong for one lost to a dropped connection. The event hands over the element to retry.
+ */
+addEventListener('vera:autoload-error', (event) => {
+  const { element } = (event as CustomEvent<{ element: Element }>).detail;
+  if (navigator.onLine) return;
+  addEventListener('online', () => autoload.retry(element), { once: true });
+});
 
 setRenderer(render);
 setHtml(html);

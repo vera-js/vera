@@ -26,8 +26,35 @@ connectInserts(inserts);
 insert('proxy-handler', computedValues, 40);
 
 
-/** Components load lazily by tag name, relative to this file. */
-setAutoloader(initAutoloader(import.meta.url, 'components'));
+/**
+ * Components load lazily by tag name, relative to this file.
+ *
+ * `setAutoloader` covers everything a component *renders*. The three lines after it cover what a
+ * render never touches, and are the whole of the module's other surface:
+ */
+const autoload = initAutoloader(import.meta.url, 'components');
+setAutoloader(autoload);
+
+/** Markup written by hand in index.html — nothing renders it, so it has to be asked for. */
+autoload();
+
+/**
+ * `url(tag)` is the URL the loader would fetch. Warming it is a `modulepreload` link, but with the
+ * URL in hand it could as easily be a prefetch or a service-worker cache.
+ */
+const warm = document.createElement('link');
+warm.rel = 'modulepreload';
+warm.href = autoload.url('demo-counter');
+document.head.appendChild(warm);
+
+/**
+ * A failed load is permanent for the page, which is right for a component that does not exist and
+ * wrong for one lost to a dropped connection. The event hands over the element to retry.
+ */
+addEventListener('vera:autoload-error', ({ detail }) => {
+  if (navigator.onLine) return;
+  addEventListener('online', () => autoload.retry(detail.element), { once: true });
+});
 
 setRenderer(render);
 setHtml(html);
