@@ -32,5 +32,5 @@ that is not coming. An event rather than core's `'error'` insert, because this p
 does not depend on core and reaching for `insert` from `@verajs/inserts` would write to a registry
 core never reads in a production build.
 
-583 B to 905 B gzipped: 174 B for the observation machinery and the tag fix, 77 B for the document
+583 B to 905 B gzipped: 187 B for the observation machinery and the tag fix, 77 B for the document
 sweep, 58 B for the error event. The last two are separable features rather than part of the rewrite.
