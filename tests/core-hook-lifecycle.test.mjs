@@ -129,7 +129,35 @@ const mount = (setup) => {
   body.removeChild(el);
 }
 
-/* ── the silent case: hooks registered, render never called ─────────────────────────────────── */
+/* ── committing without rendering ───────────────────────────────────────────────────────────── */
+{
+  /**
+   * A component whose whole job is a side effect has nothing to draw. `render()` does two jobs —
+   * declare the markup and commit the setup — and `commit()` is the second without the first.
+   *
+   * Committing on a schedule instead was built and rejected: it would have run a headless
+   * component's effects a microtask later than a rendering component's, so identical code had two
+   * orderings depending on whether it drew anything. It also measured larger.
+   */
+  let ran = 0;
+  const el = mount((element) => {
+    core.init(element);
+    const state = core.createStore({ n: 0 });
+    element._state = state;
+    core.useEffect(() => { ran++; void state.n; });
+    core.commit();
+  });
+  check('commit() runs the first pass synchronously, as render() does', ran === 1);
+
+  el._state.n = 1;
+  await frame();
+  check('and the effect stays subscribed afterwards', ran === 2, `ran ${ran}`);
+  body.removeChild(el);
+
+  check('commit() outside a component does nothing', (core.commit(), true));
+}
+
+/* ── the silent case: neither render() nor commit() ─────────────────────────────────────────── */
 {
   let ran = 0;
   const said = [];
@@ -140,17 +168,18 @@ const mount = (setup) => {
     const state = core.createStore({ n: 0 });
     element._state = state;
     core.useEffect(() => { ran++; void state.n; });
-    /** No render(), which is what drives the first pass. */
+    /** Neither commit is called, which is the mistake. */
   });
   await frame();
   console.warn = realWarn;
 
-  check('the hook never runs without render()', ran === 0);
+  check('an uncommitted hook never runs', ran === 0);
   if (isProduction) {
     check('production says nothing about it', said.length === 0);
   } else {
-    const warned = said.filter((line) => line.includes('never called render'));
-    check('development warns that it will never run', warned.length === 1, said.join(' | '));
+    const warned = said.filter((line) => line.includes('never committed'));
+    check('development warns it will never run', warned.length === 1, said.join(' | '));
+    check('and points at commit()', warned[0]?.includes('commit()'));
     check('and names the component', warned[0]?.includes(el.localName));
   }
   body.removeChild(el);

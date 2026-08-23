@@ -10,6 +10,7 @@
 export { insert, inserts, setRenderer, setAutoloader } from '@verajs/inserts';
 export type * from '@verajs/inserts';
 export type * from './types.js';
+export { commit } from './modules/commit.js';
 export { createHook } from './modules/createHook.js';
 export { createStore } from './modules/createStore.js';
 export { deps } from './modules/deps.js';
