@@ -1,6 +1,5 @@
 import { RouteSnapshot, RouteEvent, RouteEventHandler } from './types.js';
-import { handlers } from './state.js';
-import { get } from '@verajs/shared-utils';
+import { getOrCreate, handlers } from './state.js';
 
 /**
  * Emits an event that can be watched with on and interrupted by returning false. Handler can
@@ -34,7 +33,7 @@ export const emit = async (
       }
     } catch (error) {
       interrupted = true;
-      console.error(`Error executing handler for event ${event}:`, error);
+      console.error(`[vera] ${event} handler threw`, error);
     }
   }
 
@@ -49,10 +48,11 @@ export const emit = async (
  * @param handler Handler function to add
  */
 export const on = (element: HTMLElement, event: RouteEvent, handler: RouteEventHandler) => {
-  get(handlers)
-    .get(element, new Map<RouteEvent, Set<RouteEventHandler>>())
-    .get(event, new Set<RouteEventHandler>())
-    .value.add(handler);
+  getOrCreate(
+    getOrCreate(handlers, element, () => new Map<string, Set<RouteEventHandler>>()),
+    event,
+    () => new Set<RouteEventHandler>()
+  ).add(handler);
 };
 
 /**

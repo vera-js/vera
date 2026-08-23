@@ -1,8 +1,7 @@
 import { Route, RouteOptions } from './types.js';
 import { routerSettings } from './state.js';
 import { navigate } from './services.js';
-import { get } from '@verajs/shared-utils';
-import { elements, elementsData, handlers, routers } from './state.js';
+import { elements, elementsData, getOrCreate, handlers, routers } from './state.js';
 
 /**
  * Adds a listener to an element that queries for valid links and changes the route if appropriate.
@@ -65,7 +64,7 @@ export const addRoutes = (element: HTMLElement, routes: RouteOptions[], parentRo
       route = { ...route, matchFunction };
     }
 
-    get(routers).get(element, new Set<Route>()).value.add(route);
+    getOrCreate(routers, element, () => new Set<Route>()).add(route);
   }
 
   if (!parentRoute) addLinkListener(element);

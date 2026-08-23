@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->2.87 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->2.89 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -58,13 +58,33 @@ renders; **routed links**, marked with a bare `route` attribute; and the route l
 | `view` | a different outlet for this route: a name, an element, or a function returning either |
 | `redirect` | send this route elsewhere — a path, or a function of the params |
 | `children` | routes whose paths are prefixed by this one |
+| `meta` | arbitrary data, carried to guards and components on the snapshot |
 
 `component`, `action`, `title` and `view` all receive `(params, to, from)`, where `to` and `from` are
-route snapshots carrying `path`, `params`, `query` and `trigger`.
+route snapshots carrying `path`, `params`, `query`, `trigger` and `meta`.
 
-**Patterns.** `:name` matches one segment; `*name` matches the rest of the path and gives you an
-array of segments. Everything else is literal — `/file.html` matches only that path, not
-`/fileXhtml`. Params arrive **percent-decoded**, so `/u/John%20Doe` gives you `John Doe`.
+**`meta` is yours.** The router never reads it — it carries it — which is what lets a guard decide on
+the route's own terms rather than by re-parsing the path it was handed:
+
+```js
+{ path: '/admin/:id', meta: { requiresAuth: true }, component: adminView }
+
+router.on('before-route', async (to) => {
+  if (to.meta?.requiresAuth && !(await isSignedIn())) {
+    navigate('/login', 'replace');
+    return false;
+  }
+});
+```
+
+**Patterns.** `:name` matches one segment, `:name?` makes that segment optional, and `*name`
+matches the rest of the path and gives you an array of segments. Everything else is literal —
+`/file.html` matches only that path, not `/fileXhtml`. Params arrive **percent-decoded**, so
+`/u/John%20Doe` gives you `John Doe`; an optional param that did not match is simply absent.
+
+```js
+{ path: '/users/:id?' }   // matches /users and /users/5
+```
 
 **Order decides the match.** Routes are tried in the order you register them and the first match
 wins, so `/users/:id` before `/users/new` makes `/users/new` unreachable. Register literal paths
@@ -90,6 +110,10 @@ entry per user navigation, and none for back/forward or the initial load.
 A newer navigation **supersedes** an older one. If a route's `component` fetches and the user clicks
 something else while it is in flight, the abandoned pass stops at its next checkpoint and commits
 nothing — no render, no history entry, no title.
+
+`router.currentRoute` is where that router is now, with the params and query already parsed —
+`undefined` until it has routed once. `location.pathname` gives you the string back; this gives you
+the match.
 
 ## Guards and events
 
@@ -156,6 +180,22 @@ left that entry at: the router stamps the scroll offset into history state on th
 restores it after the content renders, which is why it sets `history.scrollRestoration = 'manual'` —
 the browser's own restoration fires before a routed view exists.
 
+`scrollBehavior` replaces both — for a list that should keep its offset, a view that scrolls its own
+container rather than the window, or smooth scrolling:
+
+```js
+initRouter(this, {
+  view: 'main',
+  scrollBehavior: (to, saved) => {
+    if (saved) window.scrollTo(...saved);                 // back/forward
+    else if (!to.path.startsWith('/inbox')) window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+});
+```
+
+`saved` is the position stamped on the entry a back/forward traversal landed on, and is absent for
+every other trigger.
+
 ## Options
 
 ```js
@@ -169,8 +209,9 @@ initRouter(element, { view: 'main', focusView: true, handleInitial: true, pushHa
 | `handleInitial` | route the landing URL on the first frame. Default `true` |
 | `pushHash` | let fragments reach the URL. Default `true` |
 | `hashChangeFunction` | called with each fragment |
+| `scrollBehavior` | replace where the page scrolls to after routing |
 
-`initRouter` returns `{ addRoutes, deleteRouter, on, off }`. `deleteRouter()` removes the routes,
+`initRouter` returns `{ addRoutes, currentRoute, deleteRouter, on, off }`. `deleteRouter()` removes the routes,
 the handlers and the link listener — call it if the host element outlives its routing.
 
 ## Extending it

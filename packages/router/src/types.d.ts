@@ -23,10 +23,18 @@ export type ParsedPattern = {
 
 export type HashChangeFunction = (path: string) => void;
 
+/**
+ * Replaces where the page scrolls to after routing. `saved` is the position stamped on the history
+ * entry a back/forward traversal landed on, and is absent for every other trigger. The default,
+ * with none of this set, is `saved` if there is one and the top of the page otherwise.
+ */
+export type ScrollBehaviorFunction = (to: RouteSnapshot, saved?: [number, number]) => void;
+
 export type RouteEvent = 'before-leave' | 'before-route' | 'after-route';
 
 export interface RouterSettings {
   hashChangeFunction?: HashChangeFunction;
+  scrollBehavior?: ScrollBehaviorFunction;
   match: <P extends ParamData>(routePattern: string) => MatchFunction<P>;
   pushHash?: boolean;
 }
@@ -37,7 +45,17 @@ export interface RouteSnapshot {
   /** Parsed query string — the query rides in the URL but never reaches pattern matching. */
   query?: URLSearchParams;
   trigger?: RouteTrigger;
+  /** Whatever the matched route declared as `meta`. */
+  meta?: RouteMeta;
 }
+
+/**
+ * Arbitrary data attached to a route and handed to every guard, action and component on the
+ * snapshot. This is where `requiresAuth`, a layout name, a breadcrumb label or an analytics id
+ * belong: the router never reads it, so a guard can decide on the route's own terms instead of
+ * re-parsing its path.
+ */
+export type RouteMeta = Record<string, unknown>;
 
 export type Route = {
   pattern?: string;
@@ -49,6 +67,8 @@ export type Route = {
 export interface RouteOptions {
   path: (() => string) | string;
   title?: RouteAction | string;
+  /** Arbitrary data for guards to read off the snapshot — see {@link RouteMeta}. */
+  meta?: RouteMeta;
   children?: RouteOptions[];
   component?: RouteAction;
   action?: RouteAction;
@@ -77,10 +97,13 @@ export interface RouterOptions extends BaseRouterOptions {
   handleInitial?: boolean;
   hashChangeFunction?: HashChangeFunction;
   pushHash?: boolean;
+  scrollBehavior?: ScrollBehaviorFunction;
 }
 
 export interface RouterMethods {
   addRoutes: (routes: RouteOptions[]) => void;
+  /** Where this router is now — `undefined` until it has routed once. */
+  readonly currentRoute: RouteSnapshot | undefined;
   deleteRouter: () => void;
   on: (event: RouteEvent, handler: RouteEventHandler) => void;
   off: (event: RouteEvent, handler: RouteEventHandler) => void;

@@ -35,6 +35,7 @@ export const initRouter = (
   if (routerOptions.pushHash !== undefined) routerSettings.pushHash = routerOptions.pushHash;
   if (routerOptions.hashChangeFunction !== undefined)
     routerSettings.hashChangeFunction = routerOptions.hashChangeFunction;
+  if (routerOptions.scrollBehavior !== undefined) routerSettings.scrollBehavior = routerOptions.scrollBehavior;
 
   if (handleInitial)
     requestAnimationFrame(() => {
@@ -48,6 +49,14 @@ export const initRouter = (
 
   return {
     addRoutes: (routes: RouteOptions[]) => addRoutes(element, routes),
+    /**
+     * Where this router is now, with the params and query already parsed. Reading
+     * `location.pathname` gives you the string back but not the match, and the snapshot was
+     * otherwise reachable only from inside a route callback.
+     */
+    get currentRoute() {
+      return elementsData.get(element)?.currentRoute;
+    },
     deleteRouter: () => deleteRouter(element),
     on: (event: RouteEvent, handler: RouteEventHandler) => on(element, event, handler),
     off: (event: RouteEvent, handler: RouteEventHandler) => off(element, event, handler),

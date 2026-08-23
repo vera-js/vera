@@ -115,10 +115,11 @@ export const getParams = (match: string[], keys: ParsedPatternKey[]) =>
   // The first element in `match` contains the whole string so we have to
   // offset the index by 1.
   Object.fromEntries(
-    keys.map((key, index) => [
-      key.name,
-      key.type === wildcard ? match[index + 1].split('/').map(decode) : decode(match[index + 1]),
-    ])
+    /** An optional param that did not match captures `undefined`, and must stay undefined. */
+    keys.map((key, index) => {
+      const value = match[index + 1];
+      return [key.name, value === undefined ? value : key.type === wildcard ? value.split('/').map(decode) : decode(value)];
+    })
   );
 
 /**
@@ -151,12 +152,20 @@ const decode = (value: string) => {
  */
 export const parsePattern = (routePattern: string): ParsedPattern => {
   const pattern = stripTrailingSlash(routePattern);
-  const regex = /(?:\*([^/:|]+)|:([^/:|]+)|\||([.+?^=!${}()[\]\\]))/g;
+  const regex = /(?:\/:([^/:|?]+)\?|\*([^/:|]+)|:([^/:|]+)|\||([.+?^=!${}()[\]\\]))/g;
   const keys: ParsedPatternKey[] = [];
-  const regexPattern = pattern.replace(regex, (_, _wildcard, _param, _metacharacter) => {
+  const regexPattern = pattern.replace(regex, (_, _optional, _wildcard, _param, _metacharacter) => {
     // Any character that isn't a wildcard or parameter is removed, including the pipe in the regex
     let replacementPattern = '';
-    if (_wildcard) {
+    if (_optional) {
+      /**
+       * `/users/:id?` matches both `/users/5` and `/users`, so the **preceding slash** has to be
+       * inside the optional group — a bare `([^/]+)?` would leave `/users/` as the shortest match
+       * and `/users` would not route at all. Unmatched, the param is simply absent from `params`.
+       */
+      keys.push({ name: _optional, type: param });
+      replacementPattern = '(?:/([^/]+))?';
+    } else if (_wildcard) {
       keys.push({ name: _wildcard, type: wildcard });
       replacementPattern = '(.*)';
     } else if (_param) {

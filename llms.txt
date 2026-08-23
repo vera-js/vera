@@ -417,7 +417,7 @@ router.addRoutes([
 router.on('before-route', (params) => {});
 ```
 
-Routes support `path`, `title`, `component`, `action`, `children`, `view` and `redirect`.
+Routes support `path`, `title`, `component`, `action`, `children`, `view`, `redirect` and `meta`.
 `component`, `action`, `title` and `view` all receive `(params, to, from)` and may be `async`. Mark
 links with a `route` attribute: `<a route href="/user/1">`. Render the outlet as
 `<div view="main"></div>`.
@@ -448,8 +448,13 @@ Semantics worth stating:
   `vera:before-route`, `vera:after-route` — bubbling and composed, with
   `{ currentRoute, previousRoute }` on `detail`. `preventDefault()` on either `before-` event
   cancels the navigation, exactly as returning `false` does.
-- Pattern metacharacters are literal: `/file.html` matches only that path. `:param` and `*rest`
-  are the only special tokens.
+- Pattern metacharacters are literal: `/file.html` matches only that path. `:param`, `:param?`
+  (optional — the segment and its slash may both be absent) and `*rest` are the only special
+  tokens. An optional param that did not match is absent from `params`.
+- `meta` is arbitrary data the router carries but never reads; it arrives on every snapshot as
+  `to.meta`, which is where auth flags, layout names and analytics ids belong.
+- `router.currentRoute` is where that router is now — the snapshot, with params and query already
+  parsed — or `undefined` until it has routed once.
 - Hash fragments: `path#hash` navigation costs one history entry, scrolls to the anchor, and sets
   `:target`; deep-linked anchors scroll after the initial route renders. `navigate(path,
   'replace')` swaps the current entry. With `pushHash: false` fragments never reach
@@ -467,6 +472,8 @@ Semantics worth stating:
   while at `/users/5`, segment-boundary, root excluded) get `.active-within`.
 - Scroll: fresh navigation lands at top; back/forward restores the position the user left that
   entry at (the router stamps it into history state and restores after content renders).
+  `initRouter(el, { scrollBehavior: (to, saved) => … })` replaces both — `saved` is the stamped
+  position on a `popstate` and absent otherwise.
 
 ### Autoloader
 
