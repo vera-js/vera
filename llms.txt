@@ -242,7 +242,7 @@ render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.54 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.55 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 

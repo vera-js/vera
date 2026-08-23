@@ -52,7 +52,8 @@ for (const dir of readdirSync('packages')) {
   packages.push({ dir, name: manifest.name, version: manifest.version });
 }
 
-const existing = new Set(git('tag').split('\n').filter(Boolean));
+const allTags = git('tag').split('\n').filter(Boolean);
+const existing = new Set(allTags);
 
 /**
  * No tags at all, in a repo that has publishable packages, is a shallow checkout rather than a
@@ -72,6 +73,7 @@ if (!existing.size && packages.length) {
 }
 const missing = [];
 const mismatched = [];
+const unreleased = [];
 
 for (const { dir, name, version } of packages) {
   const tag = `${name}@${version}`;
@@ -95,6 +97,16 @@ for (const { dir, name, version } of packages) {
     if (tagged !== version) mismatched.push(`${tag} → tree says ${tagged}`);
     continue;
   }
+  /**
+   * A package with no tags at all has never been released, so an untagged current version is its
+   * normal state rather than a botched release — the tag arrives when it is first published. This
+   * check exists to catch a version *bumped* on master without its tag, which cannot be true of a
+   * package that has never had one. Reported so it is visible, not failed.
+   */
+  if (!allTags.some((t) => t.startsWith(`${name}@`))) {
+    unreleased.push(tag);
+    if (check) continue;
+  }
   missing.push(tag);
   if (!check) {
     execSync(`git tag -a ${JSON.stringify(tag)} -m ${JSON.stringify(tag)}`, { stdio: 'inherit' });
@@ -107,6 +119,13 @@ if (mismatched.length) {
     `tag-release: ${mismatched.length} existing tag(s) name a commit with a different version:\n` +
       mismatched.map((m) => `  ${m}`).join('\n') +
       '\n  (historical; left alone deliberately — see docs/RELEASING.md)'
+  );
+}
+
+if (unreleased.length) {
+  console.log(
+    `tag-release: ${unreleased.length} package(s) have never been released, so carry no tag yet:\n` +
+      unreleased.map((t) => `  ${t}`).join('\n')
   );
 }
 

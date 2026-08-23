@@ -30,6 +30,7 @@ const ENTRY = {
   router: ['router', 'vera-router'],
   autoloader: ['autoloader', 'vera-autoloader'],
   inserts: ['inserts', 'vera-inserts'],
+  spread: ['spread', 'vera-spread'],
   styles: ['styles', 'vera-styles'],
 };
 

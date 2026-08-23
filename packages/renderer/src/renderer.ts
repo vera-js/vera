@@ -458,8 +458,16 @@ class AttrPart implements Part {
     const first = name[0];
     let kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : ATTR;
     let realName = kind ? name.slice(1) : name;
-    /** React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a
-     * capital — all-lowercase `onclick` stays a plain attribute (legal inline-handler HTML). */
+    /**
+     * React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a capital —
+     * all-lowercase `onclick` stays a plain attribute (legal inline-handler HTML).
+     *
+     * `@verajs/spread` repeats these rules rather than importing them. Sharing them through
+     * `@verajs/shared-utils` was tried and reverted: the shared form has to return both the kind and
+     * the name, and the tuple it allocates cost this bundle 10 B. Principle #5 allows deliberate
+     * duplication where two things can legitimately diverge; here #7 decides it — weight is the
+     * product, and core and the renderer are the two packages where that is absolute.
+     */
     if (kind === ATTR && first === 'o' && name.charCodeAt(1) === 110 && name.charCodeAt(2) > 64 && name.charCodeAt(2) < 91) {
       kind = EVENT;
       realName = name.slice(2).toLowerCase();
@@ -559,7 +567,21 @@ class AttrPart implements Part {
          * ref, reactively. Runs once per distinct value, not once per render.
          */
         if (typeof value === 'function') (value as (el: Element) => void)(this._element);
-        else if (typeof value === 'object') (value as { value: unknown }).value = this._element;
+        else if (typeof value === 'object') {
+          /**
+           * A self-applying value: anything that knows what to do with an element applies itself.
+           * `@verajs/renderer/spread` is the first, and the whole protocol is this one property
+           * read — the implementation lives in that entry, so an app that never spreads pays for
+           * the check and nothing else. `_$…$` is exempt from property mangling, like `_$litType$`.
+           *
+           * Deliberately confined to the element position, which is rare. A protocol in the text,
+           * attribute or property commits would sit in the hot path every benchmark measures.
+           */
+          const self = value as { _$apply$?: (el: Element, part: object) => void; value: unknown };
+          /** The part is passed as the ownership key: one element can carry several spreads. */
+          if (self._$apply$) self._$apply$(this._element, this);
+          else self.value = this._element;
+        }
         // any other value type at element position is consumed and ignored
       }
     }

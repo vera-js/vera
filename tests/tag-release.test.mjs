@@ -91,15 +91,34 @@ test('--force overrides the dirty-tree refusal', () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('--check creates nothing and fails when a tag is missing', () => {
-  // Needs an unrelated tag present, or the tagless-checkout guard below fires first — which is
-  // correct, since a repo with zero tags cannot be told apart from a shallow clone.
-  const { dir, git } = repo();
-  git('tag', '-a', 'v0', '-m', 'unrelated');
+test('--check fails when a released package bumped its version without a tag', () => {
+  /**
+   * The scenario the check exists for: a package that *has* shipped before, whose current version
+   * carries no tag. A previous tag for the same package is what makes it a released package —
+   * without one there is nothing to have gone wrong. See the unreleased case below.
+   */
+  const { dir, git } = repo('2.0.0');
+  git('tag', '-a', '@x/thing@1.0.0', '-m', 'the previous release');
   const { code, out } = run(dir, ['--check']);
   assert.equal(code, 1);
   assert.match(out, /missing 1 tag/);
-  assert.equal(git('tag').trim(), 'v0', '--check must never write');
+  assert.match(out, /@x\/thing@2\.0\.0/);
+  assert.equal(git('tag').trim(), '@x/thing@1.0.0', '--check must never write');
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('--check reports a never-released package instead of failing', () => {
+  /**
+   * A package with no tags at all has never shipped, so an untagged version is its normal state —
+   * the tag arrives with the first publish. Failing here would mean every new package broke CI on
+   * the commit that introduced it, which is what happened when @verajs/spread was added.
+   */
+  const { dir, git } = repo();
+  git('tag', '-a', 'v0', '-m', 'unrelated, so the repo is not tagless');
+  const { code, out } = run(dir, ['--check']);
+  assert.equal(code, 0, 'reported, not failed');
+  assert.match(out, /never been released/);
+  assert.match(out, /@x\/thing@1\.0\.0/);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -153,8 +172,9 @@ test('--check fails loudly on a tagless repo rather than listing every package a
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('does not report a mismatch for a package that did not exist yet', () => {
-  const { dir, git } = repo();
+test('a tag naming a package no longer in the tree is ignored', () => {
+  const { dir, git } = repo('2.0.0');
+  git('tag', '-a', '@x/thing@1.0.0', '-m', 'the previous release');
   git('tag', '-a', '@x/gone@9.9.9', '-m', 'a tag for something not in packages/');
   const { code, out } = run(dir, ['--check']);
   assert.equal(code, 1, 'still reports the genuinely missing tag');

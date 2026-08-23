@@ -37,6 +37,7 @@ const PACKAGES = {
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
   '@verajs/inserts': 'inserts',
+  '@verajs/spread': 'spread',
   '@verajs/styles': 'styles',
 };
 
@@ -188,6 +189,7 @@ const recipes = readmes.flatMap((path) => {
  */
 const EXPECTED_RECIPES = {
   'packages/renderer/README.md': 1,
+  'packages/spread/README.md': 1,
   'packages/styles/README.md': 2,
 };
 

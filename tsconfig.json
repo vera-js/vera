@@ -42,6 +42,9 @@
       "@verajs/renderer": [
         "./packages/renderer/src/index.ts"
       ],
+      "@verajs/spread": [
+        "./packages/spread/src/index.ts"
+      ],
       "@verajs/router": [
         "./packages/router/src/index.ts"
       ],

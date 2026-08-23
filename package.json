@@ -34,6 +34,7 @@
         "./packages/router:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
+        "./packages/spread:build",
         "./packages/styles:build"
       ]
     },
