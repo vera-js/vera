@@ -81,7 +81,8 @@ router.on('before-route', async (to) => {
 ```
 
 **Patterns.** `:name` matches one segment, `:name?` makes that segment optional, and `*name`
-matches the rest of the path and gives you an array of segments. Everything else is literal —
+matches the rest of the path and gives you an array of segments. A token does not have to be the
+whole segment — `/fellow/john:id` matches `/fellow/johnXYZ`. Everything else is literal —
 `/file.html` matches only that path, not `/fileXhtml`. Params arrive **percent-decoded**, so
 `/u/John%20Doe` gives you `John Doe`; an optional param that did not match is simply absent.
 
@@ -163,6 +164,28 @@ nothing — no render, no history entry, no title.
 `router.currentRoute` is where that router is now, with the params and query already parsed —
 `undefined` until it has routed once. `location.pathname` gives you the string back; this gives you
 the match.
+
+### Params are typed from the path
+
+In TypeScript, a route's params are read off its own `path` — no annotation, no code generation, no
+schema:
+
+```ts
+router.addRoutes([
+  { path: '/users/:id',        component: (params) => html`<p>${params.id}</p>` },      // string
+  { path: '/files/*rest',      component: (params) => html`<p>${params.rest[0]}</p>` }, // string[]
+  { path: '/u/:id/edit/:tab?', component: (params) => html`<p>${params.tab ?? ''}</p>` },// string | undefined
+]);
+```
+
+`params.nope` is a compile error, and so is treating a wildcard as a single string. A `path`
+function has no literal to read, so those routes keep the loose `RouteParams` shape rather than
+losing param access entirely.
+
+`children` keep the loose shape too. Threading the parent's pattern into them needs a second
+inferred type parameter, and adding one collapses inference for the whole array — every route,
+nested or not, loses its params. Typed where people write most, loose one level down, beats typed
+nowhere; a child callback can annotate its own params.
 
 ## Guards and events
 
@@ -291,6 +314,11 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 | `resolve(name, params)` | build a named route's path |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
 | `connectInserts(inserts)` | CDN only — see below |
+
+**Specificity is scored from the pattern text**, using the token syntax above, so replacing the
+matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It
+still orders sensibly — static text outranks tokens either way — but if your patterns mean something
+different, register them in the order you want them tried.
 
 On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own extension registry, so
 they start out as two. `connectInserts` points one at the other:

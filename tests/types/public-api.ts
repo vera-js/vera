@@ -9,6 +9,7 @@
  * source of truth — rather than a possibly stale `dist`.
  */
 import { ref, shallowRef, createStore, untrack, deps } from '@verajs/core';
+import type { ParseRouteParams, RouteParams, RouterMethods } from '@verajs/router';
 
 /** Fails to compile unless A and B are the same type, including union arity. */
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -53,3 +54,66 @@ deps(() => [store.name]);
 /** Keeps `noUnusedLocals` quiet without weakening the assertions above. */
 export type { _refIsNotAUnion, _refCarriesItsType, _shallowRefShape, _storeKeepsPropertyTypes };
 export type { _storeKeepsNestedTypes, _deleteIsOptional, _untrackPreservesReturn };
+
+/* ── typed route params ──────────────────────────────────────────────────────────────────────────
+ * `addRoutes` reads each route's params off its own `path` literal, so a component gets
+ * `params.id` typed and `params.nope` rejected with no annotation at the call site.
+ *
+ * This is the part of the router that only exists at type level, so it is the part the `.mjs`
+ * suites cannot see at all. `TypedRouteAction` and `ParseRouteParams` shipped for several versions
+ * as exported types that nothing referenced — and `TypedRouteAction` named `Route` where it meant
+ * `RouteSnapshot`, so anyone who had reached for it would have got the wrong shape.
+ */
+type _plainParam = Expect<Equal<ParseRouteParams<'/users/:id'>, object & { id: string }>>;
+type _twoParams = Expect<Equal<ParseRouteParams<'/o/:org/u/:user'>, object & { org: string } & object & { user: string }>>;
+type _optionalParam = Expect<Equal<ParseRouteParams<'/u/:id/edit/:tab?'>, object & { id: string } & object & { tab?: string }>>;
+type _wildcardIsSegments = Expect<Equal<ParseRouteParams<'/files/*rest'>, object & { rest: string[] }>>;
+type _staticPathHasNoParams = Expect<Equal<ParseRouteParams<'/about'>, object>>;
+
+/**
+ * A `path` function is typed `string`, not a literal, so it falls back to the loose record. Without
+ * that first branch it would land on `object` and reject every param access instead of allowing any.
+ */
+type _nonLiteralIsLoose = Expect<Equal<ParseRouteParams<string>, RouteParams>>;
+
+declare const router: RouterMethods;
+
+router.addRoutes([
+  {
+    path: '/users/:id',
+    component: (params) => {
+      const id: string = params.id;
+      return id;
+    },
+  },
+  {
+    path: '/files/*rest',
+    component: (params) => {
+      const segments: string[] = params.rest;
+      return segments;
+    },
+  },
+  {
+    path: '/u/:id/edit/:tab?',
+    title: (params) => `${params.id}${params.tab ?? ''}`,
+    beforeEnter: (params) => params.id !== 'root',
+    component: (params) => params.tab,
+  },
+  /** A dynamic path keeps the loose shape rather than losing param access entirely. */
+  { path: () => '/computed', component: (params) => params.whatever },
+  /** Inference must survive a route that declares no callbacks at all. */
+  { path: '/about', title: 'About' },
+]);
+
+/** And the same array must reject what the pattern does not describe. */
+router.addRoutes([
+  // @ts-expect-error `nope` is not a param of this route
+  { path: '/users/:id', component: (params) => params.nope },
+]);
+router.addRoutes([
+  // @ts-expect-error a wildcard yields segments, not a single string
+  { path: '/files/*rest', component: (params) => { const one: string = params.rest; return one; } },
+]);
+
+export type { _plainParam, _twoParams, _optionalParam, _wildcardIsSegments, _staticPathHasNoParams };
+export type { _nonLiteralIsLoose };

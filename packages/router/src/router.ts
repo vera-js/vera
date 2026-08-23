@@ -1,4 +1,4 @@
-import { RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptions } from './types.js';
+import { AddRoutes, RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptions } from './types.js';
 import { on, off } from './events.js';
 import { elements, elementsData, routerSettings } from './state.js';
 import { attachWindowListeners, navigate } from './services.js';
@@ -51,7 +51,11 @@ export const initRouter = (
     });
 
   return {
-    addRoutes: (routes: RouteOptions[]) => addRoutes(element, routes),
+    /**
+     * The generic lives on the returned method, not on `addRoutes` itself — that internal one also
+     * recurses for `children` with a parent pattern, and typed params are a public-surface concern.
+     */
+    addRoutes: ((routes: RouteOptions[]) => addRoutes(element, routes)) as AddRoutes,
     removeRoute: (name: string) => removeRoute(element, name),
     /**
      * Where this router is now, with the params and query already parsed. Reading

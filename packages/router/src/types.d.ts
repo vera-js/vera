@@ -12,7 +12,12 @@ export type ParamData = RouteParams;
 
 export type RouteAction = (params: RouteParams, to: RouteSnapshot, from?: RouteSnapshot) => unknown;
 
-export type TypedRouteAction<T> = (params: ParseRouteParams<T>, to: Route, from?: Route) => unknown;
+/** A {@link RouteAction} whose params are read from the route's own pattern. */
+export type TypedRouteAction<Path, Result = unknown> = (
+  params: ParseRouteParams<Path>,
+  to: RouteSnapshot,
+  from?: RouteSnapshot
+) => Result;
 
 export type ParsedPatternKeyType = 'wildcard' | 'param';
 
@@ -118,8 +123,47 @@ export interface RouterOptions extends BaseRouterOptions {
   scrollBehavior?: ScrollBehaviorFunction;
 }
 
+/**
+ * A route whose callbacks are typed from its own `path` literal.
+ *
+ * `children` keep the loose {@link RouteOptions} shape: threading the parent's pattern into them
+ * needs a second inferred type parameter, and adding one collapses inference for the whole array —
+ * every route, nested or not, loses its params. Typed at the level people write most, loose one
+ * level down, beats typed nowhere. A child callback can still annotate its own params.
+ */
+export type TypedRouteOptions<Path> = Omit<
+  RouteOptions,
+  'path' | 'component' | 'action' | 'beforeEnter' | 'title' | 'view' | 'redirect'
+> & {
+  /**
+   * Bare, not `Path | (() => string)` — a union here stops TypeScript recovering the literal from
+   * it, and every route in the array loses its params. A `path` function is admitted by the
+   * constraint on `Paths` instead, and reads back as the loose record.
+   */
+  path: Path;
+  component?: TypedRouteAction<Path>;
+  action?: TypedRouteAction<Path>;
+  beforeEnter?: TypedRouteAction<Path>;
+  title?: string | TypedRouteAction<Path, string>;
+  view?: HTMLElement | ShadowRoot | string | TypedRouteAction<Path, HTMLElement | ShadowRoot | string>;
+  redirect?: string | ((params: ParseRouteParams<Path>, to: RouteSnapshot) => string);
+};
+
+/**
+ * Adds routes, inferring each one's params from its own `path`.
+ *
+ * The parameter is a mapped type over a tuple of path literals rather than a plain array, which is
+ * what lets TypeScript run inference backwards: it recovers `Paths` from the `path` of each element
+ * and then types that element's callbacks against it. A plain `RouteOptions[]` cannot do this —
+ * the array's element type contextually types every callback the same way, so the literal is lost
+ * before the callback is checked.
+ */
+export type AddRoutes = <const Paths extends readonly (string | (() => string))[]>(routes: {
+  [K in keyof Paths]: TypedRouteOptions<Paths[K]>;
+}) => void;
+
 export interface RouterMethods {
-  addRoutes: (routes: RouteOptions[]) => void;
+  addRoutes: AddRoutes;
   /** Removes a named route and its aliases. Returns whether anything was removed. */
   removeRoute: (name: string) => boolean;
   /** Where this router is now — `undefined` until it has routed once. */
@@ -129,12 +173,49 @@ export interface RouterMethods {
   off: (event: RouteEvent, handler: RouteEventHandler) => void;
 }
 
-// Thanks, https://type-level-typescript.com !
-export type ParseRouteParams<url> = url extends `${infer start}/${infer rest}`
-  ? ParseRouteParams<start> & ParseRouteParams<rest>
-  : url extends `:${infer param}`
-  ? { [k in param]: string }
-  : object;
+/**
+ * The params a pattern produces, read off the pattern **as a type**.
+ *
+ * `ParseRouteParams<'/users/:id'>` is `{ id: string }`, so a component written against that route
+ * gets `params.id` typed and `params.nope` rejected — without a code generation step, a schema, or
+ * an annotation at the call site. `:name?` is optional, `*name` is the `string[]` the wildcard
+ * actually yields, and everything else contributes nothing.
+ *
+ * A non-literal `Path` — the `string` a `path` function is typed as — falls back to the loose
+ * record. That is the first branch on purpose: without it, `string` matches none of the patterns
+ * below and lands on `object`, which has no properties at all, and a dynamic route would reject
+ * every param access rather than allowing any.
+ *
+ * With thanks to https://type-level-typescript.com, where this technique is explained.
+ */
+export type ParseRouteParams<Path> = Path extends string
+  ? string extends Path
+    ? RouteParams
+    : Path extends `${infer Head}/${infer Rest}`
+      ? ParseRouteParams<Head> & ParseRouteParams<Rest>
+      : ParseRouteSegment<Path>
+  : /** A `path` function — nothing to read, so the loose record. */ RouteParams;
+
+/**
+ * One segment's params. A token does not have to be the whole segment: the matcher's `:([^/:|]+)`
+ * finds it anywhere, so `/fellow/john:id` is a real pattern that matches `/fellow/johnXYZ`, and a
+ * type that only understood segment-initial tokens would silently give that route no params at all.
+ */
+type ParseRouteSegment<Segment extends string> = Segment extends `${string}*${infer Wildcard}`
+  ? { [K in Wildcard]: string[] }
+  : Segment extends `${string}:${infer Names}`
+    ? ParseRouteNames<Names>
+    : object;
+
+/** A segment may carry more than one token — `:a:b` — so the tail is parsed the same way. */
+type ParseRouteNames<Names extends string> = Names extends `${infer Name}:${infer Rest}`
+  ? ParseRouteName<Name> & ParseRouteNames<Rest>
+  : ParseRouteName<Names>;
+
+/** A trailing `?` makes the param optional, exactly as it does at runtime. */
+type ParseRouteName<Name extends string> = Name extends `${infer Base}?`
+  ? { [K in Base]?: string }
+  : { [K in Name]: string };
 
 export type RouteEventHandler = (to: RouteSnapshot, from?: RouteSnapshot) => unknown | Promise<unknown>;
 

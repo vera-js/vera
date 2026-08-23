@@ -433,9 +433,16 @@ Semantics worth stating:
 - A newer navigation **supersedes** an older one. If a `component` or guard is still awaiting when
   the user goes somewhere else, the abandoned pass stops at its next checkpoint and commits
   nothing — no render, no history entry, no title.
+- **Params are typed from the path** in TypeScript: `{ path: '/users/:id', component: (p) => p.id }`
+  gives `p.id: string`, `*rest` gives `string[]`, `:tab?` gives `string | undefined`, and `p.nope`
+  is a compile error — no annotation or codegen. A `path` function, and any route under `children`,
+  keeps the loose `RouteParams` shape.
+- A pattern token need not be a whole segment: `/fellow/john:id` matches `/fellow/johnXYZ`.
 - **The most specific route wins**, not the first registered: static segment > required `:param` >
   optional `:param?` > `*wildcard`, summed over the pattern, so `/users/new` beats `/users/:id` and
-  a catch-all sits last wherever it was declared. Same ranking as React Router.
+  a catch-all sits last wherever it was declared. Same ranking as React Router. The score is read
+  from the pattern text, so a `setMatchFunction` replacement is ranked by Vera's grammar rather than
+  its own — register in the order you want if that matters.
 - `children` **renders the whole chain**, outermost first, each level into an outlet the level
   above rendered. `/settings/profile` renders the `/settings` component into the router's outlet
   and the child into a `[view]` that component's own template rendered. A view name is resolved
