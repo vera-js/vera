@@ -2,7 +2,7 @@ import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
 import { getType, isSetOrMap, isWeakCollection, prioritySlot } from '@verajs/shared-utils';
 import { inserts, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
-import { collectionMethod } from './collections.js';
+import { collectionMethod, GLOBAL } from './collections.js';
 import { Signal } from '../types.js';
 
 /**
@@ -139,7 +139,7 @@ const createHandler = <T extends object>(
        * never updated.
        */
       if (prop === 'size' && isSetOrMap(obj)) {
-        addCallback(obj, '_global' as Extract<keyof T, string>);
+        addCallback(obj, GLOBAL as Extract<keyof T, string>);
         return obj[prop];
       }
       let propValue = Reflect.get(obj, prop, receiver) as ProxyObject<T>;
@@ -205,9 +205,36 @@ const createHandler = <T extends object>(
       return propValue;
     },
 
+    /**
+     * `key in state.form` is a read, and a read that decides what renders. Untracked, a template
+     * asking whether an optional field is present kept its first answer forever.
+     */
+    has(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>) {
+      addCallback(obj, prop);
+      return Reflect.has(obj, prop);
+    },
+    /**
+     * Anything that enumerates — `Object.keys`, `for…in`, `{ ...state.o }`, `JSON.stringify` —
+     * depends on the **set of keys**, which no per-key subscription can describe. It subscribes to
+     * the same `'_global'` channel a Map or a Set uses, and `set`/`deleteProperty` notify it when
+     * the key set actually changes. Vue tracks the `ownKeys` trap under one iteration key for this
+     * reason and no other.
+     *
+     * Without it, a key that did not exist when the component read the object could never be
+     * tracked, so adding one notified nobody: `state.byId[newId] = row` and
+     * `Object.assign(state.filters, patch)` both rendered once and then went quiet. Deleting a key
+     * appeared to work only because the key had been read on the way in.
+     */
+    ownKeys(obj: T & StoreProxyKeys) {
+      addCallback(obj, GLOBAL as Extract<keyof T, string>);
+      return Reflect.ownKeys(obj);
+    },
+
     set(obj: T, prop: Extract<keyof T, string>, value: T[Extract<keyof T, string>], receiver) {
       const prevValue = Reflect.get(obj, prop, receiver);
       if (prevValue === value) return true;
+      /** Whether this write changes the key set, and so whether enumerators have to hear about it. */
+      const added = !Object.prototype.hasOwnProperty.call(obj, prop);
       /**
        * Appending to an array moves `length` without ever passing through this trap: assigning
        * `list[3]` on a three-element array updates `length` as an internal consequence, so a hook
@@ -233,6 +260,7 @@ const createHandler = <T extends object>(
         });
 
         if (!deferred) runCallbacks(obj, prop, value, prevValue);
+        if (added) runCallbacks(obj, GLOBAL as Extract<keyof T, string>, value, prevValue);
         /** The implicit `length` change an append causes, which nothing else reports. */
         if (grew) {
           const length = (obj as unknown[]).length as T[Extract<keyof T, string>];
@@ -251,7 +279,10 @@ const createHandler = <T extends object>(
       const had = prop in obj;
       const prevValue = (had ? Reflect.get(obj, prop) : undefined) as Value;
       const success = Reflect.deleteProperty(obj, prop);
-      if (success && had) runCallbacks(obj, prop, undefined as Value, prevValue);
+      if (success && had) {
+        runCallbacks(obj, prop, undefined as Value, prevValue);
+        runCallbacks(obj, GLOBAL as Extract<keyof T, string>, undefined as Value, prevValue);
+      }
       return success;
     },
   };

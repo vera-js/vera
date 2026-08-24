@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.57 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->2.63 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -60,6 +60,13 @@ they run, so a write to `state.count` schedules exactly the work that read it.
 
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` are built in: put one in a store and mutating methods
 notify like any other write.
+
+**Adding and removing keys counts as a change.** A component that enumerates — `Object.keys`,
+`for…in`, `{ ...state.filters }`, `JSON.stringify`, or `key in state.form` — depends on the set of
+keys rather than on any one of them, and hears about a key arriving or leaving. That is what makes
+`state.byId[newId] = row` and `Object.assign(state.filters, patch)` render, and it is checked as a
+matrix: every container kind crossed with every way of mutating it, against the data itself
+(`tests/core-reactivity-matrix.test.mjs`).
 
 **Use `shallowRef` for list data.** Putting 1 000 row objects through `createStore` proxies every one
 of them, at roughly 60× the per-render cost of a plain array. When rows are replaced rather than

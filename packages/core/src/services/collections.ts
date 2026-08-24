@@ -5,7 +5,12 @@ import { StoreProxyKeys } from '@verajs/shared-types';
  * (`entries`, `keys`, `values`, `forEach`, `size`) subscribe to it. Also part of the documented
  * surface for `'proxy-handler'` insert authors, so treat the name as public.
  */
-const GLOBAL = '_global';
+/**
+ * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
+ * mutation, and a plain object gaining or losing a key. Shared with `createProxy`, which tracks it
+ * from `ownKeys` and `size`, so the two halves cannot drift apart.
+ */
+export const GLOBAL = '_global';
 
 /**
  * One wrapper per collection per method, cached so repeated reads return the SAME function —
