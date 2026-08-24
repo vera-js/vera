@@ -219,6 +219,88 @@ const CASES = {
       customElements.define('lp-created-probe', Child);
     `,
   },
+  /**
+   * Nested components, which until `canonical` learned to read a declarative template were never
+   * being compared at all — both sides reported an empty child and agreed.
+   */
+  'a child written in the parent template': {
+    body: `
+      init(this, { mode: 'open' });
+      render(() => html\`<div><lp-nested-plain></lp-nested-plain></div>\`);
+    `,
+    defines: `
+      class Plain extends HTMLElement {
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>plain child</p>\`); }
+      }
+      customElements.define('lp-nested-plain', Plain);
+    `,
+  },
+  'a child taking an attribute from the parent': {
+    body: `
+      init(this, { mode: 'open' });
+      const label = 'a & b';
+      render(() => html\`<lp-nested-attr label=\${label}></lp-nested-attr>\`);
+    `,
+    defines: `
+      class Attr extends HTMLElement {
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>[\${this.getAttribute('label')}]</p>\`); }
+      }
+      customElements.define('lp-nested-attr', Attr);
+    `,
+  },
+  'a list of children': {
+    body: `
+      init(this, { mode: 'open' });
+      const rows = ['a', 'b', 'c'];
+      render(() => html\`<ul>\${rows.map((row) => html\`<lp-nested-row label=\${row}></lp-nested-row>\`)}</ul>\`);
+    `,
+    defines: `
+      class Row extends HTMLElement {
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<li>\${this.getAttribute('label')}</li>\`); }
+      }
+      customElements.define('lp-nested-row', Row);
+    `,
+  },
+  'a grandchild': {
+    body: `
+      init(this, { mode: 'open' });
+      render(() => html\`<lp-nested-middle></lp-nested-middle>\`);
+    `,
+    defines: `
+      class Deep extends HTMLElement {
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<b>deep</b>\`); }
+      }
+      customElements.define('lp-nested-deep', Deep);
+      class Middle extends HTMLElement {
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<span><lp-nested-deep></lp-nested-deep></span>\`); }
+      }
+      customElements.define('lp-nested-middle', Middle);
+    `,
+  },
+  'a child with light-DOM content to slot': {
+    body: `
+      init(this, { mode: 'open' });
+      render(() => html\`<lp-nested-slotter><em>slotted</em></lp-nested-slotter>\`);
+    `,
+    defines: `
+      class Slotter extends HTMLElement {
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<div><slot></slot></div>\`); }
+      }
+      customElements.define('lp-nested-slotter', Slotter);
+    `,
+  },
+  'a child that renders into the light DOM': {
+    body: `
+      init(this, { mode: 'open' });
+      render(() => html\`<lp-nested-light></lp-nested-light>\`);
+    `,
+    defines: `
+      class Light extends HTMLElement {
+        connectedCallback() { init(this); render(() => html\`<p>light</p>\`); }
+      }
+      customElements.define('lp-nested-light', Light);
+    `,
+  },
   'closed shadow root': {
     body: `init(this, { mode: 'closed' }); render(() => html\`<p>closed</p>\`);`,
   },
