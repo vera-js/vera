@@ -35,7 +35,13 @@ export default class SinkForm extends HTMLElement {
 
     render(
       () => html`<section id="form">
-        <p id="label">${this.getAttribute('label')}</p>
+        <h2>hold() and observed attributes</h2>
+        <p class="hint">Type into the editor, toggle away and back: hold() keeps what you typed.</p>
+        <button id="doToggle" @click=${() => this.toggle()}>${state.editing ? 'show the value' : 'edit'}</button>
+        <button id="doRename" @click=${() => this.setAttribute('label', `Renamed ${(this.seen ?? []).length}`)}>
+          change the observed attribute
+        </button>
+        <p>label: <span id="label">${this.getAttribute('label')}</span></p>
         <p id="log">${state.log}</p>
         <div id="held">
           ${hold(

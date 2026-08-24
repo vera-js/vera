@@ -7,6 +7,9 @@
  */
 import { init, render, html, css, createStore } from '@verajs/core';
 
+/** Cycled by the button below; `var()` re-resolves without the sheet being touched. */
+const ACCENTS = ['teal', 'crimson', 'rebeccapurple', 'darkorange'];
+
 export default class SinkStyled extends HTMLElement {
   static styles = css`
     :host {
@@ -26,9 +29,13 @@ export default class SinkStyled extends HTMLElement {
     init(this, { mode: 'open' });
     const state = createStore({ accent: 'teal' });
     this.state = state;
+    let tint = 0;
 
     render(
       () => html`<div id="styled" style="--sink-accent: ${state.accent}">
+        <h2>static styles</h2>
+        <p class="hint">The sheet is adopted once and never re-adopted — what changes is a custom property.</p>
+        <button id="tint" @click=${() => (state.accent = ACCENTS[++tint % ACCENTS.length])}>re-tint (${state.accent})</button>
         <span class="badge"><span class="inner" data-kind="pill">styled</span></span>
       </div>`
     );

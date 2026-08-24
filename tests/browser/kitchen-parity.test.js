@@ -66,6 +66,15 @@ const until = async (predicate, what, timeout = 20000) => {
   }
 };
 
+/**
+ * The rendered DOM, minus anything marked `data-diagnostic`.
+ *
+ * The shell's banner reports which of the five modes is running — its whole job is to differ
+ * between them — so comparing it would fail every comparison it appears in. It is environment
+ * reporting, not application content, and is excluded for the same reason `<style vera-styles>` is.
+ */
+const shape = (root) => canonical(root).replace(/<p [^>]*data-diagnostic[^>]*>[\s\S]*?<\/p>/g, '');
+
 const shellOf = (frame) => frame.contentDocument.querySelector('sink-shell');
 
 /**
@@ -123,7 +132,7 @@ describe('the same application, rendered three ways', () => {
       const of = (shell) => {
         const element = shell.shadowRoot.querySelector(tag);
         expect(element, `<${tag}> missing`).to.exist;
-        return canonical(element.shadowRoot ?? element);
+        return shape(element.shadowRoot ?? element);
       };
       const fromServer = of(ssr);
       const fromClient = of(csr);
@@ -178,7 +187,7 @@ describe('the same application, rendered three ways', () => {
   it('the shell itself is identical in all three', () => {
     /** Everything the shell renders, with the one thing a server cannot produce left out. */
     const of = (shell) =>
-      canonical(shell.shadowRoot).replace(/<sink-lazy [^>]*>[\s\S]*?<\/sink-lazy>/, '<sink-lazy/>');
+      shape(shell.shadowRoot).replace(/<sink-lazy [^>]*>[\s\S]*?<\/sink-lazy>/, '<sink-lazy/>');
     expect(of(hydrated)).to.equal(of(ssr));
     expect(of(csr)).to.equal(of(ssr));
   });

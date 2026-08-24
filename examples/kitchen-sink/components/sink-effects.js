@@ -45,11 +45,15 @@ export default class SinkEffects extends HTMLElement {
 
     render(
       () => html`<section id="effects">
-        <p id="n">${state.n}</p>
-        <p id="sync">${counts.sync}</p>
-        <p id="coalesced">${counts.coalesced}</p>
-        <p id="layout">${counts.layout}</p>
-        <p id="lastProp">${counts.lastProp}</p>
+        <h2>Effects</h2>
+        <p class="hint">Three writes in one turn: the sync effect sees each, the coalesced one sees the batch.</p>
+        <button id="bumpOne" @click=${() => this.bump(1)}>bump once</button>
+        <button id="bumpThree" @click=${() => this.bump(3)}>bump three times</button>
+        <p>n: <span id="n">${state.n}</span></p>
+        <p>useSyncEffect runs: <span id="sync">${counts.sync}</span></p>
+        <p>useEffect runs: <span id="coalesced">${counts.coalesced}</span></p>
+        <p>useLayoutEffect runs: <span id="layout">${counts.layout}</span></p>
+        <p>last changed: <span id="lastProp">${counts.lastProp}</span></p>
       </section>`
     );
   }

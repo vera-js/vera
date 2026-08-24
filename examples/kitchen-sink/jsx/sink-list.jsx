@@ -19,9 +19,21 @@ export default class SinkList extends HTMLElement {
     this.removeFirst = () => {
       rows.value = untrack(() => rows.value).slice(1);
     };
+    this.reset = () => {
+      rows.value = [
+        { id: 'a', label: 'alpha' },
+        { id: 'b', label: 'beta' },
+        { id: 'c', label: 'gamma' },
+      ];
+    };
 
     render(() => (
       <section id="list">
+        <h2>Keyed lists</h2>
+        <p className="hint">Reverse, then watch the keyed list: the same nodes move, the unkeyed one is rebuilt.</p>
+        <button id="doReverse" onClick={() => this.reverse()}>reverse</button>
+        <button id="doRemove" onClick={() => this.removeFirst()}>remove the first</button>
+        <button id="doReset" onClick={() => this.reset()}>reset</button>
         <ul id="keyed">
           {rows.value.map((row) => (
             <li key={row.id} data-id={row.id}>{row.label}</li>

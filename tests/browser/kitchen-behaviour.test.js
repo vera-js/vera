@@ -51,6 +51,15 @@ const settle = async (frame) => {
   await Promise.resolve();
 };
 
+/**
+ * The rendered DOM, minus anything marked `data-diagnostic`.
+ *
+ * The shell's banner reports which of the five modes is running — its whole job is to differ
+ * between them — so comparing it would fail every comparison it appears in. It is environment
+ * reporting, not application content, and is excluded for the same reason `<style vera-styles>` is.
+ */
+const shape = (root) => canonical(root).replace(/<p [^>]*data-diagnostic[^>]*>[\s\S]*?<\/p>/g, '');
+
 const modes = {};
 
 /** A component inside the shell, by tag. */
@@ -93,7 +102,7 @@ const inBoth = async (step) => {
     await step(mode);
     await settle(modes[mode].frame);
   }
-  const of = (mode) => canonical(modes[mode].shell.shadowRoot);
+  const of = (mode) => shape(modes[mode].shell.shadowRoot);
   expect(of('hydrate'), 'the two live modes diverged after an interaction').to.equal(of('csr'));
 };
 
@@ -104,7 +113,7 @@ describe('the two live modes behave identically', () => {
   });
 
   it('start from the same DOM', () => {
-    expect(canonical(modes.hydrate.shell.shadowRoot)).to.equal(canonical(modes.csr.shell.shadowRoot));
+    expect(shape(modes.hydrate.shell.shadowRoot)).to.equal(shape(modes.csr.shell.shadowRoot));
   });
 
   it('a lazily loaded component arrives in both', async () => {

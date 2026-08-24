@@ -30,6 +30,10 @@ export default class SinkBindings extends HTMLElement {
 
     render(
       () => html`<section id="bindings">
+        <h2>Every binding kind</h2>
+        <p class="hint">Type here: every binding below is driven by this one value.</p>
+        <input id="drive" .value=${state.text} @input=${(event) => (state.text = event.target.value)} />
+        <button id="toggleBusy" @click=${() => (state.busy = !state.busy)}>toggle the boolean binding</button>
         <p id="text">${state.text}</p>
         <p id="multi">${state.text} and ${state.count}</p>
         <p id="falsy">[${0}][${false}][${null}][${undefined}][${''}]</p>

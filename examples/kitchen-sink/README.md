@@ -14,6 +14,33 @@ node examples/kitchen-sink/server.mjs
 | `/buildless` | the **minified** bundles, resolved by an import map | no toolchain at all — and the only mode where each bundle inlines its own registry, which is what `connectInserts` is for |
 | `/jsx` | JSX transformed in the browser | the same transform the Vite plugin uses, with no build step |
 
+## Trying it by hand
+
+Open `/` and click things. Every panel has controls, and each one is wired to the same method the
+test suites drive, so what you are clicking is what CI checks.
+
+| panel | click | watch |
+| --- | --- | --- |
+| Every binding kind | type in the input | every binding below it follows — text, attributes, a multi-part `class`, a form property, the SVG radius |
+| | **toggle the boolean binding** | `?hidden` adds and removes the attribute rather than setting it to `"false"` |
+| Keyed lists | **reverse** | the keyed list keeps its nodes and moves them; the unkeyed one below is rebuilt |
+| | **remove the first**, three times | the count falls and the empty state appears — a stable shape toggling `hidden`, not a swapped subtree |
+| Reactive collections | **add a user** / **add a tag** | only the list that changed re-renders; the counts follow |
+| | **change the WeakMap value** | a `WeakMap` is reactive per key and holds nothing |
+| Effects | **bump three times** | `useSyncEffect` goes up by three and `useEffect` by one — the whole difference between them, on screen |
+| static styles | **re-tint** | the colour changes and the sheet is never re-adopted; `var()` re-resolves |
+| hold() | **edit**, type, **show the value**, **edit** again | your text is still there — the DOM was kept, not rebuilt |
+| | **change the observed attribute** | `attributeChangedCallback` fires and the log grows |
+| Nav | any link | the outlet fills; `/settings/profile` renders a child into an outlet its parent drew, and `/nope/deep` hits the wildcard |
+
+The outlet is empty until you pick a route: this router starts with `handleInitial: false` so all
+three rendering modes stay comparable. That is deliberate, and the banner says so.
+
+**Comparing the modes is the point.** Open `/` and `/csr` side by side and do the same thing in
+both — they must behave identically. Open `/ssr` to see what a reader with JavaScript disabled
+gets. `/buildless` is the same application on the minified bundles with no toolchain, and `/jsx` is
+a smaller app whose JSX is compiled in the browser.
+
 ## What it exercises
 
 Every binding kind and all three quoting styles, spreads, element refs, SVG and MathML, keyed lists,
