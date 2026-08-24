@@ -1,4 +1,4 @@
-import { init, render, html } from '@verajs/core';
+import { init, render } from '@verajs/core';
 customElements.define('ret-null', class extends HTMLElement {
   connectedCallback() { init(this, { mode: 'open' }); render(() => null); }
 });
