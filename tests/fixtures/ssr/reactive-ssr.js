@@ -1,4 +1,4 @@
-import { init, render, html, createStore, ref, shallowRef, useEffect } from '@verajs/core';
+import { init, render, html, createStore, ref, shallowRef } from '@verajs/core';
 export default class ReactiveSsr extends HTMLElement {
   connectedCallback() {
     init(this, { mode: 'open' });

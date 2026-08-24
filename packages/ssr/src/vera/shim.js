@@ -100,6 +100,8 @@ class ShadowRootShim {
   constructor(init) {
     this.mode = init.mode ?? 'open';
     this._init = init;
+    /** Set by `attachShadow`; a shadow root's `host` is part of the contract the router reads. */
+    this._host = null;
     this.innerHTML = '';
     this._styles = [];
   }
