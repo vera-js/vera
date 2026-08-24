@@ -125,11 +125,50 @@ const CASES = {
   'a ref after an unquoted attribute': 'html`<b title=${state.text}>x</b><input ${() => {}} />`',
   'a spread after a single-quoted boolean': "html`<b ?hidden='${true}'>x</b><i ${spread({ title: 'z' })}>y</i>`",
   'several elements': 'html`<div><b title=${state.text}>a</b><i>${state.count}</i></div>`',
+
+  /**
+   * **Hostile values, in every position a value can reach.**
+   *
+   * A rendering library is an XSS engine if this is wrong (#8), and the two sides must agree: a
+   * value that is text on the client and markup on the server is an injection, and the reverse is a
+   * page that renders differently once hydrated. Escaping belongs at the render boundary, so it is
+   * the boundary that is tested — one hostile string through every kind of binding.
+   */
+  'hostile: a script tag as text': 'html`<p>${"<script>alert(1)</script>"}</p>`',
+  'hostile: a script tag in an attribute': 'html`<b title=${"<script>alert(1)</script>"}>x</b>`',
+  'hostile: breaking out of a quoted attribute': 'html`<b title="${String.fromCharCode(34) + " onmouseover=alert(1) x=" + String.fromCharCode(34)}">x</b>`',
+  'hostile: breaking out of an unquoted attribute': 'html`<b title=${"x onmouseover=alert(1)"}>x</b>`',
+  'hostile: breaking out of a single-quoted attribute': "html`<b title='${String.fromCharCode(39) + \" onmouseover=alert(1) x=\" + String.fromCharCode(39)}'>x</b>`",
+  'hostile: closing the tag from a multipart attribute': 'html`<b class="a ${String.fromCharCode(34) + "><script>alert(1)</script>"} c">x</b>`',
+  'hostile: an entity that decodes to a tag': 'html`<p>${"&lt;script&gt;alert(1)&lt;/script&gt;"}</p>`',
+  'hostile: a javascript: URL': 'html`<a href=${"javascript:alert(1)"}>x</a>`',
+  'hostile: an event-handler attribute name is still static': 'html`<b onclick=${"alert(1)"}>x</b>`',
+  'hostile: a form property': 'html`<input .value=${"</script><script>alert(1)</script>"} />`',
+  'hostile: a spread value': 'html`<b ${spread({ title: "><script>alert(1)</script>" })}>x</b>`',
+  'hostile: a spread key that looks like a sigil': 'html`<b ${spread({ "?hidden": "><img src=x onerror=alert(1)>" })}>x</b>`',
+  'hostile: a textarea value closing its own tag': 'html`<textarea .value=${"</textarea><script>alert(1)</script>"}></textarea>`',
+  'hostile: a comment sequence': 'html`<p>${"<!--<script>alert(1)</script>-->"}</p>`',
+  'hostile: a newline in an attribute': 'html`<b title=${"a" + String.fromCharCode(10) + "c"}>x</b>`',
+};
+
+/**
+ * Differences that are **the platform's**, not this framework's. Listed so they stay known.
+ *
+ * A `U+0000` cannot travel through markup: the HTML parser replaces it with `U+FFFD` in an attribute
+ * value, and a numeric character reference to it is replaced too, so no encoding round-trips. The
+ * client sets the attribute through `setAttribute` and keeps the byte. Nothing a serializer can do
+ * changes that, and a renderer that sanitised the author's string to match would be worse.
+ */
+const KNOWN_DIVERGENCES = {
+  'a null byte in an attribute':
+    'html`<b title=${"a" + String.fromCharCode(0) + "b"}>x</b>`',
 };
 
 const STATE = "{ text: 'hello & <world>', count: 3, rows: ['a', 'b'] }";
 
 /* ── server ──────────────────────────────────────────────────────────────────────────────────── */
+const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
+
 const serverScript = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html } = await import('@verajs/core');
@@ -137,7 +176,7 @@ const { spread } = await import('@verajs/renderer/spread');
 const { keyed, hold } = await import('@verajs/renderer');
 const state = ${STATE};
 const out = {};
-${Object.entries(CASES).map(([name, tpl]) => `out[${JSON.stringify(name)}] = serializeTemplate(${tpl});`).join('\n')}
+${Object.entries(ALL).map(([name, tpl]) => `out[${JSON.stringify(name)}] = serializeTemplate(${tpl});`).join('\n')}
 process.stdout.write(JSON.stringify(out));
 `;
 const server = JSON.parse(
@@ -163,7 +202,7 @@ const clientTemplates = new Function(
   'spread',
   'keyed',
   'hold',
-  `return { ${Object.entries(CASES).map(([n, t]) => `${JSON.stringify(n)}: () => ${t}`).join(',\n')} };`
+  `return { ${Object.entries(ALL).map(([n, t]) => `${JSON.stringify(n)}: () => ${t}`).join(',\n')} };`
 )(html, state, spread, keyed, hold);
 
 const parse = (markup) => {
@@ -174,13 +213,17 @@ const parse = (markup) => {
 
 let pass = 0;
 const failures = [];
-for (const name of Object.keys(CASES)) {
+for (const name of Object.keys(ALL)) {
   const container = dom.window.document.createElement('div');
   render(clientTemplates[name](), container);
 
   const fromClient = canonical(container);
   const fromServer = parse(server[name]);
-  if (fromClient === fromServer) pass++;
+  const agree = fromClient === fromServer;
+  /** A known divergence must still *be* one: if it starts agreeing, the note above is stale. */
+  if (KNOWN_DIVERGENCES[name] ? !agree : agree) pass++;
+  else if (KNOWN_DIVERGENCES[name])
+    failures.push(`${name} — listed as a known divergence and the two sides now agree; delete the entry`);
   else failures.push(`${name}\n      server: ${fromServer}\n      client: ${fromClient}`);
 }
 
@@ -188,5 +231,5 @@ if (failures.length) {
   console.log(`\n  ${failures.length} template(s) render differently on the two sides:\n`);
   for (const failure of failures) console.log('    ' + failure + '\n');
 }
-console.log(`render parity: ${pass}/${Object.keys(CASES).length} templates identical on server and client`);
+console.log(`render parity: ${pass}/${Object.keys(ALL).length} templates as expected on server and client`);
 if (failures.length) process.exit(1);
