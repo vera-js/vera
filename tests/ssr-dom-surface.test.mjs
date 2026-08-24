@@ -59,7 +59,12 @@ const SURFACE = [
   ['dataset writes through', (el) => (el.dataset.userId = '7', el.getAttribute('data-user-id') === '7')],
   ['dataset reads back', (el) => ((el.dataset.x = 'y'), el.dataset.x === 'y')],
   ['dataset delete', (el) => ((el.dataset.x = 'y'), delete el.dataset.x, !el.hasAttribute('data-x'))],
-  ['style writes through', (el) => ((el.style.color = 'red'), el.getAttribute('style') === 'color: red')],
+  /** Trailing semicolon included, which is what a browser writes — see `styleView` in the shim. */
+  ['style writes through', (el) => ((el.style.color = 'red'), el.getAttribute('style') === 'color: red;')],
+  [
+    'style writes two properties',
+    (el) => ((el.style.color = 'red'), (el.style.top = '0'), el.getAttribute('style') === 'color: red; top: 0;'),
+  ],
   ['style camelCase', (el) => ((el.style.backgroundColor = 'blue'), el.getAttribute('style').includes('background-color: blue'))],
   ['style reads back', (el) => ((el.style.color = 'red'), el.style.color === 'red')],
   ['style.cssText', (el) => ((el.style.cssText = 'color: red'), el.style.color === 'red')],

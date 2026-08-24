@@ -25,6 +25,16 @@ you must produce markup an object cannot describe, and never with anything from 
 
 - Node resolves the component's module graph natively (the `.ts`-via-`.js` convention included);
   execution registers classes through `customElements.define` — no AST walking.
+- **The lifecycle runs the way it does in a browser.** `attributeChangedCallback` fires on upgrade
+  for every present observed attribute and again on every later change; there is no animation frame
+  to wait for, so a re-render scheduled during `connectedCallback` and every `useEffect` land before
+  the markup is serialized. `tests/lifecycle-parity.test.mjs` renders each case on both sides and
+  compares the DOM.
+- **A failure during a render rejects — it is never markup.** Core isolates a hook error so one bad
+  effect cannot take out the hooks beside it, which is right in a browser because the next render
+  can recover. There is no next render here, so `renderToString` collects those failures and throws,
+  naming the component. Catch it to fall back to a client-rendered shell, as you would with React or
+  Vue.
 - The server element is a detached, childless one: `dispatchEvent`, `classList`, `tagName`,
   `ownerDocument`, `closest`, `getRootNode`, `children` and the rest answer rather than throw, and
   **what a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
@@ -88,9 +98,10 @@ Known limits:
 - **`connectedCallback` must be synchronous.** Rendering recurses inside `String.replace`, which
   cannot await, so an `async connectedCallback` is refused with an error rather than rendered empty.
   Load data before `renderToString` and pass it in as attributes.
-- **Effects run, but their writes do not reach the markup.** `useEffect` fires during the render, so
-  guard browser-only work — but a state change it makes schedules a re-render that happens after the
-  string has been built, and the markup shows the value from before the effect.
+- **`useLayoutEffect` does not run.** It is scheduled on a microtask and a server render is
+  synchronous end to end, so there is no point between "the render finished" and "the markup was
+  serialized" for one to run in. React's does not run during SSR either, for the same reason.
+  Settle that state before `render()`, or use `useEffect`, which does run.
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
 - **A routed component renders its shell, not its route.** `initRouter` works server-side — the
   shim provides enough `window` for it — so the nav and the `[view]` outlet reach the markup and the

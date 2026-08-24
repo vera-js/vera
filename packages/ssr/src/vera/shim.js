@@ -69,8 +69,14 @@ const styleView = (element) => {
         .filter((pair) => pair.length === 2)
         .map(([name, value]) => [name.trim(), value.trim()])
     );
+  /**
+   * Each declaration ends in a semicolon, including the last, because that is what a browser writes
+   * into the attribute when you set a property — `style.color = 'red'` gives `style="color: red;"`.
+   * Dropping the final one made every component that styles itself disagree with the client on its
+   * own host attribute.
+   */
   const write = (rules) => {
-    const text = [...rules].map(([name, value]) => `${name}: ${value}`).join('; ');
+    const text = [...rules].map(([name, value]) => `${name}: ${value};`).join(' ');
     if (text) element.setAttribute('style', text);
     else element.removeAttribute('style');
   };
@@ -286,6 +292,21 @@ class ShadowRootShim extends ContainerShim {
   }
 }
 
+/**
+ * A component's own `attributeChangedCallback`, when it declared one.
+ *
+ * Read through a cast rather than declared as a field: a field in this base class would be an own
+ * property set to `undefined`, which shadows the subclass's method and silently switches observed
+ * attributes back off — the very thing this exists to deliver.
+ *
+ * @param {ElementShim} element
+ * @return {((name: string, previous: string | null, value: string | null) => void) | undefined}
+ */
+const observerOf = (element) =>
+  /** @type {{ attributeChangedCallback?: (name: string, previous: string | null, value: string | null) => void }} */ (
+    element
+  ).attributeChangedCallback;
+
 class ElementShim extends ContainerShim {
   constructor(localName = '') {
     super();
@@ -304,16 +325,64 @@ class ElementShim extends ContainerShim {
     return this._attributes.has(name) ? this._attributes.get(name) : null;
   }
   setAttribute(name, value) {
+    const previous = this.getAttribute(name);
     this._attributes.set(name, String(value));
+    this._attributeChanged(name, previous);
   }
   hasAttribute(name) {
     return this._attributes.has(name);
   }
+  /**
+   * `force` decides, and when the attribute is already in the wanted state **nothing happens** —
+   * no write, no callback. This used to reset the value to `''` on `toggleAttribute(name, true)`
+   * for an attribute that was already there, which silently erased it.
+   */
   toggleAttribute(name, force) {
-    const wanted = force ?? !this._attributes.has(name);
+    const present = this._attributes.has(name);
+    const wanted = force ?? !present;
+    if (wanted === present) return wanted;
     if (wanted) this._attributes.set(name, '');
     else this._attributes.delete(name);
+    this._attributeChanged(name, wanted ? null : this.getAttribute(name));
     return wanted;
+  }
+
+  /**
+   * Upgrade, the way the parser does it: `attributeChangedCallback` fires once per **present**
+   * observed attribute, before `connectedCallback`, with a `null` old value.
+   *
+   * It never fired at all on the server. `attributeChangedCallback` is the only reactive-attribute
+   * mechanism a plain custom element has, so a component that derives its state there rendered
+   * its *initial* state into the page and then corrected itself on the client — a hydration
+   * mismatch on every such component, and a flash of the wrong content for anyone without JS.
+   */
+  upgrade() {
+    this._observed = /** @type {{ observedAttributes?: string[] }} */ (this.constructor).observedAttributes;
+    this._upgraded = true;
+    const changed = observerOf(this);
+    if (!this._observed || !changed) return;
+    for (const name of this._observed) {
+      const value = this.getAttribute(name);
+      if (value !== null) changed.call(this, name, null, value);
+    }
+  }
+
+  /**
+   * And it keeps firing afterwards, because a browser does: a component that changes its own
+   * attribute during a render sees the callback on the client and must see it here.
+   *
+   * Guarded on `_upgraded` first, which is the common case for the renderer's attribute writes —
+   * an element mid-upgrade has no observers yet, and one that observes nothing never reaches the
+   * `includes`.
+   */
+  _attributeChanged(name, previous) {
+    if (!this._upgraded || !this._observed?.includes(name)) return;
+    /**
+     * Fired even when the value did not change, because a browser does: `setAttribute` runs the
+     * attribute-change steps unconditionally. Only a *no-op* — removing what was not there,
+     * toggling to the state it is already in — is silent, and those never reach here.
+     */
+    observerOf(this)?.call(this, name, previous, this.getAttribute(name));
   }
   /** Enough of a `NamedNodeMap` to iterate, which is what component code does with it. */
   get attributes() {
@@ -335,7 +404,10 @@ class ElementShim extends ContainerShim {
     return styleView(this);
   }
   removeAttribute(name) {
+    if (!this._attributes.has(name)) return;
+    const previous = this.getAttribute(name);
     this._attributes.delete(name);
+    this._attributeChanged(name, previous);
   }
 
   /**
@@ -547,7 +619,21 @@ export const installShims = () => {
     }
   });
 
-  globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  /**
+   * On the server the frame is **now**: a render has one shot at the markup and nothing after it
+   * can be serialized.
+   *
+   * This deferred to `setTimeout`, which ran every scheduled callback long after the response was
+   * built. Core's render scheduler is `requestAnimationFrame`, so any state a component settled
+   * after its first `render()` — the ordinary `render(); this.state.x = fromAttribute` shape —
+   * was dropped, and every `useEffect` was too. Both landed on the client instead, so the server
+   * shipped one page and the browser immediately replaced it with a different one.
+   *
+   * Shimmed rather than left undefined so that unguarded callers — `@verajs/router`'s initial
+   * navigation, any third-party component measuring itself — run instead of throwing.
+   */
+  globalThis.requestAnimationFrame = (fn) => (fn(performance.now()), 0);
+  globalThis.cancelAnimationFrame = () => {};
   return registry;
 };
 

@@ -298,6 +298,33 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.equal(again.styles, after.styles, 'and stays stable');
 }
 
+/**
+ * **Generalized:** a failure anywhere inside a render surfaces. It is never markup.
+ *
+ * The case above throws straight out of `connectedCallback`, which propagates by itself. A failure
+ * inside a *hook* does not: core deliberately isolates those so one bad effect cannot take out the
+ * hooks beside it, and with no `'error'` insert registered it logs and carries on. In a browser
+ * that is right — the next render can recover. On a server there is no next render, so the
+ * component was serialized **empty**, into a 200, with a console line on a machine nobody watches.
+ *
+ * Each entry is a different way to fail, because the defect was never about one of them.
+ */
+for (const [what, file, message] of [
+  ['a render callback throws', 'render-throws-ssr.js', /render blew up/],
+  ['an effect throws', 'effect-throws-ssr.js', /effect blew up/],
+  ['a nested child throws', 'parent-of-throwing-ssr.js', /render blew up/],
+]) {
+  await assert.rejects(() => renderToString(fixture(file)), message, `${what}: it was swallowed`);
+  await assert.rejects(
+    () => renderToString(fixture(file)),
+    /threw while rendering/,
+    `${what}: the message does not say a render failed`
+  );
+
+  const after = await renderToString(fixture('island-a-ssr.js'));
+  assert.match(after.html, /^<island-a-ssr>/, `${what}: the next render is unaffected`);
+}
+
 /* ── the wiring an app already has ────────────────────────────────────────────────────────────
  * These are configuration *combinations*, which is where the last few passes found everything:
  * options work alone and break together, or break because the app does something ordinary.

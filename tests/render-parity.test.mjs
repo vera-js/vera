@@ -11,15 +11,15 @@
  * Adding a case is one line. Prefer adding to this over a bespoke test whenever the question is
  * "do the two sides agree".
  *
- * Comparison is on normalized DOM, not on markup text, because two legitimate differences are not
- * defects: the author's quote characters travel in the statics (`class='v'` server, `class="v"`
- * client), and the renderer leaves marker comments. Form properties are compared as **properties**
- * on both sides — the server mirrors `.value`/`.checked` to attributes precisely so hydration can
- * read them back, so the attribute is an implementation detail and the property is the truth.
+ * Comparison is on normalized DOM, not on markup text — see `./canonical.mjs` for the rules and why.
+ *
+ * The sibling suite `./lifecycle-parity.test.mjs` asks the same question one level up, about a whole
+ * component rather than one template.
  */
 import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
+import { canonical } from './canonical.mjs';
 
 /** Every case is a template source, evaluated identically on both sides. */
 const CASES = {
@@ -135,29 +135,6 @@ const clientTemplates = new Function(
   'spread',
   `return { ${Object.entries(CASES).map(([n, t]) => `${JSON.stringify(n)}: () => ${t}`).join(',\n')} };`
 )(html, state, spread);
-
-/** Form state lives on the property; the server mirrors it to an attribute so hydration can read it. */
-const FORM_PROPERTIES = { input: ['value', 'checked'], option: ['value', 'selected'], textarea: ['value'] };
-
-/** A canonical string for a subtree: tags, sorted attributes, merged text, no comments. */
-const canonical = (node) => {
-  let out = '';
-  for (const child of node.childNodes) {
-    if (child.nodeType === 8) continue;
-    if (child.nodeType === 3) {
-      out += child.data;
-      continue;
-    }
-    const mirrored = FORM_PROPERTIES[child.localName] ?? [];
-    const attributes = [...child.attributes]
-      .filter((attribute) => !mirrored.includes(attribute.name))
-      .map((attribute) => `${attribute.name}=${JSON.stringify(attribute.value)}`)
-      .sort();
-    const properties = mirrored.map((name) => `${name}:${JSON.stringify(child[name])}`);
-    out += `<${child.localName} ${[...attributes, ...properties].join(' ')}>${canonical(child)}</${child.localName}>`;
-  }
-  return out;
-};
 
 const parse = (markup) => {
   const container = dom.window.document.createElement('div');

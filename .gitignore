@@ -24,3 +24,6 @@ Thumbs.debug
 **/.rollup.cache
 # Private notes portal (vera-js/internal) — never committed here
 /internal/
+
+# scratch from tests/lifecycle-parity.test.mjs, removed in a finally — this is the crash case
+tests/.lifecycle-*

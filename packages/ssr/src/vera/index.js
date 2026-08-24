@@ -29,6 +29,22 @@ const { setRenderer, insert, inserts } = await import('@verajs/core');
 const { adoptStyles } = await import('@verajs/styles');
 insert('init', adoptStyles, 50);
 
+/**
+ * Failures during a render are collected, not swallowed.
+ *
+ * Core deliberately does not rethrow a hook error — one bad effect must not take out the hooks
+ * beside it — and with no `'error'` insert registered it logs and carries on. In a browser that is
+ * right: the component is degraded and the next render can recover it. On a server there is no
+ * next render. A component whose `render()` threw was serialized **empty**, into a 200, with a
+ * console line on a machine nobody is watching — the same "empty component and said nothing about
+ * it" that the async-`connectedCallback` guard below refuses to allow.
+ *
+ * Registered at priority 10 rather than the default 50, so an app that installs its own error
+ * reporter keeps it: at a taken priority `insert` replaces.
+ */
+const renderErrors = [];
+insert('error', (error, element) => renderErrors.push({ error, tag: element?.localName }), 10);
+
 /** The server renderer: template object in, markup into the (shadow) container shim. */
 const serverRenderer = (template, container) => {
   /**
@@ -244,7 +260,22 @@ const renderComponent = (tag, attrString, depth, props, children) => {
    * object or anything else structured could not be server-rendered with real data at all — it had
    * to be handed a JSON string and parse it back.
    */
-  if (props) Object.assign(element, props);
+  if (props) {
+    try {
+      Object.assign(element, props);
+    } catch (error) {
+      /**
+       * `Object.assign` onto a getter-only property throws `Cannot set property x of #<Class>` —
+       * true, and no help at all: it names neither the component, nor the option the value came
+       * from, nor that a server render was in progress. Every other bad input to `renderToString`
+       * says what to do about it.
+       */
+      throw new TypeError(
+        `ssr: <${tag}> refused a value from \`props\` — ${String(/** @type {Error} */ (error).message)}. ` +
+          `A read-only property cannot be set; pass it as an attribute, or give the class a setter.`
+      );
+    }
+  }
   /**
    * Children go in **before** `connectedCallback`, because that is where a client finds them: the
    * parser has already built them when the element upgrades. A component that reads or slots them
@@ -254,6 +285,7 @@ const renderComponent = (tag, attrString, depth, props, children) => {
 
   renderedTags.add(tag);
   const previousTag = setRenderingTag(tag) ?? tag;
+  element.upgrade();
   const pending = element.connectedCallback?.();
   setRenderingTag(previousTag);
 
@@ -407,6 +439,7 @@ export const renderToString = async (
 
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
+  renderErrors.length = 0;
   /**
    * `children` is what a `<slot>` in the component renders. Without it a component built around a
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
@@ -414,6 +447,24 @@ export const renderToString = async (
    */
   const entry = renderComponent(tag, attrString, 0, props, children);
   const html = `${entry.open}${entry.inner}</${tag}>`;
+
+  /**
+   * Thrown once the walk is over rather than at the point of failure, so the message can name
+   * every component that failed instead of only the first — and so core's own isolation still
+   * holds while the render runs.
+   *
+   * Catch it to fall back to a client-rendered shell, which is what `renderToString` throwing
+   * means in React and Vue too. It is never right to ship the empty markup this replaces.
+   */
+  if (renderErrors.length) {
+    const [first] = renderErrors;
+    const others = renderErrors.length > 1 ? ` (and ${renderErrors.length - 1} more)` : '';
+    throw new Error(
+      `ssr: <${first.tag ?? tag}> threw while rendering${others} — its markup would be empty. ` +
+        `${String(first.error?.message ?? first.error)}`,
+      { cause: first.error }
+    );
+  }
   /**
    * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
    * in their page shell — which makes that their render boundary, and handing them CSS that can
