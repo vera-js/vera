@@ -12,7 +12,15 @@
  * so nothing here carries framework comments. (This comment used to say the renderer had no
  * `hydrate()` yet and point at a "strategy 2"; both stopped being true when that entry shipped.)
  */
-import { installShims, registry, hoistedStyles, escapeHtml, escapeStyleText, setRenderingTag } from './shim.js';
+import {
+  installShims,
+  registry,
+  hoistedStyles,
+  escapeHtml,
+  escapeStyleText,
+  setRenderingTag,
+  flushFrames,
+} from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
 
 installShims();
@@ -287,6 +295,8 @@ const renderComponent = (tag, attrString, depth, props, children) => {
   const previousTag = setRenderingTag(tag) ?? tag;
   element.upgrade();
   const pending = element.connectedCallback?.();
+  /** Inside the rendering tag, so a re-render's styles are still hoisted against this component. */
+  flushFrames();
   setRenderingTag(previousTag);
 
   /**

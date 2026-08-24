@@ -27,8 +27,10 @@ you must produce markup an object cannot describe, and never with anything from 
   execution registers classes through `customElements.define` — no AST walking.
 - **The lifecycle runs the way it does in a browser.** `attributeChangedCallback` fires on upgrade
   for every present observed attribute and again on every later change; there is no animation frame
-  to wait for, so a re-render scheduled during `connectedCallback` and every `useEffect` land before
-  the markup is serialized. `tests/lifecycle-parity.test.mjs` renders each case on both sides and
+  to wait for — frames are queued and drained once `connectedCallback` returns, and again for
+  whatever those schedule, so a re-render and every `useEffect` land before the markup is
+  serialized, coalesced exactly as a browser coalesces them. An endless animation loop is bounded
+  rather than run forever. `tests/lifecycle-parity.test.mjs` renders each case on both sides and
   compares the DOM.
 - **A failure during a render rejects — it is never markup.** Core isolates a hook error so one bad
   effect cannot take out the hooks beside it, which is right in a browser because the next render

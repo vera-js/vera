@@ -144,6 +144,56 @@ const CASES = {
       state.text = 'changed';
     `,
   },
+  /**
+   * How many times the template actually ran, printed by the template itself.
+   *
+   * The client coalesces the two assignments into one re-render, because the scheduler defers past
+   * the end of `connectedCallback`. A server shim that ran scheduled work *immediately* would
+   * re-render after each statement instead — the same final DOM, arrived at a different number of
+   * times, and any component counting its own renders would disagree with the browser.
+   */
+  'renders are coalesced the same way': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ n: 0 });
+      let renders = 0;
+      render(() => { renders++; return html\`<p>renders=\${renders} n=\${state.n}</p>\`; });
+      state.n = 1;
+      state.n = 2;
+    `,
+  },
+  /**
+   * Ordering, not just count: the frame is scheduled *before* `render()` and must still find the
+   * template drawn, because on the client the frame comes after `connectedCallback` returns.
+   */
+  'a frame scheduled during connectedCallback runs after it': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ when: 'not run' });
+      const root = this.shadowRoot ?? this._root;
+      requestAnimationFrame(() => { state.when = root.innerHTML.includes('<p>') ? 'after the render' : 'before it'; });
+      render(() => html\`<p>\${state.when}</p>\`);
+    `,
+  },
+  /** A frame scheduled from inside a frame is the next frame — it runs, on both sides. */
+  'a frame scheduled from inside a frame': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ depth: 0 });
+      requestAnimationFrame(() => { state.depth = 1; requestAnimationFrame(() => { state.depth = 2; }); });
+      render(() => html\`<p>depth=\${state.depth}</p>\`);
+    `,
+  },
+  /** cancelAnimationFrame is honoured, not ignored. */
+  'a cancelled frame does not run': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ ran: 'no' });
+      const id = requestAnimationFrame(() => { state.ran = 'yes'; });
+      cancelAnimationFrame(id);
+      render(() => html\`<p>ran=\${state.ran}</p>\`);
+    `,
+  },
   'render() called bare, then again with a template': {
     body: `
       init(this, { mode: 'open' });
@@ -177,6 +227,25 @@ const KNOWN_DIVERGENCES = {
     server: '<p >start</p>',
     client: '<p >layout-ran</p>',
   },
+};
+
+/**
+ * An endless animation loop is browser-only code that is nonetheless reachable on a server. It must
+ * not hang the request, so the server stops after a bounded number of rounds — which means the two
+ * sides legitimately disagree about how far the loop got. Asserted as a divergence in *shape*: the
+ * server finished, and neither side is still at zero. The loop length must stay above the shim's
+ * `FRAME_ROUNDS`, or the server reaches the end and the case stops asking anything.
+ */
+KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
+  body: `
+    init(this, { mode: 'open' });
+    const state = createStore({ frames: 0 });
+    const loop = () => { state.frames++; if (state.frames < 25) requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+    render(() => html\`<p>bounded=\${state.frames > 0 && state.frames < 25}</p>\`);
+  `,
+  server: '<p >bounded=true</p>',
+  client: '<p >bounded=true</p>',
 };
 
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };

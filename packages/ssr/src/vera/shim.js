@@ -504,6 +504,41 @@ class ElementShim extends ContainerShim {
   }
 }
 
+/** Callbacks awaiting a frame that will not arrive on its own. See `flushFrames`. */
+const frames = [];
+
+/**
+ * How many rounds of frames a single server render will run.
+ *
+ * Deferring until after `connectedCallback` is what a browser does, and it is what makes a
+ * component's own ordering hold: work scheduled before `render()` still sees the template. Draining
+ * *repeatedly* is what makes the markup match where the client settles — an effect that derives
+ * state schedules a re-render, which is another frame, and stopping after one would ship the
+ * half-settled DOM this whole area exists to avoid.
+ *
+ * The bound is for the component that schedules a frame from inside a frame forever: an animation
+ * loop, which is browser-only code that happens to be reachable here. It runs a few times and stops
+ * rather than hanging the request.
+ */
+const FRAME_ROUNDS = 20;
+
+/**
+ * Runs everything waiting on a frame, and everything those schedule in turn.
+ *
+ * Called once per component, after `connectedCallback` — not inside `requestAnimationFrame` itself.
+ * Running each callback immediately looked equivalent and was not: two state changes in a row
+ * re-rendered twice where a browser coalesces them into one, and anything scheduled before
+ * `render()` ran against a component that had not drawn yet.
+ */
+export const flushFrames = () => {
+  for (let round = 0; round < FRAME_ROUNDS && frames.length; round++) {
+    const batch = frames.splice(0, frames.length);
+    for (const frame of batch) frame?.(performance.now());
+  }
+  /** A loop that never settles leaves work queued; it must not reach the next component. */
+  frames.length = 0;
+};
+
 /** Records a hoisted sheet against whichever component is mid-render. */
 const hoist = (cssText) => {
   const sheets = hoistedStyles.get(renderingTag) ?? [];
@@ -620,8 +655,8 @@ export const installShims = () => {
   });
 
   /**
-   * On the server the frame is **now**: a render has one shot at the markup and nothing after it
-   * can be serialized.
+   * Frames are queued and drained once the component's `connectedCallback` has returned — see
+   * `flushFrames`.
    *
    * This deferred to `setTimeout`, which ran every scheduled callback long after the response was
    * built. Core's render scheduler is `requestAnimationFrame`, so any state a component settled
@@ -632,8 +667,10 @@ export const installShims = () => {
    * Shimmed rather than left undefined so that unguarded callers — `@verajs/router`'s initial
    * navigation, any third-party component measuring itself — run instead of throwing.
    */
-  globalThis.requestAnimationFrame = (fn) => (fn(performance.now()), 0);
-  globalThis.cancelAnimationFrame = () => {};
+  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+  globalThis.cancelAnimationFrame = (id) => {
+    frames[id - 1] = null;
+  };
   return registry;
 };
 
