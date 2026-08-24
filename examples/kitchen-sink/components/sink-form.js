@@ -21,14 +21,30 @@ export default class SinkForm extends HTMLElement {
    * involved.
    */
   attributeChangedCallback(name, previous, value) {
-    (this.seen ??= []).push(`${name}:${previous}>${value}`);
-    if (this.state) this.state.log = this.seen.join('|');
+    (this.seen ??= []).push({ name, previous, value });
+    if (this.state) {
+      this.state.latest = `${name}: ${previous ?? '(unset)'} → ${value}`;
+      /** The last three, not everything: an unbounded string stops being readable after four presses. */
+      this.state.log = this.seen
+        .slice(-3)
+        .map((entry) => `${entry.name}: ${entry.previous ?? '(unset)'} → ${entry.value}`)
+        .join('  ·  ');
+      this.state.calls = this.seen.length;
+    }
   }
 
   connectedCallback() {
     init(this, { mode: 'open' });
-    const state = createStore({ editing: false, log: (this.seen ??= []).join('|') });
+    const seen = (this.seen ??= []);
+    const describe = (entry) => `${entry.name}: ${entry.previous ?? '(unset)'} → ${entry.value}`;
+    const state = createStore({
+      editing: false,
+      calls: seen.length,
+      latest: seen.length ? describe(seen[seen.length - 1]) : '(none yet)',
+      log: seen.slice(-3).map(describe).join('  ·  '),
+    });
     this.state = state;
+    let renames = 0;
     this.internals = this.attachInternals();
     this.internals.setFormValue(this.getAttribute('value') ?? '');
     this.toggle = () => (state.editing = !state.editing);
@@ -39,11 +55,10 @@ export default class SinkForm extends HTMLElement {
         <h3>hold() keeps a toggled-away subtree alive, and attributeChangedCallback is the only reactive-attribute mechanism a custom element has</h3>
         <h4>Press edit, type something, press show the value, then edit again — your text is still there.</h4>
         <button id="doToggle" @click=${() => this.toggle()}>${state.editing ? 'show the value' : 'edit'}</button>
-        <button id="doRename" @click=${() => this.setAttribute('label', `Renamed ${(this.seen ?? []).length}`)}>
-          change the observed attribute
-        </button>
+        <button id="doRename" @click=${() => this.setAttribute('label', `Renamed ${++renames}`)}>change the observed attribute</button>
         <p>label: <span id="label">${this.getAttribute('label')}</span></p>
-        <p id="log">${state.log}</p>
+        <p>attributeChangedCallback fired <strong>${state.calls}</strong> times; most recent: <strong>${state.latest}</strong></p>
+        <p class="note">last three: <span id="log">${state.log}</span></p>
         <div id="held">
           ${hold(
             state.editing

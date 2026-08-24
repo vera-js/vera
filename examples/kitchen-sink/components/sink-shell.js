@@ -91,6 +91,21 @@ export default class SinkShell extends HTMLElement {
     p {
       margin: 0.2rem 0;
     }
+    p.note {
+      font-size: 0.85rem;
+      color: #6b7386;
+    }
+    code {
+      font-size: 0.85em;
+      background: #eef1f6;
+      padding: 0 0.25rem;
+      border-radius: 3px;
+    }
+    header,
+    footer,
+    #body {
+      display: inline;
+    }
     nav {
       display: flex;
       flex-wrap: wrap;

@@ -128,11 +128,30 @@ describe('the two live modes behave identically', () => {
   });
 
   it('a coalesced effect runs once per frame and a sync effect once per write', async () => {
-    /** Three writes in one turn: `useSyncEffect` sees each, `useEffect` sees the batch. */
-    const before = Number(inside('hydrate', 'sink-effects', '#sync').textContent);
+    /**
+     * Three writes in **one turn**. The sync effect sees each; the coalesced ones see one batch.
+     *
+     * Only the sync side was asserted here before, so the panel that reports all three could — and
+     * did — mislead a reader about the other two while this stayed green. The counts are read from
+     * the component rather than the markup, because `useEffect` runs *after* the render that shows
+     * it and would otherwise be one behind.
+     */
+    const counts = () => ({ ...part('hydrate', 'sink-effects').counts });
+    const before = counts();
     await inBoth((mode) => part(mode, 'sink-effects').bump(3));
-    const sync = Number(inside('hydrate', 'sink-effects', '#sync').textContent);
-    expect(sync - before, 'a sync effect must observe every intermediate write').to.equal(3);
+    const after = counts();
+
+    expect(after.sync - before.sync, 'a sync effect must observe every intermediate write').to.equal(3);
+    expect(after.coalesced - before.coalesced, 'useEffect must coalesce three writes into one run').to.equal(1);
+    expect(after.layout - before.layout, 'useLayoutEffect must coalesce them too').to.equal(1);
+
+    /** And three writes in three separate turns are three of everything — the same rule, not another. */
+    const beforeSeparate = counts();
+    for (let i = 0; i < 3; i++) await inBoth((mode) => part(mode, 'sink-effects').bump(1));
+    const afterSeparate = counts();
+    expect(afterSeparate.sync - beforeSeparate.sync).to.equal(3);
+    expect(afterSeparate.coalesced - beforeSeparate.coalesced, 'separate turns do not batch').to.equal(3);
+    expect(afterSeparate.layout - beforeSeparate.layout, 'separate turns do not batch').to.equal(3);
   });
 
   it('a keyed reorder moves nodes instead of rebuilding them', async () => {
@@ -200,7 +219,7 @@ describe('the two live modes behave identically', () => {
 
   it('an observed attribute reaches the component after hydration', async () => {
     await inBoth((mode) => part(mode, 'sink-form').setAttribute('label', 'Changed'));
-    expect(inside('hydrate', 'sink-form', '#log').textContent).to.contain('label:Name>Changed');
+    expect(inside('hydrate', 'sink-form', '#log').textContent).to.contain('label: Name → Changed');
   });
 
   it('a custom property re-tints a component styled by a constructed sheet', async () => {

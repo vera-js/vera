@@ -16,9 +16,11 @@ import { init, render, html, createStore, useEffect, useLayoutEffect, useSyncEff
 export default class SinkEffects extends HTMLElement {
   connectedCallback() {
     init(this, { mode: 'open' });
-    const state = createStore({ n: 0 });
+    const state = createStore({ n: 0, report: 'press a button' });
     /** Untracked on purpose — see the header. */
     const counts = { sync: 0, coalesced: 0, layout: 0, lastProp: '', batched: 0 };
+    /** Where the counters stood when the last press began, so a press can report its own deltas. */
+    let mark = { sync: 0, coalesced: 0, layout: 0 };
     this.state = state;
     this.counts = counts;
 
@@ -30,16 +32,26 @@ export default class SinkEffects extends HTMLElement {
       deps(state.n);
       counts.coalesced++;
       if (signal?.prop) counts.lastProp = String(signal.prop);
-      /** `signal.changed` is only present on a coalesced run, and carries the whole batch. */
       if (signal?.changed) counts.batched = signal.changed.size;
+      /**
+       * Published from here because `useEffect` runs **after** the render, so a template reading the
+       * counters directly always shows this pass's `useEffect` count one behind. Writing a value the
+       * template does read — and that this effect never reads — schedules one more render, which
+       * then shows the finished numbers. No loop: the only dependency is `state.n`.
+       */
+      state.report =
+        `useSyncEffect +${counts.sync - mark.sync}, ` +
+        `useEffect +${counts.coalesced - mark.coalesced}, ` +
+        `useLayoutEffect +${counts.layout - mark.layout}`;
     });
     useSyncEffect(() => {
       deps(state.n);
       counts.sync++;
     });
 
-    /** Driven by a test: three writes in a row separate the coalesced counters from the sync one. */
+    /** Marks the counters before writing, so what the press caused can be reported on its own. */
     this.bump = (times = 1) => {
+      mark = { sync: counts.sync, coalesced: counts.coalesced, layout: counts.layout };
       for (let i = 0; i < times; i++) state.n++;
     };
 
@@ -47,9 +59,14 @@ export default class SinkEffects extends HTMLElement {
       () => html`<section id="effects">
         <h2>Effects</h2>
         <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>
-        <h4>Press bump three times and compare the two counters — one rises by three, the other by one.</h4>
-        <button id="bumpOne" @click=${() => this.bump(1)}>bump once</button>
-        <button id="bumpThree" @click=${() => this.bump(3)}>bump three times</button>
+        <h4>Press each button once and read "that press caused" — the same three writes batch differently.</h4>
+        <button id="bumpThree" @click=${() => this.bump(3)}>three writes in one turn</button>
+        <button id="bumpOne" @click=${() => this.bump(1)}>one write</button>
+        <p><strong>that press caused: <span id="report">${state.report}</span></strong></p>
+        <p class="note">
+          Pressing "one write" three times is three separate turns, so all three counters rise by
+          three — which is the same framework behaviour, not a different one.
+        </p>
         <p>n: <span id="n">${state.n}</span></p>
         <p>useSyncEffect runs: <span id="sync">${counts.sync}</span></p>
         <p>useEffect runs: <span id="coalesced">${counts.coalesced}</span></p>
