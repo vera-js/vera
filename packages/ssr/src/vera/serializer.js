@@ -31,16 +31,16 @@ const FORM_ATTRIBUTES = ['value', 'checked', 'selected'];
  * hid the element on one side and printed `?hidden='true'` on the other. Visible difference on a
  * static page, guaranteed mismatch on a hydrated one.
  */
-const SIGIL_TAIL = /([.?@&])([a-zA-Z][\w-]*)=(["']?)$/;
+const SIGIL_TAIL = /([.?@&])([a-zA-Z][\w:-]*)=(["']?)$/;
 
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
-const EVENT_TAIL = /on[A-Z][\w-]*=(["']?)$/;
+const EVENT_TAIL = /on[A-Z][\w:-]*=(["']?)$/;
 
 /**
  * An **unquoted** plain attribute, which is the only one that needs quotes adding. A quoted one
  * carries its quotes in the statics either side, so the value is just escaped text between them.
  */
-const PLAIN_ATTRIBUTE_TAIL = /[a-zA-Z][\w-]*=$/;
+const PLAIN_ATTRIBUTE_TAIL = /[a-zA-Z][\w:-]*=$/;
 
 /** Slot kinds: text, boolean, form-prop, dropped binding, plain attribute. */
 const TEXT = 0;
@@ -231,10 +231,30 @@ const serializeValue = (value, raw = false) => {
      * decides what reaches markup: attributes and truthy booleans do, form properties do because
      * hydration reads them back, and events and other properties are client state. Escaping happens
      * here and only here — principle #8 puts it at the render boundary, not at the source.
-     *
-     * Anything else at element position is a ref, which is a client concern.
      */
-    return '';
+    if (value._$attrs$) return '';
+
+    /**
+     * An iterable renders its entries, exactly as the client's child position does — a `Set` or a
+     * `Map` reaching a template is not obviously deliberate, but the two sides have to agree about
+     * it or hydration is discarded.
+     */
+    if (typeof value[Symbol.iterator] === 'function') {
+      return [...value].map((entry) => serializeValue(entry, raw)).join('');
+    }
+
+    /**
+     * Everything else falls through to `String(value)`, which is what the client does.
+     *
+     * This used to return `''` for any object that was not template-shaped, and the client has
+     * never agreed: a `Date` rendered its full date string there and nothing here, an object with a
+     * `toString` rendered its text, a `Promise` rendered `[object Promise]`. Whether any of those is
+     * a *sensible* thing to interpolate is beside the point — the two sides disagreeing is a silent
+     * hydration mismatch, and matching junk is worth more than differing junk.
+     *
+     * A DOM node is the one exception, and it cannot occur: the server has no document to have
+     * built one.
+     */
   }
   return raw ? String(value) : escapeHtml(value);
 };

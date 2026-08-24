@@ -66,7 +66,7 @@ const tagEnd = (markup, start) => {
  * empty attributes *and invented two more*, because the value text fell through to the next
  * iteration and matched as a name.
  */
-const ATTRIBUTE = /([\w-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+const ATTRIBUTE = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
 /** Numeric and the five named references — everything `escapeHtml` can emit, plus what authors write. */
 const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'" };

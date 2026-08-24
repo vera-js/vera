@@ -192,8 +192,25 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
   const heldResult = (rawValue as { $h?: TemplateResult } | null)?.$h;
   const value = heldResult !== undefined ? heldResult : rawValue;
 
-  if (value != null && typeof value !== 'object') {
-    /** Primitive: claim its text and bind the fast TextPart, committed state included. */
+  /**
+   * Anything the client commits as text claims text here — which is every value that is not a
+   * template, a node, or an iterable. `String(value)` is what `_set` falls through to, so a `Date`,
+   * an object with a `toString`, a `Promise` or a plain object all produce text on the client, and
+   * `@verajs/ssr` produces the same text on the server.
+   *
+   * The object cases used to be a deliberate mismatch, because the server emitted nothing for them
+   * and the two could not be reconciled. Once the server started matching the client, the mismatch
+   * was the only thing left disagreeing.
+   */
+  const isText =
+    value != null &&
+    (typeof value !== 'object' ||
+      (!isTemplateResult(value) &&
+        (value as Node).nodeType === undefined &&
+        typeof (value as Iterable<unknown>)[Symbol.iterator] !== 'function'));
+
+  if (isText) {
+    /** Claim its text and bind the fast TextPart, committed state included. */
     const textPart = new TextPart(claimValueText(cursor, toText(value)));
     textPart._value = value;
     out.push(textPart);
@@ -221,24 +238,14 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
     cursor.parent.insertBefore(value as Node, cursorSplit(cursor));
     part._value = value;
     part._mode = NODE;
-  } else if (Array.isArray(value) || typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
+  } else {
+    /** Everything left is an array or another iterable — text and nodes were handled above. */
     const list: unknown[] = Array.isArray(value) ? value : [...(value as Iterable<unknown>)];
     const items: Item[] = [];
     for (const entry of list) items.push(adoptItem(cursor, entry));
     part._items = items;
     part._keyedList = list.length > 0 && (list[0] as TemplateResult)?.key !== undefined;
     part._mode = LIST;
-  } else {
-    /**
-     * Anything else — a plain object, a Promise, a class instance — the client commits as
-     * `String(value)`, and the server serializer emits nothing for it. The two cannot be reconciled,
-     * so this is a mismatch like any other and the caller renders fresh.
-     *
-     * It has to be said explicitly: spreading a non-iterable throws a `TypeError`, and the guard in
-     * `tryAdopt` only swallows `MISMATCH`. That escaped hydration and took the page down, where
-     * every other disagreement with the server degrades quietly.
-     */
-    throw MISMATCH;
   }
 
   const end = comment();

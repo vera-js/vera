@@ -49,6 +49,19 @@ const CASES = {
   "single-quoted boolean, false": "html`<p><b id=\"probe\" ?hidden='${false}'>x</b></p>`",
   "single-quoted event": "html`<p><b id=\"probe\" @click='${() => {}}'>x</b></p>`",
   "single-quoted onClick": "html`<p><b id=\"probe\" onClick='${() => {}}'>x</b></p>`",
+
+  /**
+   * Value kinds the server used to drop entirely. Whether any of these is a sensible thing to
+   * interpolate is beside the point — the two sides disagreeing is a silent hydration mismatch,
+   * and matching junk beats differing junk.
+   */
+  'text: a Date': 'html`<p><b id="probe">x</b>${new Date(0)}</p>`',
+  'text: an object with toString': 'html`<p><b id="probe">x</b>${{ toString: () => "T" }}</p>`',
+  'text: a plain object': 'html`<p><b id="probe">x</b>${{ a: 1 }}</p>`',
+  'text: a Set': 'html`<p><b id="probe">x</b>${new Set([1, 2])}</p>`',
+  'text: a Map': 'html`<p><b id="probe">x</b>${new Map([[1, 2]])}</p>`',
+  /** A colon is legal in an attribute name — `xml:lang`, `xlink:href`. */
+  'attribute with a colon': 'html`<p><b id="probe" xml:lang=${state.text}>x</b></p>`',
 };
 
 const STATE = "{ text: 'hello & <world>', count: 3, rows: ['a', 'b'] }";
@@ -103,6 +116,12 @@ const VALUES = {
   'text: null': (container) => container.textContent === 'x' || 'null rendered something',
   'boolean, true': (container) => container.querySelector('#probe').hasAttribute('hidden') || 'not hidden',
   'boolean, false': (container) => !container.querySelector('#probe').hasAttribute('hidden') || 'hidden anyway',
+  'text: an object with toString': (c) => c.textContent.includes('T') || 'toString ignored',
+  'text: a plain object': (c) => c.textContent.includes('[object Object]') || 'not stringified',
+  'text: a Set': (c) => c.textContent.includes('12') || 'set not iterated',
+  'text: a Map': (c) => c.textContent.includes('12') || 'map not iterated',
+  'attribute with a colon': (c) =>
+    c.querySelector('#probe').getAttribute('xml:lang') === 'hello & <world>' || 'colon attribute wrong',
 };
 
 for (const [name, markup] of Object.entries(serverMarkup)) {
