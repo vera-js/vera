@@ -41,6 +41,20 @@ test('the lit template contract survives minification', () => {
   }
 });
 
+/**
+ * The two halves of the child-position protocol. A third party writes `_$child$` on a value and
+ * calls `part._$commit$`, so both names cross a bundle boundary the same way `_$apply$` does — and
+ * the renderer mangles `/^_[a-z]/`, which `_$…$` deliberately does not match.
+ */
+test('the child-position directive protocol survives minification', () => {
+  for (const name of ['renderer', 'hydrate']) {
+    const src = read(PROD[name]);
+    for (const contract of ['_$child$', '_$commit$', '_$apply$']) {
+      assert.ok(src.includes(contract), `${name}: ${contract} must not be mangled`);
+    }
+  }
+});
+
 test('the insert chain priority contract `_p` survives everywhere it is inlined', () => {
   /**
    * `_p` carries the priority order on an insert chain and is read by every inlined copy of

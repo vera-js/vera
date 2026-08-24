@@ -782,6 +782,14 @@ class TextPart implements Part {
   }
 }
 
+/**
+ * A value at a child position that applies itself — see `ChildPart._set`.
+ *
+ * `previous` is whatever this directive returned at this part on the last render, which is where a
+ * directive keeps its continuity. Returning nothing is fine for one that has none.
+ */
+export type ChildDirective = (part: { _$commit$(value: unknown): void }, previous: unknown) => unknown;
+
 /** What a ChildPart currently contains. */
 const EMPTY = 0;
 const TEXT = 1;
@@ -824,6 +832,10 @@ class ChildPart implements Part {
   _keyedList = false;
   /** Held instances by template identity; survives clears so state outlives interim content. */
   _held: Map<TemplateStringsArray, Instance> | null = null;
+  /** Whatever the last `_$child$` at this part returned — its continuity across renders. */
+  _directive: unknown = undefined;
+  /** Which directive that state belongs to, so two of them at one part cannot read each other's. */
+  _directiveFn: unknown = undefined;
 
   constructor(start: Comment, end: Node | null) {
     this._start = start;
@@ -877,6 +889,28 @@ class ChildPart implements Part {
     this._instance = null;
     this._items = null;
     this._shape = null;
+    this._directive = undefined;
+    this._directiveFn = undefined;
+  }
+
+  /**
+   * How a child-position directive renders. Named to survive property mangling — `/^_[a-z]/` is the
+   * pattern, and `_$…$` does not match it — because this is the half of the protocol that third
+   * parties call.
+   */
+  _$commit$(value: unknown) {
+    /**
+     * The directive's own state survives its own rendering. Committing different content usually
+     * runs `_clear`, which drops the state so a part that was emptied by *anything else* cannot
+     * hand a directive continuity it no longer has — but a directive rendering its own next value
+     * has not gone away, and losing continuity there made `until()` fall back to its placeholder on
+     * the render after it resolved.
+     */
+    const directive = this._directive;
+    const directiveFn = this._directiveFn;
+    this._set(value);
+    this._directive = directive;
+    this._directiveFn = directiveFn;
   }
 
   _set(value: unknown) {
@@ -931,6 +965,36 @@ class ChildPart implements Part {
       this._instance = instance;
       this._shape = value.strings;
       this._mode = TEMPLATE;
+      return;
+    }
+    /**
+     * **A child-position value that applies itself.** The same idea as `_$apply$` at element
+     * position — which is how `@verajs/renderer/spread` ships as a separate package the renderer
+     * knows nothing about — at the one other position worth extending.
+     *
+     * `_$child$(part, previous)` is handed the part and whatever it returned last time at this
+     * part, and calls `part._$commit$(value)` to render content. Keeping continuity in the return
+     * value rather than in a directive *instance* is what keeps this a protocol rather than a
+     * framework: there is no base class, no factory and no lifecycle to learn, and a directive is
+     * an object literal.
+     *
+     * Placed **after** the template check on purpose. A template is overwhelmingly the common
+     * object at a child position, and it returns above without ever reading this property — so the
+     * check costs the hot path nothing and only arrays, nodes and directives pay for it. Measured:
+     * +22 B gzipped, and no runtime difference distinguishable from noise.
+     *
+     * There is deliberately no teardown hook. `_clear` bulk-removes DOM and, when the part owns its
+     * parent, does `parent.textContent = ''` — the thing that makes clearing a 1 000-row table ~5 ms
+     * against lit-html's ~22 ms. Calling teardown on a nested directive would mean walking the part
+     * tree on every removal, which is precisely the per-node work that fast path exists to skip. So
+     * a directive here can render, and cannot yet be told it has gone away.
+     */
+    const applyChild = (value as { _$child$?: ChildDirective })._$child$;
+    if (applyChild !== undefined) {
+      /** `previous` belongs to *this* directive; a different one at the same part starts fresh. */
+      const previous = this._directiveFn === applyChild ? this._directive : undefined;
+      this._directiveFn = applyChild;
+      this._directive = applyChild.call(value, this, previous);
       return;
     }
     if ((value as Node).nodeType !== undefined) {

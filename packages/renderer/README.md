@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.64 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.73 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -346,6 +346,61 @@ render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
 Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
+
+## Extending it — `_$apply$` and `_$child$`
+
+The renderer holds no directive system. It holds a **protocol**, at the two positions worth
+extending, and everything built on it is an ordinary package the renderer knows nothing about —
+`@verajs/renderer/spread` is the proof, at 16 B of protocol in this bundle and its own weight only
+for apps that import it.
+
+| position | brand | called as |
+| --- | --- | --- |
+| element — `<div ${value}>` | `_$apply$` | `value._$apply$(element, part)` |
+| child — `<div>${value}</div>` | `_$child$` | `value._$child$(part, previous)` |
+
+A child-position value carrying `_$child$` applies itself. It is handed the part and whatever it
+returned last time **at that part**, and calls `part._$commit$(value)` to render content. That is
+the whole surface: `until()` is nine lines against it.
+
+```js
+/** Hoisted — the applier's identity is the directive's identity. */
+function applyUntil(part, previous) {
+  if (previous && previous.promise === this.promise) return previous;
+  if (previous) previous.live = false;
+  const state = { promise: this.promise, live: true };
+  part._$commit$(this.placeholder);
+  this.promise.then((value) => { if (state.live) part._$commit$(value); });
+  return state;
+}
+const until = (promise, placeholder) => ({ _$child$: applyUntil, promise, placeholder });
+
+render(html`<p>${until(fetchUser(), html`<em>loading…</em>`)}</p>`, host);
+```
+
+Three rules, each of which is a real trap:
+
+- **Hoist the applier.** Written as an object-literal method it is a new function per call, so the
+  part can never recognise it and `previous` is always `undefined`. Its identity is what keeps two
+  directives at one part from reading each other's state.
+- **Continuity lives in the return value**, not in a directive instance. That is what makes this a
+  protocol rather than a framework — no base class, no `directive()` factory, no lifecycle.
+- **There is no teardown yet.** A directive can render and cannot be told it has gone away. `_clear`
+  bulk-removes DOM and, when the part owns its parent, does `parent.textContent = ''` — the thing
+  that makes clearing a 1 000-row table ~5 ms against lit-html's ~22 ms. Calling teardown on a
+  nested directive would mean walking the part tree on every removal, which is exactly the per-node
+  work that fast path exists to skip. If you need to unsubscribe, do it from the component.
+
+Both names survive minification by construction: the renderer mangles `/^_[a-z]/`, and `_$…$` does
+not match it. `tests/minification-contracts.test.mjs` holds that.
+
+The check costs the hot path nothing: it sits after the template branch, and a template — the
+common object at a child position — returns before ever reading it, so only arrays, nodes and
+directives pay a property read. Measured with no runtime difference distinguishable from noise.
+
+The whole protocol is **94 B gzipped**. The check alone measured 22 B; the rest is what makes it
+usable — the two fields holding a directive's state and whose it is, and the save/restore in
+`_$commit$` that stops a directive's own rendering from destroying its continuity.
 
 ## Absent on purpose
 
