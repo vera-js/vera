@@ -143,6 +143,89 @@ class ElementShim {
   }
   addEventListener() {}
   removeEventListener() {}
+
+  /**
+   * The rest of the surface an ordinary custom element reaches for.
+   *
+   * The shim was built as "the smallest DOM core's server path touches", which is the wrong bar:
+   * the code that runs here is *user* code, and a component that emits an event, reads its
+   * `tagName`, or adds a class in `connectedCallback` is doing nothing unusual. Each of these threw
+   * a `TypeError` that took the whole render down — measured: `dispatchEvent`, `ownerDocument`,
+   * `tagName`, `children`, `classList`, `closest` and `getRootNode`, all of them.
+   *
+   * They answer the way a detached, childless element would, because that is what this is.
+   */
+  get tagName() {
+    return this.localName.toUpperCase();
+  }
+  get ownerDocument() {
+    return globalThis.document;
+  }
+  get children() {
+    return [];
+  }
+  get childNodes() {
+    return [];
+  }
+  get firstElementChild() {
+    return null;
+  }
+  dispatchEvent() {
+    /** Nothing is listening on a server; `true` is "not cancelled", which is the honest answer. */
+    return true;
+  }
+  closest() {
+    return null;
+  }
+  matches() {
+    return false;
+  }
+  getRootNode() {
+    return this.shadowRoot ?? this;
+  }
+  remove() {}
+  /**
+   * Backed by the `class` attribute, so a class added during `connectedCallback` reaches the
+   * markup — which it now can, because the opening tag is written from these attributes rather
+   * than copied from the source text.
+   */
+  get classList() {
+    const tokens = () => (this.getAttribute('class') ?? '').split(/\s+/).filter(Boolean);
+    const write = (list) => (list.length ? this.setAttribute('class', list.join(' ')) : this.removeAttribute('class'));
+    return {
+      add: (...names) => {
+        const list = tokens();
+        for (const name of names) if (!list.includes(name)) list.push(name);
+        write(list);
+      },
+      remove: (...names) => write(tokens().filter((token) => !names.includes(token))),
+      toggle: (name, force) => {
+        const list = tokens();
+        const wanted = force ?? !list.includes(name);
+        write(wanted ? [...list.filter((token) => token !== name), name] : list.filter((token) => token !== name));
+        return wanted;
+      },
+      contains: (name) => tokens().includes(name),
+      get length() {
+        return tokens().length;
+      },
+    };
+  }
+
+  /**
+   * The element's own opening tag, written from the attributes it holds **now**.
+   *
+   * Copying the source text instead meant everything a component did to itself during
+   * `connectedCallback` was thrown away: `setAttribute('role', 'button')`, a class, an `aria-*` —
+   * present on the client after hydration, absent in the server markup, so the two disagreed on
+   * every one.
+   */
+  openTag() {
+    let out = `<${this.localName}`;
+    for (const [name, value] of this._attributes) out += ` ${name}="${escapeHtml(value)}"`;
+    return out + '>';
+  }
+
   get textContent() {
     return this.innerHTML.replace(/<[^>]*>/g, '');
   }

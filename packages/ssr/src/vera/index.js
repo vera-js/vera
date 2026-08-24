@@ -85,7 +85,9 @@ const renderComponentTags = (markup, depth) => {
   if (!markup.includes('-')) return markup;
   return markup.replace(CUSTOM_TAG, (match, tag, attrString) => {
     if (!registry.has(tag)) return match;
-    return match + renderComponent(tag, attrString, depth + 1);
+    /** The opening tag is rewritten, not kept — the component may have changed its own attributes. */
+    const { open, inner } = renderComponent(tag, attrString, depth + 1);
+    return open + inner;
   });
 };
 
@@ -119,13 +121,17 @@ const renderComponent = (tag, attrString, depth) => {
     );
   }
 
+  const open = element.openTag();
   if (element.shadowRoot) {
     /** Styles are prepended after the scan, never passed through it — see `styleTags`. */
     const inner = renderComponentTags(element.shadowRoot.innerHTML, depth);
-    return `<template shadowrootmode="${element.shadowRoot.mode}">${element.shadowRoot.styleTags()}${inner}</template>`;
+    return {
+      open,
+      inner: `<template shadowrootmode="${element.shadowRoot.mode}">${element.shadowRoot.styleTags()}${inner}</template>`,
+    };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */
-  return renderComponentTags(element.innerHTML, depth);
+  return { open, inner: renderComponentTags(element.innerHTML, depth) };
 };
 
 /**
@@ -185,9 +191,9 @@ export const renderToString = async (url, { tag, attributes = '', children = '' 
    * caller may genuinely need to write markup only they can produce, but it is no longer the
    * ordinary way to do the ordinary thing — an object cannot escape the tag it describes.
    */
-  const attrs =
+  const attrString =
     typeof attributes === 'string'
-      ? attributes && ` ${attributes}`
+      ? attributes
       : Object.entries(attributes)
           .filter(([, value]) => value != null && value !== false)
           .map(([name, value]) => ` ${name}="${escapeHtml(value === true ? '' : value)}"`)
@@ -195,13 +201,13 @@ export const renderToString = async (url, { tag, attributes = '', children = '' 
 
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
-  const attrString = typeof attributes === 'string' ? attributes : attrs;
   /**
    * `children` is what a `<slot>` in the component renders. Without it a component built around a
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
    * and nothing else.
    */
-  const html = `<${tag}${attrs}>${renderComponent(tag, attrString, 0)}${renderComponentTags(children, 0)}</${tag}>`;
+  const entry = renderComponent(tag, attrString, 0);
+  const html = `${entry.open}${entry.inner}${renderComponentTags(children, 0)}</${tag}>`;
   /**
    * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
    * in their page shell — which makes that their render boundary, and handing them CSS that can

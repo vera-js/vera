@@ -14,6 +14,11 @@ you must produce markup an object cannot describe, and never with anything from 
 
 - Node resolves the component's module graph natively (the `.ts`-via-`.js` convention included);
   execution registers classes through `customElements.define` — no AST walking.
+- The server element is a detached, childless one: `dispatchEvent`, `classList`, `tagName`,
+  `ownerDocument`, `closest`, `getRootNode`, `children` and the rest answer rather than throw, and
+  **what a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
+  an `aria-*`, a class. `querySelector` returns null and `children` is empty, because nothing has
+  been parsed into it.
 - Templates flatten through a sigil-aware serializer with per-template-identity plan caching:
   `?bool` resolved by truthiness, `.value`/`.checked`/`.selected` mirrored to attributes,
   `@event`/`&ref` stripped without residue, every interpolated value escaped at the boundary.

@@ -52,3 +52,15 @@ stays for a caller who genuinely needs to write markup an object cannot describe
 
 **`children` places markup inside the entry tag** — what a `<slot>` renders. A component built
 around a slot could previously only be server-rendered empty.
+
+**The server element behaves like an element.** The shim was built as "the smallest DOM surface
+core's server path touches", which is the wrong bar — the code that runs here is *user* code, and a
+component that emits an event or adds a class in `connectedCallback` is doing nothing unusual. Seven
+members threw a `TypeError` that took the whole render down: `dispatchEvent`, `ownerDocument`,
+`tagName`, `children`, `classList`, `closest` and `getRootNode`. They answer now, the way a detached
+childless element would.
+
+**What a component does to itself in `connectedCallback` reaches the markup.** The opening tag was
+copied from the source text, so a `setAttribute('role', …)`, an `aria-*` or a class added during the
+lifecycle was thrown away — present on the client after hydration, absent on the server, so the two
+disagreed on every one. Tags are written from the element's attributes now.
