@@ -143,9 +143,12 @@ const ESCAPE = /[&<>"']/g;
  * ahead too (21.73 vs 20.03), because a global `replace` sets up more than a single `test` does. On
  * a 100-row table of clean data that is a quarter of the whole render.
  */
+/** Precomputed, because building `'&#' + c.charCodeAt(0) + ';'` per character is the slow half. */
+const ESCAPED = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;' };
+
 const escapeHtml = (value) => {
   const text = typeof value === 'string' ? value : String(value);
-  return NEEDS_ESCAPE.test(text) ? text.replace(ESCAPE, (c) => '&#' + c.charCodeAt(0) + ';') : text;
+  return NEEDS_ESCAPE.test(text) ? text.replace(ESCAPE, (character) => ESCAPED[character]) : text;
 };
 
 /**
@@ -1158,6 +1161,21 @@ export const installShims = () => {
   globalThis.Node = /** @type {any} */ (ContainerShim);
   globalThis.Element = /** @type {any} */ (ElementShim);
   globalThis.ShadowRoot = /** @type {any} */ (ShadowRootShim);
+  /**
+   * `Document` exists so that **feature detection** can read it.
+   *
+   * The standard constructed-stylesheet probe is
+   * `ShadowRoot && 'adoptedStyleSheets' in Document.prototype && 'replace' in CSSStyleSheet.prototype`
+   * — lit's, and everyone else's. Defining `ShadowRoot` without `Document` moved that probe from
+   * "no shadow DOM at all" to "shadow DOM, now read `Document.prototype`", which threw. Every
+   * clause is true of this environment, so all three are answerable and the probe takes the branch
+   * this shim actually supports.
+   *
+   * The document is a literal rather than a class — it has one instance and no subclasses — so it
+   * is given this prototype rather than built from it.
+   */
+  globalThis.Document = /** @type {any} */ (class Document {});
+  Object.defineProperty(globalThis.Document.prototype, 'adoptedStyleSheets', { value: [], writable: true });
   globalThis.DocumentFragment = /** @type {any} */ (FragmentShim);
   /** `new Image()` is a spelling of `createElement('img')`, and `Audio` of `createElement('audio')`. */
   globalThis.Image = /** @type {any} */ (class Image extends ElementShim {
@@ -1355,6 +1373,8 @@ export const installShims = () => {
       },
     },
   });
+  /** Given `Document.prototype` here, where the document it describes finally exists. */
+  Object.setPrototypeOf(globalThis.document, globalThis.Document.prototype);
 
   /**
    * Enough `window` for `@verajs/router` to initialise.

@@ -62,12 +62,12 @@ you must produce markup an object cannot describe, and never with anything from 
 
   | | small | table |
   | --- | --- | --- |
-  | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.3** | **40** |
-  | | lit 2.5 | lit 309 |
-  | **whole component** — `renderToString` vs a real `LitElement` | **3.2** | **53** |
-  | | lit 5.7 | lit 410 |
+  | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.4** | **40** |
+  | | lit 2.5 | lit 320 |
+  | **whole component** — `renderToString` vs a real `LitElement` | **3.5** | **54** |
+  | | lit 5.8 | lit 422 |
 
-  Vue's compiled SSR is 7.5 / 59 µs and React 6.4 / 452 µs, neither of which renders a
+  Vue's compiled SSR is 8.6 / 61 µs and React 6.2 / 464 µs, neither of which renders a
   component. The `lit element` row runs in a separate process because `@lit-labs/ssr` and this
   package both install DOM globals and cannot share one.
 - 94% of the component pipeline is core's lifecycle rather than this package: instantiating the

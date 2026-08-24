@@ -219,13 +219,34 @@ export const serializeTemplate = (template) => {
  * page and `b` in the browser — the same disagreement `foldSpread` was written to fix for spreads,
  * which is where this logic came from. It applies to anything that writes a name into the tag.
  */
+/**
+ * One pattern per attribute name, built once. `new RegExp` per binding was 16% of a 100-row render.
+ */
+const removalPatterns = new Map();
+const removalPattern = (name) => {
+  let pattern = removalPatterns.get(name);
+  if (!pattern) removalPatterns.set(name, (pattern = new RegExp(`\\s${name}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i')));
+  return pattern;
+};
+
+/**
+ * Strips one attribute out of an open tag, and the one place that knows how.
+ *
+ * `foldSpread` had its own copy of this pattern, character for character — so a fix to one was a
+ * fix to one. It also rebuilt the pattern on every key of every spread, which is the per-render
+ * work `tests/ssr-serializer-work.test.mjs` exists to refuse.
+ */
+const stripAttribute = (tag, name) =>
+  /**
+   * Almost no tag carries the name twice, and a substring search settles that far faster than a
+   * pattern match does. Case-insensitive to match the pattern it guards, which HTML requires.
+   */
+  tag.toLowerCase().includes(name.toLowerCase()) ? tag.replace(removalPattern(name), '') : tag;
+
 const removeAttribute = (out, name) => {
   const tagStart = out.lastIndexOf('<');
   if (tagStart === -1) return out;
-  const tag = out
-    .slice(tagStart)
-    .replace(new RegExp(`\\s${name}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i'), '');
-  return out.slice(0, tagStart) + tag;
+  return out.slice(0, tagStart) + stripAttribute(out.slice(tagStart), name);
 };
 
 const foldSpread = (out, entries) => {
@@ -240,7 +261,7 @@ const foldSpread = (out, entries) => {
     if (!serializes) continue;
 
     /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */
-    tag = tag.replace(new RegExp(`\\s${name}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i'), '');
+    tag = stripAttribute(tag, name);
 
     if (kind === 'b') {
       if (value) added += ` ${name}=""`;
