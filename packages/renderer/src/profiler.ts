@@ -206,15 +206,35 @@ export const stopProfiling = (): ProfileReport => {
 export const isProfiling = () => active;
 
 /** Profile one synchronous stretch of work. */
-export const profile = <T>(fn: () => T): { result: T; report: ProfileReport } => {
+export function profile<T>(fn: () => Promise<T>): Promise<{ result: T; report: ProfileReport }>;
+export function profile<T>(fn: () => T): { result: T; report: ProfileReport };
+export function profile<T>(fn: () => T | Promise<T>) {
   startProfiling();
+  let result: T | Promise<T>;
   try {
-    return { result: fn(), report: stopProfiling() };
+    result = fn();
   } catch (error) {
     stopProfiling();
     throw error;
   }
-};
+  /**
+   * An **async** driver is awaited before the report is taken.
+   *
+   * Driving an application means awaiting frames — the render scheduler is `requestAnimationFrame`,
+   * so nothing commits within one synchronous turn. Stopping immediately therefore reported zero
+   * updates, zero rebuilds and no churn for a page doing plenty of all three: a plausible-looking
+   * answer, and the reader's conclusion is "nothing to fix here".
+   */
+  if (result && typeof (result as Promise<T>).then === 'function')
+    return (result as Promise<T>).then(
+      (value) => ({ result: value, report: stopProfiling() }),
+      (error) => {
+        stopProfiling();
+        throw error;
+      }
+    );
+  return { result: result as T, report: stopProfiling() };
+}
 
 /**
  * Mounts a live panel in the corner of the page and starts profiling. Returns a function that

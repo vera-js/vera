@@ -270,7 +270,9 @@ it loads alongside any renderer that honours the protocol, including your own.
 ```js
 import { render, profile, formatReport } from '@verajs/renderer/profiler';
 
-const { report } = profile(() => { /* drive the app */ });
+/** `profile` awaits an async driver — driving an app means awaiting frames, and the render
+    scheduler is `requestAnimationFrame`, so nothing commits inside one synchronous turn. */
+const { report } = await profile(async () => { /* click around, await frames */ });
 console.log(formatReport(report));
 // 39 updated in place, 2 created, 19 rebuilt (32% of commits)
 // Template identity churn — these were torn down, not updated:

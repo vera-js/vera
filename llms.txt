@@ -377,7 +377,8 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 
   ```js
   import { render, profile, formatReport } from '@verajs/renderer/profiler';
-  const { report } = profile(() => { /* drive the app */ });
+  /** `profile` awaits an async driver — driving an app means awaiting frames. */
+  const { report } = await profile(async () => { /* click around, await frames */ });
   console.log(formatReport(report));
   // 39 updated in place, 2 created, 19 rebuilt (32% of commits)
   // Template identity churn — these were torn down, not updated:

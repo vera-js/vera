@@ -175,6 +175,65 @@ describe('the router beyond navigation', () => {
   });
 });
 
+describe('the router as an event system', () => {
+  beforeEach(function raiseTheTimeout() {
+    this.timeout(30000);
+  });
+
+  const outlet = () => shell.shadowRoot.querySelector('[view="main"]');
+
+  it('dispatches its three events as DOM events, bubbling and composed', async () => {
+    const seen = [];
+    const listener = (event) => seen.push({ type: event.type, path: event.detail?.currentRoute?.path });
+    for (const type of ['vera:before-leave', 'vera:before-route', 'vera:after-route'])
+      frame.contentDocument.addEventListener(type, listener);
+
+    await router.navigate('/user/11');
+    await settle(frame);
+    for (const type of ['vera:before-leave', 'vera:before-route', 'vera:after-route'])
+      frame.contentDocument.removeEventListener(type, listener);
+
+    expect(
+      seen.map((entry) => entry.type),
+      'all three events must reach the document, in order'
+    ).to.deep.equal(['vera:before-leave', 'vera:before-route', 'vera:after-route']);
+    /** Composed as well as bubbling, or nothing outside the shadow root would have heard them. */
+    expect(seen.at(-1).path, 'the snapshot must ride along on detail').to.equal('/user/11');
+  });
+
+  it('preventDefault on a before- event cancels the navigation', async () => {
+    await router.navigate('/user/12');
+    await settle(frame);
+    const stop = (event) => event.preventDefault();
+    frame.contentDocument.addEventListener('vera:before-route', stop);
+    await router.navigate('/user/13');
+    await settle(frame);
+    frame.contentDocument.removeEventListener('vera:before-route', stop);
+    expect(outlet().textContent, 'preventDefault did not cancel').to.contain('user 12');
+  });
+
+  it('a handler returning false cancels, and a throwing one fails closed', async () => {
+    await router.navigate('/user/14');
+    await settle(frame);
+
+    const refuse = () => false;
+    shell.router.on('before-route', refuse);
+    await router.navigate('/user/15');
+    await settle(frame);
+    expect(outlet().textContent, 'returning false did not cancel').to.contain('user 14');
+    shell.router.off?.('before-route', refuse);
+
+    const explode = () => {
+      throw new Error('kitchen sink: a guard that throws');
+    };
+    shell.router.on('before-route', explode);
+    await router.navigate('/user/16');
+    await settle(frame);
+    expect(outlet().textContent, 'a throwing guard must fail closed').to.contain('user 14');
+    shell.router.off?.('before-route', explode);
+  });
+});
+
 describe('the render scheduler is swappable', () => {
   beforeEach(function raiseTheTimeout() {
     this.timeout(30000);
