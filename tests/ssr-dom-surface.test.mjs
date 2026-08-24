@@ -91,6 +91,48 @@ const RAW_TEXT = [
   ['script keeps its source', () => { const el = make('script'); el.textContent = 'a && b < c'; return el.innerHTML === 'a && b < c'; }],
 ];
 
+/**
+ * The same surface, on the shadow root and the document.
+ *
+ * They are containers too, and each was short of a *different* set of members because each was
+ * written for whoever happened to use it. They share a base now; this asserts the sharing holds.
+ */
+const CONTAINERS = [
+  ['shadowRoot', () => make().attachShadow({ mode: 'open' })],
+  ['document.body', () => globalThis.document.body],
+];
+const CONTAINER_SURFACE = [
+  ['append', (c) => (c.append(make('i')), c.innerHTML.includes('<i>'))],
+  ['appendChild', (c) => (c.appendChild(make('b')), c.innerHTML.includes('<b>'))],
+  ['replaceChildren', (c) => (c.append(make('i')), c.replaceChildren(make('b')), c.innerHTML === '<b></b>')],
+  ['querySelector', (c) => c.querySelector('*') === null],
+  ['querySelectorAll', (c) => c.querySelectorAll('*').length === 0],
+  ['getElementById', (c) => c.getElementById('x') === null],
+  ['children', (c) => Array.isArray(c.children)],
+  ['firstElementChild', (c) => c.firstElementChild === null],
+  ['addEventListener', (c) => (c.addEventListener('x', () => {}), true)],
+  ['dispatchEvent', (c) => c.dispatchEvent(new globalThis.CustomEvent('x')) === true],
+];
+
+/** The document's own surface, beyond being a container. */
+const DOCUMENT_SURFACE = [
+  ['createElement', () => globalThis.document.createElement('div').localName === 'div'],
+  ['createElementNS', () => globalThis.document.createElementNS('svg', 'circle').localName === 'circle'],
+  ['createTextNode', () => globalThis.document.createTextNode('<b>').innerHTML === '&#60;b&#62;'],
+  ['createDocumentFragment', () => typeof globalThis.document.createDocumentFragment().append === 'function'],
+  ['title is writable', () => ((globalThis.document.title = 't'), globalThis.document.title === 't')],
+  ['documentElement', () => globalThis.document.documentElement.localName === 'html'],
+  ['head.appendChild', () => (globalThis.document.head.appendChild({ innerHTML: '' }), true)],
+];
+
+/** `CSSStyleSheet`, which `@verajs/styles` uses and a component may use differently. */
+const SHEET_SURFACE = [
+  ['replaceSync', () => { const s = new globalThis.CSSStyleSheet(); s.replaceSync('.a{}'); return s.cssText === '.a{}'; }],
+  ['replace', async () => { const s = new globalThis.CSSStyleSheet(); await s.replace('.b{}'); return s.cssText === '.b{}'; }],
+  ['insertRule', () => { const s = new globalThis.CSSStyleSheet(); s.replaceSync('.a{}'); s.insertRule('.b{}'); return s.cssText.includes('.b{}'); }],
+  ['cssRules', () => Array.isArray(new globalThis.CSSStyleSheet().cssRules)],
+];
+
 let pass = 0;
 const failures = [];
 for (const [name, check] of SURFACE) {
@@ -114,6 +156,29 @@ for (const [name, check] of RAW_TEXT) {
   else failures.push(`${name} — ${ok === false ? 'wrong result' : ok}`);
 }
 
+for (const [containerName, build] of CONTAINERS) {
+  for (const [name, check] of CONTAINER_SURFACE) {
+    let ok;
+    try {
+      ok = check(build());
+    } catch (error) {
+      ok = `${error.constructor.name}: ${error.message}`;
+    }
+    if (ok === true) pass++;
+    else failures.push(`${containerName}.${name} — ${ok === false ? 'wrong result' : ok}`);
+  }
+}
+for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
+  let ok;
+  try {
+    ok = await check();
+  } catch (error) {
+    ok = `${error.constructor.name}: ${error.message}`;
+  }
+  if (ok === true) pass++;
+  else failures.push(`${name} — ${ok === false ? 'wrong result' : ok}`);
+}
+
 /** Absent on purpose — see the header. If one of these appears, it needs a real implementation. */
 {
   const el = make();
@@ -127,5 +192,8 @@ if (failures.length) {
   console.log(`\n  ${failures.length} DOM member(s) missing or wrong:\n`);
   for (const failure of failures) console.log('    ' + failure);
 }
-console.log(`\nssr dom surface: ${pass}/${SURFACE.length + RAW_TEXT.length} members behave`);
+const total =
+  SURFACE.length + RAW_TEXT.length + CONTAINERS.length * CONTAINER_SURFACE.length +
+  DOCUMENT_SURFACE.length + SHEET_SURFACE.length;
+console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);

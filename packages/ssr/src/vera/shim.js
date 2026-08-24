@@ -133,10 +133,24 @@ const escapeHtml = (value) => {
 export const escapeStyleText = (value) => String(value).replace(/<\/(style)/gi, '<\\/$1');
 
 class StyleSheetShim {
+  constructor() {
+    this.cssText = '';
+  }
   replaceSync(cssText) {
     this.cssText = cssText;
   }
-}
+  /** The async spelling of the same thing; `adoptStyles` uses `replaceSync`, a component may not. */
+  async replace(cssText) {
+    this.cssText = cssText;
+    return this;
+  }
+  insertRule(rule) {
+    this.cssText += rule;
+    return 0;
+  }
+  get cssRules() {
+    return [];
+  }}
 
 /**
  * Declarative shadow DOM can carry more than the mode, and the extras are **not recoverable on the
@@ -155,8 +169,66 @@ const SHADOW_ATTRIBUTES = [
   ['serializable', 'shadowrootserializable'],
 ];
 
-class ShadowRootShim {
+/**
+ * What an element and a shadow root both are: something that holds children as markup and can be
+ * appended to, queried and listened to.
+ *
+ * Shared because they kept drifting. `ShadowRootShim` was built for the renderer and `ElementShim`
+ * for core, so each was short of a different set of members — the router threw on
+ * `shadowRoot.addEventListener`, component code threw on `element.dataset`, and every gap was found
+ * by probing rather than by the two being one thing. Anything a container does belongs here.
+ *
+ * Queries answer emptily because this holds a **string**, not a tree; nothing in this package parses
+ * HTML. `insertBefore` and `cloneNode` are deliberately absent for the same reason — they need a
+ * tree, and faking them would misplace content silently.
+ */
+class ContainerShim {
+  constructor() {
+    this.innerHTML = '';
+  }
+  appendChild(node) {
+    this.innerHTML += node?.openTag ? node.openTag() + node.innerHTML + `</${node.localName}>` : (node?.innerHTML ?? '');
+    return node;
+  }
+  /** `append` takes several nodes, and strings as text — the modern spelling of `appendChild`. */
+  append(...nodes) {
+    for (const node of nodes) {
+      if (typeof node === 'string') this.innerHTML += escapeHtml(node);
+      else this.appendChild(node);
+    }
+  }
+  replaceChildren(...nodes) {
+    this.innerHTML = '';
+    this.append(...nodes);
+  }
+  querySelector() {
+    return null;
+  }
+  querySelectorAll() {
+    return [];
+  }
+  getElementById() {
+    return null;
+  }
+  get children() {
+    return [];
+  }
+  get childNodes() {
+    return [];
+  }
+  get firstElementChild() {
+    return null;
+  }
+  addEventListener() {}
+  removeEventListener() {}
+  dispatchEvent() {
+    return true;
+  }
+}
+
+class ShadowRootShim extends ContainerShim {
   constructor(init) {
+    super();
     this.mode = init.mode ?? 'open';
     this._init = init;
     /** Set by `attachShadow`; a shadow root's `host` is part of the contract the router reads. */
@@ -170,34 +242,23 @@ class ShadowRootShim {
     for (const [option, attribute] of SHADOW_ATTRIBUTES) if (this._init[option]) out += ` ${attribute}=""`;
     return out;
   }
-  /** Only `adoptStyles`' string path appends here (a `<style>` element shim). */
-  appendChild(node) {
-    this._styles.push(node.innerHTML);
-    return node;
-  }
   /**
-   * A shadow root is queried and listened to by more than the renderer — `@verajs/router` attaches
-   * its link handler to it and looks for the `[view]` outlet inside it. Built to "the smallest
-   * surface the renderer touches", it threw on both, which is the same wrong bar that left
-   * `ElementShim` missing `dispatchEvent` and `classList`.
+   * A `<style>` joins the stylesheet collection; anything else is content.
    *
-   * Queries find nothing because this holds a **string**, not a tree — nothing here parses HTML.
-   * That is why a route's content is not server-rendered: see the README.
+   * Every append used to be treated as a stylesheet, on the assumption that only `adoptStyles`
+   * would ever reach here. A component appending an element to its own shadow root — ordinary DOM
+   * code — therefore had that element silently turned into CSS and its markup lost.
+   *
+   * @override
    */
-  querySelector() {
-    return null; // fresh instance per render — nothing to dedupe against
+  appendChild(node) {
+    if (node?.localName === 'style') {
+      this._styles.push(node.innerHTML);
+      return node;
+    }
+    return super.appendChild(node);
   }
-  querySelectorAll() {
-    return [];
-  }
-  getElementById() {
-    return null;
-  }
-  addEventListener() {}
-  removeEventListener() {}
-  dispatchEvent() {
-    return true;
-  }
+  /** A shadow root's `host` is part of the contract `@verajs/router` reads. */
   get host() {
     return this._host;
   }
@@ -225,8 +286,9 @@ class ShadowRootShim {
   }
 }
 
-class ElementShim {
+class ElementShim extends ContainerShim {
   constructor(localName = '') {
+    super();
     this.localName = localName;
     this.isConnected = true;
     this._attributes = new Map();
@@ -275,37 +337,6 @@ class ElementShim {
   removeAttribute(name) {
     this._attributes.delete(name);
   }
-  /** `append` takes several nodes, and strings as text — the modern spelling of `appendChild`. */
-  append(...nodes) {
-    for (const node of nodes) {
-      if (typeof node === 'string') this.innerHTML += escapeHtml(node);
-      else this.appendChild(node);
-    }
-  }
-  replaceChildren(...nodes) {
-    this.innerHTML = '';
-    this.append(...nodes);
-  }
-  /**
-   * Appends the node as markup, tag and attributes included.
-   *
-   * It used to take only `node.innerHTML`, so `this.appendChild(span)` put `kid` where the client
-   * puts `<span>kid</span>` — the element itself was discarded. Building a component's content with
-   * `createElement`/`appendChild` instead of a template is ordinary DOM code, and it produced
-   * markup missing every element it created.
-   */
-  appendChild(node) {
-    this.innerHTML += node?.openTag ? node.openTag() + node.innerHTML + `</${node.localName}>` : (node?.innerHTML ?? '');
-    return node;
-  }
-  querySelector() {
-    return null;
-  }
-  querySelectorAll() {
-    return [];
-  }
-  addEventListener() {}
-  removeEventListener() {}
 
   /**
    * The rest of the surface an ordinary custom element reaches for.
@@ -323,19 +354,6 @@ class ElementShim {
   }
   get ownerDocument() {
     return globalThis.document;
-  }
-  get children() {
-    return [];
-  }
-  get childNodes() {
-    return [];
-  }
-  get firstElementChild() {
-    return null;
-  }
-  dispatchEvent() {
-    /** Nothing is listening on a server; `true` is "not cancelled", which is the honest answer. */
-    return true;
   }
   closest() {
     return null;
@@ -454,8 +472,28 @@ export const installShims = () => {
     whenDefined: () => Promise.resolve(),
   });
 
+  /**
+   * The document, with the surface a component reaches for.
+   *
+   * `body`, `documentElement` and `title` are real enough to be written to — a component setting
+   * `document.title` or appending to `document.body` is ordinary code, and losing the assignment
+   * silently is the failure mode this package keeps producing. Queries answer emptily for the same
+   * reason the containers do: this holds strings, not a tree.
+   */
   globalThis.document = /** @type {any} */ ({
+    title: '',
+    body: new ElementShim('body'),
+    documentElement: new ElementShim('html'),
     createElement: (localName) => new ElementShim(localName),
+    createElementNS: (_namespace, localName) => new ElementShim(localName),
+    createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
+    createDocumentFragment: () => new ElementShim(''),
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => true,
     /** Light-DOM styles hoist here — `adoptStyles`' constructed-sheet path. */
     get adoptedStyleSheets() {
       return [];
