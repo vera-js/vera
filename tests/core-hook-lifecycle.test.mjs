@@ -189,5 +189,30 @@ const mount = (setup) => {
   body.removeChild(el);
 }
 
+/* ── createHook runs at the priority it was given ──────────────────────────────────────────────
+ * `createHook` is how a third party builds its own hook type — #6 makes that the product — and the
+ * only thing it can rely on is the ordering: `useLayoutEffect` is 25, the render is 50, `useEffect`
+ * is 75, and a hook registered below or between them runs there.
+ */
+{
+  const order = [];
+  class Ordered extends HTMLElement {
+    connectedCallback() {
+      core.init(this);
+      core.createHook({ callback: () => order.push('early'), priority: 10 });
+      core.createHook({ callback: () => order.push('late'), priority: 90 });
+      core.useEffect(() => order.push('effect'));
+      core.render(() => '');
+    }
+  }
+  customElements.define('hook-order-probe', Ordered);
+  document.body.appendChild(document.createElement('hook-order-probe'));
+  await frame();
+  await frame();
+
+  check('a hook below the render runs first', order.indexOf('early') < order.indexOf('effect'), order.join(','));
+  check('and one above useEffect runs after it', order.indexOf('late') > order.indexOf('effect'), order.join(','));
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
