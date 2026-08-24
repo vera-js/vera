@@ -64,3 +64,11 @@ childless element would.
 copied from the source text, so a `setAttribute('role', …)`, an `aria-*` or a class added during the
 lifecycle was thrown away — present on the client after hydration, absent on the server, so the two
 disagreed on every one. Tags are written from the element's attributes now.
+
+**The nested-component scan reads markup rather than guessing at it.** A single regex could not tell
+markup from text, and got three things wrong: a `>` inside an attribute value — which is legal
+unescaped — cut the tag in half, so `<x-y title="a > b">` rendered with a mangled value and left the
+remainder as loose text beside it; a component named inside an HTML comment was rendered into the
+comment; and one named inside a `<textarea>` was rendered into its value. The walk now tracks quote
+state and skips comments and the raw-text elements (`script`, `style`, `textarea`, `title`). No cost:
+the 100-row table measures the same as it did with the regex.

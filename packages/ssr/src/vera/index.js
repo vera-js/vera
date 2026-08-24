@@ -34,8 +34,30 @@ setRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : serializeTemplate(template);
 });
 
-/** Opening tags with a dash — only ones the registry knows get rendered. */
-const CUSTOM_TAG = /<([a-z][\w]*-[\w-]*)((?:\s[^<>]*)?)>/g;
+/**
+ * Elements whose content is text, not markup. Anything between their tags is left alone.
+ */
+const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
+
+/**
+ * The index just past the `>` that closes the tag starting at `start`, respecting quoted attribute
+ * values.
+ *
+ * `>` is legal unescaped inside an attribute value, and a regex that stops at the first one cuts
+ * the tag in half: `<mark-comp title="x > y">` was read as a tag ending after `x `, giving the
+ * component an attribute value of `"x` and leaving ` y">` behind as text next to it.
+ */
+const tagEnd = (markup, start) => {
+  let quote = '';
+  for (let i = start + 1; i < markup.length; i++) {
+    const char = markup[i];
+    if (quote) {
+      if (char === quote) quote = '';
+    } else if (char === '"' || char === "'") quote = char;
+    else if (char === '>') return i + 1;
+  }
+  return markup.length;
+};
 
 /**
  * `name`, `name="v"`, `name='v'` and `name=v` — every form an author may have written.
@@ -81,14 +103,59 @@ const entryTags = new Map();
  */
 const renderComponentTags = (markup, depth) => {
   if (depth > MAX_DEPTH) throw new Error(`ssr: component nesting exceeded ${MAX_DEPTH} (cycle?)`);
-  /** No dash, no custom element — cheaper to ask than to run the scan and find nothing. */
+  /** No dash, no custom element — cheaper to ask than to walk the string and find nothing. */
   if (!markup.includes('-')) return markup;
-  return markup.replace(CUSTOM_TAG, (match, tag, attrString) => {
-    if (!registry.has(tag)) return match;
-    /** The opening tag is rewritten, not kept — the component may have changed its own attributes. */
-    const { open, inner } = renderComponent(tag, attrString, depth + 1);
-    return open + inner;
-  });
+
+  let out = '';
+  let at = 0;
+  while (at < markup.length) {
+    const open = markup.indexOf('<', at);
+    if (open === -1) {
+      out += markup.slice(at);
+      break;
+    }
+    out += markup.slice(at, open);
+
+    /**
+     * A comment is text. Markup inside one used to be rendered — a `<!-- <some-comp> -->` produced
+     * a whole shadow template inside the comment, which is wasted work at best and breaks the
+     * comment at worst.
+     */
+    if (markup.startsWith('<!--', open)) {
+      const close = markup.indexOf('-->', open + 4);
+      const stop = close === -1 ? markup.length : close + 3;
+      out += markup.slice(open, stop);
+      at = stop;
+      continue;
+    }
+
+    const end = tagEnd(markup, open);
+    const tagText = markup.slice(open, end);
+    const name = /^<([a-z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1];
+
+    /**
+     * `<textarea>`, `<script>`, `<style>`, `<title>`: their content is text. A component named
+     * inside one was rendered into it, so the markup showed up as the textarea's value or the
+     * script's source.
+     */
+    if (name && RAW_TEXT.has(name)) {
+      const closeTag = markup.toLowerCase().indexOf(`</${name}`, end);
+      const stop = closeTag === -1 ? markup.length : closeTag;
+      out += tagText + markup.slice(end, stop);
+      at = stop;
+      continue;
+    }
+
+    if (name && registry.has(name)) {
+      /** Rewritten, not kept — the component may have changed its own attributes. */
+      const rendered = renderComponent(name, tagText.slice(1 + name.length, -1), depth + 1);
+      out += rendered.open + rendered.inner;
+    } else {
+      out += tagText;
+    }
+    at = end;
+  }
+  return out;
 };
 
 /** Instantiates a registered component and returns its declarative-shadow (or light) markup. */

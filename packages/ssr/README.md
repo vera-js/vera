@@ -3,6 +3,11 @@
 Vera-native server-side rendering. Node-only, plain ESM, **zero dependencies** — no wcc, no lit,
 no acorn, no parse5.
 
+Nested components are found by walking the emitted markup for tags the registry knows. The walk is
+state-aware, not a regex: it respects quoted attribute values (a `>` is legal inside one), and it
+leaves the contents of comments, `<script>`, `<style>`, `<textarea>` and `<title>` alone, because
+those are text and a scan for elements has no business reading them.
+
     import { renderToString } from '@verajs/ssr';        // ('/vera' also works)
     const { html, styles } = await renderToString(new URL('./components/app.js', import.meta.url), {
       attributes: { 'user-id': id },   // an object — values are escaped

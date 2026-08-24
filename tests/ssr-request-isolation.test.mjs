@@ -163,4 +163,42 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.equal(markup.split('shadowrootmode').length - 1, 2, 'a component in children renders too');
 }
 
+/* ── the tag scan reads markup, not text ──────────────────────────────────────────────────────
+ * A single regex cannot tell one from the other. `>` is legal unescaped inside an attribute value,
+ * and stopping at the first one cut the tag in half; a component named inside a comment or a
+ * `<textarea>` was rendered into it.
+ */
+{
+  const { html: markup } = await renderToString(fixture('adversarial-ssr.js'));
+
+  assert.equal(markup.split('<b>MARK</b>').length - 1, 2,
+    `expected exactly the two real components to render:\n${markup}`);
+  assert.match(markup, /<mark-comp title="x &#62; y">/,
+    'a `>` inside an attribute value keeps the whole value');
+  assert.ok(!/<!--[^>]*shadowrootmode/.test(markup), 'nothing is rendered inside a comment');
+  assert.ok(!/<textarea>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside a textarea');
+  assert.match(markup, /<div id="a" title="a > b">/, 'a plain element with `>` in an attribute is untouched');
+}
+
+/* ── the light-DOM path ───────────────────────────────────────────────────────────────────────
+ * Far less exercised than the shadow one: no `<template>`, content becomes the element's children,
+ * and styles are hoisted to the page shell as `@scope` rules instead of travelling with the markup.
+ */
+{
+  const { html: markup, styles } = await renderToString(fixture('light-dom-ssr.js'));
+
+  assert.ok(!markup.includes('shadowrootmode'), 'a light-DOM component renders no shadow template');
+  assert.match(markup, /^<light-dom-ssr>/, 'the entry tag is the element itself');
+  assert.match(markup, /<light-child data-child="">/, 'a nested light-DOM component renders, with its own attributes');
+  assert.match(markup, /<i class="c">child<\/i>/, 'and its content');
+  assert.match(styles, /@scope \(light-dom-ssr\)/, 'the entry hoists its styles');
+  assert.match(styles, /@scope \(light-child\)/, 'and so does the nested component');
+}
+
+/** A component that renders itself is stopped, rather than running until the stack gives out. */
+{
+  await assert.rejects(() => renderToString(fixture('cycle-ssr.js')), /nesting exceeded/,
+    'a self-rendering component is cut off');
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');
