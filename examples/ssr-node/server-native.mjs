@@ -57,7 +57,11 @@ createServer(async (req, res) => {
     }
   }
 
-  const { html, styles } = await renderToString(component);
+  /**
+   * `base` is unnecessary for a constant path like this one and is passed anyway, because the
+   * moment this grows a route-to-component mapping it becomes necessary and nobody will remember.
+   */
+  const { html, styles } = await renderToString(component, { base: new URL('./components/', import.meta.url) });
   res.setHeader('content-type', 'text/html');
   res.end(`<!DOCTYPE html>
 <html lang="en">

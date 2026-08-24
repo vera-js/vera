@@ -222,10 +222,33 @@ const renderComponent = (tag, attrString, depth, props) => {
  * @param {string} [options.children] Markup placed inside the entry tag — what a `<slot>` renders
  * @param {Set<string>} [options.seen] Carried across renders so a component's styles reach the
  * page once, for a shell assembled from several islands
+ * @param {string | URL} [options.base] A directory the module must resolve inside. Pass it whenever
+ * any part of `url` came from a request
  * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
  */
-export const renderToString = async (url, { tag, attributes = '', children = '', props, seen } = {}) => {
+export const renderToString = async (
+  url,
+  { tag, attributes = '', children = '', props, seen, base } = {}
+) => {
   const href = url instanceof URL ? url.href : url;
+
+  /**
+   * `import()` executes whatever it is given, so a URL with any request data in it needs bounding —
+   * and `new URL` resolves `../` *before* this function sees anything, so the traversal has already
+   * happened by the time the string arrives. Mapping a route to a component file is the obvious way
+   * to use a server renderer, which is exactly where that goes wrong.
+   *
+   * Opt-in rather than required: most calls name a constant, and ceremony that is always trivially
+   * satisfied stops being read. Deliberately the same shape and the same wording as
+   * `@verajs/autoloader`'s containment check, so "module URLs are bounded to a base" is one idea in
+   * this framework rather than two.
+   */
+  if (base) {
+    const root = new URL('.', base instanceof URL ? base.href : base).href;
+    if (!href.startsWith(root)) {
+      throw new Error(`ssr: refused ${href} — resolves outside ${root}`);
+    }
+  }
 
   /**
    * The import is what registers the component, so it cannot be skipped merely because the caller

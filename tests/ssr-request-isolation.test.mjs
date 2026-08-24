@@ -259,4 +259,27 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.equal(wrong.length, 0, `${wrong.length} of 100 concurrent responses were the wrong component`);
 }
 
+/* ── bounding the module URL ──────────────────────────────────────────────────────────────────
+ * `import()` executes what it is given. `new URL` resolves `../` before this function sees the
+ * string, so mapping a route to a component file — the obvious way to use a server renderer — puts
+ * the traversal upstream of any check. `base` is where it gets caught.
+ */
+{
+  const dir = new URL('./fixtures/ssr/', import.meta.url);
+  const inside = await renderToString(new URL('hello-ssr.js', dir), { base: dir });
+  assert.match(inside.html, /^<hello-ssr>/, 'a module inside the base renders');
+
+  for (const [label, target] of [
+    ['upward traversal', new URL('../../packages/core/dist/development/vera.js', dir)],
+    ['an absolute path elsewhere', new URL('file:///etc/hosts.js')],
+    ['a request-shaped escape', new URL(`${'../'.repeat(4)}evil.js`, dir)],
+  ]) {
+    await assert.rejects(() => renderToString(target, { base: dir }), /refused/, `${label} was not refused`);
+  }
+
+  /** Opt-in: a call without it behaves exactly as before. */
+  const unbounded = await renderToString(new URL('hello-ssr.js', dir));
+  assert.match(unbounded.html, /^<hello-ssr>/);
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');

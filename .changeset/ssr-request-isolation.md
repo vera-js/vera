@@ -100,3 +100,10 @@ render behaves exactly as before.
 skipped all 441 lines of it. `checkJs` closes that without a build step or a `.ts` rewrite — the
 sources still ship as the plain ESM they are. It found the options object had drifted out of its own
 signature, and it forces the shim's deliberate lies about being a DOM to be marked as deliberate.
+
+**`base` bounds the module URL.** `renderToString` executes the module it is given, and `new URL`
+applies `../` before the call is made — so a server mapping a route to a component file has already
+traversed by the time anything could check. Pass `base` whenever part of the URL came from a request
+and anything resolving outside it is refused, with the same containment and the same wording
+`@verajs/autoloader` uses for the URLs it derives. Opt-in, because most calls name a constant and a
+check that is always trivially satisfied stops being read.

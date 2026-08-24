@@ -70,10 +70,18 @@ the class (`export default class …`) or pass `{ tag }`. It used to guess by di
 around the import, which two concurrent renders could not share: both saw both modules' new
 registrations, and a request could be answered with another component's markup.
 
-`renderToString` executes the module you name. **The URL is yours to bound** — the same care
-`import()` always needs. A server that maps a request path to a component file must confirm the
-resolved path stays inside its components directory before calling, exactly as `@verajs/autoloader`
-does for the URLs it derives.
+`renderToString` executes the module you name, so **pass `base` whenever any part of the URL came
+from a request**:
+
+    renderToString(new URL(`${page}.js`, components), { base: components });
+
+Anything resolving outside it is refused. `new URL` applies `../` before `renderToString` sees the
+string, so without this the traversal has already happened by the time the call is made — and
+mapping a route to a component file is the obvious way to use a server renderer. Same containment,
+and the same wording, as `@verajs/autoloader` uses for the URLs it derives.
+
+It is opt-in because most calls name a constant, and a check that is always trivially satisfied
+stops being read.
 
 Known limits:
 
