@@ -451,8 +451,16 @@ const toText = (value: unknown) => (value == null ? '' : String(value));
 const ATTR = 0; // plain attribute
 const PROPERTY = 1; // .name
 const BOOLEAN = 2; // ?name
-const EVENT = 3; // @name
-const REF = 4; // element-position expression
+/**
+ * `!name` — a property written from the *live* DOM rather than from what this binding last wrote.
+ *
+ * Numbered below `EVENT` deliberately: `kind >= EVENT` is what decides a value is passed raw rather
+ * than joined from the statics, and a live binding is a property, so `!title="a${x}b"` has to join
+ * like every other one.
+ */
+const LIVE = 3;
+const EVENT = 4; // @name
+const REF = 5; // element-position expression
 
 class AttrPart implements Part {
   _element: Element;
@@ -466,7 +474,18 @@ class AttrPart implements Part {
 
   constructor(element: Element, name: string, statics: string[]) {
     const first = name[0];
-    let kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : ATTR;
+    let kind =
+      first === '.'
+        ? PROPERTY
+        : first === '?'
+          ? BOOLEAN
+          : first === '@'
+            ? EVENT
+            : first === '&'
+              ? REF
+              : first === '!'
+                ? LIVE
+                : ATTR;
     let realName = kind ? name.slice(1) : name;
     /**
      * React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a capital —
@@ -509,6 +528,35 @@ class AttrPart implements Part {
       let joined = statics[0];
       for (let i = 0; i < this._slots; i++) joined += toText(values[index + i]) + statics[i + 1];
       value = joined;
+    }
+    /**
+     * **A live property asks the element, not its own memory.**
+     *
+     * Every other kind skips a write when the value matches what it last wrote. That is what keeps
+     * a field someone has typed into — and it is wrong for a control whose DOM state changes as a
+     * *side effect of interacting with a sibling*. Clicking one radio unchecks the others with no
+     * event on them, so their bindings still say `true`, still match `_committed`, and never write
+     * again: the model and the page diverge and no amount of re-rendering reconciles them. A
+     * `<select>`'s options are the same shape.
+     *
+     * Deliberately narrow. This is not for text inputs — bind those with `.value` and let a
+     * person's typing stand. `?hidden` and plain attributes are not offered either: nothing changes
+     * them behind the renderer's back, so there is nothing to re-read.
+     */
+    if (kind === LIVE) {
+      this._committed = value;
+      /**
+       * **Except while adopting.** Hydration reaches a DOM a person may already have used, and the
+       * click that checked a radio happened before any handler existed to tell the store about it —
+       * so re-asserting the server's choice here would throw the interaction away and nothing would
+       * ever put it back. Recorded, not written, exactly as the other form properties are; the
+       * first state-driven render after that applies live semantics normally.
+       */
+      if (!adopting) {
+        const liveTarget = this._element as unknown as Record<string, unknown>;
+        if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
+      }
+      return index + this._slots;
     }
     if (value !== this._committed) {
       this._committed = value;

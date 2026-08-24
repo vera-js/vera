@@ -19,8 +19,10 @@
 const ATTR = 0;
 const PROPERTY = 1;
 const BOOLEAN = 2;
-const EVENT = 3;
-const REF = 4;
+/** `!name` — a property compared against the live DOM rather than against what this last wrote. */
+const LIVE = 3;
+const EVENT = 4;
+const REF = 5;
 
 /**
  * A key that cannot be written into a tag, and therefore cannot be used at all.
@@ -60,7 +62,17 @@ class Binding {
   constructor(element: Element, key: string) {
     const first = key[0];
     let kind =
-      first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : ATTR;
+      first === '.'
+        ? PROPERTY
+        : first === '?'
+          ? BOOLEAN
+          : first === '@'
+            ? EVENT
+            : first === '&'
+              ? REF
+              : first === '!'
+                ? LIVE
+                : ATTR;
     let name = kind ? key.slice(1) : key;
     /** `on` + a capital: `onClick` ≡ `@click`. All-lowercase `onclick` stays a plain attribute. */
     if (kind === ATTR && first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
@@ -75,7 +87,7 @@ class Binding {
         ? element.getAttribute(name)
         : kind === BOOLEAN
           ? element.hasAttribute(name)
-          : kind === PROPERTY
+          : kind === PROPERTY || kind === LIVE
             ? (element as unknown as Record<string, unknown>)[name]
             : null;
   }
@@ -97,6 +109,17 @@ const owned = new WeakMap<object, Map<string, Binding>>();
 
 const write = (binding: Binding, value: unknown) => {
   /** One comparison per key per render — the same dirty check a written binding gets. */
+  /**
+   * A live property asks the element rather than its own memory — see `AttrPart` in the renderer.
+   * The dirty check is what keeps a field someone typed into, and it is exactly wrong for a control
+   * whose DOM state changes when a *sibling* is interacted with, a radio group being the case.
+   */
+  if (binding._kind === LIVE) {
+    binding._committed = value;
+    const live = binding._element as unknown as Record<string, unknown>;
+    if (live[binding._name] !== value) live[binding._name] = value;
+    return;
+  }
   if (value === binding._committed) return;
   binding._committed = value;
   const element = binding._element;
@@ -206,7 +229,17 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
   const out: [string, string, unknown][] = [];
   for (const key in this._props) {
     const first = key[0];
-    const kind = first === '.' ? 'p' : first === '?' ? 'b' : first === '@' ? 'e' : first === '&' ? 'r' : 'a';
+    /** `!` reports as a property: the server has nothing to re-read, so it serializes as `.` does. */
+    const kind =
+      first === '.' || first === '!'
+        ? 'p'
+        : first === '?'
+          ? 'b'
+          : first === '@'
+            ? 'e'
+            : first === '&'
+              ? 'r'
+              : 'a';
     if (kind !== 'a') {
       out.push([kind, key.slice(1), this._props[key]]);
     } else if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {

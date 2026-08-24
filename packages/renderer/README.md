@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.61 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.64 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -49,6 +49,7 @@ nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things
 | `<p class="a ${b} ${c}">` | attribute built from several expressions and the static text between them |
 | `<x-item .item=${value}>` | property assignment, uncoerced — objects, arrays, functions |
 | `<p ?hidden=${value}>` | boolean attribute, present when truthy |
+| `<input !checked=${value}>` | property written from the **live DOM** rather than from what the binding last wrote — see below |
 | `<button @click=${fn}>` | event listener |
 | `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — `onclick` stays a plain attribute |
 | `<input ${fn}>` | element ref: a function is called with the element |
@@ -56,6 +57,35 @@ nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things
 | `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
 
 A ref runs once per **distinct value**, not once per render.
+
+### `!name` — a live property
+
+Every other binding skips a write when the value matches what it last wrote. That is what keeps a
+field someone has typed into, and it is exactly wrong for a control whose DOM state changes as a
+**side effect of interacting with a sibling**:
+
+```js
+html`<input type="radio" name="pick" !checked=${state.picked === 'one'} />
+     <input type="radio" name="pick" !checked=${state.picked === 'two'} />`
+```
+
+Clicking the second radio unchecks the first *in the DOM*, with no event on it. With `.checked` the
+first binding still says `true`, still matches what it committed, and never writes again — the model
+and the page diverge and no amount of re-rendering reconciles them. A `<select>`'s options are the
+same shape.
+
+It is deliberately narrow, and it is a **property** binding only:
+
+- **Not for text inputs.** Bind those with `.value` and let a person's typing stand. `!value` exists
+  and is authoritative, which is precisely why it is not the default.
+- **Not offered for attributes or booleans.** Nothing changes those behind the renderer's back, so
+  there is nothing to re-read.
+- **It yields during hydration.** A click that happened before the bundle landed had no handler to
+  report it, so adoption records the value without writing; live semantics resume on the first
+  state-driven render.
+
+`spread({ '!checked': … })` means the same thing, and `@verajs/ssr` serializes it exactly as
+`.checked` — a server has nothing to re-read.
 
 Bindings inside comments, and dynamic tag names, are not supported — the value is consumed and
 ignored.
@@ -260,7 +290,7 @@ written `@event` bindings behave too.
 ### What it costs, and why it is a separate entry
 
 `@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you import it.
-The entry itself is **<!--size:spread.gzip-->804 B<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->842 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,

@@ -73,6 +73,20 @@ const KINDS = [
     spread: () => html`<b ${spread({ '@click': () => {} })}>x</b>`,
   },
   /**
+   * `!name` is a **live** property: the sigil changes only when the *client* re-writes it, so a
+   * server has nothing to re-read and it must serialize exactly as `.name` does.
+   */
+  {
+    name: 'a live checked',
+    written: (v) => html`<input type="checkbox" !checked=${v} />`,
+    spread: (v) => html`<input type="checkbox" ${spread({ '!checked': v })} />`,
+  },
+  {
+    name: 'a live value',
+    written: (v) => html`<input !value=${v} />`,
+    spread: (v) => html`<input ${spread({ '!value': v })} />`,
+  },
+  /**
    * `&name` is an element ref. It was the one written kind a spread could not express: the key fell
    * through to a plain attribute, so the client threw from `setAttribute` and the server wrote
    * `&r="[object Object]"` into the markup.

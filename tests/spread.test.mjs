@@ -290,3 +290,31 @@ test('a &ref key hands the element to a function or an object', () => {
   assert.equal(box.value, el);
   assert.equal(el.attributes.length, 0, 'a ref is not an attribute');
 });
+
+/* ── a live key ──────────────────────────────────────────────────────────────────────────────── */
+/**
+ * `!name` through a spread must mean what the written binding means — the invariant
+ * `tests/ssr-spread-equivalence.test.mjs` enforces on the server, asserted here on the client.
+ */
+test('a !live key reasserts against the DOM, and a .property key does not', () => {
+  /** One call site per case: two template literals are two templates, and the second would rebuild
+   *  the element rather than update it. */
+  const drawLive = (into) => render(html`<input ${spread({ '!value': 'Ada' })} />`, into);
+  const drawPlain = (into) => render(html`<input ${spread({ '.value': 'Ada' })} />`, into);
+
+  const liveContainer = document.createElement('div');
+  document.body.appendChild(liveContainer);
+  drawLive(liveContainer);
+  const live = liveContainer.querySelector('input');
+  live.value = 'Grace';
+  drawLive(liveContainer);
+  assert.equal(live.value, 'Ada', 'the live key wrote again');
+
+  const plainContainer = document.createElement('div');
+  document.body.appendChild(plainContainer);
+  drawPlain(plainContainer);
+  const plain = plainContainer.querySelector('input');
+  plain.value = 'Grace';
+  drawPlain(plainContainer);
+  assert.equal(plain.value, 'Grace', 'the plain key kept the typed text');
+});

@@ -550,3 +550,77 @@ test('nodes render inside arrays and keyed lists', () => {
   render(html`<ul>${nodes.map((node, i) => keyed(i, node))}</ul>`, el);
   assert.equal(el.querySelectorAll('li')[0], nodes[0], 'keyed items hold the node itself');
 });
+
+/* ── `!name`: a live property ────────────────────────────────────────────────────────────────── */
+/**
+ * Every other binding skips a write when the value matches what it last wrote. That is what keeps
+ * a field someone typed into, and it is exactly wrong for a control whose DOM state changes as a
+ * **side effect of interacting with a sibling**.
+ *
+ * A radio group is the case. Clicking B unchecks A in the DOM with no event on A, so A's binding
+ * still says `true`, still matches what it committed, and never writes again — the model and the
+ * page diverge and no amount of re-rendering reconciles them. Measured before this existed: state
+ * said `a`, the DOM showed `b`, and a re-render left it that way.
+ */
+test('a live property reasserts after a sibling changed the DOM', () => {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const draw = (picked) => render(html`
+    <input id="a" type="radio" name="g" !checked=${picked === 'a'} />
+    <input id="b" type="radio" name="g" !checked=${picked === 'b'} />`, el);
+
+  draw('a');
+  const a = el.querySelector('#a');
+  const b = el.querySelector('#b');
+  assert.equal(a.checked, true);
+
+  /** What a click does: B on, A off, and nothing tells A's binding. */
+  b.checked = true;
+  assert.equal(a.checked, false);
+
+  draw('a');
+  assert.equal(a.checked, true, 'the model won the disagreement');
+  assert.equal(b.checked, false);
+  assert.equal(a.getAttribute('!checked'), null, 'the sigil leaves no residue');
+});
+
+test('a live selected option reasserts the same way', () => {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const draw = (picked) => render(
+    html`<select><option id="x" !selected=${picked === 'x'}>x</option><option id="y" !selected=${picked === 'y'}>y</option></select>`,
+    el
+  );
+  draw('x');
+  const x = el.querySelector('#x');
+  el.querySelector('#y').selected = true;
+  assert.equal(x.selected, false);
+  draw('x');
+  assert.equal(x.selected, true, 'the model won');
+});
+
+/**
+ * A plain `.value` is deliberately *not* live: a person's typing stands. That is the documented
+ * reason there is no `live()` by default, and the pair of tests is what keeps the two apart.
+ */
+test('a plain property still leaves what a person typed', () => {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const draw = (v) => render(html`<input .value=${v} />`, el);
+  draw('Ada');
+  const input = el.querySelector('input');
+  input.value = 'Grace';
+  draw('Ada');
+  assert.equal(input.value, 'Grace', 'the dirty check kept the typed text');
+});
+
+test('but a live value property does not', () => {
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const draw = (v) => render(html`<input !value=${v} />`, el);
+  draw('Ada');
+  const input = el.querySelector('input');
+  input.value = 'Grace';
+  draw('Ada');
+  assert.equal(input.value, 'Ada', 'live is authoritative — which is why it is not the default');
+});

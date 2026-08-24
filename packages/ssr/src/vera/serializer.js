@@ -59,7 +59,16 @@ const openTagName = (out) => {
  * hid the element on one side and printed `?hidden='true'` on the other. Visible difference on a
  * static page, guaranteed mismatch on a hydrated one.
  */
-const SIGIL_TAIL = /([.?@&])([a-zA-Z][\w:-]*)=(["']?)$/;
+/**
+ * `!name` is here alongside `.name` because a **live** property is still a property: the sigil only
+ * changes *when the client re-writes it*, and a server has nothing to re-write against. It is
+ * serialized exactly as `.name` is, so the first paint is right and the client takes over.
+ *
+ * A sigil the server does not know is not inert — it falls through to the plain-attribute path and
+ * emits `! checked="true"`, which is an attribute named `!` and a second one beside it. That is why
+ * every sigil has to be added here in the same pass it is added to the renderer.
+ */
+const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)=(["']?)$/;
 
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
 const EVENT_TAIL = /on[A-Z][\w:-]*=(["']?)$/;
@@ -228,7 +237,7 @@ const compile = (strings) => {
       const kind = sigil[1];
       if (kind === '?') {
         kinds.push(BOOLEAN);
-      } else if (kind === '.' && FORM_ATTRIBUTES.includes(sigil[2])) {
+      } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigil[2])) {
         kinds.push(FORM_PROP);
       } else {
         kinds.push(DROPPED);
@@ -369,7 +378,7 @@ export const serializeTemplate = (template) => {
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         break;
-      /** DROPPED: '@' and '&' and non-form '.': nothing — client concerns. */
+      /** DROPPED: '@' and '&' and a non-form '.' or '!': nothing — client concerns. */
     }
   }
   const tail = parts[kinds.length];

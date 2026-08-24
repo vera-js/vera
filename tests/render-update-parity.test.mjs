@@ -62,6 +62,8 @@ const POSITIONS = {
   'a boolean': (v) => html`<b ?hidden=${v}>x</b>`,
   'a value property': (v) => html`<input .value=${v} />`,
   'a checked property': (v) => html`<input type="checkbox" .checked=${v} />`,
+  'a live checked property': (v) => html`<input type="checkbox" !checked=${v} />`,
+  'a live value property': (v) => html`<input !value=${v} />`,
   'a spread attribute': (v) => html`<b ${spread({ title: v })}>x</b>`,
   'a spread boolean': (v) => html`<b ${spread({ '?hidden': v })}>x</b>`,
   'an attribute and a child': (v) => html`<b title=${v}>${v}</b>`,
