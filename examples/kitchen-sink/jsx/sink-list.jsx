@@ -2,7 +2,7 @@
  * The JSX twin of `../components/sink-list.js` — keyed lists through `key={}`, which the transform
  * compiles to `keyed()` from `@verajs/renderer`.
  */
-import { init, render, html, shallowRef, untrack } from '@verajs/core';
+import { init, render, shallowRef, untrack } from '@verajs/core';
 
 export default class SinkList extends HTMLElement {
   connectedCallback() {
@@ -36,7 +36,6 @@ export default class SinkList extends HTMLElement {
         <p id="empty" hidden={rows.value.length > 0}>nothing here</p>
       </section>
     ));
-    void html;
   }
 }
 

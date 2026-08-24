@@ -4,7 +4,7 @@
  * `style` must be a **string** in JSX — an object is a compile error — which is the one place the
  * two authoring styles are written differently for the same result.
  */
-import { init, render, html, css, createStore } from '@verajs/core';
+import { init, render, css, createStore } from '@verajs/core';
 
 export default class SinkStyled extends HTMLElement {
   static styles = css`
@@ -29,7 +29,6 @@ export default class SinkStyled extends HTMLElement {
         <span className="badge"><span className="inner" data-kind="pill">styled</span></span>
       </div>
     ));
-    void html;
   }
 }
 

@@ -11,7 +11,7 @@
  * an element-position ref has no JSX syntax, and neither has a single-quoted binding. Those live in
  * `sink-bindings`, where the tagged-template form is the only one that can carry them.
  */
-import { init, render, html, svg, mathml, createStore } from '@verajs/core';
+import { init, render, svg, mathml, createStore } from '@verajs/core';
 
 export default class SinkBasics extends HTMLElement {
   connectedCallback() {
@@ -55,7 +55,6 @@ export default class SinkBasics extends HTMLElement {
         <math id="math">{mathml`<mi id="mi">${state.text}</mi>`}</math>
       </section>
     ));
-    void html;
   }
 }
 

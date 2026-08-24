@@ -1,5 +1,5 @@
 /** The JSX twin of `../components/sink-slots.js`. */
-import { init, render, html } from '@verajs/core';
+import { init, render } from '@verajs/core';
 
 export default class SinkSlots extends HTMLElement {
   connectedCallback() {
@@ -11,7 +11,6 @@ export default class SinkSlots extends HTMLElement {
         <footer><slot name="never">fallback only</slot></footer>
       </section>
     ));
-    void html;
   }
 }
 
