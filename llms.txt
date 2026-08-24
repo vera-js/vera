@@ -220,8 +220,12 @@ one at the other. See "CDN" below.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
 exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
-(property read), `'set-handler'` (property write, return `false` to suppress default propagation),
-`'error'` (a hook threw).
+(property read — **what it returns becomes the value read**, so an observer must return nothing;
+`undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
+suppress default propagation), `'error'` (a hook threw).
+
+⚠️ `insert('proxy-handler', () => count++, 30)` returns a number, so **every read of every store
+yields that number** instead of the value. Write observers with a block body — `() => { count++; }`.
 
 ---
 

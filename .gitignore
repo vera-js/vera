@@ -40,3 +40,5 @@ tests/.location-*
 tests/.title-*
 
 tests/.hoist-*
+
+tests/.inserts-*
