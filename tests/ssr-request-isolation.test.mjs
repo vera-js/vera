@@ -318,6 +318,49 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.equal(markup.split('shadowrootmode').length - 1, 3, 'nested and slotted components both rendered');
 }
 
+
+/* ── a component's own light DOM ──────────────────────────────────────────────────────────────
+ * A shadow component's light-DOM content is what its `<slot>` projects. It was discarded for every
+ * shadow component, so content the component put there itself was on the page in the browser and
+ * missing from the server's markup — a `<slot>` rendering nothing.
+ */
+{
+  const { html: markup } = await renderToString(fixture('lightkids-ssr.js'));
+  assert.match(markup, /<\/template>own light text<\/lightkids-ssr>$/,
+    `the component's own light DOM is missing: ${markup}`);
+}
+
+/**
+ * And `children` arrive **before** `connectedCallback`, where a client finds them — the parser has
+ * already built them when the element upgrades — so a component can read or slot them.
+ */
+{
+  const { html: markup } = await renderToString(fixture('slotted-ssr.js'), {
+    children: '<p>from the caller</p>',
+  });
+  assert.match(markup, /<\/template><p>from the caller<\/p>/, 'caller children follow the template');
+}
+
+/**
+ * The registry refuses a second definition, as the platform does. Overwriting silently meant a
+ * module defining a tag twice rendered fine on the server and threw `NotSupportedError` in the
+ * browser: the server being lenient about an error is the server hiding it.
+ */
+{
+  const { registry } = await import('@verajs/ssr/vera');
+  assert.ok(registry.has('hello-ssr'), 'a definition from an earlier render is still registered');
+  assert.throws(
+    () => customElements.define('hello-ssr', class extends HTMLElement {}),
+    /already been defined/,
+    'redefining a tag is refused'
+  );
+}
+
+/**
+ * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
+ * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a
+ * different one. Every case above it would fail with the very error it is asserting.
+ */
 /**
  * An app entry doing the ordinary thing — `setRenderer(domRender)` — displaces the server renderer
  * the moment that module is imported server-side, because `setRenderer` registers at priority 50 and

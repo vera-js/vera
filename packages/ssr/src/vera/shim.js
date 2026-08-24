@@ -295,7 +295,18 @@ export const installShims = () => {
   globalThis.CSSScopeRule = /** @type {any} */ (function CSSScopeRule() {});
 
   globalThis.customElements = /** @type {any} */ ({
-    define: (name, Class) => registry.set(name, Class),
+    /**
+     * Refused on a second definition, exactly as the platform does. The registry used to overwrite
+     * silently, so a module defining a tag twice rendered fine on the server and threw
+     * `NotSupportedError` in the browser — the server being lenient about an error is the server
+     * hiding it.
+     */
+    define: (name, Class) => {
+      if (registry.has(name)) {
+        throw new Error(`customElements.define: '${name}' has already been defined`);
+      }
+      registry.set(name, Class);
+    },
     get: (name) => registry.get(name),
     whenDefined: () => Promise.resolve(),
   });

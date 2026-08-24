@@ -188,7 +188,7 @@ const renderComponentTags = (markup, depth) => {
 };
 
 /** Instantiates a registered component and returns its declarative-shadow (or light) markup. */
-const renderComponent = (tag, attrString, depth, props) => {
+const renderComponent = (tag, attrString, depth, props, children) => {
   const element = new (registry.get(tag))();
   element.localName = tag;
   if (attrString) {
@@ -203,6 +203,12 @@ const renderComponent = (tag, attrString, depth, props) => {
    * to be handed a JSON string and parse it back.
    */
   if (props) Object.assign(element, props);
+  /**
+   * Children go in **before** `connectedCallback`, because that is where a client finds them: the
+   * parser has already built them when the element upgrades. A component that reads or slots them
+   * therefore sees them, and one that overwrites its own light DOM wins — same order, same result.
+   */
+  if (children) element.innerHTML = children;
 
   renderedTags.add(tag);
   const previousTag = setRenderingTag(tag) ?? tag;
@@ -228,9 +234,15 @@ const renderComponent = (tag, attrString, depth, props) => {
   if (element.shadowRoot) {
     /** Styles are prepended after the scan, never passed through it — see `styleTags`. */
     const inner = renderComponentTags(element.shadowRoot.innerHTML, depth);
+    /**
+     * The element's own light DOM follows the template. It used to be discarded for any shadow
+     * component, so content a component put in its own light DOM — the thing its `<slot>` projects
+     * — was on the page client-side and missing server-side.
+     */
+    const light = element.innerHTML ? renderComponentTags(element.innerHTML, depth) : '';
     return {
       open,
-      inner: `<template${element.shadowRoot.templateAttributes()}>${element.shadowRoot.styleTags()}${inner}</template>`,
+      inner: `<template${element.shadowRoot.templateAttributes()}>${element.shadowRoot.styleTags()}${inner}</template>${light}`,
     };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */
@@ -340,8 +352,8 @@ export const renderToString = async (
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
    * and nothing else.
    */
-  const entry = renderComponent(tag, attrString, 0, props);
-  const html = `${entry.open}${entry.inner}${renderComponentTags(children, 0)}</${tag}>`;
+  const entry = renderComponent(tag, attrString, 0, props, children);
+  const html = `${entry.open}${entry.inner}</${tag}>`;
   /**
    * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
    * in their page shell — which makes that their render boundary, and handing them CSS that can
