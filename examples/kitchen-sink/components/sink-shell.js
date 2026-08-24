@@ -20,6 +20,13 @@ import './sink-form.js';
 
 export default class SinkShell extends HTMLElement {
   connectedCallback() {
+    /**
+     * The autoloader watches a **component**, and the opt-in is an attribute on the host — not on
+     * something the component renders. An `autoloader` attribute on an inner `<div>` is invisible:
+     * the `'render'` insert offers up this element, and `document.querySelectorAll('[autoloader]')`
+     * cannot see into a shadow root. Set here so the server emits it too.
+     */
+    this.setAttribute('autoloader', '');
     init(this, { mode: 'open' });
     const state = createStore({ heading: 'Vera kitchen sink' });
     this.state = state;
@@ -70,7 +77,7 @@ export default class SinkShell extends HTMLElement {
     });
 
     render(
-      () => html`<div id="shell" autoloader>
+      () => html`<div id="shell">
         <h1 id="heading">${state.heading}</h1>
         <nav id="nav">
           <a route href="/">Home</a>

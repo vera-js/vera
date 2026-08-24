@@ -36,7 +36,14 @@ const COMPONENTS = [
 const load = (path) =>
   new Promise((resolve, reject) => {
     const frame = document.createElement('iframe');
-    frame.style.cssText = 'position:absolute;width:800px;height:600px;left:-9999px';
+    /**
+     * On-screen, deliberately. Firefox and WebKit throttle `requestAnimationFrame` in an iframe
+     * that is not being displayed — and the render scheduler *is* `requestAnimationFrame`, so an
+     * offscreen frame simply stops updating and every assertion after the first times out. Small
+     * and behind the page rather than hidden: `display:none` and `visibility:hidden` throttle too.
+     */
+    frame.style.cssText =
+      'position:fixed;top:0;left:0;width:320px;height:240px;opacity:0.02;border:0;pointer-events:none;z-index:-1';
     frame.src = path;
     frame.addEventListener('error', reject);
     document.body.appendChild(frame);
@@ -44,7 +51,7 @@ const load = (path) =>
   });
 
 /** Polls rather than sleeps: a fixed wait is the flakiest thing a browser test can do. */
-const until = async (predicate, what, timeout = 8000) => {
+const until = async (predicate, what, timeout = 20000) => {
   const started = performance.now();
   for (;;) {
     let value;
@@ -61,8 +68,16 @@ const until = async (predicate, what, timeout = 8000) => {
 
 const shellOf = (frame) => frame.contentDocument.querySelector('sink-shell');
 
-/** A mode is ready when its shell has a shadow root and every component in it has one too. */
+/**
+ * A live mode is ready when **its own script has run**, not merely when a shadow root exists.
+ *
+ * The hydrate page is parsed from server markup, so every declarative shadow root is there before
+ * a single line of client code executes — waiting on one would measure the server's page and call
+ * it the client's. The entry sets `data-sink-mode` as its last act, which is the only signal that
+ * the handoff has actually happened.
+ */
 const ready = async (frame, label) => {
+  await until(() => frame.contentDocument.documentElement.dataset.sinkMode === label, `${label}: its entry to run`);
   await until(() => shellOf(frame)?.shadowRoot?.querySelector('#shell'), `${label}: the shell to render`);
   const root = shellOf(frame).shadowRoot;
   for (const tag of COMPONENTS)
@@ -74,7 +89,13 @@ let ssr;
 let csr;
 let hydrated;
 
-before(async () => {
+/**
+ * Loading three documents takes longer than mocha's 5 s default on Firefox and WebKit, which
+ * failed the whole file rather than any assertion in it. A regular function, because `this` is the
+ * mocha context.
+ */
+before(async function loadEveryMode() {
+  this.timeout(30000);
   const [a, b, c] = await Promise.all([
     load('/tests/browser/fixtures/kitchen-ssr.html'),
     load('/tests/browser/fixtures/kitchen-csr.html'),
@@ -82,11 +103,16 @@ before(async () => {
   ]);
   /** The server page has no script, so it is ready as soon as the parser has finished with it. */
   ssr = shellOf(a);
-  csr = await ready(b, 'client');
+  csr = await ready(b, 'csr');
   hydrated = await ready(c, 'hydrate');
 });
 
 describe('the same application, rendered three ways', () => {
+  /** Three applications in three documents; mocha's 5 s default is for unit tests. */
+  beforeEach(function raiseTheTimeout() {
+    this.timeout(30000);
+  });
+
   it('the server page parses into the components it describes', () => {
     expect(ssr, 'no <sink-shell> in the server markup').to.exist;
     expect(ssr.shadowRoot, 'declarative shadow DOM did not become a shadow root').to.exist;
@@ -131,10 +157,29 @@ describe('the same application, rendered three ways', () => {
     });
   });
 
+  /**
+   * The other intended divergence: a **lazily loaded** component cannot exist server-side.
+   *
+   * Fetching `<sink-lazy>` is what the autoloader does when the element enters a live DOM, and a
+   * server has neither. The markup therefore carries the empty custom element — which is correct,
+   * and is what lets the client fill it — so the comparison below excludes it and this asserts it.
+   */
+  it('a lazily loaded component is empty on the server and present in both live modes', async () => {
+    expect(ssr.shadowRoot.querySelector('sink-lazy').shadowRoot, 'the server cannot autoload').to.equal(null);
+    for (const [label, shell] of [['client', csr], ['hydrate', hydrated]]) {
+      const lazy = await until(
+        () => shell.shadowRoot.querySelector('sink-lazy')?.shadowRoot?.querySelector('#lazy'),
+        `${label}: <sink-lazy> to autoload`
+      );
+      expect(lazy.textContent).to.equal('loaded on demand');
+    }
+  });
+
   it('the shell itself is identical in all three', () => {
-    /** The nav, the outlet and the host attributes — everything outside a child component. */
-    const of = (shell) => canonical(shell.shadowRoot).replace(/<sink-[a-z]+ [^>]*>[\s\S]*?<\/sink-[a-z]+>/g, '<component/>');
-    expect(canonical(hydrated.shadowRoot)).to.equal(canonical(ssr.shadowRoot));
+    /** Everything the shell renders, with the one thing a server cannot produce left out. */
+    const of = (shell) =>
+      canonical(shell.shadowRoot).replace(/<sink-lazy [^>]*>[\s\S]*?<\/sink-lazy>/, '<sink-lazy/>');
+    expect(of(hydrated)).to.equal(of(ssr));
     expect(of(csr)).to.equal(of(ssr));
   });
 });
