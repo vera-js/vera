@@ -110,3 +110,31 @@ test('CSS text cannot break out of the <style> element it is written into', () =
     assert.deepEqual(handlers, [], `<${element.localName}> carries ${handlers.join(', ')}`);
   }
 });
+
+/**
+ * A stylesheet is text, not markup, and the two need opposite treatment.
+ *
+ * `@verajs/styles` sets a `<style>` element's `textContent` to the stylesheet. The shim's setter
+ * escaped it like any other text, so `>` became `&#62;` and `"` became `&#34;` — and a browser does
+ * not decode character references inside `<style>`, so a component with a string `static styles`
+ * shipped a stylesheet with every child selector, attribute selector and `content: "…"` broken. The
+ * client never had it: there, `textContent` sets real text and a raw-text element serializes it
+ * verbatim.
+ *
+ * What a stylesheet *does* need is `</style` neutralised, which is a different escape and is
+ * asserted above.
+ */
+test('a stylesheet keeps the characters CSS needs', async () => {
+  const { renderToString } = await import('@verajs/ssr/vera');
+  const url = new URL('./fixtures/ssr/cssselectors-ssr.js', import.meta.url);
+
+  for (const tag of ['cssselectors-ssr', 'css-string']) {
+    const { html } = await renderToString(url, { tag });
+    const css = (html.match(/<style vera-styles>([\s\S]*?)<\/style>/) ?? [])[1];
+
+    assert.ok(css, `${tag}: no stylesheet in the markup`);
+    assert.ok(!css.includes('&#'), `${tag}: the stylesheet was HTML-escaped — ${css}`);
+    assert.match(css, /\.a > \.b/, `${tag}: a child selector survives`);
+    assert.match(css, /\.c\[x="y"\]/, `${tag}: an attribute selector survives`);
+  }
+});

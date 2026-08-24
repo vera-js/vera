@@ -33,6 +33,13 @@ export const setRenderingTag = (tag) => {
   return previous;
 };
 
+/**
+ * Elements whose content is text rather than markup. Setting `textContent` on one of these stores
+ * the text as written: inside `<style>` or `<script>` a character reference is **not** decoded, so
+ * escaping there does not protect anything and does corrupt the content.
+ */
+const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title']);
+
 const NEEDS_ESCAPE = /[&<>"']/;
 const ESCAPE = /[&<>"']/g;
 
@@ -164,9 +171,6 @@ class ShadowRootShim {
       .map((css) => `<style vera-styles>${escapeStyleText(css)}</style>`)
       .join('');
   }
-  serialize() {
-    return this.styleTags() + this.innerHTML;
-  }
 }
 
 class ElementShim {
@@ -292,8 +296,17 @@ class ElementShim {
   get textContent() {
     return this.innerHTML.replace(/<[^>]*>/g, '');
   }
+  /**
+   * Escaped for an ordinary element, stored as-is for a raw-text one.
+   *
+   * `@verajs/styles` sets a `<style>` element's `textContent` to the stylesheet, and escaping it
+   * turned every `>` into `&#62;` and every `"` into `&#34;`. A browser does not decode those inside
+   * `<style>`, so a component with `static styles = '.a > .b { … }'` shipped a broken stylesheet —
+   * every child selector, every attribute selector, every `content: "…"`. The client never had it:
+   * there, `textContent` sets real text and the serializer of a raw-text element emits it verbatim.
+   */
   set textContent(value) {
-    this.innerHTML = escapeHtml(value);
+    this.innerHTML = RAW_TEXT_ELEMENTS.has(this.localName) ? String(value) : escapeHtml(value);
   }
 }
 
