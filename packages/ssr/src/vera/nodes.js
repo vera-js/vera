@@ -313,7 +313,20 @@ export class ShadowRootShim extends ContainerShim {
    */
   styleTags() {
     const sheets = (this._adopted ?? []).map((sheet) => sheet.cssText ?? '');
-    return [...sheets, ...this._styles]
+    /**
+     * **Text first, adopted sheets last — because that is the order the browser cascades them in.**
+     *
+     * A shadow root's own `<style>` elements are its tree-order sheets, and `adoptedStyleSheets`
+     * apply *after* them: measured in Chromium, a constructed rule beats an identical-specificity
+     * rule from a `<style>` in the same root no matter which appears first in the markup. Here both
+     * are `<style>` elements, so the cascade is document order and whichever is written last wins.
+     *
+     * Emitting sheets first therefore inverted it. `static styles = [sheet, '.plain { … }']` — a
+     * legal shape this package serializes on purpose — had the string win on the server and lose in
+     * the browser, so the page changed appearance as it hydrated, in the one direction nothing
+     * compares: markup, node identity and property values all matched.
+     */
+    return [...this._styles, ...sheets]
       .filter(Boolean)
       .map((css) => `<style vera-styles>${escapeStyleText(css)}</style>`)
       .join('');

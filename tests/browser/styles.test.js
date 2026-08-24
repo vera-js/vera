@@ -206,3 +206,43 @@ it('repairs a server-rendered copy rather than duplicating it', async () => {
   expect(element.shadowRoot.querySelectorAll('style[vera-styles]').length, 'exactly one').to.equal(1);
   expect(styleText(element)).to.contain('.text');
 });
+
+/* ── the cascade agrees between the server's markup and a client render ──────────────────────── */
+/**
+ * The one way SSR and CSR can disagree while every comparison passes.
+ *
+ * `static styles = [sheet, '.probe { … }']` reaches a shadow root by two different mechanisms in a
+ * browser: the sheet is adopted, the string becomes a `<style>` — and `adoptedStyleSheets` apply
+ * **after** the root's own tree-order sheets, so the adopted rule wins whatever the markup order.
+ * Server-side both are `<style>` elements, where the cascade is document order and the last one
+ * wins. Emitting the sheet first inverted it.
+ *
+ * Nothing structural differs when that happens: same markup shape, same nodes, same properties. The
+ * page simply changes colour as it hydrates. So the assertion is on the resolved style, and it is
+ * made against the server's real emission order rather than a hand-picked one.
+ */
+describe('a mixed styles array cascades the same way on both sides', () => {
+  const RED = 'rgb(255, 0, 0)';
+  const BLUE = 'rgb(0, 0, 255)';
+
+  /** What `@verajs/ssr` writes for `[sheet(.probe red), '.probe blue']` — string first, sheet last. */
+  const SERVER = `<style vera-styles>.probe { color: ${BLUE} }</style><style vera-styles>.probe { color: ${RED} }</style><p class="probe">x</p>`;
+
+  it('the client resolves the adopted sheet as the winner', async () => {
+    const element = define({ template: () => html`<p class="probe">x</p>` }, [
+      sheetFor(`.probe { color: ${RED} }`),
+      `.probe { color: ${BLUE} }`,
+    ]);
+    await frame();
+    const probe = element.shadowRoot.querySelector('.probe');
+    expect(getComputedStyle(probe).color, 'an adopted sheet outranks a <style> in the same root').to.equal(RED);
+  });
+
+  it('and the server markup resolves to the same winner', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    host.attachShadow({ mode: 'open' }).innerHTML = SERVER;
+    const probe = host.shadowRoot.querySelector('.probe');
+    expect(getComputedStyle(probe).color, 'the page would change colour as it hydrates').to.equal(RED);
+  });
+});

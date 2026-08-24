@@ -75,6 +75,24 @@ check(
   results['shape-mixed'].length === 2,
   JSON.stringify(results['shape-mixed'])
 );
+/**
+ * **And emits the string first, which is not the order it was written in.**
+ *
+ * On the client the two arrive by different mechanisms: a constructed sheet is adopted, a string
+ * becomes a `<style>` in the shadow root, and the platform applies `adoptedStyleSheets` *after* the
+ * root's own tree-order sheets — measured in Chromium, the adopted rule wins against an
+ * identical-specificity rule from a `<style>` no matter which comes first in the markup. Here both
+ * are `<style>` elements, so the cascade is document order and the last one wins.
+ *
+ * Emitting sheets first therefore inverted the cascade: the string won on the server and lost in
+ * the browser, so the page changed appearance as it hydrated — in the one direction nothing else
+ * compares, since markup, node identity and every property value matched.
+ */
+check(
+  'and puts the string before the sheet, so the cascade matches the browser',
+  results['shape-mixed'].join('|') === '.b { color: blue }|.a { color: red }',
+  JSON.stringify(results['shape-mixed'])
+);
 check('an empty array contributes nothing', results['shape-empty-array'].length === 0);
 check('no styles at all contributes nothing', results['shape-none'].length === 0);
 
