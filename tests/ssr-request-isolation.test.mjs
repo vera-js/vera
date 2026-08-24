@@ -674,6 +674,32 @@ export default customElements.get('titled-ssr');
     );
     assert.equal(globalThis.document.title, before, 'the render left its title on the shared document');
 
+    /**
+     * And a render that **throws** puts them back too, which is every path except the one that
+     * matters most: a failed request is followed by others exactly as a successful one is.
+     */
+    writeFileSync(
+      `${dir}/doomed.js`,
+      `import { init, render, html } from '@verajs/core';
+customElements.define('doomed-ssr', class extends HTMLElement {
+  connectedCallback() {
+    init(this, { mode: 'open' });
+    document.title = 'set by a doomed render';
+    render(() => { throw new Error('boom'); });
+  }
+});
+export default customElements.get('doomed-ssr');
+`
+    );
+    const titleBefore = globalThis.document.title;
+    const pathBefore = globalThis.location.pathname;
+    await assert.rejects(
+      () => renderToString(new URL(`file://${dir}/doomed.js`), { location: '/doomed' }),
+      /threw while rendering/
+    );
+    assert.equal(globalThis.document.title, titleBefore, 'a failed render leaked its title');
+    assert.equal(globalThis.location.pathname, pathBefore, 'a failed render leaked its URL');
+
     /** A component that sets no title still reports one, so a shell never has to branch. */
     const untouched = await renderToString(fixture('hello-ssr.js'));
     assert.equal(typeof untouched.title, 'string', '`title` must always be a string');

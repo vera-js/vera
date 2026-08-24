@@ -556,6 +556,22 @@ export const renderToString = async (
    */
   const previousTitle = globalThis.document.title;
 
+  /**
+   * From here to the end in a `try`, so a render that **throws** still puts the globals back.
+   *
+   * The first version of this restored them just before returning, which is every path except the
+   * one that matters most: a failed render left its URL and its title on the process for every
+   * request after it, and a request that fails is followed by others exactly as one that succeeds
+   * is. The leak this whole area exists to close, surviving on the error path.
+   */
+  try {
+    return renderPage();
+  } finally {
+    globalThis.document.title = previousTitle;
+    if (previousLocation !== undefined) restoreLocation(previousLocation);
+  }
+
+  function renderPage() {
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
   renderErrors.length = 0;
@@ -611,8 +627,6 @@ export const renderToString = async (
    * render — the common case — behaving exactly as before.
    */
   const title = globalThis.document.title;
-  globalThis.document.title = previousTitle;
-  if (previousLocation !== undefined) restoreLocation(previousLocation);
 
   const styles = [];
   for (const rendered of renderedTags) {
@@ -621,6 +635,7 @@ export const renderToString = async (
     for (const css of hoistedStyles.get(rendered) ?? []) styles.push(css);
   }
   return { html, styles: styles.map(escapeStyleText).join('\n'), title };
+  }
 };
 
 export { registry, hoistedStyles, serializeTemplate };
