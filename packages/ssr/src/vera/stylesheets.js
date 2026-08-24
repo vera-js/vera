@@ -93,9 +93,34 @@ export class StyleSheetShim {
   disabled = false;
 }
 
+/**
+ * Which tags have been hoisted into during the render currently in progress.
+ *
+ * `@verajs/styles` hoists a light-DOM component's CSS **once per class, ever** — the second instance
+ * adds nothing — so a tag's sheets are established by whichever render reached it first and have to
+ * persist for every render after. That is why `hoistedStyles` is not simply cleared per render.
+ *
+ * A component that appends its own `<style>` on every render instead of using `static styles` had no
+ * such guard, so its sheets accumulated **per process**: `hoistedStyles` grew without bound, and
+ * because a render returns everything recorded against the tags it touched, request thirty shipped
+ * thirty-four rules — thirty-three of them belonging to earlier requests. Other people's CSS in this
+ * response, growing forever.
+ */
+const hoistedThisRender = new Set();
+
+/** Called at the start of each render, so the once-per-class rule is enforced across requests. */
+export const beginHoisting = () => hoistedThisRender.clear();
+
 /** Records a hoisted sheet against whichever component is mid-render. */
 export const hoist = (cssText) => {
-  const sheets = hoistedStyles.get(renderingTag) ?? [];
-  if (!sheets.includes(cssText)) sheets.push(cssText);
-  hoistedStyles.set(renderingTag, sheets);
+  const sheets = hoistedStyles.get(renderingTag);
+  /**
+   * A tag established elsewhere keeps what it had: appending here would be a second hoist for a
+   * class that has already been hoisted, which is the thing the rule forbids.
+   */
+  if (sheets && !hoistedThisRender.has(renderingTag)) return;
+  hoistedThisRender.add(renderingTag);
+  const list = sheets ?? [];
+  if (!list.includes(cssText)) list.push(cssText);
+  hoistedStyles.set(renderingTag, list);
 };

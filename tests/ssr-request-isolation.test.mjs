@@ -659,6 +659,56 @@ export default customElements.get('titled-ssr');
   }
 }
 
+/* ── one request's CSS must not accumulate into the next ───────────────────────────────────────
+ * `@verajs/styles` hoists a light-DOM component's CSS **once per class, ever**, so a tag's sheets
+ * are established by whichever render reached it first and must persist for every render after —
+ * which is why the collection is not simply cleared per render.
+ *
+ * A component that appends its own `<style>` each render instead had no such guard, so its sheets
+ * accumulated per **process**: request thirty shipped thirty-four rules, thirty-three of them
+ * belonging to earlier requests, and the map grew without bound.
+ */
+{
+  const dir = mkdtempSync(new URL('./.hoist-', import.meta.url).pathname);
+  try {
+    writeFileSync(
+      `${dir}/grow.js`,
+      `import { init, render, html } from '@verajs/core';
+let n = 0;
+customElements.define('grow-ssr', class extends HTMLElement {
+  connectedCallback() {
+    init(this);
+    const style = document.createElement('style');
+    style.textContent = \`.t\${n++} { color: red }\`;
+    document.head.appendChild(style);
+    render(() => html\`<p>x</p>\`);
+  }
+});
+export default customElements.get('grow-ssr');
+`
+    );
+    const url = new URL(`file://${dir}/grow.js`);
+    const rules = [];
+    for (let i = 0; i < 12; i++) {
+      const { styles } = await renderToString(url);
+      rules.push((styles.match(/\.t\d+/g) ?? []).length);
+    }
+    assert.deepEqual(
+      [...new Set(rules)],
+      [1],
+      `a render shipped another render's CSS — rule counts were ${rules.join(',')}`
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  /** And the ordinary light-DOM component still ships its CSS on every render, as it must. */
+  const scoped = new URL('../examples/kitchen-sink/components/sink-scoped.js', import.meta.url);
+  const sizes = [];
+  for (let i = 0; i < 3; i++) sizes.push((await renderToString(scoped, { tag: 'sink-scoped' })).styles.length);
+  assert.ok(sizes.every((size) => size === sizes[0] && size > 0), `styles varied across renders: ${sizes.join(',')}`);
+}
+
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a

@@ -24,6 +24,7 @@ import {
   escapeHtml,
   escapeStyleText,
   setRenderingTag,
+  beginHoisting,
   flushFrames,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
@@ -558,6 +559,8 @@ export const renderToString = async (
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
   renderErrors.length = 0;
+  /** Re-arms the once-per-class hoist rule, which is what keeps one request's CSS out of another's. */
+  beginHoisting();
   /** Anything a previous render marked and never emitted must not be adopted by this one. */
   pendingInstances.clear();
   /**

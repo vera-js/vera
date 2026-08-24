@@ -38,3 +38,5 @@ tests/.styles-*
 tests/.location-*
 
 tests/.title-*
+
+tests/.hoist-*
