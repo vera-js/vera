@@ -34,3 +34,5 @@ examples/kitchen-sink/.jsx-*
 tests/.scale-*
 
 tests/.styles-*
+
+tests/.location-*

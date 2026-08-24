@@ -8,6 +8,7 @@
 import { renderToString, serializeTemplate } from '@verajs/ssr/vera';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 
 const { html } = await import('@verajs/core');
 const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
@@ -562,6 +563,55 @@ for (const [what, file, message] of [
   ]) {
     const { html: markup } = await renderToString(fixture('hello-ssr.js'), { props });
     assert.match(markup, /^<hello-ssr>/, `props with ${label} should render`);
+  }
+}
+
+/* ── one request's URL must not reach another's render ─────────────────────────────────────────
+ * `globalThis.location` is process-global and a request is not. The documented way to render a
+ * route used to be to assign to it and call `renderToString`, which is safe only until two requests
+ * overlap: the call awaits `import(href)`, and on a module's first import that await yields, so
+ * whichever request assigned last won for every render after it.
+ *
+ * Measured before the fix, with three concurrent first-time imports: **two of three rendered
+ * another request's path**. That is a page answered with someone else's data.
+ */
+{
+  const dir = mkdtempSync(new URL('./.location-', import.meta.url).pathname);
+  try {
+    /** Three distinct modules, so each request's `await import()` genuinely yields. */
+    const paths = ['/alpha', '/beta', '/gamma'];
+    for (let i = 0; i < paths.length; i++) {
+      writeFileSync(
+        `${dir}/loc${i}.js`,
+        `import { init, render, html } from '@verajs/core';
+customElements.define('loc${i}-ssr', class extends HTMLElement {
+  connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<p>\${globalThis.location.pathname}</p>\`); }
+});
+export default customElements.get('loc${i}-ssr');
+`
+      );
+    }
+
+    const rendered = await Promise.all(
+      paths.map(async (path, i) => {
+        const { html: markup } = await renderToString(new URL(`file://${dir}/loc${i}.js`), { location: path });
+        return markup.match(/<p>([^<]*)<\/p>/)?.[1];
+      })
+    );
+    assert.deepEqual(rendered, paths, 'a concurrent render was answered with another request’s path');
+
+    /** And the process global is left exactly as it was found. */
+    const before = globalThis.location.pathname;
+    await renderToString(new URL(`file://${dir}/loc0.js`), { location: '/somewhere/else' });
+    assert.equal(globalThis.location.pathname, before, 'the render did not restore the shared location');
+
+    /** A full URL works too, and the query and fragment come with it. */
+    const { html: withQuery } = await renderToString(new URL(`file://${dir}/loc1.js`), {
+      location: 'http://example.test/deep/path?a=1#frag',
+    });
+    assert.match(withQuery, /<p>\/deep\/path<\/p>/, 'a full URL did not set the path');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 

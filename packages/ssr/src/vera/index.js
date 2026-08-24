@@ -266,6 +266,27 @@ const renderComponentTags = (markup, depth) => {
   return out;
 };
 
+/**
+ * Points `globalThis.location` at one request's URL and hands back what it held.
+ *
+ * A path is resolved against whatever `location` already describes, so `'/users/2?page=3#top'`
+ * works without a caller having to invent an origin.
+ */
+const LOCATION_PARTS = ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'];
+
+const applyLocation = (location) => {
+  const current = globalThis.location;
+  const previous = Object.fromEntries(LOCATION_PARTS.map((part) => [part, current?.[part]]));
+  const next = new URL(String(location), current?.href ?? 'http://localhost/');
+  for (const part of LOCATION_PARTS) current[part] = next[part];
+  return previous;
+};
+
+const restoreLocation = (previous) => {
+  const current = globalThis.location;
+  for (const part of LOCATION_PARTS) current[part] = previous[part];
+};
+
 /** Instantiates a registered component and returns its declarative-shadow (or light) markup. */
 const renderComponent = (tag, attrString, depth, props, children) => {
   const element = new (registry.get(tag))();
@@ -384,11 +405,14 @@ const renderInstance = (element, tag, depth, props, children) => {
  * page once, for a shell assembled from several islands
  * @param {string | URL} [options.base] A directory the module must resolve inside. Pass it whenever
  * any part of `url` came from a request
+ * @param {string | URL} [options.location] This request's URL, for any component that reads one.
+ * Applied after every await and restored afterwards, so concurrent renders cannot see each other's
+ * — assigning to `globalThis.location` yourself is not safe once two requests overlap
  * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
  */
 export const renderToString = async (
   url,
-  { tag, attributes = '', children = '', props, seen, base } = {}
+  { tag, attributes = '', children = '', props, seen, base, location } = {}
 ) => {
   /**
    * The options are checked because getting one wrong otherwise surfaced an internal: `children: 5`
@@ -412,6 +436,9 @@ export const renderToString = async (
     throw new TypeError('ssr: `props` must be an object of properties to assign');
   }
   if (seen !== undefined && !(seen instanceof Set)) throw new TypeError('ssr: `seen` must be a Set');
+  if (location !== undefined && typeof location !== 'string' && !(location instanceof URL)) {
+    throw new TypeError('ssr: `location` must be a URL or a path string');
+  }
   /** A `tag` that is not a string cannot name a custom element, and saying so here names the option. */
   if (tag !== undefined && typeof tag !== 'string') {
     throw new TypeError(`ssr: \`tag\` must be a custom element name, and ${typeof tag} is not one`);
@@ -501,6 +528,21 @@ export const renderToString = async (
 
   assertRendererIntact();
 
+  /**
+   * The request's URL, applied **here** — after every `await` and immediately before the render.
+   *
+   * `globalThis.location` is process-global and a request is not. The documented way to render a
+   * route used to be to assign to it and then call this, which is safe only until two requests
+   * overlap: `renderToString` awaits `import(href)`, and on a module's first import that await
+   * yields, so whichever request assigned last won for every render after it. Measured with three
+   * concurrent first-time imports, **two of three rendered another request's path** — a page
+   * answered with someone else's data, which is the worst thing a server renderer can do.
+   *
+   * Everything from this line to the end of the render is synchronous, so setting it now and
+   * restoring it after cannot interleave with anything.
+   */
+  const previousLocation = location === undefined ? undefined : applyLocation(location);
+
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
   renderErrors.length = 0;
@@ -553,6 +595,8 @@ export const renderToString = async (
    * `Set` across the calls emits each component's styles into the page once, and leaves a single
    * render — the common case — behaving exactly as before.
    */
+  if (previousLocation !== undefined) restoreLocation(previousLocation);
+
   const styles = [];
   for (const rendered of renderedTags) {
     if (seen?.has(rendered)) continue;

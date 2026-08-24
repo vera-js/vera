@@ -13,12 +13,22 @@ those are text and a scan for elements has no business reading them.
       attributes: { 'user-id': id },   // an object — values are escaped
       props: { rows },                 // structured data; an attribute can only carry a string
       children: '<p>slotted</p>',      // what a <slot> in the component renders
+      location: request.url,           // this request's URL — see below
       seen,                            // a Set carried across renders — see below
     });
 
 For a shell assembled from several islands, carry one `Set` through every call. Each render returns
 the styles of what *it* rendered, so two islands sharing a component would otherwise each carry that
 component's CSS and the page would ship it twice.
+
+**Pass `location` rather than assigning to `globalThis.location`.** A component that reads the URL —
+any routed shell does — needs the request's, and `globalThis.location` is process-global while a
+request is not. Assigning to it and then calling `renderToString` is safe only until two requests
+overlap: the call awaits `import()`, and on a module's first import that await yields, so whichever
+request assigned last wins for every render after it. Measured with three concurrent first-time
+imports, **two of three rendered another request's path**. The option applies the URL after every
+await and restores it afterwards, in a stretch that is synchronous end to end and therefore cannot
+interleave. A path or a full URL both work.
 
 **`children`, and the string form of `attributes`, are raw markup.** Both are written through
 untouched — that is what they are for — so neither may carry anything from a request without being

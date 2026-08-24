@@ -344,7 +344,9 @@ export const installShims = () => {
    * a server *navigates*, so `popstate` and friends still never arrive on their own. `location`
    * describes the page being rendered, so a route resolves against a real path; set
    * `globalThis.location.pathname` before `renderToString` to render a route other than `/`.
-   * `history` is inert: a server has no session history to push onto.
+   * `history` is inert: a server has no session history to push onto. A **per-request** URL belongs
+   * in `renderToString`'s `location` option, which applies it after every await and restores it
+   * afterwards; assigning to this global directly is safe only until two requests overlap.
    */
   globalThis.window = /** @type {any} */ (globalThis);
   globalThis.location ??= /** @type {any} */ ({ pathname: '/', search: '', hash: '', href: 'http://localhost/' });
