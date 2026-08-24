@@ -406,6 +406,22 @@ class ContainerShim extends EventTarget {
   }
 }
 
+/**
+ * A fragment is a container and nothing more.
+ *
+ * Its own class rather than a reused `ElementShim`, so `instanceof DocumentFragment` answers `false`
+ * for an element — a check the renderer makes, and one that a shared class would have made true for
+ * everything.
+ */
+class FragmentShim extends ContainerShim {
+  get nodeType() {
+    return 11;
+  }
+  get nodeName() {
+    return '#document-fragment';
+  }
+}
+
 class ShadowRootShim extends ContainerShim {
   constructor(init) {
     super();
@@ -1131,6 +1147,88 @@ export const installShims = () => {
    */
   globalThis.HTMLElement = /** @type {any} */ (ElementShim);
   globalThis.CSSStyleSheet = /** @type {any} */ (StyleSheetShim);
+  /**
+   * The DOM interfaces, so `instanceof` answers correctly.
+   *
+   * `value instanceof Node` is how ordinary code tells a node from a string — the renderer's own
+   * text-vs-node decision is that test — and `Node` being undefined made it a `ReferenceError`
+   * rather than `false`. These are the real shim classes, so an element made here *is* a `Node`,
+   * an `Element` and an `HTMLElement`, exactly as it would be in a browser.
+   */
+  globalThis.Node = /** @type {any} */ (ContainerShim);
+  globalThis.Element = /** @type {any} */ (ElementShim);
+  globalThis.ShadowRoot = /** @type {any} */ (ShadowRootShim);
+  globalThis.DocumentFragment = /** @type {any} */ (FragmentShim);
+  /** `new Image()` is a spelling of `createElement('img')`, and `Audio` of `createElement('audio')`. */
+  globalThis.Image = /** @type {any} */ (class Image extends ElementShim {
+    constructor() {
+      super('img');
+    }
+  });
+  globalThis.Audio = /** @type {any} */ (class Audio extends ElementShim {
+    constructor() {
+      super('audio');
+    }
+  });
+
+  /**
+   * The observers, inert.
+   *
+   * Every one of them observes something a server does not have — a viewport, a box, a live tree —
+   * so none can ever fire here. What matters is that constructing one does not throw: a component
+   * that lazy-loads on intersection, or watches its own size, is written for a browser and must
+   * still *render* on a server. `@verajs/autoloader` builds a `MutationObserver`, which made an app
+   * entry that wires it unrenderable.
+   */
+  for (const name of ['IntersectionObserver', 'ResizeObserver', 'MutationObserver', 'PerformanceObserver'])
+    globalThis[name] = /** @type {any} */ (class Observer {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    });
+
+  /**
+   * A media query with no viewport to match matches nothing, which is what every server renderer
+   * answers and what hydration then corrects. Absent, it was a `TypeError` in `connectedCallback`.
+   */
+  globalThis.matchMedia = /** @type {any} */ (
+    (media) => ({
+      media,
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => true,
+      onchange: null,
+    })
+  );
+
+  /** No layout means no computed value; a browser gives a detached element nothing useful either. */
+  globalThis.getComputedStyle = /** @type {any} */ (
+    () => ({
+      getPropertyValue: () => '',
+      getPropertyPriority: () => '',
+      length: 0,
+      item: () => '',
+    })
+  );
+  globalThis.getSelection = () => null;
+
+  /**
+   * Idle time joins the frame queue rather than inventing a second one — the render is over when
+   * `flushFrames` runs out, and work deferred to "when the browser is free" has to land before
+   * then or it lands nowhere.
+   */
+  globalThis.requestIdleCallback = /** @type {any} */ (
+    (fn) => frames.push(() => fn({ didTimeout: false, timeRemaining: () => 0 }))
+  );
+  globalThis.cancelIdleCallback = /** @type {any} */ ((id) => {
+    frames[id - 1] = null;
+  });
   /** Defined so core's `@scope` support check passes — SSR output gets scoped light-DOM CSS. */
   globalThis.CSSScopeRule = /** @type {any} */ (function CSSScopeRule() {});
 
@@ -1166,7 +1264,7 @@ export const installShims = () => {
     createElement: (localName) => new ElementShim(localName),
     createElementNS: (_namespace, localName) => new ElementShim(localName),
     createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
-    createDocumentFragment: () => new ElementShim(''),
+    createDocumentFragment: () => new FragmentShim(),
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: () => null,

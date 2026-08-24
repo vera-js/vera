@@ -573,6 +573,72 @@ export const SURFACE = SURFACES.element;
  * passed every test written against it for as long as nobody asked what `true` meant. Anything that
  * cannot be answered honestly by a detached element holding a string is listed here instead.
  */
+/**
+ * The globals a component reaches for, and what a server can honestly give it.
+ *
+ * `true` means the shim provides it. A string is the reason it is deliberately **absent** — and
+ * absent is a real answer here, not an oversight: a component that reads `localStorage` on a server
+ * is reading state that belongs to one browser, and inventing an empty one renders a logged-out
+ * shell the client immediately replaces. `typeof localStorage === 'undefined'` is the guard the
+ * whole ecosystem already writes, and it only works if we do not lie.
+ */
+export const GLOBALS = {
+  HTMLElement: true,
+  Element: true,
+  Node: true,
+  ShadowRoot: true,
+  DocumentFragment: true,
+  Image: true,
+  Audio: true,
+  CSSStyleSheet: true,
+  CSSScopeRule: true,
+  Event: true,
+  CustomEvent: true,
+  EventTarget: true,
+  customElements: true,
+  document: true,
+  window: true,
+  location: true,
+  history: true,
+  navigator: true,
+  requestAnimationFrame: true,
+  cancelAnimationFrame: true,
+  requestIdleCallback: true,
+  cancelIdleCallback: true,
+  matchMedia: true,
+  getComputedStyle: true,
+  getSelection: true,
+  scrollTo: true,
+  addEventListener: true,
+  removeEventListener: true,
+  dispatchEvent: true,
+  IntersectionObserver: true,
+  ResizeObserver: true,
+  MutationObserver: true,
+  PerformanceObserver: true,
+
+  localStorage: 'per-user state a server must not invent; guard with typeof',
+  sessionStorage: 'per-user state a server must not invent; guard with typeof',
+  indexedDB: 'per-user state a server must not invent; guard with typeof',
+  caches: 'per-user state a server must not invent; guard with typeof',
+  DOMParser: 'parses HTML into a tree; nothing in this package parses HTML',
+  XMLSerializer: 'serializes a tree; the markup is built as a string',
+  Range: 'needs a tree',
+  Selection: 'needs a tree and a user',
+  alert: 'needs a user',
+  confirm: 'needs a user',
+  prompt: 'needs a user',
+  open: 'needs a browsing context',
+  print: 'needs a browsing context',
+  screen: 'needs a display',
+  visualViewport: 'needs a viewport',
+  devicePixelRatio: 'needs a display',
+  innerWidth: 'needs a viewport',
+  innerHeight: 'needs a viewport',
+  scrollX: 'needs a viewport',
+  scrollY: 'needs a viewport',
+};
+
 export const OUT_OF_SCOPE = {
   "element": {
     "insertBefore": "needs a tree; this DOM holds children as a string",

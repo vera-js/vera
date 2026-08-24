@@ -18,7 +18,7 @@
  */
 import '@verajs/ssr/vera';
 import assert from 'node:assert/strict';
-import { SURFACES, OUT_OF_SCOPE } from './dom-surface.mjs';
+import { SURFACES, OUT_OF_SCOPE, GLOBALS } from './dom-surface.mjs';
 
 const make = (tag = 'div') => globalThis.document.createElement(tag);
 
@@ -148,6 +148,20 @@ const DOCUMENT_SURFACE = [
   ['createElementNS', () => globalThis.document.createElementNS('svg', 'circle').localName === 'circle'],
   ['createTextNode', () => globalThis.document.createTextNode('<b>').innerHTML === '&#60;b&#62;'],
   ['createDocumentFragment', () => typeof globalThis.document.createDocumentFragment().append === 'function'],
+  /** `instanceof` has to discriminate, or every check that uses it silently answers the same way. */
+  ['an element is a Node', () => make() instanceof globalThis.Node],
+  ['an element is an Element', () => make() instanceof globalThis.Element],
+  ['an element is an HTMLElement', () => make() instanceof globalThis.HTMLElement],
+  ['an element is not a ShadowRoot', () => !(make() instanceof globalThis.ShadowRoot)],
+  ['an element is not a DocumentFragment', () => !(make() instanceof globalThis.DocumentFragment)],
+  ['a shadow root is a Node', () => make().attachShadow({ mode: 'open' }) instanceof globalThis.Node],
+  ['a shadow root is a ShadowRoot', () => make().attachShadow({ mode: 'open' }) instanceof globalThis.ShadowRoot],
+  ['a fragment is a DocumentFragment', () => globalThis.document.createDocumentFragment() instanceof globalThis.DocumentFragment],
+  ['a fragment is not an Element', () => !(globalThis.document.createDocumentFragment() instanceof globalThis.Element)],
+  ['new Image() is an img', () => new globalThis.Image().localName === 'img'],
+  ['an observer can be constructed and disconnected', () => { const o = new globalThis.IntersectionObserver(() => {}); o.observe(make()); o.disconnect(); return o.takeRecords().length === 0; }],
+  ['matchMedia matches nothing', () => globalThis.matchMedia('(min-width: 0px)').matches === false],
+  ['getComputedStyle answers empty', () => globalThis.getComputedStyle(make()).getPropertyValue('color') === ''],
   ['title is writable', () => ((globalThis.document.title = 't'), globalThis.document.title === 't')],
   ['documentElement', () => globalThis.document.documentElement.localName === 'html'],
   ['head.appendChild', () => (globalThis.document.head.appendChild({ innerHTML: '' }), true)],
@@ -256,6 +270,19 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
   }
 }
 
+/**
+ * The globals, held to the same rule: provided, or deliberately absent for a stated reason.
+ *
+ * The absences carry as much weight as the presences. A server that invented a `localStorage`
+ * would render a logged-out shell the client immediately replaced, and nobody would see a failure.
+ */
+for (const [name, expected] of Object.entries(GLOBALS)) {
+  const present = globalThis[name] !== undefined;
+  if (present === (expected === true)) pass++;
+  else if (expected === true) failures.push(`global ${name} is missing`);
+  else failures.push(`global ${name} exists, but is listed as absent because ${expected}`);
+}
+
 /** Absent on purpose — see the header. If one of these appears, it needs a real implementation. */
 {
   const el = make();
@@ -276,7 +303,8 @@ const total =
   EVENT_TARGETS.length * EVENT_SURFACE.length +
   DOCUMENT_SURFACE.length +
   SHEET_SURFACE.length +
-  /** Two completeness checks per shim. */
-  8;
+  /** Two completeness checks per shim, plus every global. */
+  8 +
+  Object.keys(GLOBALS).length;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);

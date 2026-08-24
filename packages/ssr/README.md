@@ -104,6 +104,19 @@ and the same wording, as `@verajs/autoloader` uses for the URLs it derives.
 It is opt-in because most calls name a constant, and a check that is always trivially satisfied
 stops being read.
 
+The globals a component reaches for are here too — `matchMedia` (matching nothing, as every server
+renderer answers), `getComputedStyle` (empty, as a detached element gives in a browser),
+`IntersectionObserver`/`ResizeObserver`/`MutationObserver`/`PerformanceObserver` (inert, because
+they observe things a server does not have, but constructing one must not throw), `requestIdleCallback`
+(which joins the frame queue), and the DOM interfaces themselves so `instanceof Node` answers rather
+than throwing.
+
+**`localStorage`, `sessionStorage`, `indexedDB` and `caches` are deliberately absent.** They are one
+browser's state, and a server that invented an empty one would render a logged-out shell that the
+client immediately replaces, with nothing failing anywhere. `typeof localStorage === 'undefined'` is
+the guard the ecosystem already writes, and it only works if this does not lie. The same list is
+enforced in `tests/ssr-dom-surface.test.mjs`, in both directions.
+
 Known limits:
 
 - **`connectedCallback` must be synchronous.** Rendering recurses inside `String.replace`, which
