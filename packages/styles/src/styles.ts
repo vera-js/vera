@@ -48,23 +48,48 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   const stylesArray = Array.isArray(styles) ? styles : [styles];
 
   if (shadowRoot) {
+    /**
+     * The array is sorted into the two things a shadow root can hold, and **all** of each is kept.
+     *
+     * Both halves used to be first-one-wins. A `<style vera-styles>` was created only when none
+     * existed, so the second string in an array found the element the first had just created and
+     * was dropped; and the element was removed whenever any sheet was adopted, on the reasoning
+     * that it must be the server's redundant copy — true only when every style is a sheet, and in
+     * a mixed array it deleted CSS that had no other home. `static styles` accepts these forms and
+     * `@verajs/ssr` serializes every one of them, so a component written that way rendered
+     * correctly on the server and lost rules in the browser.
+     */
     const styleSheets: CSSStyleSheet[] = [];
+    const texts: string[] = [];
     stylesArray.forEach((style) => {
       if (typeof style !== 'string' && style.styleSheet && document?.adoptedStyleSheets) {
         styleSheets.push(style.styleSheet);
-      } else if (!shadowRoot.querySelector('style[vera-styles]')) {
-        const styleElement = document?.createElement('style');
-        if (!styleElement) return;
-        styleElement.setAttribute('vera-styles', '');
-        /** `textContent`, not `innerHTML`: this is text, and nothing here should ever be parsed. */
-        styleElement.textContent = escapeStyleText(((style as CSSResultGroup)?.cssText ?? style) as string);
-        shadowRoot.appendChild(styleElement);
+      } else {
+        texts.push(escapeStyleText(((style as CSSResultGroup)?.cssText ?? style) as string));
       }
     });
-    if (styleSheets.length) {
-      shadowRoot.adoptedStyleSheets = [...styleSheets];
+
+    if (styleSheets.length) shadowRoot.adoptedStyleSheets = [...styleSheets];
+
+    const existing = shadowRoot.querySelector('style[vera-styles]');
+    if (texts.length) {
       /**
-       * A server-rendered `<style vera-styles>` is **this same CSS**, and now redundant.
+       * Reused when one is already there — a re-`init`, or the server's own copy — so this is
+       * idempotent and repairs rather than duplicates. `textContent`, not `innerHTML`: this is
+       * text, and nothing here should ever be parsed.
+       */
+      const styleElement = existing ?? document?.createElement('style');
+      if (!styleElement) return;
+      const text = texts.join('\n');
+      if (styleElement.textContent !== text) styleElement.textContent = text;
+      if (!existing) {
+        styleElement.setAttribute('vera-styles', '');
+        shadowRoot.appendChild(styleElement);
+      }
+    } else {
+      /**
+       * Nothing here is text, so a `<style vera-styles>` can only be the server's copy of a sheet,
+       * and it is now redundant.
        *
        * Markup cannot carry a constructed sheet, so `@verajs/ssr` serializes one as an element —
        * which is what styles the page for a reader with no JavaScript. The moment the sheet is
@@ -74,7 +99,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
        * Removed here rather than after the first render because this runs on the `'init'` insert —
        * before it — so the hydrating renderer sees exactly the nodes its template describes.
        */
-      shadowRoot.querySelector('style[vera-styles]')?.remove();
+      existing?.remove();
     }
     return;
   }

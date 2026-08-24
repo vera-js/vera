@@ -138,3 +138,71 @@ it('escaped CSS renders identically to the unescaped original', () => {
   expect(sheet.cssRules[0].style.content).to.equal(plain.cssRules[0].style.content,
     'and produces the same declared value as the unescaped form');
 });
+
+/* ── an array of styles is a set, not a first-one-wins ───────────────────────────────────────── */
+/**
+ * `static styles` accepts an array, and the array may mix constructed sheets with plain strings —
+ * `@verajs/ssr` serializes every one of those forms (`tests/ssr-style-shapes.test.mjs`), so a
+ * component written that way renders correctly on the server and had to render correctly here.
+ *
+ * Two things went wrong on the string side, both invisible to a single-style test:
+ *
+ * - a `<style vera-styles>` was created only when none existed, and every later string in the same
+ *   array then found the one the first had just created and was dropped;
+ * - the element was removed whenever any constructed sheet was adopted, on the reasoning that it
+ *   must be the server's redundant copy of that sheet — which is true only when *every* style is a
+ *   sheet. In a mixed array it deleted CSS that had no other home.
+ *
+ * Asserted through the shadow root's own contents rather than through computed style, because what
+ * is being tested is which rules reached the root at all.
+ */
+const styleText = (element) => element.shadowRoot.querySelector('style[vera-styles]')?.textContent ?? null;
+
+const sheetFor = (cssText) => {
+  const styleSheet = new CSSStyleSheet();
+  styleSheet.replaceSync(cssText);
+  return { styleSheet, cssText };
+};
+
+it('keeps every string in an array of styles', async () => {
+  const element = define({ template: () => html`<p>x</p>` }, ['.a { color: red }', '.b { color: blue }']);
+  await frame();
+  const text = styleText(element);
+  expect(text, 'the first string').to.contain('.a');
+  expect(text, 'the second string, which used to be dropped').to.contain('.b');
+});
+
+it('keeps a string alongside a constructed sheet, in either order', async () => {
+  for (const styles of [
+    [sheetFor('.sheet { color: red }'), '.text { color: blue }'],
+    ['.text { color: blue }', sheetFor('.sheet { color: red }')],
+  ]) {
+    const element = define({ template: () => html`<p>x</p>` }, styles);
+    await frame();
+    expect(element.shadowRoot.adoptedStyleSheets.length, 'the sheet is adopted').to.equal(1);
+    expect(styleText(element), 'the string survives the sheet being adopted').to.contain('.text');
+  }
+});
+
+it('still drops a server-rendered copy when every style is a sheet', async () => {
+  const element = define({ template: () => html`<p>x</p>` }, [sheetFor('.only { color: red }')]);
+  /** What the server writes: markup cannot carry a constructed sheet, so it serializes one. */
+  const server = document.createElement('style');
+  server.setAttribute('vera-styles', '');
+  server.textContent = '.only { color: red }';
+  element.shadowRoot.appendChild(server);
+
+  applyStyles(element.constructor.styles, element);
+  await frame();
+  expect(element.shadowRoot.adoptedStyleSheets.length, 'adopted').to.equal(1);
+  expect(styleText(element), 'the redundant server copy is gone').to.equal(null);
+});
+
+it('repairs a server-rendered copy rather than duplicating it', async () => {
+  const element = define({ template: () => html`<p>x</p>` }, ['.text { color: blue }']);
+  await frame();
+  applyStyles(element.constructor.styles, element);
+  await frame();
+  expect(element.shadowRoot.querySelectorAll('style[vera-styles]').length, 'exactly one').to.equal(1);
+  expect(styleText(element)).to.contain('.text');
+});
