@@ -321,5 +321,86 @@ check('back, forward and go are exported', [back, forward, go].every((f) => type
   router.deleteRouter();
 }
 
+/* ── a relative path is relative at every depth, the root included ─────────────────────────────
+ * `join` used to short-circuit on an empty parent, so the relative spelling worked one level down
+ * and silently failed at the top: `path: 'about'` registered the pattern `about`, which cannot
+ * match the pathname `/about`, and every child under it inherited the broken prefix. Nothing threw
+ * — the catch-all simply answered, which is the hardest kind of routing bug to see.
+ *
+ * Both spellings are checked at both depths, and `resolve` is checked with them, because a name
+ * that builds a slashless URL navigates relative to wherever the user happens to be.
+ */
+for (const [label, top, child] of [
+  ['relative', 'docs', 'intro'],
+  ['absolute', '/docs', '/intro'],
+  ['mixed', '/docs', 'intro'],
+  ['mixed the other way', 'docs', '/intro'],
+]) {
+  const { router, view } = app([
+    {
+      path: top,
+      name: 'docs',
+      component: () => 'parent<section view="panel"></section>',
+      children: [{ path: child, name: 'intro', view: 'panel', component: () => 'child' }],
+    },
+    { path: '/*rest', component: () => 'catch-all' },
+  ]);
+
+  await navigate('/docs', 'navigate');
+  check(`a top-level path written ${label} matches`, view.innerHTML.includes('parent'), view.innerHTML);
+  await navigate('/docs/intro', 'navigate');
+  check(`and its child matches too: ${label}`, view.innerHTML.includes('child'), view.innerHTML);
+  check(`neither falls through to the catch-all: ${label}`, !view.innerHTML.includes('catch-all'), view.innerHTML);
+  check(`resolve builds an absolute URL: ${label}`, resolve('docs') === '/docs', resolve('docs'));
+  check(`resolve builds an absolute child URL: ${label}`, resolve('intro') === '/docs/intro', resolve('intro'));
+  router.deleteRouter();
+}
+
+/* ── an alias carries the route's children ─────────────────────────────────────────────────────
+ * An alias is the same route at another URL, so everything under it is reachable there as well.
+ * It used to be the parent only: `/people` rendered and `/people/new` was a 404, with no way to
+ * tell from the route table why. The alias itself is also joined like any other path, so the
+ * relative spelling works here too.
+ *
+ * `names` must stay pointed at the canonical URL — a child registered under three aliases must not
+ * leave `resolve` building the last one, and must not warn about a name the author wrote once.
+ */
+{
+  const warnings = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  const { router, view } = app([
+    { path: '/', component: () => 'home' },
+    {
+      path: '/users',
+      name: 'users',
+      alias: ['/people', 'folks'],
+      component: () => 'users<section view="panel"></section>',
+      children: [
+        { path: 'new', name: 'new-user', view: 'panel', component: () => 'new' },
+        { path: ':id', name: 'user', view: 'panel', component: () => 'one' },
+      ],
+    },
+    { path: '/*rest', component: () => 'catch-all' },
+  ]);
+  console.warn = realWarn;
+
+  for (const base of ['/users', '/people', '/folks']) {
+    await navigate(base, 'navigate');
+    check(`${base} reaches the route`, view.innerHTML.includes('users'), view.innerHTML);
+    await navigate(`${base}/new`, 'navigate');
+    check(`${base}/new reaches the static child`, view.innerHTML.includes('new'), view.innerHTML);
+    await navigate(`${base}/7`, 'navigate');
+    check(`${base}/7 reaches the param child`, view.innerHTML.includes('one'), view.innerHTML);
+  }
+
+  check('an alias never outranks the root', ((await navigate('/', 'navigate')), view.innerHTML.includes('home')), view.innerHTML);
+  check('a name still resolves to the canonical URL', resolve('user', { id: 7 }) === '/users/7', resolve('user', { id: 7 }));
+  check('and so does a static child', resolve('new-user') === '/users/new', resolve('new-user'));
+  check('registering under an alias warns about nothing', warnings.length === 0, warnings.join(' | '));
+  router.deleteRouter();
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

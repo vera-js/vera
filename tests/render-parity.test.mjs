@@ -281,6 +281,14 @@ const CASES = {
   'a data attribute with mixed case': 'html`<b data-fooBar=${"v"}>x</b>`',
   'an enumerated boolean via the sigil': 'html`<b ?contenteditable=${true}>x</b>`',
   'a spread with an uppercase key': 'html`<b ${spread({ TITLE: "v" })}>x</b>`',
+  'a binding inside a style element': "html`<style>.a{color:${'red'}}</style>`",
+  'a binding inside a title element': "html`<title>${'hi'}</title>`",
+  'a binding inside a script element': "html`<script>var a = ${1}</script>`",
+  'a binding inside a comment': "html`<b><!-- ${'x'} --></b>`",
+  'a binding after a comment': "html`<!-- c --><b>${'x'}</b>`",
+  'a comment holding a tag': "html`<b><!-- <i>no</i> -->${'x'}</b>`",
+  'a binding beside text in a textarea': "html`<textarea>a${'b'}c</textarea>`",
+  'an attribute binding on an element after a comment': "html`<!-- c --><b title=${'t'}>x</b>`",
 };
 
 /**

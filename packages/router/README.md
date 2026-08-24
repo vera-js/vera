@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.46 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.52 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -60,8 +60,12 @@ renders; **routed links**, marked with a bare `route` attribute; and the route l
 | `children` | routes whose paths are prefixed by this one |
 | `meta` | arbitrary data, carried to guards and components on the snapshot |
 | `name` | a stable handle, so links are built with `resolve()` instead of by hand |
-| `alias` | other paths that reach this same route |
+| `alias` | other paths that reach this same route, its children included |
 | `beforeEnter` | a guard for this route alone. Return `false` to cancel |
+
+**A path may be written relative or absolute, at any depth.** `'about'` and `'/about'` at the top
+level, `'new'` and `'/new'` under `/users` — all four mean what they look like, and an `alias` is
+joined the same way. A name always resolves to the canonical URL, never to an alias.
 
 `component`, `action`, `title` and `view` all receive `(params, to, from)`, where `to` and `from` are
 route snapshots carrying `path`, `params`, `query`, `hash`, `trigger` and `meta`.

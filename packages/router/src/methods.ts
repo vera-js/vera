@@ -94,9 +94,16 @@ const specificity = (pattern: string) =>
  *
  * An **empty** child path is the index route (`children: [{ path: '' }]`) and means the parent's own
  * URL exactly, so it gains nothing. A `path` function is resolved per navigation and is left alone.
+ *
+ * A **top-level** route is joined the same way, against the empty parent — which is the whole point,
+ * and which an earlier `!parentRoute` short-circuit here excluded. `path: 'about'` at the root
+ * registered the pattern `about`, with no leading slash, so it could not match the pathname
+ * `/about`, nor could any of its children match anything: a whole subtree registered without
+ * complaint and answered by the catch-all. `resolve('about')` returned `about` too, which is a
+ * relative URL and navigates somewhere else entirely.
  */
 const join = (parentRoute: string, path: string) =>
-  !parentRoute || !path || path[0] === '/' ? parentRoute + path : `${parentRoute}/${path}`;
+  !path || path[0] === '/' ? parentRoute + path : `${parentRoute}/${path}`;
 
 /** Keeps the router's routes ordered most-specific first, which is the order `getRoute` walks. */
 const insertRoute = (element: HTMLElement, route: Route) => {
@@ -110,14 +117,22 @@ export const addRoutes = (
   element: HTMLElement,
   routes: RouteOptions[],
   parentRoute: string = '',
-  parent?: Route
+  parent?: Route,
+  /**
+   * Set while registering the copy of a subtree that hangs under an alias. Those entries match and
+   * render exactly like the originals, but they are **not** where a name points: `names` maps a name
+   * to the one URL `resolve` should build, and re-registering a child under every alias would leave
+   * it pointing at whichever alias was declared last — plus a duplicate-name warning for a
+   * duplication the author never wrote.
+   */
+  aliased: boolean = false
 ) => {
   for (let i = 0; i < routes.length; i++) {
     const { path } = routes[i];
     const completePath = typeof path === 'function' ? path : join(parentRoute, path);
 
     const route: Route = { ...routes[i], parent };
-    if (route.name !== undefined && typeof completePath === 'string') {
+    if (!aliased && route.name !== undefined && typeof completePath === 'string') {
       if (__DEV__ && names.has(route.name) && names.get(route.name) !== completePath)
         console.warn(
           `[vera] two routes are named "${route.name}" — "${names.get(route.name)}" and ` +
@@ -130,13 +145,6 @@ export const addRoutes = (
       const complete = completePath as string;
       route.matchFunction = routerSettings.match(complete);
       route.score = specificity(complete);
-      /**
-       * Children are registered against this exact object, so a matched child can walk back up to
-       * render its ancestors — see `routeChange`. They must therefore be added *after* the parent
-       * is fully built rather than before.
-       */
-      const { children } = routes[i];
-      if (children) addRoutes(element, children, complete, route);
 
       /**
        * An alias is the same route reachable at another URL, and only the URL differs — the same
@@ -144,15 +152,36 @@ export const addRoutes = (
        * everything else is shared with the route it aliases.
        */
       const { alias } = routes[i];
+      const aliasRoutes: Route[] = [];
       if (alias !== undefined)
         for (const aliasPath of Array.isArray(alias) ? alias : [alias]) {
           const aliasComplete = join(parentRoute, aliasPath);
-          insertRoute(element, {
+          aliasRoutes.push({
             ...route,
+            path: aliasComplete,
             matchFunction: routerSettings.match(aliasComplete),
             score: specificity(aliasComplete),
           });
         }
+
+      /**
+       * Children are registered against this exact object, so a matched child can walk back up to
+       * render its ancestors — see `routeChange`. They must therefore be added *after* the parent
+       * is fully built rather than before.
+       *
+       * They are registered under **every alias as well**, each against that alias's own object so
+       * the ancestor walk finds the URL that was actually matched. An alias whose children 404 is
+       * the trap this avoids: `/people` worked, `/people/new` did not, and nothing said why. Vue
+       * Router carries children through an alias for the same reason.
+       */
+      const { children } = routes[i];
+      if (children) {
+        addRoutes(element, children, complete, route, aliased);
+        for (let a = 0; a < aliasRoutes.length; a++)
+          addRoutes(element, children, aliasRoutes[a].path as string, aliasRoutes[a], true);
+      }
+
+      for (let a = 0; a < aliasRoutes.length; a++) insertRoute(element, aliasRoutes[a]);
     } else {
       /** A `path` function is resolved per navigation, so its specificity is not knowable here. */
       route.score = 0;
