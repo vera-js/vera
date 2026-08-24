@@ -420,11 +420,49 @@ const insertContent = (staticText, text) => {
  * One pattern per attribute name, built once. `new RegExp` per binding was 16% of a 100-row render.
  */
 const removalPatterns = new Map();
+/**
+ * The name is **escaped** before it becomes a pattern. A spread's keys are runtime data, and an
+ * attribute name may legally contain regular-expression metacharacters — `a|b`, `a.b`, `a*` are all
+ * names `setAttribute` accepts — so interpolating one raw built a pattern that matched something
+ * else entirely. `a|b` compiled to an alternation and removed text nowhere near the attribute it
+ * named.
+ */
+const escapeForPattern = (name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const removalPattern = (name) => {
   let pattern = removalPatterns.get(name);
-  if (!pattern) removalPatterns.set(name, (pattern = new RegExp(`\\s${name}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i')));
+  if (!pattern)
+    removalPatterns.set(
+      name,
+      (pattern = new RegExp(`\\s${escapeForPattern(name)}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i'))
+    );
   return pattern;
 };
+
+/**
+ * A name that cannot be written into a tag safely.
+ *
+ * A spread's keys are the one part of a template that is runtime data — that is what the module is
+ * for — and they were interpolated into the open tag with no check at all, while every *value*
+ * around them was escaped. A key carrying a quote or a `>` therefore closed the attribute, or the
+ * element:
+ *
+ *     spread({ 'x><script>alert(1)</script': '1' })
+ *     -> <b x><script>alert(1)</script="1">x</b>
+ *
+ * The set is the HTML attribute-name restriction — control characters, whitespace, `"`, `'`, `>`,
+ * `/`, `=` — plus `<` and a backtick, which the specification permits and no real name uses.
+ *
+ * It is deliberately **stricter than `setAttribute`**, which was measured in Chromium and accepts
+ * `"`, `'` and `<` while rejecting whitespace, `>`, `=`, `/` and NUL. A name the platform accepts
+ * but markup cannot carry is unusable in a framework that server-renders, so `@verajs/renderer/spread`
+ * applies this same rule client-side and the two sides agree on every key rather than one of them
+ * quietly serving different markup.
+ *
+ * The control-character range is the point of the rule, not a mistake in it: a name carrying one
+ * is exactly what must never reach markup.
+ */
+// eslint-disable-next-line no-control-regex
+export const UNSAFE_ATTRIBUTE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
 /**
  * Strips one attribute out of an open tag, and the one place that knows how.
@@ -459,6 +497,16 @@ const foldSpread = (out, entries) => {
     const serializes =
       kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && FORM_ATTRIBUTES.includes(name));
     if (!serializes) continue;
+
+    /**
+     * Dropped, and dropped **before** anything is done with the name — `stripAttribute` compiles it
+     * into a pattern, so an unchecked name is a second way in.
+     *
+     * Silent here on purpose. A key that reaches this is either a mistake, which the identical check
+     * in `@verajs/renderer/spread` reports in development where the author will see it, or it is
+     * hostile — and a server that logs a line per hostile key hands an attacker the log file.
+     */
+    if (UNSAFE_ATTRIBUTE_NAME.test(name)) continue;
 
     /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */
     tag = stripAttribute(tag, name);

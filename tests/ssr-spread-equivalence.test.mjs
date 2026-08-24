@@ -72,7 +72,55 @@ const KINDS = [
     written: () => html`<b @click=${() => {}}>x</b>`,
     spread: () => html`<b ${spread({ '@click': () => {} })}>x</b>`,
   },
+  /**
+   * `&name` is an element ref. It was the one written kind a spread could not express: the key fell
+   * through to a plain attribute, so the client threw from `setAttribute` and the server wrote
+   * `&r="[object Object]"` into the markup.
+   */
+  {
+    name: 'a ref',
+    written: (v) => html`<b &r=${v ?? {}}>x</b>`,
+    spread: (v) => html`<b ${spread({ '&r': v ?? {} })}>x</b>`,
+  },
 ];
+
+/**
+ * **Names, not values.** The matrix above varies what a binding is *given* and never what it is
+ * *called*, which is exactly why a spread key reached the open tag with nothing checking it: every
+ * value around it was escaped, and the name was interpolated raw.
+ *
+ * A key is runtime data — that is the entire point of the module — so a key sourced from a request
+ * or a record could close the attribute, or the element, and put a live `<script>` in the response.
+ * The client refused the same input by throwing from `setAttribute`, which is the usual asymmetry:
+ * the half with a real DOM validates, the half building a string does not.
+ *
+ * Each of these must produce **exactly the same markup as the written binding that cannot express
+ * it at all** — which is to say nothing. The written form is a static in the template, so a name
+ * like these is not something an author can write; the comparison is therefore against an element
+ * with no binding on it.
+ */
+const HOSTILE_NAMES = {
+  'a name that closes the element': 'x><script>alert(1)</script',
+  'a name that adds a handler': 'x onmouseover=alert(1) y',
+  'a name that breaks the quoting': 'x" onload="alert(1)',
+  'a name that breaks single quoting': "x' onload='alert(1)",
+  'a name holding a space': 'a b',
+  'a name holding a tab': 'a\tb',
+  'a name holding a newline': 'a\nb',
+  'a name holding a slash': 'a/b',
+  'a name holding an equals': 'a=b',
+  'a name holding a backtick': 'a`b',
+  'a name holding a less-than': 'a<b',
+  'a name holding a NUL': 'a\u0000b',
+  'an empty name': '',
+};
+
+/**
+ * And these are legal names that happen to be regular-expression metacharacters. A spread key
+ * replaces a static of the same name, and the replacement compiled the name into a pattern — so
+ * `a|title` became an alternation and removed an attribute it never named.
+ */
+const LEGAL_AWKWARD_NAMES = ['a|b', 'a.b', 'a*b', 'a+b', 'a(b)', 'a[b]', 'a{b}', 'a?b', 'a$b', 'a^b'];
 
 let pass = 0;
 const failures = [];
@@ -87,6 +135,20 @@ for (const kind of KINDS) {
         `${kind.name} with ${label}\n      written: ${written}\n      spread:  ${spreadForm}`
       );
   }
+}
+
+for (const [label, name] of Object.entries(HOSTILE_NAMES)) {
+  const bare = serializeTemplate(html`<b>x</b>`);
+  const spreadForm = serializeTemplate(html`<b ${spread({ [name]: '1' })}>x</b>`);
+  if (spreadForm === bare) pass++;
+  else failures.push(`${label}\n      expected: ${bare}\n      got:      ${spreadForm}`);
+}
+
+for (const name of LEGAL_AWKWARD_NAMES) {
+  /** It serializes, it carries its own value, and it does not disturb the static beside it. */
+  const out = serializeTemplate(html`<b title="keep" ${spread({ [name]: '1' })}>x</b>`);
+  if (out.includes('title="keep"') && out.includes(`${name}="1"`)) pass++;
+  else failures.push(`a legal name with metacharacters (${name})\n      got: ${out}`);
 }
 
 /** And a written binding and a spread key of the same name must not both survive — the last wins. */

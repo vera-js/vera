@@ -224,3 +224,69 @@ test('an empty props object is valid and releases everything', () => {
   assert.equal(el.getAttribute('id'), null);
   assert.equal(el.getAttribute('title'), null);
 });
+
+/* ── a key that cannot be written into markup ────────────────────────────────────────────────── */
+/**
+ * A spread's keys are runtime data — that is what the module is for — so the set of names it may be
+ * handed is not under the author's control the way a template's statics are.
+ *
+ * `setAttribute` refuses some of these by throwing `InvalidCharacterError`, which took down the
+ * whole render for one bad key in a props bag. Others it accepts (`"`, `'`, `<` were measured as
+ * accepted in Chromium) but markup cannot carry them, and `@verajs/ssr` therefore refuses them — so
+ * a key that worked here and vanished server-side would be worse than one that works nowhere. Both
+ * sides apply the same rule and skip.
+ */
+test('an unusable key is skipped rather than thrown, and its neighbours still apply', () => {
+  /** A fresh container per case: the renderer keeps its parts keyed by the one it rendered into. */
+  const into = () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    return container;
+  };
+  for (const key of [
+    'x><script>alert(1)</script',
+    'x onmouseover=alert(1) y',
+    'x" onload="alert(1)',
+    "x' onload='alert(1)",
+    'a b',
+    'a/b',
+    'a=b',
+    'a`b',
+    'a<b',
+    '',
+  ]) {
+    const container = into();
+    render(html`<b ${spread({ [key]: '1', title: 'kept' })}>x</b>`, container);
+    const element = container.querySelector('b');
+    assert.equal(element.getAttribute('title'), 'kept', `a good key beside ${JSON.stringify(key)}`);
+    assert.equal(element.attributes.length, 1, `only the good key survived ${JSON.stringify(key)}`);
+  }
+});
+
+/**
+ * A name that is legal but happens to be a regular-expression metacharacter — `a|b`, `a*b`, `a?b` —
+ * lives in `tests/browser/spread-names.test.js` instead. **jsdom rejects those names and every real
+ * engine accepts them**: measured across Chromium, Firefox and WebKit, `setAttribute` refuses only
+ * whitespace, `>`, `=` and `/`, while jsdom enforces the strict XML Name production. Asserting the
+ * browsers' behaviour here would test jsdom's parser and fail.
+ *
+ * The server side of the same names — where interpolating one into a `RegExp` made `a|title` an
+ * alternation that removed an attribute it never named — is covered in
+ * `tests/ssr-spread-equivalence.test.mjs`.
+ */
+
+/* ── the ref sigil ───────────────────────────────────────────────────────────────────────────── */
+/**
+ * `&name` is the written form's element ref (`<input &field=${myRef} />`), and it was the one
+ * written binding kind a spread could not express: the key fell through to a plain attribute, so
+ * this threw and the server wrote `&field="[object Object]"` into the markup.
+ */
+test('a &ref key hands the element to a function or an object', () => {
+  const seen = [];
+  const box = { value: null };
+  render(html`<b ${spread({ '&fn': (element) => seen.push(element.localName), '&box': box })}>x</b>`, host);
+  const el = host.querySelector('b');
+  assert.deepEqual(seen, ['b']);
+  assert.equal(box.value, el);
+  assert.equal(el.attributes.length, 0, 'a ref is not an attribute');
+});

@@ -210,7 +210,14 @@ document.body.append(document.createElement('x-field'));
 ```
 
 Keys carry the same sigils as written bindings, so a spread key and a written binding mean the same
-thing.
+thing — `.value`, `?disabled`, `@click`, `onClick`, and `&ref` for an element ref.
+
+**A key that cannot be written into markup is skipped**, with a warning in development. That is any
+name holding whitespace, a quote, `<`, `>`, `/`, `=`, a backtick or a control character. Engines are
+more permissive than markup — measured across Chromium, Firefox and WebKit, `setAttribute` accepts
+`"`, `'` and `<` — but a name that binds in the browser and cannot survive server rendering is worse
+than one that works nowhere, so both sides apply the same rule. Skipped rather than thrown: the keys
+are runtime data, and one bad name in a props bag should not cost the render.
 
 Several spreads on one element are supported — each element position owns its own keys, so
 `<div ${spread(a)} ${spread(b)}>` works and neither releases the other's bindings.
@@ -253,7 +260,7 @@ written `@event` bindings behave too.
 ### What it costs, and why it is a separate entry
 
 `@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you import it.
-The entry itself is **<!--size:spread.gzip-->688 B<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->804 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,

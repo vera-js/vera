@@ -20,6 +20,26 @@ const ATTR = 0;
 const PROPERTY = 1;
 const BOOLEAN = 2;
 const EVENT = 3;
+const REF = 4;
+
+/**
+ * A key that cannot be written into a tag, and therefore cannot be used at all.
+ *
+ * Measured in Chromium, `setAttribute` accepts `"`, `'` and `<` and rejects whitespace, `>`, `=`,
+ * `/` and NUL — but a name carrying a quote or a `<` cannot survive **markup**, so `@verajs/ssr`
+ * has to refuse it, and a key that works here and vanishes server-side is worse than one that works
+ * nowhere. The rule is therefore the HTML attribute-name restriction (control characters,
+ * whitespace, `"`, `'`, `>`, `/`, `=`) plus `<` and a backtick, applied identically on both sides.
+ *
+ * Skipped rather than thrown. `setAttribute` throws `InvalidCharacterError` on some of these, which
+ * took down the whole render — for one bad key in a props bag, on a binding whose entire purpose is
+ * names that are not known until runtime.
+ *
+ * The control-character range is the point of the rule, not a mistake in it: a name carrying one
+ * is exactly what must never reach markup.
+ */
+// eslint-disable-next-line no-control-regex
+const UNSAFE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
 /** Module-local: one identity comparison, not a global symbol-registry lookup per binding. */
 const UNSET = Symbol();
@@ -39,7 +59,8 @@ class Binding {
 
   constructor(element: Element, key: string) {
     const first = key[0];
-    let kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : ATTR;
+    let kind =
+      first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : ATTR;
     let name = kind ? key.slice(1) : key;
     /** `on` + a capital: `onClick` ≡ `@click`. All-lowercase `onclick` stays a plain attribute. */
     if (kind === ATTR && first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
@@ -88,6 +109,16 @@ const write = (binding: Binding, value: unknown) => {
     (element as unknown as Record<string, unknown>)[name] = value;
   } else if (kind === BOOLEAN) {
     element.toggleAttribute(name, !!value);
+  } else if (kind === REF) {
+    /**
+     * `&name` is the written form's ref sigil (`<input &field=${myRef} />`), and it was the one
+     * binding kind a spread could not express: the key fell through to `ATTR` and
+     * `setAttribute('&field', …)` threw on the client while the server wrote `&field="[object
+     * Object]"` into the markup. A function is called with the element, an object gets it assigned
+     * to `.value` — the same two shapes `AttrPart` handles.
+     */
+    if (typeof value === 'function') (value as (el: Element) => void)(element);
+    else if (value !== null && typeof value === 'object') (value as { value: unknown }).value = element;
   } else {
     if (binding._handler === null && value != null) element.addEventListener(name, binding);
     binding._handler = (value as EventListener) ?? null;
@@ -125,6 +156,19 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
   let count = 0;
   for (const key in props) {
     count++;
+    /**
+     * Counted before it is skipped, so the size comparison below still describes the key set — a
+     * refused key that changed the count would make every render look like a removal.
+     */
+    if (UNSAFE_NAME.test(key[0] === '.' || key[0] === '?' || key[0] === '@' || key[0] === '&' ? key.slice(1) : key)) {
+      if (__DEV__)
+        console.warn(
+          `@verajs/renderer/spread: ignoring the key ${JSON.stringify(key)} — an attribute name ` +
+            `cannot contain whitespace, a quote, \`<\`, \`>\`, \`/\`, \`=\` or a control character, ` +
+            `and one that cannot be written into markup would not survive server rendering.`
+        );
+      continue;
+    }
     let binding = bindings.get(key);
     if (binding === undefined) bindings.set(key, (binding = new Binding(element, key)));
     write(binding, props[key]);
@@ -155,13 +199,14 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
  * this returns data, never a string.
  *
  * Kinds are single characters rather than the module's numeric constants, because this crosses a
- * package boundary: `a`ttribute, `b`oolean, `p`roperty, `e`vent.
+ * package boundary: `a`ttribute, `b`oolean, `p`roperty, `e`vent, `r`ef. A ref is client state with
+ * no markup, exactly like an event, and the serializer drops both.
  */
 function attributes(this: { _props: Record<string, unknown> }): [string, string, unknown][] {
   const out: [string, string, unknown][] = [];
   for (const key in this._props) {
     const first = key[0];
-    const kind = first === '.' ? 'p' : first === '?' ? 'b' : first === '@' ? 'e' : 'a';
+    const kind = first === '.' ? 'p' : first === '?' ? 'b' : first === '@' ? 'e' : first === '&' ? 'r' : 'a';
     if (kind !== 'a') {
       out.push([kind, key.slice(1), this._props[key]]);
     } else if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {

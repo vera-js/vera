@@ -286,8 +286,11 @@ render(() => html`<input ${spread({
 ```
 
 Keys carry the same sigils as written bindings, so a spread key and a written binding mean the same
-thing. `@verajs/renderer` costs 16 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->688 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+thing — including `&ref` for an element ref. A key that cannot be written into markup is **skipped**
+(whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
+those and markup cannot carry them, so both sides refuse them rather than disagreeing.
+`@verajs/renderer` costs 16 B for the protocol whether or not you install this; the package
+is <!--size:spread.gzip-->804 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
