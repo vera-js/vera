@@ -40,6 +40,58 @@ export const setRenderingTag = (tag) => {
  */
 const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title']);
 
+/** `backgroundColor` -> `background-color`, for the `style` and `dataset` views below. */
+const dashed = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
+
+/**
+ * `dataset` and `style` are **views over an attribute**, not stores of their own: an assignment that
+ * does not reach the markup is an assignment the server loses. Written as proxies over the element
+ * so `this.dataset.userId = '7'` and `this.style.color = 'red'` end up in the tag, which is what
+ * they do in a browser.
+ */
+const datasetView = (element) =>
+  new Proxy(
+    {},
+    {
+      get: (_, key) => element.getAttribute(`data-${dashed(String(key))}`) ?? undefined,
+      set: (_, key, value) => (element.setAttribute(`data-${dashed(String(key))}`, value), true),
+      deleteProperty: (_, key) => (element.removeAttribute(`data-${dashed(String(key))}`), true),
+      has: (_, key) => element.hasAttribute(`data-${dashed(String(key))}`),
+    }
+  );
+
+const styleView = (element) => {
+  const read = () =>
+    new Map(
+      (element.getAttribute('style') ?? '')
+        .split(';')
+        .map((rule) => rule.split(':'))
+        .filter((pair) => pair.length === 2)
+        .map(([name, value]) => [name.trim(), value.trim()])
+    );
+  const write = (rules) => {
+    const text = [...rules].map(([name, value]) => `${name}: ${value}`).join('; ');
+    if (text) element.setAttribute('style', text);
+    else element.removeAttribute('style');
+  };
+  return new Proxy(
+    {},
+    {
+      get: (_, key) => {
+        if (key === 'cssText') return element.getAttribute('style') ?? '';
+        if (key === 'setProperty') return (name, value) => write(read().set(name, value));
+        if (key === 'removeProperty') return (name) => { const rules = read(); rules.delete(name); write(rules); };
+        return read().get(dashed(String(key))) ?? '';
+      },
+      set: (_, key, value) => {
+        if (key === 'cssText') element.setAttribute('style', String(value));
+        else write(read().set(dashed(String(key)), value));
+        return true;
+      },
+    }
+  );
+};
+
 const NEEDS_ESCAPE = /[&<>"']/;
 const ESCAPE = /[&<>"']/g;
 
@@ -195,8 +247,44 @@ class ElementShim {
   hasAttribute(name) {
     return this._attributes.has(name);
   }
+  toggleAttribute(name, force) {
+    const wanted = force ?? !this._attributes.has(name);
+    if (wanted) this._attributes.set(name, '');
+    else this._attributes.delete(name);
+    return wanted;
+  }
+  /** Enough of a `NamedNodeMap` to iterate, which is what component code does with it. */
+  get attributes() {
+    return [...this._attributes].map(([name, value]) => ({ name, value }));
+  }
+  getAttributeNames() {
+    return [...this._attributes.keys()];
+  }
+
+  /**
+   * `this.dataset.x = 'y'` and `this.style.color = 'red'` both change the markup, so both write
+   * through to the attribute they are a view of. A plain object would accept the assignment and
+   * lose it.
+   */
+  get dataset() {
+    return datasetView(this);
+  }
+  get style() {
+    return styleView(this);
+  }
   removeAttribute(name) {
     this._attributes.delete(name);
+  }
+  /** `append` takes several nodes, and strings as text — the modern spelling of `appendChild`. */
+  append(...nodes) {
+    for (const node of nodes) {
+      if (typeof node === 'string') this.innerHTML += escapeHtml(node);
+      else this.appendChild(node);
+    }
+  }
+  replaceChildren(...nodes) {
+    this.innerHTML = '';
+    this.append(...nodes);
   }
   /**
    * Appends the node as markup, tag and attributes included.
