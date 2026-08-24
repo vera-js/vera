@@ -60,15 +60,31 @@ const best = (run, n, rounds = 7) => {
   }
   return Number(fastest.toFixed(3));
 };
+/**
+ * The async one needs the same best-of-N as the others, and more of it.
+ *
+ * A single timed loop measured 7.4, 9.2 and 10.3 µs on three consecutive runs of an unchanged
+ * build — a 30% spread, which cannot detect a regression smaller than a rewrite. It allocates and
+ * collects far more than the serializer does, so it is the metric most sensitive to whatever else
+ * the machine is doing, and the one that most needed the treatment it did not have.
+ */
+const bestAsync = async (run, n, rounds = 9) => {
+  for (let i = 0; i < n; i++) await run();
+  let fastest = Infinity;
+  for (let round = 0; round < rounds; round++) {
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) await run();
+    fastest = Math.min(fastest, ((performance.now() - t0) / n) * 1000);
+  }
+  return Number(fastest.toFixed(3));
+};
+
 const url = new URL('../tests/fixtures/ssr/hello-ssr.js', import.meta.url);
-await renderToString(url);
 const out = {
   'serialize small': best(() => serializeTemplate(small()), 20000),
   'serialize table': best(() => serializeTemplate(large()), 500),
+  renderToString: await bestAsync(() => renderToString(url), 2000),
 };
-const t0 = performance.now();
-for (let i = 0; i < 4000; i++) await renderToString(url);
-out['renderToString'] = Number((((performance.now() - t0) / 4000) * 1000).toFixed(3));
 process.stdout.write(JSON.stringify(out));
 `;
 

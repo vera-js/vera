@@ -11,8 +11,8 @@
     "core+renderer": 6283
   },
   "speed": {
-    "serialize small": 0.143,
-    "serialize table": 36.486,
-    "renderToString": 7.972
+    "serialize small": 0.138,
+    "serialize table": 36.62,
+    "renderToString": 4.114
   }
 }
