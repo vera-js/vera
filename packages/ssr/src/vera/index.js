@@ -22,6 +22,15 @@ import {
   flushFrames,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
+  /**
+   * Which elements hold text rather than markup, from the one place that knows.
+   *
+   * This file kept its own copy under a different name. They agreed, and nothing made them: adding
+   * an element to one would have left the scan rendering a component inside something the shim
+   * treats as text, or the reverse — a disagreement about the same single fact, which is what
+   * CODE-PRINCIPLES #5 is about.
+   */
+  RAW_TEXT_ELEMENTS as RAW_TEXT,
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
 
@@ -99,10 +108,7 @@ const assertRendererIntact = () => {
   );
 };
 
-/**
- * Elements whose content is text, not markup. Anything between their tags is left alone.
- */
-const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title']);
+
 
 /**
  * The index just past the `>` that closes the tag starting at `start`, respecting quoted attribute

@@ -40,7 +40,7 @@ export const setRenderingTag = (tag) => {
  * the text as written: inside `<style>` or `<script>` a character reference is **not** decoded, so
  * escaping there does not protect anything and does corrupt the content.
  */
-const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title']);
+export const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title']);
 
 /** `backgroundColor` -> `background-color`, for the `style` and `dataset` views below. */
 const dashed = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
