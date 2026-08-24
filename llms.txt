@@ -352,6 +352,12 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
 - Bindings inside comments are not supported (values consumed, ignored).
+- **Exit animations** need no framework support. Fade on `?hidden` with
+  `.fade[hidden] { display: block; opacity: 0 }` — the `display: block` overrides the UA rule, and
+  do NOT use `transition-behavior: allow-discrete` on `display`, which Firefox reports as supported
+  and does not honour (measured). For a real removal, wrap the state change:
+  `document.startViewTransition(() => flushSync(() => { state.rows = next }))`, where `flushSync`
+  swaps the scheduler — `setRenderScheduler` returns the previous one for exactly this.
 - **A dynamic tag name** needs `@verajs/renderer/tag`: `const H1 = tag\`h1\`` then
   `` html`<${H1} class="t">${x}</${H1}>` `` — note the `html` comes from that entry, not core. A
   string can never become a tag, only another tag. In JSX the same value is a component:

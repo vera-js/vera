@@ -457,6 +457,49 @@ The whole protocol is **94 B gzipped**. The check alone measured 22 B; the rest 
 usable — the two fields holding a directive's state and whose it is, and the save/restore in
 `_$commit$` that stops a directive's own rendering from destroying its continuity.
 
+## Animating things in and out
+
+There is no transition component, and none is needed — but the shapes are worth knowing, because
+one of the obvious ones does not work in every engine.
+
+**Fading on `?hidden`.** The framework's own advice is to prefer a stable shape with `?hidden=${…}`
+over swapping subtrees, and that is also what makes an exit transition possible: the element is
+still there to animate.
+
+```css
+.fade          { opacity: 1; transition: opacity 200ms; }
+.fade[hidden]  { display: block; opacity: 0; pointer-events: none; }
+```
+
+The `display: block` is load-bearing — it overrides the user agent's `[hidden] { display: none }`,
+which would otherwise remove the element from rendering instantly with nothing to fade.
+
+**Do not reach for `transition-behavior: allow-discrete` on `display` for this.** Measured
+2026-08-24 across all three engines, transitioning `display` with `allow-discrete`: Chromium and
+WebKit fade correctly, **Firefox jumps straight to `display: none`** and no transition runs. All
+three report `CSS.supports('transition-behavior', 'allow-discrete')` as `true`, so the feature test
+does not tell you. The opacity-only shape above behaves identically in all three.
+
+**Animating a removal**, where the element really does leave the render, is the browser's job:
+
+```js
+const flushSync = (fn) => {
+  const previous = setRenderScheduler((run) => run());
+  try { fn(); } finally { setRenderScheduler(previous); }
+};
+
+document.startViewTransition(() => flushSync(() => { state.rows = next; }));
+```
+
+The View Transitions API snapshots the DOM around the callback and cross-fades, so a row that
+disappears fades out and the rows below animate up. `startViewTransition` is present in Chromium,
+Firefox and WebKit. Two things it needs: the state change must happen **inside** the callback —
+which is what `flushSync` is for, since a render deferred to the next frame lands after the snapshot
+— and each row needs its own `view-transition-name`, or the whole page cross-fades as one image.
+
+**Or keep it in state.** Mark the row `leaving`, animate, then drop it. Vue's `<Transition>` is
+sugar over exactly this, and it is the only one of the three that gives you a completion callback.
+
 ## Absent on purpose
 
 Directives other renderers ship, and what replaces them here.
@@ -472,6 +515,8 @@ Directives other renderers ship, and what replaces them here.
 | `until()`, `asyncReplace()` | render a loading state and re-render from an effect |
 | `unsafeHTML()` | `.innerHTML=${trusted}`, above |
 | `literal()` / `static-html` | [`/tag`](#verajsrenderertag) — and a tag doubles as a JSX component |
+| `live()` | [`!name`](#name--a-live-property) — a sigil, for the case that needs it |
+| `until()`, `asyncReplace()` — as directives | writable against [`_$child$`](#extending-it--apply-and-child) |
 | `live()` | not available. A property bound to a value it already holds is not re-applied, so a field the user has typed into keeps their text |
 
 ## Types
