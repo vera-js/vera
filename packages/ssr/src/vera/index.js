@@ -201,7 +201,7 @@ const renderComponent = (tag, attrString, depth, props) => {
     const inner = renderComponentTags(element.shadowRoot.innerHTML, depth);
     return {
       open,
-      inner: `<template shadowrootmode="${element.shadowRoot.mode}">${element.shadowRoot.styleTags()}${inner}</template>`,
+      inner: `<template${element.shadowRoot.templateAttributes()}>${element.shadowRoot.styleTags()}${inner}</template>`,
     };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */

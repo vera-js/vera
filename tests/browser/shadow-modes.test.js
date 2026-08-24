@@ -90,3 +90,62 @@ it('light DOM (no shadow props) still renders into the element', async () => {
   expect(element.querySelector('p')?.textContent).to.equal('light');
   element.remove();
 });
+
+
+/* ── shadow-root options must survive server rendering ───────────────────────────────────────── */
+/**
+ * **Generalized:** every option declarative shadow DOM can express has to reach the markup, because
+ * the client cannot repair it. `attachShadow` reuses a declarative root and **ignores the options it
+ * is handed** — measured — so a component asking for `delegatesFocus: true` over markup that omitted
+ * it keeps `false` for the life of the page. Focus delegation is accessibility behaviour: it does
+ * not break, it just works worse, silently.
+ *
+ * A row per option, so a new one is covered by adding to the list rather than by remembering.
+ */
+const { SHADOW_OPTIONS_HTML } = await import('./fixtures/hello-ssr.html.js');
+
+it('shadow-root options survive the server round trip', async () => {
+  const host = document.createElement('div');
+  host.setHTMLUnsafe(SHADOW_OPTIONS_HTML);
+  document.body.appendChild(host);
+  const element = host.querySelector('shadow-options-ssr');
+
+  /** Read before any component upgrades: this is what the *parser* built from the markup. */
+  expect(element.shadowRoot, 'the markup produced a shadow root').to.not.equal(null);
+  for (const [option, attribute] of [
+    ['delegatesFocus', 'shadowrootdelegatesfocus'],
+    ['clonable', 'shadowrootclonable'],
+    ['serializable', 'shadowrootserializable'],
+  ]) {
+    expect(element.shadowRoot[option], `${option} was lost — is ${attribute} in the markup?`).to.equal(true);
+  }
+  host.remove();
+});
+
+it('a client-created root and a server-rendered one agree on their options', async () => {
+  customElements.define(
+    'options-parity-el',
+    class extends HTMLElement {
+      connectedCallback() {
+        init(this, { mode: 'open', delegatesFocus: true, clonable: true, serializable: true });
+        render(() => html`<input />`);
+      }
+    }
+  );
+  const client = document.createElement('options-parity-el');
+  document.body.appendChild(client);
+  await frame();
+  await frame();
+
+  const host = document.createElement('div');
+  host.setHTMLUnsafe(SHADOW_OPTIONS_HTML);
+  document.body.appendChild(host);
+  const server = host.querySelector('shadow-options-ssr');
+
+  for (const option of ['mode', 'delegatesFocus', 'clonable', 'serializable']) {
+    expect(server.shadowRoot[option], `${option} differs between the two paths`)
+      .to.equal(client.shadowRoot[option]);
+  }
+  client.remove();
+  host.remove();
+});

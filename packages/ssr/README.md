@@ -92,6 +92,10 @@ Known limits:
   guard browser-only work — but a state change it makes schedules a re-render that happens after the
   string has been built, and the markup shows the value from before the effect.
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
+- **`slotAssignment` cannot be server-rendered.** Declarative shadow DOM can express `mode`,
+  `delegatesFocus`, `clonable` and `serializable` — all of which are serialized — but has no form
+  for manual slot assignment, and `attachShadow` **ignores the options it is handed** when it reuses
+  a declarative root, so the client cannot repair what the markup left out.
 - A function interpolated at a text position renders as nothing here and as its source on the
   client — put functions in `@event` bindings, where both sides drop them.
 

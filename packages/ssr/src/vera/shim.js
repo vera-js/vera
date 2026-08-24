@@ -79,11 +79,35 @@ class StyleSheetShim {
   }
 }
 
+/**
+ * Declarative shadow DOM can carry more than the mode, and the extras are **not recoverable on the
+ * client**: `attachShadow` reuses a declarative root and ignores the options it is handed, so a
+ * component asking for `delegatesFocus: true` over server-rendered markup that omitted it keeps
+ * `delegatesFocus === false` for the life of the page. Measured in Chromium. Focus delegation is an
+ * accessibility behaviour, so losing it silently under SSR is the kind of difference that never gets
+ * reported — it just works worse.
+ *
+ * `slotAssignment` has no declarative form at all; a component that needs it cannot be faithfully
+ * server-rendered, and the README says so rather than pretending.
+ */
+const SHADOW_ATTRIBUTES = [
+  ['delegatesFocus', 'shadowrootdelegatesfocus'],
+  ['clonable', 'shadowrootclonable'],
+  ['serializable', 'shadowrootserializable'],
+];
+
 class ShadowRootShim {
-  constructor(mode) {
-    this.mode = mode;
+  constructor(init) {
+    this.mode = init.mode ?? 'open';
+    this._init = init;
     this.innerHTML = '';
     this._styles = [];
+  }
+  /** `shadowrootmode` plus whatever else the root was opened with, as the parser expects them. */
+  templateAttributes() {
+    let out = ` shadowrootmode="${this.mode}"`;
+    for (const [option, attribute] of SHADOW_ATTRIBUTES) if (this._init[option]) out += ` ${attribute}=""`;
+    return out;
   }
   /** Only `adoptStyles`' string path appends here (a `<style>` element shim). */
   appendChild(node) {
@@ -128,8 +152,8 @@ class ElementShim {
     this.innerHTML = '';
     this.shadowRoot = null;
   }
-  attachShadow({ mode = 'open' } = {}) {
-    this.shadowRoot = new ShadowRootShim(mode);
+  attachShadow(init = {}) {
+    this.shadowRoot = new ShadowRootShim(init);
     return this.shadowRoot;
   }
   getAttribute(name) {
