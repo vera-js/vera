@@ -14,14 +14,20 @@ no acorn, no parse5.
 - Output is declarative shadow DOM with **zero framework comments**; light-DOM `@scope` styles are
   returned separately for the page shell.
 - Client-side, `@verajs/renderer/hydrate` adopts the server DOM markerlessly (swap one import).
-- Measured (`node bench/ssr.mjs`, fastest of 7 rounds). Template serialization, which is what
-  the lit/react/vue rows measure: **0.3 µs** on a small component and **40 µs** on a 100-row
-  table, against 2.4 µs and 314 µs for lit — **7× faster on both**.
-- The **full component pipeline** — instantiate, run init/store/hooks, serialize a shadow root,
-  scan for nested components — is 3.0 µs and 53 µs, ahead of Vue's compiled SSR (7.3 / 61 µs)
-  on both. No other row here renders an actual component, so treat the comparison as
-  "component pipeline against template render" and not a like-for-like win.
-- 94% of that pipeline is core's component lifecycle, not this package: instantiating the
+- Measured (`node bench/ssr.mjs`, fastest of 7 rounds), against lit on both comparisons it
+  supports — µs per render, small component / 100-row table:
+
+  | | small | table |
+  | --- | --- | --- |
+  | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.3** | **40** |
+  | | lit 2.5 | lit 309 |
+  | **whole component** — `renderToString` vs a real `LitElement` | **3.2** | **53** |
+  | | lit 5.7 | lit 410 |
+
+  Vue's compiled SSR is 7.5 / 59 µs and React 6.4 / 452 µs, neither of which renders a
+  component. The `lit element` row runs in a separate process because `@lit-labs/ssr` and this
+  package both install DOM globals and cannot share one.
+- 94% of the component pipeline is core's lifecycle rather than this package: instantiating the
   element and running `connectedCallback` measured 4.69 µs of a 4.99 µs render, with the
   nested-component scan at 0.06 µs.
 

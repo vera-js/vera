@@ -19,6 +19,7 @@
  *
  *   node bench/ssr.mjs
  */
+import { execFileSync } from 'node:child_process';
 import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr/vera';
 /** Resolved once, at load, exactly as every other contender's renderer is. */
 const { html } = await import('@verajs/core');
@@ -135,6 +136,26 @@ for (const size of ['small', 'large']) {
     }
   }
   results[size] = perContender;
+}
+
+/**
+ * The LitElement row, measured in a process of its own — see `bench/lit-element-ssr.mjs` for why it
+ * cannot share this one. It is the only row besides `vera-native` that renders an actual component,
+ * so it is the comparison worth reading; everything else here serializes a template or a vdom.
+ *
+ * Timings come back in µs and are stored in ms to match the rest.
+ */
+try {
+  const child = execFileSync(process.execPath, [
+    new URL('./lit-element-ssr.mjs', import.meta.url).pathname,
+    JSON.stringify({ rounds: ROUNDS, small: SMALL_N, large: LARGE_N }),
+  ], { encoding: 'utf8' });
+  const litElement = JSON.parse(child);
+  for (const size of ['small', 'large']) {
+    results[size]['lit element'] = [litElement[size].fastest / 1000, litElement[size].median / 1000];
+  }
+} catch (error) {
+  console.log(`\n  (lit element row skipped: ${String(error.message).split('\n')[0]})`);
 }
 
 const fmt = (ms) => (ms * 1000).toFixed(1).padStart(8);
