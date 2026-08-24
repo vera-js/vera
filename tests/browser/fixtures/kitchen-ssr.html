@@ -26,12 +26,59 @@
       font-size: 1.4rem;
       margin: 0 0 0.25rem;
     }
+    /**
+     * Three levels per panel, and each answers a different question: the heading is the idea, the
+     * subheading is what the panel shows, and the one under it is how to make it do that.
+     */
     h2 {
-      font-size: 0.95rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #5a6070;
-      margin: 0 0 0.5rem;
+      font-size: 1.05rem;
+      margin: 0 0 0.15rem;
+      color: #16181d;
+    }
+    h3 {
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin: 0 0 0.3rem;
+      color: #4a5162;
+    }
+    h4 {
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin: 0 0 0.9rem;
+      padding-left: 0.6rem;
+      border-left: 2px solid #b9c2d4;
+      color: #6b7386;
+    }
+    button {
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.7rem;
+      margin: 0 0.4rem 0.6rem 0;
+      border: 1px solid #b9c2d4;
+      border-radius: 5px;
+      background: #fff;
+      cursor: pointer;
+    }
+    button:hover {
+      border-color: #2a5bd7;
+      color: #2a5bd7;
+    }
+    button:focus-visible {
+      outline: 2px solid #2a5bd7;
+      outline-offset: 2px;
+    }
+    input,
+    textarea,
+    select {
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 0.25rem 0.4rem;
+      margin: 0 0.4rem 0.6rem 0;
+      border: 1px solid #b9c2d4;
+      border-radius: 5px;
+    }
+    p {
+      margin: 0.2rem 0;
     }
     nav {
       display: flex;
@@ -110,6 +157,9 @@
         <main view="main"></main>
 
         <sink-basics><template shadowrootmode="open"><section id="basics">
+        <h2>Bindings, the JSX-comparable subset</h2>
+        <h3>Exactly what JSX can express, so the same component can be written both ways and diffed</h3>
+        <h4>Nothing to click. Its twin in jsx/ renders the same DOM, which tests/kitchen-jsx.test.mjs checks.</h4>
         <p id="text">hello &#38; &#60;world&#62;</p>
         <p id="multi">hello &#38; &#60;world&#62; and 3</p>
         <p id="falsy">[0][false][][][]</p>
@@ -134,8 +184,9 @@
         <math id="math"><mi id="mi">hello &#38; &#60;world&#62;</mi></math>
       </section></template></sink-basics>
         <sink-bindings><template shadowrootmode="open"><section id="bindings">
-        <h2>Every binding kind</h2>
-        <p class="hint">Type here: every binding below is driven by this one value.</p>
+        <h2>Bindings, in full</h2>
+        <h3>Every quoting style, spreads, element refs, SVG and MathML — including the shapes JSX cannot express</h3>
+        <h4>Type in the field: every binding below is driven by that one value. Or toggle the boolean.</h4>
         <input id="drive" value="hello &#38; &#60;world&#62;" />
         <button id="toggleBusy">toggle the boolean binding</button>
         <p id="text">hello &#38; &#60;world&#62;</p>
@@ -176,8 +227,9 @@
         <math id="math"><mi id="mi">hello &#38; &#60;world&#62;</mi></math>
       </section></template></sink-bindings>
         <sink-list><template shadowrootmode="open"><section id="list">
-        <h2>Keyed lists</h2>
-        <p class="hint">Reverse, then watch the keyed list: the same nodes move, the unkeyed one is rebuilt.</p>
+        <h2>Lists</h2>
+        <h3>A keyed list moves the nodes it already has; the unkeyed one below is rebuilt from scratch</h3>
+        <h4>Press reverse and watch both lists, then remove the first a few times to reach the empty state.</h4>
         <button id="doReverse">reverse</button>
         <button id="doRemove">remove the first</button>
         <button id="doReset">reset</button>
@@ -191,8 +243,9 @@
         <p id="empty" hidden="">nothing here</p>
       </section></template></sink-list>
         <sink-collections><template shadowrootmode="open"><section id="collections">
-        <h2>Reactive Map, Set and WeakMap</h2>
-        <p class="hint">A no-op mutation is silent; adding a real one re-renders only its subscribers.</p>
+        <h2>Collections</h2>
+        <h3>Map, Set, WeakMap and WeakSet are reactive per key, with no module to install and nothing to wire</h3>
+        <h4>Add a user or a tag and only that list re-renders. Clear both to notify every subscriber at once.</h4>
         <button id="addUser">add a user</button>
         <button id="addTag">add a tag</button>
         <button id="setWeak">change the WeakMap value</button>
@@ -211,7 +264,8 @@
       </section></template></sink-collections>
         <sink-effects><template shadowrootmode="open"><section id="effects">
         <h2>Effects</h2>
-        <p class="hint">Three writes in one turn: the sync effect sees each, the coalesced one sees the batch.</p>
+        <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>
+        <h4>Press bump three times and compare the two counters — one rises by three, the other by one.</h4>
         <button id="bumpOne">bump once</button>
         <button id="bumpThree">bump three times</button>
         <p>n: <span id="n">0</span></p>
@@ -233,15 +287,22 @@
       border-radius: 999px;
     }
   </style><div id="styled" style="--sink-accent: teal">
-        <h2>static styles</h2>
-        <p class="hint">The sheet is adopted once and never re-adopted — what changes is a custom property.</p>
+        <h2>Styles, in a shadow root</h2>
+        <h3>A constructed stylesheet adopted once per element and shared by every instance of the class</h3>
+        <h4>Press re-tint: the colour changes through a custom property, and the sheet is never re-adopted.</h4>
         <button id="tint">re-tint (teal)</button>
         <span class="badge"><span class="inner" data-kind="pill">styled</span></span>
       </div></template></sink-styled>
-        <sink-scoped><p class="scoped">scoped to the tag</p></sink-scoped>
+        <sink-scoped><div>
+        <h2>Styles, in the light DOM</h2>
+        <h3>Hoisted to the document once per class and wrapped in @scope, so the rules cannot reach the rest of the page</h3>
+        <h4>Nothing to click. Open devtools and look for the @scope rule in the document.</h4>
+        <p class="scoped">scoped to the tag</p>
+      </div></sink-scoped>
         <sink-form label="Name" value="Ada"><template shadowrootmode="open"><section id="form">
-        <h2>hold() and observed attributes</h2>
-        <p class="hint">Type into the editor, toggle away and back: hold() keeps what you typed.</p>
+        <h2>Forms and held DOM</h2>
+        <h3>hold() keeps a toggled-away subtree alive, and attributeChangedCallback is the only reactive-attribute mechanism a custom element has</h3>
+        <h4>Press edit, type something, press show the value, then edit again — your text is still there.</h4>
         <button id="doToggle">edit</button>
         <button id="doRename">
           change the observed attribute
@@ -253,6 +314,9 @@
         </div>
       </section></template></sink-form>
         <sink-slots><template shadowrootmode="open"><section id="slots">
+        <h2>Slots</h2>
+        <h3>Default, named and fallback content, filled from the light DOM the parent passed in</h3>
+        <h4>Nothing to click. The footer reads "fallback only" because nothing fills that slot.</h4>
         <header><slot name="title">untitled</slot></header>
         <div id="body"><slot>nothing slotted</slot></div>
         <footer><slot name="never">fallback only</slot></footer>

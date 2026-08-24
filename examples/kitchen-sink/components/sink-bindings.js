@@ -30,8 +30,9 @@ export default class SinkBindings extends HTMLElement {
 
     render(
       () => html`<section id="bindings">
-        <h2>Every binding kind</h2>
-        <p class="hint">Type here: every binding below is driven by this one value.</p>
+        <h2>Bindings, in full</h2>
+        <h3>Every quoting style, spreads, element refs, SVG and MathML — including the shapes JSX cannot express</h3>
+        <h4>Type in the field: every binding below is driven by that one value. Or toggle the boolean.</h4>
         <input id="drive" .value=${state.text} @input=${(event) => (state.text = event.target.value)} />
         <button id="toggleBusy" @click=${() => (state.busy = !state.busy)}>toggle the boolean binding</button>
         <p id="text">${state.text}</p>

@@ -46,7 +46,8 @@ export default class SinkEffects extends HTMLElement {
     render(
       () => html`<section id="effects">
         <h2>Effects</h2>
-        <p class="hint">Three writes in one turn: the sync effect sees each, the coalesced one sees the batch.</p>
+        <h3>useSyncEffect observes every individual write; useEffect observes one batch per frame</h3>
+        <h4>Press bump three times and compare the two counters — one rises by three, the other by one.</h4>
         <button id="bumpOne" @click=${() => this.bump(1)}>bump once</button>
         <button id="bumpThree" @click=${() => this.bump(3)}>bump three times</button>
         <p>n: <span id="n">${state.n}</span></p>

@@ -36,8 +36,9 @@ export default class SinkCollections extends HTMLElement {
 
     render(
       () => html`<section id="collections">
-        <h2>Reactive Map, Set and WeakMap</h2>
-        <p class="hint">A no-op mutation is silent; adding a real one re-renders only its subscribers.</p>
+        <h2>Collections</h2>
+        <h3>Map, Set, WeakMap and WeakSet are reactive per key, with no module to install and nothing to wire</h3>
+        <h4>Add a user or a tag and only that list re-renders. Clear both to notify every subscriber at once.</h4>
         <button id="addUser" @click=${() => this.addUser()}>add a user</button>
         <button id="addTag" @click=${() => this.addTag()}>add a tag</button>
         <button id="setWeak" @click=${() => this.setWeak()}>change the WeakMap value</button>

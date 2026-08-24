@@ -37,12 +37,59 @@ export default class SinkShell extends HTMLElement {
       font-size: 1.4rem;
       margin: 0 0 0.25rem;
     }
+    /**
+     * Three levels per panel, and each answers a different question: the heading is the idea, the
+     * subheading is what the panel shows, and the one under it is how to make it do that.
+     */
     h2 {
-      font-size: 0.95rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #5a6070;
-      margin: 0 0 0.5rem;
+      font-size: 1.05rem;
+      margin: 0 0 0.15rem;
+      color: #16181d;
+    }
+    h3 {
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin: 0 0 0.3rem;
+      color: #4a5162;
+    }
+    h4 {
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin: 0 0 0.9rem;
+      padding-left: 0.6rem;
+      border-left: 2px solid #b9c2d4;
+      color: #6b7386;
+    }
+    button {
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.7rem;
+      margin: 0 0.4rem 0.6rem 0;
+      border: 1px solid #b9c2d4;
+      border-radius: 5px;
+      background: #fff;
+      cursor: pointer;
+    }
+    button:hover {
+      border-color: #2a5bd7;
+      color: #2a5bd7;
+    }
+    button:focus-visible {
+      outline: 2px solid #2a5bd7;
+      outline-offset: 2px;
+    }
+    input,
+    textarea,
+    select {
+      font: inherit;
+      font-size: 0.85rem;
+      padding: 0.25rem 0.4rem;
+      margin: 0 0.4rem 0.6rem 0;
+      border: 1px solid #b9c2d4;
+      border-radius: 5px;
+    }
+    p {
+      margin: 0.2rem 0;
     }
     nav {
       display: flex;

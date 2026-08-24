@@ -35,8 +35,9 @@ export default class SinkForm extends HTMLElement {
 
     render(
       () => html`<section id="form">
-        <h2>hold() and observed attributes</h2>
-        <p class="hint">Type into the editor, toggle away and back: hold() keeps what you typed.</p>
+        <h2>Forms and held DOM</h2>
+        <h3>hold() keeps a toggled-away subtree alive, and attributeChangedCallback is the only reactive-attribute mechanism a custom element has</h3>
+        <h4>Press edit, type something, press show the value, then edit again — your text is still there.</h4>
         <button id="doToggle" @click=${() => this.toggle()}>${state.editing ? 'show the value' : 'edit'}</button>
         <button id="doRename" @click=${() => this.setAttribute('label', `Renamed ${(this.seen ?? []).length}`)}>
           change the observed attribute

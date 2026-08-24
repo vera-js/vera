@@ -36,8 +36,9 @@ export default class SinkList extends HTMLElement {
 
     render(
       () => html`<section id="list">
-        <h2>Keyed lists</h2>
-        <p class="hint">Reverse, then watch the keyed list: the same nodes move, the unkeyed one is rebuilt.</p>
+        <h2>Lists</h2>
+        <h3>A keyed list moves the nodes it already has; the unkeyed one below is rebuilt from scratch</h3>
+        <h4>Press reverse and watch both lists, then remove the first a few times to reach the empty state.</h4>
         <button id="doReverse" @click=${() => this.reverse()}>reverse</button>
         <button id="doRemove" @click=${() => this.removeFirst()}>remove the first</button>
         <button id="doReset" @click=${() => this.reset()}>reset</button>

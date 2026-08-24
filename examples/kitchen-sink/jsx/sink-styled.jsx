@@ -30,8 +30,9 @@ export default class SinkStyled extends HTMLElement {
     let tint = 0;
     render(() => (
       <div id="styled" style={`--sink-accent: ${state.accent}`}>
-        <h2>static styles</h2>
-        <p className="hint">The sheet is adopted once and never re-adopted — what changes is a custom property.</p>
+        <h2>Styles, in a shadow root</h2>
+        <h3>A constructed stylesheet adopted once per element and shared by every instance of the class</h3>
+        <h4>Press re-tint: the colour changes through a custom property, and the sheet is never re-adopted.</h4>
         <button id="tint" onClick={() => (state.accent = ACCENTS[++tint % ACCENTS.length])}>re-tint ({state.accent})</button>
         <span className="badge"><span className="inner" data-kind="pill">styled</span></span>
       </div>

@@ -19,6 +19,14 @@ node examples/kitchen-sink/server.mjs
 Open `/` and click things. Every panel has controls, and each one is wired to the same method the
 test suites drive, so what you are clicking is what CI checks.
 
+Each panel carries three headings, and each answers a different question:
+
+| level | question |
+| --- | --- |
+| `h2` | the idea — what this part of Vera is |
+| `h3` | what the panel shows |
+| `h4` | how to make it do that, or that there is nothing to click and why |
+
 | panel | click | watch |
 | --- | --- | --- |
 | Every binding kind | type in the input | every binding below it follows — text, attributes, a multi-part `class`, a form property, the SVG radius |

@@ -20,6 +20,9 @@ export default class SinkBasics extends HTMLElement {
 
     render(
       () => html`<section id="basics">
+        <h2>Bindings, the JSX-comparable subset</h2>
+        <h3>Exactly what JSX can express, so the same component can be written both ways and diffed</h3>
+        <h4>Nothing to click. Its twin in jsx/ renders the same DOM, which tests/kitchen-jsx.test.mjs checks.</h4>
         <p id="text">${state.text}</p>
         <p id="multi">${state.text} and ${state.count}</p>
         <p id="falsy">[${0}][${false}][${null}][${undefined}][${''}]</p>
