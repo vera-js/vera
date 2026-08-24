@@ -525,6 +525,46 @@ for (const [what, file, message] of [
   assert.equal(style.textContent, '.a > .b {}', 'a stylesheet is untouched');
 }
 
+/* ── every option is refused by name when it is the wrong type ─────────────────────────────────
+ * A wrong option should say which one and what it should be, rather than failing later somewhere
+ * unrelated. `props` used to accept an **array**: `Object.assign(element, rows)` sets a property
+ * named `0`, so passing rows straight through instead of `{ rows }` assigned nothing anyone meant
+ * and said nothing about it.
+ */
+{
+  for (const [label, options, expected] of [
+    ['attributes as an array', { attributes: ['a'] }, /`attributes`/],
+    ['attributes as a number', { attributes: 5 }, /`attributes`/],
+    ['children as a number', { children: 5 }, /`children`/],
+    ['props as an array', { props: ['a'] }, /`props`/],
+    ['props as a string', { props: 'a' }, /`props`/],
+    ['props as null', { props: null }, /`props`/],
+    ['seen as an array', { seen: [] }, /`seen`/],
+    ['seen as a Map', { seen: new Map() }, /`seen`/],
+    ['tag as a number', { tag: 5 }, /`tag`/],
+  ]) {
+    await assert.rejects(
+      () => renderToString(fixture('hello-ssr.js'), options),
+      expected,
+      `${label} was not refused by name`
+    );
+  }
+
+  /** And the awkward-but-legal ones are not refused, because they are legal. */
+  const circular = { n: 1 };
+  circular.self = circular;
+  for (const [label, props] of [
+    ['a function value', { onThing: () => {} }],
+    ['a symbol value', { sym: Symbol('s') }],
+    ['a circular object', { data: circular }],
+    ['a Map value', { rows: new Map([['a', 1]]) }],
+    ['an undefined value', { missing: undefined }],
+  ]) {
+    const { html: markup } = await renderToString(fixture('hello-ssr.js'), { props });
+    assert.match(markup, /^<hello-ssr>/, `props with ${label} should render`);
+  }
+}
+
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a

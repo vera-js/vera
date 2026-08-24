@@ -403,10 +403,19 @@ export const renderToString = async (
     throw new TypeError('ssr: `attributes` must be an object of names to values, or a string');
   }
   if (typeof children !== 'string') throw new TypeError('ssr: `children` must be a markup string');
-  if (props !== undefined && (typeof props !== 'object' || props === null)) {
+  /**
+   * An **array** is refused along with the other wrong types. `Object.assign(element, ['a'])` sets a
+   * property named `0`, so passing rows straight through instead of `{ rows }` — the obvious slip —
+   * assigned nothing anyone meant and said nothing about it. `attributes` already refuses one.
+   */
+  if (props !== undefined && (typeof props !== 'object' || props === null || Array.isArray(props))) {
     throw new TypeError('ssr: `props` must be an object of properties to assign');
   }
   if (seen !== undefined && !(seen instanceof Set)) throw new TypeError('ssr: `seen` must be a Set');
+  /** A `tag` that is not a string cannot name a custom element, and saying so here names the option. */
+  if (tag !== undefined && typeof tag !== 'string') {
+    throw new TypeError(`ssr: \`tag\` must be a custom element name, and ${typeof tag} is not one`);
+  }
 
   const href = url instanceof URL ? url.href : url;
 
