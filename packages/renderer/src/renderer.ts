@@ -88,8 +88,18 @@ export const keyed = <T>(key: unknown, result: T): T => {
  * ```js
  * html`<div>${hold(editing ? editor() : viewer())}</div>`
  * ```
+ *
+ * **Anything that is not a template passes straight through.** There is nothing to park for a
+ * string, a list, `null` or `false`, and the branch that produces one is the ordinary shape of the
+ * expression this wraps — `hold(editing && editor())`, `hold(row ?? null)`. Wrapping those handed
+ * the renderer a `{ $h }` carrying a non-template, which reached the held-commit path and threw on
+ * `result.strings`: a whole render lost, from a value the same expression renders happily one
+ * character to the left. Decided here rather than in the renderer so the hot path pays nothing.
  */
-export const hold = (result: TemplateResult): { $h: TemplateResult } => ({ $h: result });
+export const hold = <T>(result: T): T | { $h: TemplateResult } =>
+  result != null && typeof result === 'object' && isTemplateResult(result)
+    ? { $h: result as TemplateResult }
+    : result;
 
 /**
  * Unique per module load, so user text can never collide with it. Randomness here cannot break

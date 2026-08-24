@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.56 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.58 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -114,6 +114,8 @@ render(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, host);
 brings it back when that template returns. lit calls this `cache`. What survives is everything no
 attribute records: what the user typed, which element had focus, a scroll offset, a `<details>` left
 open, a media element's playback position.
+
+Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write.
 
 It only re-adopts a template it has seen at **that same call site** — two `hold()` calls in
 different templates are two different templates, and neither adopts the other's DOM.
