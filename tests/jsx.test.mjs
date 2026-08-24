@@ -133,6 +133,25 @@ assert.ok(T('const f = () => <li>row</li>;').includes('html`<li>row</li>`'), 'JS
 // attribute string with an unpaired quote of the other kind
 assert.ok(T(`const v = <a title="it's fine">t</a>;`).includes(`title="it's fine"`), 'apostrophe in attr string');
 
+/* ── the auto-injected import must never duplicate one the source already has ──────────────────
+ * The guard was a regex anchored at the start of a line, which two ordinary shapes defeated: an
+ * **indented** import — every inline `<script type="text/vera-jsx">` block in an HTML page is
+ * indented — and an import spread across lines, which formatters produce. Both emitted a second
+ * `import { html }`, and the module died with `Identifier 'html' has already been declared`. In the
+ * browser `standalone.js` catches that and logs it, so the page simply does nothing.
+ */
+{
+  /** Counted as output minus input, or the source's own import is mistaken for an injected one. */
+  const count = (text, name) => (text.match(new RegExp(`import \\{\\s*${name}\\s*\\}\\s*from`, 'g')) ?? []).length;
+  const injections = (code, name) => count(transformJsx(code, 'dup.jsx'), name) - count(code, name);
+
+  assert.ok(injections("      import { init, html } from '@verajs/core';\n      const a = <p>{1}</p>;", 'html') === 0, 'an indented import of html suppresses the injection');
+  assert.ok(injections("import {\n  init,\n  html,\n} from '@verajs/core';\nconst a = <p>{1}</p>;", 'html') === 0, 'an import spread across lines does too');
+  assert.ok(injections("    import { keyed } from '@verajs/renderer';\n    const a = <p key={1}>{1}</p>;", 'keyed') === 0, 'an indented import of keyed suppresses its injection');
+  assert.ok(injections("import { html as h } from '@verajs/core';\nconst a = <p>{1}</p>;", 'html') === 1, 'a renamed import does not suppress it, because the emitted name is still unbound');
+  assert.ok(injections('const a = <p>{1}</p>;', 'html') === 1, 'and a source with no import of its own still gets one');
+}
+
 console.log('parser edges ok');
 
 // ── spread on elements ────────────────────────────────────────────────────────────────────────

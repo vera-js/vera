@@ -245,7 +245,22 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
 
   /** Auto-inject imports for what the emitted code uses (opt out with options.inject: false). */
   if (options.inject !== false) {
-    const has = (name) => new RegExp(`(^|\\n)import[^;\\n]*[{,\\s]${name}[\\s,}][^;\\n]*from`).test(out);
+    /**
+     * Every name any import statement already binds, so injecting a second declaration of one is
+     * impossible.
+     *
+     * This used to be a single regex anchored at the start of a line, which two ordinary shapes
+     * defeated: an **indented** import — every inline `<script type="text/vera-jsx">` block in an
+     * HTML page is indented — and an import spread across lines, which formatters produce. Both
+     * emitted a duplicate `import { html }`, and the whole module then died with
+     * `Identifier 'html' has already been declared`. In the browser that is caught and logged, so
+     * the page simply does nothing.
+     */
+    const bound = new Set();
+    for (const [, clause] of out.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]/g))
+      for (const name of clause.replace(/[{}]/g, ' ').split(','))
+        bound.add(name.trim().split(/\s+as\s+/).pop().trim());
+    const has = (name) => bound.has(name);
     let inject = '';
     if (state.usedHtml && !has(htmlName)) inject += `import { ${htmlName} } from '${htmlFrom}';\n`;
     if (state.usedKeyed && !has(keyedName)) inject += `import { ${keyedName} } from '${keyedFrom}';\n`;

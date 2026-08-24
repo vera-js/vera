@@ -7,6 +7,7 @@
  *   http://localhost:3002/csr      the same components, rendered from scratch in the browser
  *   http://localhost:3002/ssr      the server's markup with no client script at all
  *   http://localhost:3002/buildless  the minified bundles, resolved by an import map, no build
+ *   http://localhost:3002/jsx       JSX transformed in the browser, no toolchain at all
  *
  * Three modes rather than two because they answer different questions. `/ssr` is what a reader with
  * no JavaScript sees and what a crawler indexes. `/csr` is the same application with the server
@@ -80,6 +81,14 @@ createServer(async (request, response) => {
    * The buildless mode: the **production** bundles resolved by an import map, no toolchain at all.
    * Served from the committed fixture so the page a reader opens is the page the suite tests.
    */
+  /** The buildless **JSX** mode: the same transform the Vite plugin uses, running in the browser. */
+  if (path === '/jsx') {
+    response.setHeader('content-type', 'text/html');
+    return response.end(
+      await readFile(new URL('../../tests/browser/fixtures/kitchen-jsx-buildless.html', import.meta.url))
+    );
+  }
+
   if (path === '/buildless') {
     response.setHeader('content-type', 'text/html');
     return response.end(await readFile(new URL('../../tests/browser/fixtures/kitchen-buildless.html', import.meta.url)));
@@ -99,4 +108,4 @@ createServer(async (request, response) => {
   return response.end(
     page({ body: html, styles, script: path === '/ssr' ? '' : '/client-hydrate.js' })
   );
-}).listen(PORT, () => console.log(`kitchen sink at http://localhost:${PORT} (/ hydrate, /csr, /ssr, /buildless)`));
+}).listen(PORT, () => console.log(`kitchen sink at http://localhost:${PORT} (/ hydrate, /csr, /ssr, /buildless, /jsx)`));

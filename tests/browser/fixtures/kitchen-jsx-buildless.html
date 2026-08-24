@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vera kitchen sink — buildless JSX</title>
+
+    <!--
+      JSX with no toolchain. `standalone.js` finds every `script[type="text/vera-jsx"]` on
+      `DOMContentLoaded`, runs the same zero-dependency transform the Vite plugin uses, and imports
+      the result as a module blob; bare specifiers inside resolve through this import map.
+
+      Both entries are required even though the block imports only core: any `key={}` emits
+      `keyed()` from `@verajs/renderer`, so a missing renderer entry fails at import time.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js"
+        }
+      }
+    </script>
+    <script type="module" src="/packages/jsx/src/standalone.js"></script>
+  </head>
+  <body>
+    <jsx-app></jsx-app>
+
+    <script type="text/vera-jsx">
+      import { init, createStore, render, setRenderer, html } from '@verajs/core';
+      import { render as domRender, keyed } from '@verajs/renderer';
+
+      setRenderer(domRender);
+
+      /** A function component is a template factory, not a custom element: children arrive as an array. */
+      const Row = ({ label, onPick }) => <li onClick={onPick} data-id={label}>{label}</li>;
+
+      class JsxApp extends HTMLElement {
+        connectedCallback() {
+          init(this, { mode: 'open' });
+          const state = createStore({ rows: ['a', 'b', 'c'], picked: 'none', n: 0 });
+          this.state = state;
+          this.bump = () => state.n++;
+
+          render(() => (
+            <div id="app">
+              <p id="picked">{state.picked}</p>
+              <p id="n">{state.n}</p>
+              <b id="flag" hidden={state.n === 0}>visible once bumped</b>
+              <ul id="rows">
+                {state.rows.map((row) => keyed(row, <Row label={row} onPick={() => (state.picked = row)} />))}
+              </ul>
+            </div>
+          ));
+          void html;
+        }
+      }
+      customElements.define('jsx-app', JsxApp);
+      document.documentElement.dataset.sinkMode = 'jsx-buildless';
+    </script>
+  </body>
+</html>
