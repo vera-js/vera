@@ -71,12 +71,12 @@ describe.
 
   | | small | table |
   | --- | --- | --- |
-  | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.4** | **40** |
-  | | lit 2.5 | lit 320 |
-  | **whole component** — `renderToString` vs a real `LitElement` | **3.5** | **54** |
-  | | lit 5.8 | lit 422 |
+  | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.3** | **35** |
+  | | lit 2.4 | lit 308 |
+  | **whole component** — `renderToString` vs a real `LitElement` | **3.5** | **49** |
+  | | lit 5.6 | lit 409 |
 
-  Vue's compiled SSR is 8.6 / 61 µs and React 6.2 / 464 µs, neither of which renders a
+  Vue's compiled SSR is 9.5 / 61 µs and React 6.2 / 450 µs, neither of which renders a
   component. The `lit element` row runs in a separate process because `@lit-labs/ssr` and this
   package both install DOM globals and cannot share one.
 - 94% of the component pipeline is core's lifecycle rather than this package: instantiating the
