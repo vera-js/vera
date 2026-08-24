@@ -65,18 +65,38 @@ const addLinkListener = (element: HTMLElement) => {
  * How specific a pattern is, so the most specific route wins rather than the first registered.
  *
  * A static segment is worth far more than a `:param`, a required param more than an optional one,
- * and a `*wildcard` almost nothing — which is what makes a catch-all `/*rest` sit last no matter
- * where it was declared. Longer patterns out-score shorter ones by summing. React Router ranks the
- * same way and for the same reason: `/users/new` should beat `/users/:id` without the author
- * having to remember which line it went on.
+ * and a `*wildcard` **costs** — which is what makes a catch-all `/*rest` sit last no matter where it
+ * was declared. Longer patterns out-score shorter ones by summing. React Router ranks the same way
+ * and for the same reason: `/users/new` should beat `/users/:id` without the author having to
+ * remember which line it went on.
+ *
+ * The wildcard is negative rather than merely small, because the root route has **no segments at
+ * all**: `/` scored 0 and `/*rest` scored 1, so a catch-all outranked the home page and every app
+ * with a 404 route served the 404 at `/`. Nothing else moves — a wildcard only ever competes with
+ * routes that also match, and against those it must always lose.
  */
 const specificity = (pattern: string) =>
   pattern.split('/').reduce((total, segment) => {
     if (!segment) return total;
-    if (segment[0] === '*') return total + 1;
+    if (segment[0] === '*') return total - 2;
     if (segment[0] === ':') return total + (segment.endsWith('?') ? 3 : 4);
     return total + 10;
   }, 0);
+
+/**
+ * A child's path, joined to its parent's.
+ *
+ * Both spellings work: `'/profile'` and `'profile'` under `/settings` are both `/settings/profile`.
+ * They were concatenated verbatim, so the relative form — which is how Vue Router and React Router
+ * are both written, and the first thing anyone tries — silently produced `/settingsprofile`: a
+ * route that matches nothing anyone would navigate to, registered without complaint, so the
+ * catch-all answered instead.
+ *
+ * An **empty** child path is the index route (`children: [{ path: '' }]`) and means the parent's own
+ * URL exactly, so it gains nothing. A `path` function is resolved per navigation and is left alone.
+ */
+const join = (parentRoute: string, path: string) =>
+  !parentRoute || !path || path[0] === '/' ? parentRoute + path : `${parentRoute}/${path}`;
 
 /** Keeps the router's routes ordered most-specific first, which is the order `getRoute` walks. */
 const insertRoute = (element: HTMLElement, route: Route) => {
@@ -94,7 +114,7 @@ export const addRoutes = (
 ) => {
   for (let i = 0; i < routes.length; i++) {
     const { path } = routes[i];
-    const completePath = parentRoute + path;
+    const completePath = typeof path === 'function' ? path : join(parentRoute, path);
 
     const route: Route = { ...routes[i], parent };
     if (route.name !== undefined && typeof completePath === 'string') {
@@ -106,15 +126,17 @@ export const addRoutes = (
       names.set(route.name, completePath);
     }
     if (typeof path !== 'function') {
-      route.matchFunction = routerSettings.match(completePath);
-      route.score = specificity(completePath);
+      /** Narrowed from `path`, which TypeScript cannot carry across to the value derived from it. */
+      const complete = completePath as string;
+      route.matchFunction = routerSettings.match(complete);
+      route.score = specificity(complete);
       /**
        * Children are registered against this exact object, so a matched child can walk back up to
        * render its ancestors — see `routeChange`. They must therefore be added *after* the parent
        * is fully built rather than before.
        */
       const { children } = routes[i];
-      if (children) addRoutes(element, children, completePath, route);
+      if (children) addRoutes(element, children, complete, route);
 
       /**
        * An alias is the same route reachable at another URL, and only the URL differs — the same
@@ -124,7 +146,7 @@ export const addRoutes = (
       const { alias } = routes[i];
       if (alias !== undefined)
         for (const aliasPath of Array.isArray(alias) ? alias : [alias]) {
-          const aliasComplete = parentRoute + aliasPath;
+          const aliasComplete = join(parentRoute, aliasPath);
           insertRoute(element, {
             ...route,
             matchFunction: routerSettings.match(aliasComplete),

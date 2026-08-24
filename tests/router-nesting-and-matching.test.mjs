@@ -263,5 +263,63 @@ const app = (routes, options = {}) => {
 // ── history helpers ───────────────────────────────────────────────────────────────────────────
 check('back, forward and go are exported', [back, forward, go].every((f) => typeof f === 'function'));
 
+
+/* ── a child path works with or without a leading slash ───────────────────────────────────────
+ * Vue Router and React Router both write children relatively — `path: 'profile'` under `/settings`
+ * — and that is the first thing anyone tries. The two were concatenated verbatim, so the relative
+ * form registered `/settingsprofile`: a route nobody can navigate to, added without complaint, so
+ * the catch-all answered `/settings/profile` instead.
+ *
+ * An empty child path is the index route and must stay the parent's own URL.
+ */
+{
+  for (const [label, parentPath, childPath, expected] of [
+    ['with a leading slash', '/slash', '/profile', 'child'],
+    ['relatively', '/relative', 'profile', 'child'],
+    ['as an index route', '/index', '', 'parent'],
+  ]) {
+    /**
+     * A distinct parent per case, because `navigate` dedupes on the current path: navigating three
+     * times to `/settings/profile` performs one navigation and the other two cases would assert
+     * against a router that never ran.
+     */
+    const { router, view } = app([
+      {
+        path: parentPath,
+        component: () => '<div view="panel"></div>',
+        children: [{ path: childPath, view: 'panel', component: () => 'child' }],
+      },
+      { path: '/*rest', component: () => 'catch-all' },
+    ]);
+    await navigate(childPath === '' ? parentPath : `${parentPath}/profile`, 'navigate');
+    const markup = view.innerHTML;
+    check(
+      `a child path written ${label} reaches the child`,
+      expected === 'child' ? markup.includes('child') : markup.includes('view="panel"'),
+      markup
+    );
+    check(`and does not fall through to the catch-all: ${label}`, !markup.includes('catch-all'), markup);
+    router.deleteRouter();
+  }
+}
+
+/* ── the root route beats a catch-all ──────────────────────────────────────────────────────────
+ * `/` has no segments, so it scored 0 while `/*rest` scored 1: every app with a 404 route served
+ * the 404 at its own home page. A wildcard now costs rather than scores, so it can never outrank a
+ * route that also matches.
+ */
+{
+  const { router, view } = app([
+    { path: '/*rest', component: () => 'catch-all' },
+    { path: '/', component: () => 'home' },
+  ]);
+  await navigate('/', 'navigate');
+  check('the root route beats a catch-all declared before it', view.innerHTML.includes('home'), view.innerHTML);
+
+  await navigate('/somewhere/else', 'navigate');
+  check('and the catch-all still catches everything else', view.innerHTML.includes('catch-all'), view.innerHTML);
+  router.deleteRouter();
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
