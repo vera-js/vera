@@ -85,12 +85,26 @@ const shellOf = (frame) => frame.contentDocument.querySelector('sink-shell');
  * it the client's. The entry sets `data-sink-mode` as its last act, which is the only signal that
  * the handoff has actually happened.
  */
+/** Two frames plus a drained microtask queue: renders, layout effects and effects have all run. */
+const settle = async (frame) => {
+  for (let i = 0; i < 3; i++) await new Promise((r) => frame.contentWindow.requestAnimationFrame(() => r()));
+  await Promise.resolve();
+};
+
 const ready = async (frame, label) => {
   await until(() => frame.contentDocument.documentElement.dataset.sinkMode === label, `${label}: its entry to run`);
   await until(() => shellOf(frame)?.shadowRoot?.querySelector('#shell'), `${label}: the shell to render`);
   const root = shellOf(frame).shadowRoot;
   for (const tag of COMPONENTS)
     await until(() => root.querySelector(tag)?.shadowRoot ?? root.querySelector(tag)?.firstElementChild, `${label}: <${tag}>`);
+  /**
+   * Settled, not merely rendered. A server render drains its frame queue until quiet, so its markup
+   * is the finished state; a client takes an extra frame whenever an effect writes state the
+   * template reads. The two converge — sampling between them compares a finished page against a
+   * half-finished one and calls the difference a defect.
+   */
+  await settle(frame);
+  await settle(frame);
   return shellOf(frame);
 };
 
