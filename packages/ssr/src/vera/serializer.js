@@ -116,8 +116,21 @@ const compile = (strings) => {
     }
 
     const attribute = inTag && PLAIN_ATTRIBUTE_TAIL.exec(part);
+    if (attribute) {
+      /**
+       * The name comes off the static and is re-attached at render time, because a nullish value
+       * has to take the whole attribute with it — `title=${null}` removes it on the client, exactly
+       * as lit does, and this emitted `title=""`. Adoption still succeeded (the statics matched), so
+       * the jsdom matrix passed on identity while the two sides disagreed about the attribute; the
+       * browser suite adopting through real declarative shadow DOM is what saw it.
+       */
+      parts.push(part.slice(0, attribute.index).replace(/ $/, ''));
+      kinds.push(ATTRIBUTE);
+      names.push(attribute[0].slice(0, -1));
+      continue;
+    }
     parts.push(part);
-    kinds.push(attribute ? ATTRIBUTE : TEXT);
+    kinds.push(TEXT);
     names.push('');
   }
 
@@ -151,8 +164,8 @@ export const serializeTemplate = (template) => {
         if (value != null && value !== false) out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
         break;
       case ATTRIBUTE:
-        /** Unquoted `attr=${x}`: quote it so spacey values stay one attribute. */
-        out += '"' + escapeHtml(serializeValue(value, true)) + '"';
+        /** Unquoted `attr=${x}`: quoted so spacey values stay one attribute, absent when nullish. */
+        if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         break;
       /** DROPPED: '@' and '&' and non-form '.': nothing — client concerns. */
     }

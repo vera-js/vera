@@ -107,3 +107,8 @@ traversed by the time anything could check. Pass `base` whenever part of the URL
 and anything resolving outside it is refused, with the same containment and the same wording
 `@verajs/autoloader` uses for the URLs it derives. Opt-in, because most calls name a constant and a
 check that is always trivially satisfied stops being read.
+
+**A nullish attribute value removes the attribute**, as it does on the client and in lit.
+`title=${null}` emitted `title=""` server-side against no attribute at all client-side. The
+attribute name now comes off the static and is re-attached only when there is a value — a nullish
+one takes the whole attribute with it, exactly as the sigil bindings already did.

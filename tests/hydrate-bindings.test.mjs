@@ -89,6 +89,22 @@ const clientTemplates = new Function(
 let pass = 0;
 const failures = [];
 
+/**
+ * Identity is necessary but not sufficient: adoption succeeds whenever the *statics* line up, so a
+ * value the two sides disagree about slips through. `title=${null}` did exactly that — the server
+ * wrote `title=""` where the client removes the attribute, and this matrix passed it for months of
+ * this session because the surrounding markup matched. These check the resolved values too.
+ */
+const VALUES = {
+  'attribute, nullish removes': (container) =>
+    !container.querySelector('#probe').hasAttribute('title') || 'title survived a nullish value',
+  'text: false': (container) => container.textContent.includes('false') || 'false did not render',
+  'text: zero': (container) => container.textContent.includes('0') || '0 did not render',
+  'text: null': (container) => container.textContent === 'x' || 'null rendered something',
+  'boolean, true': (container) => container.querySelector('#probe').hasAttribute('hidden') || 'not hidden',
+  'boolean, false': (container) => !container.querySelector('#probe').hasAttribute('hidden') || 'hidden anyway',
+};
+
 for (const [name, markup] of Object.entries(serverMarkup)) {
   const container = dom.window.document.createElement('div');
   container.innerHTML = markup;
@@ -97,8 +113,13 @@ for (const [name, markup] of Object.entries(serverMarkup)) {
 
   render(clientTemplates[name](), container);
 
-  if (container.querySelector('#probe') === probe) pass++;
-  else failures.push(`${name}\n      server: ${markup}\n      client: ${container.innerHTML.replace(/<!--[^>]*-->/g, '')}`);
+  if (container.querySelector('#probe') !== probe) {
+    failures.push(`${name}\n      server: ${markup}\n      client: ${container.innerHTML.replace(/<!--[^>]*-->/g, '')}`);
+    continue;
+  }
+  const value = VALUES[name]?.(container);
+  if (value !== undefined && value !== true) failures.push(`${name}: adopted but ${value}\n      server: ${markup}`);
+  else pass++;
 }
 
 /**
