@@ -252,6 +252,10 @@ const CASES = {
   'a spread with .checked given an empty string': 'html`<input type="checkbox" ${spread({ ".checked": "" })} />`',
   'a spread with .selected given zero': 'html`<select><option ${spread({ ".selected": 0 })}>a</option></select>`',
   'a spread with .value given zero': 'html`<input ${spread({ ".value": 0 })} />`',
+  /** A `<textarea>`'s value is its text content, and a spread key means what the written form does. */
+  'a spread .value on a textarea': 'html`<textarea ${spread({ ".value": "from a spread" })}></textarea>`',
+  'a spread .value on a textarea with content': 'html`<textarea ${spread({ ".value": "spread" })}>written</textarea>`',
+  'a written .value on a textarea with content': 'html`<textarea .value=${"bound"}>written</textarea>`',
 
   /**
    * **Attribute names**, where HTML and SVG disagree with each other. HTML lower-cases every

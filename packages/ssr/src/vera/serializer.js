@@ -323,7 +323,11 @@ export const serializeTemplate = (template) => {
     switch (kinds[i]) {
       case TEXT:
         /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
-        if (value !== null && typeof value === 'object' && value._$attrs$) out = foldSpread(out, value._$attrs$());
+        if (value !== null && typeof value === 'object' && value._$attrs$) {
+          const folded = foldSpread(out, value._$attrs$());
+          out = folded.out;
+          if (folded.text !== null) pendingText = folded.text;
+        }
         /**
          * An **element-position** expression that is not a spread is a ref — `<input ${myRef} />`,
          * where the renderer hands the element to a function or assigns it to `.value`. It is
@@ -445,8 +449,11 @@ const foldSpread = (out, entries) => {
   const tagStart = out.lastIndexOf('<');
   let tag = out.slice(tagStart);
   let added = '';
+  /** A `<textarea>`'s value is its text content, so a `.value` key here is not an attribute. */
+  let text = null;
 
-  const isFormElement = FORM_ELEMENTS.has(openTagName(out));
+  const owner = openTagName(out);
+  const isFormElement = FORM_ELEMENTS.has(owner);
   for (const [kind, name, value] of entries) {
     const serializes =
       kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && FORM_ATTRIBUTES.includes(name));
@@ -454,6 +461,17 @@ const foldSpread = (out, entries) => {
 
     /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */
     tag = stripAttribute(tag, name);
+
+    /**
+     * A `<textarea>`'s `.value` is its **content**, exactly as it is for a written binding — the
+     * attribute this would otherwise write is ignored by every parser, so the control arrived empty
+     * while the client, which sets the property, showed the text. The written form was fixed and
+     * this one was not: a spread key means what the written binding means, always.
+     */
+    if (kind === 'p' && owner === 'textarea' && name === 'value') {
+      text = value == null || value === false ? '' : escapeHtml(value === true ? '' : value);
+      continue;
+    }
 
     /** Same coercions as a written binding: a boolean is truthiness, and so are `checked`/`selected`. */
     if (kind === 'b' || (kind === 'p' && BOOLEAN_FORM_PROPERTIES.has(name))) {
@@ -469,7 +487,11 @@ const foldSpread = (out, entries) => {
    * that space is left dangling before the `>`, which the parser ignores and which is still a byte
    * in every response and untidy in a view-source.
    */
-  return out.slice(0, tagStart) + (added ? tag + added.slice(1) : tag.replace(/ $/, ''));
+  return {
+    out: out.slice(0, tagStart) + (added ? tag + added.slice(1) : tag.replace(/ $/, '')),
+    /** Written into the next static, after the `>` that closes this tag — see `insertContent`. */
+    text,
+  };
 };
 
 /**
