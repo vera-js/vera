@@ -23,6 +23,17 @@ import { escapeHtml } from './shim.js';
 const FORM_ATTRIBUTES = ['value', 'checked', 'selected'];
 
 /**
+ * `checked` and `selected` are **boolean** properties; `value` is a string one.
+ *
+ * The element coerces on assignment, so `.checked=${0}` leaves a browser with `checked === false`
+ * while `.value=${0}` leaves it with `"0"`. All three were treated as string-ish here — present
+ * unless nullish or exactly `false` — so every falsy-but-not-false value (`0`, `''`, `NaN`) served
+ * a **ticked** checkbox against a browser's unticked one, and hydration then had to throw the
+ * server's markup away to correct it.
+ */
+const BOOLEAN_FORM_PROPERTIES = new Set(['checked', 'selected']);
+
+/**
  * …and the elements where that is true.
  *
  * Mirroring `.value` to an attribute exists so hydration can read form state back out of the
@@ -342,7 +353,11 @@ export const serializeTemplate = (template) => {
           break;
         }
         if (strip[i]) out = removeAttribute(out, names[i]);
-        if (value != null && value !== false) out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
+        if (BOOLEAN_FORM_PROPERTIES.has(names[i])) {
+          if (value) out += ` ${names[i]}=""`;
+        } else if (value != null && value !== false) {
+          out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
+        }
         break;
       case ATTRIBUTE:
         /** Unquoted `attr=${x}`: quoted so spacey values stay one attribute, absent when nullish. */
@@ -440,7 +455,8 @@ const foldSpread = (out, entries) => {
     /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */
     tag = stripAttribute(tag, name);
 
-    if (kind === 'b') {
+    /** Same coercions as a written binding: a boolean is truthiness, and so are `checked`/`selected`. */
+    if (kind === 'b' || (kind === 'p' && BOOLEAN_FORM_PROPERTIES.has(name))) {
       if (value) added += ` ${name}=""`;
     } else if (value != null && value !== false) {
       added += ` ${name}="${escapeHtml(kind === 'p' && value === true ? '' : serializeValue(value, true))}"`;

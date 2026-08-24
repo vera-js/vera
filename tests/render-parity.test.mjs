@@ -220,6 +220,38 @@ const CASES = {
   'a Date in an attribute': 'html`<b title=${new Date(0)}>x</b>`',
   'a RegExp in an attribute': 'html`<b title=${/ab+c/gi}>x</b>`',
   'a nested array at a child position': 'html`<p>${[[1, 2], [3]]}</p>`',
+
+  /**
+   * The same seam, in the other three binding kinds. A boolean is truthiness, a form property is an
+   * assignment the element coerces, and a spread is both — each with its own coercion, and each a
+   * place a server can disagree with a browser about an ordinary value.
+   */
+  'a boolean given an empty array': 'html`<b ?hidden=${[]}>x</b>`',
+  'a boolean given an empty object': 'html`<b ?hidden=${{}}>x</b>`',
+  'a boolean given an empty string': 'html`<b ?hidden=${""}>x</b>`',
+  'a boolean given NaN': 'html`<b ?hidden=${NaN}>x</b>`',
+  'a form property given an object': 'html`<input .value=${{ a: 1 }} />`',
+  'a form property given an array': 'html`<input .value=${[1, 2]} />`',
+  'a form property given a Date': 'html`<input .value=${new Date(0)} />`',
+  'a checked property given a string': 'html`<input type="checkbox" .checked=${"no"} />`',
+  'a checked property given zero': 'html`<input type="checkbox" .checked=${0} />`',
+  'a checked property given an empty string': 'html`<input type="checkbox" .checked=${""} />`',
+  'a checked property given NaN': 'html`<input type="checkbox" .checked=${NaN} />`',
+  'a checked property given an empty array': 'html`<input type="checkbox" .checked=${[]} />`',
+  'a selected property given zero': 'html`<select><option .selected=${0}>a</option></select>`',
+  'a selected property given a string': 'html`<select><option .selected=${"yes"}>a</option></select>`',
+  'a value property given zero': 'html`<input .value=${0} />`',
+  'a value property given an empty string': 'html`<input .value=${""} />`',
+  'a spread with an array value': 'html`<b ${spread({ title: [1, 2] })}>x</b>`',
+  'a spread with a Set value': 'html`<b ${spread({ title: new Set([1, 2]) })}>x</b>`',
+  'a spread with an object value': 'html`<b ${spread({ title: { a: 1 } })}>x</b>`',
+  'a spread with a boolean given an array': 'html`<b ${spread({ "?hidden": [] })}>x</b>`',
+  'a spread with a form property given a number': 'html`<input ${spread({ ".value": 42 })} />`',
+  'a spread with .checked given zero': 'html`<input type="checkbox" ${spread({ ".checked": 0 })} />`',
+  'a spread with .checked given a string': 'html`<input type="checkbox" ${spread({ ".checked": "y" })} />`',
+  'a spread with .checked given an empty string': 'html`<input type="checkbox" ${spread({ ".checked": "" })} />`',
+  'a spread with .selected given zero': 'html`<select><option ${spread({ ".selected": 0 })}>a</option></select>`',
+  'a spread with .value given zero': 'html`<input ${spread({ ".value": 0 })} />`',
 };
 
 /**
