@@ -515,12 +515,22 @@ class ElementShim extends ContainerShim {
  * `EventTarget` the way the containers do. They still have to *work*: both were no-ops that
  * reported every event delivered.
  *
+ * The dispatched event's `target` is corrected to the shim, because the listener reads it and
+ * `document` is the answer it expects — not the private object the listeners happen to live on.
+ * An own property shadows `Event`'s prototype getter, which is read-only.
+ *
  * @param {EventTarget} target
+ * @param {() => unknown} self What the event should report as its target, resolved at dispatch
+ *   because `document` does not exist yet when this is called.
  */
-const delegateEvents = (target) => ({
+const delegateEvents = (target, self) => ({
   addEventListener: target.addEventListener.bind(target),
   removeEventListener: target.removeEventListener.bind(target),
-  dispatchEvent: target.dispatchEvent.bind(target),
+  dispatchEvent: (event) => {
+    for (const name of ['target', 'currentTarget'])
+      Object.defineProperty(event, name, { value: self(), configurable: true });
+    return target.dispatchEvent(event);
+  },
 });
 
 /** `window` and the global scope are the same object here, so they share one target. */
@@ -625,7 +635,7 @@ export const installShims = () => {
      * that listens on `document` and dispatches there — a store broadcasting, a dialog closing on
      * `keydown` it fires itself — behaved one way in a browser and not at all here.
      */
-    ...delegateEvents(new EventTarget()),
+    ...delegateEvents(new EventTarget(), () => globalThis.document),
     /** Light-DOM styles hoist here — `adoptStyles`' constructed-sheet path. */
     get adoptedStyleSheets() {
       return [];
@@ -667,7 +677,7 @@ export const installShims = () => {
     back: () => {},
     forward: () => {},
   });
-  Object.assign(globalThis, delegateEvents(windowEvents));
+  Object.assign(globalThis, delegateEvents(windowEvents, () => globalThis.window));
   globalThis.scrollTo = () => {};
   /**
    * Node supplies `Event` and `CustomEvent`; this fills in only where it does not, and matches the

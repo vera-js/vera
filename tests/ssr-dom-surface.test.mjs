@@ -115,8 +115,30 @@ const CONTAINER_SURFACE = [
   ['getElementById', (c) => c.getElementById('x') === null],
   ['children', (c) => Array.isArray(c.children)],
   ['firstElementChild', (c) => c.firstElementChild === null],
+];
+
+/**
+ * `window` is a container for events only — it has no markup — so it gets the same event checks
+ * through the same list rather than a second one.
+ */
+/**
+ * Everything a component can dispatch on, which is a wider set than the containers: `window` has no
+ * markup at all and still has to deliver an event.
+ */
+const EVENT_TARGETS = [...CONTAINERS, ['element', () => make()], ['window', () => globalThis.window]];
+const EVENT_SURFACE = [
   ['addEventListener', (c) => (c.addEventListener('x', () => {}), true)],
   ['dispatchEvent', (c) => c.dispatchEvent(new globalThis.CustomEvent('x')) === true],
+  /** A listener that does nothing is not the same as one that never ran. */
+  ['a listener fires', (c) => { let ran = false; c.addEventListener('x', () => (ran = true)); c.dispatchEvent(new globalThis.CustomEvent('x')); return ran; }],
+  ['removeEventListener stops it', (c) => { let n = 0; const f = () => n++; c.addEventListener('x', f); c.dispatchEvent(new globalThis.CustomEvent('x')); c.removeEventListener('x', f); c.dispatchEvent(new globalThis.CustomEvent('x')); return n === 1; }],
+  ['once fires once', (c) => { let n = 0; c.addEventListener('x', () => n++, { once: true }); c.dispatchEvent(new globalThis.CustomEvent('x')); c.dispatchEvent(new globalThis.CustomEvent('x')); return n === 1; }],
+  ['a handleEvent object is a listener', (c) => { let ran = false; c.addEventListener('x', { handleEvent: () => (ran = true) }); c.dispatchEvent(new globalThis.CustomEvent('x')); return ran; }],
+  ['the listener sees the target', (c) => { let target; c.addEventListener('x', (e) => (target = e.target)); c.dispatchEvent(new globalThis.CustomEvent('x')); return target === c; }],
+  ['the listener sees the detail', (c) => { let detail; c.addEventListener('x', (e) => (detail = e.detail)); c.dispatchEvent(new globalThis.CustomEvent('x', { detail: 7 })); return detail === 7; }],
+  ['preventDefault reaches the dispatcher', (c) => { c.addEventListener('x', (e) => e.preventDefault()); return c.dispatchEvent(new globalThis.CustomEvent('x', { cancelable: true })) === false; }],
+  ['an uncancelable event cannot be prevented', (c) => { c.addEventListener('x', (e) => e.preventDefault()); return c.dispatchEvent(new globalThis.CustomEvent('x')) === true; }],
+  ['stopImmediatePropagation stops the next listener', (c) => { let n = 0; c.addEventListener('x', (e) => { n++; e.stopImmediatePropagation(); }); c.addEventListener('x', () => n++); c.dispatchEvent(new globalThis.CustomEvent('x')); return n === 1; }],
 ];
 
 /** The document's own surface, beyond being a container. */
@@ -161,6 +183,18 @@ for (const [name, check] of RAW_TEXT) {
   else failures.push(`${name} — ${ok === false ? 'wrong result' : ok}`);
 }
 
+for (const [containerName, build] of EVENT_TARGETS) {
+  for (const [name, check] of EVENT_SURFACE) {
+    let ok;
+    try {
+      ok = check(build());
+    } catch (error) {
+      ok = `${error.constructor.name}: ${error.message}`;
+    }
+    if (ok === true) pass++;
+    else failures.push(`${containerName}.${name} — ${ok === false ? 'wrong result' : ok}`);
+  }
+}
 for (const [containerName, build] of CONTAINERS) {
   for (const [name, check] of CONTAINER_SURFACE) {
     let ok;
@@ -198,7 +232,11 @@ if (failures.length) {
   for (const failure of failures) console.log('    ' + failure);
 }
 const total =
-  SURFACE.length + RAW_TEXT.length + CONTAINERS.length * CONTAINER_SURFACE.length +
-  DOCUMENT_SURFACE.length + SHEET_SURFACE.length;
+  SURFACE.length +
+  RAW_TEXT.length +
+  CONTAINERS.length * CONTAINER_SURFACE.length +
+  EVENT_TARGETS.length * EVENT_SURFACE.length +
+  DOCUMENT_SURFACE.length +
+  SHEET_SURFACE.length;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);
