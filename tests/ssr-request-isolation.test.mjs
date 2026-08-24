@@ -357,6 +357,29 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 }
 
 /**
+ * A `<template>` is a blueprint, not live DOM: the parser builds its content into a fragment and
+ * never upgrades custom elements inside it. Rendering one there produced markup the client would
+ * never produce, inside content whose whole purpose is to be stamped out later.
+ */
+{
+  const { html: markup } = await renderToString(fixture('inert-ssr.js'));
+  assert.equal(markup.split('<b>MARK</b>').length - 1, 1,
+    `a component inside an inert <template> was rendered:\n${markup}`);
+  assert.match(markup, /<template id="t"><inert-mark><\/inert-mark><\/template>/,
+    'the blueprint is left exactly as written');
+}
+
+/** Named slots and a nested inert template together, with caller children slotted in. */
+{
+  const { html: markup } = await renderToString(fixture('slots-ssr.js'), {
+    children: '<h1 slot="head">H</h1><p>body</p>',
+  });
+  assert.match(markup, /<slot name="head"><\/slot>/, 'named slots survive');
+  assert.match(markup, /<template id="tpl"><p>inert<\/p><\/template>/, 'an inert template is untouched');
+  assert.match(markup, /<\/template><h1 slot="head">H<\/h1><p>body<\/p>/, 'children are placed for slotting');
+}
+
+/**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a
  * different one. Every case above it would fail with the very error it is asserting.

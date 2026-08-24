@@ -163,6 +163,38 @@ const renderComponentTags = (markup, depth) => {
     const name = /^<([a-z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1];
 
     /**
+     * A `<template>` is a blueprint, not live DOM: the parser builds its content into a fragment
+     * and never upgrades custom elements inside it. Rendering one there produced markup the client
+     * would never produce, inside content whose whole purpose is to be stamped out later.
+     *
+     * Skipped depth-aware, because templates nest — the raw-text elements below cannot, so a
+     * search for their closing tag is enough for them and would mis-nest here.
+     */
+    if (name === 'template') {
+      const lower = markup.toLowerCase();
+      let depth = 1;
+      let at2 = end;
+      while (depth > 0) {
+        const nextOpen = lower.indexOf('<template', at2);
+        const nextClose = lower.indexOf('</template', at2);
+        if (nextClose === -1) {
+          at2 = markup.length;
+          break;
+        }
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++;
+          at2 = nextOpen + 9;
+        } else {
+          depth--;
+          at2 = markup.indexOf('>', nextClose) + 1 || markup.length;
+        }
+      }
+      out += markup.slice(open, at2);
+      at = at2;
+      continue;
+    }
+
+    /**
      * `<textarea>`, `<script>`, `<style>`, `<title>`: their content is text. A component named
      * inside one was rendered into it, so the markup showed up as the textarea's value or the
      * script's source.
