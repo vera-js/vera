@@ -51,6 +51,22 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
     });
   }
 
+  /**
+   * A new generation of hooks starts here, and the previous one stops.
+   *
+   * `connectedCallback` runs again every time an element is re-added — a router navigating back,
+   * a list reordering, a conditional subtree returning — so `init()` and `render()` build a fresh
+   * set of hooks. The old ones were dropped from `_hooks` below and left registered in the store,
+   * which holds them **weakly**: correct in the end, but only once a garbage collection happens,
+   * and until then the element had two live subscriptions and ran everything twice. A second
+   * reconnect made it three times. Renders are idempotent so they merely cost; `useEffect` is not,
+   * and duplicate effects mean duplicate fetches, subscriptions and analytics.
+   *
+   * A counter, checked in `createHook`, so a stale hook is inert the moment this runs rather than
+   * whenever the collector gets to it.
+   */
+  element._gen = (element._gen ?? 0) + 1;
+
   element._hooks = [];
   element._hookPriorities = [];
   element.runHooks = () => {

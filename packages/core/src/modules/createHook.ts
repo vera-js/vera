@@ -90,7 +90,15 @@ export function createHook(hook: Hook) {
    *
    * @param signal Signal data passed to the hook, for optionally conditional effects
    */
+  const generation = derefElement._gen;
+
   const hookCallback = <V>(signal?: Signal<V>, init?: boolean) => {
+    /**
+     * A hook from a previous `init()` — see the note there. The element is alive and connected, so
+     * nothing else would stop this running; the store still holds it only because a `WeakRef` has
+     * not been collected yet.
+     */
+    if (derefElement._gen !== generation) return;
     try {
       hooksQueue.push(queueEntry);
       callback!(signal, init);

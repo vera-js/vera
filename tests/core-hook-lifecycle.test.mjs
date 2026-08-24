@@ -214,5 +214,82 @@ const mount = (setup) => {
   check('and one above useEffect runs after it', order.indexOf('late') > order.indexOf('effect'), order.join(','));
 }
 
+/* ── a component that comes back does not bring its old hooks with it ────────────────────────── */
+/**
+ * `connectedCallback` runs again every time an element is re-added — a router navigating back, a
+ * list reordering, a conditional subtree returning — so `init()` and `render()` build a fresh set
+ * of hooks. The old set was dropped from `_hooks` and left registered in the store, which holds it
+ * **weakly**: eventually correct, but only once a garbage collection happens. Until then the
+ * element had two live subscriptions and ran everything twice, and a second reconnect made it
+ * three times.
+ *
+ * Renders are idempotent, so those merely cost. `useEffect` is not: duplicates mean duplicate
+ * fetches, duplicate subscriptions and duplicate analytics, and the effect had already fired by
+ * the time a collector could have prevented it. Measured, before the fix: +1, +2, +3 effects per
+ * write across zero, one and two reconnects.
+ *
+ * Deliberately asserted without forcing a collection — `--expose-gc` made the old behaviour look
+ * correct, which is exactly why it survived.
+ */
+{
+  const state = core.createStore({ n: 0 });
+  let renders = 0;
+  let effects = 0;
+
+  const tag = `x-life-${seq++}`;
+  customElements.define(
+    tag,
+    class extends HTMLElement {
+      connectedCallback() {
+        core.init(this, { mode: 'open' });
+        core.useEffect(() => {
+          core.deps(state.n);
+          effects++;
+        });
+        core.render(() => {
+          renders++;
+          return core.html`<b>${state.n}</b>`;
+        });
+      }
+    }
+  );
+
+  const element = dom.window.document.createElement(tag);
+  body.append(element);
+  await frame();
+  await frame();
+
+  for (let reconnects = 0; reconnects <= 3; reconnects++) {
+    if (reconnects > 0) {
+      element.remove();
+      body.append(element);
+      await frame();
+      await frame();
+    }
+
+    const beforeRenders = renders;
+    const beforeEffects = effects;
+    state.n = reconnects + 1;
+    await frame();
+    await frame();
+
+    check(
+      `one render per write after ${reconnects} reconnect(s)`,
+      renders - beforeRenders === 1,
+      `${renders - beforeRenders}`
+    );
+    check(
+      `one effect per write after ${reconnects} reconnect(s)`,
+      effects - beforeEffects === 1,
+      `${effects - beforeEffects}`
+    );
+  }
+
+  /** The live hook still works, which is the half a "make it inert" fix can get wrong. */
+  check('the component is still following its binding', element.shadowRoot.textContent.includes('4'),
+    element.shadowRoot.textContent);
+  element.remove();
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
