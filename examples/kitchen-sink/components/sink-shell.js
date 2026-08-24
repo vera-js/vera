@@ -9,6 +9,7 @@
 import { init, render, html, createStore } from '@verajs/core';
 import { initRouter } from '@verajs/router';
 
+import './sink-basics.js';
 import './sink-bindings.js';
 import './sink-list.js';
 import './sink-collections.js';
@@ -89,6 +90,7 @@ export default class SinkShell extends HTMLElement {
         </nav>
         <main view="main"></main>
 
+        <sink-basics></sink-basics>
         <sink-bindings></sink-bindings>
         <sink-list></sink-list>
         <sink-collections></sink-collections>

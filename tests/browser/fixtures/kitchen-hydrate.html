@@ -25,6 +25,30 @@
         </nav>
         <main view="main"></main>
 
+        <sink-basics><template shadowrootmode="open"><section id="basics">
+        <p id="text">hello &#38; &#60;world&#62;</p>
+        <p id="multi">hello &#38; &#60;world&#62; and 3</p>
+        <p id="falsy">[0][false][][][]</p>
+        <p id="nested"><em>hello &#38; &#60;world&#62;</em></p>
+        <p id="list">123</p>
+
+        <b id="quoted" title="a &#34;quoted&#34; title">q</b>
+        <b id="multipart" class="a hello &#38; &#60;world&#62; c">m</b>
+        <b id="removed">r</b>
+        <b id="dataaria" data-count="3" aria-label="a &#34;quoted&#34; title">d</b>
+
+        <b id="boolOn" hidden="">on</b>
+        <b id="boolOff">off</b>
+
+        <input id="value" value="hello &#38; &#60;world&#62;" />
+        <input id="checked" type="checkbox" checked="" />
+        <textarea id="area">hello &#38; &#60;world&#62;</textarea>
+
+        <svg id="svg" viewBox="0 0 10 10" width="10" height="10">
+          <circle id="circle" cx="5" cy="5" r="3" fill="currentColor" />
+        </svg>
+        <math id="math"><mi id="mi">hello &#38; &#60;world&#62;</mi></math>
+      </section></template></sink-basics>
         <sink-bindings><template shadowrootmode="open"><section id="bindings">
         <p id="text">hello &#38; &#60;world&#62;</p>
         <p id="multi">hello &#38; &#60;world&#62; and 3</p>
