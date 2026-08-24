@@ -36,6 +36,17 @@ const readSet = (s) => `S{${[...s].map(String).join(',')}}#${s.size}`;
 /* ── the matrix ──────────────────────────────────────────────────────────────────────────────── */
 const nested = () => ({ inner: { n: 1 }, list: [1, 2] });
 
+const SYM = Symbol.for('vera.matrix');
+
+/** A real class, so accessors, methods and prototype lookups all go through the proxy. */
+class Thing {
+  a = 1;
+  b = 2;
+  describe() {
+    return `${this.a}/${this.b}`;
+  }
+}
+
 /**
  * `mutations` lets several readers share one mutation set: how a component *reads* the container is
  * a separate axis from how the data changes, and the enumerating readers below — `in`, spread,
@@ -56,7 +67,28 @@ const KINDS = {
     make: () => ({ a: 1, b: 2 }),
   },
   'nested object': { read: (o) => `${readObject(o.inner)}${readArray(o.list)}`, make: nested },
+  'object with an accessor': {
+    mutations: 'object',
+    read: (o) => `${readObject(o)}|${o.double}`,
+    make: () => ({ a: 1, b: 2, get double() { return (this.a ?? 0) * 2; } }),
+  },
+  'object with symbol keys': {
+    mutations: 'object',
+    read: (o) => `${readObject(o)}|${String(o[SYM])}|${Object.getOwnPropertySymbols(o).length}`,
+    make: () => ({ a: 1, b: 2, [SYM]: 'sym' }),
+  },
+  'class instance': {
+    mutations: 'object',
+    read: (o) => `${readObject(o)}|${o.describe()}`,
+    make: () => new Thing(),
+  },
+  'object mutated by defineProperty': {
+    mutations: 'defineProperty',
+    read: readObject,
+    make: () => ({ a: 1, b: 2 }),
+  },
   array: { read: readArray, make: () => [1, 2, 3] },
+  'array read by Object.keys': { mutations: 'array', read: (a) => `${Object.keys(a).join(',')}#${a.length}`, make: () => [1, 2, 3] },
   'array of objects': { read: (a) => a.map(readObject).join('|'), make: () => [{ n: 1 }, { n: 2 }] },
   map: { read: readMap, make: () => new Map([['a', 1]]) },
   set: { read: readSet, make: () => new Set([1]) },
@@ -75,6 +107,14 @@ const MUTATIONS = {
     'set a key to an object': (o) => (o.c = { n: 1 }),
     'set a key to an array': (o) => (o.c = [1, 2]),
     'set a numeric key': (o) => (o[0] = 'zero'),
+    'set a symbol key': (o) => (o[SYM] = 'changed'),
+    'delete a symbol key': (o) => delete o[SYM],
+  },
+  defineProperty: {
+    'defineProperty a new key': (o) => Object.defineProperty(o, 'c', { value: 3, enumerable: true, configurable: true, writable: true }),
+    'defineProperty over an existing key': (o) => Object.defineProperty(o, 'a', { value: 9, enumerable: true, configurable: true, writable: true }),
+    'defineProperty a non-enumerable key': (o) => Object.defineProperty(o, 'c', { value: 3, enumerable: false, configurable: true, writable: true }),
+    'defineProperty an accessor': (o) => Object.defineProperty(o, 'c', { get: () => 3, enumerable: true, configurable: true }),
   },
   'nested object': {
     'mutate the nested object': (o) => (o.inner.n = 9),
@@ -170,6 +210,76 @@ for (const [kindName, kind] of Object.entries(KINDS)) {
 
     element.remove();
   }
+}
+
+/* ── one write, one notification ─────────────────────────────────────────────────────────────── */
+/**
+ * The matrix compares values, so it cannot see a notification that fires twice — and adding the
+ * `defineProperty` trap made every ordinary write do exactly that.
+ *
+ * `Reflect.set(obj, prop, value, receiver)` does not write to `obj` when the receiver is a
+ * different object, and the receiver is always the proxy: the spec routes the write through
+ * `receiver.[[DefineOwnProperty]]`, so an assignment re-enters `defineProperty`. Passing the
+ * receiver is what makes a setter run with `this` bound to the proxy, so it cannot simply be
+ * dropped. Counted here rather than reasoned about, because nothing else would have shown it —
+ * every value stayed correct, and only `computed`'s evaluation count moved.
+ */
+{
+  const element = document.createElement('div');
+  document.body.appendChild(element);
+  const store = core.createStore({ a: 1, nested: { n: 1 }, list: [1, 2] });
+
+  let runs = 0;
+  core.createHook({
+    element,
+    priority: 60,
+    callback: () => { runs++; void `${store.a}${store.nested.n}${store.list[0]}${store.list.length}`; },
+  });
+  [...element._hooks[0]][0](undefined, true);
+
+  const counted = (name, mutate) => {
+    const before = runs;
+    mutate();
+    const fired = runs - before;
+    if (fired === 1) pass++;
+    else failures.push(`${name}
+      notified ${fired} time(s), expected exactly 1`);
+  };
+
+  counted('a plain write notifies once', () => (store.a = 2));
+  counted('a nested write notifies once', () => (store.nested.n = 2));
+  counted('an array index write notifies once', () => (store.list[0] = 9));
+  counted('an array push notifies once', () => store.list.push(3));
+  counted('a defineProperty notifies once', () =>
+    Object.defineProperty(store, 'a', { value: 3, enumerable: true, configurable: true, writable: true }));
+  element.remove();
+}
+
+/* ── a setter still runs against the proxy ───────────────────────────────────────────────────── */
+/**
+ * The reason `set` hands `Reflect.set` the receiver, and therefore the reason the re-entrancy above
+ * has to be guarded rather than avoided: a setter's `this` is the proxy, so what it writes is
+ * tracked like anything else.
+ */
+{
+  const element = document.createElement('div');
+  document.body.appendChild(element);
+  const store = core.createStore({
+    first: 'a',
+    last: 'b',
+    set full(value) { [this.first, this.last] = value.split(' '); },
+  });
+
+  let seen = '';
+  core.createHook({ element, priority: 60, callback: () => (seen = `${store.first} ${store.last}`) });
+  [...element._hooks[0]][0](undefined, true);
+
+  store.full = 'x y';
+  if (seen === 'x y') pass++;
+  else failures.push(`a setter writes through the proxy
+      component: ${seen}
+      data:      x y`);
+  element.remove();
 }
 
 if (failures.length) {

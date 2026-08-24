@@ -6,6 +6,21 @@ import { collectionMethod, GLOBAL } from './collections.js';
 import { Signal } from '../types.js';
 
 /**
+ * Depth of writes currently inside the `set` trap, which the `defineProperty` trap reads.
+ *
+ * `Reflect.set(obj, prop, value, receiver)` does **not** write to `obj` when `receiver` is a
+ * different object — and the receiver here is always the proxy. The spec routes the write through
+ * `receiver.[[DefineOwnProperty]]`, so every ordinary assignment re-enters the `defineProperty`
+ * trap, which would then notify a second time for a write `set` has already reported. Passing the
+ * receiver is deliberate and load-bearing: it is what makes a **setter** run with `this` bound to
+ * the proxy, so writes inside one are tracked like any other.
+ *
+ * A counter rather than a flag, because a setter may assign in turn, and `finally` because a
+ * throwing setter must not leave writes suppressed for the rest of the page.
+ */
+let writing = 0;
+
+/**
  * Priorities parallel to each element's callback array, keeping those arrays dense. `runCallbacks`
  * walks them on every write.
  */
@@ -244,7 +259,13 @@ const createHandler = <T extends object>(
        * Captured before the write, since the length is what changes.
        */
       const grew = Array.isArray(obj) && +prop >= (obj as unknown[]).length;
-      const result = Reflect.set(obj, prop, value, receiver);
+      writing++;
+      let result;
+      try {
+        result = Reflect.set(obj, prop, value, receiver);
+      } finally {
+        writing--;
+      }
 
       if (result) {
         /**
@@ -269,6 +290,38 @@ const createHandler = <T extends object>(
       }
 
       return result;
+    },
+    /**
+     * `Object.defineProperty` is the other way to write a property, and it does not pass through
+     * `set` — so a key defined rather than assigned changed nothing that anyone could see. It is
+     * how `Object.freeze` writes, how decorators and adapters install accessors, and how any code
+     * that wants a non-writable or lazily-computed field on a store puts one there.
+     *
+     * The new value is read back rather than taken from the descriptor, because an accessor
+     * descriptor does not carry one.
+     */
+    defineProperty(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>, descriptor: PropertyDescriptor) {
+      /** An ordinary assignment landing here — see `writing`. The `set` trap reports it. */
+      if (writing) return Reflect.defineProperty(obj, prop, descriptor);
+
+      type Value = T[Extract<keyof T, string>];
+      /**
+       * Descriptors are compared, never read back. `Reflect.get` would **invoke** an accessor, and
+       * defining a lazily-computed field is one of the reasons to reach for `defineProperty` at
+       * all — evaluating it here would run it at definition time, on the raw object, untracked.
+       * An accessor therefore reports `undefined` as its value, the same as a delete does; a
+       * subscriber re-reads the property regardless.
+       */
+      const previous = Reflect.getOwnPropertyDescriptor(obj, prop);
+      const success = Reflect.defineProperty(obj, prop, descriptor);
+      if (success) {
+        const value = descriptor.value as Value;
+        const prevValue = previous?.value as Value;
+        if (!previous || value !== prevValue || descriptor.get !== previous.get)
+          runCallbacks(obj, prop, value, prevValue);
+        if (!previous) runCallbacks(obj, GLOBAL as Extract<keyof T, string>, value, prevValue);
+      }
+      return success;
     },
     /**
      * Deleting a tracked property notified nothing at all, so a hook reading it kept the value it
