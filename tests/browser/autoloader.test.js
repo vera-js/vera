@@ -288,3 +288,46 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
   outsider.remove();
 });
 
+
+/* ── a document is a document before it has a body ───────────────────────────────────────────── */
+/**
+ * `autoload()` means "sweep the page for `[autoloader]` hosts". A document used to be recognised by
+ * having a `body`, which is null until the parser reaches it — so the same call from a classic or
+ * `async` module script in `<head>` fell through to the branch that watches a *root*, and quietly
+ * put a `subtree: true` observer on `document` itself. That is the whole-document shape this module
+ * is built to avoid, it survived for the life of the page, and nothing reported it.
+ *
+ * Asserted through the observer rather than through behaviour, because the wrong branch still
+ * *works* — it loads more, faster, at a cost spread across every mutation in the app. Only the
+ * target it observed tells the two apart.
+ */
+it('sweeps for marked hosts rather than observing the whole document', async () => {
+  const targets = [];
+  const Real = window.MutationObserver;
+  window.MutationObserver = class extends Real {
+    observe(target, options) {
+      targets.push(target);
+      return super.observe(target, options);
+    }
+  };
+
+  try {
+    const marked = host('<swept-widget></swept-widget>');
+    const autoload = initAutoloader(entry, 'components');
+    /**
+     * The condition the branch got wrong — a document that exists but whose body has not been
+     * parsed yet, which is what an `async` module script in `<head>` sees. Modelled rather than
+     * staged, because a test file cannot un-parse the page it is running in.
+     */
+    Object.defineProperty(document, 'body', { get: () => null, configurable: true });
+    try { autoload(); } finally { delete document.body; }
+    await until(() => customElements.get('swept-widget'));
+
+    expect(customElements.get('swept-widget'), 'the sweep still finds marked hosts').to.be.a('function');
+    expect(targets.includes(document), 'document is never the observed root').to.equal(false);
+    expect(targets.includes(marked), 'the marked host is').to.equal(true);
+    marked.remove();
+  } finally {
+    window.MutationObserver = Real;
+  }
+});

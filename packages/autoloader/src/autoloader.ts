@@ -253,8 +253,16 @@ export const initAutoloader = (
      * to load the same tags from their own directories, which needed an option to switch off. As a
      * shape of a function that already exists it costs almost nothing, can be called again whenever
      * new markup lands, and leaves `initAutoloader` free of side effects.
+     *
+     * A document is recognised by `nodeType`, not by having a `body`. `document.body` is null until
+     * the parser reaches it, so an `autoload()` from a classic or `async` module script in `<head>`
+     * fell straight through this branch and the document was treated as a root to watch — observing
+     * `document` itself, `subtree: true`. That is precisely the shape this module exists to avoid
+     * (~47% on every mutation in the app, measured), it was permanent once `watched` held the
+     * document, and nothing said it had happened. `nodeType` is 9 from the moment the document is.
      */
-    if ((target as Document).body) return (target as Document).querySelectorAll('[autoloader]').forEach((el) => watch(el));
+    if ((target as Document).nodeType === 9)
+      return (target as Document).querySelectorAll('[autoloader]').forEach((el) => watch(el));
     let root = target as Element | ShadowRoot;
     /**
      * An `Element` has to opt in; a `ShadowRoot` handed over directly does not, because handing it
