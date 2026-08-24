@@ -128,7 +128,12 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 
 ## Source of truth rules
 
-- **TypeScript is the source.** `packages/*/src` is `.ts` and stays `.ts`.
+- **TypeScript is the source.** `packages/*/src` is `.ts` and stays `.ts`. **`packages/ssr` is the
+  one exemption** (agreed 2026-08-24): it publishes its `src` directly, with no build and no `dist`,
+  so `.ts` there would either need the build step the package deliberately does not have or ship
+  `.ts` to consumers. It is still type-checked — `checkJs` plus JSDoc types and explicit casts, in
+  `npm run gate` alongside every other package — so the intent of the rule is met without the
+  toolchain. Nothing else gets this exemption.
 - **A component never exists as both `.ts` and `.js`.** Twins drift silently in both directions. When
   a richer `.js` version exists it is **ported forward into `.ts`** — never the reverse.
   (`goodbye-component.js` was 220 lines against a 43-line `.ts` stub; assuming the `.ts` was newer

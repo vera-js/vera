@@ -172,10 +172,12 @@ get this wrong**; templates are the attack surface.
 - **Escape at the render boundary**, not at the source. Interpolated values are data until something
   writes them to the DOM; the escaping belongs at the single place where that happens. Escaping early
   double-escapes and corrupts legitimate content.
-- **Never route untrusted content through `innerHTML` unsanitized.** The SSR renderer runs values
-  through DOMPurify for exactly this reason; the client path must hold the same line. Any new sink
-  (`innerHTML`, `insertAdjacentHTML`, `document.write`, `template.innerHTML`) needs a documented
-  justification.
+- **Never route untrusted content through `innerHTML` unsanitized.** The SSR renderer escapes every
+  interpolated value at the render boundary for exactly this reason; the client path must hold the
+  same line. Any new sink (`innerHTML`, `insertAdjacentHTML`, `document.write`, `template.innerHTML`)
+  needs a documented justification — and where one is deliberate, it must be **documented as a sink
+  in the API that exposes it**, not only at the call site. `@verajs/ssr`'s `children` option is raw
+  markup by design and said so nowhere for a while, which is the more inviting half of that mistake.
 - **Event and property bindings are code paths.** `@event` and `.prop` bindings assign real functions
   and values — they must only ever resolve from the template's own scope, never from a user-supplied
   string.
