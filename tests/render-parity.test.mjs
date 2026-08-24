@@ -188,6 +188,38 @@ const CASES = {
   'a bound is attribute': 'html`<button is=${"my-button"}>x</button>`',
   'a bound autoload-dir attribute': 'html`<my-widget autoload-dir=${"alt"}></my-widget>`',
   'nested slots with fallback': 'html`<div><slot name=${"outer"}><slot name="inner">fallback</slot></slot></div>`',
+
+  /**
+   * **Value kinds a template can be handed but rarely is.**
+   *
+   * Both sides stringify at a child position, and both must reach the *same* string. A type either
+   * of them coerces differently is a page that reads one way before hydration and another after —
+   * and these are the types an author reaches for without thinking about a serializer at all.
+   */
+  'a BigInt': 'html`<p>${10n}</p>`',
+  'a negative number': 'html`<p>${-42}</p>`',
+  'a very large number': 'html`<p>${1e21}</p>`',
+  'a class instance with toString': 'html`<p>${new (class { toString() { return "C"; } })()}</p>`',
+  'a class instance without toString': 'html`<p>${new (class Thing {})()}</p>`',
+  'an object with a null prototype': 'html`<p>${Object.assign(Object.create(null), { toString: () => "N" })}</p>`',
+  'an array of mixed kinds': 'html`<p>${[1, "a", null, undefined, false, 0]}</p>`',
+  'an array containing a template': 'html`<p>${[html`<b>t</b>`, "after"]}</p>`',
+  'an empty array in an attribute': 'html`<b title=${[]}>x</b>`',
+  'an array in an attribute': 'html`<b title=${[1, 2]}>x</b>`',
+  'a boolean attribute given a string': 'html`<b ?hidden=${"false"}>x</b>`',
+  'a form property given a number': 'html`<input .value=${42} />`',
+  'a form property given null': 'html`<input .value=${null} />`',
+  'an attribute given a symbol description': 'html`<b title=${String(Symbol("s"))}>x</b>`',
+  'a Set in an attribute': 'html`<b title=${new Set([1, 2])}>x</b>`',
+  'a Map in an attribute': 'html`<b title=${new Map([["a", 1]])}>x</b>`',
+  'a Set at a child position': 'html`<p>${new Set([1, 2])}</p>`',
+  'a nested array in an attribute': 'html`<b title=${[[1, 2], [3]]}>x</b>`',
+  'an object in an attribute': 'html`<b title=${{ a: 1 }}>x</b>`',
+  'a function in an attribute': 'html`<b title=${function named() {}}>x</b>`',
+  'a template in an attribute': 'html`<b title=${html`<i>t</i>`}>x</b>`',
+  'a Date in an attribute': 'html`<b title=${new Date(0)}>x</b>`',
+  'a RegExp in an attribute': 'html`<b title=${/ab+c/gi}>x</b>`',
+  'a nested array at a child position': 'html`<p>${[[1, 2], [3]]}</p>`',
 };
 
 /**

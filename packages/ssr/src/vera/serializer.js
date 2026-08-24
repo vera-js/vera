@@ -468,7 +468,22 @@ export const serializeValue = (value, raw = false) => {
    * re-render on a hydrated one.
    */
   if (value == null) return '';
-  if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, raw)).join('');
+  /**
+   * **An attribute stringifies exactly as the platform does, and nothing else.**
+   *
+   * A child position renders a value — a template becomes markup, an array renders every item, a
+   * function is client state and disappears. An attribute does none of that: it goes through
+   * `setAttribute`, which is `String(value)` and only that. The two are different rules and this
+   * had one of them.
+   *
+   * Measured against a browser, every one of these disagreed: `[1, 2]` served `12` against `1,2`
+   * (arrays have their own `toString`), a `Set` served `1,2` against `[object Set]`, a function
+   * served nothing against its own source, and a **template served its markup into an attribute
+   * value** against `[object Object]`. Escaped, so not an injection — and still a completely
+   * different page before and after hydration.
+   */
+  if (raw) return String(value);
+  if (Array.isArray(value)) return value.map((entry) => serializeValue(entry)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
     /** Template-shaped (core's html, by shape) recurses. `keyed()` mutates one, so it arrives here. */
@@ -498,7 +513,7 @@ export const serializeValue = (value, raw = false) => {
      * it or hydration is discarded.
      */
     if (typeof value[Symbol.iterator] === 'function') {
-      return [...value].map((entry) => serializeValue(entry, raw)).join('');
+      return [...value].map((entry) => serializeValue(entry)).join('');
     }
 
     /**
