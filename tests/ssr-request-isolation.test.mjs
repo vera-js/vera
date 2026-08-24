@@ -282,4 +282,20 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.match(unbounded.html, /^<hello-ssr>/);
 }
 
+/**
+ * A component that throws takes its own render down and nothing else. Rendering keeps per-render
+ * bookkeeping in module state — which tags were rendered, which one is hoisting styles — so a
+ * failure part-way through is exactly where that could be left dirty for the next request.
+ */
+{
+  await assert.rejects(() => renderToString(fixture('throwing-ssr.js')), /component blew up/);
+
+  const after = await renderToString(fixture('island-a-ssr.js'));
+  assert.match(after.html, /^<island-a-ssr>/, 'the next render is unaffected');
+  assert.ok(!after.styles.includes('throwing-ssr'), 'and inherits none of the failed one\'s styles');
+
+  const again = await renderToString(fixture('island-a-ssr.js'));
+  assert.equal(again.styles, after.styles, 'and stays stable');
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');
