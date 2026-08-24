@@ -79,3 +79,14 @@ the client supports all three because it hands markup to the platform's parser. 
 `.value` on the server, `?hidden='${true}'` hid the element on one side and printed `?hidden='true'`
 on the other, and `@click='${fn}'` left `@click=''` behind. A visible difference on a static page and
 a guaranteed mismatch on a hydrated one, for `.prop`, `?bool`, `@event` and `onClick` alike.
+
+**`props` carries structured data to a component.** Attributes hold strings and nothing else, so a
+component taking rows or a config object could not be server-rendered with real data — it had to be
+handed JSON and parse it back. `props` assigns before `connectedCallback`, which is where a client
+parent would have put them.
+
+**Escaping got a fast path.** Most values have nothing to escape, and asking first is cheaper than
+running a global replace: 200 escapes of ordinary text measured 9.60 µs going straight to `replace`
+against 3.03 µs testing first, and text that does need escaping came out slightly ahead too. A
+100-row table went from 40.3 µs to 35.7 µs for the serializer and 52.0 µs to 47.4 µs for the whole
+component pipeline.

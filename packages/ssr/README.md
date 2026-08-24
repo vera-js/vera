@@ -11,6 +11,7 @@ those are text and a scan for elements has no business reading them.
     import { renderToString } from '@verajs/ssr';        // ('/vera' also works)
     const { html, styles } = await renderToString(new URL('./components/app.js', import.meta.url), {
       attributes: { 'user-id': id },   // an object — values are escaped
+      props: { rows },                 // structured data; an attribute can only carry a string
       children: '<p>slotted</p>',      // what a <slot> in the component renders
     });
 
@@ -47,7 +48,14 @@ you must produce markup an object cannot describe, and never with anything from 
   element and running `connectedCallback` measured 4.69 µs of a 4.99 µs render, with the
   nested-component scan at 0.06 µs.
 
-`examples/ssr-node/server-native.mjs` is a complete server on bare `node:http`.
+`examples/ssr-node/server-native.mjs` is a complete server on bare `node:http`, serving the whole
+round trip — the page it returns ships a client module that imports `@verajs/renderer/hydrate` and
+adopts the markup in place.
+
+**No streaming.** `renderToString` returns a string, where `@lit-labs/ssr` yields a stream. That
+buys time-to-first-byte in proportion to how long a render takes, and a 100-row table here is 47 µs
+— the response is built before a streaming implementation would have flushed its first chunk. It is
+a real difference in shape, and worth revisiting for a page big enough that it stops being one.
 
 Import `@verajs/ssr` before anything that imports `@verajs/core` — it installs the server
 environment first.

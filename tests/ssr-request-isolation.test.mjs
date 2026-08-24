@@ -201,4 +201,18 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
     'a self-rendering component is cut off');
 }
 
+/* ── structured data reaches a component ──────────────────────────────────────────────────────
+ * Attributes carry strings and nothing else, so a component that takes rows, a config object or
+ * anything shaped could not be server-rendered with real data — it had to be handed JSON and parse
+ * it back. `props` assigns before `connectedCallback`, which is where a client parent would.
+ */
+{
+  const url = fixture('props-ssr.js');
+  const { html: markup } = await renderToString(url, { props: { rows: [{ label: 'a & b' }, { label: 'c' }] } });
+  assert.match(markup, /<li>a &#38; b<\/li><li>c<\/li>/, `props did not reach the component: ${markup}`);
+
+  const { html: bare } = await renderToString(url);
+  assert.match(bare, /<ul><\/ul>/, 'and a render without them is still valid');
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');

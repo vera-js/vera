@@ -159,7 +159,7 @@ const renderComponentTags = (markup, depth) => {
 };
 
 /** Instantiates a registered component and returns its declarative-shadow (or light) markup. */
-const renderComponent = (tag, attrString, depth) => {
+const renderComponent = (tag, attrString, depth, props) => {
   const element = new (registry.get(tag))();
   element.localName = tag;
   if (attrString) {
@@ -167,6 +167,13 @@ const renderComponent = (tag, attrString, depth) => {
       element.setAttribute(name, decodeEntities(quoted ?? single ?? bare ?? ''));
     }
   }
+  /**
+   * Properties are assigned before `connectedCallback`, which is where a client parent would have
+   * put them too. Attributes can only carry strings, so a component that takes rows, a config
+   * object or anything else structured could not be server-rendered with real data at all — it had
+   * to be handed a JSON string and parse it back.
+   */
+  if (props) Object.assign(element, props);
 
   renderedTags.add(tag);
   const previousTag = setRenderingTag(tag) ?? tag;
@@ -207,11 +214,12 @@ const renderComponent = (tag, attrString, depth) => {
  * @param url Module URL (the component's file; Node resolves its imports natively — the
  * `.ts`-via-`.js` convention included)
  * @param options `tag` picks the element when the module defines several; `attributes` sets the
- * entry tag's attributes — **an object, whose values are escaped**; `children` is markup placed
- * inside the entry tag, which is what a `<slot>` renders
+ * entry tag's attributes — **an object, whose values are escaped**; `props` assigns properties to
+ * it before `connectedCallback`, which is how structured data reaches a component; `children` is
+ * markup placed inside the entry tag, which is what a `<slot>` renders
  * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
  */
-export const renderToString = async (url, { tag, attributes = '', children = '' } = {}) => {
+export const renderToString = async (url, { tag, attributes = '', children = '', props } = {}) => {
   const href = url instanceof URL ? url.href : url;
 
   /**
@@ -273,7 +281,7 @@ export const renderToString = async (url, { tag, attributes = '', children = '' 
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
    * and nothing else.
    */
-  const entry = renderComponent(tag, attrString, 0);
+  const entry = renderComponent(tag, attrString, 0, props);
   const html = `${entry.open}${entry.inner}${renderComponentTags(children, 0)}</${tag}>`;
   /**
    * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
