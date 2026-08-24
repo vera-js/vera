@@ -18,7 +18,7 @@
  */
 import '@verajs/ssr/vera';
 import assert from 'node:assert/strict';
-import { SURFACE as REAL_SURFACE, OUT_OF_SCOPE } from './dom-surface.mjs';
+import { SURFACES, OUT_OF_SCOPE } from './dom-surface.mjs';
 
 const make = (tag = 'div') => globalThis.document.createElement(tag);
 
@@ -220,33 +220,40 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
 }
 
 /**
- * **The completeness check.** Every member a real element has, the shim either implements or lists
- * as out of scope with a reason.
+ * **The completeness check.** Every member a real element, shadow root, document or stylesheet has,
+ * the shim either implements or lists as out of scope with a reason.
  *
  * The matrix above asks whether the members we thought of *behave*. This asks whether we thought of
- * them at all — which is the question the shim kept failing, one `TypeError` at a time. The list
+ * them at all — which is the question this file kept failing, one `TypeError` at a time. The list
  * comes from three real engines (`tests/dom-surface.mjs`, kept honest by
  * `tests/browser/dom-surface.test.js`), so it is not a second copy of somebody's memory.
  */
 {
-  const element = make();
-  const have = new Set();
-  for (let object = element; object && object !== Object.prototype; object = Object.getPrototypeOf(object))
-    for (const name of Object.getOwnPropertyNames(object)) have.add(name);
+  const subjects = {
+    element: make(),
+    shadowRoot: make().attachShadow({ mode: 'open' }),
+    document: globalThis.document,
+    sheet: new globalThis.CSSStyleSheet(),
+  };
+  for (const [kind, subject] of Object.entries(subjects)) {
+    const have = new Set();
+    for (let object = subject; object && object !== Object.prototype; object = Object.getPrototypeOf(object))
+      for (const name of Object.getOwnPropertyNames(object)) have.add(name);
 
-  const unimplemented = REAL_SURFACE.filter((name) => !have.has(name) && !OUT_OF_SCOPE[name]);
-  if (unimplemented.length)
-    failures.push(
-      `${unimplemented.length} member(s) a real element has and this one does not, and which are ` +
-        `not listed as out of scope:\n      ${unimplemented.join(', ')}`
-    );
-  else pass++;
+    const scoped = OUT_OF_SCOPE[kind];
+    const unimplemented = SURFACES[kind].filter((name) => !have.has(name) && !scoped[name]);
+    if (unimplemented.length)
+      failures.push(
+        `${kind}: ${unimplemented.length} member(s) the real one has and this one does not, and ` +
+          `which are not listed as out of scope:\n      ${unimplemented.join(', ')}`
+      );
+    else pass++;
 
-  /** And the other direction: something listed as impossible must not have quietly appeared. */
-  const contradicted = Object.keys(OUT_OF_SCOPE).filter((name) => have.has(name));
-  if (contradicted.length)
-    failures.push(`implemented but listed as out of scope: ${contradicted.join(', ')}`);
-  else pass++;
+    /** And the other direction: something listed as impossible must not have quietly appeared. */
+    const contradicted = Object.keys(scoped).filter((name) => have.has(name));
+    if (contradicted.length) failures.push(`${kind}: implemented but listed as out of scope: ${contradicted.join(', ')}`);
+    else pass++;
+  }
 }
 
 /** Absent on purpose — see the header. If one of these appears, it needs a real implementation. */
@@ -269,7 +276,7 @@ const total =
   EVENT_TARGETS.length * EVENT_SURFACE.length +
   DOCUMENT_SURFACE.length +
   SHEET_SURFACE.length +
-  /** The two completeness checks. */
-  2;
+  /** Two completeness checks per shim. */
+  8;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);

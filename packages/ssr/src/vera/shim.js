@@ -188,9 +188,50 @@ class StyleSheetShim {
     this.cssText += rule;
     return 0;
   }
+  /**
+   * There is no rule *list* — this holds the stylesheet as text, which is all the markup needs —
+   * so a rule cannot be addressed by index. Deleting one is refused rather than silently ignored.
+   */
+  deleteRule() {
+    throw new Error('ssr: CSSStyleSheet.deleteRule needs a parsed rule list; this sheet is text');
+  }
+  /** The pre-standard spellings, which are still what some libraries reach for. */
+  addRule(selector, style) {
+    this.insertRule(`${selector} { ${style ?? ''} }`);
+    return -1;
+  }
+  removeRule() {
+    this.deleteRule();
+  }
   get cssRules() {
     return [];
-  }}
+  }
+  get rules() {
+    return this.cssRules;
+  }
+  get ownerRule() {
+    return null;
+  }
+  get ownerNode() {
+    return null;
+  }
+  get parentStyleSheet() {
+    return null;
+  }
+  get href() {
+    return null;
+  }
+  get title() {
+    return null;
+  }
+  get media() {
+    return [];
+  }
+  get type() {
+    return 'text/css';
+  }
+  disabled = false;
+}
 
 /**
  * Declarative shadow DOM can carry more than the mode, and the extras are **not recoverable on the
@@ -234,10 +275,99 @@ class ContainerShim extends EventTarget {
   constructor() {
     super();
     this.innerHTML = '';
+    /** A server-rendered node is in the document being built, so it is connected. */
+    this.isConnected = true;
   }
   appendChild(node) {
     this.innerHTML += node?.openTag ? node.openTag() + node.innerHTML + `</${node.localName}>` : (node?.innerHTML ?? '');
     return node;
+  }
+
+  /**
+   * What a node with no tree above or below it answers — shared, because an element and a shadow
+   * root answer these identically and two copies is how they came to disagree in the first place.
+   *
+   * Every one is the truthful answer rather than a placeholder: a detached node has no parent, no
+   * siblings and no box, and a browser returns exactly these. They are here because their
+   * *absence* was a `TypeError` that took the whole render down — `this.parentElement && …` is
+   * ordinary defensive code and it crashed.
+   */
+  get parentNode() {
+    return null;
+  }
+  get parentElement() {
+    return null;
+  }
+  get firstChild() {
+    return null;
+  }
+  get lastChild() {
+    return null;
+  }
+  get lastElementChild() {
+    return null;
+  }
+  get nextSibling() {
+    return null;
+  }
+  get previousSibling() {
+    return null;
+  }
+  get nextElementSibling() {
+    return null;
+  }
+  get previousElementSibling() {
+    return null;
+  }
+  get assignedSlot() {
+    return null;
+  }
+  get offsetParent() {
+    return null;
+  }
+  get childElementCount() {
+    return 0;
+  }
+  hasChildNodes() {
+    return false;
+  }
+  get nodeValue() {
+    return null;
+  }
+  get baseURI() {
+    return globalThis.location?.href ?? '';
+  }
+  get namespaceURI() {
+    return 'http://www.w3.org/1999/xhtml';
+  }
+  get prefix() {
+    return null;
+  }
+  get ownerDocument() {
+    return globalThis.document;
+  }
+  contains(node) {
+    return node === this;
+  }
+  isSameNode(node) {
+    return node === this;
+  }
+  isEqualNode(node) {
+    return node === this;
+  }
+  normalize() {}
+  getRootNode() {
+    return this;
+  }
+  /** Needs layout, which a string does not have; a browser with no box returns nothing either. */
+  elementFromPoint() {
+    return null;
+  }
+  elementsFromPoint() {
+    return [];
+  }
+  getSelection() {
+    return null;
   }
   /** `append` takes several nodes, and strings as text — the modern spelling of `appendChild`. */
   append(...nodes) {
@@ -249,6 +379,12 @@ class ContainerShim extends EventTarget {
   replaceChildren(...nodes) {
     this.innerHTML = '';
     this.append(...nodes);
+  }
+  prepend(...nodes) {
+    const existing = this.innerHTML;
+    this.innerHTML = '';
+    this.append(...nodes);
+    this.innerHTML += existing;
   }
   querySelector() {
     return null;
@@ -305,6 +441,55 @@ class ShadowRootShim extends ContainerShim {
   /** A shadow root's `host` is part of the contract `@verajs/router` reads. */
   get host() {
     return this._host;
+  }
+  /**
+   * The options it was opened with, readable the way a browser exposes them.
+   *
+   * These are already serialized into the declarative template — they have to be, because
+   * `attachShadow` reuses a declarative root and ignores the options it is handed. A component
+   * that *reads* them back, to decide whether to manage focus itself, saw `undefined`.
+   */
+  get delegatesFocus() {
+    return !!this._init.delegatesFocus;
+  }
+  get clonable() {
+    return !!this._init.clonable;
+  }
+  get serializable() {
+    return !!this._init.serializable;
+  }
+  get slotAssignment() {
+    return this._init.slotAssignment ?? 'named';
+  }
+  get nodeType() {
+    return 11;
+  }
+  get nodeName() {
+    return '#document-fragment';
+  }
+  /** Nothing is focused on a server, and nothing is in a top layer. */
+  get activeElement() {
+    return null;
+  }
+  get fullscreenElement() {
+    return null;
+  }
+  get pointerLockElement() {
+    return null;
+  }
+  get pictureInPictureElement() {
+    return null;
+  }
+  /** `<style>` elements appended here; the constructed ones are `adoptedStyleSheets`. */
+  get styleSheets() {
+    return this._styles.map((cssText) => Object.assign(new StyleSheetShim(), { cssText }));
+  }
+  /** A shadow root's text is its content's text, and setting it replaces the content. */
+  get textContent() {
+    return this.innerHTML.replace(/<[^>]*>/g, '');
+  }
+  set textContent(value) {
+    this.innerHTML = escapeHtml(value);
   }
   /** Constructed sheets land here; serialized alongside string styles. */
   set adoptedStyleSheets(sheets) {
@@ -416,7 +601,6 @@ const LAYOUT_ZEROS = [
  * @param {typeof ElementShim} Shim
  */
 const defineReflections = (Shim) => {
-  Object.assign(Shim.prototype, NODE_CONSTANTS);
   for (const name of LAYOUT_ZEROS) Object.defineProperty(Shim.prototype, name, { value: 0, writable: true, configurable: true });
   /** Scroll offsets are writable and read back, which is what a scroll-restoring component does. */
   for (const name of ['scrollLeft', 'scrollTop'])
@@ -641,17 +825,17 @@ class ElementShim extends ContainerShim {
   get tagName() {
     return this.localName.toUpperCase();
   }
-  get ownerDocument() {
-    return globalThis.document;
+  get nodeType() {
+    return 1;
+  }
+  get nodeName() {
+    return this.tagName;
   }
   closest() {
     return null;
   }
   matches() {
     return false;
-  }
-  getRootNode() {
-    return this.shadowRoot ?? this;
   }
   remove() {}
   /**
@@ -672,63 +856,7 @@ class ElementShim extends ContainerShim {
    * They are here because their *absence* was a `TypeError` that took the whole render down —
    * `this.parentElement && …` is ordinary defensive code and it crashed.
    */
-  get parentNode() {
-    return null;
-  }
-  get parentElement() {
-    return null;
-  }
-  get firstChild() {
-    return null;
-  }
-  get lastChild() {
-    return null;
-  }
-  get lastElementChild() {
-    return null;
-  }
-  get nextSibling() {
-    return null;
-  }
-  get previousSibling() {
-    return null;
-  }
-  get nextElementSibling() {
-    return null;
-  }
-  get previousElementSibling() {
-    return null;
-  }
-  get assignedSlot() {
-    return null;
-  }
-  get offsetParent() {
-    return null;
-  }
-  get childElementCount() {
-    return 0;
-  }
-  hasChildNodes() {
-    return false;
-  }
-  get nodeType() {
-    return 1;
-  }
-  get nodeName() {
-    return this.tagName;
-  }
-  get nodeValue() {
-    return null;
-  }
-  get baseURI() {
-    return globalThis.location?.href ?? '';
-  }
-  get namespaceURI() {
-    return 'http://www.w3.org/1999/xhtml';
-  }
-  get prefix() {
-    return null;
-  }
+
   /** No layout on a server, and none for a detached element in a browser either. */
   getBoundingClientRect() {
     return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
@@ -748,17 +876,6 @@ class ElementShim extends ContainerShim {
   getElementsByClassName() {
     return [];
   }
-  /** Identity questions have real answers even without a tree. */
-  contains(node) {
-    return node === this;
-  }
-  isSameNode(node) {
-    return node === this;
-  }
-  isEqualNode(node) {
-    return node === this;
-  }
-  normalize() {}
   /**
    * Namespaces collapse to the plain attribute methods. This DOM serializes HTML, where an
    * `xml:lang` or `xlink:href` is one attribute with a colon in its name — which is how the
@@ -842,12 +959,6 @@ class ElementShim extends ContainerShim {
   insertAdjacentElement(position, element) {
     this.insertAdjacentHTML(position, element.openTag() + element.innerHTML + `</${element.localName}>`);
     return element;
-  }
-  prepend(...nodes) {
-    const existing = this.innerHTML;
-    this.innerHTML = '';
-    this.append(...nodes);
-    this.innerHTML += existing;
   }
   /** The element's own markup, which the serializer builds anyway. */
   get outerHTML() {
@@ -997,6 +1108,8 @@ export const flushFrames = () => {
 };
 
 defineReflections(ElementShim);
+/** `Node`'s constants are on every node, so they go on the shared base. */
+Object.assign(ContainerShim.prototype, NODE_CONSTANTS);
 
 /** Records a hoisted sheet against whichever component is mid-render. */
 const hoist = (cssText) => {
@@ -1057,6 +1170,72 @@ export const installShims = () => {
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: () => null,
+    ...NODE_CONSTANTS,
+    getElementsByTagName: () => [],
+    getElementsByTagNameNS: () => [],
+    getElementsByClassName: () => [],
+    getElementsByName: () => [],
+    /**
+     * What a document being *built* reports. `readyState` is `'loading'` because that is exactly
+     * what is happening: nothing has finished parsing, and a component that waits for
+     * `DOMContentLoaded` on the client is right to see this rather than a lie about being ready.
+     */
+    readyState: 'loading',
+    visibilityState: 'visible',
+    hidden: false,
+    characterSet: 'UTF-8',
+    inputEncoding: 'UTF-8',
+    charset: 'UTF-8',
+    contentType: 'text/html',
+    compatMode: 'CSS1Compat',
+    dir: '',
+    designMode: 'off',
+    nodeType: 9,
+    nodeName: '#document',
+    activeElement: null,
+    currentScript: null,
+    scrollingElement: null,
+    fullscreenElement: null,
+    pointerLockElement: null,
+    pictureInPictureElement: null,
+    doctype: null,
+    firstElementChild: null,
+    lastElementChild: null,
+    childElementCount: 0,
+    children: [],
+    childNodes: [],
+    styleSheets: [],
+    forms: [],
+    images: [],
+    links: [],
+    scripts: [],
+    embeds: [],
+    plugins: [],
+    anchors: [],
+    hasFocus: () => false,
+    createComment: (text) => ({ innerHTML: `<!--${text}-->`, textContent: String(text) }),
+    getSelection: () => null,
+    elementFromPoint: () => null,
+    elementsFromPoint: () => [],
+    contains: () => false,
+    /** Nothing here owns another document, so importing and adopting are the identity. */
+    importNode: (node) => node,
+    adoptNode: (node) => node,
+    get defaultView() {
+      return globalThis.window;
+    },
+    get URL() {
+      return globalThis.location?.href ?? '';
+    },
+    get documentURI() {
+      return globalThis.location?.href ?? '';
+    },
+    get baseURI() {
+      return globalThis.location?.href ?? '';
+    },
+    get referrer() {
+      return '';
+    },
     /**
      * Real listeners here too, delegated to an `EventTarget` of the document's own. A component
      * that listens on `document` and dispatches there — a store broadcasting, a dialog closing on
