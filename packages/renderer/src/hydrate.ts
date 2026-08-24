@@ -158,9 +158,10 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     const templatePart = parts[state._partIndex++];
     const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!);
     state._out.push(attrPart);
-    /** A normal commit: attributes re-set (idempotent), properties applied, listeners attached,
-     * refs fired — the server could only mirror form state; the client wires behavior. */
-    state._valueIndex = attrPart._commit(state._values, state._valueIndex);
+    /** Attributes re-set (idempotent), listeners attached, refs fired — the server could only
+     * mirror form state; the client wires behavior. The `true` marks this as adoption, which is
+     * what keeps a form value the reader may already have changed (see `AttrPart._commit`). */
+    state._valueIndex = attrPart._commit(state._values, state._valueIndex, true);
     drainIgnored(state);
   }
 
@@ -170,6 +171,31 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     if (child.nodeType === 1 || child.nodeType === 3) adoptNode(child, inner, state);
     child = child.nextSibling;
   }
+  /**
+   * The one place the server writes content the template does not describe: a `<textarea>`'s value
+   * **is** its content, so `.value=${…}` has nowhere else to go and `@verajs/ssr` puts it there —
+   * which is what shows the value to a reader with no JavaScript. The template's own statics say
+   * the element is empty, so this read as foreign markup and abandoned adoption for the whole page,
+   * silently: the container was cleared and re-rendered, the markup looked right, and everything
+   * server rendering is for was gone.
+   *
+   * **Kept, not cleared.** It is the element's `defaultValue`, and it is also the only thing
+   * holding the value: adoption deliberately does not write `.value` (see `AttrPart._commit`), so
+   * clearing the content would empty the field it just adopted. A person who typed here before the
+   * bundle landed has made the field dirty, and a dirty textarea ignores its content anyway — so
+   * their text survives either way, and the server's stays as what `form.reset()` restores. The one
+   * respect in which a hydrated DOM is not byte-identical to a client-rendered one, deliberately.
+   */
+  if (
+    inner.node !== null &&
+    inner.node.nodeType === 3 &&
+    inner.node.nextSibling === null &&
+    canonical.firstChild === null &&
+    (live as Element).localName === 'textarea'
+  ) {
+    inner.node = null;
+  }
+
   /** Leftover live children the template does not account for = not our markup. */
   if (inner.node !== null && !(inner.node.nodeType === 3 && (inner.node as Text).data === '' && inner.node.nextSibling === null))
     throw MISMATCH;

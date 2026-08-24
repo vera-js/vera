@@ -7,8 +7,8 @@
       "gzip": 2787
     },
     "renderer": {
-      "raw": 9314,
-      "gzip": 3664
+      "raw": 9398,
+      "gzip": 3695
     },
     "router": {
       "raw": 8298,
@@ -73,16 +73,6 @@
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 14333,
-      "gzip": 5848,
-      "deps": 1,
-      "depsThirdParty": 0,
-      "depsThirdPartyNames": [],
-      "depsUnresolved": 0
-    },
-    {
       "name": "Lit",
       "note": "lit (LitElement + lit-html)",
       "raw": 15270,
@@ -96,6 +86,16 @@
         "lit-element",
         "lit-html"
       ],
+      "depsUnresolved": 0
+    },
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 14415,
+      "gzip": 5881,
+      "deps": 1,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
       "depsUnresolved": 0
     },
     {

@@ -28,9 +28,27 @@ const SERVER = `<template shadowrootmode="open"><form id="root">
         <p id="count">0</p>
       </form></template>`;
 
-customElements.define(
-  'user-state-probe',
-  class extends HTMLElement {
+/**
+ * Defined lazily, and under a fresh tag each time — because **when** the definition lands is the
+ * whole subject.
+ *
+ * A custom element upgrades the moment it is inserted into a document with its tag already
+ * defined, so defining at module scope and appending the fixture ran `connectedCallback`, `init`
+ * and the hydrating `render` synchronously, right there in the append. Everything the helper did
+ * afterwards — the "user" typing, the explicit `customElements.upgrade` — happened to a component
+ * that had already hydrated, so every assertion in this file was true by construction. The suite
+ * could not fail, and did not, while the case it names was broken.
+ *
+ * Defining afterwards is also what actually happens on a page: the markup arrives, a person
+ * interacts with it, and then the bundle lands and defines the element. It is the only ordering
+ * where the DOM is connected while it is touched, which `focus()` requires — a detached element
+ * cannot take focus, so the caret case is untestable any other way.
+ */
+let probeSeq = 0;
+const defineProbe = (tag) =>
+  customElements.define(
+    tag,
+    class extends HTMLElement {
     connectedCallback() {
       init(this, { mode: 'open' });
       const state = createStore({ name: 'Ada', ticked: false, picked: 'a', note: 'server text', count: 0 });
@@ -44,21 +62,25 @@ customElements.define(
         <p id="count">${state.count}</p>
       </form>`
       );
+      }
     }
-  }
-);
+  );
 
-/** Parse the server markup, let a "user" touch it, and only then upgrade. */
+/** Parse the server markup into the page, let a real user touch it, and only then define the tag. */
 const hydrateAfter = async (touch) => {
+  const tag = `user-state-probe-${probeSeq++}`;
   const host = document.createElement('div');
-  host.setHTMLUnsafe(`<user-state-probe>${SERVER}</user-state-probe>`);
+  host.setHTMLUnsafe(`<${tag}>${SERVER}</${tag}>`);
   document.body.appendChild(host);
   const element = host.firstElementChild;
   const shadow = element.shadowRoot;
   expect(shadow, 'declarative shadow DOM did not parse').to.exist;
+  expect(customElements.get(tag), 'the element must still be undefined here').to.equal(undefined);
+  expect(shadow.querySelector('#area').textContent, 'the fixture must carry the value the server writes as a textarea’s content').to.equal('server text');
 
   touch(shadow);
-  customElements.upgrade(element);
+
+  defineProbe(tag);
   await frame();
   await frame();
   return { element, shadow };
@@ -116,4 +138,28 @@ describe('hydration over a DOM the user already touched', () => {
     expect(shadow.querySelector('#count'), 'the untouched part was rebuilt').to.equal(paragraph);
     expect(paragraph.textContent).to.equal('5');
   });
+});
+
+/* ── what the server wrote into a textarea stays its defaultValue ────────────────────────────── */
+/**
+ * The one respect in which a hydrated DOM is deliberately not identical to a client-rendered one.
+ *
+ * A `<textarea>`'s value **is** its content — `<textarea value="x">` is ignored by every parser —
+ * so that is where `@verajs/ssr` puts it, and it is what shows the value to a reader with no
+ * JavaScript. Adoption keeps it: it is the only thing holding the value, since adopting no longer
+ * writes `.value`, and clearing it would empty the field. It stays as `defaultValue`, which is what
+ * `form.reset()` restores — arguably better than a client-only render, which resets to empty.
+ */
+it('keeps the server’s textarea content as defaultValue', async () => {
+  const { shadow } = await hydrateAfter(() => {});
+  const area = shadow.querySelector('#area');
+  expect(area.value, 'the value adopted').to.equal('server text');
+  expect(area.defaultValue, 'and it is what a reset would restore').to.equal('server text');
+});
+
+it('and a reader’s edit survives while the default does not move', async () => {
+  const { shadow } = await hydrateAfter((root) => (root.querySelector('#area').value = 'typed by hand'));
+  const area = shadow.querySelector('#area');
+  expect(area.value, 'the reader’s text').to.equal('typed by hand');
+  expect(area.defaultValue, 'the server’s, untouched').to.equal('server text');
 });

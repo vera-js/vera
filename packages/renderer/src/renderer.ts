@@ -495,7 +495,11 @@ class AttrPart implements Part {
     if (this._handler) this._handler.call(this._element as never, event);
   }
 
-  _commit(values: unknown[], index: number): number {
+  /**
+   * `adopting` is set only by `@verajs/renderer/hydrate`, and only changes what happens to the
+   * three form-value properties the server can express in markup — see the branch below.
+   */
+  _commit(values: unknown[], index: number, adopting?: boolean): number {
     const kind = this._kind;
     let value: unknown;
     if (this._isFullValue || kind >= EVENT) {
@@ -523,6 +527,22 @@ class AttrPart implements Part {
       } else if (kind === PROPERTY) {
         const target = this._element as unknown as Record<string, unknown>;
         const name = this._name;
+        /**
+         * **Adopting a form value: record it, do not write it.**
+         *
+         * `value`, `checked` and `selected` are exactly the properties `@verajs/ssr` mirrors into
+         * markup, so the element already holds what this binding says — *unless a person changed
+         * it*, which is the entire reason to server-render: the page is usable before the bundle
+         * lands, and the window between the two is where someone types their name, ticks a box or
+         * picks an option. Writing the binding then threw that away, silently, on every hydrating
+         * page. The part is told it already committed this value, so it stays live and the next
+         * genuine state change still applies.
+         *
+         * Only these three, and only while adopting. A property the server cannot express — any
+         * other `.prop` — is not in the DOM yet and must be written.
+         */
+        if (adopting && (name === 'value' || name === 'checked' || name === 'selected'))
+          return index + this._slots;
         target[name] = value;
         /**
          * Detection only, and deliberately not repair.

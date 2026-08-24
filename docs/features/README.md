@@ -16,7 +16,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 | | Claim | Strength |
 | --- | --- | --- |
-| [Size](size.md) | <!--size:app.kb-->5.7 KB<!--/size:app.kb--> for a working app — under Lit and Preact, 10x under React | **Strong** — measured |
+| [Size](size.md) | <!--size:app.kb-->5.7 KB<!--/size:app.kb--> for a working app — level with Lit, under Preact, 10x under React | **Strong** — measured |
 | [Zero dependencies](zero-dependencies.md) | No third-party runtime deps in any of the seven packages | **Strong** — measured, but shared |
 | [Buildless](buildless.md) | Works in CodePen with no toolchain at all | **Strong** — architectural |
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
@@ -48,8 +48,9 @@ Being wrong once in public costs more than every correct claim gains.
   too, and React ships one. State zero as a property, not a distinction — what is uncommon is
   holding it across a router, an SSR renderer and a JSX compiler rather than a micro-library.
 - **Not "smallest".** Van.js is smaller, and Solid is smaller if you accept its compiler. VeraJS is
-  under Lit and Preact again as of 0.2.0 — say *that*, name the two exceptions yourself, and quote
-  the measured figure rather than a remembered one.
+  **level with Lit** — within ten bytes, currently just above — and under Preact. Say *that*,
+  name the two exceptions yourself, and quote the measured figure rather than a remembered one;
+  this claim has been wrong in both directions.
 
 ## Where the positioning should aim
 
