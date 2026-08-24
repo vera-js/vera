@@ -13,7 +13,12 @@ those are text and a scan for elements has no business reading them.
       attributes: { 'user-id': id },   // an object — values are escaped
       props: { rows },                 // structured data; an attribute can only carry a string
       children: '<p>slotted</p>',      // what a <slot> in the component renders
+      seen,                            // a Set carried across renders — see below
     });
+
+For a shell assembled from several islands, carry one `Set` through every call. Each render returns
+the styles of what *it* rendered, so two islands sharing a component would otherwise each carry that
+component's CSS and the page would ship it twice.
 
 `attributes` also accepts a raw string, which is written through untouched — reach for it only when
 you must produce markup an object cannot describe, and never with anything from a request.

@@ -215,4 +215,48 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.match(bare, /<ul><\/ul>/, 'and a render without them is still valid');
 }
 
+/* ── a page of several islands ────────────────────────────────────────────────────────────────
+ * Each render correctly returns the styles of what *it* rendered, so two islands sharing a
+ * component each carry that component's CSS and the assembled page ships it twice. A `Set` carried
+ * across the calls emits each component's styles once.
+ */
+{
+  const solo = await renderToString(fixture('island-a-ssr.js'));
+  assert.equal(solo.styles.split('@scope').length - 1, 2, 'a single render is unchanged');
+
+  const seen = new Set();
+  const a = await renderToString(fixture('island-a-ssr.js'), { seen });
+  const b = await renderToString(fixture('island-b-ssr.js'), { seen });
+  const page = [a.styles, b.styles].filter(Boolean).join('\n');
+
+  assert.equal(page.split('@scope (shared-badge)').length - 1, 1, 'the shared component appears once');
+  assert.match(page, /@scope \(island-a-ssr\)/, 'and each island keeps its own');
+  assert.match(page, /@scope \(island-b-ssr\)/);
+}
+
+/**
+ * Sustained load retains nothing. Measured with `--expose-gc` this plateaus: the first few thousand
+ * renders grow the heap by a couple of hundred bytes each — JIT, caches, template plans — and
+ * every batch after that is flat. Asserted loosely here, since a suite cannot force a collection.
+ */
+{
+  const url = fixture('stateful-ssr.js');
+  for (let i = 0; i < 400; i++) await renderToString(url);
+  const outputs = new Set();
+  for (let i = 0; i < 20; i++) outputs.add((await renderToString(url)).html);
+  assert.equal(outputs.size, 1, 'output stays identical across hundreds of renders');
+}
+
+/** Concurrency at volume: every response is the component that was asked for. */
+{
+  const results = await Promise.all([
+    ...Array.from({ length: 50 }, () => renderToString(fixture('race-a-ssr.js'))),
+    ...Array.from({ length: 50 }, () => renderToString(fixture('race-b-ssr.js'))),
+  ]);
+  const wrong = results.filter((result, index) =>
+    !result.html.startsWith(index < 50 ? '<race-a-ssr>' : '<race-b-ssr>')
+  );
+  assert.equal(wrong.length, 0, `${wrong.length} of 100 concurrent responses were the wrong component`);
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');

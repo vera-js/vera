@@ -1,0 +1,12 @@
+{
+  "extends": "@verajs/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "noImplicitAny": false,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src/**/*.js"]
+}

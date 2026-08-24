@@ -90,3 +90,13 @@ running a global replace: 200 escapes of ordinary text measured 9.60 µs going s
 against 3.03 µs testing first, and text that does need escaping came out slightly ahead too. A
 100-row table went from 40.3 µs to 35.7 µs for the serializer and 52.0 µs to 47.4 µs for the whole
 component pipeline.
+
+**`seen` makes a page of several islands work.** Each render returns the styles of what *it*
+rendered, so two islands sharing a component each carried that component's CSS and the assembled
+page shipped it twice. A `Set` carried across the calls emits each component's styles once; a single
+render behaves exactly as before.
+
+**The package is type-checked.** It was the only one with no `tsconfig.json`, so `npm run typecheck`
+skipped all 441 lines of it. `checkJs` closes that without a build step or a `.ts` rewrite — the
+sources still ship as the plain ESM they are. It found the options object had drifted out of its own
+signature, and it forces the shim's deliberate lies about being a DOM to be marked as deliberate.

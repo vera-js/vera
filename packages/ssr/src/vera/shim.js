@@ -259,18 +259,24 @@ export const installShims = () => {
   if (globalThis.__veraSsrShimmed) return registry;
   globalThis.__veraSsrShimmed = true;
 
-  globalThis.HTMLElement = ElementShim;
-  globalThis.CSSStyleSheet = StyleSheetShim;
+  /**
+   * Every assignment here is a deliberate lie: a shim is not an `HTMLElement`, and saying so is the
+   * point — elements hold strings, not trees. The casts mark each one as intended rather than
+   * missed, which is what type-checking this package is for. Anything a component genuinely reaches
+   * for is on `ElementShim`; anything else was never going to work server-side anyway.
+   */
+  globalThis.HTMLElement = /** @type {any} */ (ElementShim);
+  globalThis.CSSStyleSheet = /** @type {any} */ (StyleSheetShim);
   /** Defined so core's `@scope` support check passes — SSR output gets scoped light-DOM CSS. */
-  globalThis.CSSScopeRule = function CSSScopeRule() {};
+  globalThis.CSSScopeRule = /** @type {any} */ (function CSSScopeRule() {});
 
-  globalThis.customElements = {
+  globalThis.customElements = /** @type {any} */ ({
     define: (name, Class) => registry.set(name, Class),
     get: (name) => registry.get(name),
     whenDefined: () => Promise.resolve(),
-  };
+  });
 
-  globalThis.document = {
+  globalThis.document = /** @type {any} */ ({
     createElement: (localName) => new ElementShim(localName),
     /** Light-DOM styles hoist here — `adoptStyles`' constructed-sheet path. */
     get adoptedStyleSheets() {
@@ -286,7 +292,7 @@ export const installShims = () => {
         return node;
       },
     },
-  };
+  });
 
   globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
   return registry;

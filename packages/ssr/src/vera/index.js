@@ -213,13 +213,18 @@ const renderComponent = (tag, attrString, depth, props) => {
  *
  * @param url Module URL (the component's file; Node resolves its imports natively — the
  * `.ts`-via-`.js` convention included)
- * @param options `tag` picks the element when the module defines several; `attributes` sets the
- * entry tag's attributes — **an object, whose values are escaped**; `props` assigns properties to
- * it before `connectedCallback`, which is how structured data reaches a component; `children` is
- * markup placed inside the entry tag, which is what a `<slot>` renders
+ * @param {object} [options]
+ * @param {string} [options.tag] Picks the element when the module defines several
+ * @param {string | Record<string, unknown>} [options.attributes] The entry tag's attributes — an
+ * object, whose values are escaped; a string is written through untouched
+ * @param {Record<string, unknown>} [options.props] Properties assigned before `connectedCallback`,
+ * which is how structured data reaches a component
+ * @param {string} [options.children] Markup placed inside the entry tag — what a `<slot>` renders
+ * @param {Set<string>} [options.seen] Carried across renders so a component's styles reach the
+ * page once, for a shell assembled from several islands
  * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
  */
-export const renderToString = async (url, { tag, attributes = '', children = '', props } = {}) => {
+export const renderToString = async (url, { tag, attributes = '', children = '', props, seen } = {}) => {
   const href = url instanceof URL ? url.href : url;
 
   /**
@@ -289,8 +294,20 @@ export const renderToString = async (url, { tag, attributes = '', children = '',
    * close the element is handing them an XSS. The escape is transparent to the CSS parser, so
    * there is no reason to make it their problem.
    */
+  /**
+   * `seen` makes a page of several islands work.
+   *
+   * Each render correctly returns the styles of what *it* rendered, so two islands sharing a
+   * component each carry that component's CSS and the assembled page ships it twice. Carrying one
+   * `Set` across the calls emits each component's styles into the page once, and leaves a single
+   * render — the common case — behaving exactly as before.
+   */
   const styles = [];
-  for (const rendered of renderedTags) for (const css of hoistedStyles.get(rendered) ?? []) styles.push(css);
+  for (const rendered of renderedTags) {
+    if (seen?.has(rendered)) continue;
+    seen?.add(rendered);
+    for (const css of hoistedStyles.get(rendered) ?? []) styles.push(css);
+  }
   return { html, styles: styles.map(escapeStyleText).join('\n') };
 };
 
