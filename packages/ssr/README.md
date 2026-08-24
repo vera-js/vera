@@ -37,6 +37,10 @@ you must produce markup an object cannot describe, and never with anything from 
   can recover. There is no next render here, so `renderToString` collects those failures and throws,
   naming the component. Catch it to fall back to a client-rendered shell, as you would with React or
   Vue.
+- **Events are real** — `EventTarget` semantics on elements, shadow roots, `document` and `window`,
+  including `once`, `handleEvent` objects, `event.target` and a `dispatchEvent` return value that
+  reflects `preventDefault`. What is absent is **bubbling**: this DOM holds children as a string, so
+  there is no ancestor chain to walk and an event reaches its own target's listeners and stops.
 - The server element is a detached, childless one: `dispatchEvent`, `classList`, `tagName`,
   `ownerDocument`, `closest`, `getRootNode`, `children` and the rest answer rather than throw, and
   **what a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,

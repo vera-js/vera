@@ -187,9 +187,18 @@ const SHADOW_ATTRIBUTES = [
  * Queries answer emptily because this holds a **string**, not a tree; nothing in this package parses
  * HTML. `insertBefore` and `cloneNode` are deliberately absent for the same reason — they need a
  * tree, and faking them would misplace content silently.
+ *
+ * Events come from Node's own `EventTarget`, so `once`, `handleEvent`, `event.target`,
+ * `stopImmediatePropagation` and the return value of `dispatchEvent` are all correct without this
+ * package implementing any of them. They used to be no-ops that reported every event delivered, so
+ * anything a component decided from its own event — a control reading back its change, a callback
+ * dispatched at mount, a `preventDefault` deciding whether to proceed — took one branch here and
+ * the other in a browser. **Bubbling is still absent**: with children held as a string there is no
+ * ancestor chain to walk, so an event reaches its own element's listeners and stops.
  */
-class ContainerShim {
+class ContainerShim extends EventTarget {
   constructor() {
+    super();
     this.innerHTML = '';
   }
   appendChild(node) {
@@ -224,11 +233,6 @@ class ContainerShim {
   }
   get firstElementChild() {
     return null;
-  }
-  addEventListener() {}
-  removeEventListener() {}
-  dispatchEvent() {
-    return true;
   }
 }
 
@@ -504,6 +508,24 @@ class ElementShim extends ContainerShim {
   }
 }
 
+/**
+ * The three event methods, bound to a real `EventTarget`, ready to spread onto a plain-object shim.
+ *
+ * `document` and `window` are object literals rather than classes, so they cannot simply extend
+ * `EventTarget` the way the containers do. They still have to *work*: both were no-ops that
+ * reported every event delivered.
+ *
+ * @param {EventTarget} target
+ */
+const delegateEvents = (target) => ({
+  addEventListener: target.addEventListener.bind(target),
+  removeEventListener: target.removeEventListener.bind(target),
+  dispatchEvent: target.dispatchEvent.bind(target),
+});
+
+/** `window` and the global scope are the same object here, so they share one target. */
+const windowEvents = new EventTarget();
+
 /** Callbacks awaiting a frame that will not arrive on its own. See `flushFrames`. */
 const frames = [];
 
@@ -598,9 +620,12 @@ export const installShims = () => {
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: () => null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => true,
+    /**
+     * Real listeners here too, delegated to an `EventTarget` of the document's own. A component
+     * that listens on `document` and dispatches there — a store broadcasting, a dialog closing on
+     * `keydown` it fires itself — behaved one way in a browser and not at all here.
+     */
+    ...delegateEvents(new EventTarget()),
     /** Light-DOM styles hoist here — `adoptStyles`' constructed-sheet path. */
     get adoptedStyleSheets() {
       return [];
@@ -625,7 +650,9 @@ export const installShims = () => {
    * server rendering is for. The router is careful to be *importable* in Node and says so; nothing
    * made it *runnable*.
    *
-   * Listeners are accepted and never fire, because nothing navigates on a server. `location`
+   * Listeners are real — a component that dispatches a window event and listens for it, which is
+   * how loosely coupled components talk to each other, used to be talking into a no-op. Nothing on
+   * a server *navigates*, so `popstate` and friends still never arrive on their own. `location`
    * describes the page being rendered, so a route resolves against a real path; set
    * `globalThis.location.pathname` before `renderToString` to render a route other than `/`.
    * `history` is inert: a server has no session history to push onto.
@@ -640,19 +667,21 @@ export const installShims = () => {
     back: () => {},
     forward: () => {},
   });
-  globalThis.addEventListener = () => {};
-  globalThis.removeEventListener = () => {};
+  Object.assign(globalThis, delegateEvents(windowEvents));
   globalThis.scrollTo = () => {};
-  globalThis.CustomEvent ??= /** @type {any} */ (class CustomEvent {
-    constructor(type, init = {}) {
-      this.type = type;
-      this.detail = init.detail;
-      this.defaultPrevented = false;
+  /**
+   * Node supplies `Event` and `CustomEvent`; this fills in only where it does not, and matches the
+   * shape `EventTarget` dispatches.
+   */
+  globalThis.CustomEvent ??= /** @type {any} */ (
+    class CustomEvent extends Event {
+      constructor(type, init = {}) {
+        super(type, init);
+        this.detail = init.detail ?? null;
+      }
     }
-    preventDefault() {
-      this.defaultPrevented = true;
-    }
-  });
+  );
+
 
   /**
    * Frames are queued and drained once the component's `connectedCallback` has returned — see

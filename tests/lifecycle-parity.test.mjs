@@ -194,6 +194,91 @@ const CASES = {
       render(() => html\`<p>ran=\${state.ran}</p>\`);
     `,
   },
+  /** A component that listens to itself is ordinary; on the server the listener was a no-op. */
+  'the component listens to its own event': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ heard: 'no' });
+      this.addEventListener('ping', (event) => { state.heard = event.detail; });
+      render(() => html\`<p>heard=\${state.heard}</p>\`);
+      this.dispatchEvent(new CustomEvent('ping', { detail: 'yes' }));
+    `,
+  },
+  'a removed listener stops hearing': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ count: 0 });
+      const onPing = () => { state.count++; };
+      this.addEventListener('ping', onPing);
+      this.dispatchEvent(new CustomEvent('ping'));
+      this.removeEventListener('ping', onPing);
+      this.dispatchEvent(new CustomEvent('ping'));
+      render(() => html\`<p>count=\${state.count}</p>\`);
+    `,
+  },
+  'preventDefault reaches the dispatcher': {
+    body: `
+      init(this, { mode: 'open' });
+      this.addEventListener('ping', (event) => event.preventDefault());
+      const delivered = this.dispatchEvent(new CustomEvent('ping', { cancelable: true }));
+      render(() => html\`<p>delivered=\${delivered}</p>\`);
+    `,
+  },
+  'the host reads its own light-DOM children': {
+    children: '<span>kid</span>',
+    body: `
+      const kids = this.innerHTML;
+      init(this, { mode: 'open' });
+      render(() => html\`<p>[\${kids}]</p>\`);
+    `,
+  },
+  /** Loosely coupled components talk through `window` and `document`; both were no-ops. */
+  'a window event the component dispatches itself': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ heard: 'no' });
+      window.addEventListener('app:ping', (event) => { state.heard = event.detail; });
+      render(() => html\`<p>window=\${state.heard}</p>\`);
+      window.dispatchEvent(new CustomEvent('app:ping', { detail: 'yes' }));
+    `,
+  },
+  'a document event the component dispatches itself': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ heard: 'no' });
+      document.addEventListener('app:ping', (event) => { state.heard = event.detail; });
+      render(() => html\`<p>document=\${state.heard}</p>\`);
+      document.dispatchEvent(new CustomEvent('app:ping', { detail: 'yes' }));
+    `,
+  },
+  'a once listener fires once': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ count: 0 });
+      this.addEventListener('ping', () => { state.count++; }, { once: true });
+      this.dispatchEvent(new CustomEvent('ping'));
+      this.dispatchEvent(new CustomEvent('ping'));
+      render(() => html\`<p>count=\${state.count}</p>\`);
+    `,
+  },
+  'a handleEvent object is a listener': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ heard: 'no' });
+      this.addEventListener('ping', { handleEvent: () => { state.heard = 'yes'; } });
+      this.dispatchEvent(new CustomEvent('ping'));
+      render(() => html\`<p>object=\${state.heard}</p>\`);
+    `,
+  },
+  'the listener sees the target': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ target: 'none' });
+      this.addEventListener('ping', (event) => { state.target = event.target === this ? 'self' : 'other'; });
+      this.dispatchEvent(new CustomEvent('ping'));
+      render(() => html\`<p>target=\${state.target}</p>\`);
+    `,
+  },
   'render() called bare, then again with a template': {
     body: `
       init(this, { mode: 'open' });
@@ -283,7 +368,7 @@ ${Object.entries(ALL)
   .map(
     ([name, spec]) =>
       `out[${JSON.stringify(name)}] = (await renderToString(${JSON.stringify(`file://${files[name]}`)}, ${JSON.stringify(
-        { attributes: spec.attributes ?? {} }
+        { attributes: spec.attributes ?? {}, children: spec.children ?? '' }
       )})).html;`
   )
   .join('\n')}
@@ -345,7 +430,8 @@ const parseServer = (markup) => {
   const host = container.firstElementChild;
   /** jsdom does not attach a declarative shadow root, so the template stands in for one. */
   const template = host.querySelector('template[shadowrootmode]');
-  return { host: hostLine(host), shadow: template ? canonical(template.content) : canonical(host) };
+  if (template) template.remove();
+  return { host: hostLine(host), shadow: template ? canonical(template.content) : '', light: canonical(host) };
 };
 
 let pass = 0;
@@ -354,6 +440,8 @@ for (const [name, spec] of Object.entries(ALL)) {
   const tag = tagOf(name);
   const element = dom.window.document.createElement(tag);
   for (const [attribute, value] of Object.entries(spec.attributes ?? {})) element.setAttribute(attribute, value);
+  /** The parser has already built the light DOM by the time an element upgrades; so has the server. */
+  if (spec.children) element.innerHTML = spec.children;
 
   const definition = new Function(
     'init',
@@ -373,17 +461,24 @@ for (const [name, spec] of Object.entries(ALL)) {
   await settle();
 
   const root = element.shadowRoot ?? element._root;
-  const fromClient = { host: hostLine(element), shadow: root ? canonical(root) : canonical(element) };
+  const fromClient = {
+    host: hostLine(element),
+    shadow: root ? canonical(root) : '',
+    light: canonical(element),
+  };
   const fromServer = parseServer(server[name]);
 
   const expected = KNOWN_DIVERGENCES[name]
     ? fromServer.shadow === spec.server && fromClient.shadow === spec.client
-    : fromServer.shadow === fromClient.shadow && fromServer.host === fromClient.host;
+    : fromServer.shadow === fromClient.shadow &&
+      fromServer.host === fromClient.host &&
+      fromServer.light === fromClient.light;
 
   if (expected) pass++;
   else
     failures.push(
-      `${name}\n      server host: ${fromServer.host}\n      client host: ${fromClient.host}` +
+      `${name}\n      server host: ${fromServer.host}   light: ${fromServer.light}` +
+        `\n      client host: ${fromClient.host}   light: ${fromClient.light}` +
         `\n      server: ${fromServer.shadow}\n      client: ${fromClient.shadow}`
     );
 }
