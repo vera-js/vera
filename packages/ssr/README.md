@@ -92,6 +92,10 @@ Known limits:
   guard browser-only work — but a state change it makes schedules a re-render that happens after the
   string has been built, and the markup shows the value from before the effect.
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
+- **A dynamic attribute *name* is not supported** — `<b ${name}="x">` produces a working attribute
+  here and malformed markup in the browser, because the client hands the template to the platform's
+  parser and a marker is not a name. Use `@verajs/renderer/spread`, which exists for names that are
+  not known until runtime and which this serializer understands.
 - **`slotAssignment` cannot be server-rendered.** Declarative shadow DOM can express `mode`,
   `delegatesFocus`, `clonable` and `serializable` — all of which are serialized — but has no form
   for manual slot assignment, and `attachShadow` **ignores the options it is handed** when it reuses

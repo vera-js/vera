@@ -158,13 +158,16 @@ export const serializeTemplate = (template) => {
         else out += serializeValue(value);
         break;
       case BOOLEAN:
+        out = removeAttribute(out, names[i]);
         if (value) out += ` ${names[i]}=""`;
         break;
       case FORM_PROP:
+        out = removeAttribute(out, names[i]);
         if (value != null && value !== false) out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
         break;
       case ATTRIBUTE:
         /** Unquoted `attr=${x}`: quoted so spacey values stay one attribute, absent when nullish. */
+        out = removeAttribute(out, names[i]);
         if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         break;
       /** DROPPED: '@' and '&' and non-form '.': nothing — client concerns. */
@@ -190,6 +193,23 @@ export const serializeTemplate = (template) => {
  * Splitting on the last `<` is safe: attribute values are escaped, so no raw `<` can appear inside
  * one.
  */
+/**
+ * Removes an attribute already written into the open tag being built, so the last write wins.
+ *
+ * An HTML parser keeps the **first** of a duplicate pair; `setAttribute` on the client overwrites,
+ * so the **last** wins there. `<b title="a" title=${x}>` therefore showed `a` on a server-rendered
+ * page and `b` in the browser — the same disagreement `foldSpread` was written to fix for spreads,
+ * which is where this logic came from. It applies to anything that writes a name into the tag.
+ */
+const removeAttribute = (out, name) => {
+  const tagStart = out.lastIndexOf('<');
+  if (tagStart === -1) return out;
+  const tag = out
+    .slice(tagStart)
+    .replace(new RegExp(`\\s${name}(=("[^"]*"|'[^']*'|[^\\s>]*))?`, 'i'), '');
+  return out.slice(0, tagStart) + tag;
+};
+
 const foldSpread = (out, entries) => {
   const tagStart = out.lastIndexOf('<');
   let tag = out.slice(tagStart);

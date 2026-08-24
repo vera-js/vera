@@ -497,13 +497,19 @@ class AttrPart implements Part {
       value = joined;
     }
     if (value !== this._committed) {
-      /** On the very first commit the attribute does not exist, so a null needs no DOM call. */
-      const isFirst = this._committed === UNSET;
       this._committed = value;
       if (kind === ATTR) {
-        if (value == null) {
-          if (!isFirst) this._element.removeAttribute(this._name);
-        } else this._element.setAttribute(this._name, value as string);
+        /**
+         * The removal is unconditional, including on the first commit.
+         *
+         * It used to be skipped then, on the reasoning that a fresh clone has no such attribute —
+         * true unless the template *statically* carries one, and `<b title="a" title=${null}>` does.
+         * The binding is authoritative because it is written last, and the server agrees; skipping
+         * left `title="a"` in the browser against no attribute at all server-side. One DOM call per
+         * nullish attribute binding on first render is what that costs.
+         */
+        if (value == null) this._element.removeAttribute(this._name);
+        else this._element.setAttribute(this._name, value as string);
       } else if (kind === PROPERTY) {
         const target = this._element as unknown as Record<string, unknown>;
         const name = this._name;
@@ -556,7 +562,8 @@ class AttrPart implements Part {
           }
         }
       } else if (kind === BOOLEAN) {
-        if (!isFirst || (value as boolean)) this._element.toggleAttribute(this._name, !!value);
+        /** Unconditional for the same reason: `<b hidden ?hidden=${false}>` must end up not hidden. */
+        this._element.toggleAttribute(this._name, !!value);
       } else if (kind === EVENT) {
         if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
         this._handler = (value as EventListener) ?? null;

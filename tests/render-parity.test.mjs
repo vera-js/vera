@@ -73,6 +73,9 @@ const CASES = {
   'empty list': 'html`<ul>${[]}</ul>`',
   'list of primitives': 'html`<p>${[1, 2, 3]}</p>`',
 
+  'duplicate attribute, last wins': 'html`<b title="a" title=${state.text}>t</b>`',
+  'duplicate boolean, last wins': 'html`<b hidden ?hidden=${false}>t</b>`',
+  'duplicate form property, last wins': 'html`<input value="a" .value=${state.text} />`',
   'void element with bindings': 'html`<img src=${"a.png"} alt=${state.text} />`',
   'several elements': 'html`<div><b title=${state.text}>a</b><i>${state.count}</i></div>`',
 };
