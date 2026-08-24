@@ -61,6 +61,13 @@ const CASES = {
   'form property .value, single-quoted': "html`<input .value='${state.text}' />`",
   'form property .checked': 'html`<input type="checkbox" .checked=${true} />`',
   'form property .checked false': 'html`<input type="checkbox" .checked=${false} />`',
+  /**
+   * A `<textarea>`'s value is its **text content**, not an attribute — `<textarea value="x">` is
+   * ignored by every parser. So is `<select>`'s: the selected `<option>` carries it.
+   */
+  'form property .value on a textarea': 'html`<textarea .value=${state.text}></textarea>`',
+  'form property .value on a textarea, with whitespace': 'html`<textarea .value=${state.text}>\n</textarea>`',
+  'a textarea with static content and no binding': 'html`<textarea>plain</textarea>`',
 
   'form property on a non-form element': 'html`<b .value=${state.text}>t</b>`',
   'form property on a div': 'html`<div .selected=${true}>t</div>`',
@@ -98,6 +105,25 @@ const CASES = {
   'spread: event dropped': 'html`<b ${spread({ onClick: () => {} })}>t</b>`',
   'spread: escaping value': 'html`<b ${spread({ title: "<x>&" })}>t</b>`',
   'void element with bindings': 'html`<img src=${"a.png"} alt=${state.text} />`',
+  /** `keyed` mutates the template it is given; `hold` wraps one, and the wrapper is client-only. */
+  'keyed template': 'html`<ul>${state.rows.map((row) => keyed(row, html`<li>${row}</li>`))}</ul>`',
+  'hold, a template': 'html`<div>${hold(html`<em>${state.text}</em>`)}</div>`',
+  'hold, a nested list': 'html`<div>${hold(html`<ul>${state.rows.map((r) => html`<li>${r}</li>`)}</ul>`)}</div>`',
+  /** An element-position ref is client state — a function or an object the renderer writes into. */
+  'ref, an object': 'html`<input ${{ value: null }} />`',
+  'ref, a function': 'html`<input ${() => {}} />`',
+  'ref beside a static attribute': 'html`<input id="kept" ${() => {}} />`',
+  'ref before an attribute binding': 'html`<input ${() => {}} title=${state.text} />`',
+  /**
+   * A single-quoted binding is where the scanner that finds element positions loses its place: the
+   * opening quote is trimmed off the static, so the closing one has to be read from the author's
+   * text or everything after it looks like one long attribute value.
+   */
+  'a ref after a single-quoted boolean': "html`<b ?hidden='${true}'>x</b><input ${() => {}} />`",
+  'a ref after a single-quoted attribute': "html`<b title='${state.text}'>x</b><input ${() => {}} />`",
+  'a ref after a single-quoted form property': "html`<input .value='${state.text}' /><input ${() => {}} />`",
+  'a ref after an unquoted attribute': 'html`<b title=${state.text}>x</b><input ${() => {}} />`',
+  'a spread after a single-quoted boolean': "html`<b ?hidden='${true}'>x</b><i ${spread({ title: 'z' })}>y</i>`",
   'several elements': 'html`<div><b title=${state.text}>a</b><i>${state.count}</i></div>`',
 };
 
@@ -108,6 +134,7 @@ const serverScript = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html } = await import('@verajs/core');
 const { spread } = await import('@verajs/renderer/spread');
+const { keyed, hold } = await import('@verajs/renderer');
 const state = ${STATE};
 const out = {};
 ${Object.entries(CASES).map(([name, tpl]) => `out[${JSON.stringify(name)}] = serializeTemplate(${tpl});`).join('\n')}
@@ -127,14 +154,17 @@ globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 const { render } = await load('renderer');
 const { spread } = await load('renderer/spread');
+const { keyed, hold } = await load('renderer');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const state = { text: 'hello & <world>', count: 3, rows: ['a', 'b'] };
 const clientTemplates = new Function(
   'html',
   'state',
   'spread',
+  'keyed',
+  'hold',
   `return { ${Object.entries(CASES).map(([n, t]) => `${JSON.stringify(n)}: () => ${t}`).join(',\n')} };`
-)(html, state, spread);
+)(html, state, spread, keyed, hold);
 
 const parse = (markup) => {
   const container = dom.window.document.createElement('div');

@@ -265,6 +265,27 @@ export const installShims = () => {
     hasFocus: () => false,
     createComment: (text) => ({ innerHTML: `<!--${text}-->`, textContent: String(text) }),
     getSelection: () => null,
+    /**
+     * An empty walk over an empty tree, which is the truthful answer for a DOM that holds strings.
+     *
+     * `@verajs/renderer` builds two shared `TreeWalker`s **at import time**, so importing it threw
+     * here — and a component doing nothing unusual imports it: `keyed` and `hold` are exported from
+     * that entry, and a keyed list is the renderer's headline feature. Any component using either
+     * could not be server-rendered at all. Nothing walks this DOM (`@verajs/ssr` has its own
+     * renderer and never uses these), so an inert walker is the whole requirement.
+     */
+    createTreeWalker: () => ({
+      currentNode: null,
+      root: null,
+      nextNode: () => null,
+      previousNode: () => null,
+      parentNode: () => null,
+      firstChild: () => null,
+      lastChild: () => null,
+      nextSibling: () => null,
+      previousSibling: () => null,
+    }),
+    createNodeIterator: () => ({ nextNode: () => null, previousNode: () => null }),
     elementFromPoint: () => null,
     elementsFromPoint: () => [],
     contains: () => false,

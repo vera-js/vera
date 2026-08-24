@@ -148,6 +148,9 @@ const DOCUMENT_SURFACE = [
   ['createElementNS', () => globalThis.document.createElementNS('svg', 'circle').localName === 'circle'],
   ['createTextNode', () => globalThis.document.createTextNode('<b>').innerHTML === '&#60;b&#62;'],
   ['createDocumentFragment', () => typeof globalThis.document.createDocumentFragment().append === 'function'],
+  /** `@verajs/renderer` builds these at import time, so a component using `keyed` needs them. */
+  ['createTreeWalker walks nothing', () => globalThis.document.createTreeWalker(globalThis.document, 1).nextNode() === null],
+  ['createNodeIterator walks nothing', () => globalThis.document.createNodeIterator(globalThis.document).nextNode() === null],
   /** `instanceof` has to discriminate, or every check that uses it silently answers the same way. */
   ['an element is a Node', () => make() instanceof globalThis.Node],
   ['an element is an Element', () => make() instanceof globalThis.Element],

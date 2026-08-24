@@ -90,6 +90,47 @@ const closesTag = (text, inTag) => {
   return inTag;
 };
 
+/**
+ * Where a static leaves us: inside a tag, and if so, inside an attribute **value**.
+ *
+ * The two are different questions and only the second separates `<input ${ref} />` from
+ * `<b class="a ${x} c">`. Both are values inside a tag; only the first is an *element position*,
+ * where the renderer hands the element to a ref or a spread and there is no markup to write. The
+ * second is text between two halves of an attribute the statics already carry.
+ *
+ * A tail test cannot answer it, because the quote that opened the value may be several statics
+ * back — `class="a ` ends in a space and is still inside a value. So the state is carried, one
+ * character at a time, and only at compile time: this runs once per template, ever.
+ */
+const scanTag = (text, state) => {
+  let { inTag, inValue, quote } = state;
+  for (let i = 0; i < text.length; i++) {
+    const character = text[i];
+    if (inValue) {
+      /** An unquoted value ends at whitespace or the tag's own `>`. */
+      if (quote ? character === quote : /[\s>]/.test(character)) {
+        inValue = false;
+        if (!quote && character === '>') inTag = false;
+        quote = '';
+      }
+      continue;
+    }
+    if (!inTag) {
+      if (character === '<') inTag = true;
+      continue;
+    }
+    if (character === '>') inTag = false;
+    else if (character === '=') {
+      let next = i + 1;
+      while (next < text.length && /\s/.test(text[next])) next++;
+      quote = text[next] === '"' || text[next] === "'" ? text[next] : '';
+      inValue = true;
+      i = quote ? next : next - 1;
+    }
+  }
+  return { inTag, inValue, quote };
+};
+
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
 /**
  * Preceded by whitespace, so a **tag name** is not counted as an attribute of itself, and allowed to
@@ -115,6 +156,14 @@ const compile = (strings) => {
    */
   const strip = [];
   const owners = [];
+  /**
+   * Whether each slot is an **element position** — inside a tag but not inside an attribute value.
+   *
+   * `<b title="${x}">` is also a value inside a tag, and it is *not* an element position: the
+   * statics carry `title="` and `">` around it and the value is simply written between them. The
+   * difference is what the static ends with, so it is settled here rather than guessed at render.
+   */
+  const elementPositions = [];
   /** Names written so far in the tag being built — statics and earlier bindings alike. */
   let written = new Set();
   /** A spread's keys are runtime values, so a tag holding one can never be settled here. */
@@ -124,12 +173,23 @@ const compile = (strings) => {
   /** The quote character a binding opened with, to be stripped off the front of the next static. */
   let openQuote = '';
   let inTag = false;
+  /** Carried across statics — see `scanTag`. */
+  let tagState = { inTag: false, inValue: false, quote: '' };
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
     if (openQuote && part.startsWith(openQuote)) part = part.slice(1);
     const wasInTag = inTag;
     inTag = closesTag(part, inTag);
+    /**
+     * Scanned from the **author's** static, not the trimmed one.
+     *
+     * `part` has already had a binding's opening quote removed by the `openQuote` handling above, so
+     * `?hidden='${x}'` reaches the scanner as `?hidden=` followed by `>bs</b>` — the closing quote
+     * gone. The scanner then waits for a `'` that never comes and reads the whole rest of the
+     * template as one attribute value, which made every element position after it invisible.
+     */
+    tagState = scanTag(strings[i], tagState);
     /** A new tag starts wherever the text opens one; what the previous tag held is irrelevant. */
     const opensTag = part.lastIndexOf('<') > part.lastIndexOf('>');
     if (opensTag || (!inTag && wasInTag)) {
@@ -165,6 +225,7 @@ const compile = (strings) => {
       names.push(sigil[2]);
       strip.push(dynamicTag || written.has(sigil[2].toLowerCase()));
       owners.push(owner);
+      elementPositions.push(false);
       written.add(sigil[2].toLowerCase());
       continue;
     }
@@ -182,6 +243,7 @@ const compile = (strings) => {
       names.push('');
       strip.push(false);
       owners.push(owner);
+      elementPositions.push(false);
       continue;
     }
 
@@ -202,6 +264,7 @@ const compile = (strings) => {
       names.push(name);
       strip.push(dynamicTag || written.has(name.toLowerCase()));
       owners.push(owner);
+      elementPositions.push(false);
       written.add(name.toLowerCase());
       continue;
     }
@@ -211,31 +274,55 @@ const compile = (strings) => {
     names.push('');
     strip.push(false);
     owners.push(owner);
-    /** A value at a text position *inside a tag* is a spread, and its keys are unknown until it runs. */
-    if (inTag) dynamicTag = true;
+    /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
+    const elementPosition = tagState.inTag && !tagState.inValue;
+    elementPositions.push(elementPosition);
+    /** A spread's keys are unknown until it runs, so its tag can no longer be settled here. */
+    if (elementPosition) dynamicTag = true;
   }
 
   let last = strings[strings.length - 1];
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names, strip, owners };
+  const plan = { parts, kinds, names, strip, owners, elementPositions };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners } = plans.get(strings) ?? compile(strings);
+  const { parts, kinds, names, strip, owners, elementPositions } = plans.get(strings) ?? compile(strings);
   let out = '';
+  /**
+   * Content that belongs *after* the tag being built rather than inside it — a `<textarea>`'s
+   * value, which is text and not an attribute. Written into the next static right after the `>`
+   * that closes the tag, replacing whatever the author wrote there, exactly as assigning `.value`
+   * does on the client.
+   */
+  let pendingText = null;
 
   for (let i = 0; i < kinds.length; i++) {
-    out += parts[i];
+    if (pendingText === null) out += parts[i];
+    else {
+      out += insertContent(parts[i], pendingText);
+      pendingText = null;
+    }
     const value = values[i];
     switch (kinds[i]) {
       case TEXT:
         /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
         if (value !== null && typeof value === 'object' && value._$attrs$) out = foldSpread(out, value._$attrs$());
+        /**
+         * An **element-position** expression that is not a spread is a ref — `<input ${myRef} />`,
+         * where the renderer hands the element to a function or assigns it to `.value`. It is
+         * client state, like `@event`, and has no markup.
+         *
+         * It used to be stringified into the open tag, so `<input ${ref(null)} />` served
+         * `<input [object Object]>` — which the parser then read as two attributes named
+         * `[object` and `object]`. A value in this position never has markup; only a spread does.
+         */
+        else if (elementPositions[i]) break;
         else out += serializeValue(value);
         break;
       case BOOLEAN:
@@ -244,6 +331,16 @@ export const serializeTemplate = (template) => {
         break;
       case FORM_PROP:
         if (!FORM_ELEMENTS.has(owners[i])) break;
+        /**
+         * A `<textarea>`'s value is its **text content**. `<textarea value="x">` is ignored by
+         * every parser, so writing the attribute served an empty control while the client — which
+         * sets the property — showed the text. Held until the tag closes, because that is where the
+         * content goes; see `pendingText` below.
+         */
+        if (owners[i] === 'textarea' && names[i] === 'value') {
+          pendingText = value == null || value === false ? '' : escapeHtml(value === true ? '' : value);
+          break;
+        }
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value != null && value !== false) out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
         break;
@@ -255,7 +352,23 @@ export const serializeTemplate = (template) => {
       /** DROPPED: '@' and '&' and non-form '.': nothing — client concerns. */
     }
   }
-  return out + parts[kinds.length];
+  const tail = parts[kinds.length];
+  return pendingText === null ? out + tail : out + insertContent(tail, pendingText);
+};
+
+/**
+ * Puts `text` inside the element the static closes, replacing what the author wrote there.
+ *
+ * Only `<textarea>` needs this, and only for `.value` — every other form property is an attribute.
+ * `<textarea .value=${x}>anything</textarea>` must serve `x`, because that is what the element
+ * will hold on the client the moment the property is assigned.
+ */
+const insertContent = (staticText, text) => {
+  const close = staticText.indexOf('>');
+  if (close === -1) return staticText;
+  const rest = staticText.slice(close + 1);
+  const end = rest.toLowerCase().indexOf('</textarea');
+  return staticText.slice(0, close + 1) + text + (end === -1 ? rest : rest.slice(end));
 };
 
 /**
@@ -358,8 +471,19 @@ export const serializeValue = (value, raw = false) => {
   if (Array.isArray(value)) return value.map((entry) => serializeValue(entry, raw)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
-    /** Template-shaped (core's html, by shape) recurses. */
+    /** Template-shaped (core's html, by shape) recurses. `keyed()` mutates one, so it arrives here. */
     if (value.strings) return serializeTemplate(value);
+    /**
+     * `hold(result)` is `{ $h: result }` — a client-renderer construct that keeps the DOM of a
+     * toggled-away subtree alive so form values and scroll positions survive the round trip. There
+     * is no previous DOM on a server, so the wrapper means nothing here and the template inside it
+     * means everything.
+     *
+     * It used to fall through to `String(value)` and serve the text `[object Object]` into the
+     * page. `keyed()` works because it mutates the template and hands the same object back; `hold`
+     * wraps one, and nothing unwrapped it.
+     */
+    if (value.$h) return serializeValue(value.$h, raw);
     /**
      * A spread (`@verajs/renderer/spread`) at element position. It hands back resolved bindings and this
      * decides what reaches markup: attributes and truthy booleans do, form properties do because

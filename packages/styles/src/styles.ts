@@ -61,7 +61,21 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
         shadowRoot.appendChild(styleElement);
       }
     });
-    if (styleSheets.length) shadowRoot.adoptedStyleSheets = [...styleSheets];
+    if (styleSheets.length) {
+      shadowRoot.adoptedStyleSheets = [...styleSheets];
+      /**
+       * A server-rendered `<style vera-styles>` is **this same CSS**, and now redundant.
+       *
+       * Markup cannot carry a constructed sheet, so `@verajs/ssr` serializes one as an element —
+       * which is what styles the page for a reader with no JavaScript. The moment the sheet is
+       * adopted the element is a second copy of it: the browser parses and applies the same rules
+       * twice, per instance, forever, and the hydrated DOM stops matching a client-only render.
+       *
+       * Removed here rather than after the first render because this runs on the `'init'` insert —
+       * before it — so the hydrating renderer sees exactly the nodes its template describes.
+       */
+      shadowRoot.querySelector('style[vera-styles]')?.remove();
+    }
     return;
   }
 
