@@ -23,15 +23,37 @@ export const microtask: RenderScheduler = (run) => {
 export let renderScheduler: RenderScheduler = animationFrame;
 
 /**
- * Replaces the render scheduler.
+ * Replaces the render scheduler, and **returns the one it replaced**.
  *
  * ```js
  * import { setRenderScheduler, microtask } from '@verajs/core';
  * setRenderScheduler(microtask);
  * ```
  *
+ * Returning the previous scheduler is what makes a temporary swap possible, and a temporary swap is
+ * the only way to render *synchronously* — which the View Transitions API requires, since it
+ * snapshots the DOM around a callback and a render deferred to the next frame happens after the
+ * snapshot is taken:
+ *
+ * ```js
+ * const flushSync = (fn) => {
+ *   const previous = setRenderScheduler((run) => run());
+ *   try { fn(); } finally { setRenderScheduler(previous); }
+ * };
+ *
+ * document.startViewTransition(() => flushSync(() => { state.rows = next; }));
+ * ```
+ *
+ * Without the return there is no way to read the current scheduler, so `flushSync` could only guess
+ * what to restore — and would silently undo an app's own `microtask` choice. Four lines in userland
+ * rather than a `flushSync` export, because the swap is the whole mechanism and hiding it would
+ * make the frame boundary harder to reason about, not easier.
+ *
  * @param scheduler Receives the render pass and decides when to run it
+ * @return The scheduler that was in effect until now
  */
 export const setRenderScheduler = (scheduler: RenderScheduler) => {
+  const previous = renderScheduler;
   renderScheduler = scheduler;
+  return previous;
 };

@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6701,
-      "gzip": 2811
+      "raw": 6720,
+      "gzip": 2816
     },
     "renderer": {
       "raw": 9398,

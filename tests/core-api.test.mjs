@@ -168,7 +168,7 @@ test('setCss swaps the css tag', () => {
 test('setRenderScheduler(microtask) renders before the next animation frame', async () => {
   setRenderer(() => {});
   const order = [];
-  setRenderScheduler(microtask);
+  const previous = setRenderScheduler(microtask);
   try {
     const state = createStore({ n: 0 });
     setRenderer(() => order.push('render'));
@@ -182,8 +182,59 @@ test('setRenderScheduler(microtask) renders before the next animation frame', as
     await Promise.resolve();
     assert.deepEqual(order, ['render'], 'the render already ran on the microtask queue');
   } finally {
-    setRenderScheduler((run) => requestAnimationFrame(run));
+    setRenderScheduler(previous);
   }
+});
+
+/**
+ * The return value is the whole point: without it there is no way to read the current scheduler, so
+ * anything swapping temporarily can only *guess* what to put back — and would silently undo an
+ * app's own `microtask` choice.
+ */
+test('setRenderScheduler returns the scheduler it replaced', () => {
+  const first = (run) => run();
+  const second = (run) => run();
+  const original = setRenderScheduler(first);
+  try {
+    assert.equal(typeof original, 'function', 'the default scheduler came back');
+    assert.equal(setRenderScheduler(second), first, 'and then the one just installed');
+    assert.equal(setRenderScheduler(original), second);
+  } finally {
+    setRenderScheduler(original);
+  }
+});
+
+/**
+ * What the return value buys: a synchronous render. The View Transitions API snapshots the DOM
+ * around a callback, so a render deferred to the next frame lands *after* the snapshot and the
+ * transition captures nothing — `document.startViewTransition(() => flushSync(…))` is the recipe,
+ * and this is the four lines it rests on.
+ */
+test('a userland flushSync renders synchronously and restores the scheduler', async () => {
+  const order = [];
+  setRenderer(() => order.push('render'));
+  const state = createStore({ n: 0 });
+  mount(() => { render(() => html`<i>${state.n}</i>`); });
+  await settle();
+
+  const flushSync = (fn) => {
+    const previous = setRenderScheduler((run) => run());
+    try { fn(); } finally { setRenderScheduler(previous); }
+  };
+
+  order.length = 0;
+  state.n = 1;
+  assert.deepEqual(order, [], 'the default scheduler defers past the write');
+  await settle();
+
+  order.length = 0;
+  flushSync(() => { state.n = 2; });
+  assert.deepEqual(order, ['render'], 'inside flushSync the render already happened');
+
+  order.length = 0;
+  state.n = 3;
+  assert.deepEqual(order, [], 'and the deferring scheduler is back afterwards');
+  await settle();
 });
 
 // ── useLayoutEffect / useRender ─────────────────────────────────────────────
