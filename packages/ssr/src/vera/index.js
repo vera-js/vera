@@ -313,6 +313,24 @@ export const renderToString = async (
   url,
   { tag, attributes = '', children = '', props, seen, base } = {}
 ) => {
+  /**
+   * The options are checked because getting one wrong otherwise surfaced an internal: `children: 5`
+   * threw `markup.includes is not a function`, `seen: []` threw `seen?.has is not a function`, and
+   * omitting the URL entirely produced `Cannot find package 'undefined'`. None of those name the
+   * thing the caller got wrong. Server-side, so it costs a browser nothing.
+   */
+  if (typeof url !== 'string' && !(url instanceof URL)) {
+    throw new TypeError('ssr: renderToString needs a module URL — a URL or a string');
+  }
+  if (typeof attributes !== 'string' && (typeof attributes !== 'object' || Array.isArray(attributes))) {
+    throw new TypeError('ssr: `attributes` must be an object of names to values, or a string');
+  }
+  if (typeof children !== 'string') throw new TypeError('ssr: `children` must be a markup string');
+  if (props !== undefined && (typeof props !== 'object' || props === null)) {
+    throw new TypeError('ssr: `props` must be an object of properties to assign');
+  }
+  if (seen !== undefined && !(seen instanceof Set)) throw new TypeError('ssr: `seen` must be a Set');
+
   const href = url instanceof URL ? url.href : url;
 
   /**

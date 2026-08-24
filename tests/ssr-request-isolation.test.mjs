@@ -415,6 +415,24 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 }
 
 /**
+ * Bad options name the option. Getting one wrong used to surface an internal —
+ * `markup.includes is not a function` for `children: 5`, `seen?.has is not a function` for an
+ * array, `Cannot find package 'undefined'` for a missing URL — none of which names what the caller
+ * got wrong.
+ */
+{
+  const url = fixture('hello-ssr.js');
+  await assert.rejects(() => renderToString(), /needs a module URL/);
+  await assert.rejects(() => renderToString(url, { children: 5 }), /`children` must be a markup string/);
+  await assert.rejects(() => renderToString(url, { seen: [] }), /`seen` must be a Set/);
+  await assert.rejects(() => renderToString(url, { attributes: ['a'] }), /`attributes` must be an object/);
+  await assert.rejects(() => renderToString(url, { props: 'x' }), /`props` must be an object/);
+
+  const fine = await renderToString(url, { attributes: 'id="x"', children: '', props: {}, seen: new Set() });
+  assert.match(fine.html, /^<hello-ssr id="x">/, 'valid options are unaffected');
+}
+
+/**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a
  * different one. Every case above it would fail with the very error it is asserting.
