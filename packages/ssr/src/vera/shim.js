@@ -87,11 +87,23 @@ class ShadowRootShim {
   get adoptedStyleSheets() {
     return this._adopted ?? [];
   }
-  serialize() {
+  /**
+   * The `<style>` tags, kept separate from the content.
+   *
+   * They used to be concatenated here and the whole string handed to the nested-component scan,
+   * which then read the stylesheet as markup: CSS containing a registered tag name — a
+   * `content: "<some-comp>"` is enough — had that component **rendered inside the stylesheet**.
+   * A scan for elements has no business reading a raw-text element.
+   */
+  styleTags() {
     const sheets = (this._adopted ?? []).map((sheet) => sheet.cssText ?? '');
-    const styles = [...sheets, ...this._styles].filter(Boolean);
-    const styleTags = styles.map((css) => `<style vera-styles>${escapeStyleText(css)}</style>`).join('');
-    return styleTags + this.innerHTML;
+    return [...sheets, ...this._styles]
+      .filter(Boolean)
+      .map((css) => `<style vera-styles>${escapeStyleText(css)}</style>`)
+      .join('');
+  }
+  serialize() {
+    return this.styleTags() + this.innerHTML;
   }
 }
 

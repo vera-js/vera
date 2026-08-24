@@ -35,3 +35,20 @@ unquoted attribute: the server produced `<p>total="5"</p>` against the client's 
 Sigils in text were worse — `.value=${x}` in a sentence was dropped entirely. The compiler now
 tracks whether it is inside a tag, which is the question the client gets for free from the platform's
 parser.
+
+**A scan for components no longer reads stylesheets.** The shadow serializer concatenated its
+`<style>` tags with the content and handed the whole string to the nested-component scan, which read
+CSS as markup — a `content: "<some-comp>"` was enough to have that component **rendered inside the
+stylesheet**. Styles are prepended after the scan now, never passed through it.
+
+**An `async connectedCallback` is refused rather than silently emptied.** Rendering recurses inside
+`String.replace`, which cannot await, so everything after a component's first `await` happened long
+after its markup was serialized: an empty element, and nothing said so. It now throws, naming the
+component and pointing at the fix — load data before `renderToString` and pass it in.
+
+**`attributes` accepts an object, whose values are escaped.** It was a raw string spliced into the
+markup, so a value taken from a request could close the tag and open a `<script>`. The string form
+stays for a caller who genuinely needs to write markup an object cannot describe.
+
+**`children` places markup inside the entry tag** — what a `<slot>` renders. A component built
+around a slot could previously only be server-rendered empty.

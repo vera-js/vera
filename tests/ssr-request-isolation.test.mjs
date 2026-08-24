@@ -108,4 +108,59 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
     'the tag closing puts the next slot back in text');
 }
 
+/* ── a scan for elements must not read a stylesheet ───────────────────────────────────────────
+ * The shadow serializer used to concatenate its `<style>` tags with the content and hand the whole
+ * string to the nested-component scan, which then read CSS as markup: a `content: "<some-comp>"`
+ * was enough to have that component rendered *inside* the stylesheet.
+ */
+{
+  const { html: markup } = await renderToString(fixture('css-tagname-ssr.js'));
+  assert.ok(!markup.includes('INJECTED'), `a component was rendered inside CSS: ${markup}`);
+  assert.match(markup, /<style vera-styles>/, 'the styles are still there');
+  assert.match(markup, /injected-comp/, 'and the tag name is still in the CSS text, as written');
+}
+
+/* ── an async connectedCallback is refused, not silently emptied ──────────────────────────────
+ * The recursion runs inside `String.replace`, which cannot await, so everything after the first
+ * `await` in a component happens long after its markup was serialized. That rendered an empty
+ * element and said nothing.
+ */
+{
+  await assert.rejects(
+    () => renderToString(fixture('async-lifecycle-ssr.js')),
+    /async connectedCallback/,
+    'an async lifecycle is reported rather than rendered empty'
+  );
+}
+
+/* ── attributes and slotted children ──────────────────────────────────────────────────────────
+ * `attributes` was a raw string spliced into the markup, so a value taken from a request could
+ * close the tag and open a `<script>`. The object form escapes; the string form stays for a caller
+ * who genuinely needs to write markup only they can produce.
+ */
+{
+  const { html: markup } = await renderToString(fixture('slotted-ssr.js'), {
+    attributes: { id: 'a"><script>alert(1)</script', hidden: true, skip: null, n: 3 },
+  });
+  assert.ok(!markup.includes('<script>'), `attribute value escaped the tag: ${markup}`);
+  assert.match(markup, /hidden=""/, 'true becomes a valueless attribute');
+  assert.ok(!markup.includes('skip='), 'null is omitted');
+  assert.match(markup, /n="3"/, 'numbers serialize');
+
+  const legacy = await renderToString(fixture('slotted-ssr.js'), { attributes: 'data-x="1"' });
+  assert.match(legacy.html, /^<slotted-ssr data-x="1">/, 'the string form still writes through');
+}
+
+/**
+ * A component built around a `<slot>` could only ever be rendered empty — the entry tag's contents
+ * were the shadow template and nothing else.
+ */
+{
+  const { html: markup } = await renderToString(fixture('slotted-ssr.js'), {
+    children: '<p>slotted</p><slotted-ssr></slotted-ssr>',
+  });
+  assert.match(markup, /<\/template><p>slotted<\/p>/, 'children follow the shadow template');
+  assert.equal(markup.split('shadowrootmode').length - 1, 2, 'a component in children renders too');
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');

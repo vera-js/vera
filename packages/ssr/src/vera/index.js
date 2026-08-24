@@ -12,7 +12,7 @@
  * so nothing here carries framework comments. (This comment used to say the renderer had no
  * `hydrate()` yet and point at a "strategy 2"; both stopped being true when that entry shipped.)
  */
-import { installShims, registry, hoistedStyles, escapeStyleText, setRenderingTag } from './shim.js';
+import { installShims, registry, hoistedStyles, escapeHtml, escapeStyleText, setRenderingTag } from './shim.js';
 import { serializeTemplate } from './serializer.js';
 
 installShims();
@@ -101,12 +101,28 @@ const renderComponent = (tag, attrString, depth) => {
 
   renderedTags.add(tag);
   const previousTag = setRenderingTag(tag) ?? tag;
-  element.connectedCallback?.();
+  const pending = element.connectedCallback?.();
   setRenderingTag(previousTag);
 
+  /**
+   * Rendering is synchronous end to end — the recursion runs inside `String.replace`, which cannot
+   * await — so an `async connectedCallback` returns a promise nobody can wait for, and everything
+   * after its first `await` happens long after the markup was serialized. That produced an empty
+   * component and said nothing about it, which is the worst of the available outcomes.
+   *
+   * Load data before `renderToString` and pass it in through attributes.
+   */
+  if (pending && typeof pending.then === 'function') {
+    throw new Error(
+      `ssr: <${tag}> has an async connectedCallback, which cannot be awaited during a synchronous ` +
+        `render — its markup would be empty. Load data before renderToString and pass it as attributes.`
+    );
+  }
+
   if (element.shadowRoot) {
-    const inner = renderComponentTags(element.shadowRoot.serialize(), depth);
-    return `<template shadowrootmode="${element.shadowRoot.mode}">${inner}</template>`;
+    /** Styles are prepended after the scan, never passed through it — see `styleTags`. */
+    const inner = renderComponentTags(element.shadowRoot.innerHTML, depth);
+    return `<template shadowrootmode="${element.shadowRoot.mode}">${element.shadowRoot.styleTags()}${inner}</template>`;
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */
   return renderComponentTags(element.innerHTML, depth);
@@ -117,11 +133,12 @@ const renderComponent = (tag, attrString, depth) => {
  *
  * @param url Module URL (the component's file; Node resolves its imports natively — the
  * `.ts`-via-`.js` convention included)
- * @param options `tag` picks the element when the module defines several; `attributes` is a
- * string of attributes for the entry tag
+ * @param options `tag` picks the element when the module defines several; `attributes` sets the
+ * entry tag's attributes — **an object, whose values are escaped**; `children` is markup placed
+ * inside the entry tag, which is what a `<slot>` renders
  * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
  */
-export const renderToString = async (url, { tag, attributes = '' } = {}) => {
+export const renderToString = async (url, { tag, attributes = '', children = '' } = {}) => {
   const href = url instanceof URL ? url.href : url;
 
   /**
@@ -160,10 +177,31 @@ export const renderToString = async (url, { tag, attributes = '' } = {}) => {
     );
   }
 
+  /**
+   * An object is escaped; a string is written through untouched.
+   *
+   * The string form was the only one, and it is a hole: `attributes` reaches the markup verbatim, so
+   * a value taken from a request could close the tag and open a `<script>`. It stays, because a
+   * caller may genuinely need to write markup only they can produce, but it is no longer the
+   * ordinary way to do the ordinary thing — an object cannot escape the tag it describes.
+   */
+  const attrs =
+    typeof attributes === 'string'
+      ? attributes && ` ${attributes}`
+      : Object.entries(attributes)
+          .filter(([, value]) => value != null && value !== false)
+          .map(([name, value]) => ` ${name}="${escapeHtml(value === true ? '' : value)}"`)
+          .join('');
+
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
-  const attrs = attributes ? ` ${attributes}` : '';
-  const html = `<${tag}${attrs}>${renderComponent(tag, attributes, 0)}</${tag}>`;
+  const attrString = typeof attributes === 'string' ? attributes : attrs;
+  /**
+   * `children` is what a `<slot>` in the component renders. Without it a component built around a
+   * slot could be server-rendered only empty — the entry tag's contents were the shadow template
+   * and nothing else.
+   */
+  const html = `<${tag}${attrs}>${renderComponent(tag, attrString, 0)}${renderComponentTags(children, 0)}</${tag}>`;
   /**
    * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
    * in their page shell — which makes that their render boundary, and handing them CSS that can

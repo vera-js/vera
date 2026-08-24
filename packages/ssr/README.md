@@ -4,7 +4,13 @@ Vera-native server-side rendering. Node-only, plain ESM, **zero dependencies** �
 no acorn, no parse5.
 
     import { renderToString } from '@verajs/ssr';        // ('/vera' also works)
-    const { html, styles } = await renderToString(new URL('./components/app.js', import.meta.url));
+    const { html, styles } = await renderToString(new URL('./components/app.js', import.meta.url), {
+      attributes: { 'user-id': id },   // an object — values are escaped
+      children: '<p>slotted</p>',      // what a <slot> in the component renders
+    });
+
+`attributes` also accepts a raw string, which is written through untouched — reach for it only when
+you must produce markup an object cannot describe, and never with anything from a request.
 
 - Node resolves the component's module graph natively (the `.ts`-via-`.js` convention included);
   execution registers classes through `customElements.define` — no AST walking.
@@ -46,10 +52,17 @@ registrations, and a request could be answered with another component's markup.
 resolved path stays inside its components directory before calling, exactly as `@verajs/autoloader`
 does for the URLs it derives.
 
-Known limits: effects run server-side and after the markup is built, so guard browser-only work;
-`keyed`/`hold` are client constructs (use plain `.map` in SSR templates); a function interpolated at
-a text position renders as nothing here and as its source on the client — put functions in `@event`
-bindings, where both sides drop them.
+Known limits:
+
+- **`connectedCallback` must be synchronous.** Rendering recurses inside `String.replace`, which
+  cannot await, so an `async connectedCallback` is refused with an error rather than rendered empty.
+  Load data before `renderToString` and pass it in as attributes.
+- **Effects run, but their writes do not reach the markup.** `useEffect` fires during the render, so
+  guard browser-only work — but a state change it makes schedules a re-render that happens after the
+  string has been built, and the markup shows the value from before the effect.
+- `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
+- A function interpolated at a text position renders as nothing here and as its source on the
+  client — put functions in `@event` bindings, where both sides drop them.
 
 The pre-native strategies (wcc fork, lit-labs renderer, Astro sketch, Reef-era diff renderer)
 are retired; strategy 4 is the only one shipped.
