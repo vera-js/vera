@@ -18,6 +18,7 @@
  */
 import '@verajs/ssr/vera';
 import assert from 'node:assert/strict';
+import { SURFACE as REAL_SURFACE, OUT_OF_SCOPE } from './dom-surface.mjs';
 
 const make = (tag = 'div') => globalThis.document.createElement(tag);
 
@@ -218,6 +219,36 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
   else failures.push(`${name} — ${ok === false ? 'wrong result' : ok}`);
 }
 
+/**
+ * **The completeness check.** Every member a real element has, the shim either implements or lists
+ * as out of scope with a reason.
+ *
+ * The matrix above asks whether the members we thought of *behave*. This asks whether we thought of
+ * them at all — which is the question the shim kept failing, one `TypeError` at a time. The list
+ * comes from three real engines (`tests/dom-surface.mjs`, kept honest by
+ * `tests/browser/dom-surface.test.js`), so it is not a second copy of somebody's memory.
+ */
+{
+  const element = make();
+  const have = new Set();
+  for (let object = element; object && object !== Object.prototype; object = Object.getPrototypeOf(object))
+    for (const name of Object.getOwnPropertyNames(object)) have.add(name);
+
+  const unimplemented = REAL_SURFACE.filter((name) => !have.has(name) && !OUT_OF_SCOPE[name]);
+  if (unimplemented.length)
+    failures.push(
+      `${unimplemented.length} member(s) a real element has and this one does not, and which are ` +
+        `not listed as out of scope:\n      ${unimplemented.join(', ')}`
+    );
+  else pass++;
+
+  /** And the other direction: something listed as impossible must not have quietly appeared. */
+  const contradicted = Object.keys(OUT_OF_SCOPE).filter((name) => have.has(name));
+  if (contradicted.length)
+    failures.push(`implemented but listed as out of scope: ${contradicted.join(', ')}`);
+  else pass++;
+}
+
 /** Absent on purpose — see the header. If one of these appears, it needs a real implementation. */
 {
   const el = make();
@@ -237,6 +268,8 @@ const total =
   CONTAINERS.length * CONTAINER_SURFACE.length +
   EVENT_TARGETS.length * EVENT_SURFACE.length +
   DOCUMENT_SURFACE.length +
-  SHEET_SURFACE.length;
+  SHEET_SURFACE.length +
+  /** The two completeness checks. */
+  2;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);

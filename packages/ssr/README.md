@@ -41,11 +41,16 @@ you must produce markup an object cannot describe, and never with anything from 
   including `once`, `handleEvent` objects, `event.target` and a `dispatchEvent` return value that
   reflects `preventDefault`. What is absent is **bubbling**: this DOM holds children as a string, so
   there is no ancestor chain to walk and an event reaches its own target's listeners and stops.
-- The server element is a detached, childless one: `dispatchEvent`, `classList`, `tagName`,
-  `ownerDocument`, `closest`, `getRootNode`, `children` and the rest answer rather than throw, and
-  **what a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
-  an `aria-*`, a class. `querySelector` returns null and `children` is empty, because nothing has
-  been parsed into it.
+- **The server element is a detached, childless one, and it is complete.** Every member a real
+  element exposes in Chromium, Firefox and WebKit is either implemented or listed as out of scope
+  with a reason — the list is checked in (`tests/dom-surface.mjs`, no dependency involved) and both
+  halves are enforced, so a gap fails a test instead of a render. That includes the sixty reflected
+  properties (`id`, `className`, `hidden`, `tabIndex`, `role`, the whole `aria*` family), which are
+  views of an attribute and therefore reach the markup, and `attachInternals()`, so a
+  form-associated custom element runs. Queries answer emptily and layout reads as zero because that
+  is what a detached element answers in a browser too.
+- **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
+  an `aria-*`, a class, a reflected property.
 - Templates flatten through a sigil-aware serializer with per-template-identity plan caching:
   `?bool` resolved by truthiness, `.value`/`.checked`/`.selected` mirrored to attributes,
   `@event`/`&ref` stripped without residue, every interpolated value escaped at the boundary.

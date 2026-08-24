@@ -125,6 +125,60 @@ const CASES = {
       render(() => html\`<p>host</p>\`);
     `,
   },
+  /**
+   * Reflected properties are a view of an attribute, so every one of these changes the markup. They
+   * were plain properties on the server: the assignment stuck to the object and the attribute never
+   * appeared, so the two sides disagreed about the element's own opening tag.
+   */
+  /**
+   * `part` and the braille ARIA pair are absent from this case because **jsdom** lacks them, not
+   * because the shim does — the client side of this harness is the weaker DOM. Their behaviour is
+   * covered by `tests/ssr-dom-surface.test.mjs`, and their existence in real engines by
+   * `tests/browser/dom-surface.test.js`.
+   */
+  'the component sets its reflected properties': {
+    body: `
+      init(this, { mode: 'open' });
+      this.id = 'widget';
+      this.className = 'a b';
+      this.title = 'a & b';
+      this.role = 'button';
+      this.tabIndex = -1;
+      this.hidden = true;
+      this.draggable = true;
+      this.translate = false;
+      this.lang = 'en';
+      this.dir = 'ltr';
+      this.slot = 'main';
+      render(() => html\`<p>reflected</p>\`);
+    `,
+  },
+  'the component sets ARIA through properties': {
+    body: `
+      init(this, { mode: 'open' });
+      this.ariaLabel = 'Close';
+      this.ariaExpanded = 'false';
+      this.ariaValueMax = '10';
+      render(() => html\`<p>aria</p>\`);
+    `,
+  },
+  'a reflected property reads back what the attribute holds': {
+    attributes: { id: 'from-markup', tabindex: '3', hidden: '' },
+    body: `
+      init(this, { mode: 'open' });
+      const read = [this.id, this.tabIndex, this.hidden, this.className].join('|');
+      render(() => html\`<p>\${read}</p>\`);
+    `,
+  },
+  'clearing a reflected property removes the attribute': {
+    attributes: { 'aria-label': 'gone' },
+    body: `
+      init(this, { mode: 'open' });
+      this.ariaLabel = null;
+      this.hidden = false;
+      render(() => html\`<p>cleared</p>\`);
+    `,
+  },
   'closed shadow root': {
     body: `init(this, { mode: 'closed' }); render(() => html\`<p>closed</p>\`);`,
   },

@@ -60,6 +60,40 @@ const datasetView = (element) =>
     }
   );
 
+/**
+ * A `DOMTokenList` over a space-separated attribute — `class` for `classList`, `part` for `part`.
+ *
+ * Shared because they are the same thing: `classList` was written first and `part` would have been
+ * a second copy of it, which is how `ElementShim` and `ShadowRootShim` came to disagree.
+ */
+const tokenListView = (element, attribute) => {
+  const tokens = () => (element.getAttribute(attribute) ?? '').split(/\s+/).filter(Boolean);
+  const write = (list) =>
+    list.length ? element.setAttribute(attribute, list.join(' ')) : element.removeAttribute(attribute);
+  return {
+    add: (...names) => {
+      const list = tokens();
+      for (const name of names) if (!list.includes(name)) list.push(name);
+      write(list);
+    },
+    remove: (...names) => write(tokens().filter((token) => !names.includes(token))),
+    toggle: (name, force) => {
+      const list = tokens();
+      const wanted = force ?? !list.includes(name);
+      write(wanted ? [...list.filter((token) => token !== name), name] : list.filter((token) => token !== name));
+      return wanted;
+    },
+    contains: (name) => tokens().includes(name),
+    get value() {
+      return element.getAttribute(attribute) ?? '';
+    },
+    get length() {
+      return tokens().length;
+    },
+    [Symbol.iterator]: () => tokens()[Symbol.iterator](),
+  };
+};
+
 const styleView = (element) => {
   const read = () =>
     new Map(
@@ -297,6 +331,185 @@ class ShadowRootShim extends ContainerShim {
 }
 
 /**
+ * Properties that are a **view of an attribute**, and the attribute each one reflects.
+ *
+ * `this.id = 'x'`, `this.className = 'a b'`, `this.ariaLabel = 'Close'`, `this.hidden = true` are
+ * all ordinary component code, and every one of them was a plain property here: the assignment
+ * stuck to the object and never reached the markup, so the server and the client disagreed about
+ * the element's own attributes. Generated from a table rather than written out, because there are
+ * sixty of them and the ARIA half is pure repetition — the list is the specification, and adding
+ * one is adding a name.
+ *
+ * `booleans` are present/absent (`hidden`), the rest carry their value. `role` and the `aria-*`
+ * family are ordinary string reflections; `tabIndex` is a number that still round-trips as text.
+ */
+const dashedAria = (name) => `aria-${name.slice(4).toLowerCase()}`;
+
+/** Plain strings: the attribute's value, or `''` when it is absent. */
+const REFLECTED = {
+  id: 'id',
+  className: 'class',
+  title: 'title',
+  lang: 'lang',
+  dir: 'dir',
+  slot: 'slot',
+  nonce: 'nonce',
+  accessKey: 'accesskey',
+  role: 'role',
+  popover: 'popover',
+  autocapitalize: 'autocapitalize',
+  autocorrect: 'autocorrect',
+  enterKeyHint: 'enterkeyhint',
+  inputMode: 'inputmode',
+  contentEditable: 'contenteditable',
+  writingSuggestions: 'writingsuggestions',
+  virtualKeyboardPolicy: 'virtualkeyboardpolicy',
+};
+
+/** Present or absent. */
+const REFLECTED_PRESENCE = { hidden: 'hidden', autofocus: 'autofocus', inert: 'inert' };
+
+/** A boolean in JavaScript, the words `true`/`false` in the markup. */
+const REFLECTED_TRUE_FALSE = { draggable: 'draggable', spellcheck: 'spellcheck' };
+
+/** The one that spells its booleans differently. */
+const REFLECTED_YES_NO = { translate: 'translate' };
+
+/** A number in JavaScript, its digits in the markup. */
+const REFLECTED_NUMBERS = { tabIndex: 'tabindex' };
+
+/**
+ * `Node`'s numeric constants, and the measurements a box that was never laid out reports.
+ *
+ * Zero is what a browser returns for a detached element, so these are accurate rather than
+ * convenient. `currentCSSZoom` is 1 for the same reason.
+ */
+const NODE_CONSTANTS = {
+  ELEMENT_NODE: 1,
+  ATTRIBUTE_NODE: 2,
+  TEXT_NODE: 3,
+  CDATA_SECTION_NODE: 4,
+  ENTITY_REFERENCE_NODE: 5,
+  ENTITY_NODE: 6,
+  PROCESSING_INSTRUCTION_NODE: 7,
+  COMMENT_NODE: 8,
+  DOCUMENT_NODE: 9,
+  DOCUMENT_TYPE_NODE: 10,
+  DOCUMENT_FRAGMENT_NODE: 11,
+  NOTATION_NODE: 12,
+  DOCUMENT_POSITION_DISCONNECTED: 1,
+  DOCUMENT_POSITION_PRECEDING: 2,
+  DOCUMENT_POSITION_FOLLOWING: 4,
+  DOCUMENT_POSITION_CONTAINS: 8,
+  DOCUMENT_POSITION_CONTAINED_BY: 16,
+  DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: 32,
+};
+const LAYOUT_ZEROS = [
+  'clientWidth', 'clientHeight', 'clientLeft', 'clientTop',
+  'offsetWidth', 'offsetHeight', 'offsetLeft', 'offsetTop',
+  'scrollWidth', 'scrollHeight', 'scrollLeftMax', 'scrollTopMax',
+];
+
+/**
+ * Installs the generated accessors onto the shim's prototype.
+ *
+ * @param {typeof ElementShim} Shim
+ */
+const defineReflections = (Shim) => {
+  Object.assign(Shim.prototype, NODE_CONSTANTS);
+  for (const name of LAYOUT_ZEROS) Object.defineProperty(Shim.prototype, name, { value: 0, writable: true, configurable: true });
+  /** Scroll offsets are writable and read back, which is what a scroll-restoring component does. */
+  for (const name of ['scrollLeft', 'scrollTop'])
+    Object.defineProperty(Shim.prototype, name, { value: 0, writable: true, configurable: true });
+  Object.defineProperty(Shim.prototype, 'currentCSSZoom', { value: 1, configurable: true });
+  Object.defineProperty(Shim.prototype, 'isContentEditable', {
+    get() {
+      return this.getAttribute('contenteditable') === 'true';
+    },
+    configurable: true,
+  });
+  for (const [property, attribute] of Object.entries(REFLECTED)) {
+    Object.defineProperty(Shim.prototype, property, {
+      get() {
+        return this.getAttribute(attribute) ?? '';
+      },
+      set(value) {
+        this.setAttribute(attribute, value);
+      },
+      configurable: true,
+    });
+  }
+  for (const [property, attribute] of Object.entries(REFLECTED_PRESENCE)) {
+    Object.defineProperty(Shim.prototype, property, {
+      get() {
+        return this.hasAttribute(attribute);
+      },
+      set(value) {
+        if (value) this.setAttribute(attribute, '');
+        else this.removeAttribute(attribute);
+      },
+      configurable: true,
+    });
+  }
+  for (const [words, table] of [
+    [['true', 'false'], REFLECTED_TRUE_FALSE],
+    [['yes', 'no'], REFLECTED_YES_NO],
+  ]) {
+    for (const [property, attribute] of Object.entries(table)) {
+      Object.defineProperty(Shim.prototype, property, {
+        get() {
+          return this.getAttribute(attribute) !== words[1];
+        },
+        set(value) {
+          this.setAttribute(attribute, value ? words[0] : words[1]);
+        },
+        configurable: true,
+      });
+    }
+  }
+  for (const [property, attribute] of Object.entries(REFLECTED_NUMBERS)) {
+    Object.defineProperty(Shim.prototype, property, {
+      get() {
+        return Number(this.getAttribute(attribute) ?? 0);
+      },
+      set(value) {
+        this.setAttribute(attribute, Number(value));
+      },
+      configurable: true,
+    });
+  }
+  for (const property of ARIA_PROPERTIES) {
+    const attribute = dashedAria(property);
+    Object.defineProperty(Shim.prototype, property, {
+      get() {
+        return this.getAttribute(attribute);
+      },
+      set(value) {
+        if (value == null) this.removeAttribute(attribute);
+        else this.setAttribute(attribute, value);
+      },
+      configurable: true,
+    });
+  }
+};
+
+/**
+ * The ARIA reflection family, named once. Each is `aria-` plus the rest, lowercased —
+ * `ariaValueMax` is `aria-valuemax` — with no exceptions in the set a component uses.
+ */
+const ARIA_PROPERTIES = [
+  'ariaAtomic', 'ariaAutoComplete', 'ariaBrailleLabel', 'ariaBrailleRoleDescription', 'ariaBusy',
+  'ariaChecked', 'ariaColCount', 'ariaColIndex',
+  'ariaColIndexText', 'ariaColSpan', 'ariaCurrent', 'ariaDescription', 'ariaDisabled',
+  'ariaExpanded', 'ariaHasPopup', 'ariaHidden', 'ariaInvalid', 'ariaKeyShortcuts', 'ariaLabel',
+  'ariaLevel', 'ariaLive', 'ariaModal', 'ariaMultiLine', 'ariaMultiSelectable', 'ariaOrientation',
+  'ariaPlaceholder', 'ariaPosInSet', 'ariaPressed', 'ariaReadOnly', 'ariaRelevant', 'ariaRequired',
+  'ariaRoleDescription', 'ariaRowCount', 'ariaRowIndex', 'ariaRowIndexText', 'ariaRowSpan',
+  'ariaSelected', 'ariaSetSize', 'ariaSort', 'ariaValueMax', 'ariaValueMin', 'ariaValueNow',
+  'ariaValueText',
+];
+
+/**
  * A component's own `attributeChangedCallback`, when it declared one.
  *
  * Read through a cast rather than declared as a field: a field in this base class would be an own
@@ -447,26 +660,235 @@ class ElementShim extends ContainerShim {
    * than copied from the source text.
    */
   get classList() {
-    const tokens = () => (this.getAttribute('class') ?? '').split(/\s+/).filter(Boolean);
-    const write = (list) => (list.length ? this.setAttribute('class', list.join(' ')) : this.removeAttribute('class'));
-    return {
-      add: (...names) => {
-        const list = tokens();
-        for (const name of names) if (!list.includes(name)) list.push(name);
-        write(list);
-      },
-      remove: (...names) => write(tokens().filter((token) => !names.includes(token))),
-      toggle: (name, force) => {
-        const list = tokens();
-        const wanted = force ?? !list.includes(name);
-        write(wanted ? [...list.filter((token) => token !== name), name] : list.filter((token) => token !== name));
-        return wanted;
-      },
-      contains: (name) => tokens().includes(name),
-      get length() {
-        return tokens().length;
-      },
-    };
+    return tokenListView(this, 'class');
+  }
+
+  /**
+   * What a **detached, childless** element answers.
+   *
+   * Every one of these is the truthful answer for this element, not a placeholder: an element with
+   * no parent has no siblings and no parent, an element outside a document has no box, and a
+   * childless one contains nothing. A browser returns exactly these values for a detached element.
+   * They are here because their *absence* was a `TypeError` that took the whole render down —
+   * `this.parentElement && …` is ordinary defensive code and it crashed.
+   */
+  get parentNode() {
+    return null;
+  }
+  get parentElement() {
+    return null;
+  }
+  get firstChild() {
+    return null;
+  }
+  get lastChild() {
+    return null;
+  }
+  get lastElementChild() {
+    return null;
+  }
+  get nextSibling() {
+    return null;
+  }
+  get previousSibling() {
+    return null;
+  }
+  get nextElementSibling() {
+    return null;
+  }
+  get previousElementSibling() {
+    return null;
+  }
+  get assignedSlot() {
+    return null;
+  }
+  get offsetParent() {
+    return null;
+  }
+  get childElementCount() {
+    return 0;
+  }
+  hasChildNodes() {
+    return false;
+  }
+  get nodeType() {
+    return 1;
+  }
+  get nodeName() {
+    return this.tagName;
+  }
+  get nodeValue() {
+    return null;
+  }
+  get baseURI() {
+    return globalThis.location?.href ?? '';
+  }
+  get namespaceURI() {
+    return 'http://www.w3.org/1999/xhtml';
+  }
+  get prefix() {
+    return null;
+  }
+  /** No layout on a server, and none for a detached element in a browser either. */
+  getBoundingClientRect() {
+    return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
+  }
+  getClientRects() {
+    return [];
+  }
+  checkVisibility() {
+    return false;
+  }
+  getElementsByTagName() {
+    return [];
+  }
+  getElementsByTagNameNS() {
+    return [];
+  }
+  getElementsByClassName() {
+    return [];
+  }
+  /** Identity questions have real answers even without a tree. */
+  contains(node) {
+    return node === this;
+  }
+  isSameNode(node) {
+    return node === this;
+  }
+  isEqualNode(node) {
+    return node === this;
+  }
+  normalize() {}
+  /**
+   * Namespaces collapse to the plain attribute methods. This DOM serializes HTML, where an
+   * `xml:lang` or `xlink:href` is one attribute with a colon in its name — which is how the
+   * serializer already treats it, and how the markup reads it back.
+   */
+  getAttributeNS(_namespace, name) {
+    return this.getAttribute(name);
+  }
+  setAttributeNS(_namespace, name, value) {
+    this.setAttribute(name, value);
+  }
+  hasAttributeNS(_namespace, name) {
+    return this.hasAttribute(name);
+  }
+  removeAttributeNS(_namespace, name) {
+    this.removeAttribute(name);
+  }
+  hasAttributes() {
+    return this._attributes.size > 0;
+  }
+  getAttributeNode(name) {
+    return this.hasAttribute(name) ? { name, value: this.getAttribute(name) } : null;
+  }
+  getAttributeNodeNS(_namespace, name) {
+    return this.getAttributeNode(name);
+  }
+  setAttributeNode(node) {
+    this.setAttribute(node.name, node.value);
+    return null;
+  }
+  setAttributeNodeNS(node) {
+    return this.setAttributeNode(node);
+  }
+  removeAttributeNode(node) {
+    this.removeAttribute(node.name);
+    return node;
+  }
+  /** Aliases the engines still carry. */
+  webkitMatchesSelector() {
+    return false;
+  }
+  mozMatchesSelector() {
+    return false;
+  }
+  /**
+   * Interaction, which a server has none of — but the calls are ordinary and must not throw.
+   *
+   * `click()` is the exception: it *dispatches an event*, and now that listeners are real, a
+   * component that clicks itself to seed its own state gets the same result on both sides.
+   */
+  focus() {}
+  blur() {}
+  click() {
+    this.dispatchEvent(new globalThis.Event('click', { bubbles: true, cancelable: true, composed: true }));
+  }
+  scrollIntoView() {}
+  scroll() {}
+  scrollTo() {}
+  scrollBy() {}
+
+  /**
+   * `insertAdjacent*` at the two positions that do not need a parent.
+   *
+   * `beforebegin` and `afterend` place content *beside* this element, which requires the parent
+   * this element does not have. They are refused rather than silently dropped — putting content
+   * nowhere is the failure this whole file keeps being audited for.
+   */
+  insertAdjacentHTML(position, markup) {
+    const where = String(position).toLowerCase();
+    if (where === 'afterbegin') this.innerHTML = markup + this.innerHTML;
+    else if (where === 'beforeend') this.innerHTML += markup;
+    else
+      throw new Error(
+        `ssr: insertAdjacentHTML('${position}') needs a parent element, and a server-rendered ` +
+          `component has none. Use 'afterbegin' or 'beforeend'.`
+      );
+  }
+  insertAdjacentText(position, text) {
+    this.insertAdjacentHTML(position, escapeHtml(text));
+  }
+  insertAdjacentElement(position, element) {
+    this.insertAdjacentHTML(position, element.openTag() + element.innerHTML + `</${element.localName}>`);
+    return element;
+  }
+  prepend(...nodes) {
+    const existing = this.innerHTML;
+    this.innerHTML = '';
+    this.append(...nodes);
+    this.innerHTML += existing;
+  }
+  /** The element's own markup, which the serializer builds anyway. */
+  get outerHTML() {
+    return `${this.openTag()}${this.innerHTML}</${this.localName}>`;
+  }
+  get innerText() {
+    return this.textContent;
+  }
+  set innerText(value) {
+    this.textContent = value;
+  }
+  /** `part` is a token list over the `part` attribute, exactly as `classList` is over `class`. */
+  get part() {
+    return tokenListView(this, 'part');
+  }
+
+  /**
+   * Form-associated custom elements.
+   *
+   * `attachInternals()` not existing meant `static formAssociated = true` — the standard way to
+   * write a custom form control — threw during `connectedCallback` and took the page with it. None
+   * of what internals carry reaches markup (form value, validity and implicit ARIA are all
+   * internal state), so this is inert by design rather than by omission: the component runs, and
+   * the client's real internals take over on hydration.
+   */
+  attachInternals() {
+    if (internals.has(this)) return internals.get(this);
+    internals.set(this, {
+      shadowRoot: this.shadowRoot,
+      form: null,
+      labels: [],
+      willValidate: true,
+      validity: { valid: true },
+      validationMessage: '',
+      states: new Set(),
+      setFormValue: () => {},
+      setValidity: () => {},
+      checkValidity: () => true,
+      reportValidity: () => true,
+    });
+    return internals.get(this);
   }
 
   /**
@@ -536,6 +958,9 @@ const delegateEvents = (target, self) => ({
 /** `window` and the global scope are the same object here, so they share one target. */
 const windowEvents = new EventTarget();
 
+/** One `ElementInternals` per element, as `attachInternals` guarantees. */
+const internals = new WeakMap();
+
 /** Callbacks awaiting a frame that will not arrive on its own. See `flushFrames`. */
 const frames = [];
 
@@ -570,6 +995,8 @@ export const flushFrames = () => {
   /** A loop that never settles leaves work queued; it must not reach the next component. */
   frames.length = 0;
 };
+
+defineReflections(ElementShim);
 
 /** Records a hoisted sheet against whichever component is mid-render. */
 const hoist = (cssText) => {
