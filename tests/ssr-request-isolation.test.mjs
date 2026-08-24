@@ -605,11 +605,34 @@ export default customElements.get('loc${i}-ssr');
     await renderToString(new URL(`file://${dir}/loc0.js`), { location: '/somewhere/else' });
     assert.equal(globalThis.location.pathname, before, 'the render did not restore the shared location');
 
-    /** A full URL works too, and the query and fragment come with it. */
-    const { html: withQuery } = await renderToString(new URL(`file://${dir}/loc1.js`), {
-      location: 'http://example.test/deep/path?a=1#frag',
-    });
-    assert.match(withQuery, /<p>\/deep\/path<\/p>/, 'a full URL did not set the path');
+    /**
+     * Every part a component might read, not just the path: a shell reads the query for a page
+     * number and the hash for a deep link, and a full URL has to bring its host with it.
+     */
+    writeFileSync(
+      `${dir}/parts.js`,
+      `import { init, render, html } from '@verajs/core';
+customElements.define('parts-ssr', class extends HTMLElement {
+  connectedCallback() {
+    init(this, { mode: 'open' });
+    const l = globalThis.location;
+    render(() => html\`<p>\${[l.pathname, l.search, l.hash, l.host].join('|')}</p>\`);
+  }
+});
+export default customElements.get('parts-ssr');
+`
+    );
+    const partsUrl = new URL(`file://${dir}/parts.js`);
+    const read = async (location) =>
+      (await renderToString(partsUrl, { location })).html.match(/<p>([^<]*)<\/p>/)?.[1];
+
+    assert.equal(await read('/a/b?x=1#top'), '/a/b|?x=1|#top|localhost', 'a path did not set every part');
+    assert.equal(
+      await read('https://example.test/deep?q=1#f'),
+      '/deep|?q=1|#f|example.test',
+      'a full URL did not bring its host'
+    );
+    assert.equal(await read('/plain'), '/plain|||localhost', 'a bare path left a stale query or hash');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
