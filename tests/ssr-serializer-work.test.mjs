@@ -38,6 +38,24 @@ const TEMPLATES = {
     html`<b title="static" title=${'dynamic'} hidden ?hidden=${false}>t</b>`,
 };
 
+/**
+ * The other half of the same rule: work a template does **not** need must not happen.
+ *
+ * Whether an attribute binding can be shadowed by an earlier write of the same name is a property of
+ * the template, so it is settled once at compile time. Asserting it here rather than in a timing
+ * test: a binding with no duplicate must not touch the accumulated markup at all, and one with a
+ * duplicate must.
+ */
+const NEEDS_A_SCAN = {
+  'a plain attribute needs no scan': [() => html`<b title=${'v'}>t</b>`, false],
+  'a boolean needs no scan': [() => html`<b ?hidden=${true}>t</b>`, false],
+  'a form property needs no scan': [() => html`<input .value=${'v'} />`, false],
+  'a static of the same name does': [() => html`<b title="a" title=${'v'}>t</b>`, true],
+  'a bare boolean of the same name does': [() => html`<b hidden ?hidden=${false}>t</b>`, true],
+  'two bindings of the same name do': [() => html`<b title=${'a'} title=${'b'}>t</b>`, true],
+  'a spread makes the whole tag dynamic': [() => html`<b ${spread({ title: 'a' })} title=${'b'}>t</b>`, true],
+};
+
 const RealRegExp = globalThis.RegExp;
 let constructed = 0;
 /** A Proxy rather than a subclass: `new RegExp` and `RegExp()` both have to be seen. */
@@ -62,9 +80,39 @@ for (const [name, build] of Object.entries(TEMPLATES)) {
 }
 globalThis.RegExp = RealRegExp;
 
+/**
+ * Counted through `lastIndexOf('<')`, which is how the duplicate scan finds the open tag it is about
+ * to search — and the first thing it does, before any fast rejection.
+ *
+ * Counting the *removal* instead proves nothing: the scan bails on a substring check long before it
+ * replaces anything, so a template that scans pointlessly and one that never scans look identical
+ * from the far end. Verified in both directions — making every binding scan fails the cases below
+ * that must not, and making none scan fails the ones that must.
+ */
+const realLastIndexOf = String.prototype.lastIndexOf;
+let scans = 0;
+String.prototype.lastIndexOf = function (search, ...rest) {
+  if (search === '<') scans++;
+  return realLastIndexOf.call(this, search, ...rest);
+};
+for (const [name, [build, expected]] of Object.entries(NEEDS_A_SCAN)) {
+  /** Warmed first, so compiling the plan — which scans plenty — is not what is being counted. */
+  serializeTemplate(build());
+  scans = 0;
+  serializeTemplate(build());
+  if (scans > 0 === expected) pass++;
+  else
+    failures.push(
+      `${name}: ${expected ? 'the duplicate scan did not run' : `scanned ${scans} time(s) for a name nothing else writes`}`
+    );
+}
+String.prototype.lastIndexOf = realLastIndexOf;
+
 if (failures.length) {
   console.log(`\n  ${failures.length} problem(s):\n`);
   for (const failure of failures) console.log('    ' + failure + '\n');
 }
-console.log(`serializer work: ${pass}/${Object.keys(TEMPLATES).length * 2} checks`);
+console.log(
+  `serializer work: ${pass}/${Object.keys(TEMPLATES).length * 2 + Object.keys(NEEDS_A_SCAN).length} checks`
+);
 assert.equal(failures.length, 0);

@@ -90,10 +90,37 @@ const closesTag = (text, inTag) => {
   return inTag;
 };
 
+/** Attribute names written into the statics, so a duplicate can be spotted before a render. */
+/**
+ * Preceded by whitespace, so a **tag name** is not counted as an attribute of itself, and allowed to
+ * end the string, because the emitted static of an unfinished tag has no `>` yet — `<b hidden` is
+ * how `<b hidden ?hidden=${x}>` arrives here, and its bare `hidden` is exactly the duplicate that
+ * has to be seen.
+ */
+const STATIC_ATTRIBUTE = /\s([a-zA-Z][\w:-]*)(?==|[\s>]|$)/g;
+
 const compile = (strings) => {
   const parts = [];
   const kinds = [];
   const names = [];
+  /**
+   * Whether a slot has to scan the open tag for an earlier write of its own name, and the tag it
+   * sits in.
+   *
+   * Both are properties of the *template*, not of a render: an attribute can only be duplicated by
+   * the statics around it, by an earlier binding in the same tag, or by a spread — and every one of
+   * those is visible here. Computing them per render cost 0.03–0.06 µs on every attribute, boolean
+   * and form-property binding, which is 18–68% of what those bindings cost in total. Almost no tag
+   * writes a name twice, so almost every one of those scans found nothing.
+   */
+  const strip = [];
+  const owners = [];
+  /** Names written so far in the tag being built — statics and earlier bindings alike. */
+  let written = new Set();
+  /** A spread's keys are runtime values, so a tag holding one can never be settled here. */
+  let dynamicTag = false;
+  let owner = '';
+
   /** The quote character a binding opened with, to be stripped off the front of the next static. */
   let openQuote = '';
   let inTag = false;
@@ -101,12 +128,31 @@ const compile = (strings) => {
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
     if (openQuote && part.startsWith(openQuote)) part = part.slice(1);
+    const wasInTag = inTag;
     inTag = closesTag(part, inTag);
+    /** A new tag starts wherever the text opens one; what the previous tag held is irrelevant. */
+    const opensTag = part.lastIndexOf('<') > part.lastIndexOf('>');
+    if (opensTag || (!inTag && wasInTag)) {
+      written = new Set();
+      dynamicTag = false;
+      owner = openTagName(part);
+    }
+    /**
+     * Names in the statics are recorded from the text that is actually **emitted**, which is the
+     * part with this binding's own name already trimmed off. Scanning the raw part instead counts
+     * `title=` — the binding's own name — as a prior write, and in `<b title="a" title=${x}>` the
+     * two collapse into one entry, so the real duplicate goes unnoticed.
+     */
+    const record = (staticText) => {
+      if (inTag) for (const [, found] of staticText.matchAll(STATIC_ATTRIBUTE)) written.add(found.toLowerCase());
+    };
 
     const sigil = inTag && SIGIL_TAIL.exec(part);
     if (sigil) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
-      parts.push(part.slice(0, sigil.index).replace(/ $/, ''));
+      const before = part.slice(0, sigil.index).replace(/ $/, '');
+      record(before);
+      parts.push(before);
       openQuote = sigil[3];
       const kind = sigil[1];
       if (kind === '?') {
@@ -117,6 +163,9 @@ const compile = (strings) => {
         kinds.push(DROPPED);
       }
       names.push(sigil[2]);
+      strip.push(dynamicTag || written.has(sigil[2].toLowerCase()));
+      owners.push(owner);
+      written.add(sigil[2].toLowerCase());
       continue;
     }
 
@@ -125,10 +174,14 @@ const compile = (strings) => {
     const event = inTag && EVENT_TAIL.exec(part);
     if (event) {
       /** A client concern, dropped like `@` — and it may be quoted, so remember which. */
-      parts.push(part.slice(0, event.index).replace(/ $/, ''));
+      const before = part.slice(0, event.index).replace(/ $/, '');
+      record(before);
+      parts.push(before);
       openQuote = event[1];
       kinds.push(DROPPED);
       names.push('');
+      strip.push(false);
+      owners.push(owner);
       continue;
     }
 
@@ -141,28 +194,39 @@ const compile = (strings) => {
        * the jsdom matrix passed on identity while the two sides disagreed about the attribute; the
        * browser suite adopting through real declarative shadow DOM is what saw it.
        */
-      parts.push(part.slice(0, attribute.index).replace(/ $/, ''));
+      const before = part.slice(0, attribute.index).replace(/ $/, '');
+      record(before);
+      parts.push(before);
       kinds.push(ATTRIBUTE);
-      names.push(attribute[0].slice(0, -1));
+      const name = attribute[0].slice(0, -1);
+      names.push(name);
+      strip.push(dynamicTag || written.has(name.toLowerCase()));
+      owners.push(owner);
+      written.add(name.toLowerCase());
       continue;
     }
+    record(part);
     parts.push(part);
     kinds.push(TEXT);
     names.push('');
+    strip.push(false);
+    owners.push(owner);
+    /** A value at a text position *inside a tag* is a spread, and its keys are unknown until it runs. */
+    if (inTag) dynamicTag = true;
   }
 
   let last = strings[strings.length - 1];
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names };
+  const plan = { parts, kinds, names, strip, owners };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names } = plans.get(strings) ?? compile(strings);
+  const { parts, kinds, names, strip, owners } = plans.get(strings) ?? compile(strings);
   let out = '';
 
   for (let i = 0; i < kinds.length; i++) {
@@ -175,17 +239,17 @@ export const serializeTemplate = (template) => {
         else out += serializeValue(value);
         break;
       case BOOLEAN:
-        out = removeAttribute(out, names[i]);
+        if (strip[i]) out = removeAttribute(out, names[i]);
         if (value) out += ` ${names[i]}=""`;
         break;
       case FORM_PROP:
-        if (!FORM_ELEMENTS.has(openTagName(out))) break;
-        out = removeAttribute(out, names[i]);
+        if (!FORM_ELEMENTS.has(owners[i])) break;
+        if (strip[i]) out = removeAttribute(out, names[i]);
         if (value != null && value !== false) out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
         break;
       case ATTRIBUTE:
         /** Unquoted `attr=${x}`: quoted so spacey values stay one attribute, absent when nullish. */
-        out = removeAttribute(out, names[i]);
+        if (strip[i]) out = removeAttribute(out, names[i]);
         if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         break;
       /** DROPPED: '@' and '&' and non-form '.': nothing — client concerns. */
