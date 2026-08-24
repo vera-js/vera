@@ -23,6 +23,23 @@ import { escapeHtml } from './shim.js';
 const FORM_ATTRIBUTES = ['value', 'checked', 'selected'];
 
 /**
+ * …and the elements where that is true.
+ *
+ * Mirroring `.value` to an attribute exists so hydration can read form state back out of the
+ * markup, which only means anything on a form control. Applied to every element, `.value` on a
+ * `<b>` wrote `value="…"` server-side where the client sets a plain JS property and no attribute at
+ * all — a difference in the rendered DOM for no benefit. Anywhere else a `.prop` is client state,
+ * which is what it already was.
+ */
+const FORM_ELEMENTS = new Set(['input', 'textarea', 'select', 'option']);
+
+/** The name of the tag currently being built, read back out of the markup so far. */
+const openTagName = (out) => {
+  const start = out.lastIndexOf('<');
+  return start === -1 ? '' : (/^<([a-z][\w-]*)/.exec(out.slice(start))?.[1] ?? '');
+};
+
+/**
  * A sigil binding, however the author quoted it — `"`, `'`, or not at all.
  *
  * Only the double-quoted and unquoted forms were recognised, and the client supports all three
@@ -162,6 +179,7 @@ export const serializeTemplate = (template) => {
         if (value) out += ` ${names[i]}=""`;
         break;
       case FORM_PROP:
+        if (!FORM_ELEMENTS.has(openTagName(out))) break;
         out = removeAttribute(out, names[i]);
         if (value != null && value !== false) out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
         break;
@@ -215,8 +233,10 @@ const foldSpread = (out, entries) => {
   let tag = out.slice(tagStart);
   let added = '';
 
+  const isFormElement = FORM_ELEMENTS.has(openTagName(out));
   for (const [kind, name, value] of entries) {
-    const serializes = kind === 'a' || kind === 'b' || (kind === 'p' && FORM_ATTRIBUTES.includes(name));
+    const serializes =
+      kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && FORM_ATTRIBUTES.includes(name));
     if (!serializes) continue;
 
     /** Quoted, single-quoted, unquoted, or valueless — whatever the template author wrote. */

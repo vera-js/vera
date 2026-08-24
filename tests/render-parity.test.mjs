@@ -62,6 +62,8 @@ const CASES = {
   'form property .checked': 'html`<input type="checkbox" .checked=${true} />`',
   'form property .checked false': 'html`<input type="checkbox" .checked=${false} />`',
 
+  'form property on a non-form element': 'html`<b .value=${state.text}>t</b>`',
+  'form property on a div': 'html`<div .selected=${true}>t</div>`',
   'dropped: plain property': 'html`<b .someProp=${state.text}>t</b>`',
   'dropped: event': 'html`<b @click=${() => {}}>t</b>`',
   'dropped: event, single-quoted': "html`<b @click='${() => {}}'>t</b>`",
