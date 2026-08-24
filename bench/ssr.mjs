@@ -9,14 +9,19 @@
  * - Server throughput only. Hydration is client-side work and is excluded for everyone alike
  *   (React/Vue markup is hydratable by their clients; vera's client takeover is currently a
  *   re-render — renderer `hydrate()` is a known TODO and does not affect these numbers).
- * - vera renders REAL web components (instantiate + store + hooks + shadow serialization) into
- *   declarative shadow DOM; react/vue render plain HTML; lit renders lit-html templates with
- *   hydration markers. Same page content, different guarantees.
+ * - `vera-native` renders a REAL web component (instantiate + store + hooks + shadow serialization)
+ *   into declarative shadow DOM. **No other row does** — react/vue serialize a vdom, lit renders a
+ *   lit-html template with hydration markers. `vera templates` is the row that compares like for
+ *   like against them; reading `vera-native` against `lit ssr` is reading a component pipeline
+ *   against a template render, and 94% of the former is core's lifecycle rather than serialization.
+ *   A LitElement row would make that comparison honest and is the obvious next addition here.
  * - Vue compiles templates once (its global compile cache) — its numbers are its compiled path.
  *
  *   node bench/ssr.mjs
  */
-import { renderToString as veraRender } from '@verajs/ssr/vera';
+import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr/vera';
+/** Resolved once, at load, exactly as every other contender's renderer is. */
+const { html } = await import('@verajs/core');
 import { createElement as h } from 'react';
 import { renderToString as reactRender } from 'react-dom/server';
 import { createSSRApp } from 'vue';
@@ -35,25 +40,27 @@ const LARGE_N = 200;
 const rows = Array.from({ length: 100 }, (_, i) => ({ id: i, label: `row ${i} <safe>` }));
 
 const CONTENDERS = {
-  /** Template flattening alone — the symmetrical comparison to the lit/react/vue rows, which
-   * also measure template/vdom serialization without any component lifecycle. */
+  /**
+   * Template flattening alone — the symmetrical comparison to the lit/react/vue rows, which also
+   * measure template/vdom serialization without any component lifecycle.
+   *
+   * The two `await import()`s these bodies used to carry were **inside the timed function**, while
+   * every other contender's modules were resolved at load. Node had the modules cached, but each
+   * call still built two promises and yielded twice: 4.84 µs measured against 0.28 µs for the same
+   * work with the lookups hoisted. The row was reporting seventeen times its own cost and losing to
+   * lit on a number that was almost entirely benchmark overhead.
+   */
   'vera templates': {
-    small: async () => {
-      const { serializeTemplate } = await import('@verajs/ssr/vera');
-      const { html } = await import('@verajs/core');
-      return serializeTemplate(
+    small: () =>
+      serializeTemplate(
         html`<section class="wrap"><h1>${'hello from the server'}</h1><output>count: ${3}</output><input .value=${'hello from the server'} /></section>`
-      );
-    },
-    large: async () => {
-      const { serializeTemplate } = await import('@verajs/ssr/vera');
-      const { html } = await import('@verajs/core');
-      return serializeTemplate(
+      ),
+    large: () =>
+      serializeTemplate(
         html`<table><tbody>${rows.map(
           (row) => html`<tr class=${row.id % 2 ? 'odd' : 'even'}><td>${row.id}</td><td>${row.label}</td></tr>`
         )}</tbody></table>`
-      );
-    },
+      ),
   },
   /** The full pipeline: instantiate the element, run init/store/hooks, serialize, scan for
    * nested registered tags — the only row here that renders an actual component. */

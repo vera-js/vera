@@ -63,7 +63,17 @@ const decodeEntities = (value) =>
 const MAX_DEPTH = 32;
 
 /** Tags rendered during the current `renderToString`, so only their styles reach the page shell. */
-let renderedTags = new Set();
+const renderedTags = new Set();
+
+/**
+ * `href -> tag`, so a component rendered twice is looked up once.
+ *
+ * `import()` is cached by Node, but awaiting a cached module still builds a promise and yields:
+ * 2.36 µs of a 9.5 µs render, measured, which a server pays on every request for a page it has
+ * already served. ESM modules are immutable once evaluated, so remembering the answer changes
+ * nothing except how long it takes to get it.
+ */
+const entryTags = new Map();
 
 /**
  * Renders every registered component tag found in `markup` to declarative shadow DOM, spliced in
@@ -71,6 +81,8 @@ let renderedTags = new Set();
  */
 const renderComponentTags = (markup, depth) => {
   if (depth > MAX_DEPTH) throw new Error(`ssr: component nesting exceeded ${MAX_DEPTH} (cycle?)`);
+  /** No dash, no custom element — cheaper to ask than to run the scan and find nothing. */
+  if (!markup.includes('-')) return markup;
   return markup.replace(CUSTOM_TAG, (match, tag, attrString) => {
     if (!registry.has(tag)) return match;
     return match + renderComponent(tag, attrString, depth + 1);
@@ -81,8 +93,10 @@ const renderComponentTags = (markup, depth) => {
 const renderComponent = (tag, attrString, depth) => {
   const element = new (registry.get(tag))();
   element.localName = tag;
-  for (const [, name, quoted, single, bare] of attrString.matchAll(ATTRIBUTE)) {
-    element.setAttribute(name, decodeEntities(quoted ?? single ?? bare ?? ''));
+  if (attrString) {
+    for (const [, name, quoted, single, bare] of attrString.matchAll(ATTRIBUTE)) {
+      element.setAttribute(name, decodeEntities(quoted ?? single ?? bare ?? ''));
+    }
   }
 
   renderedTags.add(tag);
@@ -108,25 +122,38 @@ const renderComponent = (tag, attrString, depth) => {
  * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
  */
 export const renderToString = async (url, { tag, attributes = '' } = {}) => {
-  const module = await import(url instanceof URL ? url.href : url);
+  const href = url instanceof URL ? url.href : url;
 
   /**
-   * The entry tag is found by matching this module's **exports** against the registry, never by
-   * diffing the registry around the import.
-   *
-   * The diff was unsound the moment two renders overlapped, which for a server is the normal
-   * condition: both snapshot the registry, both await their import, and both then see both
-   * modules' registrations as "new" — so a request for one component was answered with another's
-   * markup. Verified before the change: concurrent renders of `race-a` and `race-b` both returned
-   * `race-b`. Identity matching depends on nothing outside the module being asked about.
+   * The import is what registers the component, so it cannot be skipped merely because the caller
+   * named a `tag` — a first render with `{ tag }` would then look for a definition nothing had
+   * created. `entryTags` having the href is proof the module has already been imported, and that
+   * is the only condition under which the import is skipped.
    */
-  if (!tag) {
+  if (!entryTags.has(href)) {
+    const module = await import(href);
+    let derived;
+
+    /**
+     * The entry tag is found by matching this module's **exports** against the registry, never by
+     * diffing the registry around the import.
+     *
+     * The diff was unsound the moment two renders overlapped, which for a server is the normal
+     * condition: both snapshot the registry, both await their import, and both then see both
+     * modules' registrations as "new" — so a request for one component was answered with another's
+     * markup. Verified before the change: concurrent renders of `race-a` and `race-b` both returned
+     * `race-b`. Identity matching depends on nothing outside the module being asked about.
+     */
     for (const exported of [module.default, ...Object.values(module)]) {
       if (typeof exported !== 'function') continue;
-      for (const [name, Class] of registry) if (Class === exported) tag = name;
-      if (tag) break;
+      for (const [name, Class] of registry) if (Class === exported) derived = name;
+      if (derived) break;
     }
+    /** Recorded either way — the entry doubles as "this href has been imported". */
+    entryTags.set(href, derived ?? '');
   }
+
+  tag = tag || entryTags.get(href);
   if (!tag || !registry.has(tag)) {
     throw new Error(
       `ssr: no custom element definition found for ${url} — export the component's class, or pass { tag }`
@@ -134,7 +161,7 @@ export const renderToString = async (url, { tag, attributes = '' } = {}) => {
   }
 
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
-  renderedTags = new Set();
+  renderedTags.clear();
   const attrs = attributes ? ` ${attributes}` : '';
   const html = `<${tag}${attrs}>${renderComponent(tag, attributes, 0)}</${tag}>`;
   /**
