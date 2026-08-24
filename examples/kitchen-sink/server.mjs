@@ -31,21 +31,49 @@ const ENTRY = new URL('./entry-ssr.js', import.meta.url);
  */
 const client = (mode) => `
 import { start } from '/examples/kitchen-sink/entry-client.js';
-import { render } from '${
-  mode === 'hydrate'
-    ? '/packages/renderer/dist/development/vera-renderer-hydrate.js'
-    : '/packages/renderer/dist/development/vera-renderer.js'
-}';
+/** Bare, so the import map decides which renderer this is — one line, one mode. */
+import { render } from '@verajs/renderer';
 await start(render);
 document.documentElement.dataset.sinkMode = '${mode}';
 `;
 
-const page = ({ body, styles, script }) => `<!DOCTYPE html>
+/**
+ * The import map, without which **nothing on this page works**.
+ *
+ * Every component imports bare specifiers — `@verajs/core`, `@verajs/renderer`, `@verajs/styles`,
+ * `@verajs/autoloader` — because that is how a component is written in every consumption mode. A
+ * browser has no resolver for them: with no map the entire client module graph fails to load, the
+ * server's markup sits there looking perfect, and nothing is interactive. Not the buttons, not the
+ * router, not one line of it. The quietest possible failure, and the page cannot report it because
+ * the code that would have reported it never ran.
+ *
+ * `@verajs/renderer` points at whichever entry the mode uses, which is the "swap one import" claim
+ * made literal: a hydrating app changes this one line.
+ */
+const importmap = (renderer) =>
+  JSON.stringify(
+    {
+      imports: {
+        '@verajs/core': '/packages/core/dist/development/vera.js',
+        '@verajs/renderer': `/packages/renderer/dist/development/${renderer}`,
+        '@verajs/renderer/spread': '/packages/renderer/dist/development/vera-renderer-spread.js',
+        '@verajs/router': '/packages/router/dist/development/vera-router.js',
+        '@verajs/autoloader': '/packages/autoloader/dist/development/vera-autoloader.js',
+        '@verajs/styles': '/packages/styles/dist/development/vera-styles.js',
+        '@verajs/inserts': '/packages/inserts/dist/development/vera-inserts.js',
+      },
+    },
+    null,
+    2
+  );
+
+const page = ({ body, styles, script, renderer }) => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vera kitchen sink</title>
+    ${renderer ? `<script type="importmap">${importmap(renderer)}</script>` : ''}
     ${styles ? `<style>${styles}</style>` : ''}
   </head>
   <body>
@@ -95,7 +123,14 @@ createServer(async (request, response) => {
   }
 
   if (path === '/csr') {
-    return response.end(page({ body: '<sink-shell></sink-shell>', styles: '', script: '/client-csr.js' }));
+    return response.end(
+      page({
+        body: '<sink-shell></sink-shell>',
+        styles: '',
+        script: '/client-csr.js',
+        renderer: 'vera-renderer.js',
+      })
+    );
   }
 
   /**
@@ -105,7 +140,14 @@ createServer(async (request, response) => {
    */
   const { html, styles } = await renderToString(ENTRY);
   response.setHeader('content-type', 'text/html');
+  const wantsScript = path !== '/ssr';
   return response.end(
-    page({ body: html, styles, script: path === '/ssr' ? '' : '/client-hydrate.js' })
+    page({
+      body: html,
+      styles,
+      script: wantsScript ? '/client-hydrate.js' : '',
+      /** `/ssr` ships no script, so it needs no map — that is the whole point of the mode. */
+      renderer: wantsScript ? 'vera-renderer-hydrate.js' : '',
+    })
   );
 }).listen(PORT, () => console.log(`kitchen sink at http://localhost:${PORT} (/ hydrate, /csr, /ssr, /buildless, /jsx)`));
