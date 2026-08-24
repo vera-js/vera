@@ -179,6 +179,46 @@ const CASES = {
       render(() => html\`<p>cleared</p>\`);
     `,
   },
+  /**
+   * A component that builds a child itself, which is how structured data reaches a child outside a
+   * template binding. The server used to re-create that child from its markup, so everything the
+   * parent had assigned to it was gone.
+   */
+  'a child built with createElement keeps what the parent gave it': {
+    body: `
+      init(this, { mode: 'open' });
+      const kid = document.createElement('lp-created-child');
+      kid.rows = ['from', 'the', 'parent'];
+      kid.setAttribute('label', 'set too');
+      render(() => html\`<div></div>\`);
+      (this.shadowRoot ?? this._root).appendChild(kid);
+    `,
+    defines: `
+      class Child extends HTMLElement {
+        rows = ['default'];
+        connectedCallback() {
+          init(this, { mode: 'open' });
+          render(() => html\`<p>\${this.rows.join(',')}|\${this.getAttribute('label')}</p>\`);
+        }
+      }
+      customElements.define('lp-created-child', Child);
+    `,
+  },
+  'createElement of a registered tag builds the component': {
+    body: `
+      init(this, { mode: 'open' });
+      const kid = document.createElement('lp-created-probe');
+      const plain = document.createElement('div');
+      render(() => html\`<p>\${kid instanceof HTMLElement}|\${kid.rows.join(',')}|\${plain.localName}</p>\`);
+    `,
+    defines: `
+      class Child extends HTMLElement {
+        rows = ['default'];
+        connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<i></i>\`); }
+      }
+      customElements.define('lp-created-probe', Child);
+    `,
+  },
   'closed shadow root': {
     body: `init(this, { mode: 'closed' }); render(() => html\`<p>closed</p>\`);`,
   },
@@ -402,6 +442,7 @@ KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
 const IMPORTS = `import { init, render, html, createStore, useEffect, useLayoutEffect } from '@verajs/core';`;
 const source = (name, spec) => `${IMPORTS}
+${spec.defines ?? ''}
 class C extends HTMLElement {
   ${spec.statics ?? ''}
   connectedCallback() {${spec.body}}
@@ -530,11 +571,24 @@ for (const [name, spec] of Object.entries(ALL)) {
     'useEffect',
     'useLayoutEffect',
     'HTMLElement',
-    `return class extends HTMLElement {
+    'customElements',
+    'document',
+    `${spec.defines ?? ''}
+    return class extends HTMLElement {
       ${spec.statics ?? ''}
       connectedCallback() {${spec.body}}
     };`
-  )(core.init, core.render, core.html, core.createStore, core.useEffect, core.useLayoutEffect, dom.window.HTMLElement);
+  )(
+    core.init,
+    core.render,
+    core.html,
+    core.createStore,
+    core.useEffect,
+    core.useLayoutEffect,
+    dom.window.HTMLElement,
+    dom.window.customElements,
+    dom.window.document
+  );
   dom.window.customElements.define(tag, definition);
   dom.window.document.body.appendChild(element);
   await settle();

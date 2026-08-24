@@ -20,6 +20,8 @@ import {
   escapeStyleText,
   setRenderingTag,
   flushFrames,
+  pendingInstances,
+  INSTANCE_ATTRIBUTE,
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
 
@@ -263,6 +265,23 @@ const renderComponent = (tag, attrString, depth, props, children) => {
     }
   }
   /**
+   * A component the *parent* built and appended is rendered as itself, carrying whatever the parent
+   * assigned to it. The fresh instance above is discarded; only its attributes were ever needed,
+   * and they came from the markup this instance wrote in the first place.
+   */
+  const pending = pendingInstances.get(element.getAttribute(INSTANCE_ATTRIBUTE));
+  if (pending) return renderInstance(pending, tag, depth, props, children);
+  return renderInstance(element, tag, depth, props, children);
+};
+
+/** Runs the lifecycle on an element that is already built, and serializes it. */
+const renderInstance = (element, tag, depth, props, children) => {
+  element._rendered = true;
+  /** Read before it is removed, or the map keeps the instance for the rest of the process. */
+  pendingInstances.delete(element.getAttribute(INSTANCE_ATTRIBUTE));
+  element.removeAttribute(INSTANCE_ATTRIBUTE);
+
+  /**
    * Properties are assigned before `connectedCallback`, which is where a client parent would have
    * put them too. Attributes can only carry strings, so a component that takes rows, a config
    * object or anything else structured could not be server-rendered with real data at all — it had
@@ -290,6 +309,7 @@ const renderComponent = (tag, attrString, depth, props, children) => {
    * therefore sees them, and one that overwrites its own light DOM wins — same order, same result.
    */
   if (children) element.innerHTML = children;
+
 
   renderedTags.add(tag);
   const previousTag = setRenderingTag(tag) ?? tag;
@@ -450,6 +470,8 @@ export const renderToString = async (
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
   renderErrors.length = 0;
+  /** Anything a previous render marked and never emitted must not be adopted by this one. */
+  pendingInstances.clear();
   /**
    * `children` is what a `<slot>` in the component renders. Without it a component built around a
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template

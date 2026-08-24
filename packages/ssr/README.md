@@ -49,6 +49,11 @@ you must produce markup an object cannot describe, and never with anything from 
   views of an attribute and therefore reach the markup, and `attachInternals()`, so a
   form-associated custom element runs. Queries answer emptily and layout reads as zero because that
   is what a detached element answers in a browser too.
+- **A component can build another component.** `document.createElement('my-comp')` constructs the
+  registered class, so its field initialisers have run and `instanceof` answers, and appending it
+  renders **that instance** — everything the parent assigned to it, `kid.rows = data` included,
+  survives. The nested-component scan used to re-create the child from its markup, where an
+  attribute is the only thing that can carry a value.
 - **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
   an `aria-*`, a class, a reflected property.
 - Templates flatten through a sigil-aware serializer with per-template-identity plan caching:

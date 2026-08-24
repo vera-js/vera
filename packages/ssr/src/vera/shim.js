@@ -282,6 +282,14 @@ class ContainerShim extends EventTarget {
     this.isConnected = true;
   }
   appendChild(node) {
+    /**
+     * A registered component that has not rendered is marked, so the scan over this markup renders
+     * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
+     */
+    if (node?.openTag && registry.has(node.localName) && !node._rendered) {
+      node.setAttribute(INSTANCE_ATTRIBUTE, String(++instanceCount));
+      pendingInstances.set(String(instanceCount), node);
+    }
     this.innerHTML += node?.openTag ? node.openTag() + node.innerHTML + `</${node.localName}>` : (node?.innerHTML ?? '');
     return node;
   }
@@ -1088,6 +1096,35 @@ const delegateEvents = (target, self) => ({
 /** `window` and the global scope are the same object here, so they share one target. */
 const windowEvents = new EventTarget();
 
+/**
+ * `document.createElement('my-comp')` builds **the component**, not a blank element.
+ *
+ * A browser upgrades a known tag as it creates it, so the class's constructor runs and its field
+ * initialisers are in place before anyone touches the element. This returned a bare `ElementShim`,
+ * so a component created imperatively had none of its own state, and `instanceof` said no.
+ */
+const createElement = (localName) => {
+  const Component = registry.get(localName);
+  if (!Component) return new ElementShim(localName);
+  const element = new Component();
+  element.localName = localName;
+  return element;
+};
+
+/**
+ * Instances handed to `appendChild` before they have rendered, so the scan renders **them** rather
+ * than a fresh copy built from their markup.
+ *
+ * The nested-component scan reads emitted markup and instantiates what it finds, which is right for
+ * a tag written in a template and wrong for an element the component built itself: everything
+ * assigned to it — `kid.rows = data`, the ordinary way to hand structured data to a child — was
+ * lost, because an attribute cannot carry it and a fresh instance never saw it. The marker attribute
+ * is the handle, and `renderComponent` removes it as it renders.
+ */
+export const pendingInstances = new Map();
+export const INSTANCE_ATTRIBUTE = 'vera-ssr-instance';
+let instanceCount = 0;
+
 /** One `ElementInternals` per element, as `attachInternals` guarantees. */
 const internals = new WeakMap();
 
@@ -1291,8 +1328,8 @@ export const installShims = () => {
     title: '',
     body: new ElementShim('body'),
     documentElement: new ElementShim('html'),
-    createElement: (localName) => new ElementShim(localName),
-    createElementNS: (_namespace, localName) => new ElementShim(localName),
+    createElement: (localName) => createElement(localName),
+    createElementNS: (_namespace, localName) => createElement(localName),
     createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
     createDocumentFragment: () => new FragmentShim(),
     querySelector: () => null,
