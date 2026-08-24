@@ -21,7 +21,14 @@ const EXPRESSION_KEYWORDS = new Set([
 ]);
 
 const isNameStart = (ch) => /[A-Za-z_$]/.test(ch);
-const isNameChar = (ch) => /[\w$.]/.test(ch);
+/**
+ * Tag names. The `.` is for a member component (`<Icons.Chevron/>`), and the `-` is for a **custom
+ * element** — which on this framework is the tag people write most, and which did not parse at all:
+ * `<my-comp/>` read the name as `my`, met the `-` where an attribute or `>` had to be, and gave up.
+ * A failed parse is deliberately silent (see `scanCode`), so the JSX was emitted verbatim and the
+ * module failed to load with a syntax error pointing at markup nobody thought was in doubt.
+ */
+const isNameChar = (ch) => /[\w$.-]/.test(ch);
 const isAttrNameChar = (ch) => /[\w$:-]/.test(ch);
 
 export class ParseState {
@@ -70,6 +77,15 @@ export const scanCode = (state, stop, roots) => {
         state.lastWord = '';
         continue;
       }
+      /**
+       * Not JSX after all — back off one character and carry on reading it as ordinary code.
+       *
+       * The tolerance is load-bearing rather than lazy: a TSX generic arrow (`<T,>(x: T) => x`)
+       * and a generic call both sit at an expression position and start `<` + a letter, and
+       * neither is markup. The cost is that genuinely unsupported *markup* passes through
+       * untransformed instead of being reported, so a gap here surfaces as a syntax error at load.
+       * `tests/jsx-equivalence.test.mjs` is what closes that loop.
+       */
       state.i = start + 1;
       state.lastChar = '<';
       state.lastWord = '';
