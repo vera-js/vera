@@ -127,6 +127,37 @@ for (const [positionName, position] of Object.entries(LIST_POSITIONS))
       compare(`${positionName} list: ${fromName} → ${toName}`, () => position(from), () => position(to));
     }
 
+/* ── a spread whose key set changes ──────────────────────────────────────────────────────────── */
+/**
+ * A spread is the one binding whose *names* are not known until runtime, so it is the one that has
+ * to take an attribute back off when the next render stops mentioning it. Every ordered pair of key
+ * sets, including the kinds crossing each other — an attribute becoming a boolean, a property
+ * becoming an event — since each is applied and removed by a different mechanism.
+ */
+const SPREAD_SETS = {
+  'two attributes': { title: 't', lang: 'en' },
+  'one attribute': { title: 't' },
+  'a different key': { alt: 'a' },
+  'no keys': {},
+  'a boolean, on': { '?hidden': true },
+  'a boolean, off': { '?hidden': false },
+  'a property': { '.value': 'v' },
+  'an event': { '@click': () => {} },
+  'an attribute and a boolean': { title: 't', '?hidden': true },
+  'an attribute and a property': { title: 't', '.value': 'v' },
+  'an attribute given null': { title: null },
+};
+
+for (const [fromName, from] of Object.entries(SPREAD_SETS))
+  for (const [toName, to] of Object.entries(SPREAD_SETS)) {
+    if (fromName === toName) continue;
+    compare(
+      `a spread: ${fromName} → ${toName}`,
+      () => html`<input ${spread(from)} />`,
+      () => html`<input ${spread(to)} />`
+    );
+  }
+
 /* ── and again, three renders deep ───────────────────────────────────────────────────────────── */
 /**
  * Two renders can hide a defect that only bites once a part has been through a transition already —
