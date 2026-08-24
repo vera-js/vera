@@ -30,3 +30,5 @@ tests/.lifecycle-*
 
 # JSX twins compiled beside their originals by tests/kitchen-jsx.test.mjs, removed in a finally
 examples/kitchen-sink/.jsx-*
+
+tests/.scale-*
