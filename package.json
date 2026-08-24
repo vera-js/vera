@@ -53,7 +53,7 @@
       "service": true
     },
     "dev:ssr": {
-      "command": "node examples/ssr-node/server.js",
+      "command": "node examples/ssr-node/server-native.mjs",
       "dependencies": [
         "build"
       ],
@@ -68,7 +68,6 @@
     "@changesets/cli": "^3.0.1",
     "@eslint/js": "^9.39.5",
     "@esm-bundle/chai": "^4.3.4-fix.0",
-    "@lit-labs/ssr": "^3.2.2",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
     "@web/test-runner": "^1.0.0",

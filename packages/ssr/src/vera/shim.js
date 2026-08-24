@@ -9,8 +9,29 @@
 /** tag name -> class, filled as component modules execute. */
 export const registry = new Map();
 
-/** `@scope (tag) { … }` styles hoisted by light-DOM components — the page shell embeds these. */
-export const hoistedStyles = [];
+/**
+ * `@scope (tag) { … }` styles hoisted by light-DOM components, **keyed by the component that
+ * hoisted them** — the page shell embeds only the ones on the page it is building.
+ *
+ * A flat array here meant `renderToString` returned every style the *process* had ever hoisted, so
+ * request two shipped request one's CSS and request fifty shipped everyone's. `adoptStyles` hoists
+ * once per class by design, so it never grew without bound — it simply described the wrong page.
+ */
+export const hoistedStyles = new Map();
+
+/**
+ * Which component is rendering right now, so a hoist can be attributed to it.
+ *
+ * Sound because a render is synchronous end to end: `renderComponent` sets this, calls
+ * `connectedCallback`, and reads the result, with no `await` anywhere in between. The only `await`
+ * in the module is the `import()` that happens before any of this.
+ */
+let renderingTag = '';
+export const setRenderingTag = (tag) => {
+  const previous = renderingTag;
+  renderingTag = tag;
+  return previous;
+};
 
 const escapeHtml = (value) =>
   String(value).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
@@ -29,6 +50,13 @@ const escapeHtml = (value) =>
  * boundary, rather than in `css` itself: escaping at the source would corrupt the constructed
  * stylesheet path, which is the double-escaping principle #8 warns about. It also catches a
  * sequence assembled across several interpolations, which source-side escaping cannot see.
+ *
+ * **Deliberately duplicated** in `@verajs/styles` (`escapeStyleText` there is the same three
+ * lines). It cannot be shared: the obvious home is `@verajs/shared-utils`, which is private and
+ * inlined at build time, and `@verajs/ssr` publishes its `src` with **no dependencies at all** — an
+ * import of a package that is never published would break the published tarball. Two copies of a
+ * security rule is a real risk, so `tests/ssr-escaping.test.mjs` asserts the two agree on the
+ * payloads that matter rather than trusting they will be edited together.
  */
 export const escapeStyleText = (value) => String(value).replace(/<\/(style)/gi, '<\\/$1');
 
@@ -111,7 +139,14 @@ class ElementShim {
   }
 }
 
-/** Idempotent. Returns the registry so callers can diff definitions around an import. */
+/** Records a hoisted sheet against whichever component is mid-render. */
+const hoist = (cssText) => {
+  const sheets = hoistedStyles.get(renderingTag) ?? [];
+  if (!sheets.includes(cssText)) sheets.push(cssText);
+  hoistedStyles.set(renderingTag, sheets);
+};
+
+/** Idempotent. Installs the server environment; the registry is filled as modules execute. */
 export const installShims = () => {
   if (globalThis.__veraSsrShimmed) return registry;
   globalThis.__veraSsrShimmed = true;
@@ -135,11 +170,11 @@ export const installShims = () => {
     },
     set adoptedStyleSheets(sheets) {
       const added = sheets[sheets.length - 1];
-      if (added?.cssText) hoistedStyles.push(added.cssText);
+      if (added?.cssText) hoist(added.cssText);
     },
     head: {
       appendChild: (node) => {
-        if (node?.innerHTML) hoistedStyles.push(node.innerHTML);
+        if (node?.innerHTML) hoist(node.innerHTML);
         return node;
       },
     },

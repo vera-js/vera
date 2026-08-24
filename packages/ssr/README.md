@@ -14,14 +14,33 @@ no acorn, no parse5.
 - Output is declarative shadow DOM with **zero framework comments**; light-DOM `@scope` styles are
   returned separately for the page shell.
 - Client-side, `@verajs/renderer/hydrate` adopts the server DOM markerlessly (swap one import).
-- Measured (bench/ssr.mjs, fastest-of-7 rotated): serializer 73 µs / full component pipeline
-  107 µs on a 100-row table — ahead of or within 9% of Vue's compiled SSR, 5x lit, 8x React.
+- Measured (`node bench/ssr.mjs`, fastest of 7 rounds), **100-row table**: serializer ~46 µs,
+  full component pipeline ~64 µs — the serializer ahead of Vue's compiled SSR (~62 µs) and the
+  full pipeline within a few percent of it, against ~315 µs for lit and ~459 µs for React.
+- **On a single small component lit is faster** — ~2.5 µs against ~8 µs for the full pipeline.
+  The per-component cost here is instantiation and `connectedCallback`, which a list amortises
+  and a one-element page does not. Both cases are in the benchmark; run it rather than taking
+  either number on trust.
 
 `examples/ssr-node/server-native.mjs` is a complete server on bare `node:http`.
 
 Import `@verajs/ssr` before anything that imports `@verajs/core` — it installs the server
-environment first. Known limits: effects run server-side (guard browser-only work);
-`keyed`/`hold` are client constructs (use plain `.map` in SSR templates).
+environment first.
+
+**The entry component is found by matching the module's exports against the registry**, so export
+the class (`export default class …`) or pass `{ tag }`. It used to guess by diffing the registry
+around the import, which two concurrent renders could not share: both saw both modules' new
+registrations, and a request could be answered with another component's markup.
+
+`renderToString` executes the module you name. **The URL is yours to bound** — the same care
+`import()` always needs. A server that maps a request path to a component file must confirm the
+resolved path stays inside its components directory before calling, exactly as `@verajs/autoloader`
+does for the URLs it derives.
+
+Known limits: effects run server-side and after the markup is built, so guard browser-only work;
+`keyed`/`hold` are client constructs (use plain `.map` in SSR templates); a function interpolated at
+a text position renders as nothing here and as its source on the client — put functions in `@event`
+bindings, where both sides drop them.
 
 The pre-native strategies (wcc fork, lit-labs renderer, Astro sketch, Reef-era diff renderer)
 are retired; strategy 4 is the only one shipped.

@@ -35,17 +35,40 @@ const ATTRIBUTE = 4;
 /** strings identity -> { parts, kinds, names } — computed once per call site, ever. */
 const plans = new WeakMap();
 
+/**
+ * Whether the text so far leaves us inside an open tag — the question every sigil test below
+ * silently assumed the answer to.
+ *
+ * Without it a slot was classified by what the static happened to *end* with, wherever it sat.
+ * `html\`<p>total=${n}</p>\`` is text, but ends in `total=`, so it was written as an unquoted
+ * attribute and the server produced `<p>total="5"</p>` against the client's `<p>total=5</p>` — a
+ * visible difference on a static page and a discarded hydration on a live one. The client never had
+ * the bug because it hands the markup to the platform's parser, which knows where it is.
+ *
+ * A raw `<` in text (`a < b`) reads as an open tag here, as it does to a lenient HTML parser in
+ * some positions; escape it, as HTML has always asked.
+ */
+const closesTag = (text, inTag) => {
+  const open = text.lastIndexOf('<');
+  const close = text.lastIndexOf('>');
+  if (open > close) return true;
+  if (close > open) return false;
+  return inTag;
+};
+
 const compile = (strings) => {
   const parts = [];
   const kinds = [];
   const names = [];
   let skipQuote = false;
+  let inTag = false;
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
     if (skipQuote) part = part.startsWith('"') ? part.slice(1) : part;
+    inTag = closesTag(part, inTag);
 
-    const sigil = SIGIL_TAIL.exec(part);
+    const sigil = inTag && SIGIL_TAIL.exec(part);
     if (sigil) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
       parts.push(part.slice(0, sigil.index).replace(/ $/, ''));
@@ -63,7 +86,7 @@ const compile = (strings) => {
     }
 
     skipQuote = false;
-    const attribute = PLAIN_ATTRIBUTE_TAIL.exec(part);
+    const attribute = inTag && PLAIN_ATTRIBUTE_TAIL.exec(part);
     if (attribute && /^on[A-Z]/.test(attribute[0])) {
       /** `onClick=${fn}` — the React-shaped event binding; a client concern, dropped like `@`. */
       parts.push(part.slice(0, attribute.index).replace(/ $/, ''));
