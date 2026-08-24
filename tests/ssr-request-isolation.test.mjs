@@ -615,6 +615,50 @@ export default customElements.get('loc${i}-ssr');
   }
 }
 
+/* ── the title a render produced belongs to that render ────────────────────────────────────────
+ * Setting `document.title` is how a shell names its page, and what a router's `title` option does.
+ * It is also a process global, so the value one render produced sat there for the next to read —
+ * and a caller doing the obvious thing (`await renderToString(...)`, then `document.title`) got
+ * whichever request happened to finish last.
+ */
+{
+  const dir = mkdtempSync(new URL('./.title-', import.meta.url).pathname);
+  try {
+    writeFileSync(
+      `${dir}/titled.js`,
+      `import { init, render, html } from '@verajs/core';
+customElements.define('titled-ssr', class extends HTMLElement {
+  connectedCallback() {
+    init(this, { mode: 'open' });
+    document.title = this.getAttribute('page-title') ?? 'untitled';
+    render(() => html\`<p>ok</p>\`);
+  }
+});
+export default customElements.get('titled-ssr');
+`
+    );
+    const url = new URL(`file://${dir}/titled.js`);
+    await renderToString(url, { attributes: { 'page-title': 'warm' } });
+
+    const before = globalThis.document.title;
+    const results = await Promise.all(
+      ['A', 'B', 'C'].map((name) => renderToString(url, { attributes: { 'page-title': `Page ${name}` } }))
+    );
+    assert.deepEqual(
+      results.map((result) => result.title),
+      ['Page A', 'Page B', 'Page C'],
+      'a render was given another render’s title'
+    );
+    assert.equal(globalThis.document.title, before, 'the render left its title on the shared document');
+
+    /** A component that sets no title still reports one, so a shell never has to branch. */
+    const untouched = await renderToString(fixture('hello-ssr.js'));
+    assert.equal(typeof untouched.title, 'string', '`title` must always be a string');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a

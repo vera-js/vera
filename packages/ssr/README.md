@@ -9,13 +9,18 @@ leaves the contents of comments, `<script>`, `<style>`, `<textarea>` and `<title
 those are text and a scan for elements has no business reading them.
 
     import { renderToString } from '@verajs/ssr';        // ('/vera' also works)
-    const { html, styles } = await renderToString(new URL('./components/app.js', import.meta.url), {
+    const { html, styles, title } = await renderToString(new URL('./components/app.js', import.meta.url), {
       attributes: { 'user-id': id },   // an object — values are escaped
       props: { rows },                 // structured data; an attribute can only carry a string
       children: '<p>slotted</p>',      // what a <slot> in the component renders
       location: request.url,           // this request's URL — see below
       seen,                            // a Set carried across renders — see below
     });
+
+`title` is `document.title` as that render left it — a component setting it is how a shell names its
+page — and it is **returned rather than left on the global**, for the same reason `location` is
+passed rather than assigned: a process global cannot belong to one request. The document's own title
+is restored afterwards, so a concurrent render never sees it.
 
 For a shell assembled from several islands, carry one `Set` through every call. Each render returns
 the styles of what *it* rendered, so two islands sharing a component would otherwise each carry that

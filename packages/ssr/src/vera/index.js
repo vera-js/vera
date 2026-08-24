@@ -408,7 +408,9 @@ const renderInstance = (element, tag, depth, props, children) => {
  * @param {string | URL} [options.location] This request's URL, for any component that reads one.
  * Applied after every await and restored afterwards, so concurrent renders cannot see each other's
  * — assigning to `globalThis.location` yourself is not safe once two requests overlap
- * @return `{ html, styles }` — `styles` collects light-DOM `@scope` sheets for the page shell
+ * @return `{ html, styles, title }` — `styles` collects light-DOM `@scope` sheets for the page
+ * shell, and `title` is `document.title` as this render left it, which the shell puts in `<title>`.
+ * Both are returned rather than left on a global so concurrent renders cannot see each other's.
  */
 export const renderToString = async (
   url,
@@ -542,6 +544,16 @@ export const renderToString = async (
    * restoring it after cannot interleave with anything.
    */
   const previousLocation = location === undefined ? undefined : applyLocation(location);
+  /**
+   * A component setting `document.title` is ordinary — it is how a shell names the page, and what a
+   * router's `title` option does. It is also a **process global**, so the value one render produced
+   * was left sitting there for the next one to read, and a caller doing the obvious thing
+   * (`await renderToString(...)` then `document.title`) got whichever request finished last.
+   *
+   * Returned on the result instead, exactly as `styles` is — something the render produced belongs
+   * to the render — and the global is put back, so a concurrent render cannot see it at all.
+   */
+  const previousTitle = globalThis.document.title;
 
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();
@@ -595,6 +607,8 @@ export const renderToString = async (
    * `Set` across the calls emits each component's styles into the page once, and leaves a single
    * render — the common case — behaving exactly as before.
    */
+  const title = globalThis.document.title;
+  globalThis.document.title = previousTitle;
   if (previousLocation !== undefined) restoreLocation(previousLocation);
 
   const styles = [];
@@ -603,7 +617,7 @@ export const renderToString = async (
     seen?.add(rendered);
     for (const css of hoistedStyles.get(rendered) ?? []) styles.push(css);
   }
-  return { html, styles: styles.map(escapeStyleText).join('\n') };
+  return { html, styles: styles.map(escapeStyleText).join('\n'), title };
 };
 
 export { registry, hoistedStyles, serializeTemplate };

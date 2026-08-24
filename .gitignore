@@ -36,3 +36,5 @@ tests/.scale-*
 tests/.styles-*
 
 tests/.location-*
+
+tests/.title-*

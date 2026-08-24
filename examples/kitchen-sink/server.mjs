@@ -67,12 +67,13 @@ const importmap = (renderer) =>
     2
   );
 
-const page = ({ body, styles, script, renderer }) => `<!DOCTYPE html>
+const page = ({ body, styles, script, renderer, title }) => `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vera kitchen sink</title>
+    <!-- From the render that produced this page, never read back off \`document.title\`. -->
+    <title>${title || 'Vera kitchen sink'}</title>
     ${renderer ? `<script type="importmap">${importmap(renderer)}</script>` : ''}
     ${styles ? `<style>${styles}</style>` : ''}
   </head>
@@ -138,13 +139,14 @@ createServer(async (request, response) => {
    * tag follows it — which is the point: the markup a reader without JavaScript gets is byte for
    * byte the markup the hydrating client adopts.
    */
-  const { html, styles } = await renderToString(ENTRY);
+  const { html, styles, title } = await renderToString(ENTRY);
   response.setHeader('content-type', 'text/html');
   const wantsScript = path !== '/ssr';
   return response.end(
     page({
       body: html,
       styles,
+      title,
       script: wantsScript ? '/client-hydrate.js' : '',
       /** `/ssr` ships no script, so it needs no map — that is the whole point of the mode. */
       renderer: wantsScript ? 'vera-renderer-hydrate.js' : '',
