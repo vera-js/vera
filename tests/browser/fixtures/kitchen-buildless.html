@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Vera kitchen sink — buildless</title>
+
+    <!--
+      No build step, no bundler, no transpiler: the **production** bundles, resolved by an import
+      map, exactly as a CodePen would. Swap these paths for CDN URLs and nothing else changes.
+
+      `docs/CODE-PRINCIPLES.md` #9 calls this a hard constraint rather than an aspiration, and it is
+      the only mode that runs the minified output — where properties are mangled, `__DEV__` is
+      folded to `false` and its branches deleted, and every bundle inlines its own copy of
+      `@verajs/inserts`.
+
+      Everything is in this one file on purpose. A test runner that rewrites bare specifiers would
+      resolve a separate component file to the development bundles and quietly test a mix of the
+      two builds; an inline module is served exactly as written, so the import map is what resolves
+      it — which is the thing being tested.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
+          "@verajs/router": "/packages/router/dist/vera-router.min.js",
+          "@verajs/autoloader": "/packages/autoloader/dist/vera-autoloader.min.js",
+          "@verajs/styles": "/packages/styles/dist/vera-styles.min.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <buildless-app></buildless-app>
+
+    <script type="module">
+      import {
+        inserts,
+        insert,
+        setRenderer,
+        setAutoloader,
+        init,
+        render,
+        html,
+        css,
+        createStore,
+      } from '@verajs/core';
+      import { render as domRender, keyed } from '@verajs/renderer';
+      import { spread } from '@verajs/renderer/spread';
+      import { initRouter, connectInserts, navigate } from '@verajs/router';
+      import { adoptStyles } from '@verajs/styles';
+      import { initAutoloader } from '@verajs/autoloader';
+
+      /**
+       * Each standalone bundle inlined its own registry, so the router's is not core's until this
+       * points one at the other. Without it a routed link does nothing and nothing says why.
+       */
+      connectInserts(inserts);
+
+      setRenderer(domRender);
+      insert('init', adoptStyles, 50);
+      setAutoloader(
+        initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
+      );
+
+      class BuildlessApp extends HTMLElement {
+        static styles = css`
+          .badge {
+            color: rgb(0, 128, 128);
+          }
+        `;
+
+        connectedCallback() {
+          this.setAttribute('autoloader', '');
+          init(this, { mode: 'open' });
+          const state = createStore({ rows: ['a', 'b', 'c'], n: 0, title: 'spread title' });
+          this.state = state;
+          this.bump = () => state.n++;
+
+          const router = initRouter(this, { view: 'main', handleInitial: false });
+          this.router = router;
+          /** Exposed so a test drives the page's **own** module instance rather than a second one. */
+          this.navigate = navigate;
+          router.addRoutes([
+            { path: '/', component: () => html`<p id="route">home</p>` },
+            { path: '/user/:id', component: (params) => html`<p id="route">user ${params.id}</p>` },
+            { path: '/*rest', component: () => html`<p id="route">missing</p>` },
+          ]);
+
+          render(
+            () => html`<div id="app">
+              <nav><a route href="/">Home</a><a route href="/user/42">User</a></nav>
+              <main view="main"></main>
+              <p id="n">${state.n}</p>
+              <span class="badge">styled</span>
+              <b id="spread" ${spread({ title: state.title, '?hidden': false })}>sp</b>
+              <ul id="rows">
+                ${state.rows.map((row) => keyed(row, html`<li data-id=${row}>${row}</li>`))}
+              </ul>
+              <sink-lazy></sink-lazy>
+            </div>`
+          );
+        }
+      }
+      customElements.define('buildless-app', BuildlessApp);
+      document.documentElement.dataset.sinkMode = 'buildless';
+    </script>
+  </body>
+</html>
