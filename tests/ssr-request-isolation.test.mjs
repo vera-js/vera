@@ -432,6 +432,31 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.match(fine.html, /^<hello-ssr id="x">/, 'valid options are unaffected');
 }
 
+/* ── the shim as a DOM ────────────────────────────────────────────────────────────────────────
+ * Building content with `createElement`/`appendChild` instead of a template is ordinary code.
+ * `appendChild` took only the node's `innerHTML`, so `<span>kid</span>` arrived as `kid` — the
+ * element itself discarded — and `textContent` escaped on the way in without decoding on the way
+ * out, so reading back what had just been written gave `&#60;b&#62;`.
+ */
+{
+  const element = globalThis.document.createElement('div');
+  element.textContent = '<b>&</b>';
+  assert.equal(element.textContent, '<b>&</b>', 'textContent round-trips');
+  assert.match(element.innerHTML, /&#60;b&#62;/, 'and is escaped in the markup');
+
+  const host = globalThis.document.createElement('div');
+  const child = globalThis.document.createElement('span');
+  child.setAttribute('class', 'c');
+  child.textContent = 'kid';
+  host.appendChild(child);
+  assert.equal(host.innerHTML, '<span class="c">kid</span>', 'appendChild keeps the element');
+
+  /** A raw-text element stores its content as written, because CSS is not markup. */
+  const style = globalThis.document.createElement('style');
+  style.textContent = '.a > .b {}';
+  assert.equal(style.textContent, '.a > .b {}', 'a stylesheet is untouched');
+}
+
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a

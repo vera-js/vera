@@ -198,8 +198,16 @@ class ElementShim {
   removeAttribute(name) {
     this._attributes.delete(name);
   }
+  /**
+   * Appends the node as markup, tag and attributes included.
+   *
+   * It used to take only `node.innerHTML`, so `this.appendChild(span)` put `kid` where the client
+   * puts `<span>kid</span>` — the element itself was discarded. Building a component's content with
+   * `createElement`/`appendChild` instead of a template is ordinary DOM code, and it produced
+   * markup missing every element it created.
+   */
   appendChild(node) {
-    this.innerHTML += node.innerHTML ?? '';
+    this.innerHTML += node?.openTag ? node.openTag() + node.innerHTML + `</${node.localName}>` : (node?.innerHTML ?? '');
     return node;
   }
   querySelector() {
@@ -293,8 +301,16 @@ class ElementShim {
     return out + '>';
   }
 
+  /**
+   * Tags stripped and the escaping undone, so what goes in comes back out.
+   *
+   * Reading back what `textContent` had just written returned `&#60;b&#62;` for `<b>` — the setter
+   * escapes and the getter did not decode, so the round trip a component may reasonably rely on was
+   * broken. Only the numeric references the setter emits need undoing; anything else in there came
+   * from author markup and is text as written.
+   */
   get textContent() {
-    return this.innerHTML.replace(/<[^>]*>/g, '');
+    return this.innerHTML.replace(/<[^>]*>/g, '').replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
   }
   /**
    * Escaped for an ordinary element, stored as-is for a raw-text one.
