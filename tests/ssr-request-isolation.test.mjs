@@ -394,6 +394,26 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.match(markup, /<main view="main"><\/main>/, 'the outlet is present for the client to fill');
 }
 
+/* ── what a component returns from render() ───────────────────────────────────────────────────
+ * A string used to be written straight into `innerHTML`, so a component returning `'<b>raw</b>'`
+ * produced real elements on the server and the escaped text `&lt;b&gt;raw…` in the browser —
+ * different content on the two paths, and an injection the client does not have the moment any of
+ * that string comes from data. A number returned nothing here and `42` there.
+ */
+{
+  const url = fixture('returns-ssr.js');
+
+  const string = await renderToString(url, { tag: 'ret-string' });
+  assert.ok(!string.html.includes('<b>raw string</b>'), `a returned string was written as markup: ${string.html}`);
+  assert.match(string.html, /&#60;b&#62;raw string/, 'it is escaped, as the client escapes it');
+
+  const number = await renderToString(url, { tag: 'ret-number' });
+  assert.match(number.html, /open">42</, 'a returned number renders');
+
+  const nothing = await renderToString(url, { tag: 'ret-null' });
+  assert.match(nothing.html, /open"><\/template>/, 'null renders nothing');
+}
+
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a

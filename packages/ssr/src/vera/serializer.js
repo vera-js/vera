@@ -238,7 +238,11 @@ const foldSpread = (out, entries) => {
   return out.slice(0, tagStart) + (added ? tag + added.slice(1) : tag.replace(/ $/, ''));
 };
 
-const serializeValue = (value, raw = false) => {
+/**
+ * Exported so the renderer can flatten a non-template return the same way a slot does — see
+ * `index.js`. Everything about what renders and how it escapes lives here and only here.
+ */
+export const serializeValue = (value, raw = false) => {
   /**
    * Only `null` and `undefined` are empty, exactly as on the client — `false` and `0` render.
    * `false` used to serialize as empty here, which made `${cond && 'x'}` emit nothing on the server

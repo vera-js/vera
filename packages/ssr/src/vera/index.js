@@ -13,7 +13,7 @@
  * `hydrate()` yet and point at a "strategy 2"; both stopped being true when that entry shipped.)
  */
 import { installShims, registry, hoistedStyles, escapeHtml, escapeStyleText, setRenderingTag } from './shim.js';
-import { serializeTemplate } from './serializer.js';
+import { serializeTemplate, serializeValue } from './serializer.js';
 
 installShims();
 const { setRenderer, insert, inserts } = await import('@verajs/core');
@@ -31,7 +31,17 @@ insert('init', adoptStyles, 50);
 
 /** The server renderer: template object in, markup into the (shadow) container shim. */
 const serverRenderer = (template, container) => {
-  container.innerHTML = typeof template === 'string' ? template : serializeTemplate(template);
+  /**
+   * Anything that is not a template flattens exactly as a slot's value does, which is what the
+   * client does with the same return.
+   *
+   * A string used to be written straight into `innerHTML` — so a component returning
+   * `'<b>raw</b>'` produced real elements on the server and the **escaped text** `&lt;b&gt;raw…` in
+   * the browser. Different content on the two paths, and an injection the client does not have the
+   * moment any of that string comes from data. A number returned nothing at all here and `42`
+   * there.
+   */
+  container.innerHTML = template?.strings ? serializeTemplate(template) : serializeValue(template);
 };
 /**
  * `setRenderer` registers a **wrapper** — it resolves the element's root before calling through —
