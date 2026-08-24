@@ -76,6 +76,25 @@ const CASES = {
   'duplicate attribute, last wins': 'html`<b title="a" title=${state.text}>t</b>`',
   'duplicate boolean, last wins': 'html`<b hidden ?hidden=${false}>t</b>`',
   'duplicate form property, last wins': 'html`<input value="a" .value=${state.text} />`',
+  'text: Infinity': 'html`<p>${Infinity}</p>`',
+  'text: float precision': 'html`<p>${0.1 + 0.2}</p>`',
+  'text: true': 'html`<p>${true}</p>`',
+  'text: empty string': 'html`<p>[${""}]</p>`',
+  'text: whitespace only': 'html`<p>[${"   "}]</p>`',
+  'attribute: value with a quote': 'html`<b title=${String.fromCharCode(97, 34, 98)}>t</b>`',
+  'attribute: value with a single quote': 'html`<b title=${String.fromCharCode(97, 39, 98)}>t</b>`',
+  'attribute: value that looks like a tag': 'html`<b title=${"<script>"}>t</b>`',
+  'attribute: negative zero': 'html`<b n=${-0}>t</b>`',
+  /** `@verajs/renderer/spread` has its own code path on both sides. */
+  'spread: empty': 'html`<b ${spread({})}>t</b>`',
+  'spread: replaces a static': 'html`<b title="static" ${spread({ title: "spread" })}>t</b>`',
+  'spread: static after it': 'html`<b ${spread({ title: "a" })} id="after">t</b>`',
+  'spread: two with the same key': 'html`<b ${spread({ title: "one" })} ${spread({ title: "two" })}>t</b>`',
+  'spread: nullish removes': 'html`<b title="keep" ${spread({ title: null })}>t</b>`',
+  'spread: false boolean removes': 'html`<b hidden ${spread({ "?hidden": false })}>t</b>`',
+  'spread: form property': 'html`<input ${spread({ ".value": "v" })} />`',
+  'spread: event dropped': 'html`<b ${spread({ onClick: () => {} })}>t</b>`',
+  'spread: escaping value': 'html`<b ${spread({ title: "<x>&" })}>t</b>`',
   'void element with bindings': 'html`<img src=${"a.png"} alt=${state.text} />`',
   'several elements': 'html`<div><b title=${state.text}>a</b><i>${state.count}</i></div>`',
 };
@@ -86,6 +105,7 @@ const STATE = "{ text: 'hello & <world>', count: 3, rows: ['a', 'b'] }";
 const serverScript = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html } = await import('@verajs/core');
+const { spread } = await import('@verajs/renderer/spread');
 const state = ${STATE};
 const out = {};
 ${Object.entries(CASES).map(([name, tpl]) => `out[${JSON.stringify(name)}] = serializeTemplate(${tpl});`).join('\n')}
@@ -104,13 +124,15 @@ globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 const { render } = await load('renderer');
+const { spread } = await load('renderer/spread');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const state = { text: 'hello & <world>', count: 3, rows: ['a', 'b'] };
 const clientTemplates = new Function(
   'html',
   'state',
+  'spread',
   `return { ${Object.entries(CASES).map(([n, t]) => `${JSON.stringify(n)}: () => ${t}`).join(',\n')} };`
-)(html, state);
+)(html, state, spread);
 
 /** Form state lives on the property; the server mirrors it to an attribute so hydration can read it. */
 const FORM_PROPERTIES = { input: ['value', 'checked'], option: ['value', 'selected'], textarea: ['value'] };

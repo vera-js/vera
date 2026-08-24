@@ -229,8 +229,13 @@ const foldSpread = (out, entries) => {
     }
   }
 
-  /** The element-position slot already carries the separating space. */
-  return out.slice(0, tagStart) + tag + (added ? added.slice(1) : '');
+  /**
+   * The element-position slot already carries the separating space, so the first addition drops its
+   * own. When a spread contributes nothing — every key nullish, or all of them client concerns —
+   * that space is left dangling before the `>`, which the parser ignores and which is still a byte
+   * in every response and untidy in a view-source.
+   */
+  return out.slice(0, tagStart) + (added ? tag + added.slice(1) : tag.replace(/ $/, ''));
 };
 
 const serializeValue = (value, raw = false) => {
