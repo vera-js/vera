@@ -359,8 +359,9 @@ export const serializeTemplate = (template) => {
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (BOOLEAN_FORM_PROPERTIES.has(names[i])) {
           if (value) out += ` ${names[i]}=""`;
-        } else if (value != null && value !== false) {
-          out += ` ${names[i]}="${escapeHtml(value === true ? '' : value)}"`;
+        } else if (value != null) {
+          /** A string property: `true` is `"true"`, exactly as assigning it to the element gives. */
+          out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         }
         break;
       case ATTRIBUTE:
@@ -473,11 +474,25 @@ const foldSpread = (out, entries) => {
       continue;
     }
 
-    /** Same coercions as a written binding: a boolean is truthiness, and so are `checked`/`selected`. */
+    /**
+     * Same coercions as a written binding, kind by kind — which is the contract, and which this had
+     * only approximately.
+     *
+     * A **boolean** is truthiness, and so are `checked` and `selected`. A plain **attribute** takes
+     * anything that is not nullish, `false` included: `String(false)` is `"false"`, which is what
+     * `setAttribute` writes and what the written form already emitted. Treating `false` as removal
+     * for every kind meant `${spread({ title: false })}` dropped the attribute while
+     * `title=${false}` kept it — the same value, two answers, from the two spellings of one binding.
+     */
     if (kind === 'b' || (kind === 'p' && BOOLEAN_FORM_PROPERTIES.has(name))) {
       if (value) added += ` ${name}=""`;
-    } else if (value != null && value !== false) {
-      added += ` ${name}="${escapeHtml(kind === 'p' && value === true ? '' : serializeValue(value, true))}"`;
+    } else if (value != null) {
+      /**
+       * An attribute and a string form property behave identically: anything not nullish is
+       * `String(value)`. `false` is `"false"` and `true` is `"true"`, because that is what
+       * `setAttribute` and a property assignment both produce.
+       */
+      added += ` ${name}="${escapeHtml(serializeValue(value, true))}"`;
     }
   }
 
