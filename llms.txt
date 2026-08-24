@@ -368,7 +368,10 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) and the
   first render ADOPTS server-rendered children — markerless (no framework comments in server
   HTML), node identity preserved, listeners attached, keyed updates move adopted nodes. Any
-  mismatch falls back to a clean render. Never mix the two entries in one app. The base entry
+  mismatch is **repaired**: the result is always exactly what the template describes, and nothing the
+  server sent survives that it does not — a stale attribute, a leftover element, corrected text.
+  (It adopts and corrects where it can rather than clearing wholesale, so a partial mismatch still
+  keeps most of the server's work.) Never mix the two entries in one app. The base entry
   carries zero hydration code.
 - **Profiling (development only).** `@verajs/renderer/profiler` is another drop-in entry that
   re-exports the whole renderer API and adds measurement. It exists to make the rule above

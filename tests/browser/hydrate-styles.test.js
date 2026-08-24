@@ -6,9 +6,9 @@
  * exist, uses `adoptedStyleSheets` and creates no element — so the shadow root the hydrating
  * renderer adopts begins with a node its template does not describe.
  *
- * A hydration mismatch is **silent by design**: the container is cleared and rendered fresh, so the
- * page looks perfect and every byte of server work is thrown away. Only node identity can tell the
- * difference, which is what this asserts — and `static styles` is not an edge case, it is how a
+ * A hydration mismatch is **silent by design**: the DOM is repaired in place until it matches the
+ * template, so the page looks perfect and the server's work is quietly redone. Only node identity
+ * can tell the difference, which is what this asserts — and `static styles` is not an edge case, it is how a
  * component is styled.
  */
 import { expect } from '@esm-bundle/chai';

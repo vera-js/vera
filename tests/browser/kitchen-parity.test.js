@@ -6,9 +6,9 @@
  *   client   the same components rendered from scratch by `@verajs/renderer`
  *   hydrate  the server's markup adopted in place by `@verajs/renderer/hydrate`
  *
- * All three must be identical. A hydration mismatch is **silent by design** — the container is
- * cleared and re-rendered, so the page looks perfect and the server work is thrown away — so
- * comparing rendered output alone cannot see it. This suite therefore checks identity as well:
+ * All three must be identical. A hydration mismatch is **silent by design** — the DOM is repaired
+ * in place until it matches the template, so the page looks perfect and the server's work is quietly
+ * redone — so comparing rendered output alone cannot see it. This suite therefore checks identity as well:
  * nodes the server built must still be the nodes on the page after hydration.
  *
  * Run in iframes rather than three test files because `setRenderer` is page-global: one page can

@@ -11,8 +11,8 @@ import { render as hydratingRender } from '../../packages/renderer/dist/developm
  * handoff never happens there. This is the other half: the browser parses the server's markup into
  * a shadow root, the component upgrades into it, and adoption has to survive that.
  *
- * Assertions are on **identity**. A mismatch is silent by design — the container is cleared and
- * rendered fresh, so the page looks perfect and the server work is thrown away. Only holding a
+ * Assertions are on **identity**. A mismatch is silent by design — the mismatched DOM is repaired in
+ * place, so the page looks perfect and the server work is silently redone. Only holding a
  * reference to a server-built node and checking it is still there can tell the difference.
  */
 
