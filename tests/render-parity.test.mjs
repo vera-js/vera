@@ -149,6 +149,28 @@ const CASES = {
   'hostile: a textarea value closing its own tag': 'html`<textarea .value=${"</textarea><script>alert(1)</script>"}></textarea>`',
   'hostile: a comment sequence': 'html`<p>${"<!--<script>alert(1)</script>-->"}</p>`',
   'hostile: a newline in an attribute': 'html`<b title=${"a" + String.fromCharCode(10) + "c"}>x</b>`',
+
+  /**
+   * **Structure**, rather than values. Every one of these is a shape the serializer has to walk
+   * correctly without a parser: it holds markup as a string, so a void element, a raw-text element,
+   * a self-closing custom element and a `<pre>` are each their own branch.
+   */
+  'void elements: br, hr, img, input': 'html`<div><br /><hr /><img src=${"a.png"} /><input /></div>`',
+  'a void element without the slash': 'html`<div><br><hr>${"after"}</div>`',
+  'a self-closing custom element': 'html`<div><my-widget /><b>${"after"}</b></div>`',
+  'a table, whose parser rules are strict': 'html`<table><tbody><tr><td>${1}</td><td>${2}</td></tr></tbody></table>`',
+  'a select with options': 'html`<select><option value=${"a"}>${"A"}</option><option value=${"b"}>${"B"}</option></select>`',
+  'pre, where whitespace is content': 'html`<pre>  two spaces\nand a newline ${1}</pre>`',
+  'a deeply nested template chain': 'html`<a>${html`<b>${html`<c>${html`<d>${"deep"}</d>`}</c>`}</b>`}</a>`',
+  'an attribute name with a dash and digits': 'html`<b data-x-1=${"v"} aria-describedby=${"y"}>x</b>`',
+  'an attribute holding a URL with a query': 'html`<a href=${"/p?a=1&b=2#frag"}>x</a>`',
+  'unicode text and attributes': 'html`<b title=${"héllo — 世界 🎉"}>${"héllo — 世界 🎉"}</b>`',
+  'an empty template': 'html``',
+  'only a binding': 'html`${"just this"}`',
+  'a binding either side of a tag': 'html`${"before"}<b>x</b>${"after"}`',
+  'adjacent bindings with no text between': 'html`<p>${1}${2}${3}</p>`',
+  'a boolean and a property on one element': 'html`<input ?disabled=${true} .value=${"v"} type="text" />`',
+  'an element whose tag repeats its attribute name': 'html`<b b=${"v"}>x</b>`',
 };
 
 /**

@@ -301,6 +301,29 @@ const CASES = {
       customElements.define('lp-nested-light', Light);
     `,
   },
+  /** A component whose template is only a binding, and one that renders nothing at all. */
+  'a component that renders only a binding': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ text: 'bare' });
+      render(() => html\`\${state.text}\`);
+    `,
+  },
+  'a component that renders nothing': {
+    body: `
+      init(this, { mode: 'open' });
+      render(() => html\`\`);
+    `,
+  },
+  /** `render()` bare: the setup ends and the effects still run, but nothing is drawn. */
+  'a component that draws nothing but still has effects': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ n: 0 });
+      useEffect(() => { deps(state.n); this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
+      render();
+    `,
+  },
   'closed shadow root': {
     body: `init(this, { mode: 'closed' }); render(() => html\`<p>closed</p>\`);`,
   },
@@ -522,7 +545,7 @@ KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
 };
 
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
-const IMPORTS = `import { init, render, html, createStore, useEffect, useLayoutEffect } from '@verajs/core';`;
+const IMPORTS = `import { init, render, html, createStore, useEffect, useLayoutEffect, deps } from '@verajs/core';`;
 const source = (name, spec) => `${IMPORTS}
 ${spec.defines ?? ''}
 class C extends HTMLElement {
@@ -652,6 +675,7 @@ for (const [name, spec] of Object.entries(ALL)) {
     'createStore',
     'useEffect',
     'useLayoutEffect',
+    'deps',
     'HTMLElement',
     'customElements',
     'document',
@@ -667,6 +691,7 @@ for (const [name, spec] of Object.entries(ALL)) {
     core.createStore,
     core.useEffect,
     core.useLayoutEffect,
+    core.deps,
     dom.window.HTMLElement,
     dom.window.customElements,
     dom.window.document
