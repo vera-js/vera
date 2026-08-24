@@ -411,7 +411,17 @@ export const renderToString = async (
    * this framework rather than two.
    */
   if (base) {
-    const root = new URL('.', base instanceof URL ? base.href : base).href;
+    /**
+     * Read as a directory whether or not it was written as one.
+     *
+     * `new URL('.', 'file:///app/components')` is `file:///app/` — the **parent**. A caller who
+     * wrote the directory without a trailing slash therefore got a bound one level wider than the
+     * one they asked for, silently, and the module was imported before anything noticed. Appending
+     * the slash can only ever tighten the bound, and a caller who meant a file gets a loud refusal
+     * on the next render rather than a quiet widening on this one.
+     */
+    const given = base instanceof URL ? base.href : String(base);
+    const root = new URL('.', given.endsWith('/') ? given : `${given}/`).href;
     if (!href.startsWith(root)) {
       throw new Error(`ssr: refused ${href} — resolves outside ${root}`);
     }

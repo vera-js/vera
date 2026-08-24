@@ -971,6 +971,12 @@ class ElementShim extends ContainerShim {
    * `beforebegin` and `afterend` place content *beside* this element, which requires the parent
    * this element does not have. They are refused rather than silently dropped — putting content
    * nowhere is the failure this whole file keeps being audited for.
+   *
+   * **A markup sink, deliberately** (CODE-PRINCIPLES #8). It writes what it is given, exactly as
+   * the DOM's own `insertAdjacentHTML` does, because a component calling it has already decided
+   * that: the same call on the client is the same sink, and a server that escaped where the browser
+   * does not would render one page and hydrate into another. `insertAdjacentText` escapes, which is
+   * the difference between the two methods and the one to reach for with anything from a request.
    */
   insertAdjacentHTML(position, markup) {
     const where = String(position).toLowerCase();

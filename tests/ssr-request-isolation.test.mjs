@@ -277,6 +277,21 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
     await assert.rejects(() => renderToString(target, { base: dir }), /refused/, `${label} was not refused`);
   }
 
+  /**
+   * A directory written without a trailing slash is still that directory.
+   *
+   * `new URL('.', 'file:///app/components')` is `file:///app/` — the parent — so the bound silently
+   * widened by one level and the module was imported before anything noticed. Asserted from the
+   * outside: the same sibling is refused whichever way the base is spelled.
+   */
+  for (const spelling of [dir.href, dir.href.replace(/\/$/, '')]) {
+    await assert.rejects(
+      () => renderToString(new URL('../autoloader/entry.js', dir), { base: spelling }),
+      /resolves outside/,
+      `base "${spelling}" did not bound the directory it names`
+    );
+  }
+
   /** Opt-in: a call without it behaves exactly as before. */
   const unbounded = await renderToString(new URL('hello-ssr.js', dir));
   assert.match(unbounded.html, /^<hello-ssr>/);
