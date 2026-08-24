@@ -7,6 +7,8 @@
  */
 
 /** tag name -> class, filled as component modules execute. */
+import { randomUUID } from 'node:crypto';
+
 export const registry = new Map();
 
 /**
@@ -1122,7 +1124,23 @@ const createElement = (localName) => {
  * is the handle, and `renderComponent` removes it as it renders.
  */
 export const pendingInstances = new Map();
-export const INSTANCE_ATTRIBUTE = 'vera-ssr-instance';
+
+/**
+ * The marker's **name** carries a per-process random token, because the markup it is written into is
+ * not all ours.
+ *
+ * `children` and the string form of `attributes` are raw markup by design, so a caller passing
+ * request data through either hands an attacker a way to write attributes into this document. With a
+ * fixed name, injected markup could claim a component's prepared instance — and win, because it is
+ * already in the markup when the real one is appended, and the scan reads in order. Demonstrated: an
+ * injected `<x-y vera-ssr-instance="1">` rendered with the parent's data while the parent's own
+ * child fell back to defaults. A name nothing outside this module can guess closes it, and
+ * `renderComponent` also refuses a marker whose instance is not the tag being rendered.
+ *
+ * Import-time rather than per-render: an attacker cannot read either, and the output never contains
+ * the marker, so nothing observable depends on it.
+ */
+export const INSTANCE_ATTRIBUTE = `vera-ssr-${randomUUID()}`;
 let instanceCount = 0;
 
 /** One `ElementInternals` per element, as `attachInternals` guarantees. */

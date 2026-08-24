@@ -20,8 +20,12 @@ For a shell assembled from several islands, carry one `Set` through every call. 
 the styles of what *it* rendered, so two islands sharing a component would otherwise each carry that
 component's CSS and the page would ship it twice.
 
-`attributes` also accepts a raw string, which is written through untouched — reach for it only when
-you must produce markup an object cannot describe, and never with anything from a request.
+**`children`, and the string form of `attributes`, are raw markup.** Both are written through
+untouched — that is what they are for — so neither may carry anything from a request without being
+sanitized first. Everything else is escaped at the render boundary: the object form of `attributes`
+cannot escape the tag it describes, and every interpolated value in a template is escaped as it is
+written. Reach for the string form of `attributes` only when you must produce markup an object cannot
+describe.
 
 - Node resolves the component's module graph natively (the `.ts`-via-`.js` convention included);
   execution registers classes through `customElements.define` — no AST walking.

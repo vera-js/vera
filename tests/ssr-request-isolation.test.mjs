@@ -298,6 +298,29 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.equal(again.styles, after.styles, 'and stays stable');
 }
 
+/* ── injected markup cannot claim a component's prepared instance ──────────────────────────────
+ * `children` and the string form of `attributes` are raw markup by design, so a caller passing
+ * request data through either lets an attacker write attributes into the document being built. A
+ * component that builds a child imperatively marks it, so the nested scan renders *that* instance
+ * rather than a fresh one — and with a guessable marker, injected markup claimed it and won, because
+ * it is already in the markup when the real child is appended and the scan reads in order.
+ *
+ * Asserted on the outcome rather than the mechanism: the parent's data reaches the parent's child
+ * and nothing else, whatever an injected marker says.
+ */
+{
+  const { html: markup } = await renderToString(fixture('instance-marker-ssr.js'), {
+    children: '<marker-secret-ssr vera-ssr-instance="1"></marker-secret-ssr>',
+  });
+
+  const rendered = [...markup.matchAll(/<marker-secret-ssr[^>]*>(.*?)<\/marker-secret-ssr>/g)].map(([, inner]) => inner);
+  assert.equal(rendered.length, 2, `expected the injected child and the real one: ${markup}`);
+  assert.ok(rendered[0].includes('PUBLIC'), `the injected element took the parent's instance: ${markup}`);
+  assert.ok(rendered[1].includes('SUPER-SECRET'), `the parent's own child lost its data: ${markup}`);
+  /** And the marker itself is internal: nothing this module wrote may reach the page. */
+  assert.ok(!/vera-ssr-[0-9a-f]{8}-/.test(markup), `an internal marker reached the output: ${markup}`);
+}
+
 /**
  * **Generalized:** a failure anywhere inside a render surfaces. It is never markup.
  *

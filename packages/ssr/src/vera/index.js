@@ -270,7 +270,11 @@ const renderComponent = (tag, attrString, depth, props, children) => {
    * and they came from the markup this instance wrote in the first place.
    */
   const pending = pendingInstances.get(element.getAttribute(INSTANCE_ATTRIBUTE));
-  if (pending) return renderInstance(pending, tag, depth, props, children);
+  /**
+   * The tag has to match. The marker's name is already unguessable, so this is the second lock on
+   * the same door: a marker can only ever produce the component it was written for.
+   */
+  if (pending && pending.localName === tag) return renderInstance(pending, tag, depth, props, children);
   return renderInstance(element, tag, depth, props, children);
 };
 
@@ -478,7 +482,15 @@ export const renderToString = async (
    * and nothing else.
    */
   const entry = renderComponent(tag, attrString, 0, props, children);
-  const html = `${entry.open}${entry.inner}</${tag}>`;
+  let html = `${entry.open}${entry.inner}</${tag}>`;
+  /**
+   * A marker that was never consumed must not reach the page.
+   *
+   * Everything the scan renders has its marker removed as it renders. Markup the scan does not
+   * read — inside a `<template>` a component wrote itself, or a raw-text element — is never
+   * rendered and so keeps its marker, which would ship an internal attribute to the browser.
+   */
+  if (pendingInstances.size) html = html.replaceAll(new RegExp(` ${INSTANCE_ATTRIBUTE}="\\d+"`, 'g'), '');
 
   /**
    * Thrown once the walk is over rather than at the point of failure, so the message can name
