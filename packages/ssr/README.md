@@ -92,6 +92,11 @@ Known limits:
   guard browser-only work — but a state change it makes schedules a re-render that happens after the
   string has been built, and the markup shows the value from before the effect.
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
+- **A routed component renders its shell, not its route.** `initRouter` works server-side — the
+  shim provides enough `window` for it — so the nav and the `[view]` outlet reach the markup and the
+  client fills the outlet on hydration. The route's own content does not, because the server holds
+  markup as a string rather than a tree and the router finds its outlet by query. Render the route
+  yourself and pass it as `children` if it has to be in the first response.
 - **A dynamic attribute *name* is not supported** — `<b ${name}="x">` produces a working attribute
   here and malformed markup in the browser, because the client hands the template to the platform's
   parser and a marker is not a name. Use `@verajs/renderer/spread`, which exists for names that are

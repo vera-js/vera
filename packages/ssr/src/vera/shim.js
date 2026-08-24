@@ -114,8 +114,31 @@ class ShadowRootShim {
     this._styles.push(node.innerHTML);
     return node;
   }
+  /**
+   * A shadow root is queried and listened to by more than the renderer — `@verajs/router` attaches
+   * its link handler to it and looks for the `[view]` outlet inside it. Built to "the smallest
+   * surface the renderer touches", it threw on both, which is the same wrong bar that left
+   * `ElementShim` missing `dispatchEvent` and `classList`.
+   *
+   * Queries find nothing because this holds a **string**, not a tree — nothing here parses HTML.
+   * That is why a route's content is not server-rendered: see the README.
+   */
   querySelector() {
     return null; // fresh instance per render — nothing to dedupe against
+  }
+  querySelectorAll() {
+    return [];
+  }
+  getElementById() {
+    return null;
+  }
+  addEventListener() {}
+  removeEventListener() {}
+  dispatchEvent() {
+    return true;
+  }
+  get host() {
+    return this._host;
   }
   /** Constructed sheets land here; serialized alongside string styles. */
   set adoptedStyleSheets(sheets) {
@@ -154,6 +177,7 @@ class ElementShim {
   }
   attachShadow(init = {}) {
     this.shadowRoot = new ShadowRootShim(init);
+    this.shadowRoot._host = this;
     return this.shadowRoot;
   }
   getAttribute(name) {
@@ -327,6 +351,43 @@ export const installShims = () => {
         return node;
       },
     },
+  });
+
+  /**
+   * Enough `window` for `@verajs/router` to initialise.
+   *
+   * Without it, a component calling `initRouter` threw `window is not defined` and could not be
+   * server-rendered at all — which rules out the app shell of every routed app, the exact thing
+   * server rendering is for. The router is careful to be *importable* in Node and says so; nothing
+   * made it *runnable*.
+   *
+   * Listeners are accepted and never fire, because nothing navigates on a server. `location`
+   * describes the page being rendered, so a route resolves against a real path; set
+   * `globalThis.location.pathname` before `renderToString` to render a route other than `/`.
+   * `history` is inert: a server has no session history to push onto.
+   */
+  globalThis.window = /** @type {any} */ (globalThis);
+  globalThis.location ??= /** @type {any} */ ({ pathname: '/', search: '', hash: '', href: 'http://localhost/' });
+  globalThis.history = /** @type {any} */ ({
+    scrollRestoration: 'auto',
+    pushState: () => {},
+    replaceState: () => {},
+    go: () => {},
+    back: () => {},
+    forward: () => {},
+  });
+  globalThis.addEventListener = () => {};
+  globalThis.removeEventListener = () => {};
+  globalThis.scrollTo = () => {};
+  globalThis.CustomEvent ??= /** @type {any} */ (class CustomEvent {
+    constructor(type, init = {}) {
+      this.type = type;
+      this.detail = init.detail;
+      this.defaultPrevented = false;
+    }
+    preventDefault() {
+      this.defaultPrevented = true;
+    }
   });
 
   globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);

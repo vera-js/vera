@@ -379,6 +379,21 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.match(markup, /<\/template><h1 slot="head">H<\/h1><p>body<\/p>/, 'children are placed for slotting');
 }
 
+/* ── a routed component ───────────────────────────────────────────────────────────────────────
+ * `initRouter` threw `window is not defined`, so the app shell of every routed app — the exact
+ * thing server rendering exists for — could not be server-rendered at all. The router is careful to
+ * be *importable* in Node and says so; nothing made it *runnable*.
+ *
+ * The shell renders. A route's content does not, because the shim holds a string rather than a
+ * tree and the router looks for its `[view]` outlet by query — render the route yourself and pass
+ * it as `children`.
+ */
+{
+  const { html: markup } = await renderToString(fixture('routed-ssr.js'));
+  assert.match(markup, /<nav><a route href="\/">Home<\/a><\/nav>/, 'the shell renders');
+  assert.match(markup, /<main view="main"><\/main>/, 'the outlet is present for the client to fill');
+}
+
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
  * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a
