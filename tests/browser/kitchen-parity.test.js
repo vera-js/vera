@@ -206,3 +206,86 @@ describe('the same application, rendered three ways', () => {
     expect(of(csr)).to.equal(of(ssr));
   });
 });
+
+/* ── the same application, driven ────────────────────────────────────────────────────────────── */
+/**
+ * Everything above compares the three modes **before anyone touches them**, which is the half a
+ * renderer is not for. A part bound during adoption can sit on the wrong node, or on the right node
+ * with the wrong idea of what it already holds, and the server's markup makes the first frame look
+ * perfect either way — it only shows when a value changes. That is not hypothetical: adopting a
+ * `<textarea>` and adopting a form value were both broken while every comparison above passed.
+ *
+ * The server page has no script and cannot be driven, so this is the two live modes against each
+ * other: **after the same interactions, a hydrated app and a client-rendered app are identical.**
+ * Each control is clicked in both, and the two are compared after every one — so a divergence names
+ * the interaction that caused it rather than being discovered at the end.
+ */
+const CONTROLS = [
+  ['sink-bindings', '#toggleBusy'],
+  ['sink-list', '#doReverse'],
+  ['sink-list', '#doRemove'],
+  ['sink-list', '#doReset'],
+  ['sink-collections', '#addTag'],
+  ['sink-collections', '#addUser'],
+  ['sink-collections', '#setWeak'],
+  ['sink-collections', '#clearAll'],
+  ['sink-effects', '#bumpOne'],
+  ['sink-effects', '#bumpThree'],
+  ['sink-styled', '#tint'],
+  ['sink-form', '#doToggle'],
+  ['sink-form', '#doRename'],
+];
+
+describe('the same application, driven the same way', () => {
+  beforeEach(function raiseTheTimeout() {
+    this.timeout(30000);
+  });
+
+  it('a hydrated app and a client-rendered app stay identical through every control', async () => {
+    const rootOf = (shell, tag) => {
+      const element = shell.shadowRoot.querySelector(tag);
+      expect(element, `<${tag}> missing`).to.exist;
+      return element.shadowRoot ?? element;
+    };
+
+    /**
+     * Counted, because a comparison of two things that did not change passes for the wrong reason.
+     * A mistyped selector, a control that stopped being wired, a click that no longer reaches its
+     * handler — all of them leave this suite green while testing nothing, which is precisely how
+     * `hydrate-user-state` managed to assert four false things for months.
+     */
+    let changed = 0;
+
+    for (const [tag, selector] of CONTROLS) {
+      const before = shape(rootOf(csr, tag));
+      for (const shell of [csr, hydrated]) {
+        const button = rootOf(shell, tag).querySelector(selector);
+        expect(button, `${tag} ${selector} missing`).to.exist;
+        button.click();
+      }
+      /** Both documents, because each schedules on its own window's frames. */
+      for (const shell of [csr, hydrated]) {
+        const view = shell.ownerDocument.defaultView;
+        for (let i = 0; i < 4; i++) await new Promise((r) => view.requestAnimationFrame(() => r()));
+        await Promise.resolve();
+      }
+
+      const after = shape(rootOf(csr, tag));
+      if (after !== before) changed++;
+
+      expect(
+        shape(rootOf(hydrated, tag)),
+        `<${tag}> diverged after clicking ${selector}`
+      ).to.equal(after);
+    }
+
+    /**
+     * Not all of them: a few controls are idempotent by design once the state is already there
+     * (`#doReset` on an already-reset list), and one — `#setWeak` — writes to a `WeakMap` that
+     * nothing in the template reads back as text. The bar is that most of the panel actually moved.
+     */
+    expect(changed, `only ${changed} of ${CONTROLS.length} controls changed the DOM at all`).to.be.at.least(
+      CONTROLS.length - 3
+    );
+  });
+});
