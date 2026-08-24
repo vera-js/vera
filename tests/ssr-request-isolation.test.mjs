@@ -313,6 +313,8 @@ for (const [what, file, message] of [
   ['a render callback throws', 'render-throws-ssr.js', /render blew up/],
   ['an effect throws', 'effect-throws-ssr.js', /effect blew up/],
   ['a nested child throws', 'parent-of-throwing-ssr.js', /render blew up/],
+  /** A frame callback is outside core's hook isolation, so it needed catching here. */
+  ['a frame callback throws', 'frame-throws-ssr.js', /frame blew up/],
 ]) {
   await assert.rejects(() => renderToString(fixture(file)), message, `${what}: it was swallowed`);
   await assert.rejects(

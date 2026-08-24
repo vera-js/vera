@@ -1117,10 +1117,22 @@ const FRAME_ROUNDS = 20;
  * re-rendered twice where a browser coalesces them into one, and anything scheduled before
  * `render()` ran against a component that had not drawn yet.
  */
-export const flushFrames = () => {
+export const flushFrames = (report) => {
   for (let round = 0; round < FRAME_ROUNDS && frames.length; round++) {
     const batch = frames.splice(0, frames.length);
-    for (const frame of batch) frame?.(performance.now());
+    for (const frame of batch) {
+      /**
+       * One failing callback does not take the others down, because a browser runs each frame
+       * callback independently and reports a throw rather than abandoning the frame. It is not
+       * *swallowed* either — `report` collects it, and the render fails at the end naming the
+       * component, the same way a hook error does.
+       */
+      try {
+        frame?.(performance.now());
+      } catch (error) {
+        report?.(error);
+      }
+    }
   }
   /** A loop that never settles leaves work queued; it must not reach the next component. */
   frames.length = 0;

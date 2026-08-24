@@ -21,7 +21,7 @@
 import { load } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { canonical } from './canonical.mjs';
 
 /**
@@ -238,6 +238,18 @@ const CASES = {
       render(() => html\`<p>depth=\${state.depth}</p>\`);
     `,
   },
+  /** A browser runs each frame callback independently; one throwing must not skip the next. */
+  'a throwing frame does not take the next one down': {
+    body: `
+      init(this, { mode: 'open' });
+      const state = createStore({ ran: 'no' });
+      requestAnimationFrame(() => { throw new Error('ignored by this case'); });
+      requestAnimationFrame(() => { state.ran = 'yes'; });
+      render(() => html\`<p>ran=\${state.ran}</p>\`);
+    `,
+    /** The server collects the throw and fails the render; the client only reports it. */
+    serverThrows: /ignored by this case/,
+  },
   /** cancelAnimationFrame is honoured, not ignored. */
   'a cancelled frame does not run': {
     body: `
@@ -418,12 +430,18 @@ try {
   const script = `
 import { renderToString } from '@verajs/ssr/vera';
 const out = {};
+/** A case marked \`serverThrows\` is expected to fail; the message is the assertion. */
+const attempt = async (name, url, options) => {
+  try { out[name] = (await renderToString(url, options)).html; }
+  catch (error) { out[name] = { threw: String(error.message) }; }
+};
 ${Object.entries(ALL)
   .map(
     ([name, spec]) =>
-      `out[${JSON.stringify(name)}] = (await renderToString(${JSON.stringify(`file://${files[name]}`)}, ${JSON.stringify(
-        { attributes: spec.attributes ?? {}, children: spec.children ?? '' }
-      )})).html;`
+      `await attempt(${JSON.stringify(name)}, ${JSON.stringify(`file://${files[name]}`)}, ${JSON.stringify({
+        attributes: spec.attributes ?? {},
+        children: spec.children ?? '',
+      })});`
   )
   .join('\n')}
 process.stdout.write(JSON.stringify(out));
@@ -455,7 +473,14 @@ process.stdout.write(JSON.stringify(out));
 }
 
 /* ── client ──────────────────────────────────────────────────────────────────────────────────── */
-const dom = new JSDOM('<body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
+/**
+ * A frame callback that throws is one of the cases, and reporting it is the *correct* client
+ * behaviour — jsdom writes it to the virtual console, which would otherwise look like a failure in
+ * a suite that passes. Forwarded nowhere; the assertion is what the DOM ends up as.
+ */
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', () => {});
+const dom = new JSDOM('<body></body>', { pretendToBeVisual: true, url: 'http://localhost/', virtualConsole });
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'CustomEvent', 'Element'])
   globalThis[key] = key === 'window' ? dom.window : dom.window[key];
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
@@ -520,7 +545,14 @@ for (const [name, spec] of Object.entries(ALL)) {
     shadow: root ? canonical(root) : '',
     light: canonical(element),
   };
-  const fromServer = parseServer(server[name]);
+  const fromServer = spec.serverThrows ? null : parseServer(server[name]);
+
+  if (spec.serverThrows) {
+    const threw = server[name]?.threw;
+    if (threw && spec.serverThrows.test(threw) && fromClient.shadow.includes('ran=yes')) pass++;
+    else failures.push(`${name}\n      server: ${JSON.stringify(server[name])}\n      client: ${fromClient.shadow}`);
+    continue;
+  }
 
   const expected = KNOWN_DIVERGENCES[name]
     ? fromServer.shadow === spec.server && fromClient.shadow === spec.client

@@ -296,7 +296,7 @@ const renderComponent = (tag, attrString, depth, props, children) => {
   element.upgrade();
   const pending = element.connectedCallback?.();
   /** Inside the rendering tag, so a re-render's styles are still hoisted against this component. */
-  flushFrames();
+  flushFrames((error) => renderErrors.push({ error, tag }));
   setRenderingTag(previousTag);
 
   /**
