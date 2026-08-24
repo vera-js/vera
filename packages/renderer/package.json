@@ -35,6 +35,11 @@
       "types": "./dist/development/vera-renderer-spread.d.ts",
       "development": "./dist/development/vera-renderer-spread.js",
       "default": "./dist/vera-renderer-spread.min.js"
+    },
+    "./tag": {
+      "types": "./dist/development/vera-renderer-tag.d.ts",
+      "development": "./dist/development/vera-renderer-tag.js",
+      "default": "./dist/vera-renderer-tag.min.js"
     }
   },
   "files": [

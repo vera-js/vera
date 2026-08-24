@@ -26,6 +26,10 @@
       "raw": 1582,
       "gzip": 842
     },
+    "tag": {
+      "raw": 2788,
+      "gzip": 1439
+    },
     "computed": {
       "raw": 298,
       "gzip": 241

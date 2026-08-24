@@ -87,8 +87,9 @@ It is deliberately narrow, and it is a **property** binding only:
 `spread({ '!checked': … })` means the same thing, and `@verajs/ssr` serializes it exactly as
 `.checked` — a server has nothing to re-read.
 
-Bindings inside comments, and dynamic tag names, are not supported — the value is consumed and
-ignored.
+Bindings inside comments are not supported — the value is consumed and ignored. A **dynamic tag
+name** is a binding a template cannot express either, and has its own entry:
+[`/tag`](#verajsrenderertag).
 
 ## Values
 
@@ -347,6 +348,60 @@ Greppable, obviously yours, reviewable as the security decision it is. Sanitize 
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
+## `@verajs/renderer/tag`
+
+An element whose **tag name** is decided at runtime — a heading whose level comes from data, a
+component that renders `<a>` or `<button>`.
+
+```js
+import { html, tag } from '@verajs/renderer/tag';
+
+const HEADING = { 1: tag`h1`, 2: tag`h2`, 3: tag`h3` };
+
+const H = HEADING[state.level];
+render(html`<${H} class="title">${state.text}</${H}>`, host);
+```
+
+A template renderer bakes tag names into its statics — that is what template identity *is*, and
+what every fast path here depends on. So a runtime tag cannot be a binding: it is spliced into the
+statics before the renderer sees the template. Downstream nothing changes. The renderer,
+`@verajs/ssr` and hydration all receive an ordinary template and are unaware this entry exists.
+
+Note the `html` import: in a template containing a tag, use the one from here rather than core's.
+
+### In JSX
+
+**A tag is also a component.** A capitalized JSX tag compiles to `H({…})`, and a tag *is* that
+function, so the same value works in both notations with no compiler change and no new syntax —
+`<{expr}>` is not valid JSX or TSX, and inventing it would break `tsc`, Prettier and every editor.
+
+```jsx
+const H = HEADING[state.level];
+return <H className="title" hidden={state.muted}>{state.text}</H>;
+```
+
+React's names are mapped here exactly as the compiler maps them on a written element, so `<H
+className="t" hidden={false}>` and `<h1 className="t" hidden={false}>` mean the same thing. That is
+a correctness matter, not an ergonomic one: passed through raw, `hidden={false}` becomes the
+attribute `hidden="false"` and any value at all applies it.
+
+### What to know
+
+- **A string can never become a tag.** Only another tag may be interpolated, so the set of tags an
+  app can produce is fixed by its source. That is what keeps a tag out of reach of a request — the
+  same reasoning as there being no `unsafeHTML` — and it is what bounds the cache below.
+- **Each tag is its own template.** Switching tags rebuilds the subtree, which is correct: the
+  element genuinely changed. Within a tag it updates in place like anything else.
+- **The cache is per call site.** Spliced statics hang off the call site's own `strings` array, so
+  two template literals in the source are two entries however identical they look. Right for real
+  code, where a template lives at one place in a render function — and the thing that catches people
+  writing tests for it.
+- HTML only. There is no `svg`/`mathml` equivalent yet.
+
+<!--size:tag.gzip-->1.41 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
+entries: it inlines no renderer internals, so it is safe alongside any of them.
+
 ## Extending it — `_$apply$` and `_$child$`
 
 The renderer holds no directive system. It holds a **protocol**, at the two positions worth
@@ -416,6 +471,7 @@ Directives other renderers ship, and what replaces them here.
 | `guard()` | reactivity already skips unchanged work |
 | `until()`, `asyncReplace()` | render a loading state and re-render from an effect |
 | `unsafeHTML()` | `.innerHTML=${trusted}`, above |
+| `literal()` / `static-html` | [`/tag`](#verajsrenderertag) — and a tag doubles as a JSX component |
 | `live()` | not available. A property bound to a value it already holds is not re-applied, so a field the user has typed into keeps their text |
 
 ## Types

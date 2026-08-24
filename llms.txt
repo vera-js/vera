@@ -351,7 +351,11 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   field the user has typed into keeps their text.
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
-- Bindings inside comments and dynamic tag names are not supported (values consumed, ignored).
+- Bindings inside comments are not supported (values consumed, ignored).
+- **A dynamic tag name** needs `@verajs/renderer/tag`: `const H1 = tag\`h1\`` then
+  `` html`<${H1} class="t">${x}</${H1}>` `` — note the `html` comes from that entry, not core. A
+  string can never become a tag, only another tag. In JSX the same value is a component:
+  `<H1 className="t">{x}</H1>`, with React's names mapped exactly as on a written element.
 - **Stable shapes beat conditional swaps.** Rendering the same element every pass and toggling
   `hidden` is faster than swapping one subtree for another — template identity holds, so the
   renderer updates values in place instead of tearing down and rebuilding. Both forms are

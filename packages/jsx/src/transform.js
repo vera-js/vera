@@ -23,12 +23,12 @@ import { findRoots } from './parser.js';
  *   {...spread} on an element     -> `${spread(props)}` via @verajs/renderer/spread
  */
 
-const BOOLEAN_ATTRIBUTES = new Set([
+export const BOOLEAN_ATTRIBUTES = new Set([
   'disabled', 'hidden', 'readonly', 'required', 'open', 'selected', 'multiple',
   'autofocus', 'autoplay', 'controls', 'loop', 'muted', 'playsinline', 'inert', 'reversed',
 ]);
 
-const NAME_MAP = { className: 'class', htmlFor: 'for' };
+export const NAME_MAP = { className: 'class', htmlFor: 'for' };
 
 class JsxError extends Error {
   constructor(message, code, fileName, offset) {

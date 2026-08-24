@@ -45,6 +45,12 @@ rest of this file.
   invalidates the current approach gets surfaced immediately, not at the end.
 - **Never assume abandoned code is dead.** See `docs/CODE-PRINCIPLES.md` #3. Audit, report what it was
   for, and let Brian decide.
+- **"Worth documenting" means document it, now.** If a finding is worth a sentence in conversation,
+  it is worth the same sentence in the file where someone will hit it — the README, the doc comment,
+  `llms.txt`, `internal/docs/`. Saying it and not writing it down produces exactly the drift these
+  docs exist to prevent, and the moment it is understood is the only moment it is cheap. The same
+  goes for "worth checking" and "worth flagging": do it in the same pass or say plainly that it is
+  outstanding.
 - Collaboration is the point. Prefer a short check-in over an impressive unilateral result.
 
 ---
