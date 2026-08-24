@@ -29,6 +29,22 @@ export const insert = <K extends keyof InsertFunctionMap>(
   callback: InsertFunctionMap[K],
   priority: number
 ) => {
+  /**
+   * A priority that is not a finite number breaks the two rules this function is built on, silently.
+   * `indexOf(NaN)` is always `-1`, so "a taken priority replaces" stops holding and the same
+   * registration stacks up on every call; and `order[slot] < NaN` is false immediately, so it lands
+   * at the front of the chain and runs before the renderer. `parseInt` of a config value and
+   * `Number(undefined)` both produce it. Nothing throws today and the chain simply misbehaves.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the check nor the text — the same trade
+   * `@verajs/autoloader` makes for `rootDir`.
+   */
+  if (__DEV__ && !Number.isFinite(priority))
+    throw new Error(
+      `insert: priority must be a finite number, and "${String(priority)}" is not. ` +
+        `Lower runs first; a renderer registers at 50.`
+    );
+
   let chain = inserts.get(insertName) as Chain | undefined;
   if (!chain) inserts.set(insertName, (chain = []));
   const order = (chain._p ??= []);

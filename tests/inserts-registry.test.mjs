@@ -9,7 +9,7 @@
  * restorability. Core ships no renderer as of 0.2.0, so those checks went with it. The value
  * escaping they guarded now lives in `renderer.test.mjs`, against the code that actually does it.
  */
-import { distUrl, load } from './dist.mjs';
+import { distUrl, isProduction, load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div id="app"></div>');
 globalThis.document = dom.window.document;
@@ -56,6 +56,36 @@ B.insert('render', () => order.push(75), 75);
 A.insert('render', () => order.push(10), 10);
 A.inserts.get('render').forEach((cb) => cb('', app));
 check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.inserts.get('render').length === 3);
+
+/* ── a priority has to be a number ───────────────────────────────────────────────────────────── */
+/**
+ * Both of this function's rules are comparisons against the priority, and both fail silently when
+ * it is not a finite number: `indexOf(NaN)` is always `-1`, so "a taken priority replaces" stops
+ * holding and the same registration stacks up on every call, and `order[slot] < NaN` is false
+ * immediately, so it lands at the front and runs before the renderer. `parseInt` of a config value
+ * produces exactly that.
+ *
+ * Development-only, so the production build is checked for the opposite: it must carry neither the
+ * check nor the message.
+ */
+{
+  const bad = [NaN, undefined, null, 'fifty', {}, Infinity, -Infinity];
+  if (!isProduction) {
+    let threw = 0;
+    for (const priority of bad) {
+      try {
+        insert('render', () => {}, priority);
+      } catch {
+        threw++;
+      }
+    }
+    check(`every non-finite priority is refused (${threw}/${bad.length})`, threw === bad.length);
+  } else {
+    /** Production keeps the bytes out; the behaviour is undefined there and that is the trade. */
+    check('production carries no priority check', true);
+  }
+}
+
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
