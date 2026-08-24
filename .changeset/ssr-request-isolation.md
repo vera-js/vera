@@ -72,3 +72,10 @@ remainder as loose text beside it; a component named inside an HTML comment was 
 comment; and one named inside a `<textarea>` was rendered into its value. The walk now tracks quote
 state and skips comments and the raw-text elements (`script`, `style`, `textarea`, `title`). No cost:
 the 100-row table measures the same as it did with the regex.
+
+**Single-quoted bindings work.** Only the double-quoted and unquoted forms were recognised, while
+the client supports all three because it hands markup to the platform's parser. So
+`<input .value='${v}' />` set a property in the browser and emitted a literal attribute named
+`.value` on the server, `?hidden='${true}'` hid the element on one side and printed `?hidden='true'`
+on the other, and `@click='${fn}'` left `@click=''` behind. A visible difference on a static page and
+a guaranteed mismatch on a hydrated one, for `.prop`, `?bool`, `@event` and `onClick` alike.

@@ -37,6 +37,18 @@ const CASES = {
   'list': 'html`<ul><li id="probe">x</li>${state.rows.map((row) => html`<li>${row}</li>`)}</ul>`',
   'empty list': 'html`<ul><li id="probe">x</li>${[]}</ul>`',
   'text that looks like an attribute': 'html`<p><b id="probe">x</b>total=${state.count}</p>`',
+
+  /**
+   * Single quotes are legal everywhere double quotes are, and the client supports them because it
+   * hands markup to the platform's parser. The server only knew `"`, so a `.value='${…}'` set a
+   * property in the browser and emitted a literal attribute named `.value` on the server.
+   */
+  "single-quoted attribute": "html`<p><b id=\"probe\" title='${state.text}'>x</b></p>`",
+  "single-quoted form property": "html`<p><b id=\"probe\">x</b><input .value='${state.text}' /></p>`",
+  "single-quoted boolean, true": "html`<p><b id=\"probe\" ?hidden='${true}'>x</b></p>`",
+  "single-quoted boolean, false": "html`<p><b id=\"probe\" ?hidden='${false}'>x</b></p>`",
+  "single-quoted event": "html`<p><b id=\"probe\" @click='${() => {}}'>x</b></p>`",
+  "single-quoted onClick": "html`<p><b id=\"probe\" onClick='${() => {}}'>x</b></p>`",
 };
 
 const STATE = "{ text: 'hello & <world>', count: 3, rows: ['a', 'b'] }";
@@ -87,6 +99,22 @@ for (const [name, markup] of Object.entries(serverMarkup)) {
 
   if (container.querySelector('#probe') === probe) pass++;
   else failures.push(`${name}\n      server: ${markup}\n      client: ${container.innerHTML.replace(/<!--[^>]*-->/g, '')}`);
+}
+
+/**
+ * Same input, same bytes — a server that answers differently on the second request cannot be
+ * cached, and a difference here is a hydration mismatch waiting for the right traffic.
+ */
+{
+  const repeat = JSON.parse(
+    execFileSync(process.execPath, ['--input-type=module', '-e', serverScript], {
+      cwd: new URL('..', import.meta.url),
+      encoding: 'utf8',
+    })
+  );
+  for (const [name, markup] of Object.entries(serverMarkup)) {
+    if (repeat[name] !== markup) failures.push(`${name}: not deterministic\n      once: ${markup}\n      again: ${repeat[name]}`);
+  }
 }
 
 if (failures.length) {

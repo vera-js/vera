@@ -22,7 +22,24 @@ import { escapeHtml } from './shim.js';
 /** `.prop` bindings whose server-side truth belongs in an attribute. */
 const FORM_ATTRIBUTES = ['value', 'checked', 'selected'];
 
-const SIGIL_TAIL = /([.?@&])([a-zA-Z][\w-]*)=("?)$/;
+/**
+ * A sigil binding, however the author quoted it — `"`, `'`, or not at all.
+ *
+ * Only the double-quoted and unquoted forms were recognised, and the client supports all three
+ * because it hands the markup to the platform's parser. So `<input .value='${v}' />` set a property
+ * in the browser and emitted a literal attribute named `.value` on the server; `?hidden='${true}'`
+ * hid the element on one side and printed `?hidden='true'` on the other. Visible difference on a
+ * static page, guaranteed mismatch on a hydrated one.
+ */
+const SIGIL_TAIL = /([.?@&])([a-zA-Z][\w-]*)=(["']?)$/;
+
+/** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
+const EVENT_TAIL = /on[A-Z][\w-]*=(["']?)$/;
+
+/**
+ * An **unquoted** plain attribute, which is the only one that needs quotes adding. A quoted one
+ * carries its quotes in the statics either side, so the value is just escaped text between them.
+ */
 const PLAIN_ATTRIBUTE_TAIL = /[a-zA-Z][\w-]*=$/;
 
 /** Slot kinds: text, boolean, form-prop, dropped binding, plain attribute. */
@@ -60,19 +77,20 @@ const compile = (strings) => {
   const parts = [];
   const kinds = [];
   const names = [];
-  let skipQuote = false;
+  /** The quote character a binding opened with, to be stripped off the front of the next static. */
+  let openQuote = '';
   let inTag = false;
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
-    if (skipQuote) part = part.startsWith('"') ? part.slice(1) : part;
+    if (openQuote && part.startsWith(openQuote)) part = part.slice(1);
     inTag = closesTag(part, inTag);
 
     const sigil = inTag && SIGIL_TAIL.exec(part);
     if (sigil) {
       /** The space that preceded the binding goes with it, so dropped bindings leave no residue. */
       parts.push(part.slice(0, sigil.index).replace(/ $/, ''));
-      skipQuote = sigil[3] === '"';
+      openQuote = sigil[3];
       const kind = sigil[1];
       if (kind === '?') {
         kinds.push(BOOLEAN);
@@ -85,22 +103,26 @@ const compile = (strings) => {
       continue;
     }
 
-    skipQuote = false;
-    const attribute = inTag && PLAIN_ATTRIBUTE_TAIL.exec(part);
-    if (attribute && /^on[A-Z]/.test(attribute[0])) {
-      /** `onClick=${fn}` — the React-shaped event binding; a client concern, dropped like `@`. */
-      parts.push(part.slice(0, attribute.index).replace(/ $/, ''));
+    openQuote = '';
+
+    const event = inTag && EVENT_TAIL.exec(part);
+    if (event) {
+      /** A client concern, dropped like `@` — and it may be quoted, so remember which. */
+      parts.push(part.slice(0, event.index).replace(/ $/, ''));
+      openQuote = event[1];
       kinds.push(DROPPED);
       names.push('');
       continue;
     }
+
+    const attribute = inTag && PLAIN_ATTRIBUTE_TAIL.exec(part);
     parts.push(part);
     kinds.push(attribute ? ATTRIBUTE : TEXT);
     names.push('');
   }
 
   let last = strings[strings.length - 1];
-  if (skipQuote) last = last.startsWith('"') ? last.slice(1) : last;
+  if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
   const plan = { parts, kinds, names };
