@@ -76,7 +76,8 @@ export const setRenderer = (renderer: Renderer) => {
   insert(
     'render',
     (template, element, ...args) => {
-      const el = element.shadowRoot ?? element;
+      /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
+      const el = (element as HTMLElement & { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element;
       renderer(template, el, ...args);
     },
     50

@@ -20,7 +20,7 @@ let warnedAboutStyles = false;
  */
 export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) => {
   if (!element) throw new Error('init: element required');
-  const shadowRoot = element.shadowRoot;
+  const shadowRoot = element.shadowRoot ?? element._root;
 
   currentInstance.element = new WeakRef(element);
 
@@ -62,8 +62,19 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
     });
   };
 
-  if (shadowProps && !shadowRoot) {
-    element.attachShadow(shadowProps);
+  /**
+   * The returned root is **kept**, because `element.shadowRoot` is null for a closed one — that is
+   * what closed means, and it applies to the framework too. Discarding it meant everything
+   * downstream read `element.shadowRoot`, found null, and fell back to the element: content
+   * rendered into the light DOM, styles never adopted, and the closed root left empty and
+   * unreachable. Measured, with no SSR involved: `mode: 'closed'` put `<p>content</p>` in the
+   * light DOM while `mode: 'open'` put it in the shadow root.
+   *
+   * Guarded on `_root` as well as `shadowRoot`, or a second `init` on a closed element would call
+   * `attachShadow` again and throw.
+   */
+  if (shadowProps && !shadowRoot && !element._root) {
+    element._root = element.attachShadow(shadowProps);
   }
 
   element._cleanups = new Set();

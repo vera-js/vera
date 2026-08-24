@@ -40,6 +40,13 @@ export type ComponentProperties = {
   _hookPriorities?: number[];
   /** Effect cleanups awaiting disconnect, kept here so removal can run them (see `init`). */
   _cleanups?: Set<HookCleanup>;
+  /**
+   * The root this element renders into, kept because `element.shadowRoot` is **null for a closed
+   * shadow root** — that is what closed means, and it applies to the framework too. Read across
+   * package boundaries by the `'render'` insert and by `@verajs/styles`, so it is a cross-boundary
+   * contract like `_hooks` and must never be mangled.
+   */
+  _root?: ShadowRoot;
 };
 
 /** Styles to be applied */

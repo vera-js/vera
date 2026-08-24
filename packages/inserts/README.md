@@ -1,6 +1,6 @@
 # @verajs/inserts
 
-The VeraJS extension registry (<!--size:inserts.gzip-->360 B<!--/size:inserts.gzip--> gzip). Every
+The VeraJS extension registry (<!--size:inserts.gzip-->363 B<!--/size:inserts.gzip--> gzip). Every
 capability that attaches to VeraJS — renderers, autoloaders, styling, error boundaries, batching —
 attaches through here. It is the module system's backbone rather than a feature.
 

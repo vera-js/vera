@@ -43,7 +43,8 @@ export const adoptStyles = (element: StyledElement) => {
  */
 export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, element: StyledElement) => {
   if (!styles) return;
-  const shadowRoot = element.shadowRoot;
+  /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
+  const shadowRoot = (element as StyledElement & { _root?: ShadowRoot })._root ?? element.shadowRoot;
   const stylesArray = Array.isArray(styles) ? styles : [styles];
 
   if (shadowRoot) {
