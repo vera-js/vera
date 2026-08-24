@@ -55,6 +55,24 @@ export const initAutoloader = (
    * absolute, protocol-relative, or upward-traversing value resolves outside this prefix and is
    * refused.
    */
+  /**
+   * A **relative** `rootDir` throws either way; development says why.
+   *
+   * The platform's own message — `Failed to construct 'URL': Invalid base URL` — names neither the
+   * argument nor the fix. The value has to be absolute because every component URL resolves against
+   * it, which is why `import.meta.url` is the documented answer. Behind `__DEV__`, so the build
+   * folds it away and a production bundle carries neither the check nor the text.
+   */
+  if (__DEV__) {
+    try {
+      new URL('.', rootDir);
+    } catch {
+      throw new Error(
+        `autoloader: rootDir must be an absolute URL, and "${rootDir}" is not. ` +
+          `Pass import.meta.url — a relative path has nothing to resolve against.`
+      );
+    }
+  }
   const base = new URL('.', rootDir).href;
 
   /** One attempt per URL per page load, so a 404 costs one request and one console line. */

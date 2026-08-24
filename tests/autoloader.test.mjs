@@ -7,7 +7,7 @@
  * what gets found in the first place — `tests/browser/autoloader.test.js` owns that, on three
  * engines.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<body></body>', { url: 'http://localhost/' });
@@ -180,11 +180,26 @@ clearHosts();
 
 clearHosts();
 
-// 7. a missing rootDir throws at init, not per element
+// 7. a missing or relative rootDir throws at init, not per element
+//
+// A relative one used to reach `new URL` and surface the platform's own `Invalid base URL`, which
+// names neither the argument nor the fix. Every component URL resolves against this value, so it
+// has to be absolute — which is exactly why `import.meta.url` is the documented answer.
 {
-  let threw = false;
-  try { initAutoloader(''); } catch { threw = true; }
-  check('missing rootDir throws at init', threw);
+  for (const [label, value, expected] of [
+    ['missing', '', /rootDir is required/],
+    /**
+     * The *message* is `__DEV__`-only — a production bundle carries neither the check nor the text,
+     * so the platform's own `Invalid URL` surfaces instead. Both still throw, which is what
+     * matters; only the help is a development cost.
+     */
+    ['relative path', './components/entry.js', isProduction ? /Invalid URL/ : /must be an absolute URL/],
+    ['bare directory', 'components', isProduction ? /Invalid URL/ : /must be an absolute URL/],
+  ]) {
+    let message = '';
+    try { initAutoloader(value); } catch (error) { message = String(error.message); }
+    check(`a ${label} rootDir throws at init, naming the fix`, expected.test(message), message);
+  }
 }
 
 clearHosts();

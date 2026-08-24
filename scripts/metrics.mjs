@@ -82,12 +82,12 @@ const speed = JSON.parse(
 const current = { size, speed };
 const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, 'utf8')) : null;
 
-const delta = (now, then, unit) => {
+const delta = (now, then, unit, places = 0) => {
   if (then == null) return '     (new)';
-  const change = now - then;
+  const change = Number((now - then).toFixed(places + 3));
   if (!change) return '          —';
   const percent = then ? ((change / then) * 100).toFixed(1) : '∞';
-  return `${change > 0 ? '+' : ''}${change}${unit} (${change > 0 ? '+' : ''}${percent}%)`;
+  return `${change > 0 ? '+' : ''}${change.toFixed(places)}${unit} (${change > 0 ? '+' : ''}${percent}%)`;
 };
 
 console.log('\n  size — gzipped bundle bytes');
@@ -97,7 +97,7 @@ for (const [name, bytes] of Object.entries(size))
 console.log('\n  speed — µs, fastest of 7 rounds');
 for (const [name, microseconds] of Object.entries(speed))
   console.log(
-    `  ${name.padEnd(18)} ${String(microseconds).padStart(8)} µs  ${delta(microseconds, baseline?.speed?.[name], ' µs')}`
+    `  ${name.padEnd(18)} ${String(microseconds).padStart(8)} µs  ${delta(microseconds, baseline?.speed?.[name], ' µs', 3)}`
   );
 
 if (record) {
