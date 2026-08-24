@@ -3,10 +3,11 @@
  * handles more than one request, which is the condition none of them survived.
  *
  * This import installs the server environment and MUST come before anything that pulls in
- * `@verajs/core`.
+ * `@verajs/renderer`.
  */
 import { renderToString, serializeTemplate } from '@verajs/ssr/vera';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 
 const { html } = await import('@verajs/core');
 const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
@@ -546,3 +547,41 @@ for (const [what, file, message] of [
 }
 
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');
+
+/* ── which module actually needs the shims first ───────────────────────────────────────────────
+ * The header said "before anything that imports `@verajs/core`", and core turns out to be
+ * order-independent. `@verajs/renderer` is the one that is not: it builds two shared `TreeWalker`s
+ * at import time, and a component reaches it through `keyed` or `hold`. Asserted from the outside,
+ * in child processes, because import order is a property of a module graph rather than of a call.
+ */
+{
+  const attempt = (script) => {
+    try {
+      execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
+        cwd: new URL('..', import.meta.url).pathname,
+        stdio: 'pipe',
+      });
+      return null;
+    } catch (error) {
+      return String(error.stderr ?? '').split('\n').filter(Boolean)[0] ?? 'threw';
+    }
+  };
+
+  for (const name of ['@verajs/core', '@verajs/styles', '@verajs/router']) {
+    assert.equal(
+      attempt(`await import('${name}'); await import('@verajs/ssr/vera');`),
+      null,
+      `${name} should be order-independent, and the README says which ones are`
+    );
+  }
+
+  assert.ok(
+    attempt("await import('@verajs/renderer'); await import('@verajs/ssr/vera');"),
+    'the renderer no longer needs the shims first — the README says it does'
+  );
+  assert.equal(
+    attempt("await import('@verajs/ssr/vera'); await import('@verajs/renderer');"),
+    null,
+    'the documented order must work'
+  );
+}

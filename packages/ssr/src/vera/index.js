@@ -5,8 +5,13 @@
  * sigil-aware serializer, and nested components are discovered by scanning emitted markup for
  * tags the registry knows — never by parsing HTML.
  *
- * Import THIS module before anything that imports `@verajs/core` — the shims must exist before
- * core evaluates (core is dynamically imported below for exactly that reason).
+ * Import THIS module first — before anything that imports `@verajs/renderer`, which is the module
+ * that actually needs the shims: it builds two shared `TreeWalker`s at import time and throws
+ * against a bare Node global object. A component reaches it through `keyed` or `hold`.
+ *
+ * Measured: core, `@verajs/styles` and `@verajs/router` are all order-independent; only the
+ * renderer is not. Core is still dynamically imported below, because `setRenderer` and `insert`
+ * have to come from the same instance the components will use.
  *
  * Client takeover is `@verajs/renderer/hydrate`, which adopts this markup in place — markerless,
  * so nothing here carries framework comments. (This comment used to say the renderer had no

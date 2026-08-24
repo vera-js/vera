@@ -92,8 +92,13 @@ buys time-to-first-byte in proportion to how long a render takes, and a 100-row 
 — the response is built before a streaming implementation would have flushed its first chunk. It is
 a real difference in shape, and worth revisiting for a page big enough that it stops being one.
 
-Import `@verajs/ssr` before anything that imports `@verajs/core` — it installs the server
-environment first.
+**Import `@verajs/ssr` first**, before anything that imports `@verajs/renderer`.
+
+The module that actually needs the shims is the renderer, not core: it builds two shared
+`TreeWalker`s at import time, so importing it against a bare Node global object throws before your
+component ever runs. A component reaches it through `keyed` or `hold`, which is why the rule reads
+as "import this first" — measured, core, `@verajs/styles` and `@verajs/router` are all order-
+independent, and only `@verajs/renderer` is not.
 
 **The entry component is found by matching the module's exports against the registry**, so export
 the class (`export default class …`) or pass `{ tag }`. It used to guess by diffing the registry
