@@ -252,6 +252,23 @@ const CASES = {
   'a spread with .checked given an empty string': 'html`<input type="checkbox" ${spread({ ".checked": "" })} />`',
   'a spread with .selected given zero': 'html`<select><option ${spread({ ".selected": 0 })}>a</option></select>`',
   'a spread with .value given zero': 'html`<input ${spread({ ".value": 0 })} />`',
+
+  /**
+   * **Attribute names**, where HTML and SVG disagree with each other. HTML lower-cases every
+   * attribute name; SVG does not, and `viewBox` written `viewbox` is simply a different attribute
+   * that no renderer honours. A serializer emits text for a parser to read, so it has to leave the
+   * author's case alone and let each namespace apply its own rule — the client has no choice but to.
+   */
+  'an uppercase attribute name in HTML': 'html`<b TITLE=${"v"}>x</b>`',
+  'a mixed-case attribute name in HTML': 'html`<b dataFoo=${"v"}>x</b>`',
+  'an SVG camelCase attribute': 'html`<svg viewBox=${"0 0 4 4"} preserveAspectRatio=${"none"}><rect width="1" height="1" /></svg>`',
+  'an SVG attribute inside the svg tag': 'html`<svg viewBox="0 0 4 4">${svg`<rect width=${2} height=${2} />`}</svg>`',
+  'an SVG element with a dashed attribute': 'html`<svg viewBox="0 0 4 4">${svg`<rect stroke-width=${2} fill-opacity=${0.5} />`}</svg>`',
+  'a MathML attribute': 'html`<math>${mathml`<mn mathvariant=${"bold"}>1</mn>`}</math>`',
+  'an xlink namespaced attribute': 'html`<svg viewBox="0 0 4 4">${svg`<use xlink:href=${"#a"} />`}</svg>`',
+  'a data attribute with mixed case': 'html`<b data-fooBar=${"v"}>x</b>`',
+  'an enumerated boolean via the sigil': 'html`<b ?contenteditable=${true}>x</b>`',
+  'a spread with an uppercase key': 'html`<b ${spread({ TITLE: "v" })}>x</b>`',
 };
 
 /**
@@ -263,6 +280,22 @@ const CASES = {
  * changes that, and a renderer that sanitised the author's string to match would be worse.
  */
 const KNOWN_DIVERGENCES = {
+  /**
+   * An SVG attribute name that the HTML parser's adjustment table does not know **cannot survive
+   * markup**, in any framework.
+   *
+   * The tokenizer lower-cases every attribute name it reads, then restores the case of the SVG
+   * names it has a table for — `viewBox`, `preserveAspectRatio` and about thirty others, all of
+   * which round-trip here. `strokeWidth` is not among them, because it is not a real SVG attribute:
+   * the real one is `stroke-width`, which is lower-case and round-trips fine. So the server writes
+   * text a parser lower-cases, while the client's `setAttribute` on an SVG element preserves
+   * whatever it was given.
+   *
+   * Nothing a serializer can do changes that, and the fix for an author is to write the attribute
+   * the specification actually defines.
+   */
+  'an SVG camelCase attribute the parser does not know':
+    'html`<svg viewBox="0 0 4 4">${svg`<rect ${spread({ strokeWidth: "2" })} />`}</svg>`',
   'a null byte in an attribute':
     'html`<b title=${"a" + String.fromCharCode(0) + "b"}>x</b>`',
 };
@@ -274,7 +307,7 @@ const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
 
 const serverScript = `
 import { serializeTemplate } from '@verajs/ssr/vera';
-const { html } = await import('@verajs/core');
+const { html, svg, mathml } = await import('@verajs/core');
 const { spread } = await import('@verajs/renderer/spread');
 const { keyed, hold } = await import('@verajs/renderer');
 const state = ${STATE};
@@ -298,6 +331,9 @@ const { render } = await load('renderer');
 const { spread } = await load('renderer/spread');
 const { keyed, hold } = await load('renderer');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
+/** SVG and MathML need their own namespace on the client; on the server they are the same shape. */
+const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });
+const mathml = (strings, ...values) => ({ _$litType$: 3, strings, values });
 const state = { text: 'hello & <world>', count: 3, rows: ['a', 'b'] };
 const clientTemplates = new Function(
   'html',
@@ -305,8 +341,10 @@ const clientTemplates = new Function(
   'spread',
   'keyed',
   'hold',
+  'svg',
+  'mathml',
   `return { ${Object.entries(ALL).map(([n, t]) => `${JSON.stringify(n)}: () => ${t}`).join(',\n')} };`
-)(html, state, spread, keyed, hold);
+)(html, state, spread, keyed, hold, svg, mathml);
 
 const parse = (markup) => {
   const container = dom.window.document.createElement('div');
