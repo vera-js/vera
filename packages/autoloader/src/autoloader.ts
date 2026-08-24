@@ -179,7 +179,17 @@ export const initAutoloader = (
    * then scanned, because a subtree may arrive whole — `innerHTML` on a container delivers one
    * added node holding any number of undefined elements.
    */
-  const observer = new MutationObserver((records) => {
+  /**
+   * Created on first use, not at construction.
+   *
+   * `new MutationObserver(...)` in the constructor made `initAutoloader` throw in Node —
+   * `MutationObserver is not defined` — so an app entry that wires the autoloader could not be
+   * imported server-side at all. `@verajs/router` attaches its window listeners lazily for exactly
+   * this reason and says so; the observed-discovery rewrite reintroduced the problem here.
+   */
+  let observer;
+  const observing = () =>
+    (observer ??= new MutationObserver((records) => {
     for (const record of records) {
       /**
        * The three attributes are as much a part of discovery as insertion is. `autoloader` can be
@@ -204,7 +214,7 @@ export const initAutoloader = (
         scan(element);
       }
     }
-  });
+    }));
 
   /**
    * Starts watching a component, and takes stock of what is already inside it.
@@ -241,7 +251,7 @@ export const initAutoloader = (
     }
     if (watched.has(root)) return;
     watched.add(root);
-    observer.observe(root, {
+    observing().observe(root, {
       childList: true,
       subtree: true,
       attributes: true,

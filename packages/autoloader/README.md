@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1 002 B<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1 007 B<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is

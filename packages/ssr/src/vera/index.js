@@ -16,7 +16,7 @@ import { installShims, registry, hoistedStyles, escapeHtml, escapeStyleText, set
 import { serializeTemplate } from './serializer.js';
 
 installShims();
-const { setRenderer, insert } = await import('@verajs/core');
+const { setRenderer, insert, inserts } = await import('@verajs/core');
 /**
  * `static styles` moved out of core in 0.2.0 (`@verajs/styles`). Server rendering must still
  * serialize them — the markup a browser produces includes the component's styles — and nothing on
@@ -30,9 +30,38 @@ const { adoptStyles } = await import('@verajs/styles');
 insert('init', adoptStyles, 50);
 
 /** The server renderer: template object in, markup into the (shadow) container shim. */
-setRenderer((template, container) => {
+const serverRenderer = (template, container) => {
   container.innerHTML = typeof template === 'string' ? template : serializeTemplate(template);
-});
+};
+/**
+ * `setRenderer` registers a **wrapper** — it resolves the element's root before calling through —
+ * so the chain never contains `serverRenderer` itself. Diffing the chain around the call is how to
+ * get a handle on the entry that was actually added, without reaching into the registry's
+ * internals.
+ */
+const chainBefore = new Set(inserts.get('render') ?? []);
+setRenderer(serverRenderer);
+const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(entry));
+
+/**
+ * `setRenderer` registers on `'render'` at priority 50, and registering at a taken priority
+ * **replaces**. So an app entry doing the ordinary thing — `setRenderer(domRender)` — displaces this
+ * one the moment that module is imported server-side, and every component then renders through a
+ * renderer that writes to a real DOM which is not there. The result was
+ * `<my-el><template shadowrootmode="open"></template></my-el>`: empty, for every component, with no
+ * error and nothing in the output to suggest why.
+ *
+ * Checked per render rather than once, because the displacement happens whenever the app's module
+ * graph is evaluated, which is after this file has run.
+ */
+const assertRendererIntact = () => {
+  if (!ourEntry || inserts.get('render')?.includes(ourEntry)) return;
+  throw new Error(
+    'ssr: the server renderer has been replaced — something called setRenderer() after ' +
+      '@verajs/ssr was imported, and every component would render empty. Guard the client wiring ' +
+      '(`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports.'
+  );
+};
 
 /**
  * Elements whose content is text, not markup. Anything between their tags is left alone.
@@ -301,6 +330,8 @@ export const renderToString = async (
           .filter(([, value]) => value != null && value !== false)
           .map(([name, value]) => ` ${name}="${escapeHtml(value === true ? '' : value)}"`)
           .join('');
+
+  assertRendererIntact();
 
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
   renderedTags.clear();

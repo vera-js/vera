@@ -298,4 +298,40 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.equal(again.styles, after.styles, 'and stays stable');
 }
 
+/* ── the wiring an app already has ────────────────────────────────────────────────────────────
+ * These are configuration *combinations*, which is where the last few passes found everything:
+ * options work alone and break together, or break because the app does something ordinary.
+ */
+{
+  /** Every option at once, which nothing had ever tried. */
+  const seen = new Set();
+  const { html: markup } = await renderToString(fixture('combo-ssr.js'), {
+    tag: 'combo-ssr',
+    attributes: { id: 'x', hidden: true },
+    props: { extra: 1 },
+    children: '<p>slotted</p><combo-child></combo-child>',
+    seen,
+    base: new URL('./fixtures/ssr/', import.meta.url),
+  });
+  assert.match(markup, /^<combo-ssr id="x" hidden="">/, 'attributes applied');
+  assert.match(markup, /<p>slotted<\/p>/, 'children placed');
+  assert.equal(markup.split('shadowrootmode').length - 1, 3, 'nested and slotted components both rendered');
+}
+
+/**
+ * An app entry doing the ordinary thing — `setRenderer(domRender)` — displaces the server renderer
+ * the moment that module is imported server-side, because `setRenderer` registers at priority 50 and
+ * a taken priority replaces. Every component then rendered empty, with no error and nothing in the
+ * output to suggest why.
+ */
+{
+  const { setRenderer } = await import('@verajs/core');
+  setRenderer(() => {});
+  await assert.rejects(
+    () => renderToString(fixture('hello-ssr.js')),
+    /server renderer has been replaced/,
+    'a displaced renderer is reported rather than rendering everything empty'
+  );
+}
+
 console.log('ssr request isolation ok — concurrency, per-page styles, attribute round trip, slot position');
