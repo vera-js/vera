@@ -7,7 +7,7 @@
  * rule "take `insert` from the package that owns the extension point" existed because picking the
  * wrong copy wrote to a map nobody read — in production only.
  *
- * The router imports no registry now. It is handed one (`connectRouter`, which `wire([…])`
+ * The router imports no registry now. It is handed one (`router`, which `wire([…])`
  * applies) or handed a renderer directly (`setRouterRenderer`, the no-core path). So there is no
  * second registry to reconcile and no wrong one to pick, and what this file guards is the *absence*
  * of the hazard rather than the repair for it.
@@ -34,12 +34,12 @@ const app = document.getElementById('app');
 
 test('the router carries no registry of its own', () => {
   assert.equal(router.inserts, undefined, 'nothing to reconcile means nothing to get wrong');
-  assert.equal(typeof router.connectRouter, 'function', 'it is handed one instead');
+  assert.equal(typeof router.router, 'function', 'it is handed one instead');
   assert.equal(typeof router.setRouterRenderer, 'function', 'or handed a renderer, with no core at all');
 });
 
 test('a connector wires the router to the registry core owns', () => {
-  core.wire([router.connectRouter]);
+  core.wire([router.router]);
 
   const seen = [];
   core.wire({ on: 'render', fn: (template, element) => seen.push(`core@10:${element.id}`), priority: 10 });

@@ -10,7 +10,7 @@
  * development and silently does nothing in production, which is the worst way for this to fail.
  */
 import { wire } from '@verajs/core';
-import { connectRouter } from '@verajs/router';
+import { router } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
 import { collections } from '@verajs/collections';
 import { autoloader } from '@verajs/autoloader';
@@ -29,7 +29,7 @@ export const wireApp = (renderer) => {
      * `@verajs/inserts`, so nothing was wired and everything worked, until a production build gave
      * them one registry each and the routes silently stopped rendering.
      */
-    connectRouter,
+    router,
     /** `static styles` left core in 0.2.0; a component using it renders unstyled without this. */
     { on: 'init', fn: adoptStyles, priority: 50 },
     /** Reactive `Map`/`Set` left core in 0.2.0; `sink-collections` throws without this. */

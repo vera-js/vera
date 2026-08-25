@@ -155,7 +155,7 @@ test('the multi-module CDN snippet hands the router core\u2019s registry', () =>
    * through `wire`. This asserted `connectInserts` until that function was removed in 0.2.0, and it
    * is the one check that keeps the README from drifting back to a reconciliation step.
    */
-  const block = blocks.find((b) => b.lang === 'js' && b.body.includes('connectRouter'));
+  const block = blocks.find((b) => b.lang === 'js' && b.body.includes('router'));
   assert.ok(block, 'the multi-module snippet is present');
   assert.match(block.body, /wire\(\[/, 'it must install the modules through wire([\u2026])');
   assert.doesNotMatch(block.body, /connectInserts/, 'connectInserts no longer exists');

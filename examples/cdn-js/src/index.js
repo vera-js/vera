@@ -3,7 +3,7 @@
  *
  * Identical in shape to `examples/npm-ts/src/index.ts`, with two differences that matter:
  *
- *   1. `connectRouter` reads identically here and under a bundler. The router imports no registry
+ *   1. `router` reads identically here and under a bundler. The router imports no registry
  *      at all, so there is no second one to reconcile — this hands it core's, in every build. It
  *      replaced `connectInserts`, which was load-bearing in this file and ceremonial in the npm
  *      one, and which nothing but this asymmetry required.
@@ -12,7 +12,7 @@
  */
 import { setHtml, wire } from '@verajs/core';
 import { autoloader } from '@verajs/autoloader';
-import { connectRouter } from '@verajs/router';
+import { router } from '@verajs/router';
 import { html, render } from 'lit-html';
 import { computedValues } from './inserts/computed.js';
 
@@ -22,7 +22,7 @@ import { computedValues } from './inserts/computed.js';
  * values as a ten-line `'proxy-handler'` insert are the worked example (see
  * src/inserts/computed.js); priority is required, because chains are priority-ordered.
  */
-wire([connectRouter, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
+wire([router, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
 
 
 /**

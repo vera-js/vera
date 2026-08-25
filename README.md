@@ -152,10 +152,10 @@ second one. None of them do: each takes the registry it writes to, and `wire` ha
 ```js
 import { wire } from '@verajs/core';
 import { domRender } from '@verajs/renderer';
-import { connectRouter } from '@verajs/router';
+import { router } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
 
-wire([domRender, connectRouter, autoloader(import.meta.url, 'components')]);
+wire([domRender, router, autoloader(import.meta.url, 'components')]);
 ```
 
 Identical under a bundler, where everything already resolves to one instance. This replaced

@@ -16,8 +16,8 @@ core's, by the same `wire` call that installs everything else:
 
 ```js
 import { wire } from '@verajs/core';
-import { connectRouter } from '@verajs/router';
-wire([connectRouter]);              // point the router at core's registry
+import { router } from '@verajs/router';
+wire([router]);              // point the router at core's registry
 ```
 
 That reads identically under a bundler and on a CDN page. **This is the price of independence, not a

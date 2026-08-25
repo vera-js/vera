@@ -214,7 +214,7 @@ and **end** of the batch.
 | `createHook` | `({ callback, priority, element? }) => void` — build your own hook type |
 
 There is no reconciliation step. A module that would otherwise carry its own registry is handed
-core's instead — `wire([connectRouter])` — which reads the same under a bundler and on a CDN page.
+core's instead — `wire([router])` — which reads the same under a bundler and on a CDN page.
 `connectInserts`, which replayed one registry into another, was removed in 0.2.0.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
@@ -643,8 +643,8 @@ would give you two registries if any module carried one. None do — hand the ro
 
 ```js
 import { wire } from '@verajs/core';
-import { connectRouter } from '@verajs/router';
-wire([connectRouter]);
+import { router } from '@verajs/router';
+wire([router]);
 ```
 
 Identical under a bundler. Order does not matter, and without core at all the router takes what it

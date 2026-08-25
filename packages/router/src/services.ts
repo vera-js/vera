@@ -12,18 +12,27 @@ import { Renderer } from '@verajs/shared-types';
  *
  * Reading a shared registry meant carrying `@verajs/inserts`, and a production bundle inlines it —
  * so a CDN page had one registry here and another in core, an app registered into whichever one it
- * happened to import, and the mismatch was silent. `connectInserts` exists to repair exactly that.
+ * happened to import, and the mismatch was silent. `connectInserts` was the repair, and repairing
+ * it afterwards was the wrong shape: it was load-bearing on a CDN page and ceremonial everywhere
+ * else, so the failure it guarded only ever appeared in production.
  *
- * Nothing is imported now. Either the app hands this package the registry — `connectRouter`, which
- * `insert([…])` applies — or it hands `initRouter` a renderer directly, which is what lets the
- * router run with no core at all.
+ * Nothing is imported now. Either the app hands this package the registry — `wire([domRender,
+ * router])` — or it hands `setRouterRenderer` a renderer directly, which is what lets the router
+ * run with no core at all. The hazard is gone by construction rather than reconciled.
  */
 let registry: Inserts | null = null;
 let direct: Renderer[] = [];
 const renderers = () => (registry ? ((registry.get('render') as Renderer[] | undefined) ?? direct) : direct);
 
-/** A connector: `insert([domRender, connectRouter])` wires this package to the app's registry. */
-export const connectRouter = (given: Inserts) => {
+/**
+ * A **connector**: `wire` hands it the registry rather than registering anything, which is how a
+ * package that keeps none of its own gets core's.
+ *
+ * Named for the thing rather than the act, because `wire` is already the verb — it sits in a list
+ * beside `domRender`, `collections` and `autoloader(…)`, and which of them is a descriptor and
+ * which is a connector is not something an app should have to know.
+ */
+export const router = (given: Inserts) => {
   registry = given;
 };
 

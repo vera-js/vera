@@ -60,7 +60,7 @@ export type Registerable = InsertDescriptor | Connector;
  * Wires modules into the framework: one call, from data rather than side effects.
  *
  * ```js
- * wire([domRender, connectRouter, { on: 'init', fn: adoptStyles, priority: 50 }]);
+ * wire([domRender, router, { on: 'init', fn: adoptStyles, priority: 50 }]);
  * wire({ on: 'error', fn: report, priority: 40 });
  * ```
  *

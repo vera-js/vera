@@ -67,13 +67,13 @@ carrying its own:
 ```js
 import { wire } from '@verajs/core';
 import { domRender } from '@verajs/renderer';
-import { connectRouter } from '@verajs/router';
+import { router } from '@verajs/router';
 import { collections } from '@verajs/collections';
 
-wire([domRender, connectRouter, collections]);
+wire([domRender, router, collections]);
 ```
 
-`connectRouter` is a **connector** — `wire` hands it this registry, and the router keeps no registry
+`router` is a **connector** — `wire` hands it this registry, and the router keeps no registry
 of its own. That removes the hazard by construction rather than reconciling it afterwards, and it is
 why `@verajs/router` has no dependencies at all. `tests/cdn-cross-bundle.test.mjs` guards the shape.
 

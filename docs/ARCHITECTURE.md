@@ -98,8 +98,8 @@ no registry at all and is handed core's:
 
 ```js
 import { wire } from '@verajs/core';
-import { connectRouter } from '@verajs/router';
-wire([connectRouter]);     // router now shares core's registry
+import { router } from '@verajs/router';
+wire([router]);     // router now shares core's registry
 ```
 
 Without this the router would render through its own default renderer and ignore the one the app

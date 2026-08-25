@@ -20,15 +20,27 @@ other module you hand `wire`:
 - setAutoloader(initAutoloader(import.meta.url, 'components'));
 + import { wire } from '@verajs/core';
 + import { autoloader } from '@verajs/autoloader';
-+ wire([domRender, connectRouter, autoloader(import.meta.url, 'components')]);
++ wire([domRender, router, autoloader(import.meta.url, 'components')]);
 ```
 
 `wire` now tests for a descriptor — anything naming an insert point — *before* the connector case, so
 a module can be both a function and a descriptor. Without that order such a module is called as a
 connector and silently never registers.
 
+**`connectRouter` is now `router`.** `wire` is the verb, so what you hand it is named for the thing,
+not the act — and whether a given module is a descriptor or a connector is an implementation detail
+an app should not have to read off a name:
+
+```js
+- wire([connectRouter]);
++ wire([domRender, router, collections, autoloader(import.meta.url, 'components')]);
+```
+
+`domRender` deliberately keeps its name: `@verajs/renderer` also exports `render` for direct use, and
+`render`/`renderer` one character apart in a single import line is worse than the inconsistency.
+
 **`connectInserts` is removed.** It replayed one registry's chains into another; nothing needs that
-now that every module takes the registry it writes to (`connectRouter` for the router, `wire` from
+now that every module takes the registry it writes to (`router` for the router, `wire` from
 core for everything else). Two copies of `@verajs/inserts` in one page is a mistake with no repair
 function, rather than a supported arrangement.
 

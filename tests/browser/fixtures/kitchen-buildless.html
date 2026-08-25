@@ -47,7 +47,7 @@
       import { render as domRender } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
       import { spread } from '@verajs/renderer/spread';
-      import { initRouter, connectRouter, navigate } from '@verajs/router';
+      import { initRouter, router, navigate } from '@verajs/router';
       import { adoptStyles } from '@verajs/styles';
       import { autoloader } from '@verajs/autoloader';
 
@@ -55,7 +55,7 @@
        * Each standalone bundle inlined its own registry, so the router's is not core's until this
        * points one at the other. Without it a routed link does nothing and nothing says why.
        */
-      wire([connectRouter]);
+      wire([router]);
 
       wire({ on: 'render', fn: domRender, priority: 50 });
       wire({ on: 'init', fn: adoptStyles, priority: 50 });

@@ -57,7 +57,7 @@ check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get
 /**
  * There is no cross-copy reconciliation to test any more. `connectInserts` — which replayed one
  * registry's chains into another — was removed once every module took the registry it writes to
- * rather than carrying its own: `connectRouter` hands the router core's, `@verajs/collections` and
+ * rather than carrying its own: `router` hands the router core's, `@verajs/collections` and
  * `@verajs/styles` are wired through core's `wire`. Two copies of this module in one page is now a
  * mistake with no repair function, rather than a supported arrangement, and
  * `tests/cdn-cross-bundle.test.mjs` guards the shape that replaced it.

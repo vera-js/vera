@@ -317,7 +317,7 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 | `setRouterRenderer(fn)` | what draws a route's template into its outlet |
 | `resolve(name, params)` | build a named route's path |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
-| `connectRouter` | hand this router core's insert registry — pass it to `wire` |
+| `router` | hand this router core's insert registry — pass it to `wire` |
 
 **Specificity is scored from the pattern text**, using the token syntax above, so replacing the
 matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It
@@ -330,9 +330,9 @@ keeps **no registry of its own**, so there is no second one to reconcile — han
 ```js
 import { wire } from '@verajs/core';
 import { domRender } from '@verajs/renderer';
-import { connectRouter } from '@verajs/router';
+import { router } from '@verajs/router';
 
-wire([domRender, connectRouter]);
+wire([domRender, router]);
 ```
 
 Identical under a bundler and on a CDN page, which is the point: `connectInserts`, the replay

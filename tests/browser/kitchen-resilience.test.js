@@ -12,10 +12,10 @@
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, createStore} from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { initRouter, navigate, connectRouter } from '../../packages/router/dist/development/vera-router.js';
+import { initRouter, navigate, router } from '../../packages/router/dist/development/vera-router.js';
 
 wire({ on: 'render', fn: domRender, priority: 50 });
-void connectRouter;
+void router;
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** Errors are collected rather than logged, so a deliberate failure does not look like a real one. */
@@ -24,7 +24,7 @@ const caught = [];
  * The router imports no registry, so it has to be handed core's. It used to share it by accident —
  * under the development condition both resolve to one `@verajs/inserts`.
  */
-wire([connectRouter]);
+wire([router]);
 wire({ on: 'error', fn: (error) => caught.push(String(error?.message ?? error)), priority: 20 });
 
 describe('a failing component does not take the page with it', () => {

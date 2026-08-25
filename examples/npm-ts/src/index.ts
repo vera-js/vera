@@ -9,7 +9,7 @@
  */
 import { setHtml, wire } from '@verajs/core';
 import { autoloader } from '@verajs/autoloader';
-import { connectRouter } from '@verajs/router';
+import { router } from '@verajs/router';
 import { html, render } from 'lit-html';
 
 /**
@@ -17,7 +17,7 @@ import { html, render } from 'lit-html';
  * meaning, as in the CDN example. It used to be `connectInserts`, which was a no-op here and
  * load-bearing there; that asymmetry is gone.
  */
-wire([connectRouter]);
+wire([router]);
 
 
 /**
