@@ -8,23 +8,23 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 6.69 KB | **2.81 KB** |
-| `@verajs/renderer` | 9.83 KB | 3.87 KB |
+| `@verajs/core` | 6.66 KB | **2.82 KB** |
+| `@verajs/renderer` | 10.00 KB | 3.95 KB |
 | `@verajs/router` | 7.73 KB | 3.36 KB |
 | `@verajs/autoloader` | 1.87 KB | 1 009 B |
 | `@verajs/styles` | 1.11 KB | 597 B |
 | `@verajs/spread` | 1.54 KB | 842 B |
 | `@verajs/tag` | 2.72 KB | 1.41 KB |
 | `@verajs/computed` | 298 B | 241 B |
-| `@verajs/inserts` | 659 B | 439 B |
+| `@verajs/inserts` | 609 B | 421 B |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.0 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.1 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->6.0 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->6.1 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
@@ -81,11 +81,11 @@ used on their own or with another framework entirely.
 </script>
 
 <script type="module">
-  import { init, createStore, render, setRenderer, html } from '@verajs/core';
-  import { render as domRender } from '@verajs/renderer';
+  import { init, createStore, render, wire, html } from '@verajs/core';
+  import { domRender } from '@verajs/renderer';
 
   /** Core ships no renderer. Wire one once, here, and nothing else needs to know. */
-  setRenderer(domRender);
+  wire([domRender]);
 
   customElements.define(
     'click-counter',
@@ -107,7 +107,7 @@ used on their own or with another framework entirely.
 
 `html` comes from core and needs no `setHtml` — `@verajs/renderer` accepts the shape it produces.
 To use lit-html instead, swap the renderer and tell core about its tag:
-`setRenderer(litRender); setHtml(litHtml);`
+`wire({ on: 'render', fn: litRender, priority: 50 }); setHtml(litHtml);`
 
 ### npm + TypeScript
 
@@ -116,10 +116,10 @@ npm install @verajs/core @verajs/renderer
 ```
 
 ```ts
-import { init, createStore, render, useEffect, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, useEffect, wire, html } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
 
-setRenderer(domRender);
+wire([domRender]);
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
@@ -151,7 +151,7 @@ registries. Reconcile them with `connectInserts` — this is expected, and it is
 modules being genuinely independent:
 
 ```js
-import { inserts, setRenderer, setAutoloader } from '@verajs/core';
+import { inserts, wire, setAutoloader } from '@verajs/core';
 import { connectInserts } from '@verajs/router';
 import { initAutoloader } from '@verajs/autoloader';
 

@@ -11,10 +11,10 @@
  * loop below collects repeatedly and waits for a plateau.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 
-setRenderer(domRender);
+wire({ on: 'render', fn: domRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 customElements.define(

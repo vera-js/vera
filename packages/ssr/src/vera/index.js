@@ -41,7 +41,7 @@ import {
 import { serializeTemplate, serializeValue } from './serializer.js';
 
 installShims();
-const { setRenderer, wire, inserts } = await import('@verajs/core');
+const { wire, inserts } = await import('@verajs/core');
 /**
  * `static styles` moved out of core in 0.2.0 (`@verajs/styles`). Server rendering must still
  * serialize them — the markup a browser produces includes the component's styles — and nothing on
@@ -91,12 +91,12 @@ const serverRenderer = (template, container) => {
  * internals.
  */
 const chainBefore = new Set(inserts.get('render') ?? []);
-setRenderer(serverRenderer);
+wire({ on: 'render', fn: serverRenderer, priority: 50 });
 const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(entry));
 
 /**
  * `setRenderer` registers on `'render'` at priority 50, and registering at a taken priority
- * **replaces**. So an app entry doing the ordinary thing — `setRenderer(domRender)` — displaces this
+ * **replaces**. So an app entry doing the ordinary thing — `wire({ on: 'render', fn: domRender, priority: 50 })` — displaces this
  * one the moment that module is imported server-side, and every component then renders through a
  * renderer that writes to a real DOM which is not there. The result was
  * `<my-el><template shadowrootmode="open"></template></my-el>`: empty, for every component, with no
@@ -108,7 +108,7 @@ const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(
 const assertRendererIntact = () => {
   if (!ourEntry || inserts.get('render')?.includes(ourEntry)) return;
   throw new Error(
-    'ssr: the server renderer has been replaced — something called setRenderer() after ' +
+    'ssr: the server renderer has been replaced — something wired a renderer after ' +
       '@verajs/ssr was imported, and every component would render empty. Guard the client wiring ' +
       '(`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports.'
   );

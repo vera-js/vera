@@ -29,15 +29,26 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
             console.warn(
               `[vera] render() called with no renderer registered — nothing will appear.\n` +
                 `Wire one once, at your app entry:\n\n` +
-                `  import { setRenderer } from '@verajs/core';\n` +
-                `  import { render } from '@verajs/renderer';\n` +
-                `  setRenderer(render);\n`
+                `  import { wire } from '@verajs/core';\n` +
+                `  import { domRender } from '@verajs/renderer';\n` +
+                `  wire([domRender]);\n`
             );
           }
         }
 
+        /**
+         * The root is resolved **here**, not when a renderer registers.
+         *
+         * `_root` first: a closed shadow root is not reachable through `element.shadowRoot`, and
+         * that applies to the framework too. This used to live inside `setRenderer`'s wrapper, so
+         * a renderer wired any other way silently rendered into the light DOM instead — the
+         * resolution belonged to one registration path rather than to the act of rendering.
+         */
+        const target =
+          (element as HTMLElement & { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element;
+
         renderers?.forEach((callback) => {
-          (callback as Renderer)?.(_template, element, ...args);
+          (callback as Renderer)?.(_template, target, ...args);
         });
       });
 

@@ -24,7 +24,7 @@ Two things register into `'render'`:
 
 | Priority | Registered by | Does |
 | ---: | --- | --- |
-| 50 | `setRenderer(fn)` | renders the template into `element.shadowRoot ?? element` |
+| 50 | `wire([domRender])` | renders the template; core resolves `_root ?? shadowRoot ?? element` at dispatch |
 | 75 | `setAutoloader(fn)` | discovers undefined custom elements and lazy-loads them |
 
 `@verajs/inserts` calls `setRenderer` **at module scope** with a default implementation
@@ -63,13 +63,13 @@ paints the literal string **`[object Object]`**.
 This bites in a way that is easy to miss, because **static `import` declarations are hoisted**:
 
 ```js
-setRenderer(render);
+wire([domRender]);
 setHtml(html);
 import './components/app.js';   // WRONG - evaluated BEFORE the two lines above
 ```
 
 ```js
-setRenderer(render);
+wire([domRender]);
 setHtml(html);
 await import('./components/app.js');   // correct - evaluated after
 ```

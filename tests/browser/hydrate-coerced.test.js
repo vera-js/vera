@@ -11,10 +11,10 @@
  * and the identity of the node carrying it.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** Each: the template, the server's markup for it, and what the DOM must hold afterwards. */

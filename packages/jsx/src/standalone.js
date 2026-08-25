@@ -15,7 +15,7 @@
  *   } } </script>
  *   <script type="module" src=".../standalone.js"></script>
  *   <script type="text/vera-jsx">
- *     import { init, createStore, render, setRenderer } from '@verajs/core';
+ *     import { init, createStore, render, wire } from '@verajs/core';
  *     ... React-style components ...
  *   </script>
  */

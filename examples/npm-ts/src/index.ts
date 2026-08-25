@@ -7,7 +7,7 @@
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, setRenderer, setAutoloader, wire } from '@verajs/core';
+import { setHtml, wire, setAutoloader} from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
@@ -45,7 +45,7 @@ addEventListener('vera:autoload-error', (event) => {
   addEventListener('online', () => autoload.retry(element), { once: true });
 });
 
-setRenderer(render);
+wire({ on: 'render', fn: render, priority: 50 });
 setHtml(html);
 
 /**

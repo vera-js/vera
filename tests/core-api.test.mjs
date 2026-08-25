@@ -24,8 +24,7 @@ const core = await load('core');
 const {
   init, createStore, render, useEffect, useSyncEffect, useLayoutEffect, useRender,
   ref, shallowRef, untrack, deps, html, css, setHtml, setCss,
-  setRenderScheduler, microtask, setRenderer,
-} = core;
+  setRenderScheduler, microtask, wire} = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -139,7 +138,7 @@ test('deps() subscribes an effect to state it does not otherwise read', async ()
 
 test('setHtml swaps the template tag core hands to the renderer', async () => {
   const seen = [];
-  setRenderer((result) => seen.push(result));
+  wire({ on: 'render', fn: (result) => seen.push(result), priority: 50 });
   const marker = Symbol('custom-tag');
   setHtml((strings, ...values) => ({ marker, strings, values }));
   try {
@@ -166,12 +165,12 @@ test('setCss swaps the css tag', () => {
 // ── setRenderScheduler / microtask ──────────────────────────────────────────
 
 test('setRenderScheduler(microtask) renders before the next animation frame', async () => {
-  setRenderer(() => {});
+  wire({ on: 'render', fn: () => {}, priority: 50 });
   const order = [];
   const previous = setRenderScheduler(microtask);
   try {
     const state = createStore({ n: 0 });
-    setRenderer(() => order.push('render'));
+    wire({ on: 'render', fn: () => order.push('render'), priority: 50 });
     mount(() => { render(() => html`<i>${state.n}</i>`); });
     await settle();
 
@@ -212,7 +211,7 @@ test('setRenderScheduler returns the scheduler it replaced', () => {
  */
 test('a userland flushSync renders synchronously and restores the scheduler', async () => {
   const order = [];
-  setRenderer(() => order.push('render'));
+  wire({ on: 'render', fn: () => order.push('render'), priority: 50 });
   const state = createStore({ n: 0 });
   mount(() => { render(() => html`<i>${state.n}</i>`); });
   await settle();
@@ -241,7 +240,7 @@ test('a userland flushSync renders synchronously and restores the scheduler', as
 
 test('useLayoutEffect runs, and before useEffect', async () => {
   const order = [];
-  setRenderer(() => {});
+  wire({ on: 'render', fn: () => {}, priority: 50 });
   const state = createStore({ n: 0 });
   mount(() => {
     useLayoutEffect(() => { void state.n; order.push('layout'); });
@@ -256,7 +255,7 @@ test('useLayoutEffect runs, and before useEffect', async () => {
 
 test('useRender renders into an element given explicitly', async () => {
   const seen = [];
-  setRenderer((result, element) => seen.push({ result, element }));
+  wire({ on: 'render', fn: (result, element) => seen.push({ result, element }), priority: 50 });
   const el = document.createElement('div');
   host.appendChild(el);
   init(el, { mode: 'open' });

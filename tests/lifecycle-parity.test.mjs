@@ -634,7 +634,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 
 const core = await load('core');
 const { render: renderTemplate } = await load('renderer');
-core.setRenderer(renderTemplate);
+core.wire({ on: 'render', fn: renderTemplate, priority: 50 });
 
 /** Two frames plus a drained microtask queue: renders, layout effects and effects have all run. */
 const settle = async () => {

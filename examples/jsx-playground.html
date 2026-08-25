@@ -32,10 +32,10 @@
     <todo-list autofill></todo-list>
 
     <script type="text/vera-jsx">
-      import { init, createStore, render, setRenderer } from '@verajs/core';
+      import { init, createStore, render, wire } from '@verajs/core';
       import { render as domRender } from '@verajs/renderer';
 
-      setRenderer(domRender);
+      wire({ on: 'render', fn: domRender, priority: 50 });
 
       /** A render helper — a "function component" living inside templates. */
       const Empty = ({ children }) => <p><em>{children}</em></p>;

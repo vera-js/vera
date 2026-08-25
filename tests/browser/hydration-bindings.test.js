@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { BINDINGS_HTML } from './fixtures/hello-ssr.html.js';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
 /**
@@ -16,7 +16,7 @@ import { render as hydratingRender } from '../../packages/renderer/dist/developm
  * reference to a server-built node and checking it is still there can tell the difference.
  */
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

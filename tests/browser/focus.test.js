@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, setRenderer, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, render, wire, html } from '../../packages/core/dist/development/vera.js';
 import { render as domRender, keyed } from '../../packages/renderer/dist/development/vera-renderer.js';
 
 /**
@@ -10,7 +10,7 @@ import { render as domRender, keyed } from '../../packages/renderer/dist/develop
  * property of a keyed renderer and it had no coverage at all.
  */
 
-setRenderer(domRender);
+wire({ on: 'render', fn: domRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 let seq = 0;

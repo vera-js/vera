@@ -50,11 +50,11 @@ shadow boundary:
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, css, html, wire } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, css, html, wire } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
 import { adoptStyles } from '@verajs/styles';
 
-setRenderer(domRender);
+wire([domRender]);
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 customElements.define(

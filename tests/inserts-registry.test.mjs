@@ -16,7 +16,7 @@ globalThis.document = dom.window.document;
 const app = dom.window.document.getElementById('app');
 
 const core = await load('core');
-const { inserts, setRenderer, wire } = core;
+const { inserts, wire} = core;
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', name)); };
@@ -24,12 +24,12 @@ const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', na
 // 1. The invariant that replaced the default renderer: core registers nothing.
 check('core ships no renderer', !inserts.get('render')?.length);
 
-// 2. setRenderer lands at priority 50 and is replaceable.
+// 2. a renderer lands at priority 50 and is replaceable.
 let called = 0;
-setRenderer(() => called++);
-check('setRenderer registers one', inserts.get('render').length === 1);
-setRenderer(() => (called += 10));
-check('setRenderer at 50 replaces, not appends', inserts.get('render').length === 1);
+wire({ on: 'render', fn: () => called++, priority: 50 });
+check('a wired renderer registers one', inserts.get('render').length === 1);
+wire({ on: 'render', fn: () => (called += 10), priority: 50 });
+check('a second at 50 replaces, not appends', inserts.get('render').length === 1);
 inserts.get('render').forEach((cb) => cb('', app));
 check('the replacement is what runs', called === 10);
 
@@ -47,9 +47,9 @@ const B = await import(REG + '?copy=b');
 check('standalone registry ships no renderer', !A.inserts.get('render'));
 
 // 5-6. Cross-copy behaviour after connectInserts: replacement and ordering both hold.
-A.setRenderer(() => {});
+A.wire({ on: 'render', fn: () => {}, priority: 50 });
 B.connectInserts(A.inserts);
-B.setRenderer(() => {});
+B.wire({ on: 'render', fn: () => {}, priority: 50 });
 check('cross-copy replace at 50', A.inserts.get('render').length === 1);
 const order = [];
 B.wire({ on: 'render', fn: () => order.push(75), priority: 75 });

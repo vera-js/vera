@@ -1,5 +1,5 @@
 import { InsertFunctionMap, Inserts } from './types.js';
-import { Autoloader, Renderer } from '@verajs/shared-types';
+import { Autoloader } from '@verajs/shared-types';
 
 export let inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof InsertFunctionMap][]>();
 
@@ -33,6 +33,14 @@ export type InsertDescriptor = {
   on: keyof InsertFunctionMap;
   fn: InsertFunctionMap[keyof InsertFunctionMap];
   priority: number;
+  /** For the collision message below. A package should set it; an inline descriptor need not. */
+  name?: string;
+  /**
+   * Called with the registry as the descriptor is wired, for a package that also needs to *read* a
+   * chain. `@verajs/renderer` uses it: the same entry that registers it as the renderer hands it
+   * the registry it reads `'value'` handlers from, so an app writes one thing, not two.
+   */
+  connect?: (registry: Inserts) => void;
 };
 export type Connector = (registry: Inserts) => void;
 export type Registerable = InsertDescriptor | Connector;
@@ -81,8 +89,15 @@ export const wire = (item: Registerable | Registerable[]) => {
 
 const apply = (item: Registerable) => {
   if (typeof item === 'function') item(inserts);
-  else register(item.on, item.fn, item.priority);
+  else {
+    item.connect?.(inserts);
+    replacing = item.name ?? '';
+    register(item.on, item.fn, item.priority);
+    replacing = '';
+  }
 };
+
+let replacing = '';
 
 const register = <K extends keyof InsertFunctionMap>(
   insertName: K,
@@ -111,6 +126,23 @@ const register = <K extends keyof InsertFunctionMap>(
 
   const existing = order.indexOf(priority);
   if (existing !== -1) {
+    /**
+     * **Replacement is the rule, and silence about it was the problem.**
+     *
+     * Registering at a taken priority replaces — that is how a renderer is swapped, and it is
+     * deliberate. But two modules that both claim the default 50 replace each other with no sign:
+     * `wire([lists, someOtherLists])` keeps the second, and the first simply never runs. Nothing
+     * throws, nothing renders differently until the case only the losing module handled shows up.
+     *
+     * Named where the descriptor named itself, since "something replaced something at 50" is not
+     * actionable. `__DEV__`-only: production carries neither the check nor the text.
+     */
+    if (__DEV__)
+      console.warn(
+        `[vera] two things were wired to '${insertName}' at priority ${priority}, so the second ` +
+          `replaced the first${replacing ? ` — ${replacing}` : ''}. If both are meant to run, give ` +
+          `them different priorities; lower runs first.`
+      );
     chain[existing] = callback;
     return;
   }
@@ -146,18 +178,6 @@ export const connectInserts = (newInserts: Inserts) => {
   previous.forEach((chain, name) => {
     chain._p?.forEach((priority, i) => register(name, chain[i], priority));
   });
-};
-
-export const setRenderer = (renderer: Renderer) => {
-  register(
-    'render',
-    (template, element, ...args) => {
-      /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
-      const el = (element as HTMLElement & { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element;
-      renderer(template, el, ...args);
-    },
-    50
-  );
 };
 
 export const setAutoloader = (autoloader: Autoloader) => {

@@ -41,7 +41,7 @@ test('setAutoloader registers into the render chain at priority 75', async () =>
 
   /** 75 is below the renderer's 50, so it runs after rendering — it scans what was just written. */
   const order = [];
-  inserts.setRenderer(() => order.push('render@50'));
+  inserts.wire({ on: 'render', fn: () => order.push('render@50'), priority: 50 });
   inserts.setAutoloader(() => order.push('autoload@75'));
   chain().forEach((cb) => cb('<p>x</p>', host));
   assert.deepEqual(order, ['render@50', 'autoload@75'], 'autoloader runs after the renderer');

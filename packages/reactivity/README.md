@@ -24,11 +24,11 @@ npm i @verajs/reactivity
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
 import { computed } from '@verajs/reactivity';
 
-setRenderer(domRender);
+wire([domRender]);
 
 customElements.define(
   'x-cart',

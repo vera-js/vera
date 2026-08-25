@@ -9,7 +9,7 @@
  * the registry, so registering through your own copy writes to a map core never reads. It works in
  * development and silently does nothing in production, which is the worst way for this to fail.
  */
-import { wire, setRenderer, setAutoloader } from '@verajs/core';
+import { wire, setAutoloader } from '@verajs/core';
 import { connectRouter } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
 import { initAutoloader } from '@verajs/autoloader';
@@ -20,7 +20,7 @@ import { installSinkInserts } from './components/sink-inserts.js';
  *   where `@verajs/ssr` has already registered its own.
  */
 export const wireApp = (renderer) => {
-  if (renderer) setRenderer(/** @type {never} */ (renderer));
+  if (renderer) wire({ on: 'render', fn: /** @type {never} */ (renderer), priority: 50 });
   wire([
     /**
      * The router imports no registry of its own, so it has to be handed this one. It used to share

@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.87 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.95 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -18,10 +18,10 @@ there is no second call to make.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
 
-setRenderer(domRender);
+wire([domRender]);
 
 customElements.define(
   'click-counter',
@@ -213,11 +213,11 @@ Spread a props object onto an element, with names resolved at runtime.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
 import { spread } from '@verajs/renderer/spread';
 
-setRenderer(domRender);
+wire([domRender]);
 
 customElements.define(
   'x-field',

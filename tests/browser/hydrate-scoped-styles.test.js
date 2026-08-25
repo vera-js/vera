@@ -11,11 +11,11 @@
  * copy of it. This asks the same question of the half that was never checked.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, css, wire } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, css} from '../../packages/core/dist/development/vera.js';
 import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

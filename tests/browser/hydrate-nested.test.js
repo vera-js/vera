@@ -8,10 +8,10 @@
  * if that handle is wrong, a closed component hydrates into nothing and says so nowhere.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
 import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 const define = (tag, options, template) =>

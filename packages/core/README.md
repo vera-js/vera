@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.81 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->2.82 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -20,10 +20,10 @@ tests, or your own.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html, useEffect } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html, useEffect } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
 
-setRenderer(domRender);   // once, at your app entry, before any component defines itself
+wire([domRender]);   // once, at your app entry, before any component defines itself
 
 customElements.define(
   'click-counter',

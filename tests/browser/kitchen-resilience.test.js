@@ -10,11 +10,11 @@
  * the configuration where that is either true or quietly wrong.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, createStore} from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { initRouter, navigate, connectRouter } from '../../packages/router/dist/development/vera-router.js';
 
-setRenderer(domRender);
+wire({ on: 'render', fn: domRender, priority: 50 });
 void connectRouter;
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

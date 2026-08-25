@@ -11,10 +11,10 @@
  * page after the list has been reversed, shortened, grown and emptied.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, shallowRef, untrack } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, shallowRef, untrack } from '../../packages/core/dist/development/vera.js';
 import { render as hydratingRender, keyed } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 const ROWS = ['a', 'b', 'c', 'd'];

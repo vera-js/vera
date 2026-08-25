@@ -821,12 +821,25 @@ export type ValueOps = {
  */
 export type ValueHandler = (part: object, value: unknown, ops: ValueOps) => boolean | void;
 
-const valueHandlers: ValueHandler[] = [];
+/**
+ * The registry this renderer reads `'value'` handlers from, handed over by {@link domRender}.
+ *
+ * Not imported. The renderer carries no registry of its own for the same reason the router does
+ * not: a production bundle inlines `@verajs/inserts`, so importing it would give this package one
+ * registry and core another, and an app would register into whichever it happened to import — the
+ * failure `connectInserts` used to repair.
+ */
+let registry: { get(name: 'value'): ValueHandler[] | undefined } | null = null;
+const noHandlers: ValueHandler[] = [];
+const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : noHandlers);
 
-/** Registers a value handler. `@verajs/renderer/lists` is the first caller that is not this file. */
-export const handle = (handler: ValueHandler) => {
-  valueHandlers.push(handler);
-};
+/**
+ * Kinds this package still ships. They read from a local list rather than the registry because the
+ * renderer cannot register into one it was merely handed — that needs `wire`, which it does not
+ * import. The list empties when they move to packages; until then a wired handler is checked first,
+ * so a module can pre-empt a built-in exactly as the priority order promises.
+ */
+const builtIns: ValueHandler[] = [];
 
 /** What a ChildPart currently contains. */
 const EMPTY = 0;
@@ -1005,7 +1018,9 @@ class ChildPart implements Part {
       this._mode = TEMPLATE;
       return;
     }
-    for (let i = 0; i < valueHandlers.length; i++) if (valueHandlers[i](this, value, ops)) return;
+    const handlers = valueHandlers();
+    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value, ops)) return;
+    for (let i = 0; i < builtIns.length; i++) if (builtIns[i](this, value, ops)) return;
 
     /**
      * **A child-position value that applies itself.** The same idea as `_$apply$` at element
@@ -1379,7 +1394,7 @@ export type { Part, Item, TemplatePart };
  * The ops, implemented once against the part's internals — which stay private, because a handler
  * never sees them.
  */
-const ops: ValueOps = {
+export const ops: ValueOps = {
   items: (part) => ((part as ChildPart)._items ??= []),
   claim: (part) => {
     const p = part as ChildPart;
@@ -1399,11 +1414,11 @@ const ops: ValueOps = {
 };
 
 /**
- * Lists, registered rather than branched — the built-in kind going through the same door a package
- * would. It moves to `@verajs/renderer/lists` unchanged; this registration is what that package
- * will do instead.
+ * Lists, as a registered kind rather than a branch — the built-in going through the same door a
+ * package will. Moving it to `@verajs/renderer/lists` is step 5; nothing else has to change when
+ * it does, which is what this shape is for.
  */
-handle((part, value) => {
+builtIns.push((part, value) => {
   if (Array.isArray(value)) {
     (part as ChildPart)._commitList(value);
     return true;
@@ -1414,3 +1429,22 @@ handle((part, value) => {
   }
   return false;
 });
+
+/**
+ * Everything this renderer needs, in one entry: `wire([domRender])`.
+ *
+ * It registers on the `'render'` chain *and* takes the registry, because a package that both
+ * provides a capability and reads one should not cost an app two lines. This replaced
+ * `setRenderer`, which existed only because there was no general way to say "this app has a
+ * renderer" — and which resolved the shadow root at registration, so a renderer wired any other
+ * way silently rendered into the light DOM. That resolution lives in core's dispatch now.
+ */
+export const domRender = {
+  name: '@verajs/renderer',
+  on: 'render' as const,
+  fn: render as never,
+  priority: 50,
+  connect: (given: { get(name: 'value'): ValueHandler[] | undefined }) => {
+    registry = given;
+  },
+};

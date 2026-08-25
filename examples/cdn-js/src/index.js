@@ -10,7 +10,7 @@
  *
  *   2. The autoloader keeps its default `.js` extension, because these files really are `.js`.
  */
-import { setHtml, setRenderer, setAutoloader, wire } from '@verajs/core';
+import { setHtml, wire, setAutoloader} from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
@@ -55,7 +55,7 @@ addEventListener('vera:autoload-error', ({ detail }) => {
   addEventListener('online', () => autoload.retry(detail.element), { once: true });
 });
 
-setRenderer(render);
+wire({ on: 'render', fn: render, priority: 50 });
 setHtml(html);
 
 /**

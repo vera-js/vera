@@ -11,9 +11,9 @@ import './wcc-single-element.js';
 // import { render as SSRRender } from '@lit-labs/ssr/lib/render-with-global-dom-shim.js';
 // import { collectResult, collectResultSync } from '@lit-labs/ssr/lib/render-result.js';
 
-// setRenderer((content, element) => {
+// wire({ on: 'render', fn: (content, element) => {
 //   element.innerHTML = collectResultSync(SSRRender(content));
-// });
+// }, priority: 50 });
 
 // const template = document.createElement('template');
 

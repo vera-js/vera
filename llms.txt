@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->6.0 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->6.1 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -65,24 +65,24 @@ customElements.define('click-counter', ClickCounter);
 ## Setup — required once, before any component defines itself
 
 ```js
-import { setHtml, setRenderer, setAutoloader, inserts, wire } from '@verajs/core';
+import { setHtml, wire, setAutoloader, inserts} from '@verajs/core';
 import { html, render as litRender } from 'lit-html';
 
 setHtml(html);          // the template tag
-setRenderer(litRender); // what writes to the DOM
+wire({ on: 'render', fn: litRender, priority: 50 }); // what writes to the DOM
 ```
 
 **Core ships no renderer.** `render()` with none registered paints nothing and warns once in
 development, naming the two lines to add. Wire one at your app entry:
 
 ```js
-import { setRenderer } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
-setRenderer(domRender);
+import { wire } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
+wire([domRender]);
 ```
 
 Core's `html` needs no `setHtml` with `@verajs/renderer` — it already produces the shape the
-renderer accepts. lit-html works too: `setRenderer(litRender); setHtml(litHtml);`
+renderer accepts. lit-html works too: `wire({ on: 'render', fn: litRender, priority: 50 }); setHtml(litHtml);`
 
 **Order matters.** A component that defines itself before `setRenderer` renders through that
 default — content appears, but sigil bindings are dead until the real renderer is set. Static
@@ -316,14 +316,14 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.87 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.95 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
 ```js
-import { init, createStore, render as show, setRenderer, html } from '@verajs/core';
+import { init, createStore, render as show, wire, html } from '@verajs/core';
 import { render as domRender, keyed } from '@verajs/renderer';
-setRenderer(domRender);
+wire([domRender]);
 
 // keyed lists: no repeat() import — key all items or none
 show(() => html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`);
@@ -641,9 +641,9 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
 <my-app></my-app>
 
 <script type="text/vera-jsx">
-  import { init, createStore, render, setRenderer } from '@verajs/core';
+  import { init, createStore, render, wire } from '@verajs/core';
   import { render as domRender, keyed } from '@verajs/renderer';
-  setRenderer(domRender);
+  wire([domRender]);
 
   const state = createStore({ n: 0 });
 
