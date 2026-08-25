@@ -41,7 +41,7 @@ import type { OverlayOptions } from './overlay.js';
 
 export type { OverlayOptions } from './overlay.js';
 
-export { render, keyed, hold, domRender } from './renderer.js';
+export { render, keyed, hold, domRender, handle } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 /** One template identity replacing another at the same position, and how often. */

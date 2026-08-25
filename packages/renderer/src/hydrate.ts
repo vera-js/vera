@@ -38,7 +38,7 @@ import {
 } from './renderer.js';
 import type { Template, Part, Item, TemplateResult } from './renderer.js';
 
-export { keyed, hold, domRender } from './renderer.js';
+export { keyed, hold, domRender, handle } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 // The server serializer (@verajs/ssr/vera) emits the SAME static strings this module parses into

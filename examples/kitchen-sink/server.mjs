@@ -32,8 +32,9 @@ const ENTRY = new URL('./entry-ssr.js', import.meta.url);
 const client = (mode) => `
 import { start } from '/examples/kitchen-sink/entry-client.js';
 /** Bare, so the import map decides which renderer this is — one line, one mode. */
-import { render } from '@verajs/renderer';
-await start(render);
+import * as rendererModule from '@verajs/renderer';
+const { render } = rendererModule;
+await start(rendererModule);
 document.documentElement.dataset.sinkMode = '${mode}';
 `;
 
@@ -57,6 +58,7 @@ const importmap = (renderer) =>
         '@verajs/core': '/packages/core/dist/development/vera.js',
         '@verajs/renderer': `/packages/renderer/dist/development/${renderer}`,
         '@verajs/renderer/spread': '/packages/renderer/dist/development/vera-renderer-spread.js',
+        '@verajs/renderer/lists': '/packages/renderer/dist/development/vera-renderer-lists.js',
         '@verajs/router': '/packages/router/dist/development/vera-router.js',
         '@verajs/autoloader': '/packages/autoloader/dist/development/vera-autoloader.js',
         '@verajs/styles': '/packages/styles/dist/development/vera-styles.js',

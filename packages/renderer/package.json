@@ -40,6 +40,11 @@
       "types": "./dist/development/vera-renderer-tag.d.ts",
       "development": "./dist/development/vera-renderer-tag.js",
       "default": "./dist/vera-renderer-tag.min.js"
+    },
+    "./lists": {
+      "types": "./dist/development/vera-renderer-lists.d.ts",
+      "development": "./dist/development/vera-renderer-lists.js",
+      "default": "./dist/vera-renderer-lists.min.js"
     }
   },
   "files": [

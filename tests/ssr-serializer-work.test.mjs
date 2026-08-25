@@ -20,6 +20,10 @@ import assert from 'node:assert/strict';
 const { serializeTemplate } = await import('@verajs/ssr/vera');
 const { html } = await load('core');
 const { spread } = await load('renderer/spread');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
 
 const rows = Array.from({ length: 20 }, (_, i) => ({ id: i, label: `row ${i} <safe>` }));
 

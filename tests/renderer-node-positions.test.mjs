@@ -17,6 +17,10 @@ for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text'
   globalThis[key] = dom.window[key];
 
 const { render } = await load('renderer');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
 const html = (strings, ...values) => ({ strings, values });
 
 let pass = 0;

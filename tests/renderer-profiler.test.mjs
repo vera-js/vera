@@ -31,6 +31,10 @@ const skip = isProduction;
 const { render, startProfiling, stopProfiling, isProfiling, profile, formatReport } = skip
   ? {}
   : await load('renderer/profiler');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
 
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 

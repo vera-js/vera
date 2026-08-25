@@ -19,6 +19,10 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
   globalThis[k] = dom.window[k];
 
 const { render, keyed, hold } = await load('renderer');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
 /** The shape core's `html` and `svg` tags produce, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });

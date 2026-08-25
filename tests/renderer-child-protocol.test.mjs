@@ -23,6 +23,10 @@ globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Node = dom.window.Node;
 
 const { render } = await load('renderer');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const into = () => {
   const container = dom.window.document.createElement('div');

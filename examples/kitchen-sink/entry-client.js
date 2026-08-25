@@ -6,9 +6,16 @@
  * quietly prove something weaker.
  */
 import { wireApp, wireAutoloader } from './wiring.js';
+import { lists } from '@verajs/renderer/lists';
 
-export const start = async (renderer) => {
-  wireApp(renderer);
+/**
+ * Takes the renderer **module**, not just its `render`. List rendering is a handler now, and each
+ * renderer entry — plain or hydrating — is a substitute bundle with its own inlined copy, so the
+ * handler has to go into the one this mode is actually using.
+ */
+export const start = async (rendererModule) => {
+  wireApp(rendererModule.render);
+  rendererModule.handle(lists.fn);
   wireAutoloader(import.meta.url);
   await import('./components/sink-shell.js');
   document.documentElement.dataset.sinkReady = 'true';

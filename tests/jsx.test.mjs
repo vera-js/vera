@@ -16,6 +16,10 @@ const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 const { render, keyed } = await load('renderer');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
 const html = (strings, ...values) => ({ strings, values });
 
 const dir = mkdtempSync(join(tmpdir(), 'vera-jsx-'));

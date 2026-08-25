@@ -87,6 +87,12 @@ globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 const { render } = await load('renderer/hydrate');
+/** List rendering is a module now; this suite drives the renderer directly, so it uses the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+const { lists } = await load('renderer/lists');
+(await load('renderer')).handle(lists.fn);
+/** `hydrate` is a substitute entry with its own inlined renderer — its own door too. */
+(await load('renderer/hydrate')).handle(lists.fn);
 const html = (strings, ...values) => ({ strings, values });
 const state = { text: 'hello & <world>', count: 3, rows: ['a', 'b'] };
 

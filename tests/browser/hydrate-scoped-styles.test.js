@@ -12,7 +12,12 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, css} from '../../packages/core/dist/development/vera.js';
-import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { render as hydratingRender, handle } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+/** List rendering is a module. These suites drive the renderer directly, so they use the
+ *  no-registry door rather than `wire([domRender, lists])`. */
+import { lists as __lists } from '../../packages/renderer/dist/development/vera-renderer-lists.js';
+handle(__lists.fn);
+
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
 wire({ on: 'render', fn: hydratingRender, priority: 50 });
