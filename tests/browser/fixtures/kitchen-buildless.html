@@ -24,7 +24,6 @@
           "@verajs/core": "/packages/core/dist/vera.min.js",
           "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
           "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
-          "@verajs/renderer/lists": "/packages/renderer/dist/vera-renderer-lists.min.js",
           "@verajs/router": "/packages/router/dist/vera-router.min.js",
           "@verajs/autoloader": "/packages/autoloader/dist/vera-autoloader.min.js",
           "@verajs/styles": "/packages/styles/dist/vera-styles.min.js"
@@ -45,24 +44,20 @@
         html,
         css,
         createStore} from '@verajs/core';
-      import { domRender, keyed } from '@verajs/renderer';
-      import { lists } from '@verajs/renderer/lists';
+      import { render as domRender, keyed } from '@verajs/renderer';
       import { spread } from '@verajs/renderer/spread';
       import { initRouter, connectRouter, navigate } from '@verajs/router';
       import { adoptStyles } from '@verajs/styles';
       import { initAutoloader } from '@verajs/autoloader';
 
       /**
-       * Everything this page wires, in one call. `connectRouter` hands the router the registry it
-       * reads (it carries none of its own), `domRender` both registers the renderer and hands it
-       * the registry it reads `'value'` handlers from, and `lists` is one of those handlers.
+       * Each standalone bundle inlined its own registry, so the router's is not core's until this
+       * points one at the other. Without it a routed link does nothing and nothing says why.
        */
-      wire([
-        connectRouter,
-        domRender,
-        lists,
-        { on: 'init', fn: adoptStyles, priority: 50 },
-      ]);
+      wire([connectRouter]);
+
+      wire({ on: 'render', fn: domRender, priority: 50 });
+      wire({ on: 'init', fn: adoptStyles, priority: 50 });
       setAutoloader(
         initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
       );

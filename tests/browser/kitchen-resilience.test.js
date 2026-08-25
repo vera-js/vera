@@ -11,12 +11,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, createStore} from '../../packages/core/dist/development/vera.js';
-import { render as domRender, handle } from '../../packages/renderer/dist/development/vera-renderer.js';
-/** List rendering is a module. These suites drive the renderer directly, so they use the
- *  no-registry door rather than `wire([domRender, lists])`. */
-import { lists as __lists } from '../../packages/renderer/dist/development/vera-renderer-lists.js';
-handle(__lists.fn);
-
+import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { initRouter, navigate, connectRouter } from '../../packages/router/dist/development/vera-router.js';
 
 wire({ on: 'render', fn: domRender, priority: 50 });

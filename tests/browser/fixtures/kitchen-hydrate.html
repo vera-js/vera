@@ -368,9 +368,8 @@
       </div></template></sink-shell>
     <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import * as rendererModule from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
-const { render } = rendererModule;
-      await start(rendererModule);
+      import { render } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
+      await start(render);
       document.documentElement.dataset.sinkMode = 'hydrate';
     </script>
   </body>

@@ -7,12 +7,7 @@
  * the keys `@verajs/renderer/spread` refuses for itself, and this covers the ones it must not.
  */
 import { expect } from '@esm-bundle/chai';
-import { render, handle } from '../../packages/renderer/dist/development/vera-renderer.js';
-/** List rendering is a module. These suites drive the renderer directly, so they use the
- *  no-registry door rather than `wire([domRender, lists])`. */
-import { lists as __lists } from '../../packages/renderer/dist/development/vera-renderer-lists.js';
-handle(__lists.fn);
-
+import { render } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { spread } from '../../packages/renderer/dist/development/vera-renderer-spread.js';
 import { html } from '../../packages/core/dist/development/vera.js';
 

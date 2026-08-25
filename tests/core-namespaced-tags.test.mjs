@@ -22,10 +22,6 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
 
 const { html, svg, mathml } = await load('core');
 const { render } = await load('renderer');
-/** List rendering is a module now; this suite drives the renderer directly, so it uses the
- *  no-registry door rather than `wire([domRender, lists])`. */
-const { lists } = await load('renderer/lists');
-(await load('renderer')).handle(lists.fn);
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';

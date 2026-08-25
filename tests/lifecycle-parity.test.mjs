@@ -634,10 +634,6 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 
 const core = await load('core');
 const { render: renderTemplate } = await load('renderer');
-/** List rendering is a module now; this suite drives the renderer directly, so it uses the
- *  no-registry door rather than `wire([domRender, lists])`. */
-const { lists } = await load('renderer/lists');
-(await load('renderer')).handle(lists.fn);
 core.wire({ on: 'render', fn: renderTemplate, priority: 50 });
 
 /** Two frames plus a drained microtask queue: renders, layout effects and effects have all run. */

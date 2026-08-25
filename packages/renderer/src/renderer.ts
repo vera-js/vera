@@ -681,7 +681,7 @@ class AttrPart implements Part {
  * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
  * pay on create.
  */
-export type Item = {
+type Item = {
   _key: unknown;
   _element: Element | null;
   _instance: Instance | null;
@@ -791,47 +791,6 @@ class TextPart implements Part {
 export type ChildDirective = (part: { _$commit$(value: unknown): void }, previous: unknown) => unknown;
 
 /**
- * What a value handler is handed so it never reaches into a part.
- *
- * The shape `'proxy-handler'` already uses: core passes its own internals as arguments — the way
- * it hands over `addCallback` and `runCallbacks` — rather than exposing them as members. Nothing
- * here appears on `ChildPart` as public API, it is a module-level singleton so a dispatch allocates
- * nothing, and the names do not match this package's `/^_[a-z]/` mangling.
- *
- * **Dictated, not designed.** An earlier draft guessed nine methods before anything used them; the
- * list algorithm turned out to reach for thirteen, item accessors among them. Every entry below
- * exists because `@verajs/renderer/lists` calls it.
- */
-export type ValueOps = {
-  /** Puts the part into list mode. Returns `true` if that reset it — a fresh, empty list. */
-  claim(part: object): boolean;
-  items(part: object): Item[];
-  setItems(part: object, items: Item[]): void;
-  /** Empties the part and leaves it in list mode. */
-  reset(part: object): void;
-  insert(part: object, node: Node): void;
-  parent(part: object): Node;
-  end(part: object): Node | null;
-  create(part: object, value: unknown, parent: Node, ref: Node | null): Item;
-  update(part: object, item: Item, value: unknown): void;
-  move(part: object, item: Item, ref: Node | null): void;
-  drop(part: object, item: Item): void;
-  firstNode(item: Item): Node;
-  /** The node just past an item, which is where a shrink stops removing. */
-  afterNode(item: Item): Node | null;
-  /**
-   * Whether the list at this part is keyed. Part state rather than the strategy's, because
-   * **hydration sets it too** — `adoptSlot` decides it while adopting server markup, long before
-   * any handler runs. Kept in a handler's own map instead, a hydrated keyed list read as a mode
-   * change on the first render and was destroyed.
-   */
-  isKeyed(part: object): boolean;
-  setKeyed(part: object, keyed: boolean): void;
-  key(item: Item): unknown;
-};
-
-
-/**
  * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
  *
  * A handler will also be handed the **operations** it needs to do its job — the shape
@@ -845,7 +804,7 @@ export type ValueOps = {
  * portal, a virtualizer. The built-ins below register through it too, so a third party's kind is
  * not second-class to one that shipped in the box.
  */
-export type ValueHandler = (part: object, value: unknown, ops: ValueOps) => boolean | void;
+export type ValueHandler = (part: object, value: unknown) => boolean | void;
 
 /**
  * The registry this renderer reads `'value'` handlers from, handed over by {@link domRender}.
@@ -860,19 +819,12 @@ const noHandlers: ValueHandler[] = [];
 const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : noHandlers);
 
 /**
- * Handlers registered **directly**, for the renderer used without core.
- *
- * The same two doors the router has: an app with core writes `wire([domRender, lists])` and the
- * handlers arrive through the registry; an app using this package alone has no registry to be
- * handed, so it says `handle(lists.fn)`. Neither path imports `@verajs/inserts`, which is what
- * keeps this package dependency-free.
+ * Kinds this package still ships. They read from a local list rather than the registry because the
+ * renderer cannot register into one it was merely handed — that needs `wire`, which it does not
+ * import. The list empties when they move to packages; until then a wired handler is checked first,
+ * so a module can pre-empt a built-in exactly as the priority order promises.
  */
-const direct: ValueHandler[] = [];
-
-/** Registers a value handler without a registry — see `direct`. */
-export const handle = (handler: ValueHandler) => {
-  direct.push(handler);
-};
+const builtIns: ValueHandler[] = [];
 
 /** What a ChildPart currently contains. */
 const EMPTY = 0;
@@ -1052,8 +1004,8 @@ class ChildPart implements Part {
       return;
     }
     const handlers = valueHandlers();
-    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value, ops)) return;
-    for (let i = 0; i < direct.length; i++) if (direct[i](this, value, ops)) return;
+    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
+    for (let i = 0; i < builtIns.length; i++) if (builtIns[i](this, value)) return;
 
     /**
      * **A child-position value that applies itself.** The same idea as `_$apply$` at element
@@ -1098,14 +1050,6 @@ class ChildPart implements Part {
         this._mode = NODE;
       }
       return;
-    }
-    if (__DEV__ && (Array.isArray(value) || typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function')) {
-      throw new Error(
-        '[vera] a list reached a child position and nothing claimed it. List rendering is a ' +
-          'module:\n\n' +
-          "  import { lists } from '@verajs/renderer/lists';\n" +
-          '  wire([domRender, lists]);\n'
-      );
     }
     // any other object: render as text
     this._set(String(value));
@@ -1217,6 +1161,160 @@ class ChildPart implements Part {
     SCRATCH.textContent = '';
   }
 
+  _commitList(newValues: unknown[]) {
+    if (this._mode !== LIST) {
+      if (this._mode !== EMPTY) this._clear();
+      this._items = [];
+      this._keyedList = false;
+      this._mode = LIST;
+    }
+    const count = newValues.length;
+    if (count === 0) {
+      if (this._items!.length) {
+        this._clear();
+        this._items = [];
+        this._mode = LIST;
+      }
+      return;
+    }
+    const isKeyed = newValues[0] != null && (newValues[0] as TemplateResult).key !== undefined;
+    if (isKeyed !== this._keyedList && this._items!.length) {
+      this._clear();
+      this._items = [];
+      this._mode = LIST;
+    }
+    this._keyedList = isKeyed;
+    const items = this._items!;
+    const parent = this._start.parentNode!;
+
+    if (items.length === 0) {
+      /** Initial fill builds off-document and lands in one insert. */
+      const fragment = doc.createDocumentFragment();
+      for (let i = 0; i < count; i++) items.push(this._createItem(newValues[i], fragment, null));
+      this._insert(fragment);
+      return;
+    }
+
+    if (!isKeyed) {
+      // index mode: update in place, grow at the end, shrink from the end
+      const shared = items.length < count ? items.length : count;
+      for (let i = 0; i < shared; i++) this._updateItem(items[i], newValues[i]);
+      if (count > items.length) {
+        const fragment = doc.createDocumentFragment();
+        for (let i = items.length; i < count; i++) items.push(this._createItem(newValues[i], fragment, null));
+        this._insert(fragment);
+      } else if (count < items.length) {
+        const last = items[items.length - 1];
+        let node: Node | null = this._firstNode(items[count]);
+        const stop = last._element !== null ? last._element.nextSibling : last._part!._end!.nextSibling;
+        while (node !== stop) {
+          const next: Node | null = node!.nextSibling;
+          parent.removeChild(node!);
+          node = next;
+        }
+        items.length = count;
+      }
+      return;
+    }
+
+    /**
+     * Zero-allocation fast path for the dominant case: same length, same key order — a pure
+     * in-place update (a selection change, a field edit). No key array, no output array, no null
+     * checks. Falls through to the full algorithm on the first mismatch; the items already updated
+     * re-verify there as cheap no-op compares.
+     */
+    if (items.length === count) {
+      let i = 0;
+      while (i < count && items[i]._key === (newValues[i] as TemplateResult).key) {
+        this._updateItem(items[i], newValues[i]);
+        i++;
+      }
+      if (i === count) return;
+    }
+
+    /**
+     * Keyed reconciliation — the standard head/tail algorithm (as in lit's `repeat` and Vue):
+     * skip matching prefixes and suffixes, detect the two swap shapes directly, and fall back to
+     * key maps for arbitrary moves, removals and insertions.
+     */
+    const oldItems: (Item | null)[] = items;
+    const newKeys: unknown[] = new Array(count);
+    for (let i = 0; i < count; i++) newKeys[i] = (newValues[i] as TemplateResult).key;
+    const newItems: Item[] = new Array(count);
+    let oldHead = 0;
+    let oldTail = oldItems.length - 1;
+    let newHead = 0;
+    let newTail = count - 1;
+    let newKeyToIndex: Map<unknown, number> | undefined;
+    let oldKeyToIndex: Map<unknown, number> | undefined;
+    const refAt = (i: number): Node | null =>
+      i < count && newItems[i] !== undefined ? this._firstNode(newItems[i]) : this._end;
+
+    while (oldHead <= oldTail && newHead <= newTail) {
+      if (oldItems[oldHead] === null) oldHead++;
+      else if (oldItems[oldTail] === null) oldTail--;
+      else if (oldItems[oldHead]!._key === newKeys[newHead]) {
+        this._updateItem((newItems[newHead] = oldItems[oldHead]!), newValues[newHead]);
+        oldHead++;
+        newHead++;
+      } else if (oldItems[oldTail]!._key === newKeys[newTail]) {
+        this._updateItem((newItems[newTail] = oldItems[oldTail]!), newValues[newTail]);
+        oldTail--;
+        newTail--;
+      } else if (oldItems[oldHead]!._key === newKeys[newTail]) {
+        const item = oldItems[oldHead]!;
+        this._moveItem(item, refAt(newTail + 1));
+        this._updateItem(item, newValues[newTail]);
+        newItems[newTail] = item;
+        oldHead++;
+        newTail--;
+      } else if (oldItems[oldTail]!._key === newKeys[newHead]) {
+        const item = oldItems[oldTail]!;
+        this._moveItem(item, this._firstNode(oldItems[oldHead]!));
+        this._updateItem(item, newValues[newHead]);
+        newItems[newHead] = item;
+        oldTail--;
+        newHead++;
+      } else {
+        if (newKeyToIndex === undefined) {
+          newKeyToIndex = new Map();
+          for (let i = newHead; i <= newTail; i++) newKeyToIndex.set(newKeys[i], i);
+          oldKeyToIndex = new Map();
+          for (let i = oldHead; i <= oldTail; i++) {
+            if (oldItems[i] !== null) oldKeyToIndex.set(oldItems[i]!._key, i);
+          }
+        }
+        if (!newKeyToIndex.has(oldItems[oldHead]!._key)) {
+          this._dropItem(oldItems[oldHead]!);
+          oldHead++;
+        } else if (!newKeyToIndex.has(oldItems[oldTail]!._key)) {
+          this._dropItem(oldItems[oldTail]!);
+          oldTail--;
+        } else {
+          const oldIndex = oldKeyToIndex!.get(newKeys[newHead]);
+          if (oldIndex === undefined) {
+            newItems[newHead] = this._createItem(newValues[newHead], parent, this._firstNode(oldItems[oldHead]!));
+          } else {
+            const item = oldItems[oldIndex]!;
+            this._moveItem(item, this._firstNode(oldItems[oldHead]!));
+            this._updateItem(item, newValues[newHead]);
+            newItems[newHead] = item;
+            oldItems[oldIndex] = null;
+          }
+          newHead++;
+        }
+      }
+    }
+    while (newHead <= newTail) {
+      newItems[newHead] = this._createItem(newValues[newHead], parent, refAt(newTail + 1));
+      newHead++;
+    }
+    while (oldHead <= oldTail) {
+      const item = oldItems[oldHead++];
+      if (item !== null) this._dropItem(item);
+    }
+    this._items = newItems;
+  }
 }
 
 const rootParts = new WeakMap<Node, ChildPart>();
@@ -1274,8 +1372,25 @@ export {
   PROFILE_FRAME_END,
 };
 /** @internal */
-export type { Part, TemplatePart };
+export type { Part, Item, TemplatePart };
 
+
+/**
+ * Lists, as a registered kind rather than a branch — the built-in going through the same door a
+ * package will. Moving it to `@verajs/renderer/lists` is step 5; nothing else has to change when
+ * it does, which is what this shape is for.
+ */
+builtIns.push((part, value) => {
+  if (Array.isArray(value)) {
+    (part as ChildPart)._commitList(value);
+    return true;
+  }
+  if (value !== null && typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
+    (part as ChildPart)._commitList([...(value as Iterable<unknown>)]);
+    return true;
+  }
+  return false;
+});
 
 /**
  * Everything this renderer needs, in one entry: `wire([domRender])`.
@@ -1293,42 +1408,5 @@ export const domRender = {
   priority: 50,
   connect: (given: { get(name: 'value'): ValueHandler[] | undefined }) => {
     registry = given;
-  },
-};
-
-/** The ops, implemented once against internals that stay private because a handler never sees them. */
-const ops: ValueOps = {
-  claim: (part) => {
-    const p = part as ChildPart;
-    if (p._mode === LIST) return false;
-    if (p._mode !== EMPTY) p._clear();
-    p._items = [];
-    p._keyedList = false;
-    p._mode = LIST;
-    return true;
-  },
-  items: (part) => (part as ChildPart)._items!,
-  setItems: (part, items) => {
-    (part as ChildPart)._items = items;
-  },
-  reset: (part) => {
-    const p = part as ChildPart;
-    p._clear();
-    p._items = [];
-    p._mode = LIST;
-  },
-  insert: (part, node) => (part as ChildPart)._insert(node),
-  parent: (part) => (part as ChildPart)._start.parentNode!,
-  end: (part) => (part as ChildPart)._end,
-  create: (part, value, parent, ref) => (part as ChildPart)._createItem(value, parent, ref),
-  update: (part, item, value) => (part as ChildPart)._updateItem(item, value),
-  move: (part, item, ref) => (part as ChildPart)._moveItem(item, ref),
-  drop: (part, item) => (part as ChildPart)._dropItem(item),
-  firstNode: (item) => item._element ?? item._part!._start,
-  afterNode: (item) => (item._element !== null ? item._element.nextSibling : item._part!._end!.nextSibling),
-  key: (item) => item._key,
-  isKeyed: (part) => (part as ChildPart)._keyedList,
-  setKeyed: (part, keyed) => {
-    (part as ChildPart)._keyedList = keyed;
   },
 };

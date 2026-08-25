@@ -35,8 +35,6 @@ export default [
   defaultRollupConfig(`${pkg.filename}-spread`, [], /^_[a-z]/, { input: 'src/spread.ts' }),
   /** Additive for the same reason, and it inlines `spread` because it builds on that protocol. */
   defaultRollupConfig(`${pkg.filename}-tag`, [], /^_[a-z]/, { input: 'src/tag.ts' }),
-  /** Additive: it talks to whatever renderer is present through the `'value'` insert. */
-  defaultRollupConfig(`${pkg.filename}-lists`, [], /^_[a-z]/, { input: 'src/lists.ts' }),
   ...(isProduction
     ? []
     : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),

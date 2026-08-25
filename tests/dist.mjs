@@ -34,7 +34,6 @@ const ENTRY = {
   reactivity: ['reactivity', 'vera-reactivity'],
   'renderer/spread': ['renderer', 'vera-renderer-spread'],
   'renderer/tag': ['renderer', 'vera-renderer-tag'],
-  'renderer/lists': ['renderer', 'vera-renderer-lists'],
   styles: ['styles', 'vera-styles'],
 };
 

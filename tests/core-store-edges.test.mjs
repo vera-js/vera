@@ -21,10 +21,6 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 
 const core = await load('core');
 const { render: domRender } = await load('renderer');
-/** List rendering is a module now; this suite drives the renderer directly, so it uses the
- *  no-registry door rather than `wire([domRender, lists])`. */
-const { lists } = await load('renderer/lists');
-(await load('renderer')).handle(lists.fn);
 core.wire({ on: 'render', fn: domRender, priority: 50 });
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
 

@@ -16,8 +16,7 @@
       {
         "imports": {
           "@verajs/core": "/packages/core/dist/vera.min.js",
-          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
-          "@verajs/renderer/lists": "/packages/renderer/dist/vera-renderer-lists.min.js"
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js"
         }
       }
     </script>
@@ -28,10 +27,9 @@
 
     <script type="text/vera-jsx">
       import { init, createStore, render, wire, html } from '@verajs/core';
-      import { domRender, keyed } from '@verajs/renderer';
-      import { lists } from '@verajs/renderer/lists';
+      import { render as domRender, keyed } from '@verajs/renderer';
 
-      wire([domRender, lists]);
+      wire({ on: 'render', fn: domRender, priority: 50 });
 
       /** A function component is a template factory, not a custom element: children arrive as an array. */
       const Row = ({ label, onPick }) => <li onClick={onPick} data-id={label}>{label}</li>;
