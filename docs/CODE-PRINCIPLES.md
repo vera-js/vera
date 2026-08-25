@@ -140,7 +140,7 @@ a nice-to-have — the module system is the product.**
   back into core.**
 - **Understand the consequence before you "fix" it:** because standalone bundles inline everything,
   loading `vera.min.js` *and* `vera-router.min.js` produces **two separate `inserts` Maps**. That is
-  why `connectInserts()` exists. It is intentional, and it is the price of genuine module
+  why a module is handed core's registry (`wire([connectRouter])`) rather than carrying its own. It is intentional, and it is the price of genuine module
   independence. Never resolve it by making bundles share global state.
 - **Design for the likely next axis of change** cheaply — a config option beats a hard-coded constant
   when a second case is plausible (for instance the autoloader's hardcoded `.js` extension, which

@@ -5,7 +5,7 @@ import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
  *
  * That is the point — it is how a module transforms values on their way out, which is what the
  * `computed` recipe uses to unwrap a box — but it means a handler written only to *observe* must
- * return nothing. `insert('proxy-handler', () => count++, 30)` returns a number, and every read of
+ * return nothing. `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` registers a callback returning a number, and every read of
  * every store then yields that number instead of the value: silent, total, and indistinguishable
  * from the store being broken.
  *

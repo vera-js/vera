@@ -10,7 +10,7 @@
  *
  *   2. The autoloader keeps its default `.js` extension, because these files really are `.js`.
  */
-import { setHtml, wire, setAutoloader} from '@verajs/core';
+import { setHtml, wire } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
@@ -28,11 +28,11 @@ wire([connectRouter, { on: 'proxy-handler', fn: computedValues, priority: 40 }])
 /**
  * Components load lazily by tag name, relative to this file.
  *
- * `setAutoloader` covers everything a component *renders*. The three lines after it cover what a
+ * The autoloader covers everything a component *renders*. The three lines after it cover what a
  * render never touches, and are the whole of the module's other surface:
  */
 const autoload = initAutoloader(import.meta.url, 'components');
-setAutoloader(autoload);
+wire(autoload);
 
 /** Markup written by hand in index.html — nothing renders it, so it has to be asked for. */
 autoload();
@@ -61,7 +61,7 @@ setHtml(html);
 /**
  * Dynamic `import()`, not a static one. A static `import` declaration is **hoisted** and evaluates
  * before this module's body, so `demo-app` would `customElements.define()` and upgrade before
- * `setRenderer` / `setHtml` above had run — rendering through core's defaults and painting a literal
+ * `wire(render)` / `setHtml` above had run — rendering through core's defaults and painting a literal
  * `[object Object]` where the template should be.
  *
  * Configuration must complete before any component defines itself.

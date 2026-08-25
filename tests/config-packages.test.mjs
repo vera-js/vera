@@ -89,19 +89,19 @@ test('eslint-config: a plain class is left alone', () => {
 });
 
 test('eslint-config: flags `insert` taken from @verajs/inserts', () => {
-  const out = lint("import { insert } from '@verajs/inserts';\ninsert('render', () => {}, 1);");
+  const out = lint("import { wire } from '@verajs/inserts';\nwire({ on: 'render', fn: () => {}, priority: 1 });");
   assert.match(out, /no-restricted-imports/);
   assert.match(out, /silently does nothing/, 'the message must name the production failure');
 });
 
 test('eslint-config: importing the registry itself is allowed', () => {
-  // `connectInserts(inserts)` is the documented CDN wiring and must not be caught.
+  // Reading the registry itself is legitimate — only `wire` is restricted.
   const out = lint("import { inserts } from '@verajs/inserts';\nconsole.log(inserts);");
   assert.doesNotMatch(out, /no-restricted-imports/);
 });
 
-test('eslint-config: `insert` from core is allowed', () => {
-  const out = lint("import { insert } from '@verajs/core';\ninsert('init', () => {}, 50);");
+test('eslint-config: `wire` from core is allowed', () => {
+  const out = lint("import { wire } from '@verajs/core';\nwire({ on: 'init', fn: () => {}, priority: 50 });");
   assert.doesNotMatch(out, /no-restricted-imports/);
 });
 

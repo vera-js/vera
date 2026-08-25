@@ -11,7 +11,7 @@ import { adoptStyles } from '@verajs/styles';
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 ```
 
-Once, at your app entry, next to `setRenderer`. Every component `init()` adopts its `static styles`
+Once, at your app entry, alongside the renderer. Every component `init()` adopts its `static styles`
 from that point on.
 
 `insert` comes from **`@verajs/core`**, not from `@verajs/inserts`. A production `.min.js` inlines

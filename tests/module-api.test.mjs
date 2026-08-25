@@ -24,26 +24,46 @@ globalThis.window = dom.window;
 globalThis.location = dom.window.location;
 globalThis.history = dom.window.history;
 
-// ── @verajs/inserts: setAutoloader ──────────────────────────────────────────
+// ── @verajs/inserts: a function that names an insert point is a descriptor ──
 
-test('setAutoloader registers into the render chain at priority 75', async () => {
+/**
+ * `wire` accepts a bare function as a *connector* (it is handed the registry), and an object as a
+ * descriptor. A module may be both: `@verajs/autoloader` returns a callable instance that also
+ * carries `on`/`fn`/`priority`, so configuring it and installing it are one call. That only works
+ * because the descriptor test runs first — read the other way round, such a module is called as a
+ * connector and silently never registers.
+ */
+test('wire treats a function carrying `on` as a descriptor, not a connector', async () => {
   const inserts = await load('inserts');
   const chain = () => inserts.inserts.get('render') ?? [];
   const before = chain().length;
 
   const seen = [];
-  inserts.setAutoloader((container) => seen.push(container));
-  assert.equal(chain().length, before + 1, 'one entry added');
+  const handedRegistry = [];
+  const both = Object.assign((registry) => handedRegistry.push(registry), {
+    on: 'render',
+    fn: (_, container) => seen.push(container),
+    priority: 75,
+  });
+  inserts.wire(both);
+
+  assert.equal(handedRegistry.length, 0, 'it was not called as a connector');
+  assert.equal(chain().length, before + 1, 'it registered as a descriptor');
 
   const host = document.createElement('div');
   chain().forEach((cb) => cb('<p>x</p>', host));
-  assert.deepEqual(seen, [host], 'the autoloader received the container');
+  assert.deepEqual(seen, [host], 'the handler received the container');
+});
 
-  /** 75 is below the renderer's 50, so it runs after rendering — it scans what was just written. */
+test('the autoloader registers at 75, so it runs after the renderer', async () => {
+  const inserts = await load('inserts');
+  const chain = () => inserts.inserts.get('render') ?? [];
   const order = [];
+
+  /** 75 is above the renderer's 50, so it runs after rendering — it scans what was just written. */
   inserts.wire({ on: 'render', fn: () => order.push('render@50'), priority: 50 });
-  inserts.setAutoloader(() => order.push('autoload@75'));
-  chain().forEach((cb) => cb('<p>x</p>', host));
+  inserts.wire(Object.assign(() => {}, { on: 'render', fn: () => order.push('autoload@75'), priority: 75 }));
+  chain().forEach((cb) => cb('<p>x</p>', document.createElement('div')));
   assert.deepEqual(order, ['render@50', 'autoload@75'], 'autoloader runs after the renderer');
 });
 

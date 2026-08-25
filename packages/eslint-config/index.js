@@ -61,15 +61,18 @@ export const noCustomElementClassFields = {
  * lands somewhere else. `@verajs/styles` was written this way first and passed every development
  * test.
  *
- * Take `insert` from the package that owns the extension point — `@verajs/core` for `render`,
- * `proxy-handler`, `set-handler`, `error` and `init`. Importing `@verajs/inserts` for anything else,
- * such as the registry itself for `connectInserts`, is untouched by this rule.
+ * Take `wire` from the package that owns the extension point — `@verajs/core` for `render`,
+ * `proxy-handler`, `set-handler`, `error`, `init` and `collection`. Importing `@verajs/inserts` for
+ * anything else, such as the registry itself, is untouched by this rule.
+ *
+ * The restricted name is `wire`. It was `insert` until the 0.2.0 rename, and a rule naming an
+ * import that no longer exists catches nothing — the mistake it was written for went unguarded.
  */
 export const noInsertFromInsertsPackage = {
   name: '@verajs/inserts',
-  importNames: ['insert'],
+  importNames: ['wire'],
   message:
-    'Import `insert` from the package that owns the extension point (`@verajs/core`), not from ' +
+    'Import `wire` from the package that owns the extension point (`@verajs/core`), not from ' +
     '`@verajs/inserts`. A production bundle inlines its own registry, so registering through a ' +
     'separate copy writes to a map that package never reads — in development it works, in ' +
     'production it silently does nothing.',

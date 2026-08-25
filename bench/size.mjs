@@ -20,6 +20,48 @@ const require = createRequire(import.meta.url);
 /** esbuild ships nested under vite here; resolve by path since vite does not export it. */
 const esbuild = require(process.cwd() + '/node_modules/esbuild/lib/main.js');
 
+/**
+ * A second app shape, measured the same way.
+ *
+ * The counter below is the shape that flatters a directive-first design: everything a list needs
+ * sits in a separate import that a counter never pulls in. Quoting only a counter therefore reports
+ * the comparison at its least representative point for *both* sides, so this set renders a keyed
+ * list — the thing every real app does and the thing reconciliation exists for.
+ */
+const LIST_CONTENDERS = [
+  {
+    name: 'VeraJS + own renderer',
+    note: 'core + @verajs/renderer + /keyed',
+    code: `
+      import { init, createStore, render, wire, html } from '@verajs/core';
+      import { domRender } from '@verajs/renderer';
+      import { keyed } from '@verajs/renderer/keyed';
+      wire([domRender]);
+      customElements.define('x-list', class extends HTMLElement {
+        connectedCallback() {
+          init(this, { mode: 'open' });
+          const s = createStore({ rows: [{ id: 1, label: 'a' }] });
+          render(() => html\`<ul>\${s.rows.map((r) => keyed(r.id, html\`<li @click=\${() => (r.label += '!')}>\${r.label}</li>\`))}</ul>\`);
+        }
+      });`,
+  },
+  {
+    name: 'Lit',
+    note: 'lit + directives/repeat',
+    code: `
+      import { LitElement, html } from 'lit';
+      import { repeat } from 'lit/directives/repeat.js';
+      class XList extends LitElement {
+        static properties = { rows: {} };
+        constructor() { super(); this.rows = [{ id: 1, label: 'a' }]; }
+        render() {
+          return html\`<ul>\${repeat(this.rows, (r) => r.id, (r) => html\`<li @click=\${() => (r.label += '!')}>\${r.label}</li>\`)}</ul>\`;
+        }
+      }
+      customElements.define('x-list', XList);`,
+  },
+];
+
 /** Each entry renders reactive state, so the measurement covers a usable app rather than an import. */
 const CONTENDERS = [
   {
@@ -141,9 +183,11 @@ const CONTENDERS = [
  */
 const dir = mkdtempSync(join(process.cwd(), 'bench', '.size-'));
 const results = [];
+const listResults = [];
 
-for (const c of CONTENDERS) {
-  const entry = join(dir, `${c.name.replace(/[^a-z0-9]+/gi, '-')}.js`);
+/** One contender, bundled the way a consumer would get it. Shared by both app shapes. */
+const measure = async (c, into, tag) => {
+  const entry = join(dir, `${tag}-${c.name.replace(/[^a-z0-9]+/gi, '-')}.js`);
   writeFileSync(entry, c.code);
   try {
     const out = await esbuild.build({
@@ -161,11 +205,14 @@ for (const c of CONTENDERS) {
       logLevel: 'silent',
     });
     const bytes = out.outputFiles[0].contents;
-    results.push({ ...c, raw: bytes.length, gzip: gzipSync(bytes).length });
+    into.push({ ...c, raw: bytes.length, gzip: gzipSync(bytes).length });
   } catch (err) {
-    results.push({ ...c, error: err.message.split('\n')[0].slice(0, 70) });
+    into.push({ ...c, error: err.message.split('\n')[0].slice(0, 70) });
   }
-}
+};
+
+for (const c of CONTENDERS) await measure(c, results, 'counter');
+for (const c of LIST_CONTENDERS) await measure(c, listResults, 'list');
 rmSync(dir, { recursive: true, force: true });
 
 const ok = results.filter((r) => !r.error).sort((a, b) => a.gzip - b.gzip);
@@ -188,6 +235,19 @@ console.log('');
 for (const r of ok) console.log(`  ${r.name.padEnd(pad)}  ${r.note}`);
 console.log('');
 
+const listOk = listResults.filter((r) => !r.error).sort((a, b) => a.gzip - b.gzip);
+if (listOk.length) {
+  const lpad = Math.max(...listResults.map((r) => r.name.length));
+  console.log('  Same measurement, keyed list — the shape reconciliation exists for\n');
+  console.log(`  ${'Framework'.padEnd(lpad)}  ${'raw'.padStart(8)}  ${'gzip'.padStart(8)}`);
+  console.log(`  ${'-'.repeat(lpad)}  ${'-'.repeat(8)}  ${'-'.repeat(8)}`);
+  for (const r of listOk)
+    console.log(`  ${r.name.padEnd(lpad)}  ${String(r.raw).padStart(8)}  ${String(r.gzip).padStart(8)}`);
+  for (const r of listResults.filter((r) => r.error))
+    console.log(`  ${r.name.padEnd(lpad)}  FAILED: ${r.error}`);
+  console.log('');
+}
+
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(ok.map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })), null, 2));
 }
@@ -206,6 +266,8 @@ if (process.argv.includes('--snapshot')) {
     router: 'packages/router/dist/vera-router.min.js',
     autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
     styles: 'packages/styles/dist/vera-styles.min.js',
+    collections: 'packages/collections/dist/vera-collections.min.js',
+    keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
     spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
     tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
     computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',
@@ -285,6 +347,12 @@ if (process.argv.includes('--snapshot')) {
         depsUnresolved: d?.unresolved ?? 0,
       };
     }),
+    /**
+     * The second app shape. Kept separate from `apps` rather than merged, because the contender set
+     * is deliberately smaller — only the two libraries that ship keyed reconciliation as a first-
+     * class feature — and a merged table would imply the others were measured on it too.
+     */
+    lists: listOk.map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })),
   };
   const bad = out.apps.filter((a) => a.depsUnresolved > 0);
   if (bad.length) {

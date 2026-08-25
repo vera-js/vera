@@ -9,7 +9,7 @@
  * the registry, so registering through your own copy writes to a map core never reads. It works in
  * development and silently does nothing in production, which is the worst way for this to fail.
  */
-import { wire, setAutoloader } from '@verajs/core';
+import { wire } from '@verajs/core';
 import { connectRouter } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
 import { collections } from '@verajs/collections';
@@ -46,6 +46,6 @@ export const wireApp = (renderer) => {
  */
 export const wireAutoloader = (base) => {
   const autoload = initAutoloader(base, 'lazy');
-  setAutoloader(autoload);
+  wire(autoload);
   return autoload;
 };

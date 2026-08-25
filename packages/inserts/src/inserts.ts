@@ -1,11 +1,10 @@
 import { InsertFunctionMap, Inserts } from './types.js';
-import { Autoloader } from '@verajs/shared-types';
 
-export let inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof InsertFunctionMap][]>();
+export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof InsertFunctionMap][]>();
 
 /**
  * A chain carries its own priority order as a property on the array itself, so the bookkeeping
- * travels with the map through {@link connectInserts}. It previously lived in a module-scope
+ * travels with the map itself. It previously lived in a module-scope
  * WeakMap — private to each inlined copy of this package — so in the multi-bundle CDN mode an
  * `insert()` through one bundle could not see the order recorded by another: priorities were
  * ignored and same-priority replacement silently duplicated instead.
@@ -55,7 +54,7 @@ export type Registerable = InsertDescriptor | Connector;
  * A **connector** is a function: it receives the registry and decides what to do with it, which is
  * how `@verajs/router` reaches the `'render'` chain while importing nothing. A **descriptor** is an
  * object naming its chain. Packages export one or the other and never register themselves, so there
- * is no second registry to land in by mistake — the failure `connectInserts` exists to repair.
+ * is no second registry to land in by mistake.
  */
 /**
  * Wires modules into the framework: one call, from data rather than side effects.
@@ -87,9 +86,16 @@ export const wire = (item: Registerable | Registerable[]) => {
   apply(item);
 };
 
+/**
+ * **A descriptor is anything that names an insert point**, and that is tested before the connector
+ * case rather than after. A module is free to be a function *and* a descriptor — `@verajs/autoloader`
+ * is exactly that, because configuring it and registering it are one call — and without this order
+ * such a module would be called as a connector and never registered.
+ */
 const apply = (item: Registerable) => {
-  if (typeof item === 'function') item(inserts);
+  if (typeof item === 'function' && (item as Partial<InsertDescriptor>).on === undefined) item(inserts);
   else {
+    item = item as InsertDescriptor;
     item.connect?.(inserts);
     replacing = item.name ?? '';
     register(item.on, item.fn, item.priority);
@@ -153,39 +159,4 @@ const register = <K extends keyof InsertFunctionMap>(
   order.splice(slot, 0, priority);
 };
 
-/**
- * Point this bundle's registry at another one, so two standalone bundles share a single set of
- * inserts. Required in CDN mode, where each `.min.js` inlines its own copy of this package; a no-op
- * under a bundler resolving everything to one instance.
- *
- * Anything already registered here is **replayed into the new registry** at its original priority,
- * so the call is order-independent. It used not to be: `connectInserts` replaced the map outright,
- * and a `setRenderer` that ran first became unreachable — silently, since nothing throws and the
- * callback simply lands in a map nobody reads afterwards. An app that rendered nothing, with no
- * indication why, from two lines in the wrong order.
- *
- * Replaying rather than warning costs bytes in a package inlined into `@verajs/core`,
- * `@verajs/renderer` and `@verajs/router` — so it is paid three times over, in the packages least
- * able to afford it. Worth it here because a trap that requires the reader to know an undocumented
- * ordering rule is not a documentation problem, and because the loop is dead weight in the ordinary
- * case: connecting first leaves nothing to replay, and `forEach` over an empty Map is one call.
- *
- * A replayed entry whose priority is already taken replaces it, exactly as a direct `insert` would.
- */
-export const connectInserts = (newInserts: Inserts) => {
-  const previous = inserts as Map<keyof InsertFunctionMap, Chain>;
-  inserts = newInserts;
-  previous.forEach((chain, name) => {
-    chain._p?.forEach((priority, i) => register(name, chain[i], priority));
-  });
-};
 
-export const setAutoloader = (autoloader: Autoloader) => {
-  register(
-    'render',
-    (_, container) => {
-      autoloader(container);
-    },
-    75
-  );
-};

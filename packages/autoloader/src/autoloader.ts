@@ -307,5 +307,33 @@ export const initAutoloader = (
     load(element, tag);
   };
 
-  return Object.assign(watch, { url, retry });
+  /**
+   * The instance is also its own `wire` descriptor, so configuring the autoloader and installing it
+   * are one call:
+   *
+   * ```js
+   * wire([domRender, connectRouter, initAutoloader(import.meta.url, 'components')]);
+   * ```
+   *
+   * This replaced `setAutoloader`, a bespoke registrar that lived in `@verajs/inserts` — the
+   * registry package knowing about one specific consumer, which is the coupling `wire` exists to
+   * remove. Every other module hands `wire` a descriptor; this one now does too.
+   *
+   * Priority 75 runs it *after* the renderer at 50, because it scans what the render just produced.
+   */
+  /**
+   * `name` goes through `defineProperty` because a function's own `name` is non-writable, so
+   * `Object.assign` throws in strict mode — and the descriptor's `name` is what the duplicate-
+   * priority warning quotes, so leaving it as `"watch"` would name the wrong thing.
+   */
+  Object.defineProperty(watch, 'name', { value: '@verajs/autoloader', configurable: true });
+  return Object.assign(watch, {
+    url,
+    retry,
+    on: 'render' as const,
+    fn: ((_: unknown, container: Element | ShadowRoot | Document) => {
+      watch(container);
+    }) as never,
+    priority: 75,
+  });
 };

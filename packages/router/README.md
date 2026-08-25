@@ -17,11 +17,11 @@ npm i @verajs/router @verajs/renderer
 ## A router, whole
 
 ```js
-import { initRouter, setRenderer } from '@verajs/router';
+import { initRouter, setRouterRenderer } from '@verajs/router';
 import { render } from '@verajs/renderer';
 import { html } from '@verajs/core';
 
-setRenderer(render);
+setRouterRenderer(render);
 
 customElements.define(
   'app-shell',
@@ -314,28 +314,31 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 
 | | |
 | --- | --- |
-| `setRenderer(fn)` | what draws a route's template into its outlet |
+| `setRouterRenderer(fn)` | what draws a route's template into its outlet |
 | `resolve(name, params)` | build a named route's path |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
-| `connectInserts(inserts)` | CDN only — see below |
+| `connectRouter` | hand this router core's insert registry — pass it to `wire` |
 
 **Specificity is scored from the pattern text**, using the token syntax above, so replacing the
 matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It
 still orders sensibly — static text outranks tokens either way — but if your patterns mean something
 different, register them in the order you want them tried.
 
-On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own extension registry, so
-they start out as two. `connectInserts` points one at the other:
+On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own bundle. This package
+keeps **no registry of its own**, so there is no second one to reconcile — hand it core's:
 
 ```js
-import { inserts } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
+import { wire } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
+import { connectRouter } from '@verajs/router';
 
-connectInserts(inserts);
+wire([domRender, connectRouter]);
 ```
 
-Order does not matter — anything already registered is replayed at its original priority. Under a
-bundler both resolve to one registry and the call does nothing.
+Identical under a bundler and on a CDN page, which is the point: `connectInserts`, the replay
+function this replaced, was load-bearing in one mode and ceremonial in the other. Without core at
+all, skip the registry entirely — `initRouter(el, …)` plus `setRouterRenderer(domRender)` is the
+whole wiring.
 
 ## Node and SSR
 

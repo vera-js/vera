@@ -7,7 +7,7 @@
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, wire, setAutoloader} from '@verajs/core';
+import { setHtml, wire } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
@@ -30,7 +30,7 @@ const autoload = initAutoloader(import.meta.url, 'components', {
 });
 
 /** Covers every component that renders. */
-setAutoloader(autoload);
+wire(autoload);
 
 /** And this covers what no render touches — the marked host written by hand in index.html. */
 autoload();
@@ -51,7 +51,7 @@ setHtml(html);
 /**
  * Loaded with dynamic `import()` on purpose — a static `import` declaration is **hoisted** and runs
  * before this module's body, so the components would `customElements.define()` and upgrade before
- * `setRenderer` / `setHtml` above had run. They would then render through core's defaults, and a lit
+ * `wire(render)` / `setHtml` above had run. They would then render through core's defaults, and a lit
  * template object would reach `template.innerHTML`, painting a literal `[object Object]`.
  *
  * Configuration must complete before any component defines itself.

@@ -13,7 +13,7 @@ npm i @verajs/core @verajs/renderer
 
 ## Quick start
 
-`setRenderer` is the only wiring. Core's `html` tag already produces the shape this accepts, so
+`wire(domRender)` is the only wiring. Core's `html` tag already produces the shape this accepts, so
 there is no second call to make.
 
 <!-- recipe -->
@@ -37,7 +37,7 @@ customElements.define(
 document.body.append(document.createElement('click-counter'));
 ```
 
-Without `setRenderer`, core has no renderer at all: `render()` warns once in development and puts
+Without it, core has no renderer at all: `render()` warns once in development and puts
 nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
 
 ## Bindings

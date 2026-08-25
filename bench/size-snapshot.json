@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6090,
-      "gzip": 2637
+      "raw": 6048,
+      "gzip": 2620
     },
     "renderer": {
       "raw": 8971,
@@ -15,12 +15,20 @@
       "gzip": 3443
     },
     "autoloader": {
-      "raw": 1917,
-      "gzip": 1009
+      "raw": 2035,
+      "gzip": 1077
     },
     "styles": {
       "raw": 1135,
       "gzip": 597
+    },
+    "collections": {
+      "raw": 964,
+      "gzip": 505
+    },
+    "keyed": {
+      "raw": 1156,
+      "gzip": 581
     },
     "spread": {
       "raw": 1582,
@@ -35,8 +43,8 @@
       "gzip": 241
     },
     "inserts": {
-      "raw": 609,
-      "gzip": 421
+      "raw": 468,
+      "gzip": 344
     }
   },
   "apps": [
@@ -67,8 +75,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 11999,
-      "gzip": 5136,
+      "raw": 12010,
+      "gzip": 5144,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -79,8 +87,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 13470,
-      "gzip": 5532,
+      "raw": 13481,
+      "gzip": 5539,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -179,6 +187,20 @@
         "scheduler"
       ],
       "depsUnresolved": 0
+    }
+  ],
+  "lists": [
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer + /keyed",
+      "raw": 14605,
+      "gzip": 5990
+    },
+    {
+      "name": "Lit",
+      "note": "lit + directives/repeat",
+      "raw": 17634,
+      "gzip": 6826
     }
   ]
 }

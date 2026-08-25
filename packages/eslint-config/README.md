@@ -72,8 +72,8 @@ data loss against the cost of one keyword.
 ### No `insert` from `@verajs/inserts`
 
 ```js
-import { insert } from '@verajs/inserts';  // ✗ error
-import { insert } from '@verajs/core';     // ✓
+import { wire } from '@verajs/inserts';  // ✗ error
+import { wire } from '@verajs/core';     // ✓
 ```
 
 Each package's `dist/*.min.js` inlines its dependencies so the bundle stands alone. A production
@@ -84,7 +84,7 @@ production. `@verajs/styles` was written this way first and passed every develop
 
 Take `insert` from the package that owns the extension point: `@verajs/core` for `render`,
 `proxy-handler`, `set-handler`, `error` and `init`. Importing `@verajs/inserts` for anything else —
-the registry itself, for `connectInserts` — is untouched by this rule.
+the registry itself — is untouched by this rule.
 
 ## Composing
 

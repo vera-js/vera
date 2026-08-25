@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1 009 B<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1.05 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -18,11 +18,11 @@ npm i @verajs/autoloader
 ## Quick start
 
 ```js
-import { setAutoloader } from '@verajs/core';
+import { wire } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 
 const autoload = initAutoloader(import.meta.url, 'components');
-setAutoloader(autoload);   // watch every component as it renders
+wire(autoload);            // watch every component as it renders
 autoload();                // and scan whatever is already on the page
 ```
 
@@ -45,8 +45,13 @@ omitting `componentsDir` puts components beside the entry file.
 | `autoload.url(tag)` | the absolute URL it would fetch |
 | `autoload.retry(element)` | forget that this element's tag failed, and try again |
 
+The instance is **also its own `wire` descriptor** — it carries `on: 'render'` at priority 75, so
+`wire([domRender, autoload])` configures and installs in one call, and the scan runs after the
+render that produced the markup. It replaced `setAutoloader`, a bespoke registrar that lived in
+`@verajs/inserts`; every module now hands `wire` a descriptor, and this one is no exception.
+
 Watching is idempotent: calling it twice on the same root does nothing the second time, which is why
-`setAutoloader` can hand it every component on every render.
+it can be handed every component on every render.
 
 Creating an autoloader does nothing on its own — no scanning, no listeners. `autoload()` is how a
 hand-written page works with no framework involved at all, and you can call it again whenever new

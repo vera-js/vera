@@ -1,6 +1,6 @@
 # @verajs/inserts
 
-The VeraJS extension registry (<!--size:inserts.gzip-->421 B<!--/size:inserts.gzip--> gzip). Every
+The VeraJS extension registry (<!--size:inserts.gzip-->344 B<!--/size:inserts.gzip--> gzip). Every
 capability that attaches to VeraJS — renderers, autoloaders, styling, error boundaries, batching —
 attaches through here. It is the module system's backbone rather than a feature.
 
@@ -28,7 +28,7 @@ wire({ on: 'error', fn: (error, element) => report(error, element), priority: 40
 ```
 
 `wire({ on: name, fn: callback, priority: priority })` — **priority is required.** Lower runs first. Registering at a
-priority that is already taken **replaces** that entry, which is how `setRenderer` swaps renderers.
+priority that is already taken **replaces** that entry, which is how a renderer is swapped.
 Chains are stored dense and priority-sorted rather than indexed by priority: indexing left holes
 (a renderer at 50 produced a 51-element array with 50 of them) and every chain is walked on the hot
 path, which cost roughly 238 ns per store read.
@@ -54,34 +54,31 @@ and flush them itself.
 For a whole new *kind* of hook rather than a new implementation of an existing one, `createHook` in
 `@verajs/core` is the primitive `useEffect` and its siblings are built from.
 
-## `connectInserts`
+## Two copies is a mistake, not an arrangement
+
+Each standalone `.min.js` inlines its own copy of this package, so loading `vera.min.js` *and* a
+module that imported this package directly would yield **two separate registries** — one written
+to, the other read from, in production only.
+
+There is no repair function for that any more. `connectInserts`, which replayed one registry's
+chains into another, was removed once every module took the registry it writes to instead of
+carrying its own:
 
 ```js
-import { inserts } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
+import { wire } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
+import { connectRouter } from '@verajs/router';
+import { collections } from '@verajs/collections';
 
-connectInserts(inserts);
+wire([domRender, connectRouter, collections]);
 ```
 
-Each standalone `.min.js` inlines its own copy of this package, so loading `vera.min.js` *and*
-`vera-router.min.js` in CDN mode yields **two separate registries**. This points one at the other.
-Under a bundler both already resolve to one instance and the call does nothing.
+`connectRouter` is a **connector** — `wire` hands it this registry, and the router keeps no registry
+of its own. That removes the hazard by construction rather than reconciling it afterwards, and it is
+why `@verajs/router` has no dependencies at all. `tests/cdn-cross-bundle.test.mjs` guards the shape.
 
-That is intentional, and it is the price of the modules being genuinely independent of core — not a
-bug to fix by making bundles share global state.
-
-**Order does not matter.** Anything registered before the call is replayed into the new registry at
-its original priority, so `connectInserts` can come before or after your `setRenderer`. It used to
-replace the registry outright, which made a `setRenderer` in the wrong place unreachable — silently,
-since nothing throws and the callback simply lands in a map nobody reads. A replayed entry whose
-priority is already taken replaces it, exactly as a direct `insert` would.
-
-## Convenience wrappers
-
-| | |
-| --- | --- |
-| `setRenderer(fn)` | registers `fn` on `'render'` at priority 50, passing the element's shadow root when it has one |
-| `setAutoloader(fn)` | registers `fn` on `'render'` at priority 75, so discovery runs after the render that produced the markup |
+**Take `wire` from `@verajs/core`, never from this package.** `@verajs/eslint-config` has a rule for
+exactly that mistake.
 
 ## License
 

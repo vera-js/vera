@@ -46,16 +46,22 @@ const A = await import(REG + '?copy=a');
 const B = await import(REG + '?copy=b');
 check('standalone registry ships no renderer', !A.inserts.get('render'));
 
-// 5-6. Cross-copy behaviour after connectInserts: replacement and ordering both hold.
-A.wire({ on: 'render', fn: () => {}, priority: 50 });
-B.connectInserts(A.inserts);
-B.wire({ on: 'render', fn: () => {}, priority: 50 });
-check('cross-copy replace at 50', A.inserts.get('render').length === 1);
-const order = [];
-B.wire({ on: 'render', fn: () => order.push(75), priority: 75 });
-A.wire({ on: 'render', fn: () => order.push(10), priority: 10 });
-A.inserts.get('render').forEach((cb) => cb('', app));
-check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.inserts.get('render').length === 3);
+/**
+ * Two copies of this module hold two registries, and there is no longer anything that reconciles
+ * them — which is precisely why no module carries one. Asserting the separation keeps the hazard
+ * visible after the repair function was deleted.
+ */
+A.wire({ on: 'init', fn: () => {}, priority: 50 });
+check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get('init'));
+
+/**
+ * There is no cross-copy reconciliation to test any more. `connectInserts` — which replayed one
+ * registry's chains into another — was removed once every module took the registry it writes to
+ * rather than carrying its own: `connectRouter` hands the router core's, `@verajs/collections` and
+ * `@verajs/styles` are wired through core's `wire`. Two copies of this module in one page is now a
+ * mistake with no repair function, rather than a supported arrangement, and
+ * `tests/cdn-cross-bundle.test.mjs` guards the shape that replaced it.
+ */
 
 /* ── a priority has to be a number ───────────────────────────────────────────────────────────── */
 /**

@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, render, html, createStore, wire, setAutoloader } from '../../packages/core/dist/development/vera.js';
+import { init, render, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { initAutoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 
@@ -16,7 +16,7 @@ const entry = new URL('./fixtures/autoloader/live/entry.js', import.meta.url).hr
 const autoload = initAutoloader(entry, '.');
 
 wire({ on: 'render', fn: domRender, priority: 50 });
-setAutoloader(autoload);
+wire(autoload);
 
 const until = (condition, timeout = 4000) =>
   new Promise((resolve) => {

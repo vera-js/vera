@@ -8,15 +8,15 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 5.95 KB | **2.58 KB** |
+| `@verajs/core` | 5.90 KB | **2.56 KB** |
 | `@verajs/renderer` | 8.76 KB | 3.47 KB |
 | `@verajs/router` | 7.73 KB | 3.36 KB |
-| `@verajs/autoloader` | 1.87 KB | 1 009 B |
+| `@verajs/autoloader` | 1.99 KB | 1.05 KB |
 | `@verajs/styles` | 1.11 KB | 597 B |
 | `@verajs/spread` | 1.54 KB | 842 B |
 | `@verajs/tag` | 2.72 KB | 1.41 KB |
 | `@verajs/computed` | 298 B | 241 B |
-| `@verajs/inserts` | 609 B | 421 B |
+| `@verajs/inserts` | 464 B | 344 B |
 <!--/size:table.modules-->
 
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.4 KB<!--/size:app.kb--> gzipped**. For
@@ -146,21 +146,21 @@ re-runs when it changes. There is no dependency array to maintain.
 
 ## Using more than one module from a CDN
 
-Standalone bundles inline their dependencies, so loading two of them produces two separate internal
-registries. Reconcile them with `connectInserts` — this is expected, and it is the price of the
-modules being genuinely independent:
+Standalone bundles inline their dependencies, so a module that carried its own registry would get a
+second one. None of them do: each takes the registry it writes to, and `wire` hands it over.
 
 ```js
-import { inserts, wire, setAutoloader } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
+import { wire } from '@verajs/core';
+import { domRender } from '@verajs/renderer';
+import { connectRouter } from '@verajs/router';
 import { initAutoloader } from '@verajs/autoloader';
 
-connectInserts(inserts); // point the router at core's registry
-
-setAutoloader(initAutoloader(import.meta.url, 'components'));
+wire([domRender, connectRouter, initAutoloader(import.meta.url, 'components')]);
 ```
 
-This is unnecessary when using a bundler, where every module resolves to a single shared instance.
+Identical under a bundler, where everything already resolves to one instance. This replaced
+`connectInserts`, a reconciliation step that was load-bearing on a CDN page and ceremonial
+everywhere else.
 
 ---
 

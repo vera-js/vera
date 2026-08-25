@@ -138,6 +138,25 @@ if (snapshot && !snapshotStale) {
   values['app.rank'] = ordinal(apps.indexOf(own) + 1);
   values['app.count'] = String(apps.length);
 
+  /**
+   * The keyed-list shape. A counter is the measurement that flatters a directive-first design —
+   * everything a list needs sits behind an import a counter never makes — so the claim quotes both
+   * or it quotes the comparison at its least representative point.
+   */
+  if (snapshot.lists?.length) {
+    const listOwn = snapshot.lists.find((a) => a.name.includes('own renderer'));
+    const listLit = snapshot.lists.find((a) => a.name === 'Lit');
+    if (listOwn) {
+      values['list.bytes'] = bytes(listOwn.gzip);
+      values['list.kb'] = kb(listOwn.gzip, 1);
+    }
+    if (listLit) {
+      values['list.lit.bytes'] = bytes(listLit.gzip);
+      values['list.lit.kb'] = kb(listLit.gzip, 1);
+    }
+    if (listOwn && listLit) values['list.vs-lit.bytes'] = bytes(listLit.gzip - listOwn.gzip);
+  }
+
   /** Every contender addressable by slug, so prose can cite any of them and stay in sync. */
   for (const a of apps) {
     const slug = a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

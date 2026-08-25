@@ -25,11 +25,16 @@ Two things register into `'render'`:
 | Priority | Registered by | Does |
 | ---: | --- | --- |
 | 50 | `wire([domRender])` | renders the template; core resolves `_root ?? shadowRoot ?? element` at dispatch |
-| 75 | `setAutoloader(fn)` | discovers undefined custom elements and lazy-loads them |
+| 75 | `wire([initAutoloader(…)])` | discovers undefined custom elements and lazy-loads them |
 
-`@verajs/inserts` calls `setRenderer` **at module scope** with a default implementation
-(`template.innerHTML = content`). A consumer's `setRenderer(litRender)` overwrites index 50, because
-priorities are array indices rather than an append. There is therefore always exactly one renderer.
+**Nothing is registered until an app wires it.** Core used to self-register a default renderer
+(`template.innerHTML = content`) at module scope; it was removed in 0.2.0, because it was safe only
+inside core's own bundle and every app paid for a renderer it immediately replaced. With nothing on
+`'render'`, `render()` warns once in development rather than drawing through an escaping default.
+
+Wiring a second callback at 50 **replaces** the first, because a taken priority replaces rather than
+appends — that is how a renderer is swapped, and the duplicate is named in a development warning so
+two modules both claiming 50 is not silent.
 
 > **Priority is required.** `wire(name, cb)` with no priority writes to `array[undefined]`, which
 > creates a plain object property rather than an array element — and `forEach` skips it. The insert
@@ -53,7 +58,7 @@ knowing anything about the autoloader.
 
 ### Consequence: configuration must precede definition
 
-Since the renderer and the `html` tag are **global mutable state** (`setRenderer`, `setHtml`), any
+Since the renderer chain and the `html` tag are **global mutable state** (`wire`, `setHtml`), any
 component that defines itself before configuration runs will render through core's defaults.
 
 The failure is silent and looks like this: core's default `html` returns a plain object
@@ -88,19 +93,19 @@ vera.min.js         -> its own inserts Map
 vera-router.min.js  -> a different inserts Map
 ```
 
-`connectInserts(newInserts)` reassigns the module-level binding so one module adopts another's map:
+A module therefore takes the registry it writes to, rather than carrying one. `@verajs/router` keeps
+no registry at all and is handed core's:
 
 ```js
-import { inserts } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
-connectInserts(inserts);   // router now shares core's registry
+import { wire } from '@verajs/core';
+import { connectRouter } from '@verajs/router';
+wire([connectRouter]);     // router now shares core's registry
 ```
 
 Without this the router would render through its own default renderer and ignore the one the app
-configured on core.
-
-Under a bundler every package resolves to a single `@verajs/inserts` instance, so `connectInserts`
-is a no-op. It is kept in both examples so the two read identically.
+configured on core. This reads identically under a bundler and on a CDN page, which is why it
+replaced `connectInserts` — a replay function that was load-bearing in one mode and ceremonial in
+the other, and that was removed in 0.2.0 along with the concept.
 
 This duplication is the deliberate cost of modules that do not depend on core — never "fix" it
 by making bundles share global state.

@@ -148,11 +148,17 @@ test('the install line names the packages the recipes import', () => {
   }
 });
 
-test('the multi-module CDN snippet wires connectInserts', () => {
-  /** Documented as load-bearing: standalone bundles each inline their own registry. */
-  const block = blocks.find((b) => b.lang === 'js' && b.body.includes('setAutoloader'));
+test('the multi-module CDN snippet hands the router core\u2019s registry', () => {
+  /**
+   * Standalone bundles each inline their dependencies, so a module carrying its own registry would
+   * write to one core never reads — in production only. None carry one; the router is handed core's
+   * through `wire`. This asserted `connectInserts` until that function was removed in 0.2.0, and it
+   * is the one check that keeps the README from drifting back to a reconciliation step.
+   */
+  const block = blocks.find((b) => b.lang === 'js' && b.body.includes('connectRouter'));
   assert.ok(block, 'the multi-module snippet is present');
-  assert.match(block.body, /connectInserts\(/, 'it must call connectInserts');
+  assert.match(block.body, /wire\(\[/, 'it must install the modules through wire([\u2026])');
+  assert.doesNotMatch(block.body, /connectInserts/, 'connectInserts no longer exists');
 });
 
 /* ── Marked recipes, every README in the repo ─────────────────────────────────────────────────────

@@ -1,13 +1,9 @@
 /**
- * Values are listed explicitly rather than re-exported with `export *`, which also pulled in
- * `connectInserts`. That function connects a *module's* registry to core's, so every documented use
- * imports it from the module being connected — never from here — and re-exporting it made core carry
- * its replay loop for a call nothing makes.
- *
- * The types come back separately: `export type *` costs no runtime code, and the insert callback
- * types are the documented way to write an extension.
+ * Values are listed explicitly rather than re-exported with `export *`. The types come back
+ * separately: `export type *` costs no runtime code, and the insert callback types are the
+ * documented way to write an extension.
  */
-export { wire, inserts, setAutoloader } from '@verajs/inserts';
+export { wire, inserts } from '@verajs/inserts';
 export type * from '@verajs/inserts';
 export type * from './types.js';
 export { createHook } from './modules/createHook.js';

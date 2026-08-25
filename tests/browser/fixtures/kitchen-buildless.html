@@ -39,7 +39,6 @@
       import {
         inserts,
         wire,
-        setAutoloader,
         init,
         render,
         html,
@@ -60,7 +59,7 @@
 
       wire({ on: 'render', fn: domRender, priority: 50 });
       wire({ on: 'init', fn: adoptStyles, priority: 50 });
-      setAutoloader(
+      wire(
         initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
       );
 
