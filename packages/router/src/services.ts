@@ -214,7 +214,34 @@ export const navigate = async (
   redirectDepth = 0
 ): Promise<boolean> => {
   /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
-  const path = typeof target === 'string' ? target : resolve(target.name, target.params);
+  let path = typeof target === 'string' ? target : resolve(target.name, target.params);
+
+  /**
+   * **A path that names an origin is checked against this one**, exactly as a routed link is.
+   *
+   * Clicking `<a route href="//evil.test/x">` has always been left to the browser, because
+   * `methods.ts` compares origins before hijacking it. The programmatic call had no such check, and
+   * `navigate(params.get('next'))` is the ordinary way an app honours a `?next=` redirect — so a
+   * protocol-relative path went straight to `pushState`, which the browser refuses with a
+   * `SecurityError` that nothing caught. An open-redirect payload therefore took the page down
+   * rather than being declined.
+   *
+   * Only paths that *look* absolute are re-resolved, so a hash-only or relative navigation keeps
+   * its exact current handling. A same-origin absolute URL is normalised to the path form the
+   * matcher expects, which is what a link already passes.
+   */
+  if (typeof path === 'string' && (path.startsWith('//') || /^[a-z][a-z\d+\-.]*:/i.test(path))) {
+    const resolved = new URL(path, window.location.href);
+    if (resolved.origin !== window.location.origin) {
+      if (__DEV__)
+        console.warn(
+          `[vera] navigate() refused "${path}" — it resolves to ${resolved.origin}, and this ` +
+            `router only moves within ${window.location.origin}. Use location.assign() to leave the site.`
+        );
+      return false;
+    }
+    path = resolved.pathname + resolved.search + resolved.hash;
+  }
   if (path === state.currentPath) return true;
   const id = ++navigationId;
 

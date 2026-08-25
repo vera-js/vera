@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.36 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.43 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -137,6 +137,18 @@ navigate('/users/5');                          // pushes a history entry
 navigate('/login', 'replace');                 // swaps the current entry — for guards and redirects
 navigate({ name: 'user', params: { id: 5 } }); // by name
 
+navigate('https://this-site/users/5');         // same origin, normalised to the path
+navigate('//elsewhere.test/x');                // refused — returns false, warns in development
+```
+
+**A path that names an origin is checked against this one**, exactly as a routed link is: the router
+moves within one site, and anything else belongs to the browser. That matters because
+`navigate(params.get('next'))` is the ordinary way to honour a `?next=` redirect — an unchecked
+protocol-relative path reached `pushState`, which the browser refuses with a `SecurityError` nothing
+catches, so the payload took the page down instead of being declined. Use `location.assign()` to
+leave the site deliberately.
+
+```js
 back();                                        // history, by the usual names
 forward();
 go(-2);
