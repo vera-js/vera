@@ -55,6 +55,25 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
   for (let i = 0; i < values.length; i++) {
     const value = values[i] as Tag | undefined;
     if (value && value[STATIC] !== undefined) key += `${i}:${value[STATIC]};`;
+    /**
+     * A non-tag in **tag position** — `<${name}>` with a string. The refusal is the whole security
+     * property of this entry, and it lived only in `tag` itself, which guards interpolation into a
+     * tag literal. Reaching the position through `html` instead produced no error and no element:
+     * the base scanner reads the expression as an element ref on a tag with no name, and the page
+     * gets escaped punctuation where the markup should be.
+     *
+     * The static before a value is what identifies the position, so this is the one place that can
+     * see it. `__DEV__`-only; production carries neither the check nor the text.
+     */
+    else if (__DEV__ && (strings[i].endsWith('<') || strings[i].endsWith('</'))) {
+      throw new Error(
+        `tag: a ${value === null ? 'null' : typeof value} cannot become markup. ` +
+          `Only a tag may be interpolated into tag position:\n\n` +
+          `  const heading = tag\`h\${level}\`;   // built from other tags\n` +
+          `  html\`<\${heading}>…</\${heading}>\`\n\n` +
+          `That is what keeps the set of tags an app can produce fixed by its source.`
+      );
+    }
   }
   if (key === '') return { ['_$litType$']: 1, strings, values };
 

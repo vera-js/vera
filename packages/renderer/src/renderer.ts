@@ -285,6 +285,22 @@ const scan = (strings: TemplateStringsArray) => {
          * Element-position expression — an element REF, not a no-op. Marked exactly like a bound
          * attribute ('&' cannot begin a real attribute binding), so no new machinery exists for it.
          */
+        if (__DEV__ && (markup.endsWith('<') || markup.endsWith('</'))) {
+          /**
+           * Except in **tag position**, where it is a mistake with no useful reading. `<${name}>`
+           * lands here because the tag has no name yet, and what the parser then makes of a ref on
+           * a nameless element is escaped punctuation. Naming the entry that does support it is
+           * more use than an element ref nobody asked for.
+           */
+          console.error(
+            `[vera] an expression in tag position (\`<\${…}>\`) is not a dynamic tag name — the ` +
+              `template has no element there and the markup around it is rendered as text.\n` +
+              `Runtime tag names live in @verajs/renderer/tag:\n\n` +
+              `  import { html, tag } from '@verajs/renderer/tag';\n` +
+              `  const heading = tag\`h1\`;\n` +
+              `  html\`<\${heading}>…</\${heading}>\`\n`
+          );
+        }
         markup += ` ${specs.length}${MARKER}="${MARKER}"`;
         specs.push({ _type: ATTRIBUTE, _name: '&' });
       }

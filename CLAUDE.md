@@ -18,6 +18,12 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
+- **Two template literals are two templates, even with identical text.** Template identity is the
+  `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
+  probe produces a rebuild, not an update, and every conclusion drawn about update behaviour is
+  then wrong in the same direction. Render through **one** `draw()` function called twice. This has
+  produced confident false findings about `keyed`, `hold` and `!live` on separate occasions; when a
+  result says the DOM was rebuilt or a value was lost, suspect the probe before the renderer.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 

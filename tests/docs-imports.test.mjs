@@ -67,7 +67,11 @@ exportsOf['@verajs/ssr/vera'] = exportsOf['@verajs/ssr'];
 const docs = [];
 const walk = (dir) => {
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'dist' || entry.startsWith('.')) continue;
+    /**
+     * `internal/` is a **different repository** cloned into this tree (see CLAUDE.md), so its docs
+     * are not this repo's contract and its prose discusses APIs across versions.
+     */
+    if (entry === 'node_modules' || entry === 'dist' || entry === 'internal' || entry.startsWith('.')) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full);
     else if (/\.(md|txt)$/.test(entry) && !/CHANGELOG/i.test(entry)) docs.push(full);
