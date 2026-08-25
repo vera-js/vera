@@ -850,6 +850,9 @@ const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : 
 const builtIns: ValueHandler[] = [];
 
 /** What a ChildPart currently contains. */
+/** Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it. */
+const _directiveSwaps = new WeakMap<object, number>();
+
 const EMPTY = 0;
 const TEXT = 1;
 const TEMPLATE = 2;
@@ -1056,6 +1059,30 @@ class ChildPart implements Part {
     if (applyChild !== undefined) {
       /** `previous` belongs to *this* directive; a different one at the same part starts fresh. */
       const previous = this._directiveFn === applyChild ? this._directive : undefined;
+      /**
+       * The un-hoisted applier, named. Writing `_$child$` as an object-literal method makes a new
+       * function per render, so the part never recognises it and `previous` is `undefined` forever —
+       * the directive silently restarts on every pass. It is the first rule in the README and it
+       * fails without a symptom, so development counts the swaps: a genuine directive change at one
+       * part happens once or twice, not on every render.
+       *
+       * The counter is a module-scope `WeakMap` rather than a field, so production carries neither
+       * it nor a per-part slot to hold it.
+       */
+      if (__DEV__ && this._directiveFn !== undefined && this._directiveFn !== applyChild) {
+        const swaps = (_directiveSwaps.get(this) ?? 0) + 1;
+        _directiveSwaps.set(this, swaps);
+        if (swaps === 3) {
+          console.warn(
+            `[vera] a child directive changed identity ${swaps} times at one part, so \`previous\` ` +
+              `is always undefined and it restarts every render.\n` +
+              `Hoist the applier — written as an object-literal method it is a new function per ` +
+              `call:\n\n` +
+              `  function applyThing(part, previous) { … }            // once, at module scope\n` +
+              `  const thing = (x) => ({ _$child$: applyThing, x });  // state on the object\n`
+          );
+        }
+      }
       this._directiveFn = applyChild;
       this._directive = applyChild.call(value, this, previous);
       return;

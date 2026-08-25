@@ -72,3 +72,65 @@ test('the base renderer names the tag entry for an expression in tag position', 
     'it must name the entry that does support runtime tag names'
   );
 });
+
+/* ── the un-hoisted child applier ────────────────────────────────────────────────────────────── */
+
+/**
+ * Writing `_$child$` as an object-literal method makes a new function per render, so the part never
+ * recognises it, `previous` is `undefined` forever, and the directive silently restarts on every
+ * pass. It is the first rule in the renderer README and it fails without a symptom — which is
+ * exactly the kind of trap a framework should say out loud.
+ */
+test('an applier that changes identity every render is named', { skip: isProduction && 'the guard is __DEV__' }, async () => {
+  const core = await load('core');
+  const host = document.createElement('div');
+  document.body.append(host);
+
+  const warnings = [];
+  const nativeWarn = console.warn;
+  console.warn = (...args) => warnings.push(String(args[0]));
+  try {
+    /** The mistake: a fresh method object per call. */
+    const badly = (label) => ({
+      _$child$(part) {
+        part._$commit$(label);
+        return label;
+      },
+    });
+    for (const label of ['a', 'b', 'c', 'd']) render(core.html`<p>${badly(label)}</p>`, host);
+  } finally {
+    console.warn = nativeWarn;
+  }
+
+  assert.ok(
+    warnings.some((m) => m.includes('Hoist the applier')),
+    'it must name the fix, not just the symptom'
+  );
+  assert.equal(host.querySelector('p')?.textContent, 'd', 'and it still renders');
+});
+
+/** A hoisted applier keeps continuity and must never warn. */
+test('a hoisted applier keeps its previous return and stays quiet', { skip: isProduction && 'the guard is __DEV__' }, async () => {
+  const core = await load('core');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const seen = [];
+  function applyThing(part, previous) {
+    seen.push(previous);
+    part._$commit$(this.label);
+    return this.label;
+  }
+  const thing = (label) => ({ _$child$: applyThing, label });
+
+  const warnings = [];
+  const nativeWarn = console.warn;
+  console.warn = (...args) => warnings.push(String(args[0]));
+  try {
+    for (const label of ['a', 'b', 'c', 'd']) render(core.html`<p>${thing(label)}</p>`, host);
+  } finally {
+    console.warn = nativeWarn;
+  }
+
+  assert.deepEqual(seen, [undefined, 'a', 'b', 'c'], 'continuity holds across renders');
+  assert.equal(warnings.filter((m) => m.includes('Hoist the applier')).length, 0);
+});

@@ -7,8 +7,8 @@
       "gzip": 2764
     },
     "renderer": {
-      "raw": 8970,
-      "gzip": 3551
+      "raw": 8984,
+      "gzip": 3557
     },
     "router": {
       "raw": 7912,
@@ -88,7 +88,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
       "raw": 13791,
-      "gzip": 5696,
+      "gzip": 5697,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
