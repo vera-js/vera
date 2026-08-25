@@ -135,6 +135,13 @@ that understands it, so a list always names its own reconciler and two strategie
 about one. Lit splits `repeat` out for the same reason; the difference is that this one arrives on
 the values rather than through a directive protocol.
 
+**Keep it on the same version as `@verajs/renderer`.** It reaches the renderer through a handful of
+two-character members that are exempt from property mangling, and nothing checks that both sides
+agree about them — a `keyed` bundle paired with a different renderer release fails at runtime rather
+than at install. Both ship from this package and bump together, so a single version range covers it;
+the trap is pinning one and floating the other. `@verajs/renderer/spread` carries the same rule for
+the same reason.
+
 **It is additive, not a substitute.** Unlike `/hydrate` and `/profiler`, this entry imports nothing
 at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
 it is safe alongside any of them, `/hydrate` included.
