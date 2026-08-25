@@ -139,6 +139,10 @@ the values rather than through a directive protocol.
 at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
 it is safe alongside any of them, `/hydrate` included.
 
+**A list is keyed because `keyed()` marked it, not because its results have a `key` property.**
+Setting `.key` by hand no longer makes a list keyed — the marker is what carries the algorithm, so
+it is what the renderer looks for, on the client and when adopting server markup alike.
+
 **Key every item in a list, or none of them.** A list is keyed when its first item is, and an
 unkeyed item in a keyed list has no identity to match on.
 

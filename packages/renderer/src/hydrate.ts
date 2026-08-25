@@ -36,7 +36,7 @@ import {
   rootParts,
   render as baseRender,
 } from './renderer.js';
-import type { Template, Part, Item, TemplateResult } from './renderer.js';
+import type { Template, Part, Item, TemplateResult, KeyedResult } from './renderer.js';
 
 export { hold, domRender } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
@@ -270,7 +270,12 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
     const items: Item[] = [];
     for (const entry of list) items.push(adoptItem(cursor, entry));
     part._items = items;
-    part._keyedList = list.length > 0 && (list[0] as TemplateResult)?.key !== undefined;
+    /**
+     * The same predicate `_commitList` uses — the presence of a strategy, not of a `key`. Two
+     * spellings of "is this list keyed" would drift, and disagreeing about one list destroys it:
+     * a mode change is what tells the renderer to throw the adopted DOM away and start over.
+     */
+    part._keyedList = list.length > 0 && (list[0] as KeyedResult)?.$r !== undefined;
     part._mode = LIST;
   }
 
