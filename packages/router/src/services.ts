@@ -178,7 +178,8 @@ export const attachWindowListeners = () => {
      * The same line is what makes traversing back to `/docs#install` restore the fragment rather
      * than dropping it.
      */
-    navigate(window.location.pathname + window.location.hash, 'popstate');
+    /** `search` included for the same reason `init` includes it — a traversal restores a whole URL. */
+    navigate(window.location.pathname + window.location.search + window.location.hash, 'popstate');
   });
 
   window.addEventListener('hashchange', () => {

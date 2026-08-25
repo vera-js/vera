@@ -46,8 +46,14 @@ export const initRouter = (
        * `navigate` routes every connected router and dedupes on `currentPath`, so with several
        * routers the first rAF handles the whole page and the rest return immediately. No history
        * entry is written for `'init'` — the landing entry already exists.
+       *
+       * **`search` is part of the URL the page was opened with.** Leaving it out meant a route
+       * landed on directly — a deep link, a refresh, a URL someone shared — saw an empty `query` on
+       * its snapshot, while *clicking a link* to the very same URL saw the real one, because link
+       * handling passes `pathname + search + hash`. `?page=2`, `?q=…` and every filter in a
+       * bookmarked URL were invisible on exactly the load that had them.
        */
-      navigate(window.location.pathname + window.location.hash, 'init');
+      navigate(window.location.pathname + window.location.search + window.location.hash, 'init');
     });
 
   return {
