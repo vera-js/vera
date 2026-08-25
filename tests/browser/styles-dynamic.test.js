@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { init, createStore, render, wire, css, html} from '../../packages/core/dist/development/vera.js';
-import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { render as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
 /**
@@ -19,7 +19,7 @@ import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.
  * @scope, which jsdom does not.
  */
 
-wire({ on: 'render', fn: domRender, priority: 50 });
+wire({ on: 'render', fn: renderer, priority: 50 });
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 let seq = 0;

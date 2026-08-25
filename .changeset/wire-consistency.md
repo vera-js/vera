@@ -20,7 +20,7 @@ other module you hand `wire`:
 - setAutoloader(initAutoloader(import.meta.url, 'components'));
 + import { wire } from '@verajs/core';
 + import { autoloader } from '@verajs/autoloader';
-+ wire([domRender, router, autoloader(import.meta.url, 'components')]);
++ wire([renderer, router, autoloader(import.meta.url, 'components')]);
 ```
 
 `wire` now tests for a descriptor — anything naming an insert point — *before* the connector case, so
@@ -33,11 +33,14 @@ an app should not have to read off a name:
 
 ```js
 - wire([connectRouter]);
-+ wire([domRender, router, collections, autoloader(import.meta.url, 'components')]);
++ wire([renderer, router, collections, autoloader(import.meta.url, 'components')]);
 ```
 
-`domRender` deliberately keeps its name: `@verajs/renderer` also exports `render` for direct use, and
-`render`/`renderer` one character apart in a single import line is worse than the inconsistency.
+**`domRender` is now `renderer`**, in `@verajs/renderer` and `@verajs/renderer/hydrate` alike — so
+swapping to hydration really is swapping one import. `render` is still exported for direct use, and
+because the two names are close, wiring the wrong one now **throws in development** naming the one
+you meant. It used to be silent: a bare function has no `on`, so `wire` read it as a connector,
+handed it the registry and registered nothing.
 
 **`connectInserts` is removed.** It replayed one registry's chains into another; nothing needs that
 now that every module takes the registry it writes to (`router` for the router, `wire` from

@@ -814,7 +814,7 @@ export type ChildDirective = (part: { _$commit$(value: unknown): void }, previou
 export type ValueHandler = (part: object, value: unknown) => boolean | void;
 
 /**
- * The registry this renderer reads `'value'` handlers from, handed over by {@link domRender}.
+ * The registry this renderer reads `'value'` handlers from, handed over by {@link renderer}.
  *
  * Not imported. The renderer carries no registry of its own for the same reason the router does
  * not: a production bundle inlines `@verajs/inserts`, so importing it would give this package one
@@ -1321,7 +1321,7 @@ builtIns.push((part, value) => {
 });
 
 /**
- * Everything this renderer needs, in one entry: `wire([domRender])`.
+ * Everything this renderer needs, in one entry: `wire([renderer])`.
  *
  * It registers on the `'render'` chain *and* takes the registry, because a package that both
  * provides a capability and reads one should not cost an app two lines. This replaced
@@ -1329,7 +1329,20 @@ builtIns.push((part, value) => {
  * renderer" — and which resolved the shadow root at registration, so a renderer wired any other
  * way silently rendered into the light DOM. That resolution lives in core's dispatch now.
  */
-export const domRender = {
+/**
+ * A `__DEV__`-only hint for `wire`, and the reason the descriptor can safely be called `renderer`
+ * while the raw function beside it is `render`.
+ *
+ * Wiring the wrong one is otherwise **silent**: a bare function has no `on`, so `wire` reads it as a
+ * connector and hands it the registry. Nothing registers, nothing throws, and the page renders
+ * nothing for a reason two characters wide. The marker lets `wire` name the export that was meant.
+ *
+ * `$module` is deliberately generic — any package exporting a raw function next to a module of a
+ * similar name can set it. Production carries neither the property nor the check that reads it.
+ */
+if (__DEV__) (render as unknown as { $module?: string }).$module = 'renderer';
+
+export const renderer = {
   name: '@verajs/renderer',
   on: 'render' as const,
   fn: render as never,

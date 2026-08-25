@@ -48,7 +48,7 @@ export type Registerable = InsertDescriptor | Connector;
  * One call listing everything an app wires, in one place, from data rather than side effects.
  *
  * ```js
- * insert([domRender, router, { on: 'init', fn: adoptStyles, priority: 50 }, myOwnThing]);
+ * insert([renderer, router, { on: 'init', fn: adoptStyles, priority: 50 }, myOwnThing]);
  * ```
  *
  * A **connector** is a function: it receives the registry and decides what to do with it, which is
@@ -60,7 +60,7 @@ export type Registerable = InsertDescriptor | Connector;
  * Wires modules into the framework: one call, from data rather than side effects.
  *
  * ```js
- * wire([domRender, router, { on: 'init', fn: adoptStyles, priority: 50 }]);
+ * wire([renderer, router, { on: 'init', fn: adoptStyles, priority: 50 }]);
  * wire({ on: 'error', fn: report, priority: 40 });
  * ```
  *
@@ -93,8 +93,25 @@ export const wire = (item: Registerable | Registerable[]) => {
  * such a module would be called as a connector and never registered.
  */
 const apply = (item: Registerable) => {
-  if (typeof item === 'function' && (item as Partial<InsertDescriptor>).on === undefined) item(inserts);
-  else {
+  if (typeof item === 'function' && (item as Partial<InsertDescriptor>).on === undefined) {
+    /**
+     * A raw function that a package marked as "not the module" — `@verajs/renderer` marks `render`,
+     * which sits two characters from `renderer`. Without this the mistake is silent: the function is
+     * treated as a connector, handed the registry, and nothing is ever registered.
+     *
+     * `__DEV__`-only, so production carries neither the check nor the text.
+     */
+    if (__DEV__) {
+      const meant = (item as { $module?: string }).$module;
+      if (meant !== undefined)
+        throw new Error(
+          `wire: \`${item.name || 'that function'}\` is not a module — did you mean \`${meant}\`? ` +
+            `A bare function is wired as a connector and handed the registry, so this would have ` +
+            `registered nothing and thrown nothing.`
+        );
+    }
+    item(inserts);
+  } else {
     item = item as InsertDescriptor;
     item.connect?.(inserts);
     replacing = item.name ?? '';

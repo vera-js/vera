@@ -5,10 +5,10 @@
  *
  * ```js
  * import { wire } from '@verajs/core';
- * import { domRender } from '@verajs/renderer';
+ * import { renderer } from '@verajs/renderer';
  * import { collections } from '@verajs/collections';
  *
- * wire([domRender, collections]);
+ * wire([renderer, collections]);
  * ```
  *
  * **Take `wire` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js`

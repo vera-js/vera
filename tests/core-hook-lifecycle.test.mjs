@@ -15,8 +15,8 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
   globalThis[k] = dom.window[k];
 
 const core = await load('core');
-const { render: domRender } = await load('renderer');
-core.wire({ on: 'render', fn: domRender, priority: 50 });
+const { render: renderer } = await load('renderer');
+core.wire({ on: 'render', fn: renderer, priority: 50 });
 
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
 const body = dom.window.document.body;

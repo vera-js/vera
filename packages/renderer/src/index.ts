@@ -1,2 +1,2 @@
-export { render, hold, domRender } from './renderer.js';
+export { render, hold, renderer } from './renderer.js';
 export type { TemplateResult } from './renderer.js';

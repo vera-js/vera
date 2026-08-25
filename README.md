@@ -82,10 +82,10 @@ used on their own or with another framework entirely.
 
 <script type="module">
   import { init, createStore, render, wire, html } from '@verajs/core';
-  import { domRender } from '@verajs/renderer';
+  import { renderer } from '@verajs/renderer';
 
   /** Core ships no renderer. Wire one once, here, and nothing else needs to know. */
-  wire([domRender]);
+  wire([renderer]);
 
   customElements.define(
     'click-counter',
@@ -117,9 +117,9 @@ npm install @verajs/core @verajs/renderer
 
 ```ts
 import { init, createStore, render, useEffect, wire, html } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 
-wire([domRender]);
+wire([renderer]);
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
@@ -151,11 +151,11 @@ second one. None of them do: each takes the registry it writes to, and `wire` ha
 
 ```js
 import { wire } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
 
-wire([domRender, router, autoloader(import.meta.url, 'components')]);
+wire([renderer, router, autoloader(import.meta.url, 'components')]);
 ```
 
 Identical under a bundler, where everything already resolves to one instance. This replaced

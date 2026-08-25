@@ -1,7 +1,7 @@
 import { init, createStore, render, wire } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { render as renderer } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
-wire({ on: 'render', fn: domRender, priority: 50 });
+wire({ on: 'render', fn: renderer, priority: 50 });
 
 const CARDS = [{ g: 'A' }, { g: 'B' }, { g: 'C' }];
 const SPREADS = [{ id: 'one', positions: ['P1'] }, { id: 'ten', positions: 'abcdefghij'.split('') }];

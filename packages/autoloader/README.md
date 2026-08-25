@@ -46,7 +46,7 @@ omitting `componentsDir` puts components beside the entry file.
 | `autoload.retry(element)` | forget that this element's tag failed, and try again |
 
 The instance is **also its own `wire` descriptor** — it carries `on: 'render'` at priority 75, so
-`wire([domRender, autoload])` configures and installs in one call, and the scan runs after the
+`wire([renderer, autoload])` configures and installs in one call, and the scan runs after the
 render that produced the markup. It replaced `setAutoloader`, a bespoke registrar that lived in
 `@verajs/inserts`; every module now hands `wire` a descriptor, and this one is no exception.
 

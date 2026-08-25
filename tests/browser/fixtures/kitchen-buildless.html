@@ -44,7 +44,7 @@
         html,
         css,
         createStore} from '@verajs/core';
-      import { render as domRender } from '@verajs/renderer';
+      import { render as renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
       import { spread } from '@verajs/renderer/spread';
       import { initRouter, router, navigate } from '@verajs/router';
@@ -57,7 +57,7 @@
        */
       wire([router]);
 
-      wire({ on: 'render', fn: domRender, priority: 50 });
+      wire({ on: 'render', fn: renderer, priority: 50 });
       wire({ on: 'init', fn: adoptStyles, priority: 50 });
       wire(
         autoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')

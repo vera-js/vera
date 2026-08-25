@@ -11,8 +11,8 @@ over having it built in.
 
 ```js
 + import { collections } from '@verajs/collections';
-- wire([domRender]);
-+ wire([domRender, collections]);
+- wire([renderer]);
++ wire([renderer, collections]);
 ```
 
 Forget it and core raises a development error naming the package the first time a collection is read

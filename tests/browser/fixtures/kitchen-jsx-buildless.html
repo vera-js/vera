@@ -28,10 +28,10 @@
 
     <script type="text/vera-jsx">
       import { init, createStore, render, wire, html } from '@verajs/core';
-      import { render as domRender } from '@verajs/renderer';
+      import { render as renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
 
-      wire({ on: 'render', fn: domRender, priority: 50 });
+      wire({ on: 'render', fn: renderer, priority: 50 });
 
       /** A function component is a template factory, not a custom element: children arrive as an array. */
       const Row = ({ label, onPick }) => <li onClick={onPick} data-id={label}>{label}</li>;

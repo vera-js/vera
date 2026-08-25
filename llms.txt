@@ -77,14 +77,14 @@ development, naming the two lines to add. Wire one at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
-wire([domRender]);
+import { renderer } from '@verajs/renderer';
+wire([renderer]);
 ```
 
 Core's `html` needs no `setHtml` with `@verajs/renderer` — it already produces the shape the
 renderer accepts. lit-html works too: `wire({ on: 'render', fn: litRender, priority: 50 }); setHtml(litHtml);`
 
-**Order matters.** A component that defines itself before `wire(domRender)` renders with nothing on
+**Order matters.** A component that defines itself before `wire(renderer)` renders with nothing on
 the `'render'` chain — `render()` warns once in development and draws nothing. Static
 `import` declarations are **hoisted**, so this is wrong:
 
@@ -348,15 +348,15 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.47 KB<!--/size:renderer.gzip--> gzipped. `wire(domRender)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.47 KB<!--/size:renderer.gzip--> gzipped. `wire(renderer)` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
 ```js
 import { init, createStore, render as show, wire, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { render as renderer } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
-wire([domRender]);
+wire([renderer]);
 
 // keyed lists: no repeat() import — key all items or none
 show(() => html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`);
@@ -676,9 +676,9 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
 
 <script type="text/vera-jsx">
   import { init, createStore, render, wire } from '@verajs/core';
-  import { render as domRender } from '@verajs/renderer';
+  import { render as renderer } from '@verajs/renderer';
   import { keyed } from '@verajs/renderer/keyed';
-  wire([domRender]);
+  wire([renderer]);
 
   const state = createStore({ n: 0 });
 
@@ -708,7 +708,7 @@ blob. Bare specifiers inside resolve through the page's import map.
 
 1. **Both import-map entries.** `@verajs/core` alone is not enough — any `key={}` emits `keyed()`
    from `@verajs/renderer/keyed`.
-2. **One block is one module.** Static imports hoist, so `wire(domRender)` at the top of the
+2. **One block is one module.** Static imports hoist, so `wire(renderer)` at the top of the
    block runs before any `customElements.define` below it. The "define before wiring" hazard
    only applies across separate files.
 3. **Function components are not elements.** They compile to plain calls returning templates.
@@ -776,7 +776,7 @@ Say so rather than inventing an API:
 
 ## Common mistakes
 
-1. Defining a component before `setHtml` / `wire(domRender)` → with nothing on the `'render'`
+1. Defining a component before `setHtml` / `wire(renderer)` → with nothing on the `'render'`
    chain, `render()` warns once in development and draws nothing.
 2. Static `import` for components in the entry file → hoisted, same failure.
 3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at

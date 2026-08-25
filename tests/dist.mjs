@@ -11,6 +11,13 @@
  *      copies it into each bundle — which is why two standalone bundles hold two registries and
  *      `connectInserts` exists at all.
  *
+ * **A development bundle can still reach production code.** `dist/development/*.js` keeps workspace
+ * deps external, so loading core's development bundle resolves `@verajs/inserts` through its
+ * `exports` map — and with no `development` condition set, that lands on `dist/*.min.js`, where the
+ * `__DEV__` guards are gone. A suite checking a development-only warning must therefore `load` the
+ * package that *owns* the guard rather than reach it through a re-export, or it silently asserts
+ * against the production build. A real app is unaffected: a bundler sets the condition.
+ *
  * A suite that only ever loaded `dist/development` proved the logic and nothing about the artifact
  * that ships. Notably, `_p` in `@verajs/inserts` is a cross-bundle contract that a mangling regex
  * would silently rename; the development build cannot show that.

@@ -31,7 +31,7 @@ export type AutoloaderOptions = {
  */
 export type AutoloaderInstance = ((target?: Element | ShadowRoot | Document) => void) & {
   /**
-   * The instance is its own `wire` descriptor — `wire([domRender, autoloader(…)])` — so
+   * The instance is its own `wire` descriptor — `wire([renderer, autoloader(…)])` — so
    * configuring it and installing it are one call. `wire` tests for `on` before it tests for a
    * function, which is what lets a module be both.
    */

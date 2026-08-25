@@ -30,8 +30,8 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
               `[vera] render() called with no renderer registered — nothing will appear.\n` +
                 `Wire one once, at your app entry:\n\n` +
                 `  import { wire } from '@verajs/core';\n` +
-                `  import { domRender } from '@verajs/renderer';\n` +
-                `  wire([domRender]);\n`
+                `  import { renderer } from '@verajs/renderer';\n` +
+                `  wire([renderer]);\n`
             );
           }
         }

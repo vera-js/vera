@@ -13,15 +13,15 @@ npm i @verajs/core @verajs/renderer
 
 ## Quick start
 
-`wire(domRender)` is the only wiring. Core's `html` tag already produces the shape this accepts, so
+`wire(renderer)` is the only wiring. Core's `html` tag already produces the shape this accepts, so
 there is no second call to make.
 
 <!-- recipe -->
 ```js
 import { init, createStore, render, wire, html } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 
-wire([domRender]);
+wire([renderer]);
 
 customElements.define(
   'click-counter',
@@ -236,10 +236,10 @@ Spread a props object onto an element, with names resolved at runtime.
 <!-- recipe -->
 ```js
 import { init, createStore, render, wire, html } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 import { spread } from '@verajs/renderer/spread';
 
-wire([domRender]);
+wire([renderer]);
 
 customElements.define(
   'x-field',

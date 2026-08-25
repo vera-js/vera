@@ -329,15 +329,15 @@ keeps **no registry of its own**, so there is no second one to reconcile — han
 
 ```js
 import { wire } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 
-wire([domRender, router]);
+wire([renderer, router]);
 ```
 
 Identical under a bundler and on a CDN page, which is the point: `connectInserts`, the replay
 function this replaced, was load-bearing in one mode and ceremonial in the other. Without core at
-all, skip the registry entirely — `initRouter(el, …)` plus `setRouterRenderer(domRender)` is the
+all, skip the registry entirely — `initRouter(el, …)` plus `setRouterRenderer(renderer)` is the
 whole wiring.
 
 ## Node and SSR

@@ -34,9 +34,9 @@ const LIST_CONTENDERS = [
     note: 'core + @verajs/renderer + /keyed',
     code: `
       import { init, createStore, render, wire, html } from '@verajs/core';
-      import { domRender } from '@verajs/renderer';
+      import { renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
-      wire([domRender]);
+      wire([renderer]);
       customElements.define('x-list', class extends HTMLElement {
         connectedCallback() {
           init(this, { mode: 'open' });
@@ -69,8 +69,8 @@ const CONTENDERS = [
     note: 'core + @verajs/renderer',
     code: `
       import { init, createStore, render, wire, html } from '@verajs/core';
-      import { domRender } from '@verajs/renderer';
-      wire([domRender]);
+      import { renderer } from '@verajs/renderer';
+      wire([renderer]);
       // no setHtml needed: core's built-in html tag produces the shape the renderer accepts
       customElements.define('x-app', class extends HTMLElement {
         connectedCallback() {

@@ -24,7 +24,7 @@ Two things register into `'render'`:
 
 | Priority | Registered by | Does |
 | ---: | --- | --- |
-| 50 | `wire([domRender])` | renders the template; core resolves `_root ?? shadowRoot ?? element` at dispatch |
+| 50 | `wire([renderer])` | renders the template; core resolves `_root ?? shadowRoot ?? element` at dispatch |
 | 75 | `wire([autoloader(…)])` | discovers undefined custom elements and lazy-loads them |
 
 **Nothing is registered until an app wires it.** Core used to self-register a default renderer
@@ -68,13 +68,13 @@ paints the literal string **`[object Object]`**.
 This bites in a way that is easy to miss, because **static `import` declarations are hoisted**:
 
 ```js
-wire([domRender]);
+wire([renderer]);
 setHtml(html);
 import './components/app.js';   // WRONG - evaluated BEFORE the two lines above
 ```
 
 ```js
-wire([domRender]);
+wire([renderer]);
 setHtml(html);
 await import('./components/app.js');   // correct - evaluated after
 ```

@@ -764,7 +764,7 @@ export default customElements.get('grow-ssr');
  * different one. Every case above it would fail with the very error it is asserting.
  */
 /**
- * An app entry doing the ordinary thing — `wire({ on: 'render', fn: domRender, priority: 50 })` — displaces the server renderer
+ * An app entry doing the ordinary thing — `wire({ on: 'render', fn: renderer, priority: 50 })` — displaces the server renderer
  * the moment that module is imported server-side, because `setRenderer` registers at priority 50 and
  * a taken priority replaces. Every component then rendered empty, with no error and nothing in the
  * output to suggest why.

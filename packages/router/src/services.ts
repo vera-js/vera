@@ -16,7 +16,7 @@ import { Renderer } from '@verajs/shared-types';
  * it afterwards was the wrong shape: it was load-bearing on a CDN page and ceremonial everywhere
  * else, so the failure it guarded only ever appeared in production.
  *
- * Nothing is imported now. Either the app hands this package the registry — `wire([domRender,
+ * Nothing is imported now. Either the app hands this package the registry — `wire([renderer,
  * router])` — or it hands `setRouterRenderer` a renderer directly, which is what lets the router
  * run with no core at all. The hazard is gone by construction rather than reconciled.
  */
@@ -29,7 +29,7 @@ const renderers = () => (registry ? ((registry.get('render') as Renderer[] | und
  * package that keeps none of its own gets core's.
  *
  * Named for the thing rather than the act, because `wire` is already the verb — it sits in a list
- * beside `domRender`, `collections` and `autoloader(…)`, and which of them is a descriptor and
+ * beside `renderer`, `collections` and `autoloader(…)`, and which of them is a descriptor and
  * which is a connector is not something an app should have to know.
  */
 export const router = (given: Inserts) => {

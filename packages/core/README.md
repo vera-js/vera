@@ -21,9 +21,9 @@ tests, or your own.
 <!-- recipe -->
 ```js
 import { init, createStore, render, wire, html, useEffect } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 
-wire([domRender]);   // once, at your app entry, before any component defines itself
+wire([renderer]);   // once, at your app entry, before any component defines itself
 
 customElements.define(
   'click-counter',
@@ -115,7 +115,7 @@ holding its value at the start and at the end.
 | `html` | the template tag. Produces a lit-compatible result |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `css` | for `static styles`, with `@verajs/styles` |
-| `wire(domRender)` | choose what writes to the DOM |
+| `wire(renderer)` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
 

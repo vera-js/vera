@@ -312,7 +312,7 @@ export const autoloader = (
    * are one call:
    *
    * ```js
-   * wire([domRender, router, autoloader(import.meta.url, 'components')]);
+   * wire([renderer, router, autoloader(import.meta.url, 'components')]);
    * ```
    *
    * This replaced `setAutoloader`, a bespoke registrar that lived in `@verajs/inserts` — the

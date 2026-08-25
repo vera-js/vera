@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 globalThis.document = dom.window.document;
@@ -212,4 +212,37 @@ test('ParseState tracks expression position, which is what bounds a JSX region',
   assert.equal(s.atExpressionPosition(), false, 'after a closing paren, `<` is a comparison');
   s.lastChar = '=';
   assert.equal(s.atExpressionPosition(), true, 'after `=` it is an expression again');
+});
+
+// ── wiring the raw render function instead of the module ────────────────────
+
+/**
+ * `render` and `renderer` differ by two characters, and the wrong one used to be a *silent*
+ * mistake: a bare function has no `on`, so `wire` reads it as a connector, hands it the registry
+ * and registers nothing. Development turns that into a named error.
+ */
+test('wire refuses a raw function a package marked as not-the-module', async () => {
+  /**
+   * `wire` is taken from `@verajs/inserts` rather than from core, and the distinction is not
+   * cosmetic. Core's development bundle keeps this package **external**, so `import '@verajs/core'`
+   * resolves `@verajs/inserts` through its `exports` map — and without the `development` condition
+   * that lands on `dist/*.min.js`, where every `__DEV__` guard has already been folded away. Reached
+   * that way, core's `wire` is a production `wire` even in a development run. A bundler sets the
+   * condition, so an app sees the guard; a test that forgets to is quietly checking the wrong build.
+   */
+  const { wire } = await load('inserts');
+  const renderer = await load('renderer');
+  if (isProduction) {
+    /** The marker and the check are both behind `__DEV__`, so production carries neither. */
+    assert.equal(renderer.render.$module, undefined, 'no marker in production');
+    return;
+  }
+  assert.equal(renderer.render.$module, 'renderer', 'the raw function is marked');
+  assert.throws(
+    () => wire(renderer.render),
+    /did you mean `renderer`/,
+    'it must name the export that was meant'
+  );
+  /** The module itself still wires. */
+  wire(renderer.renderer);
 });

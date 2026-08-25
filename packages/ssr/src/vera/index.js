@@ -96,7 +96,7 @@ const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(
 
 /**
  * `setRenderer` registers on `'render'` at priority 50, and registering at a taken priority
- * **replaces**. So an app entry doing the ordinary thing — `wire({ on: 'render', fn: domRender, priority: 50 })` — displaces this
+ * **replaces**. So an app entry doing the ordinary thing — `wire({ on: 'render', fn: renderer, priority: 50 })` — displaces this
  * one the moment that module is imported server-side, and every component then renders through a
  * renderer that writes to a real DOM which is not there. The result was
  * `<my-el><template shadowrootmode="open"></template></my-el>`: empty, for every component, with no

@@ -66,11 +66,11 @@ carrying its own:
 
 ```js
 import { wire } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import { collections } from '@verajs/collections';
 
-wire([domRender, router, collections]);
+wire([renderer, router, collections]);
 ```
 
 `router` is a **connector** — `wire` hands it this registry, and the router keeps no registry

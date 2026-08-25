@@ -4,10 +4,10 @@ Reactive `Map` and `Set` inside VeraJS stores. Mutations notify, reads subscribe
 
 ```js
 import { init, createStore, render, html, wire } from '@verajs/core';
-import { domRender } from '@verajs/renderer';
+import { renderer } from '@verajs/renderer';
 import { collections } from '@verajs/collections';
 
-wire([domRender, collections]);
+wire([renderer, collections]);
 
 const state = createStore({ users: new Map([['u1', 'Ada']]) });
 render(() => html`<p>${state.users.get('u1')} of ${state.users.size}</p>`, host);
