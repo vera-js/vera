@@ -18,6 +18,13 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
+- **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
+  `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
+  `@verajs/reactivity`, `@verajs/collections`, anything built on core's public API — resolves core
+  through `exports.default`, which is `dist/*.min.js`. The probe then holds **two cores**: writes go
+  to one store registry and subscriptions live in the other, so reactivity looks completely dead and
+  every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard
+  never fires" findings on separate occasions.
 - **Two template literals are two templates, even with identical text.** Template identity is the
   `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
   probe produces a rebuild, not an update, and every conclusion drawn about update behaviour is
