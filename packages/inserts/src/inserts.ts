@@ -152,7 +152,7 @@ const register = <K extends keyof InsertFunctionMap>(
    */
   if (__DEV__ && !Number.isFinite(priority))
     throw new Error(
-      `insert: priority must be a finite number, and "${String(priority)}" is not. ` +
+      `wire: priority must be a finite number, and "${String(priority)}" is not. ` +
         `Lower runs first; a renderer registers at 50.`
     );
 
