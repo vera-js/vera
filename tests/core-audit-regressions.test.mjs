@@ -187,3 +187,66 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
     'it must name the hook, the cause and the alternative'
   );
 });
+
+/* ── stores over unusual targets ─────────────────────────────────────────────────────────────── */
+
+/**
+ * A frozen or sealed object is an ordinary thing to hand a store — a config, a constant table, a
+ * payload frozen by whatever produced it. `createStore` defined a `_delete` convenience on the raw
+ * target unconditionally, so a frozen one threw `Cannot define property _delete, object is not
+ * extensible`: a failure naming a property the author never wrote.
+ */
+test('a frozen store is accepted and still reads', () => {
+  const frozen = core.createStore(Object.freeze({ a: 1, nested: { b: 2 } }));
+  assert.equal(frozen.a, 1);
+  assert.equal(frozen.nested.b, 2);
+  assert.equal(frozen._delete, undefined, 'no _delete on a store that cannot change');
+});
+
+test('a sealed store still notifies on a write to an existing key', async () => {
+  const el = document.createElement('div');
+  document.body.append(el);
+  core.init(el, { mode: 'open' });
+  const state = core.createStore(Object.seal({ n: 0 }));
+  const seen = [];
+  core.createHook({ element: el, priority: 50, callback: () => seen.push(state.n) });
+  el._hooks?.forEach((set) => set.forEach((cb) => cb(undefined, true)));
+  state.n = 1;
+  await new Promise((r) => dom.window.requestAnimationFrame(r));
+  assert.deepEqual(seen, [0, 1]);
+});
+
+/**
+ * Proxying one object twice produced two proxies with separate nested caches, so the same nested
+ * object read through each was two different values. Subscriptions were shared — they key off the
+ * raw target — which made the divergence identity-only, and therefore quiet.
+ */
+test('proxying the same object twice returns the same proxy', () => {
+  const raw = { user: { id: 1 } };
+  assert.equal(core.createStore(raw), core.createStore(raw));
+  const a = core.createStore(raw);
+  const b = core.createStore(raw);
+  assert.equal(a.user, b.user, 'and nested identity agrees across them');
+});
+
+/**
+ * The same invariant an extensible object can still hit: a property defined non-writable *and*
+ * non-configurable must be returned verbatim by the `get` trap. Caught on the cache-miss path, so
+ * the hot path never pays for it — the exact per-read descriptor check measured at +38% on a
+ * two-hop read.
+ */
+test('an explicitly readonly nested property is returned verbatim', () => {
+  const raw = {};
+  const inner = { b: 1 };
+  Object.defineProperty(raw, 'locked', { value: inner, writable: false, configurable: false, enumerable: true });
+  const state = core.createStore(raw);
+  assert.equal(state.locked, inner, 'the raw object, not a proxy — the engine requires it');
+  assert.equal(state.locked.b, 1);
+});
+
+/** A frozen owner still tracks its own keys; only substitution is forbidden. */
+test('a frozen store still reports its shape', () => {
+  const state = core.createStore(Object.freeze({ a: 1, b: 2 }));
+  assert.deepEqual(Object.keys(state), ['a', 'b']);
+  assert.ok('a' in state);
+});

@@ -188,6 +188,22 @@ const createHandler = <T extends object>(
   data: T,
   proxyCache: WeakMap<object, object | null>
 ): ProxyHandler<T | { value: T }> => {
+  /**
+   * Whether this handler's target may have a nested value substituted for a proxy at all.
+   *
+   * A **non-writable, non-configurable** data property is one the `get` trap must return verbatim —
+   * the proxy invariant, enforced by the engine with a `TypeError`, not a silent fallback. Every
+   * property of a frozen object is exactly that, so reading any nested object out of
+   * `createStore(Object.freeze(config))` threw. Reactivity is not lost by choice here: the language
+   * forbids the substitution, and Vue's `reactive()` has the same limit.
+   *
+   * Resolved once per target rather than per read. A handler instance belongs to exactly one proxy,
+   * so `obj` never varies, and the exact per-property check costs a descriptor **allocation** per
+   * read — measured at +38% on a two-hop read, which is not a price worth paying for a case decided
+   * by whether the object was frozen before it arrived. The per-property case that an extensible
+   * object can still produce is caught on the cache-miss path below, where it is free.
+   */
+  let extensible: boolean | undefined;
   return {
     get(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>, receiver) {
       /** The handler will always return true for _isSignal */
@@ -251,15 +267,26 @@ const createHandler = <T extends object>(
          * holding three closures, and `state.a === state.a` was false, which silently broke any
          * identity comparison in consumer code.
          */
-        let cached = proxyCache.get(propValue);
-        if (cached === undefined) {
-          cached =
-            !(propValue as StoreProxyKeys)._isSignal && isProxyable(propValue)
-              ? new Proxy(propValue, createHandler(data, proxyCache))
-              : null;
-          proxyCache.set(propValue, cached);
+        if (extensible === undefined) extensible = Object.isExtensible(obj);
+        if (extensible) {
+          let cached = proxyCache.get(propValue);
+          if (cached === undefined) {
+            /**
+             * The descriptor read happens here and nowhere else — once per distinct nested value
+             * rather than once per read — so an extensible object carrying an explicitly readonly
+             * slot is caught without the hot path ever allocating a descriptor.
+             */
+            const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+            cached =
+              !(propValue as StoreProxyKeys)._isSignal &&
+              isProxyable(propValue) &&
+              (own === undefined || own.writable === true || own.configurable === true)
+                ? new Proxy(propValue, createHandler(data, proxyCache))
+                : null;
+            proxyCache.set(propValue, cached);
+          }
+          if (cached !== null) propValue = cached as ProxyObject<T>;
         }
-        if (cached !== null) propValue = cached as ProxyObject<T>;
       }
 
       if (chainRevision !== revision) {
@@ -408,9 +435,24 @@ const createHandler = <T extends object>(
  * @param  data - The data object
  * @return The new proxy
  */
+/**
+ * Raw object -> its store proxy, so proxying the same object twice hands back the same proxy.
+ *
+ * Without it `createStore(config) === createStore(config)` was false: two proxies over one target,
+ * each with its own nested cache, so `a.user !== b.user` for the very same object. Subscriptions
+ * were shared — those key off the raw target — which made the divergence identity-only and
+ * therefore quiet, of the kind that surfaces as a list re-keying or a memo missing. Vue's
+ * `reactive()` keeps the same map for the same reason.
+ */
+const stores = new WeakMap<object, object>();
+
 export const createProxy = <T extends object>(data: T) => {
   /** Same four-way test as the get trap, so it reuses `isProxyable` rather than repeating it. */
   const proxyData = isProxyable(data) ? data : ({ value: data } as unknown as T);
-  /** One cache per store, threaded through every nested handler so identity is stable throughout. */
-  return new Proxy(proxyData, createHandler(proxyData, new WeakMap<object, object | null>()));
+  let proxy = stores.get(proxyData);
+  if (proxy === undefined) {
+    /** One cache per store, threaded through every nested handler so identity is stable throughout. */
+    stores.set(proxyData, (proxy = new Proxy(proxyData, createHandler(proxyData, new WeakMap()))));
+  }
+  return proxy as T;
 };
