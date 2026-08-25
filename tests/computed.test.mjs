@@ -11,6 +11,8 @@ import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
+const { collections } = await load('collections');
+core.wire(collections);
 const { computed } = await load('reactivity/computed');
 const dom = new JSDOM('<body></body>');
 globalThis.HTMLElement = dom.window.HTMLElement;

@@ -30,6 +30,7 @@
     "build": {
       "dependencies": [
         "./packages/autoloader:build",
+        "./packages/collections:build",
         "./packages/core:build",
         "./packages/inserts:build",
         "./packages/reactivity:build",

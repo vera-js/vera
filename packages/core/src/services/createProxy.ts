@@ -2,7 +2,24 @@ import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
 import { getType, isSetOrMap, isWeakCollection, prioritySlot } from '@verajs/shared-utils';
 import { inserts, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
-import { collectionMethod, GLOBAL } from './collections.js';
+import type { CollectionInsert } from '@verajs/inserts';
+
+/**
+ * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
+ * mutation, and a plain object gaining or losing a key. Tracked here from `ownKeys` and from a
+ * `size` read; notified by `@verajs/collections`, which declares the same literal rather than
+ * importing this one — a production bundle inlines its dependencies, so an import would subscribe
+ * to one string and notify another.
+ */
+const GLOBAL = '_global';
+
+/**
+ * Resolved once, on the first `Map`/`Set` method read in the process, and only ever reached behind
+ * the `isSetOrMap` gate core already computes — so a plain-object read never touches it. That is
+ * what makes reactive collections affordable outside core: the `'proxy-handler'` chain they used
+ * to ride ran on every read of every store.
+ */
+let collectionInsert: CollectionInsert | undefined;
 import { Signal } from '../types.js';
 
 /**
@@ -150,7 +167,7 @@ const createHandler = <T extends object>(
       /**
        * `size` is an accessor and must be read off the raw target — but the read still
        * subscribes, under the `'_global'` channel that every Map/Set mutation notifies (see
-       * `collections.ts`). Returning without tracking meant `${state.map.size}` in a template
+       * `@verajs/collections`). Returning without tracking meant `${state.map.size}` in a template
        * never updated.
        */
       if (prop === 'size' && isSetOrMap(obj)) {
@@ -159,9 +176,22 @@ const createHandler = <T extends object>(
       }
       let propValue = Reflect.get(obj, prop, receiver) as ProxyObject<T>;
 
-      /** Map/Set methods: re-bound and tracked — see `collections.ts` for the full contract. */
+      /**
+       * Map/Set methods: re-bound and tracked by `@verajs/collections`. Native collection methods
+       * throw (`called on incompatible receiver`) when invoked on the proxy — their internal slots
+       * live on the raw target — so without the package a collection in a store is inert rather
+       * than reactive, and the error below says so the first time one is read.
+       */
       if (typeof propValue === 'function' && isSetOrMap(obj)) {
-        return collectionMethod(obj, prop, propValue, addCallback as never, runCallbacks as never) as ProxyObject<T>;
+        collectionInsert ??= inserts.get('collection')?.[0] as CollectionInsert | undefined;
+        if (collectionInsert)
+          return collectionInsert(obj, prop, propValue, addCallback as never, runCallbacks as never) as ProxyObject<T>;
+        if (__DEV__)
+          console.error(
+            `[vera] a ${obj instanceof Map ? 'Map' : 'Set'} in a store needs @verajs/collections — ` +
+              `\`import { collections } from '@verajs/collections'\` and add it to your \`wire([…])\` ` +
+              `call. Without it its methods are not reactive and calling one throws.`
+          );
       }
 
       /** Ignored properties won't set up proxy listeners any deeper */

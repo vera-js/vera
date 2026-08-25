@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->5.7 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->5.4 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -234,9 +234,29 @@ yields that number** instead of the value. Write observers with a block body —
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { initAutoloader } from '@verajs/autoloader';
+import { collections } from '@verajs/collections';
 import { render } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 ```
+
+### Collections (`@verajs/collections`)
+
+Reactive `Map` and `Set` in stores. **Not in core since 0.2.0** — most stores hold plain objects
+and every app was paying 367 B for it. Wire once at your app entry:
+
+```js
+import { wire } from '@verajs/core';
+import { collections } from '@verajs/collections';
+wire(collections);
+```
+
+Change detection is per method — `set` fires iff absent-or-different, `add` iff absent, `delete` iff
+it returned true, `clear` iff non-empty. `get`/`has` subscribe per key; `entries`/`keys`/`values`/
+`forEach`/`size` subscribe to every change; `for…of` and spread subscribe to **nothing** (iterate via
+`entries()`). Reactivity is per entry, not deep. `WeakMap`/`WeakSet` work.
+
+Omit the wiring and core raises a development error naming the package the first time a collection
+is read from a store, and the call after it throws — collection methods cannot run on a proxy.
 
 ### Styles (`@verajs/styles`)
 

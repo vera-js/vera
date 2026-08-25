@@ -64,9 +64,12 @@ The shape of the product:
 
 - **`@verajs/core`** covers most of what people actually need.
 - **A module system** lets people use the prebuilt modules — `autoloader`, `jsx`, `renderer`,
-  `router`, `ssr`, `styles` — or write their own. (`map-support` was retired: reactive `Map`/`Set`
-  moved into core. `styles` went the other way in 0.2.0 — `static styles` adoption left core,
-  recovering 300 B gzipped for every app that does not use it.)
+  `router`, `ssr`, `styles` — or write their own. (`map-support` was retired into core and then
+  moved back out as `collections` in 0.2.0, on a **type-keyed** `'collection'` insert point rather
+  than the `'proxy-handler'` chain that made the first attempt costly — 292 B recovered for every
+  app without a `Map` in a store, 24 B added for those with one. `styles` went the same way in
+  0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
+  use it.)
 - At minimum you need **a renderer**. Everything else is opt-in.
 
 **History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head

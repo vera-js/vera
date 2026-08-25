@@ -67,15 +67,36 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  */
 export type InitInsert = (element: HTMLElement) => void;
 
+/**
+ * Returns a tracking wrapper for a `Map`/`Set` method read through a store proxy — the extension
+ * point `@verajs/collections` registers on.
+ *
+ * **Type-keyed, not per-read.** Core dispatches it only when the target is already known to be a
+ * `Map` or a `Set`, so a plain-object read never reaches the lookup. That is the whole difference
+ * from `'proxy-handler'`, which runs on every read of every store and is why reactive collections
+ * could not affordably live out of core before.
+ *
+ * With nothing registered, a `Map` in a store is inert — core raises a `__DEV__` error naming the
+ * package rather than letting the mutation pass silently.
+ */
+export type CollectionInsert = (
+  obj: object,
+  prop: PropertyKey,
+  propValue: unknown,
+  addCallback: (obj: never, prop: never) => void,
+  runCallbacks: (obj: never, prop: never, value: never, prevValue: never) => void
+) => unknown;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
   'set-handler': SetHandlerInsert;
   'error': ErrorInsert;
   'init': InitInsert;
+  'collection': CollectionInsert;
 };
 
 export type Inserts = Map<
   keyof InsertFunctionMap,
-  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert)[]
+  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert | CollectionInsert)[]
 >;

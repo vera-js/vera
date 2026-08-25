@@ -1,4 +1,4 @@
-import { StoreProxyKeys } from '@verajs/shared-types';
+import type { StoreProxyKeys } from '@verajs/shared-types';
 
 /**
  * The every-change channel: mutations notify it in addition to their own key, and unkeyed reads
@@ -7,8 +7,13 @@ import { StoreProxyKeys } from '@verajs/shared-types';
  */
 /**
  * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
- * mutation, and a plain object gaining or losing a key. Shared with `createProxy`, which tracks it
- * from `ownKeys` and `size`, so the two halves cannot drift apart.
+ * mutation, and a plain object gaining or losing a key.
+ *
+ * **This string is a contract with `@verajs/core`, which declares the same literal.** Core tracks
+ * it from `ownKeys` and from a `size` read; this package notifies it on every mutation. They are
+ * two declarations rather than an import because a production bundle inlines its dependencies —
+ * importing it would work in development and, in production, subscribe to one string while
+ * notifying another. Change it in one place and `${state.map.size}` silently stops updating.
  */
 export const GLOBAL = '_global';
 
@@ -26,11 +31,18 @@ const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
  * their internal slots live on the raw target — so this re-bind is what makes collections in
  * stores work at all; the per-method change detection is what makes them reactive.
  *
- * History: this lived in `@verajs/map-support` as a `'proxy-handler'` insert (the insert form is
- * archived as the reference example of that extension point). Integrated 2026-08-20: collections
- * that throw-by-default were a landmine for "core covers what most people need", and the direct
- * branch skips the per-read insert-chain walk. The `'proxy-handler'` insert point itself is
- * unchanged and stays public.
+ * History: this lived in `@verajs/map-support` as a `'proxy-handler'` insert, was integrated into
+ * core on 2026-08-20, and moved back out here on 2026-08-24 — as its own `'collection'` insert
+ * point rather than a `'proxy-handler'`, which is what makes the move pay. The two objections that
+ * retired `map-support` were both about that shape, and both are answered:
+ *
+ * - *It threw until the insert was registered.* Wiring is now one entry in a list an app already
+ *   maintains, and core raises a `__DEV__` error naming this package the moment a Map or Set
+ *   reaches a store with nothing registered. It fails loudly, once, with the fix in the message.
+ * - *The per-read insert-chain walk.* That cost belonged to `'proxy-handler'`, which ran on every
+ *   read of every store. This point is **type-keyed**: core already computes `isSetOrMap`, so a
+ *   plain-object read never reaches the lookup. Measured over 24 rotated rounds and 300 000 reads,
+ *   a plain read got *faster* (139.3 → 129.9 ns/op) and a `Map.size` read stayed flat.
  *
  * Change detection is per method: `set` fires iff absent-or-different, `add` iff absent, `delete`
  * iff it returned true, `clear` iff non-empty (notifying every previous key). No-op mutations are

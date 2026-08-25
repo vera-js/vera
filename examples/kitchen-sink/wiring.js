@@ -12,6 +12,7 @@
 import { wire, setAutoloader } from '@verajs/core';
 import { connectRouter } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
+import { collections } from '@verajs/collections';
 import { initAutoloader } from '@verajs/autoloader';
 import { installSinkInserts } from './components/sink-inserts.js';
 
@@ -31,6 +32,8 @@ export const wireApp = (renderer) => {
     connectRouter,
     /** `static styles` left core in 0.2.0; a component using it renders unstyled without this. */
     { on: 'init', fn: adoptStyles, priority: 50 },
+    /** Reactive `Map`/`Set` left core in 0.2.0; `sink-collections` throws without this. */
+    collections,
   ]);
   installSinkInserts();
 };

@@ -36,6 +36,7 @@ const ENTRY = {
   'renderer/spread': ['renderer', 'vera-renderer-spread'],
   'renderer/tag': ['renderer', 'vera-renderer-tag'],
   styles: ['styles', 'vera-styles'],
+  collections: ['collections', 'vera-collections'],
 };
 
 /**
