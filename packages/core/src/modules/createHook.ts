@@ -61,14 +61,28 @@ export function createHook(hook: Hook) {
   const componentElement = element ? new WeakRef(element) : currentInstance.element;
   const derefElement = componentElement?.deref();
 
-  if (!derefElement || !componentElement || !priority || !callback) {
-    /**
-     * Kept in production builds on purpose: the silent version of this was the framework's most
-     * confusing no-op. The usual cause is a hook registered after `render()` — hooks belong
-     * between `init()` and `render()`, or must be given their element explicitly.
-     */
+  /**
+   * `Number.isFinite` rather than a truthiness test. **Priority `0` is legal** — lower runs earlier,
+   * so zero is the highest-priority hook there is, and `prioritySlot` places it correctly. A falsy
+   * check rejected it, so a hook that had to run before everything else silently never registered:
+   * the one value most likely to be chosen for "first" was the one value that did not work.
+   *
+   * `NaN` is the case worth failing on, and it is what `parseInt` of a config value produces. The
+   * same rule as `wire`, which refuses a non-finite priority for the same reason. One test covers
+   * `null` and `undefined` too — `Number.isFinite` is false for both — so the narrowing that TypeScript
+   * wants is a cast at the two use sites rather than a second runtime comparison on this path.
+   *
+   * The warning is `__DEV__`-only, like every other guard here — the silent no-op this replaced was
+   * confusing because nothing said anything *anywhere*, not because production was quiet. The usual
+   * cause is a hook registered after `render()`: hooks belong between `init()` and `render()`, or
+   * must be given their element explicitly.
+   */
+  if (!derefElement || !componentElement || !Number.isFinite(priority) || !callback) {
     if (__DEV__) {
-      console.warn('[vera] hook ignored — register between init() and render(), or pass the element');
+      console.warn(
+        `[vera] hook ignored — register between init() and render(), or pass the element.` +
+          (Number.isFinite(priority) ? '' : ` (priority was ${String(priority)}, which is not a finite number)`)
+      );
     }
     return;
   }
@@ -82,7 +96,7 @@ export function createHook(hook: Hook) {
    * one entry per hook run per tracked property, and every write walked all of it: 692 ns rising to
    * 1.25 ms after 2 000 re-runs, a 1 810x degradation. Reusing one entry lets `Set.add` dedupe.
    */
-  const queueEntry: ComponentHook = { callback: null, priority, element: componentElement };
+  const queueEntry: ComponentHook = { callback: null, priority: priority as number, element: componentElement };
 
   /**
    * Establishes the tracking context around every run of the hook — both the initial `runHooks`
@@ -132,7 +146,7 @@ export function createHook(hook: Hook) {
   /** Dense and priority-sorted; `runHooks` walks this on every render. */
   derefElement._hooks ??= [];
   derefElement._hookPriorities ??= [];
-  prioritySlot(derefElement._hooks, derefElement._hookPriorities, priority, () => new Set()).add(hookCallback);
+  prioritySlot(derefElement._hooks, derefElement._hookPriorities, priority as number, () => new Set()).add(hookCallback);
 
   /**
    * Handed back so a caller can run the hook itself, which is the only way to record what it reads:

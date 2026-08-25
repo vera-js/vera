@@ -100,7 +100,7 @@ const results = dom.window.eval(`(() => {
      Measures the cost of ANY registered proxy-handler insert (a passthrough here — map
      support itself is in core now). Insert chains are walked on every
      read, so how they are stored shows up here and nowhere else.                              */
-  Vera.insert('proxy-handler', (obj, prop, value) => value, 50);
+  Vera.wire({ on: 'proxy-handler', fn: (obj, prop, value) => value, priority: 50 });
   const iEl = document.createElement('div');
   document.body.appendChild(iEl);
   init(iEl);

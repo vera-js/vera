@@ -77,7 +77,13 @@ export const mathml = tag(MATHML_RESULT);
  * @returns The created CSSStyleSheet and its CSS text.
  */
 export let css = (strings: TemplateStringsArray, ...values: (string | number)[]): CSSResultGroup => {
-  const cssText = strings.reduce((acc, str, i) => acc + str + (values[i] || ''), '');
+  /**
+   * `?? ''` rather than `|| ''`: **`0` is a legal CSS value and a falsy one.** `margin: ${0}px`
+   * produced `margin: px` and `z-index: ${0}` produced `z-index: ` — declarations the parser drops,
+   * so the rule silently lost a property rather than failing. Every zero from a computed layout hit
+   * this, and an empty string is the only value that should vanish.
+   */
+  const cssText = strings.reduce((acc, str, i) => acc + str + (values[i] ?? ''), '');
   const styleSheet = new CSSStyleSheet();
   styleSheet.replaceSync?.(cssText);
 

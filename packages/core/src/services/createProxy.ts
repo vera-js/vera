@@ -1,8 +1,9 @@
 import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
 import { getType, isSetOrMap, isWeakCollection, prioritySlot } from '@verajs/shared-utils';
-import { inserts, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
+import { inserts, revision, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
 import type { CollectionInsert } from '@verajs/inserts';
+import type { Signal } from '../types.js';
 
 /**
  * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
@@ -20,10 +21,26 @@ const GLOBAL = '_global';
  * to ride ran on every read of every store.
  */
 let collectionInsert: CollectionInsert | undefined;
-import { Signal } from '../types.js';
 
 /**
- * Depth of writes currently inside the `set` trap, which the `defineProperty` trap reads.
+ * The `'proxy-handler'` chain, cached against the registry's revision.
+ *
+ * It runs on every property read of every store, so a `Map.get` with a string key is paid per
+ * property access. Measured on `bench/reactivity.mjs`, the lookup was worth **13%** of a tracked
+ * flat read (150 → 131 ns/op) and 9% at two hops — too much to spend re-answering a question that
+ * changes once per app. The write chain is deliberately *not* cached: a write is 865 ns, so the
+ * same lookup is noise there and the cache would cost bytes for nothing measurable.
+ *
+ * `revision` is a live binding that every registration bumps, so a chain wired after the first read
+ * is picked up on the next one. Caching the array itself is safe because a chain is mutated in
+ * place; only creating one changes the identity, and that bumps the revision.
+ */
+let chainRevision = -1;
+let proxyHandlers: ProxyHandlerInsert[] | undefined;
+
+/**
+ * The exact property currently being written by the `set` trap, which the `defineProperty` trap
+ * reads to recognise its own re-entry.
  *
  * `Reflect.set(obj, prop, value, receiver)` does **not** write to `obj` when `receiver` is a
  * different object — and the receiver here is always the proxy. The spec routes the write through
@@ -32,10 +49,20 @@ import { Signal } from '../types.js';
  * receiver is deliberate and load-bearing: it is what makes a **setter** run with `this` bound to
  * the proxy, so writes inside one are tracked like any other.
  *
- * A counter rather than a flag, because a setter may assign in turn, and `finally` because a
+ * The pair, rather than the depth counter this replaced. A counter says only "some write is in
+ * flight", so a **setter** that defines a property — on another key, or on another store entirely —
+ * had that definition swallowed: `Object.defineProperty` inside a setter notified nobody, and the
+ * further the two were apart the less anything connected them. Matching on identity suppresses the
+ * one re-entry that is genuinely a duplicate and nothing else.
+ *
+ * Cleared rather than saved and restored, and nesting cannot defeat that. The re-entry happens only
+ * for a **data** property, where no user code runs between arming the slot and the trap firing; a
+ * property with a **setter** takes the other path and produces no re-entry at all, so a write made
+ * inside a setter can clear the slot without stranding an outer one. In a `finally` because a
  * throwing setter must not leave writes suppressed for the rest of the page.
  */
-let writing = 0;
+let writingObj: object | null = null;
+let writingProp: PropertyKey | null = null;
 
 /**
  * Priorities parallel to each element's callback array, keeping those arrays dense. `runCallbacks`
@@ -56,7 +83,8 @@ const addCallback = <T>(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>)
   if (!hook) return;
 
   const { element: elementWeakRef, callback: callbackWeakRef, priority } = hook;
-  if (!elementWeakRef || !callbackWeakRef || !priority) return;
+  /** `priority` is compared, never tested for truth — `0` is a legal priority and the earliest one. */
+  if (!elementWeakRef || !callbackWeakRef || priority == null) return;
 
   /**
    * Walked by hand with lazy creation, the way Vue's `track()` does.
@@ -188,14 +216,12 @@ const createHandler = <T extends object>(
           return collectionInsert(obj, prop, propValue, addCallback as never, runCallbacks as never) as ProxyObject<T>;
         if (__DEV__)
           console.error(
-            `[vera] a ${obj instanceof Map ? 'Map' : 'Set'} in a store needs @verajs/collections — ` +
+            `[vera] a ${getType(obj).replace('weak', 'Weak').replace(/map$/, 'Map').replace(/set$/, 'Set')} ` +
+            `in a store needs @verajs/collections — ` +
               `\`import { collections } from '@verajs/collections'\` and add it to your \`wire([…])\` ` +
               `call. Without it its methods are not reactive and calling one throws.`
           );
       }
-
-      /** Ignored properties won't set up proxy listeners any deeper */
-      if (!data) return propValue;
 
       /**
        * Only objects can be proxied or carry the marker props, so primitives skip all of this.
@@ -236,16 +262,16 @@ const createHandler = <T extends object>(
         if (cached !== null) propValue = cached as ProxyObject<T>;
       }
 
-      inserts.get('proxy-handler')?.forEach((insertCallback) => {
-        propValue =
-          (insertCallback as ProxyHandlerInsert)?.(obj, prop, propValue, addCallback, runCallbacks) ?? propValue;
+      if (chainRevision !== revision) {
+        chainRevision = revision;
+        proxyHandlers = inserts.get('proxy-handler') as ProxyHandlerInsert[] | undefined;
+      }
+      proxyHandlers?.forEach((insertCallback) => {
+        propValue = insertCallback?.(obj, prop, propValue, addCallback, runCallbacks) ?? propValue;
       });
 
       addCallback(obj, prop);
 
-      // if (prop === 'value' && propValue && typeof propValue === 'object' && 'value' in propValue) {
-      //   return (propValue as { value: unknown }).value;
-      // }
 
       return propValue;
     },
@@ -289,12 +315,13 @@ const createHandler = <T extends object>(
        * Captured before the write, since the length is what changes.
        */
       const grew = Array.isArray(obj) && +prop >= (obj as unknown[]).length;
-      writing++;
+      writingObj = obj;
+      writingProp = prop;
       let result;
       try {
         result = Reflect.set(obj, prop, value, receiver);
       } finally {
-        writing--;
+        writingObj = null;
       }
 
       if (result) {
@@ -302,6 +329,10 @@ const createHandler = <T extends object>(
          * Extension point for anything that wants to take over propagation — batching,
          * transactions, undo/redo, persistence, time-travel devtools. Returning `false` from a
          * handler means it has taken responsibility and the default below is skipped.
+         */
+        /**
+         * Not cached, unlike the read chain. A write is 865 ns against a tracked read's 131, so the
+         * same `Map.get` is noise here and the cache would cost bytes for nothing measurable.
          */
         let deferred = false;
         inserts.get('set-handler')?.forEach((insertCallback) => {
@@ -331,8 +362,8 @@ const createHandler = <T extends object>(
      * descriptor does not carry one.
      */
     defineProperty(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>, descriptor: PropertyDescriptor) {
-      /** An ordinary assignment landing here — see `writing`. The `set` trap reports it. */
-      if (writing) return Reflect.defineProperty(obj, prop, descriptor);
+      /** This exact assignment re-entering from the `set` trap, which reports it. See `writingObj`. */
+      if (obj === writingObj && prop === writingProp) return Reflect.defineProperty(obj, prop, descriptor);
 
       type Value = T[Extract<keyof T, string>];
       /**

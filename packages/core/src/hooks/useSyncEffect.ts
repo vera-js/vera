@@ -21,22 +21,42 @@ import { swapCleanup } from '../store/store.js';
  *
  * A returned function is treated as cleanup and runs before the next pass.
  *
- * **This can loop.** An effect that unconditionally writes state it also reads will recurse until
- * the stack gives out — the same hazard Solid and Preact carry, and the reason `useEffect` is the
- * safer default. Guard the write, or use `useEffect`.
+ * **This can loop.** An effect that unconditionally writes state it also reads will recurse — the
+ * same hazard Solid and Preact carry, and the reason `useEffect` is the safer default. Guard the
+ * write, or use `useEffect`. In development the recursion is stopped and named at depth 50 rather
+ * than allowed to run to a stack overflow, which reports the trap and not the cause; production
+ * carries neither the counter nor the check.
  *
  * @param callback Callback to run on every change
  * @param element Element to bind to, when not the current instance
  */
 export const useSyncEffect = (callback: HookCallback, element?: ComponentElement) => {
   let cleanup: void | HookCleanup;
+  /** Dev-only re-entry depth. Unreferenced in production, so the build drops it entirely. */
+  let depth = 0;
 
   createHook({
     callback: <V>(signal?: Signal<V>, init?: boolean) => {
-      cleanup?.();
-      const next = callback(signal, init);
-      swapCleanup(cleanup, next);
-      cleanup = next;
+      if (__DEV__) {
+        if (depth > 50) {
+          console.error(
+            `[vera] useSyncEffect re-entered ${depth} times and was stopped — it is writing state ` +
+              `it also reads.\nThis hook runs synchronously on every change, so an unguarded write ` +
+              `feeds itself. Guard the write (\`if (next !== state.x) state.x = next\`), or use ` +
+              `useEffect, which coalesces.`
+          );
+          return;
+        }
+        depth++;
+      }
+      try {
+        cleanup?.();
+        const next = callback(signal, init);
+        swapCleanup(cleanup, next);
+        cleanup = next;
+      } finally {
+        if (__DEV__) depth--;
+      }
     },
     element,
     priority: 75,
