@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
@@ -23,6 +23,29 @@ const PROD = {
   inserts: 'packages/inserts/dist/vera-inserts.min.js',
   styles: 'packages/styles/dist/vera-styles.min.js',
   autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
+  collections: 'packages/collections/dist/vera-collections.min.js',
+  keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
+  spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
+  tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
+};
+
+/**
+ * The deliberate exception, and the only one: `@verajs/reactivity` builds **on** core's public API
+ * rather than implementing an extension point, so it must import core in every mode instead of
+ * inlining it.
+ *
+ * This is not a preference. `createStore` and `createHook` reach module-level state inside core —
+ * `hooksQueue`, `proxyCallbacks` — so a bundle carrying its own copy would push onto a *different*
+ * hook queue and register into a *different* callback map. Every computed would evaluate once and
+ * then never invalidate again: no error, no warning, and only in a production build. That is the
+ * exact failure `@verajs/styles` shipped once already.
+ *
+ * `alwaysExternal` in `packages/reactivity/rollup.config.js` is what holds it, and until this test
+ * existed nothing checked that it was still there.
+ */
+const EXTERNAL_CORE = {
+  reactivity: 'packages/reactivity/dist/vera-reactivity.min.js',
+  computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',
 };
 
 // ── cross-bundle contracts ──────────────────────────────────────────────────
@@ -118,6 +141,37 @@ test('production bundles are standalone — no bare workspace imports', () => {
       `${name}: production must inline workspace deps, not import them`
     );
   }
+});
+
+test('@verajs/reactivity imports core in production rather than inlining it', () => {
+  for (const [name, path] of Object.entries(EXTERNAL_CORE)) {
+    assert.match(
+      read(path),
+      /from\s*["']@verajs\/core["']/,
+      `${name}: must import core — a second copy means a second hooksQueue, and computeds that ` +
+        `evaluate once and never invalidate, silently and in production only`
+    );
+  }
+});
+
+/**
+ * Everything that is not that exception is standalone, and the two lists have to stay exhaustive or
+ * a new package quietly inherits neither rule — which is how a build-config mistake would ship.
+ *
+ * Private packages are skipped: `shared-utils` and `shared-types` are inlined into every build and
+ * never published, so what their own bundle imports is nobody's contract.
+ */
+test('every published bundle is covered by one rule or the other', () => {
+  const covered = new Set([...Object.values(PROD), ...Object.values(EXTERNAL_CORE)]);
+  const missing = [];
+  for (const pkg of readdirSync('packages')) {
+    const dir = `packages/${pkg}/dist`;
+    if (!existsSync(dir)) continue;
+    if (JSON.parse(readFileSync(`packages/${pkg}/package.json`, 'utf8')).private) continue;
+    for (const file of readdirSync(dir))
+      if (file.endsWith('.min.js') && !covered.has(`${dir}/${file}`)) missing.push(`${dir}/${file}`);
+  }
+  assert.deepEqual(missing, [], `production bundles checked by neither rule:\n  ${missing.join('\n  ')}`);
 });
 
 test('development bundles keep workspace deps external', () => {
