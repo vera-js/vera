@@ -19,8 +19,8 @@ globalThis.window = window;
 globalThis.document = window.document;
 globalThis.requestAnimationFrame = () => {};
 
-const { initRouter, navigate, insert } = await load('router');
-insert('render', (template, view) => { view.textContent = String(template); }, 50);
+const { initRouter, navigate, setRouterRenderer } = await load('router');
+setRouterRenderer((template, view) => { view.textContent = String(template); });
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = '') => (cond ? pass++ : (fail++, console.log('FAIL:', name, extra)));

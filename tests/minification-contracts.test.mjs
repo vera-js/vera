@@ -61,7 +61,11 @@ test('the insert chain priority contract `_p` survives everywhere it is inlined'
    * `@verajs/inserts`. Mangling it in one bundle and not another makes priorities silently ignored
    * and same-priority registration duplicate instead of replace.
    */
-  for (const name of ['inserts', 'core', 'router']) {
+  /**
+   * The router is deliberately absent: it carries no registry, so there is no `_p` in its bundle to
+   * mangle. That is the point of it importing nothing — the contract stopped being cross-bundle.
+   */
+  for (const name of ['inserts', 'core']) {
     assert.ok(read(PROD[name]).includes('_p'), `${name}: _p must not be mangled`);
   }
 });

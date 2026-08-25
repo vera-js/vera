@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { initRouter, setRenderer } from '../../packages/router/dist/development/vera-router.js';
+import { initRouter, setRouterRenderer } from '../../packages/router/dist/development/vera-router.js';
 
 /**
  * `focusView` — focus moves into the newly routed view on user navigation.
@@ -13,7 +13,7 @@ import { initRouter, setRenderer } from '../../packages/router/dist/development/
  * focusable, a disabled control that refuses focus. Same assertions, real engine.
  */
 
-setRenderer((template, container) => {
+setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 

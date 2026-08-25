@@ -21,9 +21,9 @@ globalThis.window = window;
 globalThis.document = window.document;
 globalThis.requestAnimationFrame = () => {};
 
-const { initRouter, navigate, resolve, back, forward, go, insert } = await load('router');
+const { initRouter, navigate, resolve, back, forward, go, setRouterRenderer } = await load('router');
 /** Writes real markup, so a parent's nested outlet exists for its child to render into. */
-insert('render', (template, view) => { view.innerHTML = typeof template === 'string' ? template : ''; }, 50);
+setRouterRenderer((template, view) => { view.innerHTML = typeof template === 'string' ? template : ''; });
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = '') => (cond ? pass++ : (fail++, console.log('FAIL:', name, extra)));
@@ -237,7 +237,12 @@ const app = (routes, options = {}) => {
   element.innerHTML = '<main view="public"></main><aside view="admin">SECRET</aside>';
   window.document.body.appendChild(element);
   const painted = [];
-  insert('render', (template, view) => painted.push(view.getAttribute('view')), 40);
+  /**
+   * One renderer that records, rather than an observer registered alongside the real one. The
+   * standalone `setRouterRenderer` replaces rather than appends — matching core's `setRenderer`,
+   * where the same priority replaces — so stacking two is a job for the registry path.
+   */
+  setRouterRenderer((template, view) => painted.push(view.getAttribute('view')));
   const router = initRouter(element, { view: 'public', focusView: false, handleInitial: false });
   router.addRoutes([{ path: '/v/:name', view: (params) => params.name, component: () => 'ATTACKER' }]);
 
@@ -259,6 +264,9 @@ const app = (routes, options = {}) => {
     element.querySelector('[view="admin"]').textContent === 'SECRET');
   router.deleteRouter();
 }
+
+/** The security block above swapped the renderer for a recorder; put the real one back. */
+setRouterRenderer((template, view) => { view.innerHTML = typeof template === 'string' ? template : ''; });
 
 // ── history helpers ───────────────────────────────────────────────────────────────────────────
 check('back, forward and go are exported', [back, forward, go].every((f) => typeof f === 'function'));

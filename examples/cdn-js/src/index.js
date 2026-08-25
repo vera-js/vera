@@ -3,27 +3,26 @@
  *
  * Identical in shape to `examples/npm-ts/src/index.ts`, with two differences that matter:
  *
- *   1. `connectInserts` is load-bearing here, not ceremonial. Each standalone bundle inlines its
- *      own copy of `@verajs/inserts`, so `@verajs/core` and `@verajs/router` arrive carrying two
- *      separate registries. This call points the router at core's. Under a bundler both resolve
- *      to one instance and the call does nothing.
+ *   1. `connectRouter` reads identically here and under a bundler. The router imports no registry
+ *      at all, so there is no second one to reconcile — this hands it core's, in every build. It
+ *      replaced `connectInserts`, which was load-bearing in this file and ceremonial in the npm
+ *      one, and which nothing but this asymmetry required.
  *
  *   2. The autoloader keeps its default `.js` extension, because these files really are `.js`.
  */
-import { setHtml, setRenderer, setAutoloader, inserts, insert } from '@verajs/core';
+import { setHtml, setRenderer, setAutoloader, insert } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
-import { connectInserts } from '@verajs/router';
+import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
 import { computedValues } from './inserts/computed.js';
 
-connectInserts(inserts);
-
 /**
- * A worked example of extending Vera through the insert system: computed values as a ten-line
- * `'proxy-handler'` insert (see src/inserts/computed.js). Priority is required — chains are
- * priority-ordered.
+ * Everything this app wires, in one call, from data rather than side effects — a **connector** for
+ * a package that imports nothing, and a **descriptor** for a handler written right here. Computed
+ * values as a ten-line `'proxy-handler'` insert are the worked example (see
+ * src/inserts/computed.js); priority is required, because chains are priority-ordered.
  */
-insert('proxy-handler', computedValues, 40);
+insert([connectRouter, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
 
 
 /**

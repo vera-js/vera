@@ -1,10 +1,36 @@
-import { inserts } from '@verajs/inserts';
 import { MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
+/** Type-only: erased at build, so this package still imports nothing at runtime. */
+import type { Inserts } from '@verajs/inserts';
 
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
 import { stripTrailingSlash } from '@verajs/shared-utils';
 import { Renderer } from '@verajs/shared-types';
+
+/**
+ * How this package finds a renderer, and the reason it now imports nothing.
+ *
+ * Reading a shared registry meant carrying `@verajs/inserts`, and a production bundle inlines it —
+ * so a CDN page had one registry here and another in core, an app registered into whichever one it
+ * happened to import, and the mismatch was silent. `connectInserts` exists to repair exactly that.
+ *
+ * Nothing is imported now. Either the app hands this package the registry — `connectRouter`, which
+ * `insert([…])` applies — or it hands `initRouter` a renderer directly, which is what lets the
+ * router run with no core at all.
+ */
+let registry: Inserts | null = null;
+let direct: Renderer[] = [];
+const renderers = () => (registry ? ((registry.get('render') as Renderer[] | undefined) ?? direct) : direct);
+
+/** A connector: `insert([domRender, connectRouter])` wires this package to the app's registry. */
+export const connectRouter = (given: Inserts) => {
+  registry = given;
+};
+
+/** The no-core path: hand the router its renderer and it needs no registry at all. */
+export const setRouterRenderer = (renderer: Renderer) => {
+  direct = [renderer];
+};
 
 /**
  * Aliases
@@ -416,8 +442,8 @@ const routeChange = async (
     const template = await link.component?.(params, currentRoute, previousRoute);
     /** The last checkpoint before anything is painted: a superseded pass renders nothing. */
     if (id !== navigationId) return false;
-    inserts.get('render')?.forEach((callback) => {
-      (callback as Renderer)?.(template, levelView);
+    renderers().forEach((callback) => {
+      callback?.(template, levelView);
     });
 
     /** The next level down looks inside what this one just rendered. */

@@ -7,17 +7,17 @@
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, setRenderer, setAutoloader, inserts } from '@verajs/core';
+import { setHtml, setRenderer, setAutoloader, insert } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
-import { connectInserts } from '@verajs/router';
+import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
 
 /**
- * The router ships as an independent module, so under a bundler it shares this one `inserts`
- * registry with core. Calling `connectInserts` is a no-op here and is kept to mirror the CDN
- * example, where the two modules genuinely do carry separate registries.
+ * The router imports no registry of its own, so this hands it core's — the same line, and the same
+ * meaning, as in the CDN example. It used to be `connectInserts`, which was a no-op here and
+ * load-bearing there; that asymmetry is gone.
  */
-connectInserts(inserts);
+insert([connectRouter]);
 
 
 /**

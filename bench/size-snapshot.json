@@ -1,18 +1,18 @@
 {
-  "taken": "2026-08-24",
+  "taken": "2026-08-25",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6720,
-      "gzip": 2816
+      "raw": 6863,
+      "gzip": 2883
     },
     "renderer": {
       "raw": 9733,
       "gzip": 3819
     },
     "router": {
-      "raw": 8298,
-      "gzip": 3600
+      "raw": 7919,
+      "gzip": 3443
     },
     "autoloader": {
       "raw": 1917,
@@ -35,8 +35,8 @@
       "gzip": 241
     },
     "inserts": {
-      "raw": 532,
-      "gzip": 363
+      "raw": 675,
+      "gzip": 442
     }
   },
   "apps": [
@@ -67,8 +67,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12594,
-      "gzip": 5376,
+      "raw": 12742,
+      "gzip": 5430,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -93,21 +93,21 @@
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 14786,
-      "gzip": 6023,
-      "deps": 1,
-      "depsThirdParty": 0,
-      "depsThirdPartyNames": [],
-      "depsUnresolved": 0
-    },
-    {
       "name": "Preact + signals",
       "note": "preact + @preact/signals-core",
       "raw": 15156,
       "gzip": 6031,
       "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
+    },
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 14934,
+      "gzip": 6082,
+      "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0

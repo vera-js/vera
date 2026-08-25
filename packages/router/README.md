@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.52 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.36 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,

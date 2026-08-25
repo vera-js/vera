@@ -24,7 +24,55 @@ type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
  * with 50 holes — and every chain is walked on the hot path, so iterating those holes cost
  * roughly 238 ns per store read, more than doubling it.
  */
-export const insert = <K extends keyof InsertFunctionMap>(
+/**
+ * Everything an app can hand to {@link registerAll}: a **descriptor** naming the chain it belongs
+ * in, or a **connector** — a function handed the registry, which is how a package that imports
+ * nothing gets wired to it.
+ */
+export type InsertDescriptor = {
+  on: keyof InsertFunctionMap;
+  fn: InsertFunctionMap[keyof InsertFunctionMap];
+  priority: number;
+};
+export type Connector = (registry: Inserts) => void;
+export type Registerable = InsertDescriptor | Connector;
+
+/**
+ * One call listing everything an app wires, in one place, from data rather than side effects.
+ *
+ * ```js
+ * insert([domRender, router, { on: 'init', fn: adoptStyles, priority: 50 }, myOwnThing]);
+ * ```
+ *
+ * A **connector** is a function: it receives the registry and decides what to do with it, which is
+ * how `@verajs/router` reaches the `'render'` chain while importing nothing. A **descriptor** is an
+ * object naming its chain. Packages export one or the other and never register themselves, so there
+ * is no second registry to land in by mistake — the failure `connectInserts` exists to repair.
+ */
+export function insert(items: Registerable[]): void;
+export function insert<K extends keyof InsertFunctionMap>(
+  insertName: K,
+  callback: InsertFunctionMap[K],
+  priority: number
+): void;
+export function insert<K extends keyof InsertFunctionMap>(
+  insertName: K | Registerable[],
+  callback?: InsertFunctionMap[K],
+  priority?: number
+) {
+  /** The list form: everything an app wires, in one place, from data rather than side effects. */
+  if (Array.isArray(insertName)) {
+    for (let i = 0; i < insertName.length; i++) {
+      const item = insertName[i];
+      if (typeof item === 'function') item(inserts);
+      else register(item.on, item.fn, item.priority);
+    }
+    return;
+  }
+  register(insertName, callback!, priority!);
+}
+
+const register = <K extends keyof InsertFunctionMap>(
   insertName: K,
   callback: InsertFunctionMap[K],
   priority: number

@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { initRouter, navigate, setRenderer } from '../../packages/router/dist/development/vera-router.js';
+import { initRouter, navigate, setRouterRenderer } from '../../packages/router/dist/development/vera-router.js';
 
 /**
  * Fragment navigation, in a real engine.
@@ -14,7 +14,7 @@ import { initRouter, navigate, setRenderer } from '../../packages/router/dist/de
  * `popstate` focuses every routed view, an in-page link stole focus.
  */
 
-setRenderer((template, container) => {
+setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 

@@ -14,8 +14,8 @@ measured in [size.md](size.md):
 | Framework | third-party deps | what they are |
 | --- | ---: | --- |
 | Van.js | 0 | — |
-| **VeraJS + own renderer** | **0** | — |
 | Preact + signals | 0 | — |
+| **VeraJS + own renderer** | **0** | — |
 | petite-vue | 0 | — |
 | **VeraJS + lit-html** | **1** | `@types/trusted-types` |
 | React | 1 | `scheduler` |

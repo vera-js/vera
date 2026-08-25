@@ -20,15 +20,15 @@ const router = await load('router');
 const { initRouter, navigate } = router;
 
 /**
- * The router hands a component's return value to the `'render'` insert chain — it does not touch
- * the DOM itself. With nothing registered the view stays empty and `focusView` has no first child
- * to focus.
+ * The router hands a component's return value to a renderer — it does not touch the DOM itself.
+ * With none set the view stays empty and `focusView` has no first child to focus.
  *
- * Registered through `router.setRenderer`, NOT through a separately loaded `@verajs/inserts`:
- * those are different registry objects, so registering on the standalone copy writes to a map the
- * router never reads. Verified — it silently did nothing until this was corrected.
+ * Handed straight to the router. This used to read "register through `router.setRenderer`, NOT
+ * through a separately loaded `@verajs/inserts`, because those are different registry objects and
+ * the standalone copy writes to a map the router never reads" — a hazard that was verified, silent,
+ * and is now impossible: the router imports no registry, so there is no wrong one to pick.
  */
-router.setRenderer((template, container) => {
+router.setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 

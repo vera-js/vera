@@ -10,6 +10,7 @@
  * development and silently does nothing in production, which is the worst way for this to fail.
  */
 import { insert, setRenderer, setAutoloader } from '@verajs/core';
+import { connectRouter } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
 import { initAutoloader } from '@verajs/autoloader';
 import { installSinkInserts } from './components/sink-inserts.js';
@@ -20,8 +21,17 @@ import { installSinkInserts } from './components/sink-inserts.js';
  */
 export const wire = (renderer) => {
   if (renderer) setRenderer(/** @type {never} */ (renderer));
-  /** `static styles` left core in 0.2.0; a component using it renders unstyled without this. */
-  insert('init', adoptStyles, 50);
+  insert([
+    /**
+     * The router imports no registry of its own, so it has to be handed this one. It used to share
+     * core's by accident — under the `development` condition both resolve to a single
+     * `@verajs/inserts`, so nothing was wired and everything worked, until a production build gave
+     * them one registry each and the routes silently stopped rendering.
+     */
+    connectRouter,
+    /** `static styles` left core in 0.2.0; a component using it renders unstyled without this. */
+    { on: 'init', fn: adoptStyles, priority: 50 },
+  ]);
   installSinkInserts();
 };
 
