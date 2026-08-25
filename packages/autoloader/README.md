@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1.05 KB<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1.07 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -42,7 +42,7 @@ omitting `componentsDir` puts components beside the entry file.
 | `autoload()` | scan the page for `[autoloader]` hosts and watch them |
 | `autoload(element)` | watch that component |
 | `autoload(shadowRoot)` | watch that root — no attribute needed, handing it over is the opt-in |
-| `autoload.url(tag)` | the absolute URL it would fetch |
+| `autoload.url(tag)` | the absolute URL it would fetch — **throws** if it would resolve outside `rootDir` |
 | `autoload.retry(element)` | forget that this element's tag failed, and try again |
 
 The instance is **also its own `wire` descriptor** — it carries `on: 'render'` at priority 75, so
@@ -126,6 +126,12 @@ module URL is exactly the thing that needs bounding.
 
 A custom `resolve` is checked the same way. `rootDir` is your own code and is trusted; everything
 derived from the DOM is not.
+
+The check lives in `url()`, which is the one place a URL is built — so it holds for the loader and
+for **you**. `autoload.url(tag, element)` throws rather than returning something the loader would
+refuse: it is documented for preloading, and a `<link rel="modulepreload">` pointed at another
+origin is the exact fetch this module declines to make. Discovery catches the throw, reports it once
+and moves on, so a hostile attribute costs a console line rather than a broken page.
 
 ## One attempt per URL, one module per tag
 

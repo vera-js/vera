@@ -129,7 +129,26 @@ export const autoloader = (
      * refused every component it was asked for. `autoload-dir="/"` did the same.
      */
     const dir = (element?.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
-    return new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
+    const href = new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
+    /**
+     * **Containment belongs here, not only at the fetch.**
+     *
+     * `autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
+     * elsewhere — a CMS, a sanitizer that keeps attributes, a template someone else fills — it is
+     * an input. `autoload-dir="//evil.test"` resolves to a different **origin** entirely, and
+     * `..` walks out of the app.
+     *
+     * `load` always checked. This function is public and documented for preloading — warming a URL
+     * with `<link rel="modulepreload">` is its whole reason to exist — so returning a URL the loader
+     * would refuse handed the caller the fetch this module declines to make. One check, at the one
+     * place URLs are built, also covers a custom `resolve` returning something unbounded.
+     *
+     * `base` is `new URL('.', rootDir)`, which always ends in `/`, so the prefix test cannot be
+     * satisfied by a sibling directory whose name merely starts the same way.
+     */
+    if (!href.startsWith(base))
+      throw new Error(`autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
+    return href;
   };
 
   /**
@@ -140,14 +159,20 @@ export const autoloader = (
    */
   const load = async (element: Element, tag: string): Promise<void> => {
     if (requested.has(tag)) return;
-    const src = url(tag, element);
-    if (attempted.has(src)) return;
-    attempted.add(src);
-
-    if (!src.startsWith(base)) {
-      console.error(`autoloader: refused ${src} for <${tag}> — resolves outside ${base}`);
+    let src;
+    try {
+      src = url(tag, element);
+    } catch (error) {
+      /**
+       * Marked requested so the refusal is reported once rather than on every scan — the same
+       * dedupe the fetch path gets from `attempted`, and `retry(element)` clears it either way.
+       */
+      requested.add(tag);
+      console.error((error as Error).message);
       return;
     }
+    if (attempted.has(src)) return;
+    attempted.add(src);
     requested.add(tag);
     failed.set(tag, src);
 
