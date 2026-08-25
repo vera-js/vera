@@ -5,10 +5,10 @@
 
 Two failures that only appear when a real app's wiring meets the server.
 
-**A displaced server renderer is reported instead of rendering everything empty.** `setRenderer`
+**A displaced server renderer is reported instead of rendering everything empty.** A DOM renderer
 registers on `'render'` at priority 50, and registering at a taken priority replaces — so an app
-entry doing the ordinary thing, `setRenderer(renderer)`, displaced the server renderer the moment
-that module was imported server-side. Every component then rendered as
+entry doing the ordinary thing, `wire([renderer])`, displaced the server renderer the moment that
+module was imported server-side. Every component then rendered as
 `<my-el><template shadowrootmode="open"></template></my-el>`: empty, with no error and nothing in the
 output to suggest why. `renderToString` now checks its renderer is still in the chain and says what
 happened.

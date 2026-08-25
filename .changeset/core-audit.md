@@ -21,7 +21,7 @@ remain available from `@verajs/core`; only the value is gone, and TypeScript rep
 precisely rather than failing at runtime.
 
 This is the breaking part, hence minor. Only `@verajs/core` and `@verajs/router` carry a registry at
-all, and the router still exports the function, so `connectInserts(inserts)` — the documented CDN
-wiring — is unchanged.
+all — and by the time this releases neither does: the router is handed core's through
+`wire([router])`, and `connectInserts` is gone with the concept.
 
 Net effect on core: 2 577 B to 2 585 B, +8 B for two exported tags and a smaller insert surface.

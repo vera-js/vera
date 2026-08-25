@@ -6,7 +6,7 @@ One function, three shapes, two helpers — and 184 B lighter than the version t
 
 ```js
 const autoload = autoloader(import.meta.url, 'components');
-setAutoloader(autoload);        // watch every component as it renders
+wire(autoload);                 // watch every component as it renders
 autoload();                     // scan whatever is already on the page
 autoload(widget.shadowRoot);    // watch a root nothing marked
 autoload.url('user-card');      // the URL it would fetch
