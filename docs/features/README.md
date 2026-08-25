@@ -16,7 +16,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 | | Claim | Strength |
 | --- | --- | --- |
-| [Size](size.md) | <!--size:app.kb-->6.1 KB<!--/size:app.kb--> for a working app — level with Lit, under Preact, 10x under React | **Strong** — measured |
+| [Size](size.md) | <!--size:app.kb-->6.0 KB<!--/size:app.kb--> for a working app — level with Lit, under Preact, 10x under React | **Strong** — measured |
 | [Zero dependencies](zero-dependencies.md) | No third-party runtime deps in any of the seven packages | **Strong** — measured, but shared |
 | [Buildless](buildless.md) | Works in CodePen with no toolchain at all | **Strong** — architectural |
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
@@ -27,7 +27,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 
 ## The one-line pitch
 
-> A <!--size:app.kb-->6.1 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no
+> A <!--size:app.kb-->6.0 KB<!--/size:app.kb--> reactive framework on native web components. No build step, no base class, no
 > dependencies, no dependency arrays — and the only one that gives you batched *and* per-change
 > effects.
 
@@ -41,7 +41,7 @@ Being wrong once in public costs more than every correct claim gains.
   update ceiling is Vue/React-class. See [performance.md](performance.md).
 - **Not core's standalone size.** Core ships no renderer, so `@verajs/core` on its own cannot put
   anything on screen. The only honest app number is core **plus** a renderer:
-  <!--size:app.kb-->6.1 KB<!--/size:app.kb-->.
+  <!--size:app.kb-->6.0 KB<!--/size:app.kb-->.
 - **Not "production ready".** One maintainer, pre-1.0, and the browser test layer is still
   pending (the node+jsdom suite and CI are real). Say "early" plainly.
 - **Not "the only zero-dependency framework".** Van.js, petite-vue and Preact + signals ship zero

@@ -791,35 +791,20 @@ class TextPart implements Part {
 export type ChildDirective = (part: { _$commit$(value: unknown): void }, previous: unknown) => unknown;
 
 /**
- * What a value handler is handed, so it never reaches into a part.
- *
- * The shape `'proxy-handler'` already uses: core passes its own internals as arguments —
- * `addCallback`, `runCallbacks` — rather than exposing them as members. Nothing here appears on
- * `ChildPart` as public API, the object is a module-level singleton so a dispatch allocates
- * nothing, and the property names do not match this package's `/^_[a-z]/` mangling pattern.
- *
- * `part` is opaque to a handler: it takes it and hands it back.
- */
-export type ValueOps = {
-  items(part: object): Item[];
-  claim(part: object): void;
-  parent(part: object): Node;
-  before(part: object): Node | null;
-  create(part: object, value: unknown, parent: Node, ref: Node | null): Item;
-  update(part: object, item: Item, value: unknown): void;
-  flush(part: object, fragment: DocumentFragment): void;
-  clear(part: object): void;
-  commit(part: object, value: unknown): void;
-};
-
-/**
  * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
+ *
+ * A handler will also be handed the **operations** it needs to do its job — the shape
+ * `'proxy-handler'` uses, where core passes `addCallback` and `runCallbacks` rather than exposing
+ * them as members. That object is deliberately *not* here yet: an earlier draft guessed nine
+ * methods, nothing used them, they cost 90 B of anticipation, and porting the list algorithm then
+ * showed it needs closer to fourteen — including item accessors the guess had no idea about. It
+ * gets built in the step that has a caller to shape it.
  *
  * This is how a value *kind* becomes a package rather than a branch: lists, an async value, a
  * portal, a virtualizer. The built-ins below register through it too, so a third party's kind is
  * not second-class to one that shipped in the box.
  */
-export type ValueHandler = (part: object, value: unknown, ops: ValueOps) => boolean | void;
+export type ValueHandler = (part: object, value: unknown) => boolean | void;
 
 /**
  * The registry this renderer reads `'value'` handlers from, handed over by {@link domRender}.
@@ -1019,8 +1004,8 @@ class ChildPart implements Part {
       return;
     }
     const handlers = valueHandlers();
-    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value, ops)) return;
-    for (let i = 0; i < builtIns.length; i++) if (builtIns[i](this, value, ops)) return;
+    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
+    for (let i = 0; i < builtIns.length; i++) if (builtIns[i](this, value)) return;
 
     /**
      * **A child-position value that applies itself.** The same idea as `_$apply$` at element
@@ -1389,29 +1374,6 @@ export {
 /** @internal */
 export type { Part, Item, TemplatePart };
 
-
-/**
- * The ops, implemented once against the part's internals — which stay private, because a handler
- * never sees them.
- */
-export const ops: ValueOps = {
-  items: (part) => ((part as ChildPart)._items ??= []),
-  claim: (part) => {
-    const p = part as ChildPart;
-    if (p._mode !== LIST) {
-      if (p._mode !== EMPTY) p._clear();
-      p._items = [];
-      p._mode = LIST;
-    }
-  },
-  parent: (part) => (part as ChildPart)._start.parentNode!,
-  before: (part) => (part as ChildPart)._end,
-  create: (part, value, parent, ref) => (part as ChildPart)._createItem(value, parent, ref),
-  update: (part, item, value) => (part as ChildPart)._updateItem(item, value),
-  flush: (part, fragment) => (part as ChildPart)._insert(fragment),
-  clear: (part) => (part as ChildPart)._clear(),
-  commit: (part, value) => (part as ChildPart)._set(value),
-};
 
 /**
  * Lists, as a registered kind rather than a branch — the built-in going through the same door a
