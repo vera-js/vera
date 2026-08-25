@@ -7,8 +7,8 @@
       "gzip": 2876
     },
     "renderer": {
-      "raw": 9733,
-      "gzip": 3819
+      "raw": 10065,
+      "gzip": 3961
     },
     "router": {
       "raw": 7919,
@@ -93,21 +93,21 @@
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 14790,
-      "gzip": 6024,
-      "deps": 1,
-      "depsThirdParty": 0,
-      "depsThirdPartyNames": [],
-      "depsUnresolved": 0
-    },
-    {
       "name": "Preact + signals",
       "note": "preact + @preact/signals-core",
       "raw": 15156,
       "gzip": 6031,
       "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
+    },
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 15124,
+      "gzip": 6161,
+      "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0

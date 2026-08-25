@@ -790,6 +790,44 @@ class TextPart implements Part {
  */
 export type ChildDirective = (part: { _$commit$(value: unknown): void }, previous: unknown) => unknown;
 
+/**
+ * What a value handler is handed, so it never reaches into a part.
+ *
+ * The shape `'proxy-handler'` already uses: core passes its own internals as arguments —
+ * `addCallback`, `runCallbacks` — rather than exposing them as members. Nothing here appears on
+ * `ChildPart` as public API, the object is a module-level singleton so a dispatch allocates
+ * nothing, and the property names do not match this package's `/^_[a-z]/` mangling pattern.
+ *
+ * `part` is opaque to a handler: it takes it and hands it back.
+ */
+export type ValueOps = {
+  items(part: object): Item[];
+  claim(part: object): void;
+  parent(part: object): Node;
+  before(part: object): Node | null;
+  create(part: object, value: unknown, parent: Node, ref: Node | null): Item;
+  update(part: object, item: Item, value: unknown): void;
+  flush(part: object, fragment: DocumentFragment): void;
+  clear(part: object): void;
+  commit(part: object, value: unknown): void;
+};
+
+/**
+ * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
+ *
+ * This is how a value *kind* becomes a package rather than a branch: lists, an async value, a
+ * portal, a virtualizer. The built-ins below register through it too, so a third party's kind is
+ * not second-class to one that shipped in the box.
+ */
+export type ValueHandler = (part: object, value: unknown, ops: ValueOps) => boolean | void;
+
+const valueHandlers: ValueHandler[] = [];
+
+/** Registers a value handler. `@verajs/renderer/lists` is the first caller that is not this file. */
+export const handle = (handler: ValueHandler) => {
+  valueHandlers.push(handler);
+};
+
 /** What a ChildPart currently contains. */
 const EMPTY = 0;
 const TEXT = 1;
@@ -967,6 +1005,8 @@ class ChildPart implements Part {
       this._mode = TEMPLATE;
       return;
     }
+    for (let i = 0; i < valueHandlers.length; i++) if (valueHandlers[i](this, value, ops)) return;
+
     /**
      * **A child-position value that applies itself.** The same idea as `_$apply$` at element
      * position — which is how `@verajs/renderer/spread` ships as a separate package the renderer
@@ -1009,14 +1049,6 @@ class ChildPart implements Part {
         this._value = value;
         this._mode = NODE;
       }
-      return;
-    }
-    if (Array.isArray(value)) {
-      this._commitList(value);
-      return;
-    }
-    if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
-      this._commitList([...(value as Iterable<unknown>)]);
       return;
     }
     // any other object: render as text
@@ -1341,3 +1373,44 @@ export {
 };
 /** @internal */
 export type { Part, Item, TemplatePart };
+
+
+/**
+ * The ops, implemented once against the part's internals — which stay private, because a handler
+ * never sees them.
+ */
+const ops: ValueOps = {
+  items: (part) => ((part as ChildPart)._items ??= []),
+  claim: (part) => {
+    const p = part as ChildPart;
+    if (p._mode !== LIST) {
+      if (p._mode !== EMPTY) p._clear();
+      p._items = [];
+      p._mode = LIST;
+    }
+  },
+  parent: (part) => (part as ChildPart)._start.parentNode!,
+  before: (part) => (part as ChildPart)._end,
+  create: (part, value, parent, ref) => (part as ChildPart)._createItem(value, parent, ref),
+  update: (part, item, value) => (part as ChildPart)._updateItem(item, value),
+  flush: (part, fragment) => (part as ChildPart)._insert(fragment),
+  clear: (part) => (part as ChildPart)._clear(),
+  commit: (part, value) => (part as ChildPart)._set(value),
+};
+
+/**
+ * Lists, registered rather than branched — the built-in kind going through the same door a package
+ * would. It moves to `@verajs/renderer/lists` unchanged; this registration is what that package
+ * will do instead.
+ */
+handle((part, value) => {
+  if (Array.isArray(value)) {
+    (part as ChildPart)._commitList(value);
+    return true;
+  }
+  if (value !== null && typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
+    (part as ChildPart)._commitList([...(value as Iterable<unknown>)]);
+    return true;
+  }
+  return false;
+});
