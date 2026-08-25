@@ -5,10 +5,10 @@ roots, and `@scope`-wrapped hoisting for light DOM.
 
 <!-- recipe -->
 ```js
-import { insert } from '@verajs/core';
+import { wire } from '@verajs/core';
 import { adoptStyles } from '@verajs/styles';
 
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 ```
 
 Once, at your app entry, next to `setRenderer`. Every component `init()` adopts its `static styles`
@@ -50,12 +50,12 @@ shadow boundary:
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, css, html, insert } from '@verajs/core';
+import { init, createStore, render, setRenderer, css, html, wire } from '@verajs/core';
 import { render as domRender } from '@verajs/renderer';
 import { adoptStyles } from '@verajs/styles';
 
 setRenderer(domRender);
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 customElements.define(
   'x-tinted',

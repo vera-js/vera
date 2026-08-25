@@ -1,13 +1,13 @@
 # @verajs/inserts
 
-The VeraJS extension registry (<!--size:inserts.gzip-->442 B<!--/size:inserts.gzip--> gzip). Every
+The VeraJS extension registry (<!--size:inserts.gzip-->439 B<!--/size:inserts.gzip--> gzip). Every
 capability that attaches to VeraJS — renderers, autoloaders, styling, error boundaries, batching —
 attaches through here. It is the module system's backbone rather than a feature.
 
 You rarely install this directly: `@verajs/core` and `@verajs/router` re-export what you need.
 
 ```js
-import { insert } from '@verajs/core';
+import { wire } from '@verajs/core';
 ```
 
 Everything VeraJS does beyond state and templates is registered here, on the same five points and
@@ -24,10 +24,10 @@ silently does nothing in production.
 ## Registering
 
 ```js
-insert('error', (error, element) => report(error, element), 40);
+wire({ on: 'error', fn: (error, element) => report(error, element), priority: 40 });
 ```
 
-`insert(name, callback, priority)` — **priority is required.** Lower runs first. Registering at a
+`wire({ on: name, fn: callback, priority: priority })` — **priority is required.** Lower runs first. Registering at a
 priority that is already taken **replaces** that entry, which is how `setRenderer` swaps renderers.
 Chains are stored dense and priority-sorted rather than indexed by priority: indexing left holes
 (a renderer at 50 produced a 51-element array with 50 of them) and every chain is walked on the hot

@@ -65,7 +65,7 @@ customElements.define('click-counter', ClickCounter);
 ## Setup — required once, before any component defines itself
 
 ```js
-import { setHtml, setRenderer, setAutoloader, inserts, insert } from '@verajs/core';
+import { setHtml, setRenderer, setAutoloader, inserts, wire } from '@verajs/core';
 import { html, render as litRender } from 'lit-html';
 
 setHtml(html);          // the template tag
@@ -224,7 +224,7 @@ exists, before its first render; this is how `@verajs/styles` attaches), `'proxy
 `undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
 suppress default propagation), `'error'` (a hook threw).
 
-⚠️ `insert('proxy-handler', () => count++, 30)` returns a number, so **every read of every store
+⚠️ `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` returns a number, so **every read of every store
 yields that number** instead of the value. Write observers with a block body — `() => { count++; }`.
 
 ---
@@ -243,9 +243,9 @@ import { render, keyed } from '@verajs/renderer';
 paying for it. Wire once at your app entry:
 
 ```js
-import { insert } from '@verajs/core';
+import { wire } from '@verajs/core';
 import { adoptStyles } from '@verajs/styles';
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 ```
 
 Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style vera-styles>` for plain
@@ -744,7 +744,7 @@ Say so rather than inventing an API:
 1. Defining a component before `setHtml`/`setRenderer` → renders via the escaped default:
    content shows but `@event`/`.prop` bindings are dead.
 2. Static `import` for components in the entry file → hoisted, same failure.
-3. `insert(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
+3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
    an **occupied** priority replaces that entry (this is how `setRenderer` swaps renderers).
 4. `createStore` for large lists → use `shallowRef`.
 5. Forgetting `init(this)` before `render` → nothing renders.

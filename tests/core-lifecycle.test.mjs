@@ -22,7 +22,7 @@ const core = await load('core');
  * in the production build and silently do nothing.
  */
 const { adoptStyles } = await load('styles');
-core.insert('init', adoptStyles, 50);
+core.wire({ on: 'init', fn: adoptStyles, priority: 50 });
 const app = window.document.getElementById('app');
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };

@@ -7,7 +7,7 @@
  * The types come back separately: `export type *` costs no runtime code, and the insert callback
  * types are the documented way to write an extension.
  */
-export { insert, inserts, setRenderer, setAutoloader } from '@verajs/inserts';
+export { wire, inserts, setRenderer, setAutoloader } from '@verajs/inserts';
 export type * from '@verajs/inserts';
 export type * from './types.js';
 export { createHook } from './modules/createHook.js';

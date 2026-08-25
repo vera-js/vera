@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, setRenderer, css, html, insert } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, render, setRenderer, css, html, wire } from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
@@ -20,7 +20,7 @@ import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.
  */
 
 setRenderer(domRender);
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 let seq = 0;
 const mount = (el) => { document.body.appendChild(el); return el; };

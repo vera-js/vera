@@ -10,7 +10,7 @@
  * the configuration where that is either true or quietly wrong.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore, insert } from '../../packages/core/dist/development/vera.js';
+import { setRenderer, init, render, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { initRouter, navigate, connectRouter } from '../../packages/router/dist/development/vera-router.js';
 
@@ -24,8 +24,8 @@ const caught = [];
  * The router imports no registry, so it has to be handed core's. It used to share it by accident —
  * under the development condition both resolve to one `@verajs/inserts`.
  */
-insert([connectRouter]);
-insert('error', (error) => caught.push(String(error?.message ?? error)), 20);
+wire([connectRouter]);
+wire({ on: 'error', fn: (error) => caught.push(String(error?.message ?? error)), priority: 20 });
 
 describe('a failing component does not take the page with it', () => {
   it('the page keeps rendering after one component throws in render', async () => {

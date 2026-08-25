@@ -12,7 +12,7 @@ route renders alike. It is the `'render'` insert chain.
 ### Registration
 
 `inserts` is a `Map<insertName, callback[]>`. The callback array is **indexed by priority**, so
-`insert(name, cb, priority)` writes to `array[priority]`:
+`wire({ on: name, fn: cb, priority: priority })` writes to `array[priority]`:
 
 ```js
 export const insert = (insertName, callback, priority) => {
@@ -31,7 +31,7 @@ Two things register into `'render'`:
 (`template.innerHTML = content`). A consumer's `setRenderer(litRender)` overwrites index 50, because
 priorities are array indices rather than an append. There is therefore always exactly one renderer.
 
-> **Priority is required.** `insert(name, cb)` with no priority writes to `array[undefined]`, which
+> **Priority is required.** `wire(name, cb)` with no priority writes to `array[undefined]`, which
 > creates a plain object property rather than an array element — and `forEach` skips it. The insert
 > silently never runs. This is a real footgun.
 

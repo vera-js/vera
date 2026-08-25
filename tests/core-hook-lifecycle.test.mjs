@@ -85,7 +85,7 @@ const mount = (setup) => {
 /* ── one throwing hook must not stop the others ─────────────────────────────────────────────── */
 {
   const reported = [];
-  core.insert('error', (error) => reported.push(error?.message), 25);
+  core.wire({ on: 'error', fn: (error) => reported.push(error?.message), priority: 25 });
   let before = 0, after = 0;
   const el = mount((element) => {
     core.init(element, { mode: 'open' });

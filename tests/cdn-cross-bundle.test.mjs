@@ -7,7 +7,7 @@
  * rule "take `insert` from the package that owns the extension point" existed because picking the
  * wrong copy wrote to a map nobody read — in production only.
  *
- * The router imports no registry now. It is handed one (`connectRouter`, which `insert([…])`
+ * The router imports no registry now. It is handed one (`connectRouter`, which `wire([…])`
  * applies) or handed a renderer directly (`setRouterRenderer`, the no-core path). So there is no
  * second registry to reconcile and no wrong one to pick, and what this file guards is the *absence*
  * of the hazard rather than the repair for it.
@@ -39,10 +39,10 @@ test('the router carries no registry of its own', () => {
 });
 
 test('a connector wires the router to the registry core owns', () => {
-  core.insert([router.connectRouter]);
+  core.wire([router.connectRouter]);
 
   const seen = [];
-  core.insert('render', (template, element) => seen.push(`core@10:${element.id}`), 10);
+  core.wire({ on: 'render', fn: (template, element) => seen.push(`core@10:${element.id}`), priority: 10 });
   core.inserts.get('render').forEach((cb) => cb('', app));
 
   assert.deepEqual(seen, ['core@10:app'], 'one registry, and the router reads it');
@@ -53,11 +53,11 @@ test('a connector wires the router to the registry core owns', () => {
  * package that imports nothing gets wired), a **descriptor** naming its chain, and anything a user
  * writes inline — all in one call, priority-ordered.
  */
-test('insert([…]) takes connectors, descriptors and whatever a user writes', () => {
+test('wire([…]) takes connectors, descriptors and whatever a user writes', () => {
   const order = [];
   let connected = false;
 
-  core.insert([
+  core.wire([
     (registry) => (connected = registry === core.inserts),
     { on: 'init', fn: () => order.push('descriptor@50'), priority: 50 },
     { on: 'init', fn: () => order.push('user@10'), priority: 10 },

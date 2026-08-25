@@ -36,11 +36,11 @@ Returning `false` from a `'set-handler'` suppresses core's default propagation, 
 takes over. That is what makes `batch()` a module rather than core surface:
 
 ```js
-insert('set-handler', (obj, prop, value, prevValue, runCallbacks) => {
+wire({ on: 'set-handler', fn: (obj, prop, value, prevValue, runCallbacks) => {
   if (!batching) return;
   queued.push([obj, prop, value, prevValue, runCallbacks]);
   return false;                     // hold it back; flush later
-}, 50);
+}, priority: 50 });
 ```
 
 Verified: three writes deduped to two propagations.

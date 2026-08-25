@@ -10,7 +10,7 @@
  * against a bare Node global object. A component reaches it through `keyed` or `hold`.
  *
  * Measured: core, `@verajs/styles` and `@verajs/router` are all order-independent; only the
- * renderer is not. Core is still dynamically imported below, because `setRenderer` and `insert`
+ * renderer is not. Core is still dynamically imported below, because `setRenderer` and `wire`
  * have to come from the same instance the components will use.
  *
  * Client takeover is `@verajs/renderer/hydrate`, which adopts this markup in place — markerless,
@@ -41,18 +41,18 @@ import {
 import { serializeTemplate, serializeValue } from './serializer.js';
 
 installShims();
-const { setRenderer, insert, inserts } = await import('@verajs/core');
+const { setRenderer, wire, inserts } = await import('@verajs/core');
 /**
  * `static styles` moved out of core in 0.2.0 (`@verajs/styles`). Server rendering must still
  * serialize them — the markup a browser produces includes the component's styles — and nothing on
  * the server cares about the bytes, so SSR wires the adopter unconditionally rather than making
  * every caller remember to.
  *
- * `insert` comes from core, not from `@verajs/inserts`, so the registration lands in the map core
+ * `wire` comes from core, not from `@verajs/inserts`, so the registration lands in the map core
  * actually reads. Exactly why `setRenderer` above is taken from core too.
  */
 const { adoptStyles } = await import('@verajs/styles');
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 /**
  * Failures during a render are collected, not swallowed.
@@ -65,10 +65,10 @@ insert('init', adoptStyles, 50);
  * it" that the async-`connectedCallback` guard below refuses to allow.
  *
  * Registered at priority 10 rather than the default 50, so an app that installs its own error
- * reporter keeps it: at a taken priority `insert` replaces.
+ * reporter keeps it: at a taken priority `wire` replaces.
  */
 const renderErrors = [];
-insert('error', (error, element) => renderErrors.push({ error, tag: element?.localName }), 10);
+wire({ on: 'error', fn: (error, element) => renderErrors.push({ error, tag: element?.localName }), priority: 10 });
 
 /** The server renderer: template object in, markup into the (shadow) container shim. */
 const serverRenderer = (template, container) => {

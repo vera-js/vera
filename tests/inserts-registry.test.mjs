@@ -16,7 +16,7 @@ globalThis.document = dom.window.document;
 const app = dom.window.document.getElementById('app');
 
 const core = await load('core');
-const { inserts, setRenderer, insert } = core;
+const { inserts, setRenderer, wire } = core;
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', name)); };
@@ -35,8 +35,8 @@ check('the replacement is what runs', called === 10);
 
 // 3. Priority ordering around the renderer slot.
 const seen = [];
-insert('render', () => seen.push(10), 10);
-insert('render', () => seen.push(75), 75);
+wire({ on: 'render', fn: () => seen.push(10), priority: 10 });
+wire({ on: 'render', fn: () => seen.push(75), priority: 75 });
 inserts.get('render').forEach((cb) => cb('', app));
 check('ordering 10 < 50 < 75', seen[0] === 10 && seen[1] === 75 && inserts.get('render').length === 3);
 
@@ -52,8 +52,8 @@ B.connectInserts(A.inserts);
 B.setRenderer(() => {});
 check('cross-copy replace at 50', A.inserts.get('render').length === 1);
 const order = [];
-B.insert('render', () => order.push(75), 75);
-A.insert('render', () => order.push(10), 10);
+B.wire({ on: 'render', fn: () => order.push(75), priority: 75 });
+A.wire({ on: 'render', fn: () => order.push(10), priority: 10 });
 A.inserts.get('render').forEach((cb) => cb('', app));
 check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.inserts.get('render').length === 3);
 
@@ -74,7 +74,7 @@ check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.in
     let threw = 0;
     for (const priority of bad) {
       try {
-        insert('render', () => {}, priority);
+        wire({ on: 'render', fn: () => {}, priority: priority });
       } catch {
         threw++;
       }

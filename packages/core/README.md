@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.82 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->2.81 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -143,7 +143,7 @@ outside core, on the same public surface you have.
 
 | | |
 | --- | --- |
-| `insert(name, callback, priority)` | register on an extension point — **priority is required** |
+| `wire({ on: name, fn: callback, priority: priority })` | register on an extension point — **priority is required** |
 | `inserts` | the registry itself |
 | `createHook({ callback, priority, element? })` | build your own hook type |
 

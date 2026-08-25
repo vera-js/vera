@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, insert } from '../../packages/core/dist/development/vera.js';
+import { setRenderer, init, render, html, wire } from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
@@ -17,7 +17,7 @@ import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.
  */
 
 setRenderer(domRender);
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

@@ -12,12 +12,12 @@
  * component is styled.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, css, insert } from '../../packages/core/dist/development/vera.js';
+import { setRenderer, init, render, html, css, wire } from '../../packages/core/dist/development/vera.js';
 import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
 setRenderer(hydratingRender);
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

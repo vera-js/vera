@@ -112,9 +112,9 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
       console.warn(
         `[vera] <${element.localName}> declares \`static styles\`, but nothing is adopting them.\n` +
           `Style adoption moved out of core. Wire it once at your app entry:\n\n` +
-          `  import { insert } from '@verajs/core';\n` +
+          `  import { wire } from '@verajs/core';\n` +
           `  import { adoptStyles } from '@verajs/styles';\n` +
-          `  insert('init', adoptStyles, 50);\n`
+          `  wire({ on: 'init', fn: adoptStyles, priority: 50 });\n`
       );
     }
   }

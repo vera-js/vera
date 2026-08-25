@@ -131,7 +131,7 @@ One source of truth for every fact and every behavior.
 New capability should slot into the existing shape, not require reshaping it. **For VeraJS this is not
 a nice-to-have — the module system is the product.**
 
-- **The insert system is the extension point.** `insert(name, callback, priority)` is how renderers,
+- **The insert system is the extension point.** `wire({ on: name, fn: callback, priority: priority })` is how renderers,
   autoloaders, proxy handlers, and third-party modules attach. A new capability should be a new insert,
   not a new branch in core.
 - **Modules are independent by design.** `@verajs/router`, `@verajs/autoloader`, `@verajs/renderer`

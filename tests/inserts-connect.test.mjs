@@ -21,14 +21,14 @@ const copy = () => import(distUrl('inserts', `?connect=${seq++}`));
 
 test('both call orders reach the same state', async () => {
   const [a, b] = [await copy(), await copy()];
-  a.insert('error', () => 'E', 10);
-  a.insert('render', () => 'R', 50);
+  a.wire({ on: 'error', fn: () => 'E', priority: 10 });
+  a.wire({ on: 'render', fn: () => 'R', priority: 50 });
   a.connectInserts(b.inserts);
 
   const [c, d] = [await copy(), await copy()];
   c.connectInserts(d.inserts);
-  c.insert('error', () => 'E', 10);
-  c.insert('render', () => 'R', 50);
+  c.wire({ on: 'error', fn: () => 'E', priority: 10 });
+  c.wire({ on: 'render', fn: () => 'R', priority: 50 });
 
   const shape = (map) => [...map].map(([name, chain]) => `${name}:${chain.length}`).sort();
   assert.deepEqual(shape(b.inserts), shape(d.inserts));
@@ -37,7 +37,7 @@ test('both call orders reach the same state', async () => {
 
 test('a registration made before connecting survives', async () => {
   const [a, b] = [await copy(), await copy()];
-  a.insert('render', () => 'kept', 50);
+  a.wire({ on: 'render', fn: () => 'kept', priority: 50 });
   a.connectInserts(b.inserts);
   assert.equal(b.inserts.get('render')?.length, 1, 'replayed into the shared registry');
   assert.equal(b.inserts.get('render')[0](), 'kept');
@@ -45,9 +45,9 @@ test('a registration made before connecting survives', async () => {
 
 test('priorities survive the replay, in order', async () => {
   const [a, b] = [await copy(), await copy()];
-  a.insert('render', () => 'low', 10);
-  a.insert('render', () => 'high', 90);
-  a.insert('render', () => 'mid', 50);
+  a.wire({ on: 'render', fn: () => 'low', priority: 10 });
+  a.wire({ on: 'render', fn: () => 'high', priority: 90 });
+  a.wire({ on: 'render', fn: () => 'mid', priority: 50 });
   a.connectInserts(b.inserts);
   assert.deepEqual(b.inserts.get('render').map((fn) => fn()), ['low', 'mid', 'high']);
 });
@@ -55,8 +55,8 @@ test('priorities survive the replay, in order', async () => {
 test('a replayed entry replaces an existing one at the same priority', async () => {
   /** Exactly what a direct `insert` at a taken priority does — this is how setRenderer swaps. */
   const [a, b] = [await copy(), await copy()];
-  b.insert('render', () => 'target', 50);
-  a.insert('render', () => 'replayed', 50);
+  b.wire({ on: 'render', fn: () => 'target', priority: 50 });
+  a.wire({ on: 'render', fn: () => 'replayed', priority: 50 });
   a.connectInserts(b.inserts);
   assert.deepEqual(b.inserts.get('render').map((fn) => fn()), ['replayed'], 'one entry, not two');
 });
@@ -65,14 +65,14 @@ test('connecting a registry to itself changes nothing', async () => {
   /** The bundler case: both specifiers resolve to one module, so the call is a genuine no-op and
    *  must not replay a chain into itself and duplicate it. */
   const a = await copy();
-  a.insert('render', () => 'once', 50);
+  a.wire({ on: 'render', fn: () => 'once', priority: 50 });
   a.connectInserts(a.inserts);
   assert.equal(a.inserts.get('render').length, 1);
 });
 
 test('connecting an empty registry carries nothing across', async () => {
   const [a, b] = [await copy(), await copy()];
-  b.insert('render', () => 'target', 50);
+  b.wire({ on: 'render', fn: () => 'target', priority: 50 });
   a.connectInserts(b.inserts);
   assert.equal(b.inserts.get('render').length, 1, 'the target is untouched');
 });

@@ -11,8 +11,8 @@ import { renderToString } from '@verajs/ssr/vera';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
-const { wire } = await import('../examples/kitchen-sink/wiring.js');
-wire(null);
+const { wireApp } = await import('../examples/kitchen-sink/wiring.js');
+wireApp(null);
 
 const dir = mkdtempSync(new URL('./.styles-', import.meta.url).pathname);
 let results;

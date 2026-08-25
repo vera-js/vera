@@ -37,7 +37,7 @@
     <script type="module">
       import {
         inserts,
-        insert,
+        wire,
         setRenderer,
         setAutoloader,
         init,
@@ -56,10 +56,10 @@
        * Each standalone bundle inlined its own registry, so the router's is not core's until this
        * points one at the other. Without it a routed link does nothing and nothing says why.
        */
-      insert([connectRouter]);
+      wire([connectRouter]);
 
       setRenderer(domRender);
-      insert('init', adoptStyles, 50);
+      wire({ on: 'init', fn: adoptStyles, priority: 50 });
       setAutoloader(
         initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
       );

@@ -13,7 +13,7 @@ const host = dom.window.document.getElementById('host');
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
 
-core.insert('proxy-handler', computedValues, 40);
+core.wire({ on: 'proxy-handler', fn: computedValues, priority: 40 });
 const state = core.createStore({ count: 1, doubled: computed(() => state.count * 2) });
 
 let runs = 0, seen = -1;

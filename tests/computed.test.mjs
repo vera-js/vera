@@ -97,7 +97,7 @@ const mount = () => {
 {
   const state = core.createStore({ n: 1 });
   const seen = [];
-  core.insert('error', (error) => seen.push(error), 25);
+  core.wire({ on: 'error', fn: (error) => seen.push(error), priority: 25 });
   let threw = false;
   try {
     const bad = computed(() => { if (state.n > 1) throw new Error('boom'); return state.n; });

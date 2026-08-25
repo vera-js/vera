@@ -49,28 +49,40 @@ export type Registerable = InsertDescriptor | Connector;
  * object naming its chain. Packages export one or the other and never register themselves, so there
  * is no second registry to land in by mistake — the failure `connectInserts` exists to repair.
  */
-export function insert(items: Registerable[]): void;
-export function insert<K extends keyof InsertFunctionMap>(
-  insertName: K,
-  callback: InsertFunctionMap[K],
-  priority: number
-): void;
-export function insert<K extends keyof InsertFunctionMap>(
-  insertName: K | Registerable[],
-  callback?: InsertFunctionMap[K],
-  priority?: number
-) {
-  /** The list form: everything an app wires, in one place, from data rather than side effects. */
-  if (Array.isArray(insertName)) {
-    for (let i = 0; i < insertName.length; i++) {
-      const item = insertName[i];
-      if (typeof item === 'function') item(inserts);
-      else register(item.on, item.fn, item.priority);
-    }
+/**
+ * Wires modules into the framework: one call, from data rather than side effects.
+ *
+ * ```js
+ * wire([domRender, connectRouter, { on: 'init', fn: adoptStyles, priority: 50 }]);
+ * wire({ on: 'error', fn: report, priority: 40 });
+ * ```
+ *
+ * Three shapes, and every package exports one of the first two rather than registering itself:
+ *
+ * - a **descriptor** — `{ on, fn, priority }` — naming the insert point it belongs to
+ * - a **connector** — a function handed the registry, which is how a package that imports nothing
+ *   gets wired to it
+ * - an **array** of either
+ *
+ * The name is the act: you are wiring modules together. `insert` stays as the noun — these are
+ * still insert points, and a descriptor still says which one it is `on` — but the verb was never
+ * describing what an app does with a list of modules.
+ *
+ * There is no positional form. `wire('error', fn, 40)` could be got wrong in three ways and read
+ * as none of them; an object cannot be misordered and documents its own keys.
+ */
+export const wire = (item: Registerable | Registerable[]) => {
+  if (Array.isArray(item)) {
+    for (let i = 0; i < item.length; i++) apply(item[i]);
     return;
   }
-  register(insertName, callback!, priority!);
-}
+  apply(item);
+};
+
+const apply = (item: Registerable) => {
+  if (typeof item === 'function') item(inserts);
+  else register(item.on, item.fn, item.priority);
+};
 
 const register = <K extends keyof InsertFunctionMap>(
   insertName: K,
@@ -132,12 +144,12 @@ export const connectInserts = (newInserts: Inserts) => {
   const previous = inserts as Map<keyof InsertFunctionMap, Chain>;
   inserts = newInserts;
   previous.forEach((chain, name) => {
-    chain._p?.forEach((priority, i) => insert(name, chain[i], priority));
+    chain._p?.forEach((priority, i) => register(name, chain[i], priority));
   });
 };
 
 export const setRenderer = (renderer: Renderer) => {
-  insert(
+  register(
     'render',
     (template, element, ...args) => {
       /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
@@ -149,7 +161,7 @@ export const setRenderer = (renderer: Renderer) => {
 };
 
 export const setAutoloader = (autoloader: Autoloader) => {
-  insert(
+  register(
     'render',
     (_, container) => {
       autoloader(container);

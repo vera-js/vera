@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6863,
-      "gzip": 2883
+      "raw": 6847,
+      "gzip": 2876
     },
     "renderer": {
       "raw": 9733,
@@ -35,8 +35,8 @@
       "gzip": 241
     },
     "inserts": {
-      "raw": 675,
-      "gzip": 442
+      "raw": 659,
+      "gzip": 439
     }
   },
   "apps": [
@@ -67,8 +67,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12742,
-      "gzip": 5430,
+      "raw": 12598,
+      "gzip": 5379,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -93,21 +93,21 @@
       "depsUnresolved": 0
     },
     {
-      "name": "Preact + signals",
-      "note": "preact + @preact/signals-core",
-      "raw": 15156,
-      "gzip": 6031,
-      "deps": 0,
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 14790,
+      "gzip": 6024,
+      "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 14934,
-      "gzip": 6082,
-      "deps": 1,
+      "name": "Preact + signals",
+      "note": "preact + @preact/signals-core",
+      "raw": 15156,
+      "gzip": 6031,
+      "deps": 0,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0

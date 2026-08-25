@@ -6,7 +6,7 @@
  * priorities that do not collide with core's own — registering at a taken priority *replaces*, which
  * is the trap this file exists to keep visible.
  */
-import { insert } from '@verajs/core';
+import { wire } from '@verajs/core';
 
 /** Observable counters, so a test can assert the chain actually ran rather than merely registered. */
 export const observed = { reads: 0, writes: 0, errors: [], suppressed: 0 };
@@ -15,30 +15,32 @@ export const observed = { reads: 0, writes: 0, errors: [], suppressed: 0 };
 export const SUPPRESS = '__sink_suppress__';
 
 export const installSinkInserts = () => {
-  insert(
-    'proxy-handler',
-    () => {
-      observed.reads++;
+  wire([
+    {
+      on: 'proxy-handler',
+      priority: 30,
+      fn: () => {
+        observed.reads++;
+      },
     },
-    30
-  );
-  insert(
-    'set-handler',
-    (element, property, value) => {
-      observed.writes++;
-      if (value === SUPPRESS) {
-        observed.suppressed++;
-        return false;
-      }
-      return undefined;
+    {
+      on: 'set-handler',
+      priority: 30,
+      fn: (element, property, value) => {
+        observed.writes++;
+        if (value === SUPPRESS) {
+          observed.suppressed++;
+          return false;
+        }
+        return undefined;
+      },
     },
-    30
-  );
-  insert(
-    'error',
-    (error) => {
-      observed.errors.push(String(error?.message ?? error));
+    {
+      on: 'error',
+      priority: 30,
+      fn: (error) => {
+        observed.errors.push(String(error?.message ?? error));
+      },
     },
-    30
-  );
+  ]);
 };

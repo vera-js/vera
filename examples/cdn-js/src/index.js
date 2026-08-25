@@ -10,7 +10,7 @@
  *
  *   2. The autoloader keeps its default `.js` extension, because these files really are `.js`.
  */
-import { setHtml, setRenderer, setAutoloader, insert } from '@verajs/core';
+import { setHtml, setRenderer, setAutoloader, wire } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
@@ -22,7 +22,7 @@ import { computedValues } from './inserts/computed.js';
  * values as a ten-line `'proxy-handler'` insert are the worked example (see
  * src/inserts/computed.js); priority is required, because chains are priority-ordered.
  */
-insert([connectRouter, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
+wire([connectRouter, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
 
 
 /**

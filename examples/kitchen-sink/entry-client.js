@@ -5,10 +5,10 @@
  * swaps one import and nothing else, which is the claim, and an entry that branched on a flag would
  * quietly prove something weaker.
  */
-import { wire, wireAutoloader } from './wiring.js';
+import { wireApp, wireAutoloader } from './wiring.js';
 
 export const start = async (renderer) => {
-  wire(renderer);
+  wireApp(renderer);
   wireAutoloader(import.meta.url);
   await import('./components/sink-shell.js');
   document.documentElement.dataset.sinkReady = 'true';

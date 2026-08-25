@@ -7,7 +7,7 @@
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, setRenderer, setAutoloader, insert } from '@verajs/core';
+import { setHtml, setRenderer, setAutoloader, wire } from '@verajs/core';
 import { initAutoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
@@ -17,7 +17,7 @@ import { html, render } from 'lit-html';
  * meaning, as in the CDN example. It used to be `connectInserts`, which was a no-op here and
  * load-bearing there; that asymmetry is gone.
  */
-insert([connectRouter]);
+wire([connectRouter]);
 
 
 /**
