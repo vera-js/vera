@@ -146,8 +146,17 @@ export const autoloader = (
      * `base` is `new URL('.', rootDir)`, which always ends in `/`, so the prefix test cannot be
      * satisfied by a sibling directory whose name merely starts the same way.
      */
-    if (!href.startsWith(base))
-      throw new Error(`autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
+    if (!href.startsWith(base)) {
+      /**
+       * The refused URL rides on the error, so discovery can dedupe on it exactly as it dedupes a
+       * fetch. Keying the refusal on the *tag* instead would be wrong: `autoload-dir` is watched
+       * precisely so it can be pointed somewhere else after a first attempt failed, and a tag
+       * marked spent never looks again.
+       */
+      const refusal = new Error(`autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
+      (refusal as Error & { href: string }).href = href;
+      throw refusal;
+    }
     return href;
   };
 
@@ -164,10 +173,14 @@ export const autoloader = (
       src = url(tag, element);
     } catch (error) {
       /**
-       * Marked requested so the refusal is reported once rather than on every scan — the same
-       * dedupe the fetch path gets from `attempted`, and `retry(element)` clears it either way.
+       * Deduped on the refused URL, so it is reported once rather than on every scan — and so
+       * pointing `autoload-dir` at a valid directory afterwards is a different URL and tries.
        */
-      requested.add(tag);
+      const href = (error as Error & { href?: string }).href;
+      if (href !== undefined) {
+        if (attempted.has(href)) return;
+        attempted.add(href);
+      }
       console.error((error as Error).message);
       return;
     }

@@ -62,3 +62,15 @@ test('a custom resolve cannot escape either', () => {
   const custom = autoloader('https://x.test/app/entry.js', '.', { resolve: () => 'https://evil.test/x.js' });
   assert.throws(() => custom.url('my-card'), /resolves outside/);
 });
+
+/**
+ * `autoload-dir` is watched precisely so it can be pointed somewhere else after a first attempt
+ * failed. Keying a refusal on the **tag** would mark it spent and it would never look again — so
+ * the refused URL rides on the error and discovery dedupes on that, exactly as it dedupes a fetch.
+ */
+test('a refused directory can be corrected and retried', () => {
+  const element = withDir('../../evil');
+  assert.throws(() => instance.url('later-card', element), /resolves outside/);
+  element.setAttribute('autoload-dir', 'components');
+  assert.equal(instance.url('later-card', element), 'https://x.test/app/components/later-card.js');
+});
