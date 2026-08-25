@@ -18,7 +18,8 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
                  'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[k] = dom.window[k];
 
-const { render, keyed, hold } = await load('renderer');
+const { render, hold } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 /** The shape core's `html` and `svg` tags produce, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });

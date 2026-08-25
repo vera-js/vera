@@ -9,7 +9,8 @@
       or on CodePen, swap the two local bundle URLs for the jsdelivr ones once published:
 
         "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js"
-        "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js"
+        "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js",
+        "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer-keyed.min.js"
 
       The in-browser transform is @verajs/jsx's own hand-rolled parser — a few KB, zero
       dependencies. Real builds still prefer the Vite plugin (zero code shipped at all).
@@ -18,7 +19,8 @@
       {
         "imports": {
           "@verajs/core": "/packages/core/dist/vera.min.js",
-          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js"
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js"
         }
       }
     </script>

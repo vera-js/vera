@@ -19,7 +19,8 @@ const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
 for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[key] = dom.window[key];
 
-const { render, keyed } = await load('renderer');
+const { render } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
 /** Mulberry32 — small, fast, and the same sequence every run, which is the point. */

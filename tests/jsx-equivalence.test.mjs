@@ -149,7 +149,7 @@ const compiled = transformJsx(jsxModule, 'cases.jsx', { inject: false });
 const script = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html } = await import('@verajs/core');
-const { keyed } = await import('@verajs/renderer');
+const { keyed } = await import('@verajs/renderer/keyed');
 const { spread } = await import('@verajs/renderer/spread');
 const { html: tagHtml, tag } = await import('@verajs/renderer/tag');
 const H1 = tag\`h1\`;

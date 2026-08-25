@@ -56,6 +56,7 @@ const importmap = (renderer) =>
       imports: {
         '@verajs/core': '/packages/core/dist/development/vera.js',
         '@verajs/renderer': `/packages/renderer/dist/development/${renderer}`,
+        '@verajs/renderer/keyed': '/packages/renderer/dist/development/vera-renderer-keyed.js',
         '@verajs/renderer/spread': '/packages/renderer/dist/development/vera-renderer-spread.js',
         '@verajs/router': '/packages/router/dist/development/vera-router.js',
         '@verajs/autoloader': '/packages/autoloader/dist/development/vera-autoloader.js',

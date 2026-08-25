@@ -33,6 +33,12 @@ export default [
    * `_$apply$` protocol — so it is safe alongside any of them.
    */
   defaultRollupConfig(`${pkg.filename}-spread`, [], /^_[a-z]/, { input: 'src/spread.ts' }),
+  /**
+   * Additive for the same reason: it imports nothing and reaches the renderer only through the
+   * exempt `$c`/`$u`/`$f`/`$m`/`$d` members. It is safe alongside `hydrate`, which is exactly why it
+   * cannot import `./renderer.js` — that would bind it to the base renderer's template cache.
+   */
+  defaultRollupConfig(`${pkg.filename}-keyed`, [], /^_[a-z]/, { input: 'src/keyed.ts' }),
   /** Additive for the same reason, and it inlines `spread` because it builds on that protocol. */
   defaultRollupConfig(`${pkg.filename}-tag`, [], /^_[a-z]/, { input: 'src/tag.ts' }),
   ...(isProduction

@@ -62,7 +62,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
    * here keeps the two in step by construction.
    */
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
-  const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer'];
+  const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
 
   const state = { usedHtml: false, usedKeyed: false };

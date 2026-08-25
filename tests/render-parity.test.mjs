@@ -336,7 +336,8 @@ const serverScript = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html, svg, mathml } = await import('@verajs/core');
 const { spread } = await import('@verajs/renderer/spread');
-const { keyed, hold } = await import('@verajs/renderer');
+const { hold } = await import('@verajs/renderer');
+const { keyed } = await import('@verajs/renderer/keyed');
 const state = ${STATE};
 const out = {};
 ${Object.entries(ALL).map(([name, tpl]) => `out[${JSON.stringify(name)}] = serializeTemplate(${tpl});`).join('\n')}
@@ -356,7 +357,8 @@ globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 const { render } = await load('renderer');
 const { spread } = await load('renderer/spread');
-const { keyed, hold } = await load('renderer');
+const { hold } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 /** SVG and MathML need their own namespace on the client; on the server they are the same shape. */
 const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });

@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->6.0 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->5.7 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -234,7 +234,8 @@ yields that number** instead of the value. Write observers with a block body —
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { initAutoloader } from '@verajs/autoloader';
-import { render, keyed } from '@verajs/renderer';
+import { render } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 ```
 
 ### Styles (`@verajs/styles`)
@@ -269,6 +270,18 @@ static styles = css`p { color: var(--accent, blue); }`;
 // …
 render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
 ```
+
+### Keyed lists (`@verajs/renderer/keyed`)
+
+```js
+import { keyed } from '@verajs/renderer/keyed';
+render(html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`, host);
+```
+
+Its own entry since 0.2.0: reordering is what makes lists expensive, most apps never do it, and the
+algorithm is 365 B gzipped. Importing `keyed` is the entire installation — the marker stamps each
+result with the strategy that reconciles it, so there is nothing to `wire()` and a list always names
+its own reconciler. Additive like `/spread`: it imports nothing and works alongside `/hydrate`.
 
 ### Spread (`@verajs/renderer/spread`)
 
@@ -316,13 +329,14 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.85 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.47 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
 ```js
 import { init, createStore, render as show, wire, html } from '@verajs/core';
-import { render as domRender, keyed } from '@verajs/renderer';
+import { render as domRender } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 wire([domRender]);
 
 // keyed lists: no repeat() import — key all items or none
@@ -632,7 +646,8 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
 <script type="importmap">
 { "imports": {
     "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.1.1/dist/vera.min.js",
-    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer.min.js"
+    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer.min.js",
+    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer-keyed.min.js"
 } }
 </script>
 
@@ -642,7 +657,8 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
 
 <script type="text/vera-jsx">
   import { init, createStore, render, wire } from '@verajs/core';
-  import { render as domRender, keyed } from '@verajs/renderer';
+  import { render as domRender } from '@verajs/renderer';
+  import { keyed } from '@verajs/renderer/keyed';
   wire([domRender]);
 
   const state = createStore({ n: 0 });

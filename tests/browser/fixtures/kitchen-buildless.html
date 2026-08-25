@@ -23,6 +23,7 @@
         "imports": {
           "@verajs/core": "/packages/core/dist/vera.min.js",
           "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
           "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
           "@verajs/router": "/packages/router/dist/vera-router.min.js",
           "@verajs/autoloader": "/packages/autoloader/dist/vera-autoloader.min.js",
@@ -44,7 +45,8 @@
         html,
         css,
         createStore} from '@verajs/core';
-      import { render as domRender, keyed } from '@verajs/renderer';
+      import { render as domRender } from '@verajs/renderer';
+      import { keyed } from '@verajs/renderer/keyed';
       import { spread } from '@verajs/renderer/spread';
       import { initRouter, connectRouter, navigate } from '@verajs/router';
       import { adoptStyles } from '@verajs/styles';

@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.85 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.47 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -120,14 +120,24 @@ render(html`<figure>${chart}<figcaption>${title}</figcaption></figure>`, host);
 ## Lists — `keyed()`
 
 ```js
-import { render, keyed } from '@verajs/renderer';
+import { render } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 
 render(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>`))}</ul>`, host);
 ```
 
 `keyed(key, result)` tags a result with its identity, so a reorder **moves** the existing elements
 instead of rebuilding them — focus, scroll position, form state and running animations all survive.
-There is no `repeat()` to import.
+It is its own entry because most apps never reorder a list, and the algorithm that makes reordering
+cheap is 365 B gzipped they would otherwise carry. Importing `keyed` is the whole installation:
+nothing registers, and there is no `wire()` call — the marker stamps each result with the strategy
+that understands it, so a list always names its own reconciler and two strategies cannot disagree
+about one. Lit splits `repeat` out for the same reason; the difference is that this one arrives on
+the values rather than through a directive protocol.
+
+**It is additive, not a substitute.** Unlike `/hydrate` and `/profiler`, this entry imports nothing
+at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
+it is safe alongside any of them, `/hydrate` included.
 
 **Key every item in a list, or none of them.** A list is keyed when its first item is, and an
 unkeyed item in a keyed list has no identity to match on.
@@ -181,6 +191,7 @@ committed in place against templates that replaced a different template.
 | --- | --- | --- |
 | `@verajs/renderer` | the renderer | yes |
 | `@verajs/renderer/hydrate` | a superset whose first render adopts server-rendered DOM | yes |
+| `@verajs/renderer/keyed` | `keyed(key, result)` — keyed list reconciliation | yes |
 | `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 

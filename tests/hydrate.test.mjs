@@ -33,7 +33,8 @@ assert.ok(serverHtml.includes('hello ssr') && !serverHtml.includes('<!--'), 'ser
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render, keyed } = await load('renderer/hydrate');
+const { render } = await load('renderer/hydrate');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
 const container = dom.window.document.getElementById('root');

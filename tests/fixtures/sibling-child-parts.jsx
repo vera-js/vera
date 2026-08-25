@@ -1,5 +1,6 @@
 import { init, createStore, render, wire } from '@verajs/core';
-import { render as domRender, keyed } from '@verajs/renderer';
+import { render as domRender } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 wire({ on: 'render', fn: domRender, priority: 50 });
 
 const CARDS = [{ g: 'A' }, { g: 'B' }, { g: 'C' }];

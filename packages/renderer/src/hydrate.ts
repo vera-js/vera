@@ -38,7 +38,7 @@ import {
 } from './renderer.js';
 import type { Template, Part, Item, TemplateResult } from './renderer.js';
 
-export { keyed, hold, domRender } from './renderer.js';
+export { hold, domRender } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 // The server serializer (@verajs/ssr/vera) emits the SAME static strings this module parses into
@@ -291,7 +291,7 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
       const liveRoot = cursorSplit(cursor);
       const instance = adoptInstance(template, result.values, cursor);
       return {
-        _key: result.key,
+        $k: result.key,
         _element: liveRoot as Element,
         _instance: instance,
         _shape: result.strings,
@@ -307,12 +307,12 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
     part._instance = instance;
     part._shape = result.strings;
     part._mode = TEMPLATE;
-    return { _key: result.key, _element: null, _instance: null, _shape: null, _part: part };
+    return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
   }
   /** Non-template item: markered part adopting its content like a nested slot. */
   const out: Part[] = [];
   adoptSlot(cursor, value, out);
-  return { _key: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: out[0] as ChildPart };
+  return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: out[0] as ChildPart };
 };
 
 /** Builds an Instance whose parts are bound to LIVE nodes, consuming them from the cursor. */

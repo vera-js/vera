@@ -14,7 +14,8 @@ globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Node = dom.window.Node;
 
-const { render, keyed, hold } = await load('renderer');
+const { render, hold } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 
 /** The shape core's built-in `html` tag produces. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });

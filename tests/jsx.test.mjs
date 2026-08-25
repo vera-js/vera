@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render, keyed } = await load('renderer');
+const { render } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
 const dir = mkdtempSync(join(tmpdir(), 'vera-jsx-'));
@@ -99,7 +100,7 @@ assert.throws(() => transformJsx('const a = <div style={{ color: c }} />;', 'e.j
 
 // ── 6. auto-imports ──
 const injected = transformJsx('export const v = () => <p>{x.map((i) => <b key={i}>{i}</b>)}</p>;', 'i.jsx');
-assert.ok(injected.startsWith("import { html } from '@verajs/core';\nimport { keyed } from '@verajs/renderer';"),
+assert.ok(injected.startsWith("import { html } from '@verajs/core';\nimport { keyed } from '@verajs/renderer/keyed';"),
   'auto-imports injected when missing');
 const notDoubled = transformJsx("import { html } from '@verajs/core';\nexport const v = () => <p>x</p>;", 'i2.jsx');
 assert.equal((notDoubled.match(/@verajs\/core/g) ?? []).length, 1, 'existing import not doubled');
@@ -147,7 +148,7 @@ assert.ok(T(`const v = <a title="it's fine">t</a>;`).includes(`title="it's fine"
 
   assert.ok(injections("      import { init, html } from '@verajs/core';\n      const a = <p>{1}</p>;", 'html') === 0, 'an indented import of html suppresses the injection');
   assert.ok(injections("import {\n  init,\n  html,\n} from '@verajs/core';\nconst a = <p>{1}</p>;", 'html') === 0, 'an import spread across lines does too');
-  assert.ok(injections("    import { keyed } from '@verajs/renderer';\n    const a = <p key={1}>{1}</p>;", 'keyed') === 0, 'an indented import of keyed suppresses its injection');
+  assert.ok(injections("    import { keyed } from '@verajs/renderer/keyed';\n    const a = <p key={1}>{1}</p>;", 'keyed') === 0, 'an indented import of keyed suppresses its injection');
   assert.ok(injections("import { html as h } from '@verajs/core';\nconst a = <p>{1}</p>;", 'html') === 1, 'a renamed import does not suppress it, because the emitted name is still unbound');
   assert.ok(injections('const a = <p>{1}</p>;', 'html') === 1, 'and a source with no import of its own still gets one');
 }

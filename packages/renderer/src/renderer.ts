@@ -67,18 +67,6 @@ export type TemplateResult = {
   key?: unknown;
 };
 
-/**
- * Marks a template result with a stable key so list reconciliation moves it instead of rewriting
- * it. Key all items in a list or none — mixing is undefined behaviour, as are duplicate keys.
- *
- * ```js
- * rows.map((r) => keyed(r.id, html`<tr>...</tr>`))
- * ```
- */
-export const keyed = <T>(key: unknown, result: T): T => {
-  (result as TemplateResult).key = key;
-  return result;
-};
 
 /**
  * Preserves the DOM of templates a child position toggles away from, instead of destroying it —
@@ -434,7 +422,6 @@ const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 const UNSET = {};
 
 /** Removal target: nodes moved here are dropped when it is emptied. */
-const SCRATCH = doc.createDocumentFragment();
 
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
 const createMarkeredPart = (parent: Node, ref: Node | null) => {
@@ -681,8 +668,28 @@ class AttrPart implements Part {
  * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
  * pay on create.
  */
+const SCRATCH = doc.createDocumentFragment();
+
+/**
+ * A value that names the strategy able to reconcile a list of its kind. `keyed()` in
+ * `@verajs/renderer/keyed` is the only producer today; the shape is deliberately open so a
+ * virtualizer or an async list can ship as its own module without this file learning about it.
+ *
+ * `$r` and the three members it calls are exempt from property mangling — they are the only names
+ * that cross a bundle boundary, and they are two characters so crossing costs nothing.
+ */
+export type ListStrategy = (
+  part: ChildPart,
+  values: unknown[],
+  items: Item[],
+  parent: Node,
+  end: Node | null
+) => Item[];
+
+export type KeyedResult = TemplateResult & { $r?: ListStrategy };
+
 type Item = {
-  _key: unknown;
+  $k: unknown;
   _element: Element | null;
   _instance: Instance | null;
   _shape: TemplateStringsArray | null;
@@ -1087,7 +1094,7 @@ class ChildPart implements Part {
    * Creates one list item. A single-root template instance becomes an element-mode item with no
    * markers at all; anything else gets its own start/end marker pair so moves can never dangle.
    */
-  _createItem(value: unknown, parent: Node, ref: Node | null): Item {
+  $c(value: unknown, parent: Node, ref: Node | null): Item {
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       const template = getTemplate(result);
@@ -1097,7 +1104,7 @@ class ChildPart implements Part {
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
         parent.insertBefore(rootNode, ref);
         return {
-          _key: result.key,
+          $k: result.key,
           _element: rootNode as Element,
           _instance: instance,
           _shape: result.strings,
@@ -1110,15 +1117,15 @@ class ChildPart implements Part {
       part._shape = result.strings;
       part._mode = TEMPLATE;
       part._start.parentNode!.insertBefore(instance._fragment, part._end);
-      return { _key: result.key, _element: null, _instance: null, _shape: null, _part: part };
+      return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }
     const part = createMarkeredPart(parent, ref);
     part._set(value);
-    return { _key: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
+    return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
   }
 
   /** Commits a new value into an existing item, demoting element mode if the shape changed. */
-  _updateItem(item: Item, value: unknown) {
+  $u(item: Item, value: unknown) {
     if (item._element !== null) {
       if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._shape) {
         item._instance!._update((value as TemplateResult).values);
@@ -1137,11 +1144,16 @@ class ChildPart implements Part {
   }
 
   /** The item's first node — its move/removal handle and the insertion reference before it. */
-  _firstNode(item: Item): Node {
+  $f(item: Item): Node {
     return item._element ?? item._part!._start;
   }
 
-  _moveItem(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
+  /**
+   * Moving and removing an item read `_element` and `_part`, which are mangled — so they stay here
+   * rather than travelling with the algorithm that calls them. `$m` and `$d` are the price: two
+   * cold methods, exempt from mangling, two characters each.
+   */
+  $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
     if (item._element !== null) {
       parent.insertBefore(item._element, ref);
       return;
@@ -1156,10 +1168,12 @@ class ChildPart implements Part {
   }
 
   /** Removal is a move into a scratch fragment that is immediately emptied. */
-  _dropItem(item: Item) {
-    this._moveItem(item, null, SCRATCH);
+  $d(item: Item) {
+    this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
+
+
 
   _commitList(newValues: unknown[]) {
     if (this._mode !== LIST) {
@@ -1177,7 +1191,7 @@ class ChildPart implements Part {
       }
       return;
     }
-    const isKeyed = newValues[0] != null && (newValues[0] as TemplateResult).key !== undefined;
+    const isKeyed = newValues[0] != null && (newValues[0] as KeyedResult).$r !== undefined;
     if (isKeyed !== this._keyedList && this._items!.length) {
       this._clear();
       this._items = [];
@@ -1190,7 +1204,7 @@ class ChildPart implements Part {
     if (items.length === 0) {
       /** Initial fill builds off-document and lands in one insert. */
       const fragment = doc.createDocumentFragment();
-      for (let i = 0; i < count; i++) items.push(this._createItem(newValues[i], fragment, null));
+      for (let i = 0; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
       this._insert(fragment);
       return;
     }
@@ -1198,14 +1212,14 @@ class ChildPart implements Part {
     if (!isKeyed) {
       // index mode: update in place, grow at the end, shrink from the end
       const shared = items.length < count ? items.length : count;
-      for (let i = 0; i < shared; i++) this._updateItem(items[i], newValues[i]);
+      for (let i = 0; i < shared; i++) this.$u(items[i], newValues[i]);
       if (count > items.length) {
         const fragment = doc.createDocumentFragment();
-        for (let i = items.length; i < count; i++) items.push(this._createItem(newValues[i], fragment, null));
+        for (let i = items.length; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
         this._insert(fragment);
       } else if (count < items.length) {
         const last = items[items.length - 1];
-        let node: Node | null = this._firstNode(items[count]);
+        let node: Node | null = this.$f(items[count]);
         const stop = last._element !== null ? last._element.nextSibling : last._part!._end!.nextSibling;
         while (node !== stop) {
           const next: Node | null = node!.nextSibling;
@@ -1218,102 +1232,16 @@ class ChildPart implements Part {
     }
 
     /**
-     * Zero-allocation fast path for the dominant case: same length, same key order — a pure
-     * in-place update (a selection change, a field edit). No key array, no output array, no null
-     * checks. Falls through to the full algorithm on the first mismatch; the items already updated
-     * re-verify there as cheap no-op compares.
+     * Keyed reconciliation is not here. It lives in `@verajs/renderer/keyed`, and it arrives on
+     * the values themselves — `keyed()` stamps each result with the strategy that understands it,
+     * so importing the marker is what loads the algorithm. Nothing registers, nothing is wired, and
+     * two strategies cannot disagree about a list because the list names its own.
+     *
+     * The protocol is three cold members (`$c`, `$u`, `$f`) plus a returned array. Everything a
+     * strategy would otherwise have to reach for — the mode switch, the empty case, the initial
+     * fill — is already done above and passed in.
      */
-    if (items.length === count) {
-      let i = 0;
-      while (i < count && items[i]._key === (newValues[i] as TemplateResult).key) {
-        this._updateItem(items[i], newValues[i]);
-        i++;
-      }
-      if (i === count) return;
-    }
-
-    /**
-     * Keyed reconciliation — the standard head/tail algorithm (as in lit's `repeat` and Vue):
-     * skip matching prefixes and suffixes, detect the two swap shapes directly, and fall back to
-     * key maps for arbitrary moves, removals and insertions.
-     */
-    const oldItems: (Item | null)[] = items;
-    const newKeys: unknown[] = new Array(count);
-    for (let i = 0; i < count; i++) newKeys[i] = (newValues[i] as TemplateResult).key;
-    const newItems: Item[] = new Array(count);
-    let oldHead = 0;
-    let oldTail = oldItems.length - 1;
-    let newHead = 0;
-    let newTail = count - 1;
-    let newKeyToIndex: Map<unknown, number> | undefined;
-    let oldKeyToIndex: Map<unknown, number> | undefined;
-    const refAt = (i: number): Node | null =>
-      i < count && newItems[i] !== undefined ? this._firstNode(newItems[i]) : this._end;
-
-    while (oldHead <= oldTail && newHead <= newTail) {
-      if (oldItems[oldHead] === null) oldHead++;
-      else if (oldItems[oldTail] === null) oldTail--;
-      else if (oldItems[oldHead]!._key === newKeys[newHead]) {
-        this._updateItem((newItems[newHead] = oldItems[oldHead]!), newValues[newHead]);
-        oldHead++;
-        newHead++;
-      } else if (oldItems[oldTail]!._key === newKeys[newTail]) {
-        this._updateItem((newItems[newTail] = oldItems[oldTail]!), newValues[newTail]);
-        oldTail--;
-        newTail--;
-      } else if (oldItems[oldHead]!._key === newKeys[newTail]) {
-        const item = oldItems[oldHead]!;
-        this._moveItem(item, refAt(newTail + 1));
-        this._updateItem(item, newValues[newTail]);
-        newItems[newTail] = item;
-        oldHead++;
-        newTail--;
-      } else if (oldItems[oldTail]!._key === newKeys[newHead]) {
-        const item = oldItems[oldTail]!;
-        this._moveItem(item, this._firstNode(oldItems[oldHead]!));
-        this._updateItem(item, newValues[newHead]);
-        newItems[newHead] = item;
-        oldTail--;
-        newHead++;
-      } else {
-        if (newKeyToIndex === undefined) {
-          newKeyToIndex = new Map();
-          for (let i = newHead; i <= newTail; i++) newKeyToIndex.set(newKeys[i], i);
-          oldKeyToIndex = new Map();
-          for (let i = oldHead; i <= oldTail; i++) {
-            if (oldItems[i] !== null) oldKeyToIndex.set(oldItems[i]!._key, i);
-          }
-        }
-        if (!newKeyToIndex.has(oldItems[oldHead]!._key)) {
-          this._dropItem(oldItems[oldHead]!);
-          oldHead++;
-        } else if (!newKeyToIndex.has(oldItems[oldTail]!._key)) {
-          this._dropItem(oldItems[oldTail]!);
-          oldTail--;
-        } else {
-          const oldIndex = oldKeyToIndex!.get(newKeys[newHead]);
-          if (oldIndex === undefined) {
-            newItems[newHead] = this._createItem(newValues[newHead], parent, this._firstNode(oldItems[oldHead]!));
-          } else {
-            const item = oldItems[oldIndex]!;
-            this._moveItem(item, this._firstNode(oldItems[oldHead]!));
-            this._updateItem(item, newValues[newHead]);
-            newItems[newHead] = item;
-            oldItems[oldIndex] = null;
-          }
-          newHead++;
-        }
-      }
-    }
-    while (newHead <= newTail) {
-      newItems[newHead] = this._createItem(newValues[newHead], parent, refAt(newTail + 1));
-      newHead++;
-    }
-    while (oldHead <= oldTail) {
-      const item = oldItems[oldHead++];
-      if (item !== null) this._dropItem(item);
-    }
-    this._items = newItems;
+    this._items = (newValues[0] as KeyedResult).$r!(this, newValues, items, parent, this._end);
   }
 }
 
