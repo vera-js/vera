@@ -23,6 +23,28 @@ const GLOBAL = '_global';
 let collectionInsert: CollectionInsert | undefined;
 
 /**
+ * Dev-only, and once per page. The unguarded version fired on every read, so a list of a thousand
+ * rows produced a thousand identical errors per render and buried whatever came before it.
+ */
+let warnedNoCollections = false;
+
+/**
+ * Names the missing package for a collection in a store, once. Reached from both the `size`
+ * accessor and the method path: `size` alone is enough to render a count, and going quiet there
+ * left the one case that never calls a method with no diagnosis at all.
+ */
+const warnNoCollections = (obj: object) => {
+  if (warnedNoCollections) return;
+  warnedNoCollections = true;
+  const kind = getType(obj).replace('weak', 'Weak').replace(/map$/, 'Map').replace(/set$/, 'Set');
+  console.error(
+    `[vera] a ${kind} in a store needs @verajs/collections — ` +
+      `\`import { collections } from '@verajs/collections'\` and add it to your \`wire([…])\` call. ` +
+      `Without it its methods are not reactive and calling one throws.`
+  );
+};
+
+/**
  * The `'proxy-handler'` chain, cached against the registry's revision.
  *
  * It runs on every property read of every store, so a `Map.get` with a string key is paid per
@@ -215,6 +237,7 @@ const createHandler = <T extends object>(
        * never updated.
        */
       if (prop === 'size' && isSetOrMap(obj)) {
+        if (__DEV__ && inserts.get('collection') === undefined) warnNoCollections(obj);
         addCallback(obj, GLOBAL as Extract<keyof T, string>);
         return obj[prop];
       }
@@ -230,13 +253,7 @@ const createHandler = <T extends object>(
         collectionInsert ??= inserts.get('collection')?.[0] as CollectionInsert | undefined;
         if (collectionInsert)
           return collectionInsert(obj, prop, propValue, addCallback as never, runCallbacks as never) as ProxyObject<T>;
-        if (__DEV__)
-          console.error(
-            `[vera] a ${getType(obj).replace('weak', 'Weak').replace(/map$/, 'Map').replace(/set$/, 'Set')} ` +
-            `in a store needs @verajs/collections — ` +
-              `\`import { collections } from '@verajs/collections'\` and add it to your \`wire([…])\` ` +
-              `call. Without it its methods are not reactive and calling one throws.`
-          );
+        if (__DEV__) warnNoCollections(obj);
       }
 
       /**

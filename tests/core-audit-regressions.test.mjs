@@ -250,3 +250,31 @@ test('a frozen store still reports its shape', () => {
   assert.deepEqual(Object.keys(state), ['a', 'b']);
   assert.ok('a' in state);
 });
+
+/* ── the missing-collections diagnosis ───────────────────────────────────────────────────────── */
+
+/**
+ * The error is the whole reason moving collections out of core is safe, so it has to be usable.
+ * Unguarded it fired on **every** read: a thousand-row list produced a thousand identical errors per
+ * render and buried whatever came before. And it was reachable only from a *method* read, so a
+ * template rendering `${state.cart.size}` — enough on its own to show a count — got no diagnosis.
+ */
+test('the missing-collections error is raised once, and by a size read too', async () => {
+  const { isProduction } = await import('./dist.mjs');
+  if (isProduction) return; // the guard and its text are both __DEV__
+
+  const errors = [];
+  const nativeError = console.error;
+  console.error = (...args) => errors.push(String(args[0]));
+  try {
+    const state = core.createStore({ m: new Map([['a', 1]]) });
+    for (let i = 0; i < 5; i++) void state.m.size;
+    for (let i = 0; i < 5; i++) try { state.m.get('a'); } catch { /* inert without the package */ }
+  } finally {
+    console.error = nativeError;
+  }
+
+  const ours = errors.filter((m) => m.includes('@verajs/collections'));
+  assert.equal(ours.length, 1, 'ten reads, one error');
+  assert.match(ours[0], /Map/, 'and it names the kind it found');
+});
