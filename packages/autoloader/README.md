@@ -19,9 +19,9 @@ npm i @verajs/autoloader
 
 ```js
 import { wire } from '@verajs/core';
-import { initAutoloader } from '@verajs/autoloader';
+import { autoloader } from '@verajs/autoloader';
 
-const autoload = initAutoloader(import.meta.url, 'components');
+const autoload = autoloader(import.meta.url, 'components');
 wire(autoload);            // watch every component as it renders
 autoload();                // and scan whatever is already on the page
 ```
@@ -35,7 +35,7 @@ autoload();                // and scan whatever is already on the page
 `rootDir` is almost always `import.meta.url` — every component URL is resolved relative to it, and
 omitting `componentsDir` puts components beside the entry file.
 
-`initAutoloader` returns **one function with three shapes**, plus two helpers:
+`autoloader` returns **one function with three shapes**, plus two helpers:
 
 | | |
 | --- | --- |
@@ -59,8 +59,8 @@ markup lands:
 
 ```html
 <script type="module">
-  import { initAutoloader } from '@verajs/autoloader';
-  initAutoloader(import.meta.url, 'components')();
+  import { autoloader } from '@verajs/autoloader';
+  autoloader(import.meta.url, 'components')();
 </script>
 
 <div autoloader>
@@ -93,7 +93,7 @@ is not a thing that happens.
 ## Options
 
 ```js
-initAutoloader(import.meta.url, 'components', { extension: '.ts' });
+autoloader(import.meta.url, 'components', { extension: '.ts' });
 ```
 
 **`extension`** defaults to `.js`, with or without the leading dot. Set `.ts` so a TypeScript dev
@@ -102,7 +102,7 @@ server can autoload sources directly — it will not serve `foo.js` when only `f
 **`resolve(tag, dir)`** replaces URL building entirely, for a layout `dir/tag.ext` cannot express:
 
 ```js
-initAutoloader(import.meta.url, 'components', {
+autoloader(import.meta.url, 'components', {
   resolve: (tag, dir) => `${dir}/${tag}/${tag}.js`,   // components/user-card/user-card.js
 });
 ```

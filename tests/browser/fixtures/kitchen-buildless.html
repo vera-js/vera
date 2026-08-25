@@ -49,7 +49,7 @@
       import { spread } from '@verajs/renderer/spread';
       import { initRouter, connectRouter, navigate } from '@verajs/router';
       import { adoptStyles } from '@verajs/styles';
-      import { initAutoloader } from '@verajs/autoloader';
+      import { autoloader } from '@verajs/autoloader';
 
       /**
        * Each standalone bundle inlined its own registry, so the router's is not core's until this
@@ -60,7 +60,7 @@
       wire({ on: 'render', fn: domRender, priority: 50 });
       wire({ on: 'init', fn: adoptStyles, priority: 50 });
       wire(
-        initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
+        autoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
       );
 
       class BuildlessApp extends HTMLElement {

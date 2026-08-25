@@ -28,7 +28,7 @@ import { AutoloaderInstance, AutoloaderOptions } from './types.js';
  * component, or with a shadow root to watch that root. Safe to call repeatedly; a root is attached
  * once. Carries `url(tag)` and `retry(element)`.
  */
-export const initAutoloader = (
+export const autoloader = (
   rootDir: string,
   componentsDir?: string,
   options?: AutoloaderOptions
@@ -124,7 +124,7 @@ export const initAutoloader = (
      * own directory, which is the only place a bounded URL can be anyway.
      *
      * The default used to be `/`, which built `//tag.js`: a **protocol-relative** URL, so
-     * `new URL` read `tag.js` as a *host*. `initAutoloader(import.meta.url)` — the documented call
+     * `new URL` read `tag.js` as a *host*. `autoloader(import.meta.url)` — the documented call
      * for components sitting beside the entry, since `componentsDir` is optional — therefore
      * refused every component it was asked for. `autoload-dir="/"` did the same.
      */
@@ -200,7 +200,7 @@ export const initAutoloader = (
   /**
    * Created on first use, not at construction.
    *
-   * `new MutationObserver(...)` in the constructor made `initAutoloader` throw in Node —
+   * `new MutationObserver(...)` in the constructor made `autoloader` throw in Node —
    * `MutationObserver is not defined` — so an app entry that wires the autoloader could not be
    * imported server-side at all. `@verajs/router` attaches its window listeners lazily for exactly
    * this reason and says so; the observed-discovery rewrite reintroduced the problem here.
@@ -252,7 +252,7 @@ export const initAutoloader = (
      * said nothing about it; and two autoloaders on a page each adopted every marked host and raced
      * to load the same tags from their own directories, which needed an option to switch off. As a
      * shape of a function that already exists it costs almost nothing, can be called again whenever
-     * new markup lands, and leaves `initAutoloader` free of side effects.
+     * new markup lands, and leaves `autoloader` free of side effects.
      *
      * A document is recognised by `nodeType`, not by having a `body`. `document.body` is null until
      * the parser reaches it, so an `autoload()` from a classic or `async` module script in `<head>`
@@ -312,7 +312,7 @@ export const initAutoloader = (
    * are one call:
    *
    * ```js
-   * wire([domRender, connectRouter, initAutoloader(import.meta.url, 'components')]);
+   * wire([domRender, connectRouter, autoloader(import.meta.url, 'components')]);
    * ```
    *
    * This replaced `setAutoloader`, a bespoke registrar that lived in `@verajs/inserts` — the

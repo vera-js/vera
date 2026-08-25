@@ -27,7 +27,7 @@ window.Element.prototype.querySelectorAll = function (sel) {
 };
 
 const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
-const { initAutoloader } = await load('autoloader');
+const { autoloader } = await load('autoloader');
 
 const tick = () => new Promise((r) => setTimeout(r, 40));
 let pass = 0, fail = 0;
@@ -60,7 +60,7 @@ const clearHosts = () => {
 // 1. a component loads and defines
 {
   const app = host('<probe-widget></probe-widget>');
-  initAutoloader(rootDir, 'components')(app);
+  autoloader(rootDir, 'components')(app);
   await tick();
   check('component loads and defines', globalThis.__loads === 1 && !!customElements.get('probe-widget'));
 }
@@ -70,7 +70,7 @@ clearHosts();
 // 2. an element that arrives LATER is still found — the render insert is no longer the only path
 {
   const app = host();
-  initAutoloader(rootDir, 'alt')(app);
+  autoloader(rootDir, 'alt')(app);
   await tick();
   app.innerHTML = '<alt-widget></alt-widget>';
   await tick();
@@ -83,7 +83,7 @@ clearHosts();
 {
   errs.length = 0;
   const app = host('<ghost-widget></ghost-widget>');
-  initAutoloader(rootDir, 'components')(app);
+  autoloader(rootDir, 'components')(app);
   await tick();
   const after = errs.filter((m) => m.includes('ghost-widget')).length;
   app.innerHTML += '<ghost-widget></ghost-widget><ghost-widget></ghost-widget>';
@@ -97,7 +97,7 @@ clearHosts();
 // 4. a failure is reported as a DOM event, so an app can render around it
 {
   const app = host();
-  initAutoloader(rootDir, 'components')(app);
+  autoloader(rootDir, 'components')(app);
   const seen = [];
   app.addEventListener('vera:autoload-error', (e) => seen.push(e.detail));
   app.innerHTML = '<absent-widget></absent-widget>';
@@ -118,7 +118,7 @@ clearHosts();
 {
   errs.length = 0;
   const app = host('<swept-widget></swept-widget>');
-  const autoload = initAutoloader(rootDir, 'alt');
+  const autoload = autoloader(rootDir, 'alt');
   await tick();
   check('creating an autoloader touches nothing', errs.length === 0, errs.join(' '));
   autoload();
@@ -133,15 +133,15 @@ clearHosts();
 
 // 4c. url() is the URL it would fetch, and retry() takes the element that failed
 {
-  const autoload = initAutoloader(rootDir, 'components');
+  const autoload = autoloader(rootDir, 'components');
   check('url() builds the fetch URL', autoload.url('any-widget').endsWith('/components/any-widget.js'),
     autoload.url('any-widget'));
   check('url() honours a resolve option',
-    initAutoloader(rootDir, 'c', { resolve: (t, d) => `${d}/${t}/${t}.js` }).url('x-y').endsWith('/c/x-y/x-y.js'));
+    autoloader(rootDir, 'c', { resolve: (t, d) => `${d}/${t}/${t}.js` }).url('x-y').endsWith('/c/x-y/x-y.js'));
 
   errs.length = 0;
   const app = host('<retried-widget></retried-widget>');
-  const failing = initAutoloader(rootDir, 'missing-dir');
+  const failing = autoloader(rootDir, 'missing-dir');
   failing(app);
   await tick();
   check('the first attempt failed', errs.some((m) => m.includes('retried-widget')));
@@ -157,7 +157,7 @@ clearHosts();
 {
   errs.length = 0;
   const app = host('<probe-widget dir="rtl"></probe-widget>');
-  initAutoloader(rootDir, 'components')(app);
+  autoloader(rootDir, 'components')(app);
   await tick();
   check('dir="rtl" does not redirect loading', errs.length === 0, errs.join(' '));
 }
@@ -172,7 +172,7 @@ clearHosts();
       .map((bad, i) => `<esc${i}-widget autoload-dir="${bad}"></esc${i}-widget>`)
       .join('')
   );
-  initAutoloader(rootDir, 'components')(app);
+  autoloader(rootDir, 'components')(app);
   await tick();
   check('all three out-of-base escapes refused', errs.filter((m) => m.includes('refused')).length === 3,
     errs.join(' | '));
@@ -197,7 +197,7 @@ clearHosts();
     ['bare directory', 'components', isProduction ? /Invalid URL/ : /must be an absolute URL/],
   ]) {
     let message = '';
-    try { initAutoloader(value); } catch (error) { message = String(error.message); }
+    try { autoloader(value); } catch (error) { message = String(error.message); }
     check(`a ${label} rootDir throws at init, naming the fix`, expected.test(message), message);
   }
 }
@@ -207,7 +207,7 @@ clearHosts();
 // 8. components beside the entry file — the documented call with componentsDir omitted
 //
 // The default was `/`, which built `//tag.js`: protocol-relative, so `new URL` read the tag as a
-// HOST. `initAutoloader(import.meta.url)` refused every component it was asked for, and so did
+// HOST. `autoloader(import.meta.url)` refused every component it was asked for, and so did
 // `autoload-dir="/"`. Asserted on the URL, so the check does not need a fixture beside the entry.
 {
   for (const [label, dir, attr] of [
@@ -219,7 +219,7 @@ clearHosts();
     errs.length = 0;
     const tag = `beside${label.replace(/\W+/g, '')}-widget`.toLowerCase();
     const app = host(`<${tag}${attr}></${tag}>`);
-    initAutoloader(rootDir, dir)(app);
+    autoloader(rootDir, dir)(app);
     await tick();
     const message = errs.join(' ');
     const expected = dir === 'components/' ? `/components/${tag}.js` : `/autoloader/${tag}.js`;
@@ -234,7 +234,7 @@ clearHosts();
 {
   errs.length = 0;
   const app = host('<nested-widget></nested-widget>');
-  initAutoloader(rootDir, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` })(app);
+  autoloader(rootDir, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` })(app);
   await tick();
   check('resolve builds the URL', errs.join(' ').includes('/components/nested-widget/nested-widget.js'),
     errs.join(' '));
@@ -246,7 +246,7 @@ clearHosts();
     errs.length = 0;
     const tag = `res${label.replace(/\W+/g, '')}-widget`.toLowerCase();
     const app2 = host(`<${tag}></${tag}>`);
-    initAutoloader(rootDir, 'components', { resolve: resolveFn })(app2);
+    autoloader(rootDir, 'components', { resolve: resolveFn })(app2);
     await tick();
     check(`resolve cannot escape the base: ${label}`, errs.join(' ').includes('refused'), errs.join(' '));
   }
@@ -261,7 +261,7 @@ clearHosts();
 {
   errs.length = 0;
   const app = host('<probe-widget></probe-widget><probe-widget autoload-dir="alt"></probe-widget>');
-  initAutoloader(rootDir, 'components')(app);
+  autoloader(rootDir, 'components')(app);
   await tick();
   check('a second directory for a defined tag is not fetched',
     !errs.some((m) => m.includes('probe-widget')), errs.join(' | '));

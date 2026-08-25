@@ -3,7 +3,7 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6048,
+      "raw": 6044,
       "gzip": 2620
     },
     "renderer": {
@@ -15,8 +15,8 @@
       "gzip": 3443
     },
     "autoloader": {
-      "raw": 2035,
-      "gzip": 1077
+      "raw": 2031,
+      "gzip": 1073
     },
     "styles": {
       "raw": 1135,
@@ -43,7 +43,7 @@
       "gzip": 241
     },
     "inserts": {
-      "raw": 468,
+      "raw": 464,
       "gzip": 344
     }
   },

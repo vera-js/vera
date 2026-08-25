@@ -11,7 +11,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/core` | 5.90 KB | **2.56 KB** |
 | `@verajs/renderer` | 8.76 KB | 3.47 KB |
 | `@verajs/router` | 7.73 KB | 3.36 KB |
-| `@verajs/autoloader` | 1.99 KB | 1.05 KB |
+| `@verajs/autoloader` | 1.98 KB | 1.05 KB |
 | `@verajs/styles` | 1.11 KB | 597 B |
 | `@verajs/spread` | 1.54 KB | 842 B |
 | `@verajs/tag` | 2.72 KB | 1.41 KB |
@@ -153,9 +153,9 @@ second one. None of them do: each takes the registry it writes to, and `wire` ha
 import { wire } from '@verajs/core';
 import { domRender } from '@verajs/renderer';
 import { connectRouter } from '@verajs/router';
-import { initAutoloader } from '@verajs/autoloader';
+import { autoloader } from '@verajs/autoloader';
 
-wire([domRender, connectRouter, initAutoloader(import.meta.url, 'components')]);
+wire([domRender, connectRouter, autoloader(import.meta.url, 'components')]);
 ```
 
 Identical under a bundler, where everything already resolves to one instance. This replaced

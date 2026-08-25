@@ -13,7 +13,7 @@ that module was imported server-side. Every component then rendered as
 output to suggest why. `renderToString` now checks its renderer is still in the chain and says what
 happened.
 
-**`initAutoloader` is importable in Node again.** It built its `MutationObserver` in the constructor,
+**`autoloader` is importable in Node again.** It built its `MutationObserver` in the constructor,
 so an app entry that wires the autoloader threw `MutationObserver is not defined` under SSR and could
 not be imported server-side at all. The observer is created on first use, which is how
 `@verajs/router` has always handled its window listeners.

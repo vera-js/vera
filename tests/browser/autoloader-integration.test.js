@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { init, render, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
 import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { initAutoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
+import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 
 /**
  * Core, the renderer and the autoloader in one page, wired the way an app wires them.
@@ -13,7 +13,7 @@ import { initAutoloader } from '../../packages/autoloader/dist/development/vera-
  */
 
 const entry = new URL('./fixtures/autoloader/live/entry.js', import.meta.url).href;
-const autoload = initAutoloader(entry, '.');
+const autoload = autoloader(entry, '.');
 
 wire({ on: 'render', fn: domRender, priority: 50 });
 wire(autoload);

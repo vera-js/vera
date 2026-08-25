@@ -11,7 +11,7 @@
  *   2. The autoloader keeps its default `.js` extension, because these files really are `.js`.
  */
 import { setHtml, wire } from '@verajs/core';
-import { initAutoloader } from '@verajs/autoloader';
+import { autoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
 import { computedValues } from './inserts/computed.js';
@@ -31,7 +31,7 @@ wire([connectRouter, { on: 'proxy-handler', fn: computedValues, priority: 40 }])
  * The autoloader covers everything a component *renders*. The three lines after it cover what a
  * render never touches, and are the whole of the module's other surface:
  */
-const autoload = initAutoloader(import.meta.url, 'components');
+const autoload = autoloader(import.meta.url, 'components');
 wire(autoload);
 
 /** Markup written by hand in index.html — nothing renders it, so it has to be asked for. */

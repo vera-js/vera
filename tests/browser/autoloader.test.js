@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { initAutoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
+import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 
 /**
  * The autoloader, in a real engine.
@@ -70,7 +70,7 @@ it('an element stops matching once its definition arrives', () => {
 /* ── loading, end to end ─────────────────────────────────────────────────────────────────────── */
 it('discovers an undefined element and defines it from its module', async () => {
   const element = host('<probe-widget></probe-widget>');
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await until(() => customElements.get('probe-widget'));
 
   expect(customElements.get('probe-widget'), 'the definition arrived').to.be.a('function');
@@ -80,7 +80,7 @@ it('discovers an undefined element and defines it from its module', async () => 
 
 it('autoload-dir moves one element to another directory inside the base', async () => {
   const element = host('<alt-widget autoload-dir="alt"></alt-widget>');
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await until(() => customElements.get('alt-widget'));
   expect(customElements.get('alt-widget')).to.be.a('function');
   element.remove();
@@ -88,7 +88,7 @@ it('autoload-dir moves one element to another directory inside the base', async 
 
 it('an element marked autoload-ignore is left alone', async () => {
   const element = host('<skipped-widget autoload-ignore></skipped-widget>');
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await settle();
   expect(customElements.get('skipped-widget')).to.equal(undefined);
   element.remove();
@@ -98,7 +98,7 @@ it('a host without the autoloader attribute is never watched', async () => {
   const element = document.createElement('div');
   element.innerHTML = '<unscanned-widget></unscanned-widget>';
   document.body.appendChild(element);
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await settle();
   expect(customElements.get('unscanned-widget')).to.equal(undefined);
   element.remove();
@@ -111,7 +111,7 @@ it('a host without the autoloader attribute is never watched', async () => {
  */
 it('finds an element inserted after discovery was set up', async () => {
   const element = host();
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await settle();
   /** Nothing renders here — this is what any third-party widget or innerHTML call looks like. */
   element.innerHTML = '<late-arrival-widget></late-arrival-widget>';
@@ -122,7 +122,7 @@ it('finds an element inserted after discovery was set up', async () => {
 
 it('finds an element that arrives inside a whole subtree at once', async () => {
   const element = host();
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await settle();
   element.innerHTML = '<section><div><deep-arrival-widget></deep-arrival-widget></div></section>';
   await until(() => customElements.get('deep-arrival-widget'));
@@ -133,7 +133,7 @@ it('finds an element that arrives inside a whole subtree at once', async () => {
 
 it('autoload() finds markup it was never handed, and only when asked', async () => {
   const element = host('<static-widget></static-widget>');
-  const autoload = initAutoloader(entry, 'components');
+  const autoload = autoloader(entry, 'components');
   await settle();
   expect(customElements.get('static-widget'), 'creating an autoloader touches nothing')
     .to.equal(undefined);
@@ -157,7 +157,7 @@ it('does not fetch a second directory for a tag already being loaded', async () 
   const original = console.error;
   console.error = (...args) => failures.push(args.join(' '));
   const element = host('<dual-widget></dual-widget><dual-widget autoload-dir="alt"></dual-widget>');
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await until(() => customElements.get('dual-widget'));
   await settle();
   console.error = original;
@@ -174,7 +174,7 @@ it('dispatches vera:autoload-error when a component never arrives', async () => 
   const element = host();
   const seen = [];
   element.addEventListener('vera:autoload-error', (event) => seen.push(event.detail));
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await settle();
   element.innerHTML = '<never-shipped-widget></never-shipped-widget>';
   await until(() => seen.length > 0);
@@ -196,7 +196,7 @@ it('refuses an autoload-dir that resolves outside the entry directory', async ()
     <esc-one autoload-dir="https://example.invalid/x"></esc-one>
     <esc-two autoload-dir="//example.invalid/x"></esc-two>
     <esc-three autoload-dir="../../.."></esc-three>`);
-  initAutoloader(entry, 'components')(element);
+  autoloader(entry, 'components')(element);
   await until(() => refused.filter((m) => m.includes('refused')).length === 3);
   console.error = original;
 
@@ -211,7 +211,7 @@ it('refuses an autoload-dir that resolves outside the entry directory', async ()
  * you like — and do things the helper could not, like priming a service worker.
  */
 it('url() is the URL the loader will ask for, and warming it works', async () => {
-  const autoload = initAutoloader(entry, 'components');
+  const autoload = autoloader(entry, 'components');
   const href = autoload.url('preloaded-widget');
   expect(href).to.contain('/components/preloaded-widget.js');
 
@@ -242,7 +242,7 @@ it('retry takes the element the error handed you, and tries it again', async () 
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
 
-  const failing = initAutoloader(entry, 'missing-dir');
+  const failing = autoloader(entry, 'missing-dir');
   const element = host('<flaky-widget></flaky-widget>');
   let reported;
   element.addEventListener('vera:autoload-error', (event) => { reported = event.detail; });
@@ -252,7 +252,7 @@ it('retry takes the element the error handed you, and tries it again', async () 
   expect(reported.element, 'the event carries the element').to.equal(element.querySelector('flaky-widget'));
 
   /** The component is reachable now — a second autoloader stands in for the network coming back. */
-  const working = initAutoloader(entry, 'components');
+  const working = autoloader(entry, 'components');
   const other = host('<flaky-widget></flaky-widget>');
   working(other);
   await settle();
@@ -277,7 +277,7 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
   const root = outsider.attachShadow({ mode: 'open' });
   root.innerHTML = '<shadowed-widget></shadowed-widget>';
 
-  const autoload = initAutoloader(entry, 'components');
+  const autoload = autoloader(entry, 'components');
   autoload(outsider);
   await settle();
   expect(customElements.get('shadowed-widget'), 'the host never opted in').to.equal(undefined);
@@ -313,7 +313,7 @@ it('sweeps for marked hosts rather than observing the whole document', async () 
 
   try {
     const marked = host('<swept-widget></swept-widget>');
-    const autoload = initAutoloader(entry, 'components');
+    const autoload = autoloader(entry, 'components');
     /**
      * The condition the branch got wrong — a document that exists but whose body has not been
      * parsed yet, which is what an `async` module script in `<head>` sees. Modelled rather than

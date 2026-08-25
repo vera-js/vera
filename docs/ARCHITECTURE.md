@@ -25,7 +25,7 @@ Two things register into `'render'`:
 | Priority | Registered by | Does |
 | ---: | --- | --- |
 | 50 | `wire([domRender])` | renders the template; core resolves `_root ?? shadowRoot ?? element` at dispatch |
-| 75 | `wire([initAutoloader(…)])` | discovers undefined custom elements and lazy-loads them |
+| 75 | `wire([autoloader(…)])` | discovers undefined custom elements and lazy-loads them |
 
 **Nothing is registered until an app wires it.** Core used to self-register a default renderer
 (`template.innerHTML = content`) at module scope; it was removed in 0.2.0, because it was safe only

@@ -8,7 +8,7 @@
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
 import { setHtml, wire } from '@verajs/core';
-import { initAutoloader } from '@verajs/autoloader';
+import { autoloader } from '@verajs/autoloader';
 import { connectRouter } from '@verajs/router';
 import { html, render } from 'lit-html';
 
@@ -25,7 +25,7 @@ wire([connectRouter]);
  * serves the TypeScript sources; a dev server will not answer a request for `hello-component.js`
  * when only `hello-component.ts` exists on disk.
  */
-const autoload = initAutoloader(import.meta.url, 'components', {
+const autoload = autoloader(import.meta.url, 'components', {
   extension: import.meta.env.DEV ? '.ts' : '.js',
 });
 

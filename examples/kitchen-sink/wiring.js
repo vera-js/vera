@@ -13,7 +13,7 @@ import { wire } from '@verajs/core';
 import { connectRouter } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
 import { collections } from '@verajs/collections';
-import { initAutoloader } from '@verajs/autoloader';
+import { autoloader } from '@verajs/autoloader';
 import { installSinkInserts } from './components/sink-inserts.js';
 
 /**
@@ -45,7 +45,7 @@ export const wireApp = (renderer) => {
  * test — everything eagerly imported would load whether or not discovery worked.
  */
 export const wireAutoloader = (base) => {
-  const autoload = initAutoloader(base, 'lazy');
+  const autoload = autoloader(base, 'lazy');
   wire(autoload);
   return autoload;
 };

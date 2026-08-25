@@ -5,7 +5,7 @@
 One function, three shapes, two helpers — and 184 B lighter than the version that had five.
 
 ```js
-const autoload = initAutoloader(import.meta.url, 'components');
+const autoload = autoloader(import.meta.url, 'components');
 setAutoloader(autoload);        // watch every component as it renders
 autoload();                     // scan whatever is already on the page
 autoload(widget.shadowRoot);    // watch a root nothing marked

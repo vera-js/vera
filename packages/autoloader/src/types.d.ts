@@ -17,7 +17,7 @@ export type AutoloaderOptions = {
    * what the default one could.
    *
    * ```js
-   * initAutoloader(import.meta.url, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` });
+   * autoloader(import.meta.url, 'components', { resolve: (tag, dir) => `${dir}/${tag}/${tag}.js` });
    * ```
    */
   resolve?: (tag: string, dir: string) => string;
@@ -25,13 +25,13 @@ export type AutoloaderOptions = {
 };
 
 /**
- * What {@link initAutoloader} returns: one function with three shapes — no argument scans the page,
+ * What {@link autoloader} returns: one function with three shapes — no argument scans the page,
  * an element watches that component, a shadow root watches that root — carrying the two operations
  * that only make sense against a particular autoloader's directories and memo.
  */
 export type AutoloaderInstance = ((target?: Element | ShadowRoot | Document) => void) & {
   /**
-   * The instance is its own `wire` descriptor — `wire([domRender, initAutoloader(…)])` — so
+   * The instance is its own `wire` descriptor — `wire([domRender, autoloader(…)])` — so
    * configuring it and installing it are one call. `wire` tests for `on` before it tests for a
    * function, which is what lets a module be both.
    */

@@ -232,7 +232,7 @@ yields that number** instead of the value. Write observers with a block body —
 
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
-import { initAutoloader } from '@verajs/autoloader';
+import { autoloader } from '@verajs/autoloader';
 import { collections } from '@verajs/collections';
 import { render } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
@@ -559,7 +559,7 @@ Semantics worth stating:
 ### Autoloader
 
 ```js
-wire(initAutoloader(import.meta.url, 'components', { extension: '.js' }));
+wire(autoloader(import.meta.url, 'components', { extension: '.js' }));
 ```
 
 Fetches `components/<tag-name><extension>` the first time an undefined element appears inside an
@@ -586,7 +586,7 @@ Semantics worth stating:
   second location is tried only if the first fails.
 - A failed load dispatches `vera:autoload-error` on the element (bubbles, composed,
   `detail: { tag, src, error, element }`) as well as logging, so an app can render a fallback.
-- `initAutoloader` returns ONE function with three shapes: `autoload()` scans the page for
+- `autoloader` returns ONE function with three shapes: `autoload()` scans the page for
   `[autoloader]` hosts, `autoload(element)` watches that component, `autoload(shadowRoot)` watches
   that root (no attribute — handing it over is the opt-in, and the only way into a component that
   never marked itself). Creating an autoloader has no side effects; `autoload()` is what makes

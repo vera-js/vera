@@ -6,7 +6,7 @@ A broken default, a new extension point, and 29 B off — from a principles audi
 
 **`componentsDir` is optional and never worked when omitted.** The default was `'/'`, which built
 `'//tag.js'` — a protocol-relative URL, so `new URL` read the tag name as a *host*. Every resolved
-URL then landed outside the entry's directory and was refused. `initAutoloader(import.meta.url)`,
+URL then landed outside the entry's directory and was refused. `autoloader(import.meta.url)`,
 the natural call for components sitting beside the entry file, therefore loaded nothing at all, and
 `autoload-dir="/"` did the same. An empty or root-only directory now means the entry's own
 directory, which is the only place a bounded URL can point anyway.

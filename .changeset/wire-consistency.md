@@ -10,12 +10,17 @@
 Every module now hands `wire` a descriptor, and the registry package no longer knows about any
 particular consumer.
 
-**`setAutoloader(fn)` → `wire(instance)`.** `initAutoloader` returns an instance that is also its own
-descriptor, so configuring and installing are one call:
+**`setAutoloader(fn)` → `wire(instance)`, and `initAutoloader` is now `autoloader`.** The instance is
+also its own descriptor, so configuring and installing are one call, and the name matches every
+other module you hand `wire`:
 
 ```js
+- import { setAutoloader } from '@verajs/core';
+- import { initAutoloader } from '@verajs/autoloader';
 - setAutoloader(initAutoloader(import.meta.url, 'components'));
-+ wire([domRender, initAutoloader(import.meta.url, 'components')]);
++ import { wire } from '@verajs/core';
++ import { autoloader } from '@verajs/autoloader';
++ wire([domRender, connectRouter, autoloader(import.meta.url, 'components')]);
 ```
 
 `wire` now tests for a descriptor — anything naming an insert point — *before* the connector case, so
