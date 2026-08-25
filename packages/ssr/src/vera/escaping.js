@@ -54,6 +54,30 @@ export const escapeHtml = (value) => {
 export const escapeStyleText = (value) => String(value).replace(/<\/(style)/gi, '<\\/$1');
 
 /**
+ * The same neutralisation, for whichever RAWTEXT element the value landed in.
+ *
+ * `<style>` and `<script>` are the only two: a browser does not decode a character reference inside
+ * either, so escaping their content protects nothing and corrupts it. Interpolating `.a > .b` into a
+ * stylesheet produced `.a &#62; .b` — a selector matching nothing — while the client, which sets
+ * text through the DOM and never re-parses, rendered it correctly. Every interpolated stylesheet was
+ * broken on the server and right in the browser.
+ *
+ * Writing raw means the element's own end tag has to come out of the value instead, or it closes the
+ * element and everything after it parses as markup. `<\/style` is valid CSS and `<\/script` is the
+ * canonical form in JavaScript; both render identically and neither is seen by the tokenizer. Only
+ * the end tag matters, because it is the only sequence the tokenizer looks for while inside.
+ *
+ * `<title>` and `<textarea>` are **RCDATA** — references *are* decoded there — so they keep ordinary
+ * escaping, which is also what the client produces for them.
+ */
+const RAW_TEXT_CLOSERS = { style: /<\/(style)/gi, script: /<\/(script)/gi };
+
+export const escapeRawText = (value, tag) => {
+  const closer = RAW_TEXT_CLOSERS[tag];
+  return closer ? String(value).replace(closer, '<\\/$1') : escapeHtml(value);
+};
+
+/**
  * Elements whose content is text rather than markup. Setting `textContent` on one of these stores
  * the text as written: inside `<style>` or `<script>` a character reference is **not** decoded, so
  * escaping there does not protect anything and does corrupt the content.

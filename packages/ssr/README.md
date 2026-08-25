@@ -75,6 +75,13 @@ describe.
   attribute is the only thing that can carry a value.
 - **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
   an `aria-*`, a class, a reflected property.
+- **`<style>` and `<script>` content is written raw**, and their own end tags are neutralised
+  (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer). A browser does
+  not decode a character reference inside either, so escaping there protects nothing and corrupts
+  the content: an interpolated `.a > .b` used to serve `.a &#62; .b`, a selector matching nothing,
+  while the client rendered it correctly. `<title>` and `<textarea>` are RCDATA rather than RAWTEXT
+  — references *are* decoded there — so those keep ordinary escaping, which is also what the client
+  produces for them.
 - Templates flatten through a sigil-aware serializer with per-template-identity plan caching:
   `?bool` resolved by truthiness, `.value`/`.checked`/`.selected` mirrored to attributes,
   `@event`/`&ref` stripped without residue, every interpolated value escaped at the boundary.

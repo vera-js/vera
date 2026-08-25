@@ -1,4 +1,4 @@
-import { escapeHtml } from './shim.js';
+import { escapeHtml, escapeRawText } from './shim.js';
 
 /**
  * The vera-native template serializer: flattens core's `html` template objects to markup with
@@ -122,10 +122,41 @@ const closesTag = (text, inTag) => {
  * back — `class="a ` ends in a space and is still inside a value. So the state is carried, one
  * character at a time, and only at compile time: this runs once per template, ever.
  */
+/**
+ * The two **RAWTEXT** elements. A browser does not decode a character reference inside either, so
+ * escaping their content does not protect anything and does corrupt it — `<style>` gets `.a &#62; .b`
+ * for `.a > .b`, a selector that matches nothing, and a `<script>` gets broken source.
+ *
+ * `<title>` and `<textarea>` are **RCDATA**, not RAWTEXT: references *are* decoded there, so those
+ * two keep ordinary escaping, which is also what the client produces. They are deliberately not in
+ * this set.
+ */
+const RAWTEXT = new Set(['style', 'script']);
+
 const scanTag = (text, state) => {
-  let { inTag, inValue, quote } = state;
+  let { inTag, inValue, quote, rawTag, tagName, naming } = state;
   for (let i = 0; i < text.length; i++) {
     const character = text[i];
+    /**
+     * Inside `<style>` or `<script>` nothing is markup until that element's own end tag, so the
+     * attribute machinery below must not run — and a binding here is **raw text**, which the render
+     * pass has to know about.
+     */
+    if (rawTag) {
+      const close = '</' + rawTag;
+      if (
+        character === '<' &&
+        text.slice(i, i + close.length).toLowerCase() === close &&
+        (i + close.length >= text.length || /[\s/>]/.test(text[i + close.length]))
+      ) {
+        i += close.length - 1;
+        rawTag = '';
+        inTag = true;
+        tagName = '';
+        naming = false;
+      }
+      continue;
+    }
     if (inValue) {
       /** An unquoted value ends at whitespace or the tag's own `>`. */
       if (quote ? character === quote : /[\s>]/.test(character)) {
@@ -136,19 +167,37 @@ const scanTag = (text, state) => {
       continue;
     }
     if (!inTag) {
-      if (character === '<') inTag = true;
+      if (character === '<') {
+        inTag = true;
+        /** Collected as it is scanned, so a tag split across two statics keeps its name. */
+        tagName = '';
+        naming = true;
+      }
       continue;
     }
-    if (character === '>') inTag = false;
-    else if (character === '=') {
+    if (character === '>') {
+      inTag = false;
+      /** A self-closing tag has no content to be raw, and a closing tag opens nothing. */
+      if (text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
+      tagName = '';
+      naming = false;
+    } else if (character === '=') {
+      naming = false;
       let next = i + 1;
       while (next < text.length && /\s/.test(text[next])) next++;
       quote = text[next] === '"' || text[next] === "'" ? text[next] : '';
       inValue = true;
       i = quote ? next : next - 1;
+    } else if (naming) {
+      /** The name runs until the first character that cannot be in one; `/` means a closing tag. */
+      if (/[a-zA-Z0-9-]/.test(character)) tagName += character.toLowerCase();
+      else {
+        naming = false;
+        if (character === '/' && tagName === '') tagName = '\u0000';
+      }
     }
   }
-  return { inTag, inValue, quote };
+  return { inTag, inValue, quote, rawTag, tagName, naming };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -176,6 +225,8 @@ const compile = (strings) => {
    */
   const strip = [];
   const owners = [];
+  /** Which RAWTEXT element each binding sits inside, `''` when none. See `RAWTEXT`. */
+  const raws = [];
   /**
    * Whether each slot is an **element position** — inside a tag but not inside an attribute value.
    *
@@ -194,7 +245,7 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '' };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false };
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
@@ -245,6 +296,7 @@ const compile = (strings) => {
       names.push(sigil[2]);
       strip.push(dynamicTag || written.has(sigil[2].toLowerCase()));
       owners.push(owner);
+      raws.push(tagState.rawTag);
       elementPositions.push(false);
       written.add(sigil[2].toLowerCase());
       continue;
@@ -263,6 +315,7 @@ const compile = (strings) => {
       names.push('');
       strip.push(false);
       owners.push(owner);
+      raws.push(tagState.rawTag);
       elementPositions.push(false);
       continue;
     }
@@ -284,6 +337,7 @@ const compile = (strings) => {
       names.push(name);
       strip.push(dynamicTag || written.has(name.toLowerCase()));
       owners.push(owner);
+      raws.push(tagState.rawTag);
       elementPositions.push(false);
       written.add(name.toLowerCase());
       continue;
@@ -294,6 +348,7 @@ const compile = (strings) => {
     names.push('');
     strip.push(false);
     owners.push(owner);
+    raws.push(tagState.rawTag);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     elementPositions.push(elementPosition);
@@ -305,14 +360,14 @@ const compile = (strings) => {
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names, strip, owners, elementPositions };
+  const plan = { parts, kinds, names, strip, owners, raws, elementPositions };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners, elementPositions } = plans.get(strings) ?? compile(strings);
+  const { parts, kinds, names, strip, owners, raws, elementPositions } = plans.get(strings) ?? compile(strings);
   let out = '';
   /**
    * Content that belongs *after* the tag being built rather than inside it — a `<textarea>`'s
@@ -347,6 +402,24 @@ export const serializeTemplate = (template) => {
          * `[object` and `object]`. A value in this position never has markup; only a spread does.
          */
         else if (elementPositions[i]) break;
+        /**
+         * **Raw text is written raw, and its own end tag is neutralised.**
+         *
+         * A browser does not decode a character reference inside `<style>` or `<script>`, so
+         * escaping there protects nothing and corrupts the content: `<style>${'.a > .b'}</style>`
+         * served `.a &#62; .b`, a selector that matches nothing, while the client — which sets text
+         * through the DOM and never re-parses — rendered `.a > .b`. Every interpolated stylesheet
+         * was broken server-side and correct client-side, which is also a hydration divergence.
+         *
+         * Not escaping means the element's end tag has to be taken out of the value instead, or it
+         * closes the element and everything after it parses as markup. `<\/style` is valid CSS and
+         * `<\/script` is the canonical form in JavaScript; both render identically and neither is
+         * seen by the tokenizer.
+         *
+         * `<title>` and `<textarea>` are RCDATA, not RAWTEXT — references *are* decoded there — so
+         * they keep ordinary escaping, which is what the client produces for them too.
+         */
+        else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
         else out += serializeValue(value);
         break;
       case BOOLEAN:

@@ -12,7 +12,7 @@
  * `typeof localStorage === 'undefined'` is the guard the ecosystem already writes and it only works
  * if this does not lie. `tests/ssr-dom-surface.test.mjs` enforces both halves.
  */
-import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS } from './escaping.js';
+import { escapeHtml, escapeStyleText, escapeRawText, RAW_TEXT_ELEMENTS } from './escaping.js';
 import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting } from './stylesheets.js';
 import { frames, flushFrames } from './frames.js';
 import { registry } from './registry.js';
@@ -34,6 +34,7 @@ import {
 export {
   escapeHtml,
   escapeStyleText,
+  escapeRawText,
   RAW_TEXT_ELEMENTS,
   hoistedStyles,
   beginHoisting,
