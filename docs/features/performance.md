@@ -7,35 +7,48 @@
 
 ## Against the field, in a real browser
 
-Fastest of seven runs, means of three sessions, all implementations emitting identical markup.
-`core + lit-html`:
+Nine implementations, all emitting identical markup from one seeded generator. Each figure is the
+**fastest run across seven sessions** — every operation is timed through to paint, and noise here is
+one-sided, so the minimum is the cleanest estimate of what a framework actually costs.
 
-> **Re-run it yourself:** `node bench/dom/build.mjs && node bench/dom/run.mjs`. The harness had no
-> page and no runner until 2026-08-26, so this table could not be reproduced from a checkout — that
-> is fixed, and the numbers below stand. **Use three sessions and read the minimum.** These
-> operations are small enough that one session is dominated by noise: the same build measured `swap`
-> at 12.1, 3.3 and 3.6 ms across three consecutive sessions while Lit sat at 3.2–3.9 throughout.
+> **Re-run it yourself:** `node bench/dom/build.mjs && node bench/dom/run.mjs 7`.
 >
-> The harness now also carries `VeraJS own` (core + `@verajs/renderer` rather than lit-html), Svelte
-> and Preact, which this table predates.
+> **Use several sessions and read the minimum.** These operations are small enough that one session
+> is mostly noise: the same build measured `swap` at 12.1, 3.3 and 3.6 ms across three consecutive
+> sessions, and `select` at 5.8 ms across a three-session minimum that seven sessions put at 0.3.
+> Absolute numbers are machine-specific; the ratios are the claim.
 
-| Operation | VeraJS | Lit | Solid | Vue | Van.js | React | vs fastest |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| select row | **0.3** | 0.3 | 0.7 | 0.9 | 0.5 | 0.6 | **wins** |
-| swap 2 rows | **3.5** | 3.6 | 3.6 | 4.3 | 43.1 | 36.5 | **wins** |
-| update every 10th | 4.3 | 4.2 | 8.3 | 5.1 | 42.1 | 5.0 | 1.02x |
-| append 1 000 | 37.9 | 38.6 | 40.5 | 36.7 | 130.3 | 38.9 | 1.03x |
-| remove row | 5.1 | 5.3 | 5.0 | 5.9 | 42.9 | 5.3 | 1.03x |
-| create 10 000 | 348.6 | 364.9 | 386.4 | 335.1 | 395.2 | 546.1 | 1.04x |
-| create 1 000 | 39.0 | 37.4 | 39.8 | 32.3 | 38.0 | 36.0 | 1.21x |
-| clear 1 000 | 22.3 | 22.0 | 8.3 | 6.9 | 5.6 | 7.4 | **3.98x** |
+`@verajs/core` + `@verajs/renderer` — the default pairing:
 
-**Within 5% of the fastest on six of eight operations, winning two outright.** That is competitive
-with Lit, Solid and Vue outright — not "good for something this small".
+| Operation | VeraJS | Lit | Solid | Vue | Preact | Svelte | Van.js | React | vs fastest |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| select row | **0.3** | 0.4 | 0.8 | 1.0 | 0.6 | 0.8 | 0.5 | 0.7 | **wins** |
+| swap 2 rows | **2.3** | 3.3 | 3.1 | 3.0 | 3.2 | 4.3 | 19.1 | 17.2 | **wins** |
+| create 1 000 | **14.8** | 15.9 | 17.9 | 15.1 | 15.3 | 17.6 | 17.0 | 16.7 | **wins** |
+| create 10 000 | **163.6** | 168.4 | 196.9 | 167.4 | 182.9 | 319.5 | 183.7 | 308.7 | **wins** |
+| update every 10th | 2.5 | 2.6 | 4.9 | 3.5 | 3.3 | 4.1 | 19.4 | 3.9 | 1.04x |
+| append 1 000 | 23.7 | 22.8 | 23.6 | 23.6 | 25.3 | 29.8 | 35.8 | 24.6 | 1.04x |
+| remove row | 3.5 | 3.5 | 4.0 | 3.9 | 3.4 | 5.1 | 18.2 | 3.5 | 1.17x |
+| clear 1 000 | 2.8 | 9.6 | 3.0 | 2.6 | 2.7 | 2.8 | 2.3 | 3.8 | 1.22x |
 
-`clear` is the exception, and it is **lit-html's cost, not VeraJS's**: Lit scores 22.0 on the same
-test. lit-html removes list nodes one at a time; Van.js replaces the subtree. Worth stating whenever
-the table is shown, because otherwise it reads as a VeraJS weakness.
+**Four operations won outright, six of eight within 5% of the fastest, and 1.22x at worst.** That is
+competitive with Lit, Solid and Vue on their own terms — not "good for something this small".
+
+### Running on lit-html instead
+
+Core accepts lit-html as its renderer, and the benchmark measures that pairing too. It is close
+everywhere except `clear`:
+
+| Operation | VeraJS + `@verajs/renderer` | VeraJS + lit-html | Lit |
+| --- | ---: | ---: | ---: |
+| clear 1 000 | **2.8** | 9.9 | 9.6 |
+| swap 2 rows | **2.3** | 2.9 | 3.3 |
+| update every 10th | 2.5 | **2.4** | 2.6 |
+| remove row | 3.5 | **3.0** | 3.5 |
+
+`clear` is **lit-html's cost, not VeraJS's** — Lit itself scores 9.6 on the same test, because
+lit-html removes list nodes one at a time where the others replace the subtree. It was the one
+operation the old table had to apologise for, and switching to `@verajs/renderer` removes it.
 
 ## The numbers
 
@@ -102,32 +115,23 @@ garbage collector. Any published number should say which statistic it is.
 
 **`@verajs/renderer` was rebuilt from the ground up and is browser-confirmed.** Template-identity
 architecture, keyed reconciliation built in, element-mode list items, comment-free templates,
-whole-range fast clear. Three browser sessions, fastest-of-7 each, seven implementations emitting
-identical markup:
+whole-range fast clear. The table at the top of this page is that renderer's standing against eight
+other implementations, and **it beats the lit-html pairing on nearly every row** — so the size/speed
+trade is not merely resolved but inverted: `core + @verajs/renderer` is the smaller pairing *and* the
+faster one.
 
-| Operation | VeraJS own | best other | standing |
-| --- | ---: | ---: | --- |
-| create 10 000 | **~327 ms** | Vue ~339 | **fastest — won all three runs** |
-| append 1 000 | **~34.9 ms** | Vue ~36.9 | **fastest — won all three runs** |
-| select row | **0.1–0.3 ms** | Lit 0.2–0.3 | fastest/tied; the 0.1 is the best figure recorded |
-| swap 2 rows | 3.3–3.5 ms | Lit 3.3–3.7 | fastest 2 of 3 |
-| update every 10th | 4.1–4.2 ms | Lit 3.9–4.4 | tied fastest |
-| remove row | 4.8–5.2 ms | VeraJS+lit 4.6–5.3 | Vera family fastest |
-| clear 1 000 | 4.7–8.4 ms | Van/Solid 5.3–9.4 | competitive; the 4.7 is the best recorded |
-| create 1 000 | ~35.1 ms | Vue ~33.4 | 2nd, within 5% — won one of three runs |
-
-**It also beats the lit-html pairing on nearly every row**, so the size/speed contradiction is not
-just resolved but inverted: `core + @verajs/renderer` is the smaller pairing AND the faster one.
-The one remaining non-win is create-1 000 against Vue, ~5% with overlapping ranges.
+Earlier revisions of this page carried a second copy of those results, taken on different hardware
+and never updated alongside the first. Two tables making one claim with two sets of numbers is how a
+document stops being evidence, so there is one table now and everything else points at it.
 
 ## Caveats
 
-- **Measured under jsdom on V8.** Proxy, allocation and Map costs are representative of a browser;
-  layout and paint are not modelled.
-- **No browser-based comparison against other frameworks has been run yet.** The DOM harness in
-  `bench/dom/` exists and is verified to emit identical markup across VeraJS, Lit, Van.js and
-  React — but until it has been run on real hardware, **no cross-framework speed claim should be
-  published.**
+- **The reactivity figures are jsdom on V8**, and only those. Proxy, allocation and `Map` costs are
+  representative of a browser; layout and paint are not modelled, which is exactly why the
+  cross-framework table is measured in a real one instead.
+- **The browser table is one machine.** Absolute milliseconds are machine-specific and the ratios
+  are the claim. `node bench/dom/run.mjs 7` reproduces it; fewer sessions than that will not, because
+  the sub-millisecond operations are dominated by noise until the minimum settles.
 - Reads cost ~100x a plain property access. That is the price of automatic tracking, and it is the
   same trade Vue makes.
 
