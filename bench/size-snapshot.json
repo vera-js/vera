@@ -23,8 +23,8 @@
       "gzip": 598
     },
     "collections": {
-      "raw": 986,
-      "gzip": 516
+      "raw": 1007,
+      "gzip": 528
     },
     "keyed": {
       "raw": 1156,

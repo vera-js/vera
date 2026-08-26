@@ -76,9 +76,8 @@ const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
  *
  * Change detection is per method: `set` fires iff absent-or-different, `add` iff absent, `delete`
  * iff it returned true, `clear` iff non-empty (notifying every previous key). No-op mutations are
- * silent. `get`/`has` subscribe per key; `entries`/`keys`/`values`/`forEach` subscribe to every
- * change. `for…of`/spread work but do not subscribe (`Symbol.iterator` — iterate via `entries()`
- * when reactivity is needed). Reactivity is per-entry, not deep: values come back raw.
+ * silent. `get`/`has` subscribe per key; `entries`/`keys`/`values`/`forEach`, `for…of` and spread
+ * subscribe to every change. Reactivity is per-entry, not deep: values come back raw.
  */
 export const collectionMethod = (
   obj: object & StoreProxyKeys,
@@ -145,10 +144,22 @@ export const collectionMethod = (
           track(key);
           return method.apply(obj, args);
         }
+        /**
+         * Every read that sees the whole collection subscribes to every change — including
+         * `Symbol.iterator`, which is **how a collection is actually read**.
+         *
+         * It is the same function as `entries` on a `Map` and `values` on a `Set`, and leaving it
+         * out of this group meant `${[...state.tags]}` and `for (const t of state.tags)` — the two
+         * most natural spellings — read the collection once and never heard about a change again.
+         * Nothing failed: the first render was right and the list simply stopped moving. The
+         * documented workaround was `[...state.tags.values()]`, which nobody arrives at from a
+         * component that renders correctly the first time.
+         */
         case 'entries':
         case 'keys':
         case 'values':
-        case 'forEach': {
+        case 'forEach':
+        case Symbol.iterator: {
           track(GLOBAL);
           return method.apply(obj, args);
         }

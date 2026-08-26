@@ -116,5 +116,40 @@ check('a no-op set is silent', wRuns === w0 + 4);
 boundary.objMap.set(k1, 'v2');
 check('object-keyed Map still tracks per key', wRuns === w0 + 5 && wSnap.endsWith('|v2'));
 
+/**
+ * **`for…of` and spread subscribe.**
+ *
+ * `Symbol.iterator` is the same function as `entries` on a `Map` and `values` on a `Set`, and it
+ * used to fall through to the untracked default — so `${[...state.tags]}`, the most natural way to
+ * render a collection, read it once and never heard about a change again. Nothing *failed*: the
+ * first render was right and the list simply stopped moving. The documented workaround was
+ * `[...state.tags.values()]`, which nobody arrives at from a component that renders correctly the
+ * first time.
+ *
+ * Its own element, so its hook is the only one on it and can be driven the way the others here are.
+ */
+const iterHost = dom.window.document.createElement('div');
+dom.window.document.body.appendChild(iterHost);
+const iter = core.createStore({ m: new Map([['a', 1]]), s: new Set([1]) });
+let iterRuns = 0, spreadSnap = '', forOfSnap = '';
+core.createHook({ element: iterHost, priority: 60, callback: () => {
+  iterRuns++;
+  spreadSnap = [...iter.m].map(([k, v]) => `${k}${v}`).join('');
+  let out = '';
+  for (const v of iter.s) out += v;
+  forOfSnap = out;
+}});
+[...iterHost._hooks[0]][0](undefined, true);
+const i0 = iterRuns;
+
+check('spread reads the Map', spreadSnap === 'a1');
+check('for..of reads the Set', forOfSnap === '1');
+iter.m.set('b', 2);
+check('spread over a Map subscribes', iterRuns === i0 + 1 && spreadSnap === 'a1b2');
+iter.s.add(2);
+check('for..of over a Set subscribes', iterRuns === i0 + 2 && forOfSnap === '12');
+iter.s.delete(2);
+check('and hears a delete', iterRuns === i0 + 3 && forOfSnap === '1');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

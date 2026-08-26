@@ -251,8 +251,8 @@ wire(collections);
 
 Change detection is per method — `set` fires iff absent-or-different, `add` iff absent, `delete` iff
 it returned true, `clear` iff non-empty. `get`/`has` subscribe per key; `entries`/`keys`/`values`/
-`forEach`/`size` subscribe to every change; `for…of` and spread subscribe to **nothing** (iterate via
-`entries()`). Reactivity is per entry, not deep. `WeakMap`/`WeakSet` work.
+`forEach`/`size` subscribe to every change, and so do `for…of` and spread. Reactivity is per entry,
+not deep. `WeakMap`/`WeakSet` work.
 
 Omit the wiring and core raises a development error naming the package the first time a collection
 is read from a store, and the call after it throws — collection methods cannot run on a proxy.

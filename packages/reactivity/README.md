@@ -9,7 +9,7 @@ would otherwise pay for.
 | Entry | | |
 | --- | ---: | --- |
 | `@verajs/reactivity/computed` | <!--size:computed.gzip-->241 B<!--/size:computed.gzip--> | memoised derived values |
-| `@verajs/reactivity/collections` | <!--size:collections.gzip-->516 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
+| `@verajs/reactivity/collections` | <!--size:collections.gzip-->528 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
 subpath and a buildless page downloads only that one. Both entries are **additive**: neither inlines
@@ -105,8 +105,17 @@ different objects from the components reading them.
 
 ## `collections` — reactive `Map` and `Set`
 
-`wire([collections])` and a `Map` or `Set` inside a store tracks like anything else: reading `size`
-or iterating subscribes, and `set`/`delete`/`add`/`clear` notify.
+`wire([collections])` and a `Map` or `Set` inside a store tracks like anything else.
+
+| Reading | Subscribes to |
+| --- | --- |
+| `get(k)`, `has(k)` | that key |
+| `size`, `entries()`, `keys()`, `values()`, `forEach()` | every change |
+| `for…of`, `[...collection]` | every change |
+
+`set`, `add`, `delete` and `clear` notify. **Reactivity is per entry, not deep**: a value comes back
+as it was put in, so mutating an object *inside* a collection notifies nothing — replace the entry
+instead. `WeakMap` and `WeakSet` work and cannot be iterated, so they subscribe per key only.
 
 Two more exports are the extension point itself, for anyone implementing the `'collection'` insert
 rather than using this one:
