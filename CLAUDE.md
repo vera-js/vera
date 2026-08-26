@@ -18,6 +18,13 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
+- **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
+  cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
+  number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
+  the measurement had silently reused the previous experiment's bundle. Print the baseline after
+  restoring, every time. The same applies to timings: `bench/reactivity.mjs` read 163 ns/op straight
+  after the browser suite and 132 on a quiet machine, so take three runs before believing a
+  regression.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
   `@verajs/reactivity`, `@verajs/reactivity/collections`, anything built on core's public API — resolves core
