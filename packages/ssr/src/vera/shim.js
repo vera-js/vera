@@ -6,7 +6,12 @@
  * with the thing it is made of: the nodes in `./nodes.js`, escaping in `./escaping.js`, the frame
  * queue in `./frames.js`, stylesheets in `./stylesheets.js`, the registry in `./registry.js`.
  *
- * The rule every one of them follows: **answer honestly or do not exist.** A detached element has no
+ * The rule every one of them follows: **answer honestly or do not exist** — and its corollary,
+ * **where the platform throws, this throws.** A server that is lenient about an error does not make
+ * anything work: it moves the failure to the client, strips the context that would have explained
+ * it, and in the meantime writes markup no browser would have produced from the same call. That
+ * corollary has found more defects here than asking whether a member is present, because a member
+ * that is present and too permissive looks exactly like one that is correct. A detached element has no
  * parent, no siblings and no box, and a browser returns exactly what these do. Where a server cannot
  * answer at all — `localStorage` is one browser's state — the global stays undefined, because
  * `typeof localStorage === 'undefined'` is the guard the ecosystem already writes and it only works

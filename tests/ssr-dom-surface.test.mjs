@@ -133,6 +133,25 @@ const SURFACE = [
   ['textContent = undefined is empty', (el) => ((el.textContent = undefined), el.textContent === '')],
   ['textContent = 0 is "0"', (el) => ((el.textContent = 0), el.textContent === '0')],
 
+  /**
+   * **Where the platform throws, this throws.** A server that is lenient about an error does not
+   * make anything work — it moves the failure to the client and strips the context that would have
+   * explained it, and in every one of these it also wrote markup no browser would have produced.
+   *
+   * The refused set is **the engines' and not jsdom's**: `tests/browser/spread-names.test.js`
+   * records that they refuse exactly `a b`, `a>b`, `a=b` and `a/b` while accepting `a"b`, `a'b`,
+   * `a<b` and about fifty other shapes jsdom rejects. `CLAUDE.md` records the false finding that
+   * came of trusting jsdom here, which is why the rule is written down rather than probed for.
+   */
+  ['setAttribute refuses a name with a space', (el) => { try { el.setAttribute('a b', '1'); return 'accepted'; } catch (error) { return error.name === 'InvalidCharacterError'; } }],
+  ['setAttribute refuses an empty name', (el) => { try { el.setAttribute('', '1'); return 'accepted'; } catch (error) { return error.name === 'InvalidCharacterError'; } }],
+  ['setAttribute refuses "=" and "/"', (el) => ['a=b', 'a/b'].every((name) => { try { el.setAttribute(name, '1'); return false; } catch (error) { return error.name === 'InvalidCharacterError'; } })],
+  ['setAttribute still accepts what engines accept', (el) => { for (const name of ['a"b', "a'b", 'a<b', 'a|b', 'a?b', 'a(b)']) el.setAttribute(name, '1'); return el.getAttributeNames().length === 6; }],
+  ['toggleAttribute refuses the same set', (el) => { try { el.toggleAttribute('a b'); return 'accepted'; } catch (error) { return error.name === 'InvalidCharacterError'; } }],
+  ['createElement refuses an unwritable tag', () => ['', 'a b', '<p>', 'a>b'].every((tag) => { try { globalThis.document.createElement(tag); return false; } catch (error) { return error.name === 'InvalidCharacterError'; } })],
+  ['appendChild refuses a non-node', (el) => ['', null, undefined, 5].every((value) => { try { el.appendChild(value); return false; } catch (error) { return error instanceof TypeError; } })],
+  ['attachInternals refuses a second call', (el) => { el.attachInternals(); try { el.attachInternals(); return 'accepted'; } catch (error) { return error.name === 'NotSupportedError'; } }],
+
   /** These are views over an attribute: an assignment that does not reach the markup is lost. */
   ['dataset writes through', (el) => (el.dataset.userId = '7', el.getAttribute('data-user-id') === '7')],
   ['dataset reads back', (el) => ((el.dataset.x = 'y'), el.dataset.x === 'y')],

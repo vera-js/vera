@@ -40,7 +40,10 @@ code, so they are not re-litigated.
   server and the client disagree about something neither of them renders, so nothing fails until a
   hydration mismatch shows up somewhere else entirely. Where the two legitimately differ (this DOM
   holds children as a string, so `append` and `closest` answer emptily) that is in the README's
-  out-of-scope list — check there before calling a difference a defect.
+  out-of-scope list — check there before calling a difference a defect. **The most productive
+  question is not "is this member present" but "does it refuse what the platform refuses"** — a
+  member that exists and is too permissive looks exactly like one that is correct, and being lenient
+  server-side only moves the failure to the client with the context stripped off.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because

@@ -25,6 +25,24 @@ import { registry } from './registry.js';
 const HTML_NS = 'http://www.w3.org/1999/xhtml';
 
 /**
+ * The characters that make a name unusable, checked so the shim refuses what the platform refuses.
+ *
+ * **Deliberately the engines' rule and not jsdom's.** jsdom implements the XML `Name` production and
+ * rejects `a(b)`, `a|b`, `a?b` and about fifty other shapes that every real engine accepts —
+ * `tests/browser/spread-names.test.js` records that the engines refuse exactly `a b`, `a>b`, `a=b`
+ * and `a/b`, and `CLAUDE.md` records the false finding that came of trusting jsdom here. So this is
+ * whitespace, `>`, `=`, `/` and controls, plus the empty string: strictly the set that cannot survive
+ * being written into a tag, and nothing invented on top.
+ */
+const UNUSABLE_IN_A_NAME = /[\0-\x20/>=\x7f]/;
+
+/**
+ * A tag name is checked slightly harder, because a quote or a `<` inside one **does** break the
+ * markup where the same character inside an attribute name does not.
+ */
+const UNUSABLE_IN_A_TAG = /[\0-\x20"'<>/=\x7f]/;
+
+/**
  * Declarative shadow DOM can carry more than the mode, and the extras are **not recoverable on the
  * client**: `attachShadow` reuses a declarative root and ignores the options it is handed, so a
  * component asking for `delegatesFocus: true` over server-rendered markup that omitted it keeps
@@ -70,6 +88,15 @@ export class ContainerShim extends EventTarget {
     this.isConnected = true;
   }
   appendChild(node) {
+    /**
+     * **Not a node is a `TypeError`, as it is in a browser.** `appendChild(null)` was a silent no-op
+     * here and throws in every engine, so `this.appendChild(maybeMissing)` — ordinary code —
+     * rendered a server page with the child quietly absent and then crashed the client.
+     */
+    if (node === null || typeof node !== 'object')
+      throw new TypeError(
+        `Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'.`
+      );
     /**
      * A registered component that has not rendered is marked, so the scan over this markup renders
      * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
@@ -617,6 +644,17 @@ export class ElementShim extends ContainerShim {
   }
   setAttribute(name, value) {
     name = this._name(name);
+    /**
+     * **A name the platform refuses is refused here**, because the alternative is worse than a
+     * throw: `setAttribute('a b', v)` wrote `a b="v"` into the tag, which a parser reads back as
+     * *two* attributes, so the server and the client disagreed about the element's own attributes
+     * and the browser threw `InvalidCharacterError` on the same call anyway.
+     */
+    if (name === '' || UNUSABLE_IN_A_NAME.test(name))
+      throw new DOMException(
+        `Failed to execute 'setAttribute' on 'Element': '${name}' is not a valid attribute name.`,
+        'InvalidCharacterError'
+      );
     const previous = this.getAttribute(name);
     this._attributes.set(name, String(value));
     this._attributeChanged(name, previous);
@@ -631,6 +669,11 @@ export class ElementShim extends ContainerShim {
    */
   toggleAttribute(name, force) {
     name = this._name(name);
+    if (name === '' || UNUSABLE_IN_A_NAME.test(name))
+      throw new DOMException(
+        `Failed to execute 'toggleAttribute' on 'Element': '${name}' is not a valid attribute name.`,
+        'InvalidCharacterError'
+      );
     const present = this._attributes.has(name);
     const wanted = force ?? !present;
     if (wanted === present) return wanted;
@@ -884,7 +927,12 @@ export class ElementShim extends ContainerShim {
    * the client's real internals take over on hydration.
    */
   attachInternals() {
-    if (internals.has(this)) return internals.get(this);
+    /** A second call raises `NotSupportedError` in every engine; returning the first set hid that. */
+    if (internals.has(this))
+      throw new DOMException(
+        `Failed to execute 'attachInternals' on 'HTMLElement': ElementInternals for the specified element was already attached.`,
+        'NotSupportedError'
+      );
     internals.set(this, {
       shadowRoot: this._shadowRoot,
       form: null,
@@ -957,6 +1005,17 @@ export class ElementShim extends ContainerShim {
  */
 export const createElement = (localName, namespaceURI = HTML_NS) => {
   const name = namespaceURI === HTML_NS ? String(localName).toLowerCase() : String(localName);
+  /**
+   * **A tag name that cannot be written is refused**, as it is in every engine. Accepting one meant
+   * `createElement('a b')` serialized `<a b>` — an element `a` with an empty attribute `b` once a
+   * parser sees it — and `createElement('')` produced `<>`. Both render markup no browser would
+   * have produced from the same call, which is the one thing this DOM exists not to do.
+   */
+  if (name === '' || UNUSABLE_IN_A_TAG.test(name))
+    throw new DOMException(
+      `Failed to execute 'createElement' on 'Document': The tag name provided ('${name}') is not a valid name.`,
+      'InvalidCharacterError'
+    );
   const Component = registry.get(name);
   if (!Component) return new ElementShim(name, namespaceURI);
   const element = new Component();

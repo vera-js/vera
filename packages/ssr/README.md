@@ -73,7 +73,14 @@ describe.
   `style`, `dataset` — are held to the same list rather than assumed complete once the property
   exists. `attachShadow({ mode: 'closed' })` behaves as it does in a browser: `element.shadowRoot`
   is `null`, and the root is serialized anyway, because declarative shadow DOM expresses `closed`
-  and the client re-creates it just as hidden. A `style` value is stored as it was
+  and the client re-creates it just as hidden. **Where the platform throws, this throws** — an
+  attribute or tag name that cannot be written, a second `attachShadow` or `attachInternals`, an
+  invalid custom-element name, `appendChild` of a non-node. A server that is lenient about an error
+  does not make anything work; it moves the failure to the client and strips the context. The two
+  exceptions are deliberate: a selector is not parsed, so an invalid one answers emptily rather than
+  raising (queries answer emptily here anyway), and `insertAdjacentHTML` with `beforebegin` or
+  `afterend` raises a message explaining that a server-rendered component has no parent, which is
+  more use than the platform's bare `SyntaxError`. A `style` value is stored as it was
   written rather than re-serialized, so `url("data:…")` keeps its quotes where a browser's CSS
   serializer drops them — equivalent CSS, and a semicolon inside a value does not split the
   declaration, which is what matters for an inline `data:` URI. Queries answer emptily and layout reads as zero because that
