@@ -103,6 +103,25 @@ inlining it. It is built *on* core rather than beside it, and a standalone copy 
 page a second core — a second insert registry, a second store identity, and computeds tracking
 different objects from the components reading them.
 
+## `collections` — reactive `Map` and `Set`
+
+`wire([collections])` and a `Map` or `Set` inside a store tracks like anything else: reading `size`
+or iterating subscribes, and `set`/`delete`/`add`/`clear` notify.
+
+Two more exports are the extension point itself, for anyone implementing the `'collection'` insert
+rather than using this one:
+
+| | |
+| --- | --- |
+| `collectionMethod` | the implementation `collections` wires. Wrap it to add a type, or read it as the reference |
+| `GLOBAL` | the key that means *the collection changed shape*, as opposed to one entry changing |
+
+`GLOBAL` is `'_global'`, and **it is a contract with `@verajs/core`, which declares the same literal
+rather than importing it.** A production bundle inlines its dependencies, so an import would work in
+development and, in production, subscribe to one string while notifying another. Core tracks it from
+`ownKeys` and from a `size` read; a collection implementation notifies it on every mutation that adds
+or removes an entry. Notify something else and `${state.map.size}` silently stops updating.
+
 ## License
 
 MIT

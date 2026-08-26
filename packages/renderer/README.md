@@ -440,6 +440,13 @@ attribute `hidden="false"` and any value at all applies it.
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 
+This entry also exports `jsxName` and `BOOLEAN_ATTRIBUTES`, **which are not API for applications.**
+They are the table this entry uses to map React's names, and `@verajs/jsx` carries its own copy
+deliberately — the two are build-time and runtime, and a shared package would be a dependency where
+a test does the job. `tests/jsx-name-mapping.test.mjs` asserts the two agree on every key, and it can
+only do that against the built artifact, which is why they are exported at all. Read them if you are
+writing something that has to agree with both; do not build on them.
+
 ## Extending it — `_$apply$` and `_$child$`
 
 The renderer holds no directive system. It holds a **protocol**, at the two positions worth
