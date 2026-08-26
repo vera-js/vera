@@ -592,7 +592,21 @@ export class ElementShim extends ContainerShim {
   get shadowRoot() {
     return this._shadowRoot?.mode === 'closed' ? null : this._shadowRoot;
   }
+  /**
+   * Both refusals are the platform's. `mode` is a required member, and an element that already has
+   * a root raises `NotSupportedError` rather than getting a second one — which matters here because
+   * silently replacing the first root discards everything rendered into it, on the server only.
+   * `@verajs/core` already guards against calling this twice *because* the browser throws; the shim
+   * accepting it meant the server was the one place that guard was not being checked.
+   */
   attachShadow(init = {}) {
+    if (init.mode !== 'open' && init.mode !== 'closed')
+      throw new TypeError("Failed to execute 'attachShadow' on 'Element': Failed to read the 'mode' property from 'ShadowRootInit': Required member is undefined.");
+    if (this._shadowRoot)
+      throw new DOMException(
+        "Failed to execute 'attachShadow' on 'Element': Shadow root cannot be created on a host which already hosts a shadow tree.",
+        'NotSupportedError'
+      );
     this._shadowRoot = new ShadowRootShim(init);
     this._shadowRoot._host = this;
     return this._shadowRoot;

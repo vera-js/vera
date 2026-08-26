@@ -290,7 +290,13 @@ export const installShims = () => {
     createNodeIterator: () => ({ nextNode: () => null, previousNode: () => null }),
     elementFromPoint: () => null,
     elementsFromPoint: () => [],
-    contains: () => false,
+    /**
+     * Everything this DOM builds is in the document — the shim sets `isConnected` on every element
+     * for the same reason, since a server render is exactly the case where the tree *is* live. A
+     * flat `false` contradicted that, and `if (!document.contains(el)) return;` is ordinary
+     * defensive code that bailed out of a render that was in fact perfectly connected.
+     */
+    contains: (node) => node?.isConnected === true,
     /** Nothing here owns another document, so importing and adopting are the identity. */
     importNode: (node) => node,
     adoptNode: (node) => node,
@@ -351,6 +357,12 @@ export const installShims = () => {
    * afterwards; assigning to this global directly is safe only until two requests overlap.
    */
   globalThis.window = /** @type {any} */ (globalThis);
+  /**
+   * `self` is the other name for the global, and UMD bundles feature-detect on it. `window` is
+   * already defined here, so those bundles have taken the browser branch regardless — leaving `self`
+   * undefined only made the two disagree.
+   */
+  globalThis.self = /** @type {any} */ (globalThis);
   globalThis.location ??= /** @type {any} */ ({ pathname: '/', search: '', hash: '', href: 'http://localhost/' });
   globalThis.history = /** @type {any} */ ({
     scrollRestoration: 'auto',

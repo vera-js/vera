@@ -625,6 +625,8 @@ export const GLOBALS = {
   getComputedStyle: true,
   getSelection: true,
   scrollTo: true,
+  /** The other name for the global. `window` is defined, so a UMD bundle has already taken the browser branch. */
+  self: true,
   addEventListener: true,
   removeEventListener: true,
   dispatchEvent: true,
@@ -633,6 +635,16 @@ export const GLOBALS = {
   MutationObserver: true,
   PerformanceObserver: true,
 
+  /**
+   * **The viewport family is absent on purpose, and the reason is not the same as `localStorage`'s.**
+   * Nobody writes `typeof innerWidth === 'undefined'`, so the guard argument does not carry here.
+   * What carries is consistency with `matchMedia`, which is *provided* and matches nothing: that is
+   * the server saying "no media query applies", which renders the base shell. An `innerWidth` of `0`
+   * would have the component beside it conclude it is on a zero-width phone and render the mobile
+   * shell instead — two answers to the same question, from the same render. Absent, the read is a
+   * `TypeError` the author fixes; present and zero, it is a wrong shell nobody sees until hydration
+   * replaces it.
+   */
   localStorage: 'per-user state a server must not invent; guard with typeof',
   sessionStorage: 'per-user state a server must not invent; guard with typeof',
   indexedDB: 'per-user state a server must not invent; guard with typeof',

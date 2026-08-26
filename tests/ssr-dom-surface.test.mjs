@@ -85,12 +85,22 @@ const SURFACE = [
   /** `mode: 'closed'` is the one thing that distinguishes the two modes, and it has to hold here. */
   ['attachShadow open is reachable', (el) => el.attachShadow({ mode: 'open' }) === el.shadowRoot],
   ['attachShadow closed is not', (el) => (el.attachShadow({ mode: 'closed' }), el.shadowRoot === null)],
+  /** Both refusals are the platform's, and core's own "call this once" guard exists because of them. */
+  ['attachShadow needs a mode', (el) => { try { el.attachShadow({}); return 'accepted a missing mode'; } catch (error) { return error instanceof TypeError; } }],
+  ['attachShadow refuses a second root', (el) => { el.attachShadow({ mode: 'open' }); try { el.attachShadow({ mode: 'open' }); return 'replaced the first root'; } catch (error) { return error.name === 'NotSupportedError'; } }],
+
+  /** Everything this DOM builds is in the document — `isConnected` already says so. */
+  ['document.contains an element', (el) => globalThis.document.contains(el) === true],
+  ['document.contains(document.body)', () => globalThis.document.contains(globalThis.document.body) === true],
+  ['document.contains(null)', () => globalThis.document.contains(null) === false],
 
   /** `tabIndex` answers the question "is this focusable", so its default is per-element, not zero. */
   ['tabIndex defaults to -1 on a div', (el) => el.tabIndex === -1],
   ['tabIndex defaults to 0 on a button', () => make('button').tabIndex === 0],
   ['tabIndex follows href on an anchor', () => { const a = make('a'); if (a.tabIndex !== -1) return 'a bare anchor is not focusable'; a.setAttribute('href', '#'); return a.tabIndex === 0; }],
   ['tabIndex written wins', (el) => ((el.tabIndex = 3), el.getAttribute('tabindex') === '3' && el.tabIndex === 3)],
+
+  ['window.self is the global', () => globalThis.self === globalThis.window],
 
   /** These are views over an attribute: an assignment that does not reach the markup is lost. */
   ['dataset writes through', (el) => (el.dataset.userId = '7', el.getAttribute('data-user-id') === '7')],
