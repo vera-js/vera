@@ -62,8 +62,14 @@ tree-shaking, and would hide that some libraries need two packages to render any
 ## DOM
 
 ```bash
-node bench/dom/build.mjs out.js     # bundles VeraJS, Lit, Van.js and React together
+node bench/dom/build.mjs                       # writes bench/dom/bundle.js
+npx http-server bench/dom -p 8080 -s           # or any static server
+open http://localhost:8080/                    # then press Run
 ```
+
+`bench/dom/index.html` is the page; `bundle.js` is generated and gitignored, so build before
+serving. Results are also left on `window.__RESULTS__` and printed to the console as JSON, which is
+how a script can drive it.
 
 Must run in a **real browser** — jsdom does no layout or paint, so its timings are meaningless for
 this. Each operation is timed through to paint (`requestAnimationFrame` plus a macrotask), because a

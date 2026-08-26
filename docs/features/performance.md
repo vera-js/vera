@@ -7,8 +7,17 @@
 
 ## Against the field, in a real browser
 
-Fastest of seven runs, means of three sessions, all seven implementations emitting identical markup.
+Fastest of seven runs, means of three sessions, all implementations emitting identical markup.
 `core + lit-html`:
+
+> **Re-run it yourself:** `node bench/dom/build.mjs && node bench/dom/run.mjs`. The harness had no
+> page and no runner until 2026-08-26, so this table could not be reproduced from a checkout — that
+> is fixed, and the numbers below stand. **Use three sessions and read the minimum.** These
+> operations are small enough that one session is dominated by noise: the same build measured `swap`
+> at 12.1, 3.3 and 3.6 ms across three consecutive sessions while Lit sat at 3.2–3.9 throughout.
+>
+> The harness now also carries `VeraJS own` (core + `@verajs/renderer` rather than lit-html), Svelte
+> and Preact, which this table predates.
 
 | Operation | VeraJS | Lit | Solid | Vue | Van.js | React | vs fastest |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

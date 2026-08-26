@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VeraJS — DOM benchmark</title>
+    <!--
+      The page `bench/dom/main.js` has always expected and this repository never had. Its elements
+      are `#run`, `#status`, `#head`, `#results` and `#mount`; without them the runner throws on
+      load, which is why `docs/features/performance.md`'s browser numbers had no harness anyone
+      could re-run.
+
+      Load `bundle.js`, which `node bench/dom/build.mjs` writes and `.gitignore` keeps out of the
+      repo. Serve this directory over http — a module script will not load from `file:`.
+    -->
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 2rem auto;
+        max-width: 60rem;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      h1 { margin-bottom: 0.25rem; }
+      .sub { margin-top: 0; opacity: 0.7; }
+      table { border-collapse: collapse; width: 100%; margin-top: 1.5rem; }
+      th, td { border-bottom: 1px solid rgba(128, 128, 128, 0.3); padding: 0.4rem 0.6rem; text-align: left; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .best { font-weight: 700; }
+      .note, .range { display: block; font-size: 0.75em; font-weight: 400; opacity: 0.65; }
+      .noisy { color: #b45309; }
+      button { font: inherit; padding: 0.4rem 0.9rem; }
+      #mount { position: absolute; left: -9999px; top: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>DOM benchmark</h1>
+    <p class="sub">
+      The js-framework-benchmark workload, in a real browser. Lower is better; the headline is the
+      fastest run and “med” underneath is the median.
+    </p>
+
+    <p><button id="run">Run</button> <span id="status">Loading…</span></p>
+
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="results"></tbody>
+    </table>
+
+    <!--
+      Off-screen rather than hidden: `display: none` skips layout, and every operation here is timed
+      through to paint. A framework that never lays out has not done the work.
+    -->
+    <div id="mount"></div>
+
+    <script type="module" src="./bundle.js"></script>
+  </body>
+</html>
