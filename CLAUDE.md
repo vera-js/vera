@@ -156,8 +156,11 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 > `acorn-import-attributes`, a vendored `jsx-loader.js` and `linkedom`, are gone; nothing installs
 > them and nothing needs them. `tests/ssr-native.test.mjs` covers declarative shadow DOM, nesting,
 > escaping, sigil stripping, `static styles` and determinism, and the server→client handoff is
-> exercised for real: `scripts/build-hydration-fixture.mjs` renders through the actual pipeline and
-> the browser suite hydrates that output, with `--check` in CI so the snapshot cannot drift.
+> exercised for real: `scripts/build-hydration-fixture.mjs` and `scripts/build-kitchen-fixture.mjs`
+> render through the actual pipeline and the browser suite hydrates that output. **Both carry
+> `--check` in `npm run gate`** — the kitchen one did not until 2026-08-26, and had silently drifted,
+> so the browser suite was comparing against markup no server emitted. Any generated artifact that is
+> committed needs its `--check` in the gate on the same day it is written.
 
 ## Modules are independent — by design
 

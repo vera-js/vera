@@ -18,6 +18,15 @@ const steps = [
   ['eslint', 'npx', ['eslint', '.']],
   ['size claims', 'node', ['scripts/sync-size-claims.mjs', '--check']],
   ['hydration fixture', 'node', ['scripts/build-hydration-fixture.mjs', '--check']],
+  /**
+   * **Its sibling was in this list and it was not, and it had drifted.** The browser suite compares
+   * three renderings of the kitchen sink against committed markup, and `@verajs/ssr` is Node-only so
+   * that markup cannot be produced in the browser. With nothing checking it, a fix to the server
+   * left the fixture behind and 35 browser files went on asserting against markup no server emits —
+   * green the whole time, which is the exact failure the script's own header says it exists to
+   * prevent.
+   */
+  ['kitchen fixture', 'node', ['scripts/build-kitchen-fixture.mjs', '--check']],
   ['node (development)', 'npm', ['test']],
   ['node (production)', 'npm', ['run', 'test:prod']],
   ['browser × 3', 'npm', ['run', 'test:browser:all']],
