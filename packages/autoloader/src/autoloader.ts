@@ -36,6 +36,21 @@ export const autoloader = (
   /** A configuration error fails at the misconfiguration, not once per element per render. */
   if (!rootDir) throw new Error('autoloader: rootDir is required (usually import.meta.url)');
 
+  /**
+   * An option this autoloader does not have does nothing, and did so in silence — `extensions` or
+   * `resolver` reads exactly like the real thing at a glance, and the symptom is the *default*
+   * behaviour, which looks like the option was never needed rather than never seen.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the list nor the text.
+   */
+  if (__DEV__ && options)
+    for (const key of Object.keys(options))
+      if (key !== 'extension' && key !== 'resolve')
+        console.warn(
+          `[vera] autoloader: \`${key}\` is not an option, so it was ignored. ` +
+            `The options are extension and resolve.`
+        );
+
   /** Normalized so callers may pass either `ts` or `.ts` */
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
 

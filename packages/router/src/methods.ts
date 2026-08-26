@@ -139,6 +139,19 @@ const insertRoute = (element: HTMLElement, route: Route) => {
   routeList.splice(at, 0, route);
 };
 
+/**
+ * **A key a route does not have is a mistake, and `meta` is where anything else belongs.**
+ *
+ * The set is closed on purpose, so this is safe to be strict about. The cases it catches are the
+ * spellings the neighbouring routers use — Vue Router's `components`, React Router's `element` and
+ * `loader` — each of which registers a route that matches its path and then renders nothing, which
+ * reads as a broken router rather than a wrong key. A typed caller is told by the compiler; the
+ * buildless caller this framework treats as first-class was told by nobody.
+ *
+ * `__DEV__`-only, so a production bundle carries neither the list nor the text.
+ */
+const ROUTE_KEYS = ['path', 'name', 'title', 'meta', 'beforeEnter', 'alias', 'children', 'component', 'action', 'redirect', 'view'];
+
 export const addRoutes = (
   element: HTMLElement,
   routes: RouteOptions[],
@@ -154,6 +167,15 @@ export const addRoutes = (
   aliased: boolean = false
 ) => {
   for (let i = 0; i < routes.length; i++) {
+    /** Not on the aliased pass — the same route objects are re-registered per alias, and one typo is one warning. */
+    if (__DEV__ && !aliased)
+      for (const key of Object.keys(routes[i]))
+        if (!ROUTE_KEYS.includes(key))
+          console.warn(
+            `[vera] router: \`${key}\` is not a route option, so it was ignored on ` +
+              `"${String(routes[i].path)}". The options are ${ROUTE_KEYS.join(', ')} — anything else ` +
+              `belongs in \`meta\`, which every guard and action reads off the snapshot.`
+          );
     const { path } = routes[i];
     const completePath = typeof path === 'function' ? path : join(parentRoute, path);
 

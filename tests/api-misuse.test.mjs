@@ -13,7 +13,14 @@
  *   navigation matched nothing, and the empty outlet looked like a broken router. TypeScript tells
  *   the typed caller. Nothing told the buildless one, and buildless is a first-class mode here.
  *
- * Both checks are `__DEV__`-only — a production bundle carries neither the text nor the branch —
+ * The same sweep covered the framework's other option bags. A route object and an autoloader's
+ * config are both closed sets, and both ignored an unknown key in silence — the route case matters
+ * most, because the keys people reach for are the neighbouring routers' spellings (`components` from
+ * Vue Router, `element` and `loader` from React Router), each of which registers a route that
+ * matches its path and then renders nothing. `ShadowRootInit` is deliberately *not* guarded: it is
+ * the platform's dictionary, and the platform's own behaviour is to ignore what it does not know.
+ *
+ * All of these checks are `__DEV__`-only — a production bundle carries neither the text nor the branch —
  * so this whole file is a development-condition test.
  */
 import { test } from 'node:test';
@@ -30,6 +37,29 @@ globalThis.cancelAnimationFrame = () => {};
 
 const { wire } = await load('core');
 const { initRouter } = await load('router');
+const { autoloader } = await load('autoloader');
+
+/** A fresh router per test, since `initRouter` remembers the element it was given. */
+const app = () => {
+  const element = document.createElement('div');
+  const view = document.createElement('main');
+  element.appendChild(view);
+  document.body.appendChild(element);
+  return { element, view };
+};
+
+/** Runs `body` with `console.warn` captured, and hands back what it said. */
+const warnings = (body) => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    body();
+  } finally {
+    console.warn = warn;
+  }
+  return said;
+};
 
 test('wire says what it was handed, not what it failed to read off it', { skip: isProduction && 'development-only diagnostics' }, () => {
   for (const notAModule of [null, undefined, 'renderer', 42]) {
@@ -83,4 +113,42 @@ test('initRouter stays quiet about the options it does have', { skip: isProducti
     console.warn = warn;
   }
   assert.deepEqual(warnings, []);
+});
+
+test('a route object names a key it does not have', { skip: isProduction && 'development-only diagnostics' }, () => {
+  const { element, view } = app();
+  const said = warnings(() => {
+    const { addRoutes } = initRouter(element, { view, handleInitial: false });
+    addRoutes([
+      /** `components` is Vue Router's spelling and `element` is React Router's. Both render nothing here. */
+      { path: '/a', components: {}, element: 1, meta: { requiresAuth: true }, component: () => '' },
+      { path: '/b', name: 'b', component: () => '' },
+    ]);
+  });
+  assert.equal(said.length, 2, `expected two warnings, got ${JSON.stringify(said)}`);
+  assert.ok(said.some((line) => line.includes('`components`')), 'named components');
+  assert.ok(said.some((line) => line.includes('`element`')), 'named element');
+  for (const line of said) {
+    assert.match(line, /^\[vera\] /);
+    assert.match(line, /"\/a"/, 'and says which route');
+    assert.match(line, /`meta`/, 'and where arbitrary data goes');
+  }
+});
+
+test('an alias does not repeat the warning for the same typo', { skip: isProduction && 'development-only diagnostics' }, () => {
+  const { element, view } = app();
+  const said = warnings(() => {
+    const { addRoutes } = initRouter(element, { view, handleInitial: false });
+    addRoutes([{ path: '/p', alias: ['/q', '/r'], component: () => '', loader: 1, children: [{ path: 'k', element: 1, component: () => '' }] }]);
+  });
+  assert.equal(said.filter((line) => line.includes('`loader`')).length, 1, JSON.stringify(said));
+  assert.equal(said.filter((line) => line.includes('`element`')).length, 1, 'a child under three patterns is still one typo');
+});
+
+test('the autoloader names an option it does not have', { skip: isProduction && 'development-only diagnostics' }, () => {
+  const said = warnings(() => autoloader('http://localhost/app.js', 'components', { extensions: '.ts', resolve: (tag) => tag }));
+  assert.equal(said.length, 1, JSON.stringify(said));
+  assert.match(said[0], /^\[vera\] autoloader: `extensions` is not an option/);
+  /** And the two it does have stay quiet. */
+  assert.deepEqual(warnings(() => autoloader('http://localhost/app.js', 'components', { extension: '.ts', resolve: (tag) => tag })), []);
 });
