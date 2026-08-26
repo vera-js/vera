@@ -249,6 +249,28 @@ export const installShims = () => {
     title: '',
     body: new ElementShim('body'),
     documentElement: new ElementShim('html'),
+    /**
+     * **`body` is what a browser reports when nothing has focus**, and it never answers `null` for a
+     * document that exists. `null` here meant `document.activeElement.tagName` — ordinary code —
+     * threw on the server and worked in the browser.
+     */
+    get activeElement() {
+      return globalThis.document.body;
+    },
+    /**
+     * This document *has* a `documentElement`, so saying it has no children contradicted itself —
+     * the same shape as `document.contains` answering `false` while every element reported
+     * `isConnected`. One element, first and last, exactly as a real document reports.
+     */
+    get firstElementChild() {
+      return globalThis.document.documentElement;
+    },
+    get lastElementChild() {
+      return globalThis.document.documentElement;
+    },
+    get childElementCount() {
+      return 1;
+    },
     createElement: (localName) => createElement(localName),
     createElementNS: (namespace, localName) => createElement(localName, namespace),
     createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
@@ -262,11 +284,15 @@ export const installShims = () => {
     getElementsByClassName: () => [],
     getElementsByName: () => [],
     /**
-     * What a document being *built* reports. `readyState` is `'loading'` because that is exactly
-     * what is happening: nothing has finished parsing, and a component that waits for
-     * `DOMContentLoaded` on the client is right to see this rather than a lie about being ready.
+     * **`complete`, because nothing more is coming.** `loading` is the truthful description of a
+     * document still being assembled, and it is the wrong answer to give a component: the guard
+     * everyone writes is `if (readyState === 'loading') addEventListener('DOMContentLoaded', boot)`,
+     * and this DOM never fires that event — so `loading` meant the callback was registered and never
+     * ran, and the component silently rendered nothing. `@verajs/jsx/standalone` is written exactly
+     * that way. `complete` sends the same code down the branch that runs `boot()` now, which is what
+     * the browser ends up doing too.
      */
-    readyState: 'loading',
+    readyState: 'complete',
     visibilityState: 'visible',
     hidden: false,
     characterSet: 'UTF-8',
@@ -278,16 +304,16 @@ export const installShims = () => {
     designMode: 'off',
     nodeType: 9,
     nodeName: '#document',
-    activeElement: null,
     currentScript: null,
     scrollingElement: null,
     fullscreenElement: null,
     pointerLockElement: null,
     pictureInPictureElement: null,
-    doctype: null,
-    firstElementChild: null,
-    lastElementChild: null,
-    childElementCount: 0,
+    /**
+     * The output is an HTML document, so it has a doctype. A browser reports these three fields and
+     * an empty public and system id, which is exactly what `<!doctype html>` means.
+     */
+    doctype: { name: 'html', publicId: '', systemId: '' },
     children: [],
     childNodes: [],
     styleSheets: [],
@@ -397,7 +423,24 @@ export const installShims = () => {
    * undefined only made the two disagree.
    */
   globalThis.self = /** @type {any} */ (globalThis);
-  globalThis.location ??= /** @type {any} */ ({ pathname: '/', search: '', hash: '', href: 'http://localhost/' });
+  /**
+   * Every part, built from a real `URL`, so the default is as complete as the one `renderToString`'s
+   * `location` option installs. It used to carry four properties — `pathname`, `search`, `hash`,
+   * `href` — so `location.origin`, `.protocol`, `.host` and `.hostname` read `undefined` until a
+   * render supplied a URL, and then started working. Two different shapes for the same object
+   * depending on when you looked at it.
+   */
+  globalThis.location ??= /** @type {any} */ (
+    (() => {
+      const url = new URL('http://localhost/');
+      return Object.fromEntries(
+        ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'].map((part) => [
+          part,
+          url[part],
+        ])
+      );
+    })()
+  );
   globalThis.history = /** @type {any} */ ({
     scrollRestoration: 'auto',
     pushState: () => {},
@@ -407,7 +450,91 @@ export const installShims = () => {
     forward: () => {},
   });
   Object.assign(globalThis, delegateEvents(windowEvents, () => globalThis.window));
-  globalThis.scrollTo = () => {};
+  /**
+   * **A server render is a top-level, unframed, open window — and saying nothing says otherwise.**
+   *
+   * This is the one place where *absence* gives the wrong answer rather than no answer.
+   * `window.top === window` is how a page asks "am I in an iframe"; with `top` undefined that
+   * comparison is **false**, so a component concludes it *is* framed and takes the branch meant for
+   * a page it does not control. Every value here is what a browser reports for a page that is not
+   * framed, which is exactly the situation a server render is in.
+   */
+  globalThis.top = /** @type {any} */ (globalThis);
+  globalThis.parent = /** @type {any} */ (globalThis);
+  globalThis.frames = /** @type {any} */ (globalThis);
+  globalThis.frameElement = null;
+  globalThis.opener = null;
+  globalThis.length = 0;
+  globalThis.closed = false;
+  /** `name` is `Window`'s, not `globalThis`'s, so TypeScript needs telling which one this is. */
+  /** @type {any} */ (globalThis).name ??= '';
+
+  /**
+   * Derived from `location` rather than stored, so the two cannot disagree — `renderToString`'s
+   * `location` option rewrites the URL per request, and a copied-at-install `origin` would answer
+   * for whichever request installed the shim.
+   */
+  Object.defineProperty(globalThis, 'origin', {
+    get: () => globalThis.location?.origin ?? '',
+    configurable: true,
+  });
+
+  /**
+   * **Inert, because a server has no user and no window to move** — the same reason the observers
+   * are inert and `scrollTo` already was. A browser does not throw for any of these, so neither can
+   * this: a component that calls one during setup would work in the browser and crash here, which
+   * is the divergence this package exists to remove.
+   *
+   * The ones with a return value get the answer a browser gives when the thing did not happen —
+   * `confirm` when the user declines, `prompt` when they cancel, `open` when the browser refuses,
+   * `find` when there is no match. None of those is invented; each is a real outcome of the call.
+   */
+  for (const name of [
+    'alert', 'print', 'blur', 'focus', 'close', 'stop', 'scroll', 'scrollBy', 'scrollTo',
+    'moveBy', 'moveTo', 'resizeBy', 'resizeTo', 'postMessage', 'captureEvents', 'releaseEvents',
+  ])
+    globalThis[name] = () => {};
+  globalThis.confirm = () => false;
+  globalThis.prompt = () => null;
+  globalThis.find = () => false;
+  globalThis.open = () => null;
+
+  /**
+   * `reportError` hands an error to the page's error handling. A no-op would **swallow** it, which
+   * is the one outcome worse than not having the function — so it goes where every other unhandled
+   * failure in this package goes.
+   */
+  globalThis.reportError ??= (error) => console.error(error);
+
+  /**
+   * The `NodeFilter` constants, because `createTreeWalker` is provided and these are what it takes.
+   * `@verajs/renderer` passes the numbers directly, so nothing here needs them — but a component
+   * writing `NodeFilter.SHOW_ELEMENT` is writing ordinary DOM code, and these are facts rather than
+   * answers this DOM has to invent.
+   */
+  globalThis.NodeFilter = /** @type {any} */ (
+    Object.assign(function NodeFilter() {
+      throw new TypeError('Illegal constructor');
+    }, {
+      FILTER_ACCEPT: 1,
+      FILTER_REJECT: 2,
+      FILTER_SKIP: 3,
+      SHOW_ALL: 0xffffffff,
+      SHOW_ELEMENT: 1,
+      SHOW_ATTRIBUTE: 2,
+      SHOW_TEXT: 4,
+      SHOW_CDATA_SECTION: 8,
+      SHOW_ENTITY_REFERENCE: 16,
+      SHOW_ENTITY: 32,
+      SHOW_PROCESSING_INSTRUCTION: 64,
+      SHOW_COMMENT: 128,
+      SHOW_DOCUMENT: 256,
+      SHOW_DOCUMENT_TYPE: 512,
+      SHOW_DOCUMENT_FRAGMENT: 1024,
+      SHOW_NOTATION: 2048,
+    })
+  );
+  Object.freeze(globalThis.NodeFilter);
   /**
    * Node supplies `Event` and `CustomEvent`; this fills in only where it does not, and matches the
    * shape `EventTarget` dispatches.

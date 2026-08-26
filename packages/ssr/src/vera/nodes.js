@@ -422,11 +422,19 @@ const REFLECTED = {
   virtualKeyboardPolicy: 'virtualkeyboardpolicy',
 };
 
+/** The two reflected strings declared `DOMString?`, which answer `null` rather than `''`. */
+const NULLABLE_REFLECTED = new Set(['role', 'popover']);
+
 /** Present or absent. */
 const REFLECTED_PRESENCE = { hidden: 'hidden', autofocus: 'autofocus', inert: 'inert' };
 
-/** A boolean in JavaScript, the words `true`/`false` in the markup. */
-const REFLECTED_TRUE_FALSE = { draggable: 'draggable', spellcheck: 'spellcheck' };
+/**
+ * A boolean in JavaScript, the words `true`/`false` in the markup — **each with its own default**,
+ * because they do not share one. With the attribute absent a browser reports `draggable` as `false`
+ * and `spellcheck` as `true`. One shared rule gave both `true`, so `draggable` was wrong on every
+ * element that had not set it, and `spellcheck` was right by accident.
+ */
+const REFLECTED_TRUE_FALSE = { draggable: ['draggable', false], spellcheck: ['spellcheck', true] };
 
 /** The one that spells its booleans differently. */
 const REFLECTED_YES_NO = { translate: 'translate' };
@@ -501,7 +509,13 @@ const defineReflections = (Shim) => {
   for (const [property, attribute] of Object.entries(REFLECTED)) {
     Object.defineProperty(Shim.prototype, property, {
       get() {
-        return this.getAttribute(attribute) ?? '';
+        /**
+         * **`role` and `popover` are nullable and the rest are not.** Both are declared `DOMString?`,
+         * so a browser answers `null` when the attribute is absent where `id` and `title` answer
+         * `''`. Returning `''` for `role` made `element.role === null` false on every element that
+         * had never been given one — a test a component writes to mean "this has no explicit role".
+         */
+        return this.getAttribute(attribute) ?? (NULLABLE_REFLECTED.has(property) ? null : '');
       },
       set(value) {
         this.setAttribute(attribute, value);
@@ -525,10 +539,13 @@ const defineReflections = (Shim) => {
     [['true', 'false'], REFLECTED_TRUE_FALSE],
     [['yes', 'no'], REFLECTED_YES_NO],
   ]) {
-    for (const [property, attribute] of Object.entries(table)) {
+    for (const [property, entry] of Object.entries(table)) {
+      /** `['attribute', default]` where the default differs per property; a bare string means `true`. */
+      const [attribute, fallback] = Array.isArray(entry) ? entry : [entry, true];
       Object.defineProperty(Shim.prototype, property, {
         get() {
-          return this.getAttribute(attribute) !== words[1];
+          const written = this.getAttribute(attribute);
+          return written === null ? fallback : written !== words[1];
         },
         set(value) {
           this.setAttribute(attribute, value ? words[0] : words[1]);

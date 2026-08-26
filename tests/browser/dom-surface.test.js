@@ -23,6 +23,23 @@ const names = (...prototypes) => {
   return [...members].sort();
 };
 
+/** A capitalised function with a prototype: an interface, covered by rule rather than by list. */
+const isConstructor = (name) =>
+  /^[A-Z]/.test(name) && typeof window[name] === 'function' && window[name].prototype !== undefined;
+
+/**
+ * Globals this test runner puts on the page, which are not the platform and must not become part of
+ * the recorded surface: `@web/test-runner`'s own channel, Mocha's BDD functions, and the `gc` hook
+ * that `--js-flags=--expose-gc` adds for the memory suite. A list rather than a pattern, because
+ * `before`, `context` and `run` are plausible platform names and a pattern broad enough to catch
+ * them would hide a real one.
+ */
+const HARNESS = new Set([
+  '__WDS_WEB_SOCKET__', '__WTR_CONFIG__', '__WTR_MOCHA_RUNNER__', '__wtr_browser_logs__',
+  'after', 'afterEach', 'before', 'beforeEach', 'context', 'describe', 'it', 'mocha', 'run',
+  'specify', 'xcontext', 'xdescribe', 'xit', 'xspecify', 'gc',
+]);
+
 const ACTUAL = {
   element: () => names(HTMLElement.prototype, Element.prototype, Node.prototype, EventTarget.prototype),
   shadowRoot: () =>
@@ -37,6 +54,16 @@ const ACTUAL = {
    * assert nothing. That one is covered behaviourally instead.
    */
   tokenList: () => names(DOMTokenList.prototype),
+  /**
+   * **The window is enumerated from the global object, not from `Window.prototype`** — that
+   * prototype is empty in every engine, because window's members are its own properties.
+   *
+   * Constructors are excluded and covered by a rule instead (`tests/ssr-dom-surface.test.mjs`
+   * asserts every interface the shim implements is exposed so `instanceof` answers). There are
+   * about seven hundred of them and listing each with its own reason would bury the hundred and
+   * fifty names that describe what a window actually *does*.
+   */
+  window: () => names(window).filter((name) => !isConstructor(name) && !HARNESS.has(name)),
 };
 
 for (const [kind, actual] of Object.entries(ACTUAL)) {

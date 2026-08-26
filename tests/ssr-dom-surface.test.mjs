@@ -374,6 +374,12 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
     document: globalThis.document,
     sheet: new globalThis.CSSStyleSheet(),
     tokenList: make().classList,
+    /**
+     * The global object itself. Its members are own properties rather than prototype ones, so the
+     * walk below finds them on the first pass — and `in` rather than `!== undefined` is what makes
+     * `undefined` itself, a real global whose value is undefined, count as present.
+     */
+    window: globalThis,
   };
   for (const [kind, subject] of Object.entries(subjects)) {
     const have = new Set();
@@ -392,6 +398,44 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
     /** And the other direction: something listed as impossible must not have quietly appeared. */
     const contradicted = Object.keys(scoped).filter((name) => have.has(name));
     if (contradicted.length) failures.push(`${kind}: implemented but listed as out of scope: ${contradicted.join(', ')}`);
+    else pass++;
+  }
+}
+
+/**
+ * **The constructors, by rule rather than by list.**
+ *
+ * A browser exposes about seven hundred interfaces as globals and a server has instances of almost
+ * none of them, so enumerating each with its own reason would bury the surface that matters. What
+ * does matter is the other direction: **every interface this shim actually implements must be a
+ * global, or `instanceof` lies about an object this DOM produced.** `node instanceof Node` is
+ * ordinary defensive code, and a shim that hands back an element while leaving `Element` undefined
+ * fails it in a way nothing else would explain.
+ */
+const INSTANCES = [];
+{
+  const element = make();
+  const instances = [
+    ['EventTarget', element],
+    ['Node', element],
+    ['Element', element],
+    ['HTMLElement', element],
+    ['ShadowRoot', make().attachShadow({ mode: 'open' })],
+    ['DocumentFragment', globalThis.document.createDocumentFragment()],
+    ['CSSStyleSheet', new globalThis.CSSStyleSheet()],
+    ['Event', new globalThis.Event('x')],
+    ['CustomEvent', new globalThis.CustomEvent('x')],
+    ['Image', new globalThis.Image()],
+    ['Audio', new globalThis.Audio()],
+  ];
+  INSTANCES.push(...instances);
+  for (const [name, instance] of instances) {
+    const constructor = globalThis[name];
+    if (typeof constructor !== 'function') {
+      failures.push(`${name} is not exposed as a global, so \`instanceof ${name}\` throws`);
+      continue;
+    }
+    if (!(instance instanceof constructor)) failures.push(`an object this DOM produced is not \`instanceof ${name}\``);
     else pass++;
   }
 }
@@ -429,8 +473,9 @@ const total =
   EVENT_TARGETS.length * EVENT_SURFACE.length +
   DOCUMENT_SURFACE.length +
   SHEET_SURFACE.length +
-  /** Two completeness checks per shim, plus every global. Derived, so adding a shim cannot leave it stale. */
+  /** Two completeness checks per shim, plus every interface and every global. Derived, so adding one cannot leave it stale. */
   Object.keys(SURFACES).length * 2 +
+  INSTANCES.length +
   Object.keys(GLOBALS).length;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);

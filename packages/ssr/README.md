@@ -63,9 +63,16 @@ describe.
   including `once`, `handleEvent` objects, `event.target` and a `dispatchEvent` return value that
   reflects `preventDefault`. What is absent is **bubbling**: this DOM holds children as a string, so
   there is no ancestor chain to walk and an event reaches its own target's listeners and stops.
-- **The server DOM is complete.** Every member a real element, shadow root, document or
-  `CSSStyleSheet` exposes in Chromium, Firefox and WebKit is either implemented or listed as out of
-  scope with a reason — the list is checked in (`tests/dom-surface.mjs`, no dependency involved) and
+- **The server DOM is complete, and checked twice.** Every member a real element, shadow root,
+  document, `CSSStyleSheet`, `DOMTokenList` **or window** exposes in Chromium, Firefox and WebKit is
+  either implemented or listed as out of scope with a reason — and every member that *is* implemented
+  is then compared against a real DOM, member by member, so one that exists and answers differently
+  fails too. That second check is the one that earns its keep: enumerating presence found a single
+  gap, while comparing behaviour found `tabIndex` defaulting to 0, `draggable` defaulting to true,
+  `role` answering `''` where the platform answers `null`, `textContent = null` writing the word
+  "null", and a closed shadow root handed straight back. The window's ~700 interface constructors are
+  covered by a rule rather than a list: every interface this DOM implements is exposed, so
+  `instanceof` answers for anything it hands you — the list is checked in (`tests/dom-surface.mjs`, no dependency involved) and
   both halves are enforced, so a gap fails a test instead of a render. That includes the sixty reflected
   properties (`id`, `className`, `hidden`, `tabIndex`, `role`, the whole `aria*` family), which are
   views of an attribute and therefore reach the markup, and `attachInternals()`, so a
