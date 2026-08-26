@@ -34,10 +34,15 @@ the table is shown, because otherwise it reads as a VeraJS weakness.
 
 | Operation | ns/op |
 | --- | ---: |
-| Plain object, 2 hops (reference) | 2 |
-| Store read, tracked, flat | ~200 |
-| Store read, tracked, 2 nested hops | ~630 |
-| Write + propagation | ~900 |
+| Plain object, 2 hops (reference) | 1 |
+| Store read, tracked, flat | ~140 |
+| Store read, tracked, 2 nested hops | ~450 |
+| Write + propagation | ~870 |
+
+Reads are **~30% faster than this table said until 2026-08-26**, because the `'proxy-handler'` insert
+chain was being resolved from a `Map` on every property read of every store and is now cached against
+a registry revision. Measured 150 → 132 ns/op flat and 478 → 442 at two hops on that change alone.
+The table had gone stale in the other direction, which is the direction nobody checks.
 
 Effect executions for 100 writes in one tick:
 
@@ -45,7 +50,7 @@ Effect executions for 100 writes in one tick:
 | --- | ---: |
 | `useEffect` (coalesced) | **1** |
 | `useLayoutEffect` (coalesced) | **1** |
-| `useSyncEffect` (per-change, by design) | 99 |
+| `useSyncEffect` (per-change, by design) | 100 |
 
 ## What changed, and why it is worth saying
 

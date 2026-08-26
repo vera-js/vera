@@ -18,6 +18,13 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
+- **A probe needs `requestAnimationFrame` on `globalThis`, or the scheduler runs synchronously.**
+  `animationFrame` falls back to `run()` when the global is missing, so every write flushes
+  immediately and **coalescing cannot happen** — a probe missing it reports `useEffect` running 100
+  times for 100 writes and looks like a broken batch. The full list a probe needs is
+  `window document HTMLElement customElements CSSStyleSheet Node Element DocumentFragment
+  requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent` for anything
+  dispatching, and `location`/`history` for the router.
 - **jsdom is stricter than a browser about `setAttribute`, and that difference has already produced
   one false finding.** jsdom implements the XML Name production and throws on `a(b)`, `a|b`, `a?b`
   and about fifty other shapes; **every real engine accepts them**, rejecting exactly `a b`, `a>b`,
