@@ -113,6 +113,26 @@ const SURFACE = [
 
   ['window.self is the global', () => globalThis.self === globalThis.window],
 
+  /**
+   * **A name the browser refuses is refused here**, or the server renders markup the client can
+   * never upgrade: `define('nodash', …)` throws `SyntaxError` in every engine, and this accepted it,
+   * so the component rendered, shipped, and the client threw on the line meant to bring it to life.
+   */
+  ['customElements refuses a name with no hyphen', () => { try { globalThis.customElements.define('nodash', class extends globalThis.HTMLElement {}); return 'accepted'; } catch (error) { return error.name === 'SyntaxError'; } }],
+  ['customElements refuses an upper-case name', () => { try { globalThis.customElements.define('My-El', class extends globalThis.HTMLElement {}); return 'accepted'; } catch (error) { return error.name === 'SyntaxError'; } }],
+  ['customElements refuses a reserved name', () => { try { globalThis.customElements.define('font-face', class extends globalThis.HTMLElement {}); return 'accepted'; } catch (error) { return error.name === 'SyntaxError'; } }],
+  ['customElements refuses a second definition', () => { globalThis.customElements.define('surface-dupe', class extends globalThis.HTMLElement {}); try { globalThis.customElements.define('surface-dupe', class extends globalThis.HTMLElement {}); return 'accepted'; } catch (error) { return error.name === 'NotSupportedError'; } }],
+  ['customElements accepts an ordinary name', () => { globalThis.customElements.define('surface-ok', class extends globalThis.HTMLElement {}); return globalThis.customElements.get('surface-ok') !== undefined; }],
+
+  /**
+   * `textContent` is a nullable `DOMString` with `[LegacyNullToEmptyString]`, and WebIDL turns
+   * `undefined` into `null` for a nullable type — so both erase the content in every engine. This
+   * wrote the word `null`, which put it on the page server-side and nothing client-side.
+   */
+  ['textContent = null is empty', (el) => ((el.textContent = null), el.textContent === '')],
+  ['textContent = undefined is empty', (el) => ((el.textContent = undefined), el.textContent === '')],
+  ['textContent = 0 is "0"', (el) => ((el.textContent = 0), el.textContent === '0')],
+
   /** These are views over an attribute: an assignment that does not reach the markup is lost. */
   ['dataset writes through', (el) => (el.dataset.userId = '7', el.getAttribute('data-user-id') === '7')],
   ['dataset reads back', (el) => ((el.dataset.x = 'y'), el.dataset.x === 'y')],

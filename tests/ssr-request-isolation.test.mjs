@@ -420,7 +420,8 @@ for (const [what, file, message] of [
   assert.ok(registry.has('hello-ssr'), 'a definition from an earlier render is still registered');
   assert.throws(
     () => customElements.define('hello-ssr', class extends HTMLElement {}),
-    /already been defined/,
+    /** `NotSupportedError` is what every engine raises, and the name is the part code branches on. */
+    (error) => error.name === 'NotSupportedError' && /already been used/.test(error.message),
     'redefining a tag is refused'
   );
 }

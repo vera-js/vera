@@ -935,8 +935,16 @@ export class ElementShim extends ContainerShim {
    * every child selector, every attribute selector, every `content: "…"`. The client never had it:
    * there, `textContent` sets real text and the serializer of a raw-text element emits it verbatim.
    */
+  /**
+   * **`null` and `undefined` are the empty string, not their own names.** `textContent` is a
+   * nullable `DOMString` with `[LegacyNullToEmptyString]`, and WebIDL converts `undefined` to `null`
+   * for a nullable type — so both erase the content in every engine. This wrote the text `null`,
+   * which meant `this.textContent = maybeMissing` put the word on the page server-side and nothing
+   * client-side: a hydration mismatch produced by ordinary defensive code.
+   */
   set textContent(value) {
-    this.innerHTML = RAW_TEXT_ELEMENTS.has(this.localName) ? String(value) : escapeHtml(value);
+    const text = value == null ? '' : value;
+    this.innerHTML = RAW_TEXT_ELEMENTS.has(this.localName) ? String(text) : escapeHtml(text);
   }
 }
 

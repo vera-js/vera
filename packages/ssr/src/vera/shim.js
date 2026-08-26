@@ -27,6 +27,18 @@ import {
   NODE_CONSTANTS,
 } from './nodes.js';
 
+/** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
+const RESERVED_NAMES = new Set([
+  'annotation-xml',
+  'color-profile',
+  'font-face',
+  'font-face-src',
+  'font-face-uri',
+  'font-face-format',
+  'font-face-name',
+  'missing-glyph',
+]);
+
 /**
  * Re-exported so a consumer of the server environment has one import, not seven. The homes above are
  * where the code lives; this is the door.
@@ -194,8 +206,25 @@ export const installShims = () => {
      * hiding it.
      */
     define: (name, Class) => {
+      /**
+       * **A name the browser will refuse is refused here too**, or the server renders markup the
+       * client can never upgrade: `customElements.define('nodash', …)` throws `SyntaxError` in every
+       * engine, and this accepted it — so the component rendered server-side, shipped, and the
+       * client threw on the very line that was supposed to bring it to life.
+       *
+       * The rule is the spec's: starts with a lowercase ASCII letter, contains a hyphen, contains no
+       * uppercase, and is not one of the eight names SVG and MathML already use.
+       */
+      if (typeof name !== 'string' || !/^[a-z][^A-Z]*-[^A-Z]*$/.test(name) || RESERVED_NAMES.has(name))
+        throw new DOMException(
+          `Failed to execute 'define' on 'CustomElementRegistry': "${String(name)}" is not a valid custom element name`,
+          'SyntaxError'
+        );
       if (registry.has(name)) {
-        throw new Error(`customElements.define: '${name}' has already been defined`);
+        throw new DOMException(
+          `Failed to execute 'define' on 'CustomElementRegistry': the name "${name}" has already been used with this registry`,
+          'NotSupportedError'
+        );
       }
       registry.set(name, Class);
     },
