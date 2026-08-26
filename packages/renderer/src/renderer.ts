@@ -323,16 +323,6 @@ const templateCache = new WeakMap<TemplateStringsArray, Template>();
 class Template {
   _element: HTMLTemplateElement;
   _parts: TemplatePart[] = [];
-  /**
-   * Whether this template contains an element ref, decided **once** when the template is built.
-   *
-   * Releasing a ref has to be free for the templates that do not have one. `_clear`'s bulk removal
-   * is what makes emptying a 1 000-row table ~5 ms against lit-html's ~22 ms, and walking parts on
-   * every removal is exactly the per-node work it exists to skip. A ref is an attribute part named
-   * `&`, which the scan already knows, so the walk happens only where it can do something — in
-   * practice a handful of templates per app, and never a list row unless the row holds a ref.
-   */
-  _refs = false;
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
@@ -427,11 +417,7 @@ class Template {
         while (partIndex < parts.length && parts[partIndex]._type === IGNORED) partIndex++;
       }
     }
-    for (const part of parts) {
-      /** Decided here, once, rather than on every removal — see `_refs`. */
-      if (part._name === '&') this._refs = true;
-      part._node = undefined;
-    }
+    for (const part of parts) part._node = undefined;
   }
 }
 
@@ -688,6 +674,7 @@ class AttrPart implements Part {
          * the element assigned to `.value` — which makes core's own `ref()` double as an element
          * ref, reactively. Runs once per distinct value, not once per render.
          */
+        notifyOnRemoval = true;
         if (typeof value === 'function') (value as (el: Element) => void)(this._element);
         else if (typeof value === 'object') {
           /**
@@ -720,6 +707,12 @@ class AttrPart implements Part {
  */
 const SCRATCH = doc.createDocumentFragment();
 
+/** A row is either an element-mode instance or a markered part; both can hold directives. */
+const detachItem = (item: Item) => {
+  item._instance?._teardown();
+  item._part?._detach();
+};
+
 /**
  * A value that names the strategy able to reconcile a list of its kind. `keyed()` in
  * `@verajs/renderer/keyed` is the only producer today; the shape is deliberately open so a
@@ -749,11 +742,7 @@ type Item = {
 class Instance {
   _parts: Part[] = [];
   _fragment: DocumentFragment;
-  /** Copied from the template so release is one boolean read rather than a template lookup. */
-  _refs: boolean;
-
   constructor(template: Template) {
-    this._refs = template._refs;
     /** cloneNode over importNode: same document, and it measures slightly cheaper. */
     this._fragment = template._element.content.cloneNode(true) as DocumentFragment;
     const templateParts = template._parts;
@@ -779,12 +768,36 @@ class Instance {
     }
   }
 
-  /** Only ever reached for a template the scan found a ref in — see `Template._refs`. */
-  _release() {
+  /**
+   * Notifies every child directive in this instance's subtree that it is going away.
+   *
+   * Reached only when some directive somewhere declared teardown — see `anyDetachable`. This is the
+   * per-node walk the bulk removal exists to skip, which is why it is behind a gate rather than in
+   * the path: an app that renders no detachable directive never runs it.
+   */
+  /**
+   * One walk, both jobs: release the element refs in this instance and tell any child directive
+   * under it that it is going away.
+   *
+   * They were two walks over the same array — `_release` for refs, `_detach` for directives — which
+   * is the same tree traversed twice for two answers that arrive at the same moment. Merged, the
+   * per-part cost is one `_kind` compare and one `_upgraded` read.
+   *
+   * Reached only when this instance's template holds a ref, or some directive somewhere declared
+   * teardown. An app with neither never runs it: this is the per-node work the bulk removal exists
+   * to skip, and the gate is what keeps it out of the path.
+   *
+   * Through `_upgraded`, not just `_parts`. A child position is instantiated as a `TextPart` and
+   * **upgrades** to a `ChildPart` the first time it takes an object — so the part holding a
+   * directive is almost never the one in this array, it is the one that array's entry points at.
+   * Walking `_parts` alone found nothing at all.
+   */
+  _teardown() {
     const parts = this._parts;
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i] as AttrPart;
-      if (part._kind === REF) part._release();
+      const part = parts[i];
+      if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
+      (part as TextPart)._upgraded?._detach();
     }
   }
 
@@ -857,7 +870,16 @@ class TextPart implements Part {
  * `previous` is whatever this directive returned at this part on the last render, which is where a
  * directive keeps its continuity. Returning nothing is fine for one that has none.
  */
-export type ChildDirective = (part: { _$commit$(value: unknown): void }, previous: unknown) => unknown;
+export type ChildDirective = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
+  /**
+   * Optional teardown, hung on the **applier** rather than on the value.
+   *
+   * The applier is already required to be hoisted — a fresh function per render breaks continuity —
+   * so it is the one stable object in the protocol and the natural place for a second half. It
+   * receives whatever the directive last returned, which is where its state lives.
+   */
+  _$detach$?: (previous: unknown) => void;
+};
 
 /**
  * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
@@ -896,6 +918,22 @@ const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : 
 const builtIns: ValueHandler[] = [];
 
 /** What a ChildPart currently contains. */
+/**
+ * Whether anything in this process has asked to be told when a subtree is removed — an element ref
+ * to release, or a child directive that declared `_$detach$`.
+ *
+ * **One flag for both, and it is process-wide.** Teardown cannot be discovered from the template the
+ * way a ref can — a ref is a `&` part the scan sees, while a directive arrives as a *value* and no
+ * template shape predicts it — so the coarser gate is the only one that serves both.
+ *
+ * The finer, per-template gate for refs was measured and dropped: it saved 34 B less than nothing,
+ * because the walk it avoided is not the expensive part. With one unrelated ref on the page, a
+ * 1 000-row clear walks 1 000 instances and measures 3.98 ms against 4.03 ms with no ref at all —
+ * the DOM removal dominates completely. What matters is that an app asking for neither walks
+ * **zero**, and that still holds.
+ */
+let notifyOnRemoval = false;
+
 /** Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it. */
 const _directiveSwaps = new WeakMap<object, number>();
 
@@ -959,12 +997,34 @@ class ChildPart implements Part {
     this._start.parentNode!.insertBefore(node, this._end);
   }
 
+  /**
+   * Tells every child directive under this part that it is going away.
+   *
+   * Reached only when some directive somewhere declared teardown — see `anyDetachable` — because
+   * this is the per-node walk the bulk removal exists to skip. **Every** removal path calls it, not
+   * just `_clear`: a keyed row is dropped by moving its nodes to a scratch fragment and an index-mode
+   * list shrinks by removing nodes directly, so a version that only hooked `_clear` notified a
+   * directive when its container was replaced and stayed silent when its row was deleted — told
+   * sometimes, which is a worse contract than never.
+   */
+  _detach() {
+    if (this._directiveFn !== undefined) (this._directiveFn as ChildDirective)._$detach$?.(this._directive);
+    this._instance?._teardown();
+    const items = this._items;
+    if (items != null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
+  }
+
   _clear() {
     /**
      * One boolean read for a template with no ref in it, which is nearly all of them. The walk is
      * precisely what the bulk removal below exists to avoid, so it runs only where it can matter.
      */
-    if (this._instance !== null && this._instance._refs) this._instance._release();
+    /**
+     * One gate, two jobs. A template that holds an element ref must release it; a subtree holding a
+     * directive that declared teardown must be told. Both are found by the same walk, and an app
+     * with neither reads two booleans and walks nothing.
+     */
+    if (notifyOnRemoval) this._detach();
     const parent = this._start.parentNode!;
     const end = this._end;
     /**
@@ -1135,6 +1195,7 @@ class ChildPart implements Part {
         }
       }
       this._directiveFn = applyChild;
+      if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
       this._directive = applyChild.call(value, this, previous);
       return;
     }
@@ -1263,6 +1324,7 @@ class ChildPart implements Part {
 
   /** Removal is a move into a scratch fragment that is immediately emptied. */
   $d(item: Item) {
+    if (notifyOnRemoval) detachItem(item);
     this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
@@ -1312,6 +1374,7 @@ class ChildPart implements Part {
         for (let i = items.length; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
         this._insert(fragment);
       } else if (count < items.length) {
+        if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
         const last = items[items.length - 1];
         let node: Node | null = this.$f(items[count]);
         const stop = last._element !== null ? last._element.nextSibling : last._part!._end!.nextSibling;

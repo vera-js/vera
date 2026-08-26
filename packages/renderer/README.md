@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.56 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.63 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -463,11 +463,40 @@ Three rules, each of which is a real trap:
   directives at one part from reading each other's state.
 - **Continuity lives in the return value**, not in a directive instance. That is what makes this a
   protocol rather than a framework — no base class, no `directive()` factory, no lifecycle.
-- **There is no teardown yet.** A directive can render and cannot be told it has gone away. `_clear`
+- **Teardown is opt-in, on the applier.** `applyThing._$detach$ = (previous) => …` is called with
+  whatever the directive last returned, when the subtree holding it is removed — replaced, dropped
+  from a keyed list, or shrunk out of an unkeyed one. Declaring it is what arms the walk; a directive
+  that does not declare it costs nothing, and neither does an app with no such directive anywhere.
+
+  It **notifies, it does not defer**. The nodes are already going. To hold content on screen while it
+  animates out, do not remove it: a directive owns what it commits, so it can simply not commit the
+  removal until it is ready — see *Deferring a removal* below.
+- **The older note said there was no teardown at all.** `_clear`
   bulk-removes DOM and, when the part owns its parent, does `parent.textContent = ''` — the thing
   that makes clearing a 1 000-row table ~5 ms against lit-html's ~22 ms. Calling teardown on a
   nested directive would mean walking the part tree on every removal, which is exactly the per-node
   work that fast path exists to skip. If you need to unsubscribe, do it from the component.
+
+### Deferring a removal
+
+A directive owns the content it commits, so an exit animation needs nothing from the renderer — it
+just does not commit the removal until the animation has finished:
+
+```js
+function applyTransition(part, previous) {
+  const next = this.value;
+  const state = previous ?? { shown: undefined, timer: null };
+  if (next != null) { part._$commit$(next); state.shown = next; return state; }
+  if (state.shown != null && state.timer === null)
+    state.timer = setTimeout(() => { state.timer = null; part._$commit$(null); }, 300);
+  return state;
+}
+const transition = (value) => ({ _$child$: applyTransition, value });
+```
+
+This works for a child position and for a whole list committed as one value. It does **not** work for
+one row inside a keyed list: that row's removal is decided by the reconciler, and nothing inside it
+is asked.
 
 Both names survive minification by construction: the renderer mangles `/^_[a-z]/`, and `_$…$` does
 not match it. `tests/minification-contracts.test.mjs` holds that.
