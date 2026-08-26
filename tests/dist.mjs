@@ -52,8 +52,20 @@ const ENTRY = {
  */
 export const NO_PRODUCTION_BUILD = new Set(['renderer/profiler']);
 
+/**
+ * The packages that publish `src` directly and have no `dist` at all, mapped to their entry file.
+ *
+ * `@verajs/jsx` is a build-time transform: it never reaches a browser, so it has no `__DEV__`
+ * branches to fold and no size to minify, and the same file is the artifact under both conditions.
+ * `@verajs/ssr` is Node-only for the same reason (see `CLAUDE.md`, *Source of truth rules*).
+ */
+const UNBUILT = {
+  jsx: 'jsx/src/index.js',
+};
+
 /** Absolute URL of a built bundle. `query` forces a fresh module instance (`?copy=a`). */
 export const distUrl = (name, query = '') => {
+  if (UNBUILT[name] !== undefined) return new URL(`../packages/${UNBUILT[name]}${query}`, import.meta.url).href;
   const entry = ENTRY[name];
   if (entry === undefined) throw new Error(`tests/dist.mjs: unknown bundle "${name}"`);
   const [pkg, file] = entry;

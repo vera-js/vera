@@ -45,6 +45,7 @@ const PACKAGES = {
   '@verajs/renderer/hydrate': 'renderer/hydrate',
   '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
+  '@verajs/jsx': 'jsx',
 };
 
 /**
@@ -209,6 +210,7 @@ const recipes = readmes.flatMap((path) => {
 const EXPECTED_RECIPES = {
   'packages/core/README.md': 1,
   'packages/inserts/README.md': 2,
+  'packages/jsx/README.md': 1,
   'packages/reactivity/README.md': 1,
   'packages/renderer/README.md': 3,
   'packages/router/README.md': 2,

@@ -40,6 +40,8 @@ const PACKAGES = {
   '@verajs/inserts': 'inserts',
   '@verajs/reactivity': 'reactivity',
   '@verajs/reactivity/computed': 'reactivity/computed',
+  /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
+  '@verajs/jsx': 'jsx',
 };
 
 /** Packages resolved from source rather than a bundle — see below. */
