@@ -95,8 +95,8 @@ describe.
   | --- | --- | --- |
   | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.3** | **35** |
   | | lit 2.4 | lit 308 |
-  | **whole component** — `renderToString` vs a real `LitElement` | **3.5** | **49** |
-  | | lit 5.6 | lit 409 |
+  | **whole component** — `renderToString` vs a real `LitElement` | **3.9** | **48** |
+  | | lit 5.8 | lit 412 |
 
   Vue's compiled SSR is 9.5 / 61 µs and React 6.2 / 450 µs, neither of which renders a
   component. The `lit element` row runs in a separate process because `@lit-labs/ssr` and this
