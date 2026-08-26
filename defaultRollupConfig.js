@@ -1,6 +1,8 @@
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import { dts } from 'rollup-plugin-dts';
+import { existsSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 
 /**
  * @param manglePropsRegex Opt-in property mangling for the production build. Terser mangles locals
@@ -44,8 +46,18 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
   const defineDev = () => {
     return {
       name: 'define-dev',
+      /**
+       * **Padded to the same width, and that is what makes `map: null` true.**
+       *
+       * `map: null` tells Rollup this transform moved nothing, so the map it already has still
+       * applies. A bare `true`/`false` is shorter than `__DEV__`, which shifts every column after it
+       * on that line — small, but the same lie the two comment strippers below were telling in
+       * whole lines. Terser removes the padding from the production bundle, and a development bundle
+       * carries two spaces per occurrence in exchange for a map that lands on the right character.
+       */
       renderChunk(code) {
-        return { code: code.replace(/\b__DEV__\b/g, isProduction ? 'false' : 'true'), map: null };
+        const replacement = (isProduction ? 'false' : 'true').padEnd('__DEV__'.length);
+        return { code: code.replace(/\b__DEV__\b/g, replacement), map: null };
       },
     };
   };
@@ -53,13 +65,11 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
   const removeEslintComments = () => {
     return {
       name: 'remove-eslint-comments',
+      /**
+       * **Emptied, not deleted** — see `remove-todo-comments` below for why.
+       */
       renderChunk(code) {
-        // Regex to remove all eslint-disable comments
-        const cleanedCode = code.replace(/\/\/\s*eslint-disable-next-line.*\n/g, '');
-        return {
-          code: cleanedCode,
-          map: null,
-        };
+        return { code: code.replace(/\/\/\s*eslint-disable-next-line.*\n/g, '\n'), map: null };
       },
     };
   };
@@ -67,12 +77,20 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
   const removeTodoComments = () => {
     return {
       name: 'remove-todo-comments',
+      /**
+       * **Emptied, not deleted, so the line count does not change.**
+       *
+       * `map: null` is a claim that this transform moved nothing and Rollup's existing map still
+       * applies. Removing a whole line breaks that claim for **every line after it**, and the map
+       * was wrong by exactly that much: five `eslint-disable-next-line` comments in the sources put
+       * `@verajs/core` and `@verajs/renderer`'s dev maps one line out — verified by asking the map
+       * where `const untrack` came from and getting the `*​/` above it.
+       *
+       * Leaving a blank line makes the claim true. Terser deletes it from the production bundle, and
+       * the point of stripping these was never the byte, it was not shipping the comment.
+       */
       renderChunk(code) {
-        const cleanedCode = code.replace(/.*\/\/\s*TODO.*\n/g, '');
-        return {
-          code: cleanedCode,
-          map: null,
-        };
+        return { code: code.replace(/.*\/\/\s*TODO.*\n/g, '\n'), map: null };
       },
     };
   };
@@ -83,7 +101,28 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
       file: isProduction ? `dist/${file}` : `dist/development/${file}`,
       format: 'es',
       sourcemap: true,
-
+      /**
+       * **Rollup's own relative paths land outside the repository.** Measured: every `sources` entry
+       * in every map resolved to somewhere above the checkout — `../../../../src/store/store.ts`
+       * from `packages/core/dist/` is `/Users/omni/dev/src/…`, and the development maps were a level
+       * further out again. Nothing *broke*, because `sourcesContent` is embedded and a browser
+       * prefers it, but anything that resolves `sources` on disk — an error reporter, a bundler
+       * consuming the map, an editor — got nothing, and a published path naming a directory tree
+       * that only exists on one machine is wrong on its own terms.
+       *
+       * The tail after the leading `../`s is right; only the climb is wrong. So it is rebuilt from
+       * the package this build is running in: `src/…` for the package's own files and `<pkg>/src/…`
+       * for a workspace dependency that was inlined. A path that resolves to nothing is left exactly
+       * as Rollup produced it rather than replaced with a different guess.
+       */
+      sourcemapPathTransform: (relativePath, sourcemapPath) => {
+        const tail = relativePath.replace(/^(\.\.\/)+/, '');
+        for (const base of [process.cwd(), dirname(process.cwd())]) {
+          const absolute = resolve(base, tail);
+          if (existsSync(absolute)) return relative(dirname(sourcemapPath), absolute);
+        }
+        return relativePath;
+      },
     },
     external: !isProduction ? (dependencies ?? []) : (options.alwaysExternal ?? []),
     plugins: [
