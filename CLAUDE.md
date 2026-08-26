@@ -274,8 +274,14 @@ collaborator — the public ones in this repo, the private ones in `vera-js/inte
 
 Two layers, both installed and both in CI.
 
-**Fast layer:** `node --test` + jsdom in `tests/*.test.mjs` — **367 tests** against built artifacts
-(**30 skip** under production, where the diagnostics they assert have been folded away).
+**Fast layer:** `node --test` + jsdom in `tests/*.test.mjs`, against built artifacts. A few dozen
+tests skip under production, where the diagnostics they assert have been folded away.
+
+> **No count is stated here, deliberately.** Four separate places in this repo carried a test count
+> that had stopped being true, and the only numbers that never drifted are the size claims, which
+> have `sync-size-claims.mjs --check` behind them. A number nothing generates will be wrong, and a
+> number that moves with every commit would put a doc edit in the way of adding a test. `npm test`
+> prints it.
 **Every suite runs twice**, against `dist/development/*.js` and against `dist/*.min.js` —
 `npm test`, `npm run test:prod`, or `npm run test:all`. They are different programs: production
 mangles properties, folds `__DEV__` to `false` and deletes the branches, drops `console.log`, and
@@ -284,7 +290,7 @@ inlines workspace dependencies (9 checks are development-only and skip according
 `tests/cdn-cross-bundle.test.mjs` covers the two-registry condition, which **only exists in the
 production build** — verified to fail if `_p` is ever mangled.
 
-**Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js` — **221 tests across 35 files**, on
+**Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js`, on
 **Chromium, Firefox and WebKit** (`npm run test:browser`, `npm run test:browser:all`, or
 `VERA_BROWSERS=webkit npm run test:browser`; the `--browsers` CLI flag is unusable because the
 config defines its own launchers). Shadow DOM, custom element upgrade timing, `adoptedStyleSheets`

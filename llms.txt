@@ -21,9 +21,9 @@ it correctly. Everything else is standard Custom Elements and lit-html, which mo
 > - Published to npm as of 2026-08-21. `@verajs/core`, `renderer`, `router`, `autoloader`,
 >   `inserts`, `jsx`, `ssr`, `styles` and `reactivity` are live; every release from 0.1.1 carries a
 >   GitHub Actions provenance attestation (`npm audit signatures`).
-> - Tests: **367** under `node --test` + jsdom against BUILT artifacts, run twice — against the
->   development build and the production one — plus **221 across three real engines** (Chromium,
->   Firefox, WebKit) under `@web/test-runner` and Playwright. Green in CI.
+> - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
+>   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
+>   under `@web/test-runner` and Playwright. Green in CI. `npm run gate` runs all of it.
 > - Fixed in 0.1.2: `ChildPart._clear` could walk off the end of the child list when several
 >   sibling child-expressions in one parent each toggled between a template and `''`. If you are
 >   on 0.1.0 or 0.1.1, upgrade.

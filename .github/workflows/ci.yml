@@ -61,7 +61,7 @@ jobs:
       # Three engines, because one is barely better evidence than none for this framework.
       # WebKit is the one that matters: `@scope` and `adoptedStyleSheets` have their shakiest
       # support there and both are load-bearing for @verajs/styles. Firefox covers a second
-      # engine's custom-element and focus semantics. All 221 checks across 35 files pass on all three; the suite
+      # engine's custom-element and focus semantics. Every check passes on all three; the suite
       # itself takes ~8s, so the cost here is the browser download, not the run.
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:browser:all

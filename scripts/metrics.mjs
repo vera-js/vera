@@ -95,7 +95,25 @@ const speed = JSON.parse(
   })
 );
 
-const current = { size, speed };
+/**
+ * **Stamped, because an undated baseline makes its own output uninterpretable.**
+ *
+ * Every bundle read "+5%" against a baseline nobody had re-recorded since a whole round of
+ * deliberate work — `keyed` moving to its own entry, refs releasing, directive teardown, the
+ * spread key check. Each of those bytes was bought on purpose, and the report could not say so:
+ * a real regression and a stale baseline print identically. The commit and the date turn the
+ * question "is this a regression?" into one a reader can answer without a bisect.
+ */
+const stamp = () => {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root.pathname, encoding: 'utf8' }).trim();
+  } catch {
+    /** A tarball or a detached checkout with no git. The date alone still beats nothing. */
+    return 'unknown';
+  }
+};
+
+const current = { recorded: { at: new Date().toISOString().slice(0, 10), commit: stamp() }, size, speed };
 const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, 'utf8')) : null;
 
 const delta = (now, then, unit, places = 0) => {
@@ -105,6 +123,10 @@ const delta = (now, then, unit, places = 0) => {
   const percent = then ? ((change / then) * 100).toFixed(1) : '∞';
   return `${change > 0 ? '+' : ''}${change.toFixed(places)}${unit} (${change > 0 ? '+' : ''}${percent}%)`;
 };
+
+if (baseline?.recorded)
+  console.log(`\n  against the baseline recorded ${baseline.recorded.at} at ${baseline.recorded.commit}`);
+else if (baseline) console.log('\n  against a baseline with no date — re-record it with --record');
 
 console.log('\n  size — gzipped bundle bytes');
 for (const [name, bytes] of Object.entries(size))
