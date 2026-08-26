@@ -140,7 +140,14 @@ buys time-to-first-byte in proportion to how long a render takes, and a 100-row 
 — the response is built before a streaming implementation would have flushed its first chunk. It is
 a real difference in shape, and worth revisiting for a page big enough that it stops being one.
 
-**Import `@verajs/ssr` first**, before anything that imports `@verajs/renderer`.
+**Importing `@verajs/ssr` installs a DOM on `globalThis`.** That is what it is for, and it means the
+import is not passive: `document`, `customElements`, `HTMLElement` and the rest are *replaced*, so a
+process that already has a DOM — jsdom in a test, say — loses it the moment this module is loaded,
+however late. A component defined afterwards is never upgraded and nothing says why. **Exercise both
+sides in separate processes**, which is what this repo's own tests do; `tests/lifecycle-parity.test.mjs`
+renders the server half in a subprocess for exactly this reason.
+
+**And import it first**, before anything that imports `@verajs/renderer`.
 
 The module that actually needs the shims is the renderer, not core: it builds two shared
 `TreeWalker`s at import time, so importing it against a bare Node global object throws before your
