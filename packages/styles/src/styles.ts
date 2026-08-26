@@ -13,8 +13,19 @@ import type { CSSResultGroup, StyledElement } from './types.js';
  */
 const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1');
 
-/** Component classes whose light-DOM styles are already hoisted — one sheet per class, ever. */
-const hoisted = new WeakSet<object>();
+/**
+ * Component classes whose light-DOM styles are already hoisted — one sheet per class, ever.
+ *
+ * Marked **on the class**, not in a module-scope `WeakSet`. A production `.min.js` inlines its
+ * dependencies, so two copies of this package on one page hold two sets and neither sees the
+ * other's: the same component's rules get hoisted to the document twice, and the browser parses and
+ * applies them twice for as long as the page lives. The class is the one object both copies are
+ * looking at.
+ *
+ * `_$veraStyles$` is exempt from property mangling — `/^_[a-z]/` is the pattern and `_$…$` does not
+ * match it — so both copies spell it identically, exactly as `_$apply$` and `$r` do.
+ */
+const HOISTED = '_$veraStyles$';
 
 /**
  * Adopts a component's `static styles`. Registered as an `'init'` insert by this package's entry,
@@ -105,8 +116,9 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   }
 
   /** Light DOM: hoist once per class, scoped to the component's tag. */
-  if (hoisted.has(element.constructor)) return;
-  hoisted.add(element.constructor);
+  const owner = element.constructor as unknown as Record<string, boolean>;
+  if (owner[HOISTED]) return;
+  owner[HOISTED] = true;
 
   const cssText = stylesArray
     .map((style) => (typeof style === 'string' ? style : style.cssText))

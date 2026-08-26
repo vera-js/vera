@@ -7,8 +7,8 @@
       "gzip": 2764
     },
     "renderer": {
-      "raw": 8984,
-      "gzip": 3557
+      "raw": 9260,
+      "gzip": 3641
     },
     "router": {
       "raw": 8148,
@@ -19,8 +19,8 @@
       "gzip": 1120
     },
     "styles": {
-      "raw": 1135,
-      "gzip": 597
+      "raw": 1132,
+      "gzip": 598
     },
     "collections": {
       "raw": 986,
@@ -87,8 +87,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 13791,
-      "gzip": 5697,
+      "raw": 14062,
+      "gzip": 5780,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 14913,
-      "gzip": 6149
+      "raw": 15184,
+      "gzip": 6238
     },
     {
       "name": "Lit",

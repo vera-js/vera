@@ -323,6 +323,16 @@ const templateCache = new WeakMap<TemplateStringsArray, Template>();
 class Template {
   _element: HTMLTemplateElement;
   _parts: TemplatePart[] = [];
+  /**
+   * Whether this template contains an element ref, decided **once** when the template is built.
+   *
+   * Releasing a ref has to be free for the templates that do not have one. `_clear`'s bulk removal
+   * is what makes emptying a 1 000-row table ~5 ms against lit-html's ~22 ms, and walking parts on
+   * every removal is exactly the per-node work it exists to skip. A ref is an attribute part named
+   * `&`, which the scan already knows, so the walk happens only where it can do something — in
+   * practice a handful of templates per app, and never a list row unless the row holds a ref.
+   */
+  _refs = false;
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
@@ -417,7 +427,11 @@ class Template {
         while (partIndex < parts.length && parts[partIndex]._type === IGNORED) partIndex++;
       }
     }
-    for (const part of parts) part._node = undefined;
+    for (const part of parts) {
+      /** Decided here, once, rather than on every removal — see `_refs`. */
+      if (part._name === '&') this._refs = true;
+      part._node = undefined;
+    }
   }
 }
 
@@ -510,6 +524,26 @@ class AttrPart implements Part {
     this._statics = statics;
     this._slots = statics.length - 1;
     this._isFullValue = this._slots === 1 && statics[0] === '' && statics[1] === '';
+  }
+
+  /**
+   * Releases an element ref, because the element it named is going away.
+   *
+   * A ref was told about attachment and never about detachment, so it kept a detached node alive and
+   * a component reading `myRef.value` after a subtree was replaced got the old element back. Lit
+   * passes `undefined` for the same reason.
+   *
+   * `null` rather than `undefined`, because `.value` is a store property and `null` reads as
+   * "deliberately nothing" where `undefined` reads as "never set". A **self-applying** value is
+   * skipped: `_$apply$` receives the part and owns its own lifecycle, so telling it about detachment
+   * here would be a second protocol contradicting the first.
+   */
+  _release() {
+    const value = this._committed;
+    if (typeof value === 'function') (value as (el: Element | null) => void)(null);
+    else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
+      (value as { value: unknown }).value = null;
+    this._committed = UNSET;
   }
 
   /** Stable listener registered once; swapping the handler never touches the DOM. */
@@ -715,8 +749,11 @@ type Item = {
 class Instance {
   _parts: Part[] = [];
   _fragment: DocumentFragment;
+  /** Copied from the template so release is one boolean read rather than a template lookup. */
+  _refs: boolean;
 
   constructor(template: Template) {
+    this._refs = template._refs;
     /** cloneNode over importNode: same document, and it measures slightly cheaper. */
     this._fragment = template._element.content.cloneNode(true) as DocumentFragment;
     const templateParts = template._parts;
@@ -739,6 +776,15 @@ class Instance {
           ? new TextPart(node as Text)
           : new AttrPart(node as Element, templatePart._name!, templatePart._statics!)
       );
+    }
+  }
+
+  /** Only ever reached for a template the scan found a ref in — see `Template._refs`. */
+  _release() {
+    const parts = this._parts;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i] as AttrPart;
+      if (part._kind === REF) part._release();
     }
   }
 
@@ -914,6 +960,11 @@ class ChildPart implements Part {
   }
 
   _clear() {
+    /**
+     * One boolean read for a template with no ref in it, which is nearly all of them. The walk is
+     * precisely what the bulk removal below exists to avoid, so it runs only where it can matter.
+     */
+    if (this._instance !== null && this._instance._refs) this._instance._release();
     const parent = this._start.parentNode!;
     const end = this._end;
     /**

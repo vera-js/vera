@@ -179,3 +179,17 @@ test('development bundles keep workspace deps external', () => {
   const dev = read('packages/core/dist/development/vera.js');
   assert.match(dev, /from\s*['"]@verajs\/inserts['"]/, 'core imports inserts rather than inlining it');
 });
+
+/**
+ * `_$veraStyles$` marks a component class whose light-DOM styles are already hoisted. Two copies of
+ * `@verajs/styles` on one page have separate module state, so the mark has to live on the class —
+ * the one object both are looking at — and both copies must spell it identically. A mangled copy
+ * would hoist the same rules a second time, silently and only in production.
+ */
+test('the style-hoist marker survives minification', () => {
+  assert.match(
+    read('packages/styles/dist/vera-styles.min.js'),
+    /_\$veraStyles\$/,
+    'the mark crosses a bundle boundary and must not be mangled'
+  );
+});

@@ -134,3 +134,67 @@ test('a hoisted applier keeps its previous return and stays quiet', { skip: isPr
   assert.deepEqual(seen, [undefined, 'a', 'b', 'c'], 'continuity holds across renders');
   assert.equal(warnings.filter((m) => m.includes('Hoist the applier')).length, 0);
 });
+
+/* ── an element ref is told when its element goes away ───────────────────────────────────────── */
+
+/**
+ * A ref was told about attachment and never about detachment, so it kept a detached node alive and
+ * a component reading `myRef.value` after a subtree was replaced got the old element back. Lit
+ * passes `undefined` for the same reason.
+ *
+ * The cost had to land on templates that actually contain a ref: `_clear`'s bulk removal is what
+ * makes emptying a 1 000-row table ~5 ms against lit-html's ~22 ms, and walking parts on every
+ * removal is the per-node work it exists to skip. The scan already knows which templates hold a
+ * `&` part, so the walk is gated on that — measured, `clear 1k` is unchanged.
+ */
+test('a function ref is called with null when its element is torn down', async () => {
+  const core = await load('core');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const seen = [];
+  const draw = (show) =>
+    show ? core.html`<p &=${(el) => seen.push(el === null ? null : el.tagName)}>a</p>` : core.html`<span>b</span>`;
+
+  render(draw(true), host);
+  assert.deepEqual(seen, ['P'], 'attached');
+  render(draw(false), host);
+  assert.deepEqual(seen, ['P', null], 'and released when the subtree was replaced');
+});
+
+test('an object ref has its value cleared', async () => {
+  const core = await load('core');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const box = core.ref(null);
+  const draw = (show) => (show ? core.html`<p &=${box}>a</p>` : core.html`<span>b</span>`);
+
+  render(draw(true), host);
+  assert.equal(box.value?.tagName, 'P');
+  render(draw(false), host);
+  assert.equal(box.value, null, 'null, not a detached element');
+});
+
+/** A self-applying value owns its own lifecycle and must not be written through. */
+test('a spread object is not released', async () => {
+  const core = await load('core');
+  const { spread } = await load('renderer/spread');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const props = { a: '1' };
+  const draw = (show) => (show ? core.html`<p ${spread(props)}>a</p>` : core.html`<span>b</span>`);
+
+  render(draw(true), host);
+  render(draw(false), host);
+  assert.deepEqual(props, { a: '1' }, 'the spread object is untouched');
+});
+
+/** A template with no ref must not be walked at all — this pins the shape, not just the outcome. */
+test('a template with no ref renders and clears normally', async () => {
+  const core = await load('core');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const draw = (n) => core.html`<ul>${[0, 1, 2].map((i) => core.html`<li>${n + i}</li>`)}</ul>`;
+  render(draw(0), host);
+  render(draw(10), host);
+  assert.equal(host.textContent, '101112');
+});
