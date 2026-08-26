@@ -18,6 +18,13 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
+- **jsdom is stricter than a browser about `setAttribute`, and that difference has already produced
+  one false finding.** jsdom implements the XML Name production and throws on `a(b)`, `a|b`, `a?b`
+  and about fifty other shapes; **every real engine accepts them**, rejecting exactly `a b`, `a>b`,
+  `a=b` and `a/b`. `tests/browser/spread-names.test.js` records the engines' rule on purpose — read
+  it before changing anything about attribute-name validation, because a jsdom probe will tell you
+  the denylist is broken when it is exactly right. More generally: **jsdom is the regression net,
+  never the oracle** for anything the platform decides.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
