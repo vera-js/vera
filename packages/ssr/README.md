@@ -73,7 +73,10 @@ describe.
   `style`, `dataset` — are held to the same list rather than assumed complete once the property
   exists. `attachShadow({ mode: 'closed' })` behaves as it does in a browser: `element.shadowRoot`
   is `null`, and the root is serialized anyway, because declarative shadow DOM expresses `closed`
-  and the client re-creates it just as hidden. Queries answer emptily and layout reads as zero because that
+  and the client re-creates it just as hidden. A `style` value is stored as it was
+  written rather than re-serialized, so `url("data:…")` keeps its quotes where a browser's CSS
+  serializer drops them — equivalent CSS, and a semicolon inside a value does not split the
+  declaration, which is what matters for an inline `data:` URI. Queries answer emptily and layout reads as zero because that
   is what a detached element answers in a browser too. **Names fold the way the platform folds
   them**: an HTML element lower-cases its tag and its attribute names, so `setAttribute('Data-Flag', …)`
   and `getAttribute('data-flag')` are one attribute and an `attributes` entry spelled `User-ID`

@@ -81,6 +81,17 @@ const SURFACE = [
   ['style.removeProperty returns the old value', (el) => ((el.style.color = 'red'), el.style.removeProperty('color') === 'red')],
   ['style emptied leaves style=""', (el) => ((el.style.color = 'red'), el.style.removeProperty('color'), el.getAttribute('style') === '')],
   ['style.cssText normalises on write', (el) => ((el.style.cssText = 'color: red'), el.getAttribute('style') === 'color: red;')],
+  /**
+   * **A semicolon inside a value does not end the declaration**, and the common case is not exotic:
+   * `url("data:image/svg+xml;base64,…")` is how an inline SVG is written. Splitting the attribute on
+   * every `;` emitted `background: url("data:x; color: red;` — an unterminated `url(` with the rest
+   * of the declaration eaten — into the markup.
+   */
+  ['style: a semicolon inside url()', (el) => ((el.style.background = 'url("data:x;y")'), el.getAttribute('style') === 'background: url("data:x;y");')],
+  ['style: and the declaration after it survives', (el) => { el.style.background = 'url("data:x;y")'; el.style.color = 'red'; return el.getAttribute('style') === 'background: url("data:x;y"); color: red;' && el.style.color === 'red'; }],
+  ['style: a semicolon inside quotes', (el) => ((el.style.content = '";"'), el.style.content === '";"')],
+  ['style: read back from a written attribute', (el) => { el.setAttribute('style', 'background: url("data:x;y"); color: red'); return el.style.color === 'red' && el.style.background === 'url("data:x;y")'; }],
+  ['style: nested parentheses', (el) => ((el.style.background = 'image-set(url("a;b") 1x)'), el.style.background === 'image-set(url("a;b") 1x)')],
 
   /** `mode: 'closed'` is the one thing that distinguishes the two modes, and it has to hold here. */
   ['attachShadow open is reachable', (el) => el.attachShadow({ mode: 'open' }) === el.shadowRoot],

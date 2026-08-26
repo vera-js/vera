@@ -125,27 +125,63 @@ export const tokenListView = (element, attribute) => {
   });
 };
 
+/**
+ * The declarations in a `style` attribute, split on the semicolons that actually separate them.
+ *
+ * **A plain `split(';')` corrupts a value that contains one**, and the common case is not exotic:
+ * `background: url("data:image/svg+xml;base64,…")` is how an inline SVG is written, and splitting it
+ * produced `background: url("data:image/svg+xml` as one declaration and `base64,…")` as another —
+ * so the *markup* came out as `background: url("data:x; color: red;`, an unterminated `url(` with
+ * the rest of the declaration eaten. A quoted `;` in `content` did the same.
+ *
+ * Quotes and parentheses both nest a semicolon, and CSS allows one inside either.
+ */
+const declarations = (text) => {
+  const out = [];
+  let start = 0;
+  let depth = 0;
+  let quote = '';
+  for (let at = 0; at < text.length; at++) {
+    const ch = text[at];
+    if (quote) {
+      if (ch === '\\') at++;
+      else if (ch === quote) quote = '';
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '(') depth++;
+    else if (ch === ')' && depth > 0) depth--;
+    else if (ch === ';' && depth === 0) {
+      out.push(text.slice(start, at));
+      start = at + 1;
+    }
+  }
+  out.push(text.slice(start));
+  return out;
+};
+
 export const styleView = (element) => {
   /** `[name, value, priority]` per declaration, in source order. */
-  const read = () =>
-    new Map(
-      (element.getAttribute('style') ?? '')
-        .split(';')
-        .map((rule) => {
-          const at = rule.indexOf(':');
-          if (at === -1) return null;
-          const name = rule.slice(0, at).trim();
-          let value = rule.slice(at + 1).trim();
-          let priority = '';
-          const important = /\s*!\s*important$/i.exec(value);
-          if (important) {
-            value = value.slice(0, important.index).trim();
-            priority = 'important';
-          }
-          return name && value ? [name, { value, priority }] : null;
-        })
-        .filter(Boolean)
-    );
+  const read = () => {
+    /**
+     * A loop rather than `map().filter(Boolean)`: the filter does not narrow, so the entries reach
+     * `new Map` typed as `(any[] | null)[]` and `checkJs` rejects them. Building the map directly
+     * says the same thing without a cast.
+     */
+    const rules = new Map();
+    for (const rule of declarations(element.getAttribute('style') ?? '')) {
+      const at = rule.indexOf(':');
+      if (at === -1) continue;
+      const name = rule.slice(0, at).trim();
+      let value = rule.slice(at + 1).trim();
+      let priority = '';
+      const important = /\s*!\s*important$/i.exec(value);
+      if (important) {
+        value = value.slice(0, important.index).trim();
+        priority = 'important';
+      }
+      if (name && value) rules.set(name, { value, priority });
+    }
+    return rules;
+  };
   /**
    * Each declaration ends in a semicolon, including the last, because that is what a browser writes
    * into the attribute when you set a property — `style.color = 'red'` gives `style="color: red;"`.
