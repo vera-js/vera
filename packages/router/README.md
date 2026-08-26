@@ -16,6 +16,7 @@ npm i @verajs/router @verajs/renderer
 
 ## A router, whole
 
+<!-- recipe -->
 ```js
 import { initRouter, setRouterRenderer } from '@verajs/router';
 import { render } from '@verajs/renderer';
@@ -339,6 +340,7 @@ different, register them in the order you want them tried.
 On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own bundle. This package
 keeps **no registry of its own**, so there is no second one to reconcile — hand it core's:
 
+<!-- recipe -->
 ```js
 import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';

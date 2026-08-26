@@ -58,6 +58,11 @@ rest of this file.
   invalidates the current approach gets surfaced immediately, not at the end.
 - **Never assume abandoned code is dead.** See `docs/CODE-PRINCIPLES.md` #3. Audit, report what it was
   for, and let Brian decide.
+- **Removing an API means adding its name to `tests/docs-removed-apis.test.mjs`.** One line, at the
+  moment the knowledge exists. That list is what turns "we remembered to grep the docs" into
+  something the gate refuses to let through — `setRenderer` survived its own deletion in 23 places
+  across `llms.txt`, four READMEs and `docs/ARCHITECTURE.md`, with every suite green. Prose is where
+  API names live, and it is the half no recipe or import check can reach.
 - **"Worth documenting" means document it, now.** If a finding is worth a sentence in conversation,
   it is worth the same sentence in the file where someone will hit it — the README, the doc comment,
   `llms.txt`, `internal/docs/`. Saying it and not writing it down produces exactly the drift these
@@ -127,21 +132,19 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 
 - Production `.min.js` bundles **inline everything**, including `@verajs/inserts`. Loading
   `vera.min.js` *and* `vera-router.min.js` therefore yields **two separate `inserts` Maps**.
-- That is exactly why **`connectInserts(inserts)`** exists, and why the CDN entry point must call it.
-  This is not a bug. Do not "fix" it by making bundles share state.
-- **Corrected 2026-08-22.** This previously said the npm/bundler path resolves to one
-  `@verajs/inserts` instance, making `connectInserts` a harmless no-op. **That is true only under
-  the `development` condition.** A production bundler build resolves `exports.default` —
-  `dist/*.min.js` — which inlines the registry, so core and router each get their own. Measured:
-  bundling `@verajs/core` + a second package yields **1** registry with `--conditions development`
-  and **2** without. `examples/npm-ts` calling `connectInserts` is therefore necessary, not
-  ceremonial.
-- **Rule for anything that registers an insert: take `insert` from `@verajs/core`, never from
+- That is why **no module carries a registry of its own**. The router is handed core's — `wire([renderer,
+  router])` — and every other module registers through core's `wire`. This is not a bug to "fix" by
+  making bundles share state; it is why the hazard is removed by construction instead.
+- The reconciliation step that preceded this was removed in 0.2.0: it was load-bearing on a CDN page
+  and ceremonial under a bundler, so the failure it guarded appeared in production only. Worth
+  keeping the measurement it rested on: bundling `@verajs/core` + a second package yields **1**
+  registry with `--conditions development` and **2** without.
+- **Rule for anything that registers an insert: take `wire` from `@verajs/core`, never from
   `@verajs/inserts`.** Core's own function writes to the map core reads, in every build. Registering
   through your own copy works in development and silently does nothing in production — it does not
   throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
   way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
-- `@verajs/ssr` self-wires correctly by taking `setRenderer` and `insert` from core. (Core used to
+- `@verajs/ssr` self-wires correctly by taking `wire` from core. (Core used to
   self-register a default renderer at module scope, which was safe only because it lived *inside*
   core's bundle with no boundary to cross; it was removed in 0.2.0.)
 
@@ -235,8 +238,8 @@ Two layers, both installed and both in CI.
 mangles properties, folds `__DEV__` to `false` and deletes the branches, drops `console.log`, and
 inlines workspace dependencies (9 checks are development-only and skip accordingly).
 `tests/dist.mjs` resolves the artifact; a suite never hard-codes a path.
-`tests/cdn-cross-bundle.test.mjs` covers the two-registry `connectInserts` condition, which **only
-exists in the production build** — verified to fail if `_p` is ever mangled.
+`tests/cdn-cross-bundle.test.mjs` covers the two-registry condition, which **only exists in the
+production build** — verified to fail if `_p` is ever mangled.
 
 **Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js` — 29 checks on
 **Chromium, Firefox and WebKit** (`npm run test:browser`, `npm run test:browser:all`, or
@@ -249,8 +252,8 @@ suites are the release gate.
 **Documented code is executed, not just written.** `tests/docs-recipes.test.mjs` runs the root
 README's quick-starts and every block marked `<!-- recipe -->` in any README, each in its own
 process. Isolation is per-process rather than per-import because under the `development` condition
-workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe missing
-`setRenderer` otherwise passes on a renderer an earlier recipe registered.
+workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe that
+never wired a renderer otherwise passes on one an earlier recipe registered.
 
 ## Versioning
 

@@ -212,6 +212,7 @@ caches.
 
 ## `@verajs/renderer/hydrate`
 
+<!-- recipe -->
 ```js
 import { render } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
 ```

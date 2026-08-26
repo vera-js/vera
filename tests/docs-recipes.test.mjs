@@ -39,7 +39,11 @@ const PACKAGES = {
   '@verajs/inserts': 'inserts',
   '@verajs/reactivity': 'reactivity',
   '@verajs/reactivity/computed': 'reactivity/computed',
+  '@verajs/reactivity/collections': 'reactivity/collections',
   '@verajs/renderer/spread': 'renderer/spread',
+  '@verajs/renderer/keyed': 'renderer/keyed',
+  '@verajs/renderer/hydrate': 'renderer/hydrate',
+  '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
 };
 
@@ -54,9 +58,15 @@ const PACKAGES = {
  */
 const resolveImports = (code, generation) =>
   /** `[a-z/]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too. */
-  code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, spec) =>
-    PACKAGES[spec] ? `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'` : whole
-  );
+  code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, spec) => {
+    /**
+     * An unmapped specifier used to be left bare, which a `data:` module cannot resolve — so a new
+     * entry appearing in a recipe failed with `ERR_UNSUPPORTED_RESOLVE_REQUEST` and a base64 blob,
+     * naming neither the file nor the missing map entry. Saying it plainly costs one line.
+     */
+    if (!PACKAGES[spec]) throw new Error(`tests/docs-recipes: add "${spec}" to PACKAGES to run a recipe that imports it`);
+    return `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'`;
+  });
 
 let generation = 0;
 const runModule = async (code) => {
@@ -198,8 +208,10 @@ const recipes = readmes.flatMap((path) => {
  */
 const EXPECTED_RECIPES = {
   'packages/core/README.md': 1,
+  'packages/inserts/README.md': 2,
   'packages/reactivity/README.md': 1,
-  'packages/renderer/README.md': 2,
+  'packages/renderer/README.md': 3,
+  'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
 };
 

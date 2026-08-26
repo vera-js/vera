@@ -112,9 +112,15 @@ const blocks = {
   'table.modules': [
     '| Module | Standalone | gzipped |',
     '| --- | ---: | ---: |',
+    /**
+     * `dir` is what makes a subpath entry render as one. Without it the table printed
+     * `@verajs/computed`, `@verajs/collections`, `@verajs/keyed`, `@verajs/spread` and
+     * `@verajs/tag` — five package names that do not exist and cannot be installed, in the table a
+     * reader is most likely to copy from.
+     */
     ...MODULES.map(
       (m) =>
-        `| \`@verajs/${m.pkg}\` | ${size(modules[m.pkg].raw)} | ${
+        `| \`@verajs/${m.dir ? `${m.dir}/${m.pkg}` : m.pkg}\` | ${size(modules[m.pkg].raw)} | ${
           m.pkg === 'core' ? `**${size(modules[m.pkg].gzip)}**` : size(modules[m.pkg].gzip)
         } |`
     ),
@@ -123,7 +129,9 @@ const blocks = {
   'table.permodule': [
     '| Module | gzip | |',
     '| --- | ---: | --- |',
-    ...MODULES.map((m) => `| \`@verajs/${m.pkg}\` | ${bytes(modules[m.pkg].gzip)} | ${m.what} |`),
+    ...MODULES.map(
+      (m) => `| \`@verajs/${m.dir ? `${m.dir}/${m.pkg}` : m.pkg}\` | ${bytes(modules[m.pkg].gzip)} | ${m.what} |`
+    ),
   ].join('\n'),
 };
 

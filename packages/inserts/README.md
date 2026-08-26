@@ -6,6 +6,7 @@ attaches through here. It is the module system's backbone rather than a feature.
 
 You rarely install this directly: `@verajs/core` and `@verajs/router` re-export what you need.
 
+<!-- recipe -->
 ```js
 import { wire } from '@verajs/core';
 ```
@@ -64,6 +65,7 @@ There is no repair function for that any more. `connectInserts`, which replayed 
 chains into another, was removed once every module took the registry it writes to instead of
 carrying its own:
 
+<!-- recipe -->
 ```js
 import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
