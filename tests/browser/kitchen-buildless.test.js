@@ -7,7 +7,7 @@
  * properties are mangled, `__DEV__` is folded to `false` and its branches deleted, and every bundle
  * inlines its own copy of `@verajs/inserts` — is exercised nowhere else in a browser.
  *
- * That last one is the trap `connectInserts` exists for, and it only exists in this mode: loading
+ * That last one is the trap `connectInserts` **used to** exist for, and it only exists in this mode: loading
  * `vera.min.js` and `vera-router.min.js` yields two separate registries, so a module registering
  * through its own copy writes to a map core never reads. It works in development and silently does
  * nothing here, which is the worst way for it to fail.

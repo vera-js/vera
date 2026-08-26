@@ -263,11 +263,11 @@ test('useRender renders into an element given explicitly', async () => {
   el.runHooks();
   await settle();
   /**
-   * `setRenderer` hands the renderer `element.shadowRoot ?? element`, so a component with a shadow
+   * The render insert is handed `element.shadowRoot ?? element`, so a component with a shadow
    * root renders INTO the shadow root, not the host. That indirection is the whole reason
    * components do not have to unwrap it themselves — asserted here because nothing else does.
    *
-   * `setRenderer` is also global and earlier components in this file are still live, so filter for
+   * The registry is also global and earlier components in this file are still live, so filter for
    * the target rather than assuming the last entry.
    */
   const mine = seen.filter((s) => s.element === el.shadowRoot);

@@ -51,7 +51,15 @@ const walk = (dir) => {
     if (['node_modules', 'dist', 'internal', '.changeset'].includes(entry) || entry.startsWith('.')) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full);
-    else if (/\.(md|txt)$/.test(entry) && !/CHANGELOG/i.test(entry)) docs.push(full);
+    /**
+     * **Example source and fixture markup count as documentation**, because that is what they are
+     * for: `CLAUDE.md` calls the examples the place to experiment by hand, and a page in
+     * `tests/browser/fixtures` is the buildless recipe someone copies. A removed API taught in a
+     * `.js` comment or an inline `<script>` teaches it just as effectively as one in a README, and
+     * nothing read those. (The two live mentions of `connectInserts` are both in the past tense and
+     * exempt under `HISTORICAL`, which is the rule working rather than an accident.)
+     */
+    else if (/\.(md|txt|html|js|jsx|mjs|ts)$/.test(entry) && !/CHANGELOG/i.test(entry)) docs.push(full);
   }
 };
 walk(root);
@@ -60,7 +68,17 @@ test('no documentation teaches an API that was removed', () => {
   assert.ok(docs.length > 10, `expected to find the docs, found ${docs.length}`);
   const problems = [];
   for (const file of docs) {
-    const lines = readFileSync(file, 'utf8').split('\n');
+    /**
+     * **In source, only comments are read.** A removed name written in *code* either works — in
+     * which case it is not removed — or fails a real test; it is not teaching anyone anything.
+     * Scanning code as prose flagged `render as domRender` in the consumer fixture, which is a local
+     * alias, and a guard that cries wolf is a guard somebody deletes. Markdown, text and HTML are
+     * read whole, because there the prose *is* the file.
+     */
+    const isSource = /\.(js|jsx|mjs|ts)$/.test(file);
+    const lines = readFileSync(file, 'utf8')
+      .split('\n')
+      .map((line) => (!isSource || /^\s*(\/\/|\/\*|\*)/.test(line) ? line : ''));
     /** Paragraph bounds, so a marker anywhere in the same block of prose counts. */
     let start = 0;
     for (let i = 0; i <= lines.length; i++) {

@@ -7,9 +7,10 @@
  * only gives a new copy of the module it names. Under the `development` condition workspace
  * dependencies stay **external**, so every copy of `@verajs/core` — however many query strings it
  * is imported under — resolves the same `@verajs/inserts`, and the insert registry is therefore
- * shared across the whole process. A recipe that forgot `setRenderer` then rendered perfectly well
+ * shared across the whole process. Before this runner existed, a recipe that forgot to wire a renderer
+ * rendered perfectly well
  * on a renderer some earlier recipe had registered, and the suite proved nothing. Verified: with
- * this runner, deleting `setRenderer` from a recipe fails the run.
+ * this runner, deleting the `wire` call from a recipe fails the run.
  *
  * Prints the captured `console.warn`/`console.error` output as JSON on stdout. A thrown error exits
  * non-zero with the stack on stderr.

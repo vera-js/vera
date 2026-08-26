@@ -55,5 +55,7 @@ const out = await esbuild.build({
 });
 
 const code = out.outputFiles[0].text;
-writeFileSync(process.argv[2] ?? 'bench/dom/bundle.js', code);
-console.log(`  bundled ${code.length} B raw, ${gzipSync(code).length} B gzip -> ${process.argv[2]}`);
+/** Named once: the log said `-> undefined` whenever the destination came from the default. */
+const destination = process.argv[2] ?? 'bench/dom/bundle.js';
+writeFileSync(destination, code);
+console.log(`  bundled ${code.length} B raw, ${gzipSync(code).length} B gzip -> ${destination}`);

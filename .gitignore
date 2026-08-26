@@ -50,3 +50,6 @@ packages/ssr/types/
 # was swept into one — so the pattern is ignored rather than remembered.
 *.tmp.*
 .probe/
+
+# The browser benchmark's bundle, written by `node bench/dom/build.mjs`.
+bench/dom/bundle.js

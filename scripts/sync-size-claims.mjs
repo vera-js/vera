@@ -113,7 +113,7 @@ const blocks = {
     '| Module | Standalone | gzipped |',
     '| --- | ---: | ---: |',
     /**
-     * `dir` is what makes a subpath entry render as one. Without it the table printed
+     * `dir` is what makes a subpath entry render as one. Without it the table previously printed
      * `@verajs/computed`, `@verajs/collections`, `@verajs/keyed`, `@verajs/spread` and
      * `@verajs/tag` — five package names that do not exist and cannot be installed, in the table a
      * reader is most likely to copy from.

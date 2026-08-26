@@ -761,12 +761,12 @@ export default customElements.get('grow-ssr');
 
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
- * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a
+ * compares against the entry this module registered when it loaded, and re-registering makes a
  * different one. Every case above it would fail with the very error it is asserting.
  */
 /**
  * An app entry doing the ordinary thing — `wire({ on: 'render', fn: renderer, priority: 50 })` — displaces the server renderer
- * the moment that module is imported server-side, because `setRenderer` registers at priority 50 and
+ * the moment that module is imported server-side, because the server renderer is at priority 50 and
  * a taken priority replaces. Every component then rendered empty, with no error and nothing in the
  * output to suggest why.
  */

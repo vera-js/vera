@@ -239,7 +239,7 @@ const app = (routes, options = {}) => {
   const painted = [];
   /**
    * One renderer that records, rather than an observer registered alongside the real one. The
-   * standalone `setRouterRenderer` replaces rather than appends — matching core's `setRenderer`,
+   * standalone `setRouterRenderer` replaces rather than appends — matching core's registry,
    * where the same priority replaces — so stacking two is a job for the registry path.
    */
   setRouterRenderer((template, view) => painted.push(view.getAttribute('view')));

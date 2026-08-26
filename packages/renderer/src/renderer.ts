@@ -1405,7 +1405,7 @@ class ChildPart implements Part {
 const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
- * Renders a template result into a container. Slots into Vera via `setRenderer(render)`; core's
+ * Renders a template result into a container. Slots into Vera via `wire([renderer])`; core's
  * built-in `html` tag already produces the accepted shape, so no `setHtml` call is required —
  * though lit-html's `html` also works, its results being structurally identical.
  *

@@ -49,7 +49,7 @@ const { wire, inserts } = await import('@verajs/core');
  * every caller remember to.
  *
  * `wire` comes from core, not from `@verajs/inserts`, so the registration lands in the map core
- * actually reads. Exactly why `setRenderer` above is taken from core too.
+ * actually reads. Exactly why the render insert above is registered through core's `wire` too.
  */
 const { adoptStyles } = await import('@verajs/styles');
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
