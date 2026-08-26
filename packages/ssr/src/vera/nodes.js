@@ -943,6 +943,17 @@ export class ElementShim extends ContainerShim {
    * the client's real internals take over on hydration.
    */
   attachInternals() {
+    /**
+     * **Only a custom element has internals.** Every engine raises `NotSupportedError` for a plain
+     * element, because `ElementInternals` is the mechanism by which a *defined* element joins a form
+     * — there is nothing for a `<div>` to attach. Allowing it here meant a call that cannot work in
+     * a browser worked on the server, which is the leniency this DOM exists not to have.
+     */
+    if (!registry.has(this.localName))
+      throw new DOMException(
+        `Failed to execute 'attachInternals' on 'HTMLElement': Unable to attach ElementInternals to non-custom elements.`,
+        'NotSupportedError'
+      );
     /** A second call raises `NotSupportedError` in every engine; returning the first set hid that. */
     if (internals.has(this))
       throw new DOMException(

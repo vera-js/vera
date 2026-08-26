@@ -150,7 +150,25 @@ const SURFACE = [
   ['toggleAttribute refuses the same set', (el) => { try { el.toggleAttribute('a b'); return 'accepted'; } catch (error) { return error.name === 'InvalidCharacterError'; } }],
   ['createElement refuses an unwritable tag', () => ['', 'a b', '<p>', 'a>b'].every((tag) => { try { globalThis.document.createElement(tag); return false; } catch (error) { return error.name === 'InvalidCharacterError'; } })],
   ['appendChild refuses a non-node', (el) => ['', null, undefined, 5].every((value) => { try { el.appendChild(value); return false; } catch (error) { return error instanceof TypeError; } })],
-  ['attachInternals refuses a second call', (el) => { el.attachInternals(); try { el.attachInternals(); return 'accepted'; } catch (error) { return error.name === 'NotSupportedError'; } }],
+  /**
+   * `attachInternals` belongs to a **defined** element. Every engine raises `NotSupportedError` for a
+   * plain one, because `ElementInternals` is how a defined element joins a form and there is nothing
+   * for a `<div>` to attach. The surface list is checked against an ordinary element, so the subject
+   * here is a registered tag.
+   */
+  ['attachInternals refuses a plain element', (el) => { try { el.attachInternals(); return 'accepted'; } catch (error) { return error.name === 'NotSupportedError'; } }],
+  ['attachInternals works on a defined element, once', () => {
+    globalThis.customElements.define('surface-internals', class extends globalThis.HTMLElement {});
+    const custom = globalThis.document.createElement('surface-internals');
+    const first = custom.attachInternals();
+    if (!first) return 'no internals returned';
+    try {
+      custom.attachInternals();
+      return 'a second call was accepted';
+    } catch (error) {
+      return error.name === 'NotSupportedError';
+    }
+  }],
   /**
    * `root.adoptedStyleSheets = sheet` — the single missing `[…]` — is the likeliest way to get this
    * wrong, and it was accepted here and threw in the browser after the server had already rendered.
