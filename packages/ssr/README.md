@@ -67,7 +67,11 @@ describe.
   properties (`id`, `className`, `hidden`, `tabIndex`, `role`, the whole `aria*` family), which are
   views of an attribute and therefore reach the markup, and `attachInternals()`, so a
   form-associated custom element runs. Queries answer emptily and layout reads as zero because that
-  is what a detached element answers in a browser too.
+  is what a detached element answers in a browser too. **Names fold the way the platform folds
+  them**: an HTML element lower-cases its tag and its attribute names, so `setAttribute('Data-Flag', …)`
+  and `getAttribute('data-flag')` are one attribute and an `attributes` entry spelled `User-ID`
+  still matches an `observedAttributes` entry spelled `user-id`; an element created through
+  `createElementNS` outside the HTML namespace keeps its case, so an SVG `viewBox` survives.
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
   registered class, so its field initialisers have run and `instanceof` answers, and appending it
   renders **that instance** — everything the parent assigned to it, `kid.rows = data` included,

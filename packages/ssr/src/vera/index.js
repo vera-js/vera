@@ -208,7 +208,15 @@ const renderComponentTags = (markup, depth) => {
 
     const end = tagEnd(markup, open);
     const tagText = markup.slice(open, end);
-    const name = /^<([a-z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1];
+    /**
+     * **Folded, because a tag name in markup is case-insensitive and every decision below is not.**
+     * This required a lower-case first letter, so `<PROBE-KID>` matched nothing at all and the tag
+     * fell through as inert text — and with it every guard keyed on the name. A component inside an
+     * upper-case `<SCRIPT>` or `<TEXTAREA>` was rendered into its source rather than left as text,
+     * and `<TEMPLATE>` lost its skip, so components inside a template were rendered on the server
+     * that the client's parser would never upgrade.
+     */
+    const name = /^<([a-zA-Z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1]?.toLowerCase();
 
     /**
      * A `<template>` is a blueprint, not live DOM: the parser builds its content into a fragment

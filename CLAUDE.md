@@ -32,6 +32,15 @@ code, so they are not re-litigated.
   it before changing anything about attribute-name validation, because a jsdom probe will tell you
   the denylist is broken when it is exactly right. More generally: **jsdom is the regression net,
   never the oracle** for anything the platform decides.
+- **The SSR shim is a DOM implementation, so audit it by differential test, never by reading it.**
+  Run the same operation against the shim and against jsdom and compare the answers — a twenty-line
+  script over `setAttribute`/`getAttribute`/`localName`/`className` found three real divergences in
+  one pass, all of them invisible to a code read because the shim's code is individually reasonable
+  and only *collectively* wrong. The class of bug it finds is the worst one this package has: the
+  server and the client disagree about something neither of them renders, so nothing fails until a
+  hydration mismatch shows up somewhere else entirely. Where the two legitimately differ (this DOM
+  holds children as a string, so `append` and `closest` answer emptily) that is in the README's
+  out-of-scope list — check there before calling a difference a defect.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because

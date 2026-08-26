@@ -15,6 +15,16 @@ import { StyleSheetShim } from './stylesheets.js';
 import { registry } from './registry.js';
 
 /**
+ * The HTML namespace, which is what `createElement` produces and what almost everything here is.
+ *
+ * It is load-bearing rather than decorative: **an HTML element folds tag and attribute names to
+ * lower case, and an element in any other namespace does not.** `svg.setAttribute('viewBox', …)`
+ * has to keep its capital B or the viewport is ignored, while `div.setAttribute('Data-Flag', …)`
+ * has to lose its capitals or the `getAttribute('data-flag')` beside it reads `null`.
+ */
+const HTML_NS = 'http://www.w3.org/1999/xhtml';
+
+/**
  * Declarative shadow DOM can carry more than the mode, and the extras are **not recoverable on the
  * client**: `attachShadow` reuses a declarative root and ignores the options it is handed, so a
  * component asking for `delegatesFocus: true` over server-rendered markup that omitted it keeps
@@ -127,7 +137,7 @@ export class ContainerShim extends EventTarget {
     return globalThis.location?.href ?? '';
   }
   get namespaceURI() {
-    return 'http://www.w3.org/1999/xhtml';
+    return HTML_NS;
   }
   get prefix() {
     return null;
@@ -528,13 +538,31 @@ const observerOf = (element) =>
   ).attributeChangedCallback;
 
 export class ElementShim extends ContainerShim {
-  constructor(localName = '') {
+  constructor(localName = '', namespaceURI = HTML_NS) {
     super();
+    this._ns = namespaceURI;
     this.localName = localName;
     this.isConnected = true;
     this._attributes = new Map();
     this.innerHTML = '';
     this.shadowRoot = null;
+  }
+  /** @override */
+  get namespaceURI() {
+    return this._ns;
+  }
+  /**
+   * An attribute name as this element stores it.
+   *
+   * A browser lower-cases the name inside `setAttribute` on an HTML element, so `setAttribute('Data-Flag', '1')`
+   * and `getAttribute('data-flag')` are the *same* attribute. Storing the name as written made them two,
+   * and a component that set one spelling and read another got `null` on the server and `'1'` in the
+   * browser — a lifecycle divergence with no symptom until the two renders disagreed. Worse, an
+   * attribute handed in as `{ 'User-ID': … }` never matched an `observedAttributes` entry, so
+   * `attributeChangedCallback` simply did not fire.
+   */
+  _name(name) {
+    return this._ns === HTML_NS ? String(name).toLowerCase() : String(name);
   }
   attachShadow(init = {}) {
     this.shadowRoot = new ShadowRootShim(init);
@@ -542,15 +570,17 @@ export class ElementShim extends ContainerShim {
     return this.shadowRoot;
   }
   getAttribute(name) {
+    name = this._name(name);
     return this._attributes.has(name) ? this._attributes.get(name) : null;
   }
   setAttribute(name, value) {
+    name = this._name(name);
     const previous = this.getAttribute(name);
     this._attributes.set(name, String(value));
     this._attributeChanged(name, previous);
   }
   hasAttribute(name) {
-    return this._attributes.has(name);
+    return this._attributes.has(this._name(name));
   }
   /**
    * `force` decides, and when the attribute is already in the wanted state **nothing happens** —
@@ -558,6 +588,7 @@ export class ElementShim extends ContainerShim {
    * for an attribute that was already there, which silently erased it.
    */
   toggleAttribute(name, force) {
+    name = this._name(name);
     const present = this._attributes.has(name);
     const wanted = force ?? !present;
     if (wanted === present) return wanted;
@@ -624,6 +655,7 @@ export class ElementShim extends ContainerShim {
     return styleView(this);
   }
   removeAttribute(name) {
+    name = this._name(name);
     if (!this._attributes.has(name)) return;
     const previous = this.getAttribute(name);
     this._attributes.delete(name);
@@ -873,11 +905,13 @@ export class ElementShim extends ContainerShim {
  * initialisers are in place before anyone touches the element. This returned a bare `ElementShim`,
  * so a component created imperatively had none of its own state, and `instanceof` said no.
  */
-export const createElement = (localName) => {
-  const Component = registry.get(localName);
-  if (!Component) return new ElementShim(localName);
+export const createElement = (localName, namespaceURI = HTML_NS) => {
+  const name = namespaceURI === HTML_NS ? String(localName).toLowerCase() : String(localName);
+  const Component = registry.get(name);
+  if (!Component) return new ElementShim(name, namespaceURI);
   const element = new Component();
-  element.localName = localName;
+  element.localName = name;
+  element._ns = namespaceURI;
   return element;
 };
 

@@ -216,7 +216,7 @@ export const installShims = () => {
     body: new ElementShim('body'),
     documentElement: new ElementShim('html'),
     createElement: (localName) => createElement(localName),
-    createElementNS: (_namespace, localName) => createElement(localName),
+    createElementNS: (namespace, localName) => createElement(localName, namespace),
     createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
     createDocumentFragment: () => new FragmentShim(),
     querySelector: () => null,
