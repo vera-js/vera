@@ -45,3 +45,8 @@ tests/.inserts-*
 
 # Generated from @verajs/ssr's JSDoc at build time — the package publishes src, never .ts
 packages/ssr/types/
+
+# Ad-hoc audit probes. Every commit here uses `git add -A`, and a probe named `probe.tmp.mjs`
+# was swept into one — so the pattern is ignored rather than remembered.
+*.tmp.*
+.probe/
