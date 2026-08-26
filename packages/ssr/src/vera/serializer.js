@@ -68,7 +68,20 @@ const openTagName = (out) => {
  * emits `! checked="true"`, which is an attribute named `!` and a second one beside it. That is why
  * every sigil has to be added here in the same pass it is added to the renderer.
  */
-const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)=(["']?)$/;
+/**
+ * A sigil binding's tail, as it appears at the end of the static before the value.
+ *
+ * The name is **optional after `&`**, and only after `&`: `&=${ref}` is a legal element ref with no
+ * name at all — the renderer's scanner back-reads the name `&`, and `AttrPart` maps that to a ref.
+ * The client therefore drops it and renders nothing, while this pattern did not match it and left
+ * `&=` in the tag with the value stringified after it: `<p &=[object Object]>`, which is malformed
+ * markup that also prints the object.
+ *
+ * The name is optional for all five rather than only `&`, which costs nothing: a nameless `.=`,
+ * `?=`, `@=` or `!=` has no meaning either, and dropping such a binding is a better answer than
+ * writing it into the tag with its value stringified beside it.
+ */
+const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)?=(["']?)$/;
 
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
 const EVENT_TAIL = /on[A-Z][\w:-]*=(["']?)$/;
@@ -286,19 +299,21 @@ const compile = (strings) => {
       parts.push(before);
       openQuote = sigil[3];
       const kind = sigil[1];
+      /** Absent after a bare `&=`, which is an element ref with no name. */
+      const sigilName = sigil[2] ?? '';
       if (kind === '?') {
         kinds.push(BOOLEAN);
-      } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigil[2])) {
+      } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigilName)) {
         kinds.push(FORM_PROP);
       } else {
         kinds.push(DROPPED);
       }
-      names.push(sigil[2]);
-      strip.push(dynamicTag || written.has(sigil[2].toLowerCase()));
+      names.push(sigilName);
+      strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);
       raws.push(tagState.rawTag);
       elementPositions.push(false);
-      written.add(sigil[2].toLowerCase());
+      if (sigilName) written.add(sigilName.toLowerCase());
       continue;
     }
 
@@ -401,7 +416,16 @@ export const serializeTemplate = (template) => {
          * `<input [object Object]>` — which the parser then read as two attributes named
          * `[object` and `object]`. A value in this position never has markup; only a spread does.
          */
-        else if (elementPositions[i]) break;
+        else if (elementPositions[i]) {
+          /**
+           * The space that introduced the binding goes with it, exactly as a dropped sigil binding's
+           * does. Leaving it served `<p >r</p>` where the client renders `<p>r</p>` — harmless to a
+           * parser, and still a difference between the two halves for something neither of them
+           * renders at all.
+           */
+          out = out.replace(/ $/, '');
+          break;
+        }
         /**
          * **Raw text is written raw, and its own end tag is neutralised.**
          *
