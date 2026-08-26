@@ -177,6 +177,11 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   `.ts` to consumers. It is still type-checked — `checkJs` plus JSDoc types and explicit casts, in
   `npm run gate` alongside every other package — so the intent of the rule is met without the
   toolchain. Nothing else gets this exemption.
+  **It does emit `.d.ts` now** (`packages/ssr/types/`, gitignored, generated from that same JSDoc).
+  Without them a TypeScript consumer got `TS7016` and was told to write their own
+  `declare module` — npm+TypeScript and SSR are both first-class modes and their intersection did
+  not work. This does not weaken the exemption: nothing is transpiled, `src` is still what ships,
+  and the declarations cannot drift from the JSDoc they are generated from.
 - **A component never exists as both `.ts` and `.js`.** Twins drift silently in both directions. When
   a richer `.js` version exists it is **ported forward into `.ts`** — never the reverse.
   (`goodbye-component.js` was 220 lines against a 43-line `.ts` stub; assuming the `.ts` was newer

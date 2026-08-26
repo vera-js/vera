@@ -37,7 +37,8 @@
         "./packages/router:build",
         "./packages/shared-types:build",
         "./packages/shared-utils:build",
-        "./packages/styles:build"
+        "./packages/styles:build",
+        "./packages/ssr:build"
       ]
     },
     "dev": {

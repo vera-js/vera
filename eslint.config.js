@@ -16,6 +16,10 @@ export default [
   {
     ignores: [
       '**/dist/**',
+      // Generated from @verajs/ssr's JSDoc at build time — output, like dist, not source.
+      'packages/ssr/types/**',
+      // wireit's build cache holds copies of every output; `**/dist/**` never covered them.
+      '**/.wireit/**',
       // A separate repo (vera-js/internal), gitignored here. Not ours to lint.
       'internal/**',
       '**/*.min.js',

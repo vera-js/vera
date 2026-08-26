@@ -42,3 +42,6 @@ tests/.title-*
 tests/.hoist-*
 
 tests/.inserts-*
+
+# Generated from @verajs/ssr's JSDoc at build time — the package publishes src, never .ts
+packages/ssr/types/
