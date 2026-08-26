@@ -55,6 +55,42 @@ const SURFACE = [
   ['classList.remove', (el) => (el.classList.add('a', 'b'), el.classList.remove('a'), el.getAttribute('class') === 'b')],
   ['classList.toggle', (el) => (el.classList.toggle('a'), el.classList.contains('a'))],
   ['classList.contains', (el) => !el.classList.contains('nope')],
+  ['classList.replace', (el) => (el.classList.add('a'), el.classList.replace('a', 'b') === true && el.className === 'b')],
+  ['classList.replace, token absent', (el) => (el.classList.add('a'), el.classList.replace('z', 'b') === false && el.className === 'a')],
+  ['classList.item', (el) => (el.classList.add('a', 'b'), el.classList.item(1) === 'b' && el.classList.item(9) === null)],
+  ['classList indexed', (el) => (el.classList.add('a', 'b'), el.classList[0] === 'a')],
+  ['classList.forEach', (el) => (el.classList.add('a', 'b'), el.classList.length === 2 && [...el.classList.values()].join() === 'a,b')],
+  ['classList.entries / keys', (el) => (el.classList.add('a'), [...el.classList.entries()][0][1] === 'a' && [...el.classList.keys()][0] === 0)],
+  ['classList.toString', (el) => (el.classList.add('a', 'b'), String(el.classList) === 'a b')],
+  ['classList.value, written', (el) => ((el.classList.value = 'a b'), el.getAttribute('class') === 'a b')],
+  /**
+   * A browser empties the attribute rather than removing it, and creates nothing when it was never
+   * there. The server writing one and not the other is a markup difference the client will not
+   * reproduce.
+   */
+  ['classList emptied leaves class=""', (el) => (el.classList.add('a'), el.classList.remove('a'), el.getAttribute('class') === '')],
+  ['classList.remove on a bare element writes nothing', (el) => (el.classList.remove('a'), el.getAttribute('class') === null)],
+  ['classList rejects an empty token', (el) => { try { el.classList.add(''); return 'accepted an empty token'; } catch (error) { return error.name === 'SyntaxError'; } }],
+  ['classList rejects a token with a space', (el) => { try { el.classList.add('a b'); return 'accepted a token with a space'; } catch (error) { return error.name === 'InvalidCharacterError'; } }],
+  ['classList.supports throws, as it does for class', (el) => { try { el.classList.supports('a'); return 'did not throw'; } catch (error) { return error instanceof TypeError; } }],
+
+  ['style.getPropertyValue', (el) => ((el.style.color = 'red'), el.style.getPropertyValue('color') === 'red')],
+  ['style.getPropertyPriority', (el) => (el.style.setProperty('color', 'red', 'important'), el.style.getPropertyPriority('color') === 'important' && el.getAttribute('style') === 'color: red !important;')],
+  ['style.length / item', (el) => ((el.style.color = 'red'), el.style.length === 1 && el.style.item(0) === 'color')],
+  ['style custom property', (el) => (el.style.setProperty('--v', '1'), el.getAttribute('style') === '--v: 1;' && el.style.getPropertyValue('--v') === '1')],
+  ['style.removeProperty returns the old value', (el) => ((el.style.color = 'red'), el.style.removeProperty('color') === 'red')],
+  ['style emptied leaves style=""', (el) => ((el.style.color = 'red'), el.style.removeProperty('color'), el.getAttribute('style') === '')],
+  ['style.cssText normalises on write', (el) => ((el.style.cssText = 'color: red'), el.getAttribute('style') === 'color: red;')],
+
+  /** `mode: 'closed'` is the one thing that distinguishes the two modes, and it has to hold here. */
+  ['attachShadow open is reachable', (el) => el.attachShadow({ mode: 'open' }) === el.shadowRoot],
+  ['attachShadow closed is not', (el) => (el.attachShadow({ mode: 'closed' }), el.shadowRoot === null)],
+
+  /** `tabIndex` answers the question "is this focusable", so its default is per-element, not zero. */
+  ['tabIndex defaults to -1 on a div', (el) => el.tabIndex === -1],
+  ['tabIndex defaults to 0 on a button', () => make('button').tabIndex === 0],
+  ['tabIndex follows href on an anchor', () => { const a = make('a'); if (a.tabIndex !== -1) return 'a bare anchor is not focusable'; a.setAttribute('href', '#'); return a.tabIndex === 0; }],
+  ['tabIndex written wins', (el) => ((el.tabIndex = 3), el.getAttribute('tabindex') === '3' && el.tabIndex === 3)],
 
   /** These are views over an attribute: an assignment that does not reach the markup is lost. */
   ['dataset writes through', (el) => (el.dataset.userId = '7', el.getAttribute('data-user-id') === '7')],
@@ -251,6 +287,7 @@ for (const [name, check] of [...DOCUMENT_SURFACE, ...SHEET_SURFACE]) {
     shadowRoot: make().attachShadow({ mode: 'open' }),
     document: globalThis.document,
     sheet: new globalThis.CSSStyleSheet(),
+    tokenList: make().classList,
   };
   for (const [kind, subject] of Object.entries(subjects)) {
     const have = new Set();
@@ -306,8 +343,8 @@ const total =
   EVENT_TARGETS.length * EVENT_SURFACE.length +
   DOCUMENT_SURFACE.length +
   SHEET_SURFACE.length +
-  /** Two completeness checks per shim, plus every global. */
-  8 +
+  /** Two completeness checks per shim, plus every global. Derived, so adding a shim cannot leave it stale. */
+  Object.keys(SURFACES).length * 2 +
   Object.keys(GLOBALS).length;
 console.log(`\nssr dom surface: ${pass}/${total} members behave`);
 if (failures.length) process.exit(1);

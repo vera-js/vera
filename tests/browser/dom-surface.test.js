@@ -29,6 +29,14 @@ const ACTUAL = {
     names(ShadowRoot.prototype, DocumentFragment.prototype, Node.prototype, EventTarget.prototype),
   document: () => names(Document.prototype, Node.prototype, EventTarget.prototype),
   sheet: () => names(CSSStyleSheet.prototype),
+  /**
+   * `classList` was listed as a member of the element and then never looked inside, which is how
+   * `replace` came to be missing: the surface check passed on the *property* while the object it
+   * returned was three methods short. `CSSStyleDeclaration` is deliberately not here — the shim's
+   * `style` is a proxy that answers any name, so enumerating its seven hundred CSS properties would
+   * assert nothing. That one is covered behaviourally instead.
+   */
+  tokenList: () => names(DOMTokenList.prototype),
 };
 
 for (const [kind, actual] of Object.entries(ACTUAL)) {

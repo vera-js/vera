@@ -392,6 +392,20 @@ const REFLECTED_YES_NO = { translate: 'translate' };
 const REFLECTED_NUMBERS = { tabIndex: 'tabindex' };
 
 /**
+ * The tags that are focusable without a `tabindex`, and so report `tabIndex === 0` rather than `-1`.
+ *
+ * `tabIndex` had no default at all — every element answered `0`, which says "in the tab order" about
+ * a `<div>` that is not in it. `element.tabIndex < 0` is the ordinary way to ask whether something
+ * can be focused, so the server answered the opposite of the browser for the common case.
+ *
+ * `a` and `area` need an `href` to be focusable, and `audio`/`video` need `controls`. jsdom reports
+ * `0` for a bare `<a>`, so a differential run against it will flag that one cell — the browsers are
+ * right and jsdom is loose, which is the usual direction.
+ */
+const FOCUSABLE = new Set(['button', 'input', 'select', 'textarea', 'details', 'iframe', 'summary']);
+const CONDITIONALLY_FOCUSABLE = { a: 'href', area: 'href', audio: 'controls', video: 'controls' };
+
+/**
  * `Node`'s numeric constants, and the measurements a box that was never laid out reports.
  *
  * Zero is what a browser returns for a detached element, so these are accurate rather than
@@ -483,7 +497,10 @@ const defineReflections = (Shim) => {
   for (const [property, attribute] of Object.entries(REFLECTED_NUMBERS)) {
     Object.defineProperty(Shim.prototype, property, {
       get() {
-        return Number(this.getAttribute(attribute) ?? 0);
+        const written = this.getAttribute(attribute);
+        if (written !== null) return Number(written);
+        const conditional = CONDITIONALLY_FOCUSABLE[this.localName];
+        return FOCUSABLE.has(this.localName) || (conditional && this.hasAttribute(conditional)) ? 0 : -1;
       },
       set(value) {
         this.setAttribute(attribute, Number(value));
@@ -545,7 +562,7 @@ export class ElementShim extends ContainerShim {
     this.isConnected = true;
     this._attributes = new Map();
     this.innerHTML = '';
-    this.shadowRoot = null;
+    this._shadowRoot = null;
   }
   /** @override */
   get namespaceURI() {
@@ -564,10 +581,21 @@ export class ElementShim extends ContainerShim {
   _name(name) {
     return this._ns === HTML_NS ? String(name).toLowerCase() : String(name);
   }
+  /**
+   * **`mode: 'closed'` means `element.shadowRoot` is `null`** — that is the entire difference between
+   * the two modes, and it was not honoured: a closed root was handed straight back, so a component
+   * guarding on `this.shadowRoot` took the branch the browser will not, and anything holding the
+   * element could reach inside a root the platform hides. The root is kept on `_shadowRoot`, because
+   * it still has to be serialized — declarative shadow DOM expresses `closed` perfectly well
+   * (`<template shadowrootmode="closed">`) and the client's parser re-creates it just as hidden.
+   */
+  get shadowRoot() {
+    return this._shadowRoot?.mode === 'closed' ? null : this._shadowRoot;
+  }
   attachShadow(init = {}) {
-    this.shadowRoot = new ShadowRootShim(init);
-    this.shadowRoot._host = this;
-    return this.shadowRoot;
+    this._shadowRoot = new ShadowRootShim(init);
+    this._shadowRoot._host = this;
+    return this._shadowRoot;
   }
   getAttribute(name) {
     name = this._name(name);
@@ -844,7 +872,7 @@ export class ElementShim extends ContainerShim {
   attachInternals() {
     if (internals.has(this)) return internals.get(this);
     internals.set(this, {
-      shadowRoot: this.shadowRoot,
+      shadowRoot: this._shadowRoot,
       form: null,
       labels: [],
       willValidate: true,

@@ -66,7 +66,11 @@ describe.
   both halves are enforced, so a gap fails a test instead of a render. That includes the sixty reflected
   properties (`id`, `className`, `hidden`, `tabIndex`, `role`, the whole `aria*` family), which are
   views of an attribute and therefore reach the markup, and `attachInternals()`, so a
-  form-associated custom element runs. Queries answer emptily and layout reads as zero because that
+  form-associated custom element runs, and the objects those members hand back — `classList`,
+  `style`, `dataset` — are held to the same list rather than assumed complete once the property
+  exists. `attachShadow({ mode: 'closed' })` behaves as it does in a browser: `element.shadowRoot`
+  is `null`, and the root is serialized anyway, because declarative shadow DOM expresses `closed`
+  and the client re-creates it just as hidden. Queries answer emptily and layout reads as zero because that
   is what a detached element answers in a browser too. **Names fold the way the platform folds
   them**: an HTML element lower-cases its tag and its attribute names, so `setAttribute('Data-Flag', …)`
   and `getAttribute('data-flag')` are one attribute and an `attributes` entry spelled `User-ID`

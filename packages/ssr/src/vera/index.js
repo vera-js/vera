@@ -380,9 +380,17 @@ const renderInstance = (element, tag, depth, props, children) => {
   }
 
   const open = element.openTag();
-  if (element.shadowRoot) {
+  /**
+   * `_shadowRoot`, not `shadowRoot` — **a closed root is hidden from the page and still serialized.**
+   * `element.shadowRoot` is `null` for `mode: 'closed'`, exactly as it is in a browser, so reading it
+   * here dropped the whole template and the component rendered empty. Declarative shadow DOM
+   * expresses `closed` (`<template shadowrootmode="closed">`) and the client re-creates it just as
+   * hidden, so there is nothing to withhold — the mode governs who can reach in, not what is written.
+   */
+  const shadowRoot = element._shadowRoot;
+  if (shadowRoot) {
     /** Styles are prepended after the scan, never passed through it — see `styleTags`. */
-    const inner = renderComponentTags(element.shadowRoot.innerHTML, depth);
+    const inner = renderComponentTags(shadowRoot.innerHTML, depth);
     /**
      * The element's own light DOM follows the template. It used to be discarded for any shadow
      * component, so content a component put in its own light DOM — the thing its `<slot>` projects
@@ -391,7 +399,7 @@ const renderInstance = (element, tag, depth, props, children) => {
     const light = element.innerHTML ? renderComponentTags(element.innerHTML, depth) : '';
     return {
       open,
-      inner: `<template${element.shadowRoot.templateAttributes()}>${element.shadowRoot.styleTags()}${inner}</template>${light}`,
+      inner: `<template${shadowRoot.templateAttributes()}>${shadowRoot.styleTags()}${inner}</template>${light}`,
     };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */

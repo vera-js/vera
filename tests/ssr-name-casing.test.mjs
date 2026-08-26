@@ -14,7 +14,15 @@
  *   it: an upper-case `<SCRIPT>` or `<TEXTAREA>` lost its raw-text protection and a component named
  *   inside one was rendered into its source, and `<TEMPLATE>` lost its skip.
  *
- * What must *not* fold is the other half of the rule: an element outside the HTML namespace keeps
+ * The same pass covered the other half of this file's job — a shim member that is absent, or present
+ * and answering differently from the platform. `classList.replace` was simply missing (a hard
+ * `TypeError` mid-render), `tabIndex` answered `0` for every element including the ones that are not
+ * focusable, an emptied `class`/`style` attribute was removed where a browser leaves it as `""`, and
+ * `attachShadow({ mode: 'closed' })` handed the root straight back — the one thing that distinguishes
+ * the two modes. Those live in `tests/ssr-dom-surface.test.mjs` beside the rest of the surface;
+ * the closed root's *serialization* is here, because it is a render, not a DOM answer.
+ *
+ * What must *not* fold is the other half of the casing rule: an element outside the HTML namespace keeps
  * its case, so `svg.setAttribute('viewBox', …)` has to survive with its capital B or the viewport
  * is ignored.
  */
@@ -90,4 +98,14 @@ test('an upper-case raw-text element keeps its contents as text', async () => {
 test('a component inside an upper-case template is left for the client to upgrade', async () => {
   const html = await render(`this.innerHTML = '<TEMPLATE><casing-kid></casing-kid></TEMPLATE>';`);
   assert.doesNotMatch(html, /KID/, 'a template is a blueprint; its contents are never upgraded');
+});
+
+test('a closed shadow root is hidden from the page and still serialized', async () => {
+  const html = await render(
+    `const root = this.attachShadow({ mode: 'closed' });` +
+      `root.innerHTML = '<p>inside</p>';` +
+      `this.setAttribute('reachable', String(this.shadowRoot !== null));`
+  );
+  assert.match(html, /reachable="false"/, 'a closed root is not reachable through element.shadowRoot');
+  assert.match(html, /<template shadowrootmode="closed"><p>inside<\/p><\/template>/, 'and is written anyway');
 });

@@ -560,6 +560,22 @@ export const SURFACES = {
     "replace",
     "replaceSync",
     "rules"
+  ],
+  "tokenList": [
+    "add",
+    "contains",
+    "entries",
+    "forEach",
+    "item",
+    "keys",
+    "length",
+    "remove",
+    "replace",
+    "supports",
+    "toString",
+    "toggle",
+    "value",
+    "values"
   ]
 };
 
@@ -640,6 +656,7 @@ export const GLOBALS = {
 };
 
 export const OUT_OF_SCOPE = {
+  "tokenList": {},
   "element": {
     "insertBefore": "needs a tree; this DOM holds children as a string",
     "moveBefore": "needs a tree",
