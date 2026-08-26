@@ -55,6 +55,25 @@ and flush them itself.
 For a whole new *kind* of hook rather than a new implementation of an existing one, `createHook` in
 `@verajs/core` is the primitive `useEffect` and its siblings are built from.
 
+## An insert that throws
+
+**Nothing catches it, and that is deliberate — but it is not the same as a hook.** A `useEffect` that
+throws is isolated and reported through the `'error'` insert, because core runs an element's hooks in
+one loop and an escaping error would skip every hook after the failing one. An insert is not in that
+position:
+
+- **`'set-handler'` and `'proxy-handler'` run inside the store's own `set` and `get` traps**, so a
+  throw comes out of `state.count = 1` in the caller's own stack, at the line that wrote it. That is
+  the most useful place it could surface, and swallowing it would leave the write in an undefined
+  state — a suppressed handler has already decided whether the value propagates. These are also the
+  hottest paths in the framework, and a `try`/`catch` on every property read is not free.
+- **`'init'` and `'render'` run inside `init()` and the render, so a throw surfaces there.**
+- **`'error'` is the one that must not throw.** It is already handling a failure, and a throw from it
+  replaces the error being reported with its own.
+
+The practical rule: an insert is framework-level code and is expected not to throw. If yours can,
+catch inside it and decide what to do — the callback knows what a failure means and core does not.
+
 ## Two copies is a mistake, not an arrangement
 
 Each standalone `.min.js` inlines its own copy of this package, so loading `vera.min.js` *and* a
