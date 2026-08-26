@@ -105,16 +105,19 @@ describe.
   | | small | table |
   | --- | --- | --- |
   | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.3** | **35** |
-  | | lit 2.4 | lit 308 |
-  | **whole component** — `renderToString` vs a real `LitElement` | **3.9** | **48** |
-  | | lit 5.8 | lit 412 |
+  | | lit 2.4 | lit 312 |
+  | **whole component** — `renderToString` vs a real `LitElement` | **4.3** | **49** |
+  | | lit 5.7 | lit 414 |
 
-  Vue's compiled SSR is 9.5 / 61 µs and React 6.2 / 450 µs, neither of which renders a
+  Vue's compiled SSR is 7.9 / 61 µs and React 6.2 / 453 µs, neither of which renders a
   component. The `lit element` row runs in a separate process because `@lit-labs/ssr` and this
   package both install DOM globals and cannot share one.
-- 94% of the component pipeline is core's lifecycle rather than this package: instantiating the
-  element and running `connectedCallback` measured 4.69 µs of a 4.99 µs render, with the
-  nested-component scan at 0.06 µs.
+- **Most of a component render is core's lifecycle, not this package.** Rendering the same component
+  with its `connectedCallback` emptied — which removes core's `init`, store, hooks and re-render and
+  leaves the shim, the serializer and the nested scan — costs **1.0 µs of a 6.4 µs render**, so
+  everything this package does is about a sixth of it and the component's own lifecycle is the rest.
+  (Those two figures come from a plain `await` loop rather than `bench/ssr.mjs`'s batched rounds, so
+  they are higher than the table above and only their *ratio* is comparable.)
 
 `examples/ssr-node/server-native.mjs` is a complete server on bare `node:http`, serving the whole
 round trip — the page it returns ships a client module that imports `@verajs/renderer/hydrate` and
