@@ -1504,7 +1504,13 @@ export const renderer = {
   on: 'render' as const,
   fn: render as never,
   priority: 50,
-  connect: (given: { get(name: 'value'): ValueHandler[] | undefined }) => {
-    registry = given;
+  /**
+   * Typed against the registry `wire` actually hands over, not a narrower shape that happens to
+   * describe the one lookup this makes. A structural `{ get(name: 'value'): … }` is **not**
+   * assignable from `Inserts`, so `wire([renderer])` failed to compile in a consumer's project while
+   * this repo's own typecheck — which reads sources, not the shipped `.d.ts` — saw nothing.
+   */
+  connect: (given: { get(name: never): unknown }) => {
+    registry = given as { get(name: 'value'): ValueHandler[] | undefined };
   },
 };

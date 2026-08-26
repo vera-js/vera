@@ -87,6 +87,19 @@ export type CollectionInsert = (
   runCallbacks: (obj: never, prop: never, value: never, prevValue: never) => void
 ) => unknown;
 
+/**
+ * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.
+ *
+ * The point of this one is types you do not own. `_$child$` requires a property on the value, which
+ * is fine for `keyed()` or a directive you wrote and impossible for a `Promise`, an `Observable` or a
+ * `Temporal.PlainDate`. Return `true` to say the value is handled and stop the chain.
+ *
+ * Declared here rather than structurally in the renderer so `wire([renderer])` typechecks for a
+ * consumer: a descriptor's `connect` receives the whole `Inserts` map, and a narrower parameter is
+ * not assignable to that.
+ */
+export type ValueInsert = (part: object, value: unknown) => boolean | void;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
@@ -94,9 +107,10 @@ export type InsertFunctionMap = {
   'error': ErrorInsert;
   'init': InitInsert;
   'collection': CollectionInsert;
+  'value': ValueInsert;
 };
 
 export type Inserts = Map<
   keyof InsertFunctionMap,
-  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert | CollectionInsert)[]
+  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert | CollectionInsert | ValueInsert)[]
 >;

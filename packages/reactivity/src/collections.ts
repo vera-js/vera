@@ -1,4 +1,5 @@
 import type { StoreProxyKeys } from '@verajs/shared-types';
+import type { CollectionInsert } from '@verajs/inserts';
 
 /**
  * `@verajs/reactivity/collections` — reactive `Map` and `Set` inside VeraJS stores.
@@ -167,6 +168,12 @@ export const collectionMethod = (
 export const collections = {
   name: '@verajs/reactivity/collections',
   on: 'collection' as const,
-  fn: collectionMethod,
+  /**
+   * Annotated, not inferred. `collectionMethod` returns `unknown`, and an inferred `unknown` return
+   * makes the descriptor unassignable to `Registerable` — TypeScript tries the union's first member
+   * and reports a failure about `ProxyHandlerInsert`, which has nothing to do with this. Saying
+   * which insert it is turns that into a check rather than a puzzle.
+   */
+  fn: collectionMethod as CollectionInsert,
   priority: 50,
 };
