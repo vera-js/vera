@@ -507,12 +507,19 @@ const CASES = {
  */
 const KNOWN_DIVERGENCES = {
   /**
-   * A layout effect is scheduled on a microtask, and a server render is synchronous end to end —
-   * there is no point between "the render finished" and "the markup was serialized" for a microtask
-   * to run in. React's `useLayoutEffect` does not run during SSR either, for the same reason and
-   * with the same consequence: state settled there must be settled before `render()` instead.
+   * **It runs — it just cannot reach the template it sits beside.**
+   *
+   * A layout effect is coalesced on a microtask and `renderToString` is asynchronous, so it does
+   * execute server-side: a `setAttribute` inside one reaches the markup, because the host's opening
+   * tag is serialized after `connectedCallback` returns. What it cannot do is change what the
+   * template already rendered, which is what this case pins — the server keeps `start` where the
+   * client settles on `layout-ran`.
+   *
+   * The consequence for a component author is the same either way (settle that state before
+   * `render()`), but "does not run" is not what happens, and a layout effect with a side effect
+   * other than state will happen on the server whether or not it was meant to.
    */
-  'useLayoutEffect does not run on the server': {
+  'useLayoutEffect does not reach the markup on the server': {
     body: `
       init(this, { mode: 'open' });
       const state = createStore({ label: 'start' });

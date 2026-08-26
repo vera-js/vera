@@ -73,3 +73,37 @@ test('named sigil bindings are unaffected', () => {
   assert.equal(serializeTemplate(html`<button @click=${() => {}}>b</button>`), '<button>b</button>');
   assert.equal(serializeTemplate(html`<p title=${'t'}>x</p>`), '<p title="t">x</p>');
 });
+
+/**
+ * **A dynamic attribute *name* is refused, not dropped.**
+ *
+ * `<b ${name}="x">` is the one element-position shape that is not a ref: the slot sits inside the
+ * tag with an `=` immediately after it. Dropping the value emitted `<b="x">` — not an attribute,
+ * not a tag, markup no browser would produce from that template. The client is no better off, since
+ * it hands the template to the platform's parser and a marker is not a name. Both halves being
+ * broken is exactly when saying so beats serving either one's version of broken.
+ */
+test('an attribute name that is an expression is refused', () => {
+  assert.throws(
+    () => serializeTemplate({ strings: Object.assign(['<b ', '="x">y</b>'], { raw: [] }), values: ['dyn'] }),
+    /an attribute name cannot be an expression/,
+    'the malformed shape is named rather than served'
+  );
+  assert.throws(
+    () => serializeTemplate({ strings: Object.assign(['<b ', '="x">y</b>'], { raw: [] }), values: ['dyn'] }),
+    /@verajs\/renderer\/spread/,
+    'and the supported alternative is named with it'
+  );
+});
+
+test('the shapes that look similar still serialize', () => {
+  /** A ref at an element position: dropped, space and all. */
+  assert.equal(serializeTemplate(onServerTemplate(), ...[]), serializeTemplate(onServerTemplate()));
+  assert.equal(serializeTemplate(html`<b title=${'t'}>y</b>`), '<b title="t">y</b>', 'an ordinary attribute');
+  assert.equal(serializeTemplate(html`<p>${'a'}=b</p>`), '<p>a=b</p>', 'an `=` after a text position');
+});
+
+/** A template built at one call site, so the two calls above compare the same identity. */
+function onServerTemplate() {
+  return html`<input ${{ value: null }} />`;
+}

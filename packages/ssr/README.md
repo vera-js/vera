@@ -184,20 +184,23 @@ Known limits:
 - **`connectedCallback` must be synchronous.** Rendering recurses inside `String.replace`, which
   cannot await, so an `async connectedCallback` is refused with an error rather than rendered empty.
   Load data before `renderToString` and pass it in as attributes.
-- **`useLayoutEffect` does not run.** It is scheduled on a microtask and a server render is
-  synchronous end to end, so there is no point between "the render finished" and "the markup was
-  serialized" for one to run in. React's does not run during SSR either, for the same reason.
-  Settle that state before `render()`, or use `useEffect`, which does run.
+- **`useLayoutEffect` runs, but too late to reach the template it sits beside.** It is coalesced on
+  a microtask, and `renderToString` is asynchronous, so it *does* execute — a `setAttribute` or an
+  API call inside one happens on the server, which is worth knowing before you put one there. What
+  it cannot do is change what the template already rendered: state settled in a layout effect is not
+  in the markup. Settle it before `render()`, or use `useEffect`, whose frame is drained repeatedly
+  and does reach the markup. `tests/lifecycle-parity.test.mjs` pins both halves of that.
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
 - **A routed component renders its shell, not its route.** `initRouter` works server-side — the
   shim provides enough `window` for it — so the nav and the `[view]` outlet reach the markup and the
   client fills the outlet on hydration. The route's own content does not, because the server holds
   markup as a string rather than a tree and the router finds its outlet by query. Render the route
   yourself and pass it as `children` if it has to be in the first response.
-- **A dynamic attribute *name* is not supported** — `<b ${name}="x">` produces a working attribute
-  here and malformed markup in the browser, because the client hands the template to the platform's
-  parser and a marker is not a name. Use `@verajs/renderer/spread`, which exists for names that are
-  not known until runtime and which this serializer understands.
+- **A dynamic attribute *name* is refused.** `<b ${name}="x">` is malformed on both sides: the
+  client hands the template to the platform's parser and a marker is not a name, and this serializer
+  used to emit `<b="x">`, which is not an attribute either. Rather than write markup no browser would
+  produce, it throws and names the alternative — `@verajs/renderer/spread`, which exists for names
+  that are not known until runtime and which this serializer understands.
 - **`slotAssignment` cannot be server-rendered.** Declarative shadow DOM can express `mode`,
   `delegatesFocus`, `clonable` and `serializable` — all of which are serialized — but has no form
   for manual slot assignment, and `attachShadow` **ignores the options it is handed** when it reuses

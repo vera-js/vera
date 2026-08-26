@@ -418,6 +418,23 @@ export const serializeTemplate = (template) => {
          */
         else if (elementPositions[i]) {
           /**
+           * **A dynamic attribute *name* is refused rather than dropped.**
+           *
+           * `<b ${name}="x">` puts the slot at an element position with an `=` immediately after it,
+           * which is the one shape here that is not a ref. Dropping the value emitted `<b="x">` —
+           * not an attribute, not a tag, markup no browser would produce from that template. The
+           * client is no better off: it hands the template to the platform's parser and a marker is
+           * not a name. Since both halves are broken, saying so is more use than serving either
+           * one's version of broken.
+           */
+          if (/^=/.test(parts[i + 1] ?? ''))
+            throw new Error(
+              `ssr: an attribute name cannot be an expression — \`<b \${name}="x">\` is malformed ` +
+                `markup in the browser too, because the parser sees the marker before the value ` +
+                `exists. Use \`@verajs/renderer/spread\`, which is built for names that are not known ` +
+                `until runtime and which this serializer understands.`
+            );
+          /**
            * The space that introduced the binding goes with it, exactly as a dropped sigil binding's
            * does. Leaving it served `<p >r</p>` where the client renders `<p>r</p>` — harmless to a
            * parser, and still a difference between the two halves for something neither of them
