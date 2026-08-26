@@ -354,7 +354,8 @@ needed** (lit-html templates also work, being structurally identical).
 
 ```js
 import { init, createStore, render as show, wire, html } from '@verajs/core';
-import { render as renderer } from '@verajs/renderer';
+/** `renderer`, not `render`. The module is what `wire` takes; `render` is the function it registers. */
+import { renderer } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 wire([renderer]);
 
@@ -676,7 +677,7 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
 
 <script type="text/vera-jsx">
   import { init, createStore, render, wire } from '@verajs/core';
-  import { render as renderer } from '@verajs/renderer';
+  import { renderer } from '@verajs/renderer';   // the MODULE. `render` is the function it registers.
   import { keyed } from '@verajs/renderer/keyed';
   wire([renderer]);
 

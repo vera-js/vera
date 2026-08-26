@@ -9,7 +9,8 @@ code, so they are not re-litigated.
   Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source
   of truth. Update it in the same pass as any API change. It carries the complete **buildless JSX
   recipe** (import map + `@verajs/jsx/standalone`), which is the fastest path to a working
-  single-file demo.
+  single-file demo — and which `tests/llms-recipes.test.mjs` now compiles and runs, because
+  `docs-recipes` globs the READMEs and had never read this file at all.
 - **Writing templates:** prefer a stable shape with `?hidden=${…}` over swapping subtrees
   conditionally — template identity holds, so values update in place instead of the subtree being
   torn down and rebuilt. (This was also a correctness issue before 0.1.2; see
