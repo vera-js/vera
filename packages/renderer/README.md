@@ -172,6 +172,14 @@ Anything that is not a template passes straight through — there is nothing to 
 It only re-adopts a template it has seen at **that same call site** — two `hold()` calls in
 different templates are two different templates, and neither adopts the other's DOM.
 
+**It keeps every shape it has parked, for as long as the part lives.** That is the point — a tab
+strip of twelve panels holds twelve, and each comes back exactly as it was left — but it is a cache
+with no eviction, so `hold` over an unbounded set of templates retains an unbounded amount of DOM.
+Verified: fifty distinct shapes cycled through one `hold` and the first still re-adopted its own
+nodes. lit's `cache()` behaves the same way, and for the same reason — evicting would silently throw
+away the state the directive exists to preserve, which is worse than holding it. Use `hold` for a
+set you can name, and let an unbounded one rebuild.
+
 ## Write stable shapes
 
 Rendering the same elements every pass and toggling `hidden` is faster than swapping one subtree for
