@@ -110,6 +110,8 @@ describing the bytes honestly.)*
 | `@verajs/spread` | 842 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/tag` | 1 439 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/computed` | 241 B | memoised derived values |
+| `@verajs/collections` | 516 B | reactive `Map` and `Set` in a store |
+| `@verajs/keyed` | 581 B | `keyed()` — keyed list reconciliation |
 | `@verajs/inserts` | 357 B | the extension point |
 <!--/size:table.permodule-->
 

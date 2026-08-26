@@ -274,7 +274,7 @@ test('the missing-collections error is raised once, and by a size read too', asy
     console.error = nativeError;
   }
 
-  const ours = errors.filter((m) => m.includes('@verajs/collections'));
+  const ours = errors.filter((m) => m.includes('@verajs/reactivity/collections'));
   assert.equal(ours.length, 1, 'ten reads, one error');
   assert.match(ours[0], /Map/, 'and it names the kind it found');
 });

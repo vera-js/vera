@@ -23,7 +23,7 @@ const PROD = {
   inserts: 'packages/inserts/dist/vera-inserts.min.js',
   styles: 'packages/styles/dist/vera-styles.min.js',
   autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
-  collections: 'packages/collections/dist/vera-collections.min.js',
+  collections: 'packages/reactivity/dist/vera-reactivity-collections.min.js',
   keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
   tag: 'packages/renderer/dist/vera-renderer-tag.min.js',

@@ -20,7 +20,7 @@ code, so they are not re-litigated.
   and bisecting them produces contradictory results.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
-  `@verajs/reactivity`, `@verajs/collections`, anything built on core's public API — resolves core
+  `@verajs/reactivity`, `@verajs/reactivity/collections`, anything built on core's public API — resolves core
   through `exports.default`, which is `dist/*.min.js`. The probe then holds **two cores**: writes go
   to one store registry and subscriptions live in the other, so reactivity looks completely dead and
   every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard

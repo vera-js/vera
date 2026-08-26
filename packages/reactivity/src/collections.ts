@@ -1,6 +1,35 @@
 import type { StoreProxyKeys } from '@verajs/shared-types';
 
 /**
+ * `@verajs/reactivity/collections` — reactive `Map` and `Set` inside VeraJS stores.
+ *
+ * Wire it once, at your app entry, alongside the renderer:
+ *
+ * ```js
+ * import { wire } from '@verajs/core';
+ * import { renderer } from '@verajs/renderer';
+ * import { collections } from '@verajs/reactivity/collections';
+ *
+ * wire([renderer, collections]);
+ * ```
+ *
+ * **Take `wire` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js`
+ * inlines its dependencies, so every bundle carries its own registry; registering through your own
+ * copy writes where core never looks — working in development and silently doing nothing in
+ * production. Core's own function writes to the map core reads, in every build.
+ *
+ * It lives outside core because most stores hold plain objects, and before the split every app
+ * carried 367 B gzipped for collections it never created. Nothing is silent if you forget: core
+ * raises a `__DEV__` error naming this entry the first time a `Map` or `Set` reaches a store with
+ * nothing registered.
+ *
+ * **It imports nothing at runtime.** `computed` beside it is built *on* core and imports it; this
+ * implements an extension point core defines, so core hands it `addCallback` and `runCallbacks` at
+ * dispatch. Which way round a module goes is decided by one question: does core call you, or do you
+ * call core?
+ */
+
+/**
  * The every-change channel: mutations notify it in addition to their own key, and unkeyed reads
  * (`entries`, `keys`, `values`, `forEach`, `size`) subscribe to it. Also part of the documented
  * surface for `'proxy-handler'` insert authors, so treat the name as public.
@@ -129,4 +158,15 @@ export const collectionMethod = (
     wrappers.set(prop, wrapper);
   }
   return wrapper;
+};
+
+/**
+ * The descriptor to hand `wire`. Priority 50 is the convention for a default implementation —
+ * register below 50 to run first, or at 50 to replace this entirely.
+ */
+export const collections = {
+  name: '@verajs/reactivity/collections',
+  on: 'collection' as const,
+  fn: collectionMethod,
+  priority: 50,
 };

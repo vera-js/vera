@@ -69,7 +69,7 @@ export type InitInsert = (element: HTMLElement) => void;
 
 /**
  * Returns a tracking wrapper for a `Map`/`Set` method read through a store proxy — the extension
- * point `@verajs/collections` registers on.
+ * point `@verajs/reactivity/collections` registers on.
  *
  * **Type-keyed, not per-read.** Core dispatches it only when the target is already known to be a
  * `Map` or a `Set`, so a plain-object read never reaches the lookup. That is the whole difference

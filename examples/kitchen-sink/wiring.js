@@ -12,7 +12,7 @@
 import { wire } from '@verajs/core';
 import { router } from '@verajs/router';
 import { adoptStyles } from '@verajs/styles';
-import { collections } from '@verajs/collections';
+import { collections } from '@verajs/reactivity/collections';
 import { autoloader } from '@verajs/autoloader';
 import { installSinkInserts } from './components/sink-inserts.js';
 

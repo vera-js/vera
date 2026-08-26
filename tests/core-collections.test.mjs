@@ -6,7 +6,7 @@
 // Collections integrated in core: zero wiring, driven through a real store + hook.
 import { load } from './dist.mjs';
 const core = await load('core');
-const { collections } = await load('collections');
+const { collections } = await load('reactivity/collections');
 core.wire(collections);
 const { JSDOM } = await import('jsdom');
 const dom = new JSDOM('<div id="host"></div>');

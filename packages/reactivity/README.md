@@ -1,16 +1,26 @@
 # @verajs/reactivity
 
-Reactivity primitives `@verajs/core` deliberately does not ship. Each extends core's **store**, and
-none is needed by every app — which is exactly the split the module system exists to make.
+Reactivity primitives `@verajs/core` deliberately does not ship.
+
+**Core *is* the reactivity system** — `createStore`, the proxy traps, the hook queue all live there.
+This is what core leaves out: extensions to the store that not every app needs, and that every app
+would otherwise pay for.
 
 | Entry | | |
 | --- | ---: | --- |
 | `@verajs/reactivity/computed` | <!--size:computed.gzip-->241 B<!--/size:computed.gzip--> | memoised derived values |
+| `@verajs/reactivity/collections` | <!--size:collections.gzip-->516 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
-subpath and a buildless page downloads only that one. The subpath entries are **additive** — each
-keeps `@verajs/core` external rather than inlining it, so loading two still leaves one core, one
-insert registry and one store identity.
+subpath and a buildless page downloads only that one. Both entries are **additive**: neither inlines
+core, so loading both still leaves one core, one insert registry and one store identity.
+
+The two reach core from opposite directions, and the difference decides how any future member is
+written. `computed` **calls into** core — it imports `createStore` and `createHook`, because there is
+no derived value without a store. `collections` is **called by** core: it implements the
+`'collection'` extension point, so core hands it `addCallback` and `runCallbacks` at dispatch and it
+imports nothing at all. The question that settles which shape a module takes is *does core call you,
+or do you call core?*
 
 ```sh
 npm i @verajs/reactivity

@@ -8,7 +8,7 @@ import type { Signal } from '../types.js';
 /**
  * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
  * mutation, and a plain object gaining or losing a key. Tracked here from `ownKeys` and from a
- * `size` read; notified by `@verajs/collections`, which declares the same literal rather than
+ * `size` read; notified by `@verajs/reactivity/collections`, which declares the same literal rather than
  * importing this one — a production bundle inlines its dependencies, so an import would subscribe
  * to one string and notify another.
  */
@@ -38,8 +38,8 @@ const warnNoCollections = (obj: object) => {
   warnedNoCollections = true;
   const kind = getType(obj).replace('weak', 'Weak').replace(/map$/, 'Map').replace(/set$/, 'Set');
   console.error(
-    `[vera] a ${kind} in a store needs @verajs/collections — ` +
-      `\`import { collections } from '@verajs/collections'\` and add it to your \`wire([…])\` call. ` +
+    `[vera] a ${kind} in a store needs @verajs/reactivity/collections — ` +
+      `\`import { collections } from '@verajs/reactivity/collections'\` and add it to your \`wire([…])\` call. ` +
       `Without it its methods are not reactive and calling one throws.`
   );
 };
@@ -233,7 +233,7 @@ const createHandler = <T extends object>(
       /**
        * `size` is an accessor and must be read off the raw target — but the read still
        * subscribes, under the `'_global'` channel that every Map/Set mutation notifies (see
-       * `@verajs/collections`). Returning without tracking meant `${state.map.size}` in a template
+       * `@verajs/reactivity/collections`). Returning without tracking meant `${state.map.size}` in a template
        * never updated.
        */
       if (prop === 'size' && isSetOrMap(obj)) {
@@ -244,7 +244,7 @@ const createHandler = <T extends object>(
       let propValue = Reflect.get(obj, prop, receiver) as ProxyObject<T>;
 
       /**
-       * Map/Set methods: re-bound and tracked by `@verajs/collections`. Native collection methods
+       * Map/Set methods: re-bound and tracked by `@verajs/reactivity/collections`. Native collection methods
        * throw (`called on incompatible receiver`) when invoked on the proxy — their internal slots
        * live on the raw target — so without the package a collection in a store is inert rather
        * than reactive, and the error below says so the first time one is read.

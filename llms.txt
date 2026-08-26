@@ -233,19 +233,19 @@ yields that number** instead of the value. Write observers with a block body —
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
-import { collections } from '@verajs/collections';
+import { collections } from '@verajs/reactivity/collections';
 import { render } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 ```
 
-### Collections (`@verajs/collections`)
+### Collections (`@verajs/reactivity/collections`)
 
 Reactive `Map` and `Set` in stores. **Not in core since 0.2.0** — most stores hold plain objects
 and every app was paying 367 B for it. Wire once at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
-import { collections } from '@verajs/collections';
+import { collections } from '@verajs/reactivity/collections';
 wire(collections);
 ```
 

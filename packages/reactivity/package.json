@@ -26,6 +26,11 @@
       "types": "./dist/development/vera-reactivity-computed.d.ts",
       "development": "./dist/development/vera-reactivity-computed.js",
       "default": "./dist/vera-reactivity-computed.min.js"
+    },
+    "./collections": {
+      "types": "./dist/development/vera-reactivity-collections.d.ts",
+      "development": "./dist/development/vera-reactivity-collections.js",
+      "default": "./dist/vera-reactivity-collections.min.js"
     }
   },
   "files": [
@@ -113,7 +118,10 @@
     "computed",
     "memo",
     "derived",
-    "store"
+    "store",
+    "map",
+    "set",
+    "collections"
   ],
   "sideEffects": false
 }

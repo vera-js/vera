@@ -30,5 +30,5 @@ read of every store; it is now cached against a registry revision. Measured on
 
 Development-only diagnostics, all free in production: a string in tag position is refused rather
 than rendered as escaped punctuation; an un-hoisted `_$child$` applier is named; a self-feeding
-`useSyncEffect` is stopped at depth 50; and the missing-`@verajs/collections` error is raised once
+`useSyncEffect` is stopped at depth 50; and the missing-`@verajs/reactivity/collections` error is raised once
 per page rather than once per read, and from a `size` read as well as a method read.

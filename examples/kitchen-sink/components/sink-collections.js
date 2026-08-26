@@ -1,5 +1,5 @@
 /**
- * Reactive `Map`, `Set`, `WeakMap` and `WeakSet`, which live in `@verajs/collections` — wired
+ * Reactive `Map`, `Set`, `WeakMap` and `WeakSet`, which live in `@verajs/reactivity/collections` — wired
  * once in `wiring.js`. Without it core raises a `__DEV__` error and the first method call throws.
  *
  * Rendered through `entries()` rather than a spread, because iteration via `for…of` deliberately

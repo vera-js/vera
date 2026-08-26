@@ -16,6 +16,8 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/spread` | 1.54 KB | 842 B |
 | `@verajs/tag` | 2.72 KB | 1.41 KB |
 | `@verajs/computed` | 298 B | 241 B |
+| `@verajs/collections` | 986 B | 516 B |
+| `@verajs/keyed` | 1.13 KB | 581 B |
 | `@verajs/inserts` | 486 B | 357 B |
 <!--/size:table.modules-->
 
