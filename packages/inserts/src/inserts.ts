@@ -93,6 +93,30 @@ export const wire = (item: Registerable | Registerable[]) => {
  * such a module would be called as a connector and never registered.
  */
 const apply = (item: Registerable) => {
+  /**
+   * **Is it either of the two things at all?** Everything below validates one shape or the other —
+   * a function that turned out to be `render` rather than `renderer`, a descriptor whose priority is
+   * `NaN` — and nothing asked whether an item was a module in the first place. So `wire(undefined)`,
+   * which is what a mistyped import name produces, fell through to the descriptor branch and threw
+   * *`priority must be a finite number, and "undefined" is not`*: a true sentence about the wrong
+   * thing, which sends the reader looking for a priority they never wrote.
+   *
+   * `__DEV__`-only, so production carries neither the check nor the text.
+   */
+  if (__DEV__) {
+    const descriptor = item as Partial<InsertDescriptor> | null | undefined;
+    const shape = typeof item;
+    if (item == null || (shape !== 'function' && shape !== 'object'))
+      throw new Error(
+        `wire: expected a module or an insert descriptor, and received ${String(item)}. ` +
+          `Check the import name — \`wire([renderer, router])\`.`
+      );
+    if (shape === 'object' && (typeof descriptor!.on !== 'string' || typeof descriptor!.fn !== 'function'))
+      throw new Error(
+        `wire: ${descriptor!.name ? `\`${descriptor!.name}\`` : 'that object'} is not an insert descriptor — ` +
+          `one needs \`on\` (the insert point), \`fn\` (the callback) and \`priority\`.`
+      );
+  }
   if (typeof item === 'function' && (item as Partial<InsertDescriptor>).on === undefined) {
     /**
      * A raw function that a package marked as "not the module" — `@verajs/renderer` marks `render`,

@@ -22,6 +22,30 @@ export const initRouter = (
    */
   if (!element || !view) throw new Error('Set an element and view');
 
+  /**
+   * **An option this router does not have is a mistake, and silence about it is the bug.**
+   *
+   * `routes` is the one that matters: `createRouter({ routes })` is how Vue Router is initialised
+   * and it is the first thing anyone tries here. Ignored quietly, the router comes up with no routes
+   * at all, every navigation matches nothing, and the page renders an empty outlet with no
+   * diagnostic anywhere — the failure looks like a broken router rather than a misplaced option.
+   * A TypeScript caller is told by the compiler; the buildless caller this framework treats as
+   * first-class is told by nobody.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the list nor the text.
+   */
+  if (__DEV__) {
+    const known = ['view', 'focusView', 'handleInitial', 'hashChangeFunction', 'pushHash', 'scrollBehavior'];
+    for (const option of Object.keys(routerOptions))
+      if (!known.includes(option))
+        console.warn(
+          `[vera] router: \`${option}\` is not an initRouter option, so it was ignored.` +
+            (option === 'routes'
+              ? ' Routes are registered separately: `const { addRoutes } = initRouter(el, { view }); addRoutes(routes)`.'
+              : ` The options are ${known.join(', ')}.`)
+        );
+  }
+
   /** Deferred to first init so importing the router stays side-effect-free (and Node-safe). */
   attachWindowListeners();
 
