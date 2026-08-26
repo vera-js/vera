@@ -96,6 +96,11 @@ describe.
   renders **that instance** — everything the parent assigned to it, `kid.rows = data` included,
   survives. The nested-component scan used to re-create the child from its markup, where an
   attribute is the only thing that can carry a value.
+- **`render()` owns its own range and nothing else**, exactly as it does in a browser. Content
+  already in the container stays before the rendered range, a node the component appends to its own
+  root stays after it, and both survive every re-render — so a component that mixes `render()` with
+  its own `appendChild` produces the same DOM on both sides. It also means `children` reach a
+  light-DOM component and are still there after it renders.
 - **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
   an `aria-*`, a class, a reflected property.
 - **`<style>` and `<script>` content is written raw**, and their own end tags are neutralised
@@ -208,13 +213,6 @@ Known limits:
   used to emit `<b="x">`, which is not an attribute either. Rather than write markup no browser would
   produce, it throws and names the alternative — `@verajs/renderer/spread`, which exists for names
   that are not known until runtime and which this serializer understands.
-- **A node appended to a root that `render()` also owns does not survive here.** The server's render
-  insert assigns `innerHTML`, so it replaces the root's contents; the client's appends its parts and
-  leaves anything already there. So a component that calls `render()` *and* appends to its own shadow
-  root keeps the appended node in the browser and loses it on the server. Build the whole subtree
-  through the template, or through `appendChild` without `render()` — either is consistent on both
-  sides. (Mixing the two is not supported on the client either: nothing promises a foreign node's
-  place among the renderer's parts, and a later render is free to move around it.)
 - **`slotAssignment` cannot be server-rendered.** Declarative shadow DOM can express `mode`,
   `delegatesFocus`, `clonable` and `serializable` — all of which are serialized — but has no form
   for manual slot assignment, and `attachShadow` **ignores the options it is handed** when it reuses

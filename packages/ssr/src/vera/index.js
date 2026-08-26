@@ -70,6 +70,19 @@ wire({ on: 'init', fn: adoptStyles, priority: 50 });
 const renderErrors = [];
 wire({ on: 'error', fn: (error, element) => renderErrors.push({ error, tag: element?.localName }), priority: 10 });
 
+/**
+ * What this renderer last wrote into a container, and what sat in front of it.
+ *
+ * **`render()` owns its own range and nothing else** — that is the client's contract, and it holds
+ * over time, not just on the first pass. Measured in a browser DOM: content already in the container
+ * stays *before* the rendered range, a node appended afterwards stays *after* it, and both survive
+ * every re-render. The server assigned `innerHTML` outright, so a component that called `render()`
+ * and also appended to its own root kept the appended node in the browser and lost it here.
+ *
+ * The string equivalent of a range is the text on either side of it, which is what this holds.
+ */
+const written = new WeakMap();
+
 /** The server renderer: template object in, markup into the (shadow) container shim. */
 const serverRenderer = (template, container) => {
   /**
@@ -82,7 +95,25 @@ const serverRenderer = (template, container) => {
    * moment any of that string comes from data. A number returned nothing at all here and `42`
    * there.
    */
-  container.innerHTML = template?.strings ? serializeTemplate(template) : serializeValue(template);
+  const ours = template?.strings ? serializeTemplate(template) : serializeValue(template);
+
+  /**
+   * Where our range sits. On a re-render the container should still open with the text we saw in
+   * front of us and continue with what we wrote, and whatever follows is somebody else's — a node a
+   * component appended to its own root, or the `children` a light-DOM component was handed.
+   *
+   * If the container no longer matches that shape someone replaced its contents wholesale, and the
+   * honest reading is that our old range is gone: start again at the end, which is where a first
+   * `render()` puts it in a browser.
+   */
+  const current = container.innerHTML;
+  const last = written.get(container);
+  const resumable = last !== undefined && current.startsWith(last.before + last.ours);
+  const before = resumable ? last.before : current;
+  const after = resumable ? current.slice(before.length + last.ours.length) : '';
+
+  container.innerHTML = before + ours + after;
+  written.set(container, { before, ours });
 };
 /**
  * `setRenderer` registers a **wrapper** — it resolves the element's root before calling through —
