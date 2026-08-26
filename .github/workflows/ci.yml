@@ -46,6 +46,10 @@ jobs:
       # browser cannot run the server pipeline. Unverified, that snapshot drifts and hydration is
       # validated against markup no server emits — passing green.
       - run: node scripts/build-hydration-fixture.mjs --check
+      # Same reason, for the three kitchen-sink renderings the browser suite compares. This check
+      # was missing until 2026-08-26 and the fixture had drifted: 35 browser files were asserting
+      # against markup no server emitted, green the whole time.
+      - run: node scripts/build-kitchen-fixture.mjs --check
       # Twice, against different programs. dist/development keeps workspace deps external and
       # keeps __DEV__ code; dist/*.min.js mangles properties, drops console.log, eliminates dead
       # branches and inlines workspace deps. A pass against one says nothing about the other.
@@ -57,7 +61,7 @@ jobs:
       # Three engines, because one is barely better evidence than none for this framework.
       # WebKit is the one that matters: `@scope` and `adoptedStyleSheets` have their shakiest
       # support there and both are load-bearing for @verajs/styles. Firefox covers a second
-      # engine's custom-element and focus semantics. All 29 checks pass on all three; the suite
-      # itself takes ~12s, so the cost here is the browser download, not the run.
+      # engine's custom-element and focus semantics. All 221 checks across 35 files pass on all three; the suite
+      # itself takes ~8s, so the cost here is the browser download, not the run.
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:browser:all
