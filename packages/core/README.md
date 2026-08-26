@@ -58,8 +58,33 @@ they run, so a write to `state.count` schedules exactly the work that read it.
 | `deps(...values)` | touch values explicitly, to register them as dependencies |
 | `store._delete()` | sever every subscription for an object store at once |
 
-Reactive `Map`, `Set`, `WeakMap` and `WeakSet` are built in: put one in a store and mutating methods
-notify like any other write.
+Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/reactivity/collections`: put one in a
+store, wire that, and mutating methods notify like any other write. Without it core says so the first
+time one is read.
+
+### What "deep" reaches, and what it does not
+
+A store proxies **plain objects, arrays, class instances, `Object.create(null)` objects, and the four
+collections**. Everything else is handed back exactly as it was put in:
+
+`Date`, `RegExp`, `Promise`, `Error`, `URL`, `URLSearchParams`, typed arrays, `ArrayBuffer`,
+`DataView`, functions and DOM nodes.
+
+That is deliberate, and it is the same reason collection methods have to be re-bound: these types
+carry state in **internal slots** rather than in properties, so a proxy cannot see a change and in
+several cases cannot even be called on one. Reading `state.when` gives you the real `Date`, and
+`state.when.setHours(9)` changes it — but **nothing re-renders**, because no property was written.
+
+Replace them instead of mutating them, which is what makes the change visible:
+
+```js
+state.when = new Date(state.when.setHours(9));   // a write to `when`, so it renders
+state.pixels = new Uint8Array(next);             // not state.pixels[0] = …
+```
+
+There is no warning for this. A `Date` read to format it is far more common than a `Date` read to
+mutate it, so a warning would be noise on the ordinary case — which is why it is written down here
+instead.
 
 **Adding and removing keys counts as a change.** A component that enumerates — `Object.keys`,
 `for…in`, `{ ...state.filters }`, `JSON.stringify`, or `key in state.form` — depends on the set of
