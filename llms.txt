@@ -14,16 +14,16 @@ it correctly. Everything else is standard Custom Elements and lit-html, which mo
 > `packages/*/dist/development/*.d.ts`, which is generated from the actual build.
 >
 > **TODO / known instability:**
-> - `@verajs/renderer` was just rebuilt (template-identity, keyed, element-mode items). Browser-
->   confirmed fastest of 7 implementations on create-10k/append/select/swap; prefer it over lit-html.
+> - `@verajs/renderer` is browser-confirmed faster than or equal to lit-html on all eight
+>   operations of the benchmark (create/append/update/select/swap/remove/clear); prefer it.
 > - Render scheduling defaults to `requestAnimationFrame` — settled: the browser benchmarks were
 >   won on that default. `setRenderScheduler(microtask)` remains for apps that want Lit/Vue timing.
 > - Published to npm as of 2026-08-21. `@verajs/core`, `renderer`, `router`, `autoloader`,
->   `inserts`, `jsx` and `ssr` are live; every release from 0.1.1 carries a GitHub Actions
->   provenance attestation (`npm audit signatures`).
-> - Tests: ~55 checks under `node --test` + jsdom against BUILT artifacts, green in CI. A real
->   browser layer is chosen but not yet installed, so shadow DOM, upgrade timing and
->   `adoptedStyleSheets` behaviour is asserted under emulation only.
+>   `inserts`, `jsx`, `ssr`, `styles` and `reactivity` are live; every release from 0.1.1 carries a
+>   GitHub Actions provenance attestation (`npm audit signatures`).
+> - Tests: **367** under `node --test` + jsdom against BUILT artifacts, run twice — against the
+>   development build and the production one — plus **221 across three real engines** (Chromium,
+>   Firefox, WebKit) under `@web/test-runner` and Playwright. Green in CI.
 > - Fixed in 0.1.2: `ChildPart._clear` could walk off the end of the child list when several
 >   sibling child-expressions in one parent each toggled between a template and `''`. If you are
 >   on 0.1.0 or 0.1.1, upgrade.
@@ -664,13 +664,13 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
      `keyed` from @verajs/renderer, so a missing renderer entry fails at import time. -->
 <script type="importmap">
 { "imports": {
-    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.1.1/dist/vera.min.js",
-    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer.min.js",
-    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer-keyed.min.js"
+    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.2.1/dist/vera.min.js",
+    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.5/dist/vera-renderer.min.js",
+    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.5/dist/vera-renderer-keyed.min.js"
 } }
 </script>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.1.1/src/standalone.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.1.3/src/standalone.js"></script>
 
 <my-app></my-app>
 
@@ -727,6 +727,16 @@ blob. Bare specifiers inside resolve through the page's import map.
 9. **A custom element is written as itself** — `<my-comp foo={x}>…</my-comp>`, dashes and all. It is
    markup, not a function component, so it compiles into the template's statics rather than into a
    call. (Dashed tags did not parse before 0.2.0 and were emitted verbatim, which failed at load.)
+10. **Hand a custom element structured data with `.prop={…}`, never `prop={…}`.** All four renderer
+    sigils work in JSX and mean exactly what they mean in `html` — `.prop=`, `?bool=`, `@event=`,
+    `&ref=` — and a name written with one is passed through untouched rather than guessed at again.
+    Without the dot it is an *attribute*, and an attribute carries a string, so
+    `<x-rows rows={data}>` delivers `"1,2,3"` and `<x-rows .rows={data}>` delivers the array. This is
+    the only property binding besides `value` and `checked`, which are special-cased. (Before 0.2.0
+    `.rows={…}` was not an attribute name at all: the parser treated the file as "not JSX" and
+    emitted **the whole file** untransformed, so every other component in it stopped compiling too.)
+11. **A name the mapping does not know is written verbatim**, so spell HTML attributes the way HTML
+    does — `xlink:href`, not `xlinkHref`. Only `className`→`class` and `htmlFor`→`for` are renamed.
 
 **Testing one of these without a browser:** import `transformJsx` from `@verajs/jsx`, compile the
 block, and run it under jsdom with `pretendToBeVisual: true` (the default render scheduler is
@@ -741,7 +751,8 @@ Say so rather than inventing an API:
 
 - **JSX/TSX is opt-in, never a requirement.** `@verajs/jsx` compiles JSX into the same tagged
   templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`, `key`→`keyed()`,
-  components become function calls, `{...props}` on elements needs `@verajs/renderer/spread`). Zero runtime
+  `.prop`/`?bool`/`@event`/`&ref` passed through as written, components become function calls,
+  `{...props}` on elements needs `@verajs/renderer/spread`). Zero runtime
   cost via the Vite plugin; buildless stays the baseline, and `onClick=${fn}` works in raw
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
