@@ -321,7 +321,7 @@ written `@event` bindings behave too.
 
 ### What it costs, and why it is a separate entry
 
-`@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you import it.
+`@verajs/renderer` grows **8 B** gzipped for the protocol this uses, whether or not you import it.
 The entry itself is **<!--size:spread.gzip-->842 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
@@ -437,7 +437,7 @@ entries: it inlines no renderer internals, so it is safe alongside any of them.
 
 The renderer holds no directive system. It holds a **protocol**, at the two positions worth
 extending, and everything built on it is an ordinary package the renderer knows nothing about —
-`@verajs/renderer/spread` is the proof, at 16 B of protocol in this bundle and its own weight only
+`@verajs/renderer/spread` is the proof, at 8 B of protocol in this bundle and its own weight only
 for apps that import it.
 
 | position | brand | called as |
@@ -513,9 +513,9 @@ The check costs the hot path nothing: it sits after the template branch, and a t
 common object at a child position — returns before ever reading it, so only arrays, nodes and
 directives pay a property read. Measured with no runtime difference distinguishable from noise.
 
-The whole protocol is **94 B gzipped**. The check alone measured 22 B; the rest is what makes it
-usable — the two fields holding a directive's state and whose it is, and the save/restore in
-`_$commit$` that stops a directive's own rendering from destroying its continuity.
+The whole protocol is **116 B gzipped** — the check, the two fields holding a directive's state and
+whose it is, the save/restore in `_$commit$` that stops a directive's own rendering from destroying
+its continuity, and the `_$detach$` call. It was 94 B before teardown existed.
 
 ## Animating things in and out
 
