@@ -47,6 +47,19 @@ const PACKAGES = {
   '@verajs/jsx': 'jsx',
 };
 
+/**
+ * Resolved from source rather than a bundle, because these publish their `src` directly — the same
+ * two `docs-imports` treats this way, and for the same reason. They were left out of this check
+ * entirely until `@verajs/ssr`'s `hoistedStyles` turned up in the public surface with no mention
+ * anywhere: an internal `Map` of hoisted `@scope` blocks that `renderToString` already returns the
+ * relevant half of.
+ */
+const SOURCE_PACKAGES = {
+  '@verajs/ssr': '../packages/ssr/src/vera/index.js',
+  /** The same module — the exports map points both specifiers at one file — and listed so the check knows it. */
+  '@verajs/ssr/vera': '../packages/ssr/src/vera/index.js',
+};
+
 const root = new URL('..', import.meta.url).pathname;
 const docs = [];
 const walk = (dir) => {
@@ -69,9 +82,13 @@ test('the docs are actually being read', () => {
 
 test('every public export is named somewhere in the documentation', async () => {
   const undocumented = [];
-  for (const [specifier, bundle] of Object.entries(PACKAGES)) {
-    if (isProduction && NO_PRODUCTION_BUILD.has(bundle)) continue;
-    const module = await import(distUrl(bundle));
+  const entries = [
+    ...Object.entries(PACKAGES).map(([specifier, bundle]) => [specifier, bundle, null]),
+    ...Object.entries(SOURCE_PACKAGES).map(([specifier, path]) => [specifier, null, path]),
+  ];
+  for (const [specifier, bundle, path] of entries) {
+    if (bundle && isProduction && NO_PRODUCTION_BUILD.has(bundle)) continue;
+    const module = await import(path ? new URL(path, import.meta.url).href : distUrl(bundle));
     for (const name of Object.keys(module)) {
       /** `default` is the module, not a name anyone writes. */
       if (name === 'default') continue;

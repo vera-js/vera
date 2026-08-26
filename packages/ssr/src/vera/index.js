@@ -685,4 +685,11 @@ export const renderToString = async (
   }
 };
 
-export { registry, hoistedStyles, serializeTemplate };
+/**
+ * `hoistedStyles` is **not** re-exported. It is the internal `Map` of light-DOM `@scope` blocks,
+ * keyed by the tag that hoisted them, and `renderToString` already returns the ones belonging to the
+ * page it built as `styles` — which is the whole reason it is keyed rather than flat. Exporting the
+ * raw map put a piece of this package's bookkeeping into its public surface, where nothing used it
+ * and nothing documented it.
+ */
+export { registry, serializeTemplate };
