@@ -42,8 +42,10 @@ Being wrong once in public costs more than every correct claim gains.
 - **Not core's standalone size.** Core ships no renderer, so `@verajs/core` on its own cannot put
   anything on screen. The only honest app number is core **plus** a renderer:
   <!--size:app.kb-->5.7 KB<!--/size:app.kb-->.
-- **Not "production ready".** One maintainer, pre-1.0, and the browser test layer is still
-  pending (the node+jsdom suite and CI are real). Say "early" plainly.
+- **Not "production ready".** One maintainer and pre-1.0. Say "early" plainly. The testing is not
+  the reason: the jsdom suite, the browser layer on Chromium, Firefox and WebKit, and CI are all
+  real and all run on every commit. Being early is about the number of people who have used this,
+  not about the evidence.
 - **Not "the only zero-dependency framework".** Van.js, petite-vue and Preact + signals ship zero
   too, and React ships one. State zero as a property, not a distinction — what is uncommon is
   holding it across a router, an SSR renderer and a JSX compiler rather than a micro-library.
