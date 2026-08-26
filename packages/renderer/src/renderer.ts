@@ -651,7 +651,7 @@ class AttrPart implements Part {
                */
               if (target[name] !== value)
                 console.warn(
-                  `@verajs/renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
+                  `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
                     `while the element upgraded. A class field is the usual cause: at ES2022 ` +
                     `\`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites ` +
                     `whatever was set beforehand — write it \`declare ${name}?: …\` instead, which ` +

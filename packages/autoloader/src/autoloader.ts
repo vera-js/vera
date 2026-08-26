@@ -153,7 +153,7 @@ export const autoloader = (
        * precisely so it can be pointed somewhere else after a first attempt failed, and a tag
        * marked spent never looks again.
        */
-      const refusal = new Error(`autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
+      const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
       (refusal as Error & { href: string }).href = href;
       throw refusal;
     }
@@ -210,7 +210,7 @@ export const autoloader = (
           detail: { tag, src, error, element },
         })
       );
-      console.error(`Failed to load custom element ${tag} from ${src}:`, error);
+      console.error(`[vera] autoloader: failed to load <${tag}> from ${src}:`, error);
     }
   };
 

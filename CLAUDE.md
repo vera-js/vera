@@ -72,6 +72,10 @@ rest of this file.
   invalidates the current approach gets surfaced immediately, not at the end.
 - **Never assume abandoned code is dead.** See `docs/CODE-PRINCIPLES.md` #3. Audit, report what it was
   for, and let Brian decide.
+- **Every `console.warn`/`console.error` the framework prints starts `[vera]`**, so a user can find
+  all of them with one filter. A thrown `Error` may name its function instead — a stack already names
+  the source — but a message the framework also prints carries the prefix.
+  `tests/diagnostics-convention.test.mjs` asserts it across every source file rather than trusting it.
 - **Removing an API means adding its name to `tests/docs-removed-apis.test.mjs`.** One line, at the
   moment the knowledge exists. That list is what turns "we remembered to grep the docs" into
   something the gate refuses to let through — `setRenderer` survived its own deletion in 23 places

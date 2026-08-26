@@ -30,7 +30,7 @@ const runBlock = async (script) => {
     const js = transformJsx(source, name);
     await import(URL.createObjectURL(new Blob([js], { type: 'text/javascript' })));
   } catch (error) {
-    console.error(`[vera-jsx] ${name}:`, error);
+    console.error(`[vera] jsx: ${name}:`, error);
   }
 };
 

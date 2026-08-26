@@ -186,7 +186,7 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
     if (UNSAFE_NAME.test(key[0] === '.' || key[0] === '?' || key[0] === '@' || key[0] === '&' ? key.slice(1) : key)) {
       if (__DEV__)
         console.warn(
-          `@verajs/renderer/spread: ignoring the key ${JSON.stringify(key)} — an attribute name ` +
+          `[vera] spread: ignoring the key ${JSON.stringify(key)} — an attribute name ` +
             `cannot contain whitespace, a quote, \`<\`, \`>\`, \`/\`, \`=\` or a control character, ` +
             `and one that cannot be written into markup would not survive server rendering.`
         );
