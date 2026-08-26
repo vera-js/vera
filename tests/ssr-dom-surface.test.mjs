@@ -151,6 +151,14 @@ const SURFACE = [
   ['createElement refuses an unwritable tag', () => ['', 'a b', '<p>', 'a>b'].every((tag) => { try { globalThis.document.createElement(tag); return false; } catch (error) { return error.name === 'InvalidCharacterError'; } })],
   ['appendChild refuses a non-node', (el) => ['', null, undefined, 5].every((value) => { try { el.appendChild(value); return false; } catch (error) { return error instanceof TypeError; } })],
   ['attachInternals refuses a second call', (el) => { el.attachInternals(); try { el.attachInternals(); return 'accepted'; } catch (error) { return error.name === 'NotSupportedError'; } }],
+  /**
+   * `root.adoptedStyleSheets = sheet` — the single missing `[…]` — is the likeliest way to get this
+   * wrong, and it was accepted here and threw in the browser after the server had already rendered.
+   */
+  ['adoptedStyleSheets takes an array of sheets', (el) => { const root = el.attachShadow({ mode: 'open' }); root.adoptedStyleSheets = [new globalThis.CSSStyleSheet()]; return root.adoptedStyleSheets.length === 1; }],
+  ['adoptedStyleSheets refuses a bare sheet', (el) => { const root = el.attachShadow({ mode: 'open' }); try { root.adoptedStyleSheets = new globalThis.CSSStyleSheet(); return 'accepted'; } catch (error) { return error instanceof TypeError; } }],
+  ['adoptedStyleSheets refuses a non-sheet entry', (el) => { const root = el.attachShadow({ mode: 'open' }); try { root.adoptedStyleSheets = ['nope']; return 'accepted'; } catch (error) { return error instanceof TypeError; } }],
+  ['requestAnimationFrame refuses a non-function', () => { try { globalThis.requestAnimationFrame('nope'); return 'accepted'; } catch (error) { return error instanceof TypeError; } }],
 
   /** These are views over an attribute: an assignment that does not reach the markup is lost. */
   ['dataset writes through', (el) => (el.dataset.userId = '7', el.getAttribute('data-user-id') === '7')],

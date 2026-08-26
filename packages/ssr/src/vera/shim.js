@@ -435,7 +435,14 @@ export const installShims = () => {
    * Shimmed rather than left undefined so that unguarded callers — `@verajs/router`'s initial
    * navigation, any third-party component measuring itself — run instead of throwing.
    */
-  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+  /** A browser raises `TypeError` for a non-callable, and a silent no-op here is a frame that never runs. */
+  globalThis.requestAnimationFrame = (fn) => {
+    if (typeof fn !== 'function')
+      throw new TypeError(
+        `Failed to execute 'requestAnimationFrame' on 'Window': parameter 1 is not of type 'Function'.`
+      );
+    return frames.push(fn);
+  };
   globalThis.cancelAnimationFrame = (id) => {
     frames[id - 1] = null;
   };

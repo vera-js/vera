@@ -333,8 +333,24 @@ export class ShadowRootShim extends ContainerShim {
   set textContent(value) {
     this.innerHTML = escapeHtml(value);
   }
-  /** Constructed sheets land here; serialized alongside string styles. */
+  /**
+   * Constructed sheets land here; serialized alongside string styles.
+   *
+   * **Checked, because the platform checks.** A browser raises `TypeError` for a value that is not
+   * a sequence and for an entry that is not a `CSSStyleSheet`, and taking anything meant that
+   * `root.adoptedStyleSheets = sheet` — the single missing `[…]`, and the most likely way to get
+   * this wrong — was accepted here and threw in the browser, after the server had already rendered.
+   */
   set adoptedStyleSheets(sheets) {
+    if (!Array.isArray(sheets))
+      throw new TypeError(
+        `Failed to set the 'adoptedStyleSheets' property: the provided value cannot be converted to a sequence.`
+      );
+    for (const sheet of sheets)
+      if (!(sheet instanceof StyleSheetShim))
+        throw new TypeError(
+          `Failed to set the 'adoptedStyleSheets' property: the provided value is not of type 'CSSStyleSheet'.`
+        );
     this._adopted = sheets;
   }
   get adoptedStyleSheets() {
