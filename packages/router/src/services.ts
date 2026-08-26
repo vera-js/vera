@@ -320,6 +320,25 @@ export const navigate = async (
     if (await routeChange(element, matchPath, trigger, shouldFocusView, query, hash, id, match)) routed = true;
     if (id !== navigationId) return false;
   }
+  /**
+   * **Nothing matched, and the click is already cancelled.** `addLinkListener` calls
+   * `preventDefault` before it gets here, so a `route` link pointing at a path no pattern covers
+   * swallows the click whole: no navigation, no URL change, no error — the same symptom as a
+   * broken listener, and the one thing the page cannot tell you is that it is the *path* that is
+   * wrong. The router already refuses to hijack a cross-origin link for exactly this reason;
+   * this is the same dead end one step further in.
+   *
+   * Only when **no router matched at all**. A guard that returns `false` also lands here, and that
+   * is a deliberate cancellation with nothing to report.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the check nor the text.
+   */
+  if (__DEV__ && matches.length === 0)
+    console.warn(
+      `[vera] router: nothing matched "${matchPath}", so the navigation did nothing. ` +
+        `A link with \`route\` has already had its click cancelled by then — add the route, or a ` +
+        `catch-all \`/*rest\`, which sorts last however it is declared.`
+    );
   if (!routed) return false;
 
   /**

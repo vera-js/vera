@@ -27,6 +27,12 @@ removes the question. Forget the wiring and core says so, once, in development.
 shadow root, done by the platform. Hoisting also survives renders, since a `<style>` inside the
 element would be wiped by the first render pass.
 
+**On an engine with no `@scope`** — Safari before 17.4, Firefox before 128 — the block is hoisted
+**unscoped** rather than dropped, because a dropped block leaves the component unstyled while an
+unscoped one still styles it. Every rule then applies page-wide on that engine and only inside the
+tag everywhere else, so development says so once, by name. Attach a shadow root to scope them on
+every engine, or write selectors that carry the tag.
+
 ## Dynamic styles
 
 A sheet is adopted **once** and never re-read. `adoptStyles` runs on the `init` insert — once per

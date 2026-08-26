@@ -101,6 +101,12 @@ whole segment — `/fellow/john:id` matches `/fellow/johnXYZ`. Everything else i
 Longer patterns outrank shorter ones. React Router ranks the same way, and for the same reason:
 where a route went in the list should not decide whether it is reachable.
 
+**A path that matches nothing does nothing, and development says so.** `navigate` returns `false`,
+and a `route` link has already had its click cancelled by the time anyone finds out — so the page
+sits there looking like the listener is broken, when the path is what is wrong. The warning names
+the path. A guard returning `false` reaches the same place and stays quiet: that is a deliberate
+cancellation, not a missing route.
+
 ### Nested routes
 
 `children` renders the whole chain, outermost first, each level into an outlet the level above it

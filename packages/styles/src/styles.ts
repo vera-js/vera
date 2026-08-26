@@ -25,6 +25,9 @@ const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1
  * `_$veraStyles$` is exempt from property mangling — `/^_[a-z]/` is the pattern and `_$…$` does not
  * match it — so both copies spell it identically, exactly as `_$apply$` and `$r` do.
  */
+/** One warning per page for the `@scope` fallback below — the engine's answer cannot change. */
+let warnedAboutScope = false;
+
 const HOISTED = '_$veraStyles$';
 
 /**
@@ -124,7 +127,26 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     .map((style) => (typeof style === 'string' ? style : style.cssText))
     .join('\n');
   /** `@scope` guarded by support — unsupported engines would drop the whole block, not unscope it. */
-  const scoped = typeof CSSScopeRule === 'function' ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
+  const supported = typeof CSSScopeRule === 'function';
+  /**
+   * **The fallback is unscoped, and that is a different thing than scoped.** Dropping the block
+   * would leave the component unstyled, so serving it globally is the right trade — but a rule
+   * written for one tag is now applied to the whole page, and the author cannot see it: they are
+   * developing on an engine that supports `@scope`, and the person who is not is a user.
+   *
+   * Once per page rather than per class, since the answer cannot change mid-session.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the check nor the text.
+   */
+  if (__DEV__ && !supported && !warnedAboutScope) {
+    warnedAboutScope = true;
+    console.warn(
+      `[vera] styles: this engine has no \`@scope\`, so light-DOM \`static styles\` are hoisted to the ` +
+        `document **unscoped** — every rule applies page-wide here and only to <${element.localName}> ` +
+        `elsewhere. Attach a shadow root to scope them everywhere, or write selectors that carry the tag.`
+    );
+  }
+  const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
 
   if (document?.adoptedStyleSheets) {
     const sheet = new CSSStyleSheet();
