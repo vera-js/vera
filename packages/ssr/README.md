@@ -37,9 +37,12 @@ interleave. A path or a full URL both work.
 
 **`children`, and the string form of `attributes`, are raw markup.** Both are written through
 untouched — that is what they are for — so neither may carry anything from a request without being
-sanitized first. Everything else is escaped at the render boundary: the object form of `attributes`
-cannot escape the tag it describes, and every interpolated value in a template is escaped as it is
-written. Reach for the string form of `attributes` only when you must produce markup an object cannot
+sanitized first. Everything else is checked at the render boundary: the object form of
+`attributes` cannot escape the tag it describes **and cannot add a second attribute inside it** — a
+name carrying a space, a quote, `/`, `=` or `>` is refused, which is the same set `setAttribute`
+refuses in the browser — and every interpolated value in a template is escaped as it is written. A
+`__proto__` key in `props` is skipped rather than assigned, so handing the option a parsed request
+body cannot replace the component's prototype. Reach for the string form of `attributes` only when you must produce markup an object cannot
 describe.
 
 - Node resolves the component's module graph natively (the `.ts`-via-`.js` convention included);

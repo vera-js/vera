@@ -334,7 +334,15 @@ const renderInstance = (element, tag, depth, props, children) => {
    */
   if (props) {
     try {
-      Object.assign(element, props);
+      /**
+       * **`__proto__` is skipped**, because `Object.assign` copies it with `[[Set]]` and that
+       * *replaces the element's prototype*. `props` exists to be handed structured data, and
+       * `props: await request.json()` is the obvious way to use it — `JSON.parse` makes `__proto__`
+       * an ordinary own key, so one request body ended the render with
+       * `element.upgrade is not a function` and, on the way there, gave the caller control of what
+       * the component inherited from. Nothing legitimate assigns a prototype through this option.
+       */
+      for (const [name, value] of Object.entries(props)) if (name !== '__proto__') element[name] = value;
     } catch (error) {
       /**
        * `Object.assign` onto a getter-only property throws `Cannot set property x of #<Class>` —
@@ -542,7 +550,30 @@ export const renderToString = async (
       ? attributes
       : Object.entries(attributes)
           .filter(([, value]) => value != null && value !== false)
-          .map(([name, value]) => ` ${name}="${escapeHtml(value === true ? '' : value)}"`)
+          .map(([name, value]) => {
+            /**
+             * **The name is checked, because escaping the value is only half of it.**
+             *
+             * The claim this form makes is that it cannot escape the tag it describes, and it could
+             * not — but it could add *more attributes inside* that tag, which is just as bad and
+             * less obvious: `{ 'a=1 onload': v }` wrote `a="1" onload="v"`, an event handler with a
+             * caller-controlled body, and `{ 'a x': v }` wrote two attributes from one entry. A
+             * server mapping request data onto attribute names is the case this option exists for.
+             *
+             * The rule is the HTML attribute-name production, and it is the same set the browser
+             * engines reject in `setAttribute` — space, quote, apostrophe, `>`, `/`, `=` and
+             * controls (see `tests/browser/spread-names.test.js`, which records that engines accept
+             * everything else). So this refuses exactly what the client would refuse, rather than
+             * inventing a stricter rule the two halves would then disagree about.
+             */
+            if (/[\0-\x20"'>/=\x7f]/.test(name) || name === '')
+              throw new TypeError(
+                `ssr: \`attributes\` cannot use ${JSON.stringify(name)} as a name — an attribute name may not ` +
+                  `contain whitespace, a quote, "/", "=" or ">". Written into a tag it would produce more ` +
+                  `attributes than the one entry describes, and setAttribute refuses it in the browser too.`
+              );
+            return ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
+          })
           .join('');
 
   assertRendererIntact();
