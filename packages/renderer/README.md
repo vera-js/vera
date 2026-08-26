@@ -235,6 +235,13 @@ and renders fresh, so correctness never depends on the server output being right
 child position is the one thing the server cannot have rendered; it is inserted without giving up
 adoption of everything around it.
 
+**A fallback warns in development, naming the first place the two renders disagreed** — *"expected
+`<p>` and found `<div>`"*, *"`<ul>` contains `<li>`, which the template does not describe"*. The page
+is correct either way, which is the point of the fallback and also why it needs saying: the server's
+markup was just thrown away, and with nothing observable to notice, the only symptom is a first
+paint that is slower than the one you paid a server render for. An attribute that disagrees is
+simply re-set during adoption and is not a fallback at all.
+
 On a CDN page, point the import map's `@verajs/renderer` at `vera-renderer-hydrate.min.js` and
 nothing else changes. Apps that never hydrate download none of this.
 

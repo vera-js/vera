@@ -52,6 +52,25 @@ export type { TemplateResult } from './renderer.js';
 /** Internal bail signal — never escapes `tryAdopt`. */
 const MISMATCH = {};
 
+/**
+ * Why the last adoption gave up, for the development warning below. Written at every `throw
+ * MISMATCH` inside an `if (__DEV__)`, so a production bundle carries neither the strings nor the
+ * assignments — the branches fold away with `__DEV__` and the helper goes with them.
+ */
+let why = '';
+
+/** A live node as a person would name it, for that message. */
+const describe = (node: Node | null) =>
+  node === null
+    ? 'nothing'
+    : node.nodeType === 1
+      ? `<${(node as Element).localName}>`
+      : node.nodeType === 3
+        ? `the text ${JSON.stringify((node as Text).data.slice(0, 30))}`
+        : node.nodeType === 8
+          ? 'a comment'
+          : `a ${node.nodeName} node`;
+
 type Cursor = { parent: Node; node: Node | null; offset: number };
 
 /** Splits mid-text cursors onto a node boundary and returns the node now at the cursor. */
@@ -68,7 +87,10 @@ const expectText = (cursor: Cursor, text: string) => {
   let need = text;
   while (need.length > 0) {
     const node = cursor.node;
-    if (node === null || node.nodeType !== 3) throw MISMATCH;
+    if (node === null || node.nodeType !== 3) {
+      if (__DEV__) why = `expected the text ${JSON.stringify(text)} and found ${describe(node)}`;
+      throw MISMATCH;
+    }
     const data = (node as Text).data;
     const available = data.length - cursor.offset;
     if (available === 0) {
@@ -77,7 +99,11 @@ const expectText = (cursor: Cursor, text: string) => {
       continue;
     }
     const take = available < need.length ? available : need.length;
-    if (data.slice(cursor.offset, cursor.offset + take) !== need.slice(0, take)) throw MISMATCH;
+    if (data.slice(cursor.offset, cursor.offset + take) !== need.slice(0, take)) {
+      if (__DEV__)
+        why = `expected the text ${JSON.stringify(need.slice(0, take))} and found ${JSON.stringify(data.slice(cursor.offset, cursor.offset + take))}`;
+      throw MISMATCH;
+    }
     need = need.slice(take);
     cursor.offset += take;
     if (cursor.offset === data.length) {
@@ -96,10 +122,16 @@ const claimValueText = (cursor: Cursor, text: string): Text => {
     cursor.parent.insertBefore(primed, at);
     return primed;
   }
-  if (at === null || at.nodeType !== 3) throw MISMATCH;
+  if (at === null || at.nodeType !== 3) {
+    if (__DEV__) why = `expected a text node holding an interpolated value and found ${describe(at)}`;
+    throw MISMATCH;
+  }
   const node = at as Text;
   if (node.data.length > text.length) node.splitText(text.length);
-  if (node.data !== text) throw MISMATCH;
+  if (node.data !== text) {
+    if (__DEV__) why = `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(node.data)}`;
+    throw MISMATCH;
+  }
   cursor.node = node.nextSibling;
   cursor.offset = 0;
   return node;
@@ -151,8 +183,15 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
 
   /** Element: same tag, commit its attribute parts live, then descend children in lockstep. */
   const live = cursorSplit(cursor);
-  if (live === null || live.nodeType !== 1) throw MISMATCH;
-  if ((live as Element).localName !== (canonical as Element).localName) throw MISMATCH;
+  if (live === null || live.nodeType !== 1) {
+    if (__DEV__) why = `expected <${(canonical as Element).localName}> and found ${describe(live)}`;
+    throw MISMATCH;
+  }
+  if ((live as Element).localName !== (canonical as Element).localName) {
+    if (__DEV__)
+      why = `expected <${(canonical as Element).localName}> and found <${(live as Element).localName}>`;
+    throw MISMATCH;
+  }
 
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
@@ -197,8 +236,11 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
   }
 
   /** Leftover live children the template does not account for = not our markup. */
-  if (inner.node !== null && !(inner.node.nodeType === 3 && (inner.node as Text).data === '' && inner.node.nextSibling === null))
+  if (inner.node !== null && !(inner.node.nodeType === 3 && (inner.node as Text).data === '' && inner.node.nextSibling === null)) {
+    if (__DEV__)
+      why = `<${(live as Element).localName}> contains ${describe(inner.node)}, which the template does not describe`;
     throw MISMATCH;
+  }
 
   cursor.node = live.nextSibling;
   cursor.offset = 0;
@@ -343,7 +385,10 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     child = child.nextSibling;
   }
   drainIgnored(state);
-  if (state._partIndex !== template._parts.length) throw MISMATCH;
+  if (state._partIndex !== template._parts.length) {
+    if (__DEV__) why = 'the markup ran out before the template did';
+    throw MISMATCH;
+  }
   return instance;
 };
 
@@ -359,12 +404,16 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
   while (first !== null && first.nodeType === 1 && (first as Element).hasAttribute('vera-styles')) {
     first = first.nextSibling;
   }
+  if (__DEV__) why = '';
   const start = comment();
   container.insertBefore(start, first);
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(getTemplate(result), result.values, cursor);
-    if (cursor.node !== null) throw MISMATCH;
+    if (cursor.node !== null) {
+      if (__DEV__) why = `${describe(cursor.node)} follows everything the template describes`;
+      throw MISMATCH;
+    }
     const part = new ChildPart(start, null);
     part._instance = instance;
     part._shape = result.strings;
@@ -408,6 +457,28 @@ export const render = (result: unknown, container: Node) => {
       rootParts.set(container, part);
       return;
     }
+    /**
+     * **Falling back has to say so.** The page is correct either way — that is what the fallback is
+     * for — but the server's markup has just been thrown away, which means every byte the server
+     * spent rendering it was wasted and the one thing server rendering exists to deliver did not
+     * happen. Nothing observable changes, so without this the only symptom is a slower first paint
+     * that nobody attributes to anything.
+     *
+     * The `<textarea>` case a few screens up is the proof: adoption was abandoned *for the whole
+     * page* by one element whose content the template did not describe, and the markup still looked
+     * right afterwards. It was found by reading the code. React and lit both report a mismatch;
+     * this said nothing at all.
+     *
+     * `__DEV__`-only, and the reason comes from the check that failed, so it names the first place
+     * the two renders disagreed rather than announcing that they did.
+     */
+    if (__DEV__)
+      console.warn(
+        `[vera] hydration fell back to a client render: ${why}. The server markup was discarded, ` +
+          `so the page is correct but nothing the server rendered was used. The two renders have to ` +
+          `agree exactly — check for markup the template does not describe, or state settled after ` +
+          `the server render.`
+      );
     clearPreservingStyles(container);
   }
   baseRender(result, container);
