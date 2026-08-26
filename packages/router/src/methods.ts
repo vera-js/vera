@@ -48,7 +48,33 @@ const addLinkListener = (element: HTMLElement) => {
     if (link.target || link.hasAttribute('download')) return;
 
     e.preventDefault();
-    await navigate(url.pathname + url.search + url.hash, 'navigate', element);
+    const path = url.pathname + url.search + url.hash;
+    /**
+     * **A click has nobody to reject to.**
+     *
+     * `navigate()` rejects when a guard or a component throws, which is right for a caller that
+     * awaits it. A link click is not that caller: this handler is `async`, so a rejection became an
+     * **unhandled promise rejection** carrying the component's own message and nothing else — not
+     * the path, not which router, not that this framework was involved. The page kept the previous
+     * view, correctly, and said nothing about why the link did nothing.
+     *
+     * Reported as a DOM event as well as a console line, for the reason `@verajs/autoloader` does
+     * the same with `vera:autoload-error`: a route that fails to render is something an app may want
+     * to render *around* — a toast, a retry, a report to an error tracker — and an unhandled
+     * rejection cannot be caught at the point it matters.
+     */
+    try {
+      await navigate(path, 'navigate', element);
+    } catch (error) {
+      element.dispatchEvent(
+        new CustomEvent('vera:route-error', {
+          bubbles: true,
+          composed: true,
+          detail: { path, error, element },
+        })
+      );
+      console.error(`[vera] router: navigating to ${path} threw, so the view was left as it was:`, error);
+    }
   };
 
   (element.shadowRoot ?? element).addEventListener('click', data.clickHandler);

@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.43 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.53 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -353,6 +353,26 @@ Identical under a bundler and on a CDN page, which is the point: `connectInserts
 function this replaced, was load-bearing in one mode and ceremonial in the other. Without core at
 all, skip the registry entirely — `initRouter(el, …)` plus `setRouterRenderer(renderer)` is the
 whole wiring.
+
+## When a route fails
+
+A guard or a component that throws leaves the view exactly as it was. What happens next depends on
+who asked for the navigation:
+
+- **`navigate()` rejects**, so a caller that awaits it can handle the failure itself.
+- **A link click has nobody to reject to**, so the router reports it: a console line naming the path,
+  and a `vera:route-error` event that bubbles and crosses shadow boundaries.
+
+```js
+addEventListener('vera:route-error', ({ detail: { path, error } }) => {
+  toast(`Could not open ${path}`);
+  report(error);
+});
+```
+
+The event exists for the same reason `@verajs/autoloader` has `vera:autoload-error`: a route that
+fails to render is something an app may want to render *around*, and an unhandled promise rejection
+cannot be caught where that decision is made.
 
 ## Node and SSR
 
