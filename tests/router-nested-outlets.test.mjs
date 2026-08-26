@@ -21,7 +21,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/' });
 for (const key of ['HTMLElement', 'Event', 'CustomEvent', 'PopStateEvent', 'MouseEvent', 'Node', 'Element', 'DocumentFragment', 'CSSStyleSheet', 'customElements', 'NodeFilter', 'MutationObserver', 'ShadowRoot'])
@@ -101,7 +101,7 @@ test('a nested level does not inherit an element outlet', async () => {
   assert.equal(outlet.textContent, 'S');
 });
 
-test('a router with no renderer says so, once', async () => {
+test('a router with no renderer says so, once', { skip: isProduction && 'development-only diagnostics' }, async () => {
   /**
    * A **fresh copy** of the module, so its renderer chain is genuinely empty — the one in this file
    * has been wired. This is what an app that wrote `wire([renderer])` and left out `router` gets:
