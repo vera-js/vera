@@ -298,7 +298,7 @@ render(html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`
 ```
 
 Its own entry since 0.2.0: reordering is what makes lists expensive, most apps never do it, and the
-algorithm is 365 B gzipped. Importing `keyed` is the entire installation — the marker stamps each
+algorithm is <!--size:keyed.gzip-->581 B<!--/size:keyed.gzip--> gzipped. Importing `keyed` is the entire installation — the marker stamps each
 result with the strategy that reconciles it, so there is nothing to `wire()` and a list always names
 its own reconciler. Additive like `/spread`: it imports nothing and works alongside `/hydrate`.
 
@@ -758,7 +758,7 @@ Say so rather than inventing an API:
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
   components. No decorators ever (they cannot run without a build step).
-- **`computed` is `@verajs/reactivity/computed`** (233 B), not core. `computed(() => a + b)` evaluates once
+- **`computed` is `@verajs/reactivity/computed`** (<!--size:computed.gzip-->241 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
     per change rather than once per read, and only when something it actually read moves. It is a
     store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**
