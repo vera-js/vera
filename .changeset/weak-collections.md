@@ -1,5 +1,5 @@
 ---
-'@verajs/core': minor
+'@verajs/core': patch
 ---
 
 Make `WeakMap` and `WeakSet` reactive.
