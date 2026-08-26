@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.53 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.58 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -131,6 +131,16 @@ A view name is resolved **inside the level above**, so a nested outlet can reuse
 name — as above — and nothing outer claims it first. A child may name its own outlet with `view`
 instead. If the parent's template renders no matching outlet the route does not apply, and says so
 in development.
+
+**Give `initRouter` a view *name* if you use `children`.** It also accepts an element, which is fine
+for a flat app and is the router's root outlet either way — but an element is one node, so a nested
+level cannot inherit it. Those levels fall back to searching inside the level above for a bare
+`<div view>`, and a child that finds nothing says so in development.
+
+Leaving a level means leaving it: navigating from `/settings/profile` back to `/settings` empties the
+outlet the profile was in. The parent's template is *reused* rather than rebuilt — that is template
+identity doing its job — so the outlet element survives, and the router clears what it put inside.
+An element the router never rendered into is left alone, even if it carries a `view` attribute.
 
 `beforeEnter` and `action` run down the same chain, so a parent can refuse before a child does any
 work.

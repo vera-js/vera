@@ -22,6 +22,15 @@ import { Renderer } from '@verajs/shared-types';
  */
 let registry: Inserts | null = null;
 let direct: Renderer[] = [];
+
+/** One warning per page for an unwired router — see `routeChange`. */
+let warnedAboutRenderer = false;
+
+/**
+ * The outlets this router has rendered into, so a stale level can be emptied without touching an
+ * element a component owns and happens to have marked `[view]`.
+ */
+const painted = new WeakSet<HTMLElement>();
 const renderers = () => (registry ? ((registry.get('render') as Renderer[] | undefined) ?? direct) : direct);
 
 /**
@@ -454,8 +463,21 @@ const routeChange = async (
   let view!: HTMLElement;
 
   for (const link of chain) {
-    /** Optional route specific view */
-    const rawView = link.view ?? elementData.view;
+    /**
+     * Optional route specific view.
+     *
+     * **A nested level does not inherit an element**, only a name. `elementData.view` is the
+     * router's root outlet, and `initRouter(el, { view })` accepts an element for it — but an
+     * element is a single node, so inheriting it made *every* level render into the same one and a
+     * child silently overwrote its parent. `children` — the feature the whole nesting design exists
+     * for — quietly behaved like a flat route, with no warning and correct-looking markup.
+     *
+     * A name inherits fine, because the search below narrows to the level above on each pass, so
+     * `[view="main"]` inside the parent's output is a different element from the one that held the
+     * parent. Only an element short-circuits that search, and only for a level that did not ask for
+     * it by name.
+     */
+    const rawView = link.view ?? (link.parent && elementData.view instanceof HTMLElement ? undefined : elementData.view);
 
     /** If the view is a function, get the result */
     const processedView = rawView instanceof Function ? rawView(params, currentRoute, previousRoute) : rawView;
@@ -472,7 +494,12 @@ const routeChange = async (
      * and a selector that parsed would have chosen an element the author never marked as an outlet.
      * Comparing strings has no grammar to escape into and costs 3 B.
      */
-    const wanted = String(processedView);
+    /**
+     * `undefined` means "the first outlet inside the level above", which is what a nested route
+     * with no `view` of its own gets when the router's own outlet is an element it cannot inherit.
+     * Matching it against a bare `<div view>` is the shape a parent template naturally writes.
+     */
+    const wanted = processedView === undefined ? '' : String(processedView);
     let levelView = processedView instanceof HTMLElement ? processedView : (null as unknown as HTMLElement);
     if (!levelView)
       for (const candidate of searchRoot.querySelectorAll('[view]'))
@@ -484,9 +511,15 @@ const routeChange = async (
     if (!levelView) {
       if (__DEV__ && link.parent)
         console.warn(
-          `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
-            `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
-            `parent's template has to render the outlet its children route into.`
+          processedView === undefined
+            ? `[vera] the route "${link.path}" is nested, and this router was given its root outlet as ` +
+              `an element — which is one node, so a child cannot inherit it without overwriting its ` +
+              `parent. Its view is looked for inside the one its parent rendered into, and no [view] ` +
+              `was found there. Give the child a \`view\` name and have the parent's template render ` +
+              `an outlet with it, or initialise the router with a name instead of an element.`
+            : `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
+              `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
+              `parent's template has to render the outlet its children route into.`
         );
       return false;
     }
@@ -498,13 +531,63 @@ const routeChange = async (
     const template = await link.component?.(params, currentRoute, previousRoute);
     /** The last checkpoint before anything is painted: a superseded pass renders nothing. */
     if (id !== navigationId) return false;
-    renderers().forEach((callback) => {
+    const chain = renderers();
+    /**
+     * **A router with no renderer is silently inert**, and that is exactly what it looked like:
+     * every navigation matched, guards ran, the URL changed, and nothing was ever painted.
+     *
+     * The cause is one missing word — `wire([renderer])` instead of `wire([renderer, router])`. The
+     * `router` connector is what hands this package core's registry; without it the chain is empty
+     * and every render is a `forEach` over nothing. Core already warns for the same mistake at its
+     * own end (`render() did nothing — no component is being set up`), and this end had no
+     * equivalent. Found three separate times while writing probes for this framework, each time
+     * costing several minutes to a symptom that says nothing.
+     *
+     * Once per page rather than per navigation: the answer cannot change without another `wire`.
+     *
+     * `__DEV__`-only, so a production bundle carries neither the check nor the text.
+     */
+    if (__DEV__ && chain.length === 0 && !warnedAboutRenderer) {
+      warnedAboutRenderer = true;
+      console.warn(
+        `[vera] router: nothing is wired to render a route, so navigation changes the URL and ` +
+          `paints nothing. Wire the router itself alongside the renderer — \`wire([renderer, router])\` ` +
+          `— or hand it one directly with \`setRouterRenderer(render)\`.`
+      );
+    }
+    chain.forEach((callback) => {
       callback?.(template, levelView);
     });
+    painted.add(levelView);
 
     /** The next level down looks inside what this one just rendered. */
     searchRoot = levelView;
     view = levelView;
+  }
+
+  /**
+   * **The level below the last one is emptied**, because nothing else will empty it.
+   *
+   * A parent's template holds its outlet, and template identity means re-rendering the parent
+   * *reuses* that element rather than rebuilding it — which is the renderer working correctly. The
+   * outlet's contents, though, were put there by this function on a previous navigation, not by the
+   * template, so they survive. Navigating from `/settings/profile` back to `/settings` re-rendered
+   * the parent and left the profile sitting inside it: the page showed a route that was no longer
+   * routed, and only a detour through an unrelated route cleared it, because that tore the whole
+   * subtree down.
+   *
+   * Only outlets this router has actually painted are cleared, so an element a component owns and
+   * happens to have marked `[view]` is left alone. Cleared through the render chain rather than by
+   * assigning `innerHTML`, so the renderer's own bookkeeping for that container stays consistent.
+   */
+  if (view) {
+    for (const candidate of view.querySelectorAll('[view]'))
+      if (painted.has(candidate as HTMLElement)) {
+        renderers().forEach((callback) => {
+          callback?.('', candidate as HTMLElement);
+        });
+        painted.delete(candidate as HTMLElement);
+      }
   }
 
   /** Route has changed so we updated currentRoute */

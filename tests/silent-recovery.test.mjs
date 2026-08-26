@@ -33,8 +33,8 @@ dom.window.scrollTo = () => {};
 
 const { html, wire } = await load('core');
 const { renderer } = await load('renderer');
-const { initRouter, navigate } = await load('router');
-wire([renderer]);
+const { initRouter, navigate, router } = await load('router');
+wire([renderer, router]);
 
 const skip = isProduction && 'development-only diagnostics';
 
