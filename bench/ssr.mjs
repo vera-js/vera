@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr/vera';
 /** Resolved once, at load, exactly as every other contender's renderer is. */
 const { html } = await import('@verajs/core');
+import { cpus, loadavg } from 'node:os';
 import { createElement as h } from 'react';
 import { renderToString as reactRender } from 'react-dom/server';
 import { createSSRApp } from 'vue';
@@ -117,6 +118,23 @@ const CONTENDERS = {
   },
 };
 
+/**
+ * **Astro renders server-side by definition**, so it belongs here — but it is the only contender that
+ * needs its source compiled before anything can run. All of that is done at load in
+ * `fixtures/astro-build.mjs`, because a contender that compiles, imports or resolves inside the timed
+ * function measures the benchmark rather than the framework, which this file has been caught doing
+ * once already.
+ *
+ * Skipped rather than fatal when Astro is not installed: `bench/` is not a workspace member, so a
+ * tree that has not run `cd bench && npm install` should still get every other row.
+ */
+try {
+  const { buildAstro } = await import('./fixtures/astro-build.mjs');
+  CONTENDERS['astro 7'] = await buildAstro(rows);
+} catch (error) {
+  console.log(`\n  (astro row skipped: ${String(error.message).split('\n')[0].slice(0, 80)})`);
+}
+
 const results = {};
 for (const size of ['small', 'large']) {
   const iterations = size === 'small' ? SMALL_N : LARGE_N;
@@ -168,11 +186,15 @@ const fmt = (ms) => (ms * 1000).toFixed(1).padStart(8);
  * enough to produce a "regression" that was nothing but contention, and to have that believed. A
  * number with no spread beside it cannot be argued with, which is exactly the problem.
  *
- * The warning is computed **only from rows above 10 us**, and that qualification is load-bearing. A
- * sub-microsecond row spreads 3x from timer quantisation alone, and React's own JIT warmup skews its
- * small-component row past 4x on a completely idle machine — a threshold that counts those cries wolf
- * on every run and is then ignored, which is worse than not warning. The 100-row rows sit at 1.0-1.4x
- * when the machine is quiet and rise together when it is not, so they are the honest signal.
+ * Spread alone turned out to be a poor alarm, and two attempts at thresholding it both cried wolf:
+ * a sub-microsecond row spreads 3x from timer quantisation, React's JIT warmup skews its small row
+ * past 4x on a completely idle machine, and Astro's container spreads 2x on its own. Those are
+ * properties of the contender, not of the machine, and an alarm that fires every run gets ignored.
+ *
+ * So the machine is measured directly instead. Load average against core count is the thing that
+ * actually went wrong — eight test workers from an unrelated project, load average 30 on 8 cores,
+ * while a fastest-of-7 reported swings of 1.8x on identical code as if they were signal. Per-row
+ * spread is still printed, because it is the right thing to read *within* a run.
  */
 const NOISE_FLOOR_US = 10;
 let worst = 1;
@@ -197,10 +219,12 @@ for (const size of ['small', 'large']) {
     );
   }
 }
+const cores = cpus().length;
+const load = loadavg()[0];
 console.log(
-  worst > 1.5
-    ? `\n  ⚠ widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs — the machine was not quiet, so these\n` +
-        `    numbers are not comparable to anything. Check for other work (\`uptime\`: a load average near or\n` +
-        `    above the core count means something else is running) and re-run.`
-    : `\n  widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs — quiet enough to compare.`
+  load > cores / 2
+    ? `\n  ⚠ load average ${load.toFixed(1)} on ${cores} cores — something else was running, so these numbers are\n` +
+        `    not comparable to anything. Widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs. Re-run on a quiet machine.`
+    : `\n  load average ${load.toFixed(1)} on ${cores} cores — quiet enough to compare.` +
+        ` Widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs.`
 );

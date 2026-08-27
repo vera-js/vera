@@ -22,5 +22,8 @@
     "svelte": "^5.56.10",
     "vanjs-core": "^1.6.1",
     "vue": "^3.5.41"
+  },
+  "dependencies": {
+    "astro": "^7.2.9"
   }
 }
