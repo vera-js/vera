@@ -323,5 +323,110 @@ const define = (setup) => {
   element.remove();
 }
 
+/* ── teardown ordering, which nothing asserted ─────────────────────────────────────────────────
+ * Running order is pinned above; the reverse trip was not. Three contracts live here and each is
+ * something a component author can rely on: an author's own `disconnectedCallback` runs **first**
+ * (the README says so — "if the component has one of its own, it still runs first"), cleanups then
+ * run in the same priority order the hooks did, and nothing the component owns does any work after
+ * removal.
+ */
+{
+  const order = [];
+  class Torn extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      const state = core.createStore({ n: 0 });
+      this._state = state;
+      core.useLayoutEffect(() => () => order.push('layout cleanup'));
+      core.useEffect(() => () => order.push('effect cleanup'));
+      core.render(() => core.html`<p>${state.n}</p>`);
+    }
+    disconnectedCallback() { order.push('author disconnectedCallback'); }
+  }
+  customElements.define('teardown-order-probe', Torn);
+  const element = document.createElement('teardown-order-probe');
+  document.body.appendChild(element);
+  await frame();
+
+  order.length = 0;
+  element.remove();
+  await frame();
+  check("the author's disconnectedCallback runs before any cleanup",
+    order[0] === 'author disconnectedCallback', order.join(','));
+  check('and cleanups run in the priority order the hooks did',
+    order.indexOf('layout cleanup') < order.indexOf('effect cleanup'), order.join(','));
+
+  order.length = 0;
+  element._state.n = 99;
+  await frame();
+  check('a write after removal does no work at all', order.length === 0, order.join(','));
+}
+
+/* ── cleanups stay paired across repeated attach/detach, which a list reorder does repeatedly ── */
+{
+  let runs = 0, cleanups = 0;
+  class Cycled extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      const state = core.createStore({ n: 0 });
+      this._state = state;
+      core.useEffect(() => { runs++; void state.n; return () => { cleanups++; }; });
+      core.render(() => core.html`<p>${state.n}</p>`);
+    }
+  }
+  customElements.define('teardown-cycle-probe', Cycled);
+  const element = document.createElement('teardown-cycle-probe');
+  document.body.appendChild(element);
+  await frame();
+  for (let i = 0; i < 5; i++) {
+    element.remove();
+    await frame();
+    document.body.appendChild(element);
+    await frame();
+  }
+  check('five detach/attach cycles leave exactly one live effect',
+    runs - cleanups === 1, `${runs} runs, ${cleanups} cleanups`);
+
+  element._state.n = 1;
+  await frame();
+  check('and the component is still reactive afterwards',
+    element.shadowRoot.textContent === '1', element.shadowRoot.textContent);
+}
+
+/* ── a cleanup that throws must not take its siblings with it ───────────────────────────────────
+ * Same isolation the hook loop has for a callback that throws: cleanups run in one pass, so an
+ * escaping error would skip every cleanup after the failing one and leak whatever they released.
+ */
+{
+  const done = [];
+  const said = [];
+  const realError = console.error;
+  console.error = (...args) => said.push(args.join(' '));
+  /**
+   * Reported through the `'error'` insert when one is registered, and `console.error` only when none
+   * is — `reportHookError` chooses, and this suite registers an insert earlier, so asserting the
+   * console alone reported nothing and looked like silence.
+   */
+  core.wire({ on: 'error', fn: (error) => said.push(String(error?.message ?? error)), priority: 90 });
+  class Throwing extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      core.useEffect(() => () => { done.push('first'); throw new Error('cleanup exploded'); });
+      core.useEffect(() => () => done.push('second'));
+      core.render(() => core.html`<p>x</p>`);
+    }
+  }
+  customElements.define('teardown-throw-probe', Throwing);
+  const element = document.createElement('teardown-throw-probe');
+  document.body.appendChild(element);
+  await frame();
+  element.remove();
+  await frame();
+  console.error = realError;
+  check('a cleanup that throws does not skip the next one', done.includes('second'), done.join(','));
+  check('and the failure is reported rather than swallowed',
+    said.some((line) => /cleanup exploded/.test(line)), said.join(' | ') || '(nothing reported)');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
