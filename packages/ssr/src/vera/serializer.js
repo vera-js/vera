@@ -404,6 +404,11 @@ export const serializeTemplate = (template) => {
    * does on the client.
    */
   let pendingText = null;
+  /**
+   * Values bound to a `<select>`'s `.value`, resolved into `<option selected>` after the loop —
+   * the options are usually a nested template, so nothing can be decided until the string is whole.
+   */
+  const selectValues = [];
 
   for (let i = 0; i < kinds.length; i++) {
     if (pendingText === null) out += parts[i];
@@ -419,6 +424,7 @@ export const serializeTemplate = (template) => {
           const folded = foldSpread(out, value._$attrs$());
           out = folded.out;
           if (folded.text !== null) pendingText = folded.text;
+          if (folded.select !== null) out += ` ${SELECT_MARK}="${selectValues.push(folded.select) - 1}"`;
         }
         /**
          * An **element-position** expression that is not a spread is a ref — `<input ${myRef} />`,
@@ -498,6 +504,16 @@ export const serializeTemplate = (template) => {
          * sets the property — showed the text. Held until the tag closes, because that is where the
          * content goes; see `pendingText` below.
          */
+        /**
+         * A `<select>`'s `value` is not an attribute — see `SELECT_MARK`. Marked here and resolved
+         * once the options exist; writing ` value="b"` on the tag, which is what this used to do,
+         * means nothing to a parser and left the control showing its first option.
+         */
+        if (owners[i] === 'select' && names[i] === 'value') {
+          if (strip[i]) out = removeAttribute(out, names[i]);
+          out += ` ${SELECT_MARK}="${selectValues.push(`${value}`) - 1}"`;
+          break;
+        }
         if (owners[i] === 'textarea' && names[i] === 'value') {
           /**
            * `null` and `undefined` are **not** the same value here, and treating them as one is what
@@ -544,7 +560,8 @@ export const serializeTemplate = (template) => {
     }
   }
   const tail = parts[kinds.length];
-  return pendingText === null ? out + tail : out + insertContent(tail, pendingText);
+  const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText);
+  return selectValues.length ? resolveSelects(finished, selectValues) : finished;
 };
 
 /**
@@ -554,6 +571,92 @@ export const serializeTemplate = (template) => {
  * `<textarea .value=${x}>anything</textarea>` must serve `x`, because that is what the element
  * will hold on the client the moment the property is assigned.
  */
+/**
+ * A `<select>` has **no `value` content attribute**. Assigning the property *selects an option*, so
+ * the only way markup can express it is `<option selected>` on the matching one — which is what
+ * React's server renderer does, and what this does. Lit's SSR drops the binding entirely and serves
+ * a control showing the wrong option.
+ *
+ * The mark is an index into a per-render list rather than the value itself, so nothing has to be
+ * escaped on the way in and unescaped on the way out; it is removed again by `resolveSelects`, and
+ * removing it is what terminates that loop.
+ */
+const SELECT_MARK = 'data-vera-select';
+const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
+const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
+const OPTION_VALUE = /\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
+const SELECTED_ATTR = /(<option\b[^>]*?)\s+selected(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*))?/gi;
+const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+/**
+ * Enough of a decoder to compare an option against a value.
+ *
+ * Everything this serializer writes is escaped as a numeric reference, and the five named ones are
+ * what an author writes by hand. A full entity table would be several kilobytes to decide which
+ * `<option>` is selected, and anything it missed would simply fail to match — which is the same
+ * outcome as an option that genuinely does not match, and is already a documented divergence.
+ */
+const decodeRefs = (text) =>
+  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/g, (whole, dec, hex, name) =>
+    dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : NAMED[name] ?? whole
+  );
+
+/**
+ * What an engine reports for `option.value`: the `value` attribute verbatim if there is one, and
+ * otherwise the option's text **stripped and collapsed**. Both halves measured in Chromium, Firefox
+ * and WebKit — `tests/browser/select-value.test.js` — because the fallback is easy to assume is the
+ * raw text, and it is not.
+ */
+const optionValue = (attributes, text) => {
+  const attribute = OPTION_VALUE.exec(attributes);
+  if (attribute) return decodeRefs(attribute[1] ?? attribute[2] ?? attribute[3]);
+  return decodeRefs(text).replace(/[\t\n\f\r ]+/g, ' ').trim();
+};
+
+/**
+ * Marks the first option matching `wanted`, and clears any `selected` the author wrote.
+ *
+ * Clearing is not tidiness: a property assignment overrides markup, so `<option selected>` beside a
+ * `.value` binding loses on the client and has to lose here too. **First match wins**, which is the
+ * engines' rule for duplicate values.
+ *
+ * When nothing matches, nothing is marked — and that is a divergence markup cannot close. The client
+ * leaves `selectedIndex` at `-1` with nothing showing; a parsed `<select>` with no selected option
+ * takes its **first**. See the SSR README.
+ */
+const markSelected = (content, wanted) => {
+  const cleared = content.replace(SELECTED_ATTR, '$1');
+  OPTION.lastIndex = 0;
+  for (let match = OPTION.exec(cleared); match; match = OPTION.exec(cleared)) {
+    if (optionValue(match[1], match[2]) !== wanted) continue;
+    const open = match[0].slice(0, match[0].indexOf('>'));
+    return (
+      cleared.slice(0, match.index) +
+      open.replace(/\s*\/?$/, '') +
+      ' selected>' +
+      match[0].slice(match[0].indexOf('>') + 1) +
+      cleared.slice(match.index + match[0].length)
+    );
+  }
+  return cleared;
+};
+
+/** Resolves every marked `<select>` once its options are in the string — see `SELECT_MARK`. */
+const resolveSelects = (markup, wanted) => {
+  for (let match = MARKED_SELECT.exec(markup); match; match = MARKED_SELECT.exec(markup)) {
+    const openTag = match[0].replace(new RegExp(`\\s*${SELECT_MARK}="\\d+"`, 'i'), '');
+    const contentStart = match.index + match[0].length;
+    const closeAt = markup.toLowerCase().indexOf('</select', contentStart);
+    const end = closeAt === -1 ? markup.length : closeAt;
+    markup =
+      markup.slice(0, match.index) +
+      openTag +
+      markSelected(markup.slice(contentStart, end), wanted[+match[1]]) +
+      markup.slice(end);
+  }
+  return markup;
+};
+
 const insertContent = (staticText, text) => {
   const close = staticText.indexOf('>');
   if (close === -1) return staticText;
@@ -661,6 +764,8 @@ const foldSpread = (out, entries) => {
   let added = '';
   /** A `<textarea>`'s value is its text content, so a `.value` key here is not an attribute. */
   let text = null;
+  /** A `<select>`'s value is not an attribute either; the caller marks the tag — see `SELECT_MARK`. */
+  let select = null;
 
   const owner = openTagName(out);
   const isFormElement = FORM_ELEMENTS.has(owner);
@@ -688,6 +793,11 @@ const foldSpread = (out, entries) => {
      * while the client, which sets the property, showed the text. The written form was fixed and
      * this one was not: a spread key means what the written binding means, always.
      */
+    if (kind === 'p' && owner === 'select' && name === 'value') {
+      /** A spread key means what the written binding means, always — see `SELECT_MARK`. */
+      select = `${value}`;
+      continue;
+    }
     if (kind === 'p' && owner === 'textarea' && name === 'value') {
       text = value === null ? '' : escapeHtml(value);
       continue;
@@ -736,6 +846,7 @@ const foldSpread = (out, entries) => {
     out: out.slice(0, tagStart) + (added ? tag + added.slice(1) : tag.replace(/ $/, '')),
     /** Written into the next static, after the `>` that closes this tag — see `insertContent`. */
     text,
+    select,
   };
 };
 

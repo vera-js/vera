@@ -484,6 +484,8 @@ class AttrPart implements Part {
   _isFullValue: boolean; // exactly one expression with no static text around it
   _committed: unknown = UNSET;
   _handler: EventListener | null = null;
+  /** `<select>.value`, which cannot be applied where it is written — see `pendingSelects`. */
+  _select = false;
 
   constructor(element: Element, name: string, statics: string[]) {
     const first = name[0];
@@ -520,6 +522,8 @@ class AttrPart implements Part {
     this._statics = statics;
     this._slots = statics.length - 1;
     this._isFullValue = this._slots === 1 && statics[0] === '' && statics[1] === '';
+    /** Resolved once, here, so the commit path costs one boolean rather than two comparisons. */
+    this._select = kind === PROPERTY && realName === 'value' && element.localName === 'select';
   }
 
   /**
@@ -605,6 +609,27 @@ class AttrPart implements Part {
         const liveTarget = this._element as unknown as Record<string, unknown>;
         if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
       }
+      return index + this._slots;
+    }
+    /**
+     * **A `<select>`'s value cannot be applied where it is written.**
+     *
+     * Assigning it selects an option, and at the moment this part commits the options may not exist:
+     * parts commit in document order, so a nested `${items.map(…)}` has not run, and an `<option
+     * value=${id}>` has not been given its value either. The assignment then matches nothing, and the
+     * select falls back to its first option — silently showing the wrong one. Measured: a nested list
+     * selected index 0 instead of 1, and dynamic option values selected nothing at all.
+     * **lit-html has the same defect, byte for byte** — it was measured there too. React solves it by
+     * special-casing `<select value>` and applying it after children mount, which is what this is.
+     *
+     * Queued rather than dirty-checked, and that is deliberate: the value can be unchanged while the
+     * *options* are replaced, which drops the selection just as thoroughly. Re-asserting once per
+     * render pass is what keeps it right, and a select carries one binding, so it is one push.
+     */
+    if (this._select) {
+      this._committed = value;
+      /** Adoption never re-asserts a form value — the person may have changed it. See below. */
+      if (!adopting) (pendingSelects ??= []).push(this._element as HTMLSelectElement, value);
       return index + this._slots;
     }
     if (value !== this._committed) {
@@ -749,6 +774,21 @@ class AttrPart implements Part {
  * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
  * pay on create.
  */
+/**
+ * `<select>.value` assignments held until the whole pass has committed — see the note in `_commit`.
+ * Flat pairs rather than tuples: one array, no per-entry allocation.
+ */
+let pendingSelects: unknown[] | null = null;
+
+const flushSelects = () => {
+  const queued = pendingSelects;
+  if (queued === null) return;
+  /** Cleared first: an assignment can run a `change` handler that renders again. */
+  pendingSelects = null;
+  for (let i = 0; i < queued.length; i += 2)
+    (queued[i] as HTMLSelectElement).value = queued[i + 1] as string;
+};
+
 const SCRATCH = doc.createDocumentFragment();
 
 /** A row is either an element-mode instance or a markered part; both can hold directives. */
@@ -1486,6 +1526,7 @@ export const renderInto = (result: unknown, container: Node) => {
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   part._set(result);
+  flushSelects();
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };
 
@@ -1496,6 +1537,7 @@ export const renderInto = (result: unknown, container: Node) => {
 
 /** @internal */
 export {
+  flushSelects,
   getTemplate,
   Template,
   Instance,

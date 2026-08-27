@@ -108,6 +108,21 @@ describe.
   root stays after it, and both survive every re-render — so a component that mixes `render()` with
   its own `appendChild` produces the same DOM on both sides. It also means `children` reach a
   light-DOM component and are still there after it renders.
+- **A `<select>`'s value is served as `<option selected>`.** And a value matching no option cannot be served —
+  see the exception below, which has no fix. A `<select>` has no `value` content attribute — assigning the property *selects an
+  option* — so the only thing markup can say is which option is chosen, and that is what the
+  serializer writes (React's server renderer does the same; `@lit-labs/ssr` drops the binding and
+  serves a control showing its first option). Matching follows the platform: the `value` attribute
+  verbatim if an option has one, otherwise the option's text **stripped and collapsed**, first match
+  wins, and a `selected` the author wrote is cleared because a property assignment overrides markup.
+  All of it is asserted against Chromium, Firefox and WebKit in
+  `tests/browser/select-value.test.js`.
+
+  The exception is real and has no fix. When the value matches **no** option the client leaves
+  `selectedIndex` at `-1` with nothing showing, and a parsed `<select>` whose options carry no
+  `selected` takes its **first** — there is no markup for "none of them", and inserting a hidden
+  placeholder would change the control the author wrote.
+
 - **Component nesting is capped at 256 levels, and the client has no such cap.** A component that
   renders itself recurses without bound, which on a server is a hung request rather than a hung tab,
   so `renderToString` refuses past 256 and says so. This is a real divergence, and 256 is chosen to
