@@ -35,6 +35,8 @@ const REMOVED = {
   setAutoloader: 'wire(autoloader(…))',
   initAutoloader: 'autoloader(…)',
   domRender: 'renderer',
+  /** The renderer's own `render` is `renderInto` — but `render` still exists in core, so the
+   *  name cannot go on this list. `tests/docs-moved-render.test.mjs` covers it by specifier. */
   connectRouter: 'router',
   '@verajs/collections': '@verajs/reactivity/collections',
   'map-support': '@verajs/reactivity/collections',

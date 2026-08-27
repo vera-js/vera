@@ -1,5 +1,5 @@
 import { init, createStore, render, wire } from '@verajs/core';
-import { render as renderer } from '@verajs/renderer';
+import { renderInto as renderer } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 wire({ on: 'render', fn: renderer, priority: 50 });
 

@@ -1,14 +1,14 @@
 {
-  "taken": "2026-08-26",
+  "taken": "2026-08-27",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6358,
-      "gzip": 2764
+      "raw": 6439,
+      "gzip": 2799
     },
     "renderer": {
-      "raw": 9445,
-      "gzip": 3719
+      "raw": 9449,
+      "gzip": 3722
     },
     "router": {
       "raw": 8598,
@@ -19,8 +19,8 @@
       "gzip": 1122
     },
     "styles": {
-      "raw": 1132,
-      "gzip": 598
+      "raw": 1197,
+      "gzip": 638
     },
     "collections": {
       "raw": 1007,
@@ -75,23 +75,13 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12319,
-      "gzip": 5278,
+      "raw": 12348,
+      "gzip": 5294,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
         "@types/trusted-types"
       ],
-      "depsUnresolved": 0
-    },
-    {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 14241,
-      "gzip": 5866,
-      "deps": 1,
-      "depsThirdParty": 0,
-      "depsThirdPartyNames": [],
       "depsUnresolved": 0
     },
     {
@@ -108,6 +98,16 @@
         "lit-element",
         "lit-html"
       ],
+      "depsUnresolved": 0
+    },
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 14270,
+      "gzip": 5882,
+      "deps": 1,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
       "depsUnresolved": 0
     },
     {
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 15363,
-      "gzip": 6323
+      "raw": 15392,
+      "gzip": 6338
     },
     {
       "name": "Lit",

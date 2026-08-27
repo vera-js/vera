@@ -12,7 +12,7 @@
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
 import {
-  render as profilingRender,
+  renderInto as profilingRender,
   profile,
   formatReport,
   startProfiling,

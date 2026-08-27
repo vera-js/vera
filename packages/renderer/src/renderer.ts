@@ -1405,15 +1405,27 @@ class ChildPart implements Part {
 const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
- * Renders a template result into a container. Slots into Vera via `wire([renderer])`; core's
- * built-in `html` tag already produces the accepted shape, so no `setHtml` call is required —
- * though lit-html's `html` also works, its results being structurally identical.
+ * Writes a template result into a container. The renderer's imperative draw: no reactivity, no
+ * lifecycle, no knowledge of components. Slots into Vera via `wire([renderer])`; core's built-in
+ * `html` tag already produces the accepted shape, so no `setHtml` call is required — though
+ * lit-html's `html` also works, its results being structurally identical.
  *
- * HYDRATION lives in `@verajs/renderer/hydrate` — a drop-in superset entry whose `render` adopts
+ * **It owns its own range and nothing else.** The first call appends a marker and anchors a root
+ * part there; later calls with the same container reuse that part and walk only the value slots, so
+ * nodes are updated in place rather than rebuilt. Content that was already in the container stays.
+ *
+ * **Named for the relationship, not the act.** It was `render` until 0.2.0, which collided with
+ * core's `render` — a different function, with a different arity, that declares a *reactive*
+ * template and commits a component's setup. Both were public and both were documented, so a reader
+ * who knew one misread the other. `renderElement` and `renderDom` were considered and rejected: this
+ * renders *into* a container, and the container is a `Node` — a shadow root and a fragment are both
+ * valid, so "element" would be a lie in the type. Argument order is lit-html's on purpose.
+ *
+ * HYDRATION lives in `@verajs/renderer/hydrate` — a drop-in superset entry whose `renderInto` adopts
  * existing server-rendered children on first render. SSR apps import from there instead of here;
  * this entry carries zero hydration code.
  */
-export const render = (result: unknown, container: Node) => {
+export const renderInto = (result: unknown, container: Node) => {
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) {
@@ -1487,22 +1499,23 @@ builtIns.push((part, value) => {
  * way silently rendered into the light DOM. That resolution lives in core's dispatch now.
  */
 /**
- * A `__DEV__`-only hint for `wire`, and the reason the descriptor can safely be called `renderer`
- * while the raw function beside it is `render`.
+ * A `__DEV__`-only hint for `wire`, so the module and the raw function beside it can share a package
+ * without wiring the wrong one being silent.
  *
- * Wiring the wrong one is otherwise **silent**: a bare function has no `on`, so `wire` reads it as a
- * connector and hands it the registry. Nothing registers, nothing throws, and the page renders
- * nothing for a reason two characters wide. The marker lets `wire` name the export that was meant.
+ * A bare function has no `on`, so `wire` reads it as a connector and hands it the registry. Nothing
+ * registers, nothing throws, and the page renders nothing. The marker lets `wire` name the export
+ * that was meant. This mattered most when the function was called `render` and the mistake was two
+ * characters wide; `renderInto` is harder to confuse, and the guard costs nothing in production.
  *
  * `$module` is deliberately generic — any package exporting a raw function next to a module of a
  * similar name can set it. Production carries neither the property nor the check that reads it.
  */
-if (__DEV__) (render as unknown as { $module?: string }).$module = 'renderer';
+if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
 
 export const renderer = {
   name: '@verajs/renderer',
   on: 'render' as const,
-  fn: render as never,
+  fn: renderInto as never,
   priority: 50,
   /**
    * Typed against the registry `wire` actually hands over, not a narrower shape that happens to

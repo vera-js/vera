@@ -20,7 +20,7 @@ for (const key of ['document', 'Node', 'HTMLElement', 'customElements', 'CustomE
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 
 const core = await load('core');
-const { render: renderer } = await load('renderer');
+const { renderInto: renderer } = await load('renderer');
 core.wire({ on: 'render', fn: renderer, priority: 50 });
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
 

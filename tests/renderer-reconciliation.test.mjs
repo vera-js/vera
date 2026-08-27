@@ -18,7 +18,7 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
                  'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[k] = dom.window[k];
 
-const { render, hold } = await load('renderer');
+const { renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 /** The shape core's `html` and `svg` tags produce, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
@@ -37,7 +37,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
 /* ── keyed reconciliation ───────────────────────────────────────────────────────────────────── */
 {
   const draw = (element, items) =>
-    render(html`<ul>${items.map((item) => keyed(item.k, html`<li>${item.v}</li>`))}</ul>`, element);
+    renderInto(html`<ul>${items.map((item) => keyed(item.k, html`<li>${item.v}</li>`))}</ul>`, element);
 
   const reorder = host();
   draw(reorder, [{ k: 1, v: 'a' }, { k: 2, v: 'b' }, { k: 3, v: 'c' }]);
@@ -75,7 +75,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
 {
   const element = host();
   const draw = (order) =>
-    render(html`<ul>${order.map((k) => keyed(k, html`<li>${k}</li>`))}</ul>`, element);
+    renderInto(html`<ul>${order.map((k) => keyed(k, html`<li>${k}</li>`))}</ul>`, element);
   const keys = Array.from({ length: 1000 }, (_, i) => i);
   draw(keys);
   const byKey = new Map([...element.querySelectorAll('li')].map((node, i) => [i, node]));
@@ -96,7 +96,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
 {
   const nested = host();
   const drawGroups = (groups) =>
-    render(
+    renderInto(
       html`<div>${groups.map((g) => keyed(g.k, html`<ul>${g.items.map((i) => keyed(i, html`<li>${i}</li>`))}</ul>`))}</div>`,
       nested
     );
@@ -106,7 +106,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
 
   const drawing = host();
   const drawCircles = (ids) =>
-    render(html`<svg>${ids.map((i) => keyed(i, svg`<circle r=${i} />`))}</svg>`, drawing);
+    renderInto(html`<svg>${ids.map((i) => keyed(i, svg`<circle r=${i} />`))}</svg>`, drawing);
   drawCircles([1, 2, 3]);
   drawCircles([3, 1, 2]);
   const circles = [...drawing.querySelectorAll('circle')];
@@ -118,7 +118,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   const refs = host();
   const seen = new Map();
   const drawRefs = (keys) =>
-    render(html`<ul>${keys.map((k) => keyed(k, html`<li ${(el) => seen.set(k, el)}>${k}</li>`))}</ul>`, refs);
+    renderInto(html`<ul>${keys.map((k) => keyed(k, html`<li ${(el) => seen.set(k, el)}>${k}</li>`))}</ul>`, refs);
   drawRefs([1, 2, 3]);
   const captured = new Map(seen);
   drawRefs([3, 2, 1]);
@@ -129,7 +129,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
   let fired = null;
   const events = host();
   const drawEvents = (keys) =>
-    render(html`<ul>${keys.map((k) => keyed(k, html`<li @click=${() => { fired = k; }}>${k}</li>`))}</ul>`, events);
+    renderInto(html`<ul>${keys.map((k) => keyed(k, html`<li @click=${() => { fired = k; }}>${k}</li>`))}</ul>`, events);
   drawEvents([1, 2]);
   drawEvents([2, 1]);
   events.querySelectorAll('li')[0].dispatchEvent(new dom.window.Event('click'));
@@ -139,20 +139,20 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
 /* ── part-mode transitions ──────────────────────────────────────────────────────────────────── */
 {
   const element = host();
-  render(html`<div>${'plain'}</div>`, element);
+  renderInto(html`<div>${'plain'}</div>`, element);
   const asText = element.textContent;
-  render(html`<div>${html`<span>tpl</span>`}</div>`, element);
+  renderInto(html`<div>${html`<span>tpl</span>`}</div>`, element);
   const asTemplate = element.textContent;
-  render(html`<div>${[html`<i>1</i>`, html`<i>2</i>`]}</div>`, element);
+  renderInto(html`<div>${[html`<i>1</i>`, html`<i>2</i>`]}</div>`, element);
   const asList = element.textContent;
-  render(html`<div>${'back'}</div>`, element);
+  renderInto(html`<div>${'back'}</div>`, element);
   check('a child position moves between text, template and list',
     asText === 'plain' && asTemplate === 'tpl' && asList === '12' && element.textContent === 'back',
     `${asText}/${asTemplate}/${asList}/${element.textContent}`);
 
   const toggling = host();
   const drawPair = (a, b) =>
-    render(html`<div>${a ? html`<i>A</i>` : ''}${b ? html`<b>B</b>` : ''}</div>`, toggling);
+    renderInto(html`<div>${a ? html`<i>A</i>` : ''}${b ? html`<b>B</b>` : ''}</div>`, toggling);
   drawPair(true, true);
   drawPair(false, true);
   drawPair(true, false);
@@ -165,7 +165,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
    * template that interpolates a boolean usually means to show it.
    */
   const values = host();
-  render(html`<div>[${null}][${undefined}][${false}][${0}]</div>`, values);
+  renderInto(html`<div>[${null}][${undefined}][${false}][${0}]</div>`, values);
   check('null and undefined are empty; false and 0 render',
     values.textContent === '[][][false][0]', JSON.stringify(values.textContent));
 }
@@ -179,7 +179,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
    * which is correct, and easy to mistake for a bug when writing the test.
    */
   const draw = (showInput) =>
-    render(html`<div>${hold(showInput ? html`<input value="typed" />` : html`<p>other</p>`)}</div>`, element);
+    renderInto(html`<div>${hold(showInput ? html`<input value="typed" />` : html`<p>other</p>`)}</div>`, element);
 
   draw(true);
   const input = element.querySelector('input');

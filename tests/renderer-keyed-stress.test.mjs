@@ -19,7 +19,7 @@ const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
 for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[key] = dom.window[key];
 
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
@@ -32,7 +32,7 @@ const seeded = (seed) => () => {
 };
 
 const draw = (rows, container) =>
-  render(
+  renderInto(
     html`<ul>${rows.map((row) => keyed(row, html`<li data-id=${row}>${row}</li>`))}</ul>`,
     container
   );
@@ -124,7 +124,7 @@ const step = (label, container, before, next) => {
 {
   const container = dom.window.document.createElement('div');
   const draw2 = (groups) =>
-    render(
+    renderInto(
       html`<div>${groups.map((group) =>
         keyed(
           group.id,

@@ -12,7 +12,7 @@
  * (or bundler alias) at it instead of `@verajs/renderer` and nothing else changes:
  *
  * ```js
- * import { render, startProfiling, stopProfiling, formatReport } from '@verajs/renderer/profiler';
+ * import { renderInto, startProfiling, stopProfiling, formatReport } from '@verajs/renderer/profiler';
  * startProfiling();
  * // …drive the app…
  * console.log(formatReport(stopProfiling()));
@@ -41,7 +41,7 @@ import type { OverlayOptions } from './overlay.js';
 
 export type { OverlayOptions } from './overlay.js';
 
-export { render, hold, renderer } from './renderer.js';
+export { renderInto, hold, renderer } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 /** One template identity replacing another at the same position, and how often. */

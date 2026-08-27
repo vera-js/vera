@@ -11,7 +11,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, createStore} from '../../packages/core/dist/development/vera.js';
-import { render as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { initRouter, navigate, router } from '../../packages/router/dist/development/vera-router.js';
 
 wire({ on: 'render', fn: renderer, priority: 50 });

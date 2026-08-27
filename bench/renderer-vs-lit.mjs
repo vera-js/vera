@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url);
 const esbuild = require(process.cwd() + '/node_modules/esbuild/lib/main.js');
 
 const ENTRY = `
-import { render as vera } from '@verajs/renderer';
+import { renderInto as vera } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { html as litHtml, render as lit, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';

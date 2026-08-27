@@ -34,7 +34,7 @@ import {
   isTemplateResult,
   instanceWalker,
   rootParts,
-  render as baseRender,
+  renderInto as baseRender,
 } from './renderer.js';
 import type { Template, Part, Item, TemplateResult, KeyedResult } from './renderer.js';
 
@@ -444,7 +444,7 @@ const clearPreservingStyles = (container: Node) => {
  * already has children adopts them; any mismatch clears (keeping `<style vera-styles>`) and falls
  * through to a clean base render. After the first render, this IS the base render.
  */
-export const render = (result: unknown, container: Node) => {
+export const renderInto = (result: unknown, container: Node) => {
   if (
     !rootParts.has(container) &&
     container.firstChild !== null &&

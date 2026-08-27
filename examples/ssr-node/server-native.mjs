@@ -27,9 +27,9 @@ const component = new URL('./components/hello-ssr.js', import.meta.url);
  */
 const CLIENT = `
 import { wire } from '/packages/core/dist/development/vera.js';
-import { render } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderInto } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-wire({ on: 'render', fn: render, priority: 50 });
+wire({ on: 'render', fn: renderInto, priority: 50 });
 await import('/examples/ssr-node/components/hello-ssr.js');
 document.body.dataset.hydrated = 'true';
 `;

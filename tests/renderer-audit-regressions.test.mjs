@@ -10,7 +10,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBe
 for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element', 'DocumentFragment'])
   globalThis[key] = dom.window[key];
 
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { html, tag } = await load('renderer/tag');
 
 /* ── a string can never become a tag ─────────────────────────────────────────────────────────── */
@@ -32,12 +32,12 @@ test('a tag in tag position still works, and updates in place', () => {
   const host = document.createElement('div');
   document.body.append(host);
   const draw = (t, body) => html`<${t} class="x">${body}</${t}>`;
-  render(draw(tag`h1`, 'a'), host);
+  renderInto(draw(tag`h1`, 'a'), host);
   assert.equal(host.querySelector('h1')?.textContent, 'a');
   const first = host.querySelector('h1');
-  render(draw(tag`h1`, 'b'), host);
+  renderInto(draw(tag`h1`, 'b'), host);
   assert.equal(host.querySelector('h1'), first, 'same tag keeps the element');
-  render(draw(tag`h2`, 'c'), host);
+  renderInto(draw(tag`h2`, 'c'), host);
   assert.equal(host.querySelector('h2')?.textContent, 'c', 'a different tag rebuilds');
 });
 
@@ -45,7 +45,7 @@ test('a tag in tag position still works, and updates in place', () => {
 test('a non-tag value outside tag position is unaffected', () => {
   const host = document.createElement('div');
   document.body.append(host);
-  render(html`<p title=${'t'}>${'body'}</p>`, host);
+  renderInto(html`<p title=${'t'}>${'body'}</p>`, host);
   assert.equal(host.querySelector('p')?.getAttribute('title'), 't');
   assert.equal(host.querySelector('p')?.textContent, 'body');
 });
@@ -63,7 +63,7 @@ test('the base renderer names the tag entry for an expression in tag position', 
     /** The scan happens when the renderer first builds the template, not when `html` is called. */
     const host = document.createElement('div');
     document.body.append(host);
-    render(core.html`<${'div'}>x</${'div'}>`, host);
+    renderInto(core.html`<${'div'}>x</${'div'}>`, host);
   } finally {
     console.error = nativeError;
   }
@@ -97,7 +97,7 @@ test('an applier that changes identity every render is named', { skip: isProduct
         return label;
       },
     });
-    for (const label of ['a', 'b', 'c', 'd']) render(core.html`<p>${badly(label)}</p>`, host);
+    for (const label of ['a', 'b', 'c', 'd']) renderInto(core.html`<p>${badly(label)}</p>`, host);
   } finally {
     console.warn = nativeWarn;
   }
@@ -126,7 +126,7 @@ test('a hoisted applier keeps its previous return and stays quiet', { skip: isPr
   const nativeWarn = console.warn;
   console.warn = (...args) => warnings.push(String(args[0]));
   try {
-    for (const label of ['a', 'b', 'c', 'd']) render(core.html`<p>${thing(label)}</p>`, host);
+    for (const label of ['a', 'b', 'c', 'd']) renderInto(core.html`<p>${thing(label)}</p>`, host);
   } finally {
     console.warn = nativeWarn;
   }
@@ -155,9 +155,9 @@ test('a function ref is called with null when its element is torn down', async (
   const draw = (show) =>
     show ? core.html`<p &=${(el) => seen.push(el === null ? null : el.tagName)}>a</p>` : core.html`<span>b</span>`;
 
-  render(draw(true), host);
+  renderInto(draw(true), host);
   assert.deepEqual(seen, ['P'], 'attached');
-  render(draw(false), host);
+  renderInto(draw(false), host);
   assert.deepEqual(seen, ['P', null], 'and released when the subtree was replaced');
 });
 
@@ -168,9 +168,9 @@ test('an object ref has its value cleared', async () => {
   const box = core.ref(null);
   const draw = (show) => (show ? core.html`<p &=${box}>a</p>` : core.html`<span>b</span>`);
 
-  render(draw(true), host);
+  renderInto(draw(true), host);
   assert.equal(box.value?.tagName, 'P');
-  render(draw(false), host);
+  renderInto(draw(false), host);
   assert.equal(box.value, null, 'null, not a detached element');
 });
 
@@ -183,8 +183,8 @@ test('a spread object is not released', async () => {
   const props = { a: '1' };
   const draw = (show) => (show ? core.html`<p ${spread(props)}>a</p>` : core.html`<span>b</span>`);
 
-  render(draw(true), host);
-  render(draw(false), host);
+  renderInto(draw(true), host);
+  renderInto(draw(false), host);
   assert.deepEqual(props, { a: '1' }, 'the spread object is untouched');
 });
 
@@ -194,7 +194,7 @@ test('a template with no ref renders and clears normally', async () => {
   const host = document.createElement('div');
   document.body.append(host);
   const draw = (n) => core.html`<ul>${[0, 1, 2].map((i) => core.html`<li>${n + i}</li>`)}</ul>`;
-  render(draw(0), host);
-  render(draw(10), host);
+  renderInto(draw(0), host);
+  renderInto(draw(10), host);
   assert.equal(host.textContent, '101112');
 });

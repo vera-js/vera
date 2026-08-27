@@ -127,7 +127,8 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `render` | `(template?, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. Ends the setup as well as drawing — **call it bare** (`render()`) when the component has no markup, and its effects still run. |
+| `render` | `(template, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. **Required** — it is exactly `useRender(template)` followed by `mount()`. |
+| `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | Replaceable via `setHtml`. Core's built-in produces a lit-compatible object. |
@@ -234,7 +235,7 @@ yields that number** instead of the value. Write observers with a block body —
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
 import { collections } from '@verajs/reactivity/collections';
-import { render } from '@verajs/renderer';
+import { renderInto } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 ```
 
@@ -264,9 +265,13 @@ paying for it. Wire once at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
-import { adoptStyles } from '@verajs/styles';
-wire({ on: 'init', fn: adoptStyles, priority: 50 });
+import { renderer } from '@verajs/renderer';
+import { styles } from '@verajs/styles';
+wire([renderer, styles]);
 ```
+
+`styles` is the module; `adoptStyles` is the function it registers. `wire({ on: 'init', fn:
+adoptStyles, priority: 50 })` is the same registration written out, for a non-default priority.
 
 Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style vera-styles>` for plain
 strings); light DOM is hoisted to the document once per component class, wrapped in
@@ -294,7 +299,7 @@ render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
 
 ```js
 import { keyed } from '@verajs/renderer/keyed';
-render(html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`, host);
+renderInto(html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`, host);
 ```
 
 Its own entry since 0.2.0: reordering is what makes lists expensive, most apps never do it, and the
@@ -415,7 +420,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
     <p ?hidden=${!busy}>loading</p>
   </section>`
   ```
-- Hydration is a drop-in entry: SSR apps `import { render } from '@verajs/renderer/hydrate'`
+- Hydration is a drop-in entry: SSR apps `import { renderInto } from '@verajs/renderer/hydrate'`
   (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) and the
   first render ADOPTS server-rendered children — markerless (no framework comments in server
   HTML), node identity preserved, listeners attached, keyed updates move adopted nodes. Any
@@ -430,7 +435,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   template, which destroys and rebuilds the subtree while looking identical from the outside.
 
   ```js
-  import { render, profile, formatReport } from '@verajs/renderer/profiler';
+  import { renderInto, profile, formatReport } from '@verajs/renderer/profiler';
   /** `profile` awaits an async driver — driving an app means awaiting frames. */
   const { report } = await profile(async () => { /* click around, await frames */ });
   console.log(formatReport(report));
@@ -775,7 +780,7 @@ Say so rather than inventing an API:
   trusted markup, write the sink yourself as a property binding:
 
   ```js
-  render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
+  renderInto(html`<div .innerHTML=${trustedMarkup}></div>`, host);
   ```
 
   The friction is the feature. That line is greppable, obviously yours, and reviewable as the
@@ -789,19 +794,20 @@ Say so rather than inventing an API:
 ## Common mistakes
 
 1. Defining a component before `setHtml` / `wire(renderer)` → with nothing on the `'render'`
-   chain, `render()` warns once in development and draws nothing.
+   chain, `render()` warns once in development and draws nothing. (`mount()` is unaffected — it
+   commits the setup and never reaches a renderer.)
 2. Static `import` for components in the entry file → hoisted, same failure.
 3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
    an **occupied** priority replaces that entry (this is how a renderer is swapped), and the
    replacement is named in a development warning.
 4. `createStore` for large lists → use `shallowRef`.
 5. Forgetting `init(this)` before `render` → nothing renders.
-5b. **Registering hooks and never calling `render()` → none of them ever run.** `render()` ends the
-   setup as well as drawing: it runs the first pass of every hook registered since `init()`. A
-   component whose whole job is a side effect has nothing to draw, so it calls `render()` **bare** —
-   no template. Development warns if neither happens.
-6. Hooks after `render()` → ignored with a console warning. Register hooks between `init()` and
-   `render()`, or pass the element explicitly.
+5b. **Registering hooks and never committing the setup → none of them ever run.** `init()` opens a
+   component's setup and one of two calls closes it: `render(template)` for a component with markup,
+   `mount()` for one whose whole job is a side effect. Both run the first pass of every hook
+   registered since `init()`. Development warns if neither happens, and names both.
+6. Hooks after the setup is committed → ignored with a console warning. Register hooks between
+   `init()` and the `render()` or `mount()` that closes it, or pass the element explicitly.
 7. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
 8. An autoloaded file that loads but never calls `customElements.define` for its tag → the
    autoloader waits forever, silently. The module must define the element it is named for.

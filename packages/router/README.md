@@ -19,10 +19,10 @@ npm i @verajs/router @verajs/renderer
 <!-- recipe -->
 ```js
 import { initRouter, setRouterRenderer } from '@verajs/router';
-import { render } from '@verajs/renderer';
+import { renderInto } from '@verajs/renderer';
 import { html } from '@verajs/core';
 
-setRouterRenderer(render);
+setRouterRenderer(renderInto);
 
 customElements.define(
   'app-shell',

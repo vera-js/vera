@@ -19,7 +19,7 @@ globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Node = dom.window.Node;
 
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { html, tag } = await load('renderer/tag');
 
 const into = () => {
@@ -34,7 +34,7 @@ const HEADING = { 1: tag`h1`, 2: tag`h2`, 3: tag`h3` };
 test('a tagged template renders the tag it was given, and updates in place', () => {
   const container = into();
   const draw = (level, text) =>
-    render(html`<section><${HEADING[level]} class="t">${text}</${HEADING[level]}></section>`, container);
+    renderInto(html`<section><${HEADING[level]} class="t">${text}</${HEADING[level]}></section>`, container);
 
   draw(1, 'one');
   const first = container.querySelector('.t');
@@ -83,7 +83,7 @@ test('a template with no tag in it is the ordinary shape', () => {
  */
 test('a tag is a JSX component, and maps React names the way the transform does', () => {
   const container = into();
-  const draw = (level, props) => render(html`<section>${HEADING[level](props)}</section>`, container);
+  const draw = (level, props) => renderInto(html`<section>${HEADING[level](props)}</section>`, container);
 
   draw(1, { className: 'title', children: ['one'] });
   assert.equal(read(container), '<section><h1 class="title">one</h1></section>');
@@ -105,7 +105,7 @@ test('a tag is a JSX component, and maps React names the way the transform does'
 
 test('a JSX tag with no props renders bare', () => {
   const container = into();
-  render(html`<section>${HEADING[1]()}</section>`, container);
+  renderInto(html`<section>${HEADING[1]()}</section>`, container);
   assert.equal(read(container), '<section><h1></h1></section>');
 });
 
@@ -124,14 +124,14 @@ test('a tag may be composed from other tags', () => {
   const h = tag`h`;
   const one = tag`${h}1`;
   const container = into();
-  render(html`<${one}>x</${one}>`, container);
+  renderInto(html`<${one}>x</${one}>`, container);
   assert.equal(read(container), '<h1>x</h1>');
 });
 
 test('bindings on a dynamic element behave like bindings anywhere', () => {
   const container = into();
   const draw = (level, title, hidden) =>
-    render(html`<${HEADING[level]} title=${title} ?hidden=${hidden}>x</${HEADING[level]}>`, container);
+    renderInto(html`<${HEADING[level]} title=${title} ?hidden=${hidden}>x</${HEADING[level]}>`, container);
   draw(1, 'a', false);
   assert.equal(read(container), '<h1 title="a">x</h1>');
   draw(1, null, true);
@@ -181,7 +181,7 @@ test('bindings on a dynamic element behave like bindings anywhere', () => {
   });
 
   test('a client adopts the server markup for a dynamic tag', async () => {
-    const { render: hydratingRender } = await load('renderer/hydrate');
+    const { renderInto: hydratingRender } = await load('renderer/hydrate');
     const container = into();
     container.innerHTML = server.one;
     const adopted = container.querySelector('.t');

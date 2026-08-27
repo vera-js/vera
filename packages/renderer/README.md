@@ -40,6 +40,29 @@ document.body.append(document.createElement('click-counter'));
 Without it, core has no renderer at all: `render()` warns once in development and puts
 nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
 
+### `renderInto(result, container)`
+
+The same write, called directly — no reactivity, no lifecycle, no custom element. `wire([renderer])`
+registers exactly this function, so a component's `render()` ends up here; calling it yourself is how
+you draw into a plain node, which is the incremental-adoption path and the way to test a template
+without spinning up an element.
+
+```js
+import { renderInto } from '@verajs/renderer';
+import { html } from '@verajs/core';
+
+renderInto(html`<p>${count}</p>`, document.querySelector('#app'));
+```
+
+It **owns its own range and nothing else**: the first call anchors a root part at a marker it
+appends, later calls with the same container reuse that part and walk only the value slots, and
+whatever was already in the container stays. It is not reactive — call it again to update, or use a
+component and let a store do it.
+
+It was named `render` until 0.2.0, which collided with core's `render` — a different function, with
+a different arity, that declares a *reactive* template and commits a component's setup. Both are
+public and both are documented, so a reader who knew one misread the other.
+
 ## Bindings
 
 | Written | Means |
@@ -114,16 +137,16 @@ A DOM node renders as itself, which is how a template holds something another li
 const chart = document.createElement('canvas');
 new Chart(chart, config);
 
-render(html`<figure>${chart}<figcaption>${title}</figcaption></figure>`, host);
+renderInto(html`<figure>${chart}<figcaption>${title}</figcaption></figure>`, host);
 ```
 
 ## Lists — `keyed()`
 
 ```js
-import { render } from '@verajs/renderer';
+import { renderInto } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 
-render(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>`))}</ul>`, host);
+renderInto(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>`))}</ul>`, host);
 ```
 
 `keyed(key, result)` tags a result with its identity, so a reorder **moves** the existing elements
@@ -159,7 +182,7 @@ whose order never changes.
 ## Preserving DOM — `hold()`
 
 ```js
-render(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, host);
+renderInto(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, host);
 ```
 
 `hold(result)` parks the DOM it replaces instead of destroying it, keyed by template identity, and
@@ -222,7 +245,7 @@ caches.
 
 <!-- recipe -->
 ```js
-import { render } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
+import { renderInto } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
 ```
 
 The first render into a container that already has children **adopts** them as server output of the
@@ -300,8 +323,8 @@ runtime.
 A key that disappears between renders **restores what the element held before the binding existed**.
 
 ```js
-render(html`<input type="text" ${spread({ type: 'number' })} />`, host);  // type="number"
-render(html`<input type="text" ${spread({})} />`, host);                  // type="text" again
+renderInto(html`<input type="text" ${spread({ type: 'number' })} />`, host);  // type="number"
+renderInto(html`<input type="text" ${spread({})} />`, host);                  // type="text" again
 ```
 
 Not removed — *restored*. The usual framing, "what value means absent", has no answer for a
@@ -316,7 +339,7 @@ attribute in server markup exactly as it overwrites one on the client. The origi
 construction, so bind `null` when you mean removal:
 
 ```js
-render(html`<input ${spread({ id: null })} />`, host);   // removes, on either path
+renderInto(html`<input ${spread({ id: null })} />`, host);   // removes, on either path
 ```
 
 One residue worth knowing: `.value`, `.checked` and `.selected` are mirrored to attributes
@@ -346,7 +369,7 @@ it loads alongside any renderer that honours the protocol, including your own.
 ## `@verajs/renderer/profiler`
 
 ```js
-import { render, profile, formatReport } from '@verajs/renderer/profiler';
+import { renderInto, profile, formatReport } from '@verajs/renderer/profiler';
 
 /** `profile` awaits an async driver — driving an app means awaiting frames, and the render
     scheduler is `requestAnimationFrame`, so nothing commits inside one synchronous turn. */
@@ -379,7 +402,7 @@ blessed in tutorials and in review.
 Trusted markup goes through a property binding, so you write the sink yourself:
 
 ```js
-render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
+renderInto(html`<div .innerHTML=${trustedMarkup}></div>`, host);
 ```
 
 Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
@@ -397,7 +420,7 @@ import { html, tag } from '@verajs/renderer/tag';
 const HEADING = { 1: tag`h1`, 2: tag`h2`, 3: tag`h3` };
 
 const H = HEADING[state.level];
-render(html`<${H} class="title">${state.text}</${H}>`, host);
+renderInto(html`<${H} class="title">${state.text}</${H}>`, host);
 ```
 
 A template renderer bakes tag names into its statics — that is what template identity *is*, and
@@ -475,7 +498,7 @@ function applyUntil(part, previous) {
 }
 const until = (promise, placeholder) => ({ _$child$: applyUntil, promise, placeholder });
 
-render(html`<p>${until(fetchUser(), html`<em>loading…</em>`)}</p>`, host);
+renderInto(html`<p>${until(fetchUser(), html`<em>loading…</em>`)}</p>`, host);
 ```
 
 Three rules, each of which is a real trap:

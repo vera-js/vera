@@ -23,7 +23,7 @@ globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 
-const { render, hold } = await load('renderer');
+const { renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
@@ -104,11 +104,11 @@ const fresh = () => dom.window.document.createElement('div');
 
 const compare = (label, first, second) => {
   const updated = fresh();
-  render(first(), updated);
-  render(second(), updated);
+  renderInto(first(), updated);
+  renderInto(second(), updated);
 
   const direct = fresh();
-  render(second(), direct);
+  renderInto(second(), direct);
 
   const a = canonical(updated);
   const b = canonical(direct);
@@ -170,13 +170,13 @@ for (const [positionName, position] of Object.entries(POSITIONS))
   for (const [name, value] of Object.entries(VALUES)) {
     const label = `${positionName}: null → ${name} → null → ${name}`;
     const updated = fresh();
-    render(position(null), updated);
-    render(position(value()), updated);
-    render(position(null), updated);
-    render(position(value()), updated);
+    renderInto(position(null), updated);
+    renderInto(position(value()), updated);
+    renderInto(position(null), updated);
+    renderInto(position(value()), updated);
 
     const direct = fresh();
-    render(position(value()), direct);
+    renderInto(position(value()), direct);
 
     const a = canonical(updated);
     const b = canonical(direct);

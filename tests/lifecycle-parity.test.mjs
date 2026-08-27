@@ -640,7 +640,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 const core = await load('core');
-const { render: renderTemplate } = await load('renderer');
+const { renderInto: renderTemplate } = await load('renderer');
 core.wire({ on: 'render', fn: renderTemplate, priority: 50 });
 
 /** Two frames plus a drained microtask queue: renders, layout effects and effects have all run. */

@@ -25,12 +25,12 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   globalThis[key] = dom.window[key];
 
 const { html, ref } = await load('core');
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 
 const onClient = (template) => {
   const host = document.createElement('div');
   document.body.append(host);
-  render(template, host);
+  renderInto(template, host);
   return host.innerHTML.replace(/<!---->/g, '').trim();
 };
 

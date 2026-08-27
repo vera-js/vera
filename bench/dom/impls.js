@@ -265,7 +265,7 @@ const reactImpl = (mount) => {
 
 /* ── VeraJS + its own renderer ──────────────────────────────────────────────── */
 
-import { render as veraDomRender } from '@verajs/renderer';
+import { renderInto as veraDomRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 
 /**

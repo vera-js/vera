@@ -33,7 +33,7 @@ assert.ok(serverHtml.includes('hello ssr') && !serverHtml.includes('<!--'), 'ser
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render } = await load('renderer/hydrate');
+const { renderInto } = await load('renderer/hydrate');
 const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
@@ -60,7 +60,7 @@ const serverInput = container.querySelector('input');
 const serverLi2 = container.querySelectorAll('li')[1];
 serverInput.dataset.probe = 'survived';
 
-render(template(state), container);
+renderInto(template(state), container);
 
 // 1. adoption preserved the server DOM
 assert.equal(container.querySelector('h1'), serverH1, 'h1 identity preserved');
@@ -77,7 +77,7 @@ assert.equal(inputs, 1, 'listener attached to the adopted input');
 state.title = 'updated';
 state.count = 0;
 state.rows = [ { id: 2, label: 'beta <x>' }, { id: 1, label: 'ALPHA' } ];
-render(template(state), container);
+renderInto(template(state), container);
 assert.equal(container.querySelector('h1'), serverH1, 'h1 still the same node after update');
 assert.equal(serverH1.textContent, 'updated', 'adopted text updated in place');
 assert.ok(container.querySelector('output').hasAttribute('hidden'), '?bool toggles on adopted element');
@@ -86,17 +86,17 @@ assert.equal(container.querySelectorAll('li')[0], serverLi2, 'keyed reorder MOVE
 // 4. mismatched server markup falls back to a clean render
 const bad = dom.window.document.createElement('div');
 bad.innerHTML = '<p>stale unrelated markup</p>';
-render(html`<span>${'fresh'}</span>`, bad);
+renderInto(html`<span>${'fresh'}</span>`, bad);
 assert.equal(bad.textContent, 'fresh', 'mismatch fell back to clean render');
 assert.equal(bad.querySelectorAll('p').length, 0, 'stale markup cleared');
 
-// 5. a value the server cannot have rendered mismatches — it never throws out of render()
+// 5. a value the server cannot have rendered mismatches — it never throws out of renderInto()
 //    Adoption used to spread whatever reached this branch, so a plain object raised
 //    `TypeError: value is not iterable` and escaped the MISMATCH guard, taking the page down where
 //    every other disagreement with the server degrades quietly.
 const opaque = dom.window.document.createElement('div');
 opaque.innerHTML = '<p>server</p>';
-render(html`<p>${{ a: 1 }}</p>`, opaque);
+renderInto(html`<p>${{ a: 1 }}</p>`, opaque);
 assert.equal(opaque.textContent, '[object Object]', 'an opaque object fell back instead of throwing');
 
 // 6. a client-only DOM node adopts WITHOUT giving up hydration
@@ -107,7 +107,7 @@ withNode.innerHTML = '<p>server</p>';
 const serverP = withNode.querySelector('p');
 const clientOnly = dom.window.document.createElement('span');
 clientOnly.textContent = 'client';
-render(html`<p>server${clientOnly}</p>`, withNode);
+renderInto(html`<p>server${clientOnly}</p>`, withNode);
 assert.equal(withNode.querySelector('p'), serverP, 'server <p> still adopted alongside a client node');
 assert.equal(withNode.querySelector('span'), clientOnly, 'the client node was inserted');
 assert.equal(withNode.textContent, 'serverclient');

@@ -16,14 +16,14 @@
  */
 import { init, createStore, render, wire, html, css, ref, shallowRef, useEffect, useLayoutEffect,
   useSyncEffect, createHook, untrack, deps, microtask, setRenderScheduler, setHtml, setCss,
-  svg, mathml, inserts, useRender } from '@verajs/core';
-import { renderer, hold, render as domRender } from '@verajs/renderer';
+  svg, mathml, inserts, useRender, mount } from '@verajs/core';
+import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
-import { adoptStyles, applyStyles } from '@verajs/styles';
+import { adoptStyles, applyStyles, styles } from '@verajs/styles';
 import { collections, computed } from '@verajs/reactivity';
 
 interface Row { id: number; label: string }
@@ -56,11 +56,31 @@ class Demo extends HTMLElement {
 }
 customElements.define('x-demo', Demo);
 
+/** A component with no markup: `mount()` commits the setup so the effect actually runs. */
+class Headless extends HTMLElement {
+  connectedCallback() {
+    init(this);
+    const state = createStore({ online: true });
+    useEffect(() => void state.online);
+    mount();
+  }
+}
+customElements.define('x-headless', Headless);
+
+/**
+ * The template is required, and this is the check that says so. A bare `render()` is exactly the
+ * mistake `mount()` replaces; it still commits at runtime, but a typed caller is told at build time.
+ */
+// @ts-expect-error render() needs a template — a component with no markup calls mount()
+render();
+
 const heading = tag`h1`;
 const named = tagHtml`<${heading} class=${jsxName('className')}>x</${heading}>`;
 void named; void BOOLEAN_ATTRIBUTES.has('disabled');
 
 wire([renderer, router, collections, autoloader(import.meta.url, 'components')]);
+wire([styles]);
+/** The longhand still compiles — the module is a convenience over it, not a replacement. */
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 void applyStyles('.a{}', document.createElement('div') as never);
 void inserts; void useRender; void domRender; void setHtml; void setCss;

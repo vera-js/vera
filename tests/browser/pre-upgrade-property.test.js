@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { html } from '../../packages/core/dist/development/vera.js';
-import { render } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 
 /**
  * A `.prop=${…}` binding is destroyed when the target element upgrades — in a real engine.
@@ -35,7 +35,7 @@ it('a bare class field destroys the bound value, and is reported', async () => {
   const host = mount();
   const store = { message: 'Hello Dark World' };
 
-  render(html`<x-preup-bare .item=${store}></x-preup-bare>`, host);
+  renderInto(html`<x-preup-bare .item=${store}></x-preup-bare>`, host);
   const el = host.querySelector('x-preup-bare');
   expect(el.item === store).to.equal(true, 'binding applies before upgrade');
 
@@ -49,7 +49,7 @@ it('a bare class field destroys the bound value, and is reported', async () => {
 it('a field with a default destroys it too, and is reported', async () => {
   const host = mount();
 
-  render(html`<x-preup-default .count=${5}></x-preup-default>`, host);
+  renderInto(html`<x-preup-default .count=${5}></x-preup-default>`, host);
   const el = host.querySelector('x-preup-default');
 
   customElements.define('x-preup-default', class extends HTMLElement { count = 0; });
@@ -62,7 +62,7 @@ it('a declared field keeps the bound value and says nothing', async () => {
   const host = mount();
   const store = { message: 'kept' };
 
-  render(html`<x-preup-declared .item=${store}></x-preup-declared>`, host);
+  renderInto(html`<x-preup-declared .item=${store}></x-preup-declared>`, host);
   const el = host.querySelector('x-preup-declared');
 
   customElements.define('x-preup-declared', class extends HTMLElement {});  // what `declare` emits
@@ -76,7 +76,7 @@ it('leaves an already-defined element alone', async () => {
   const host = mount();
   const store = { message: 'direct' };
 
-  render(html`<x-preup-defined .item=${store}></x-preup-defined>`, host);
+  renderInto(html`<x-preup-defined .item=${store}></x-preup-defined>`, host);
   await settle();
   expect(host.querySelector('x-preup-defined').item === store).to.equal(true);
   expect(warnings.length).to.equal(0, warnings.join(' | '));
@@ -84,7 +84,7 @@ it('leaves an already-defined element alone', async () => {
 
 it('leaves plain built-in elements alone', async () => {
   const host = mount();
-  render(html`<input .value=${'typed'} />`, host);
+  renderInto(html`<input .value=${'typed'} />`, host);
   await settle();
   expect(host.querySelector('input').value).to.equal('typed');
   expect(warnings.length).to.equal(0, warnings.join(' | '));

@@ -28,7 +28,7 @@ globalThis.Node = dom.window.Node;
  * here, and skips rather than failing to resolve a bundle that is not meant to exist.
  */
 const skip = isProduction;
-const { render, startProfiling, stopProfiling, isProfiling, profile, formatReport } = skip
+const { renderInto, startProfiling, stopProfiling, isProfiling, profile, formatReport } = skip
   ? {}
   : await load('renderer/profiler');
 
@@ -44,7 +44,7 @@ beforeEach(() => {
 test('a stable template shape reports updates and no rebuilds', { skip }, () => {
   const view = (n) => html`<p>count: ${n}</p>`;
   const { report } = profile(() => {
-    for (let i = 0; i < 5; i++) render(view(i), el);
+    for (let i = 0; i < 5; i++) renderInto(view(i), el);
   });
   assert.equal(report.creates, 1, 'first render creates');
   assert.equal(report.updates, 4, 'the rest update in place');
@@ -56,7 +56,7 @@ test('a stable template shape reports updates and no rebuilds', { skip }, () => 
 test('swapping subtrees is reported as churn, with both shapes and a location', { skip }, () => {
   const swap = (on) => (on ? html`<a href="/x">on</a>` : html`<b>off</b>`);
   const { report } = profile(() => {
-    for (let i = 0; i < 6; i++) render(swap(i % 2 === 0), el);
+    for (let i = 0; i < 6; i++) renderInto(swap(i % 2 === 0), el);
   });
   assert.equal(report.rebuilds, 5, 'every toggle after the first tears down');
   assert.equal(report.updates, 0, 'no commit was ever in place');
@@ -74,7 +74,7 @@ test('the documented fix actually removes the churn it reports', { skip }, () =>
   /** The same UI as the swap test, written as one stable shape per the house guidance. */
   const stable = (on) => html`<span ?hidden=${!on}>on</span><span ?hidden=${on}>off</span>`;
   const { report } = profile(() => {
-    for (let i = 0; i < 6; i++) render(stable(i % 2 === 0), el);
+    for (let i = 0; i < 6; i++) renderInto(stable(i % 2 === 0), el);
   });
   assert.equal(report.rebuilds, 0, 'stable shape never tears down');
   assert.equal(report.updates, 5);
@@ -85,12 +85,12 @@ test('a render nested inside another folds into one frame', { skip }, () => {
   const inner = document.createElement('div');
   document.body.appendChild(inner);
   /**
-   * The nesting has to be real. Calling `render()` while building the outer template's values
-   * would merely sequence the two - the arguments are evaluated before `render()` is entered. A
+   * The nesting has to be real. Calling `renderInto()` while building the outer template's values
+   * would merely sequence the two - the arguments are evaluated before `renderInto()` is entered. A
    * callback ref fires during commit, which is genuinely inside the outer frame.
    */
   const { report } = profile(() => {
-    render(html`<p ${() => render(html`<i>x</i>`, inner)}>outer</p>`, el);
+    renderInto(html`<p ${() => renderInto(html`<i>x</i>`, inner)}>outer</p>`, el);
   });
   assert.equal(inner.textContent, 'x', 'the nested render really happened');
   assert.equal(el.textContent, 'outer');
@@ -99,7 +99,7 @@ test('a render nested inside another folds into one frame', { skip }, () => {
 
 test('profiling is off by default and reports nothing after stopping', { skip }, () => {
   assert.equal(isProfiling(), false);
-  render(html`<p>${1}</p>`, el);
+  renderInto(html`<p>${1}</p>`, el);
   startProfiling();
   assert.equal(isProfiling(), true);
   const report = stopProfiling();
@@ -107,7 +107,7 @@ test('profiling is off by default and reports nothing after stopping', { skip },
   assert.equal(report.updates + report.creates + report.rebuilds, 0);
 
   /** Renders after stopping must not accumulate into the next session. */
-  render(html`<p>${2}</p>`, el);
+  renderInto(html`<p>${2}</p>`, el);
   startProfiling();
   const second = stopProfiling();
   assert.equal(second.frames, 0);
@@ -116,8 +116,8 @@ test('profiling is off by default and reports nothing after stopping', { skip },
 test('the report reads as guidance, not just numbers', { skip }, () => {
   const swap = (on) => (on ? html`<a>on</a>` : html`<b>off</b>`);
   const { report } = profile(() => {
-    render(swap(true), el);
-    render(swap(false), el);
+    renderInto(swap(true), el);
+    renderInto(swap(false), el);
   });
   const text = formatReport(report);
   assert.match(text, /rebuilt/);
@@ -146,7 +146,7 @@ test('the overlay mounts, reports churn, and unmounts cleanly', { skip }, async 
   assert.ok(host.shadowRoot, 'mounted into a shadow root');
 
   const swap = (on) => (on ? html`<a>on</a>` : html`<b>off</b>`);
-  for (let i = 0; i < 4; i++) render(swap(i % 2 === 0), el);
+  for (let i = 0; i < 4; i++) renderInto(swap(i % 2 === 0), el);
 
   await new Promise((r) => setTimeout(r, 30));
   const text = host.shadowRoot.textContent;

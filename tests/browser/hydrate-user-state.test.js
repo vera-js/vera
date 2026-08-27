@@ -14,7 +14,7 @@
  */
 import { expect } from '@esm-bundle/chai';
 import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
-import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
 wire({ on: 'render', fn: hydratingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));

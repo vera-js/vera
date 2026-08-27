@@ -32,8 +32,8 @@ const ENTRY = new URL('./entry-ssr.js', import.meta.url);
 const client = (mode) => `
 import { start } from '/examples/kitchen-sink/entry-client.js';
 /** Bare, so the import map decides which renderer this is — one line, one mode. */
-import { render } from '@verajs/renderer';
-await start(render);
+import { renderInto } from '@verajs/renderer';
+await start(renderInto);
 document.documentElement.dataset.sinkMode = '${mode}';
 `;
 

@@ -234,12 +234,12 @@ test('wire refuses a raw function a package marked as not-the-module', async () 
   const renderer = await load('renderer');
   if (isProduction) {
     /** The marker and the check are both behind `__DEV__`, so production carries neither. */
-    assert.equal(renderer.render.$module, undefined, 'no marker in production');
+    assert.equal(renderer.renderInto.$module, undefined, 'no marker in production');
     return;
   }
-  assert.equal(renderer.render.$module, 'renderer', 'the raw function is marked');
+  assert.equal(renderer.renderInto.$module, 'renderer', 'the raw function is marked');
   assert.throws(
-    () => wire(renderer.render),
+    () => wire(renderer.renderInto),
     /did you mean `renderer`/,
     'it must name the export that was meant'
   );

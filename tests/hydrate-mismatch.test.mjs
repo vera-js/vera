@@ -31,7 +31,7 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 const { html } = await load('core');
-const { render } = await load('renderer/hydrate');
+const { renderInto } = await load('renderer/hydrate');
 
 /** Hydrates `template` over `markup` and returns what it warned, plus the DOM it settled on. */
 const hydrateOver = (markup, template) => {
@@ -42,7 +42,7 @@ const hydrateOver = (markup, template) => {
   const warn = console.warn;
   console.warn = (...args) => said.push(args.join(' '));
   try {
-    render(template, host);
+    renderInto(template, host);
   } finally {
     console.warn = warn;
   }

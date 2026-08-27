@@ -24,7 +24,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   globalThis[key] = dom.window[key];
 
 const { html } = await load('core');
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 
 const host = () => {
@@ -45,8 +45,8 @@ const thing = (label) => ({ _$child$: applyThing, label });
 const swap = (a, b) => {
   const element = host();
   torn.length = 0;
-  render(a(), element);
-  render(b(), element);
+  renderInto(a(), element);
+  renderInto(b(), element);
   return element;
 };
 
@@ -88,9 +88,9 @@ test('a surviving directive is not told anything', () => {
   const element = host();
   torn.length = 0;
   const draw = (n) => html`<p>${thing('keep')}${n}</p>`;
-  render(draw(1), element);
-  render(draw(2), element);
-  render(draw(3), element);
+  renderInto(draw(1), element);
+  renderInto(draw(2), element);
+  renderInto(draw(3), element);
   assert.deepEqual(torn, []);
 });
 
@@ -113,8 +113,8 @@ test('a ref and a directive in one subtree are both handled', () => {
     show
       ? html`<p &=${(node) => seen.push(node === null ? null : node.tagName)}>${thing('withref')}</p>`
       : html`<span>gone</span>`;
-  render(draw(true), element);
-  render(draw(false), element);
+  renderInto(draw(true), element);
+  renderInto(draw(false), element);
   assert.deepEqual(seen, ['P', null], 'the ref was attached and released');
   assert.deepEqual(torn, ['withref'], 'and the directive was told');
 });

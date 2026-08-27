@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
 import { init, render, html, createStore, wire } from '../../packages/core/dist/development/vera.js';
-import { render as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 
 /**

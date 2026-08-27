@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
@@ -61,7 +61,7 @@ const container = dom.window.document.getElementById('root');
 let clicks = 0;
 const state = { bump: () => clicks++, n: 1, flag: false,
   items: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] };
-render(mod.app(state), container);
+renderInto(mod.app(state), container);
 container.querySelector('button').dispatchEvent(new dom.window.Event('click'));
 assert.equal(clicks, 1, 'onClick wired through @click');
 assert.equal(container.querySelector('em'), null, 'false conditional renders nothing');
@@ -69,18 +69,18 @@ assert.equal(container.querySelector('em'), null, 'false conditional renders not
 const liB = container.querySelectorAll('li')[1];
 state.items = [state.items[1], state.items[0]];
 state.flag = true;
-render(mod.app(state), container);
+renderInto(mod.app(state), container);
 assert.equal(container.querySelectorAll('li')[0], liB, 'key -> keyed(): reorder MOVED the node');
 assert.equal(container.querySelector('em').textContent, 'on', 'conditional toggled in');
 const before = container.querySelector('section');
-render(mod.app(state), container);
+renderInto(mod.app(state), container);
 assert.equal(container.querySelector('section'), before, 'template identity stable across calls');
 
 // ── 3. components: call convention, spread, children ──
 const comp = await compile(PRELUDE + `
 const Chip = ({ tone, children }) => <b class={'chip ' + tone}>{children}</b>;
 export const page = (s) => <div><Chip tone="warm" {...s.extra}>hi {s.who}</Chip></div>;`);
-render(comp.page({ who: 'you', extra: {} }), container);
+renderInto(comp.page({ who: 'you', extra: {} }), container);
 assert.equal(container.querySelector('b').textContent, 'hi you', 'component call + children flatten');
 assert.ok(container.querySelector('b').className.includes('warm'), 'props pass through');
 
@@ -89,7 +89,7 @@ const frag = await compile(PRELUDE + `export const t = (s) => <>
   <i>one</i>
   <i>{'\`'}{s.x} costs \${9}</i>
 </>;`);
-render(frag.t({ x: 'tick' }), container);
+renderInto(frag.t({ x: 'tick' }), container);
 const italics = container.querySelectorAll('i');
 assert.equal(italics.length, 2, 'fragment renders multi-root');
 assert.equal(italics[1].textContent, '`tick costs $9', 'backticks and dollar-brace survive');

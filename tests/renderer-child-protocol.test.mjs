@@ -22,7 +22,7 @@ globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.Node = dom.window.Node;
 
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const into = () => {
   const container = dom.window.document.createElement('div');
@@ -53,7 +53,7 @@ test('a directive renders, keeps its place across renders, and updates asynchron
   const container = into();
   let resolve;
   const promise = new Promise((r) => (resolve = r));
-  const draw = () => render(html`<p>${until(promise, html`<em>loading…</em>`)}</p>`, container);
+  const draw = () => renderInto(html`<p>${until(promise, html`<em>loading…</em>`)}</p>`, container);
 
   draw();
   assert.equal(read(container), '<p><em>loading…</em></p>');
@@ -73,7 +73,7 @@ test('a directive renders, keeps its place across renders, and updates asynchron
 test('a part goes back to an ordinary value afterwards', async () => {
   const container = into();
   const promise = Promise.resolve(html`<b>done</b>`);
-  const draw = (value) => render(html`<p>${value}</p>`, container);
+  const draw = (value) => renderInto(html`<p>${value}</p>`, container);
   draw(until(promise, html`<em>…</em>`));
   await Promise.resolve();
   await Promise.resolve();
@@ -99,7 +99,7 @@ test('two directives at one part do not share state', () => {
     return 'second-state';
   }
   const container = into();
-  const draw = (applier) => render(html`<p>${{ _$child$: applier }}</p>`, container);
+  const draw = (applier) => renderInto(html`<p>${{ _$child$: applier }}</p>`, container);
 
   draw(first);
   draw(second);
@@ -121,7 +121,7 @@ test('a directive keeps its state across its own commits, and loses it when the 
     return (previous ?? 0) + 1;
   }
   const container = into();
-  const draw = (value) => render(html`<p>${value}</p>`, container);
+  const draw = (value) => renderInto(html`<p>${value}</p>`, container);
   const directive = { _$child$: counting };
 
   draw(directive);
@@ -144,7 +144,7 @@ test('a directive keeps its state across its own commits, and loses it when the 
  */
 test('ordinary child values are unaffected', () => {
   const container = into();
-  const draw = (value) => render(html`<p>${value}</p>`, container);
+  const draw = (value) => renderInto(html`<p>${value}</p>`, container);
   draw(html`<i>t</i>`);
   assert.equal(read(container), '<p><i>t</i></p>');
   draw(['a', 'b']);

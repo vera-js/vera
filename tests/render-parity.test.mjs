@@ -355,7 +355,7 @@ const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { spread } = await load('renderer/spread');
 const { hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
@@ -385,7 +385,7 @@ let pass = 0;
 const failures = [];
 for (const name of Object.keys(ALL)) {
   const container = dom.window.document.createElement('div');
-  render(clientTemplates[name](), container);
+  renderInto(clientTemplates[name](), container);
 
   const fromClient = canonical(container);
   const fromServer = parse(server[name]);
