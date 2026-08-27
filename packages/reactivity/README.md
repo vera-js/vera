@@ -85,7 +85,32 @@ site. It derives through anything a store tracks — nested objects, arrays, `Ma
 `WeakSet`.
 
 An evaluation that throws is reported through the `'error'` insert rather than escaping, exactly as
-a hook is.
+a hook is, and `.value` keeps serving the **last good value** — a derivation that fails once does not
+take the render down with it.
+
+## It is eager, not lazy — which is the opposite of the name's usual promise
+
+**A computed evaluates when it is created and re-evaluates on every dependency change, whether or not
+anything reads it.** Vue, Solid and Preact all defer to the read and cache until invalidated; this
+does not. Measured: five writes with no reader at all produce six evaluations.
+
+That is a consequence of how invalidation reaches a component, not an oversight. Reading `.value`
+*subscribes*, so a component re-renders when the computed changes — and knowing it changed means
+having computed it. A lazy computed can only say "I might have changed", which would re-render every
+reader on every dependency write and lose exactly the memoisation this exists for.
+
+The practical consequence, and the reason it is written down here: **an expensive derivation that
+nothing currently reads still costs on every write.** Reads are free and repeated reads are free —
+what is not free is holding a computed nobody is using. If a derivation is expensive and conditional,
+guard the *dependency*, not the read:
+
+```js
+// Runs on every `rows` write, even while the panel is closed.
+const summary = computed(() => expensive(state.rows));
+
+// Runs only while the panel is open.
+const summary = computed(() => (state.panelOpen ? expensive(state.rows) : null));
+```
 
 ## Lifetime
 

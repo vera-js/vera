@@ -110,5 +110,32 @@ const mount = () => {
   check('it reaches the error insert instead', seen.some((e) => e?.message === 'boom'));
 }
 
+/**
+ * **Eager, not lazy** — the opposite of what the name promises everywhere else, so it is asserted
+ * rather than left to be discovered. A computed evaluates at creation and re-evaluates on every
+ * dependency change with no reader at all, because reading `.value` subscribes and a component can
+ * only be told the value *changed* if it has been computed. Documented in the package README.
+ */
+{
+  let runs = 0;
+  const state = core.createStore({ n: 1 });
+  const derived = computed(() => { runs++; return state.n; });
+  check('a computed evaluates at creation, before any read', runs === 1, String(runs));
+  for (let i = 2; i <= 6; i++) state.n = i;
+  check('and on every dependency write with no reader — if this drops, it went lazy', runs === 6, String(runs));
+  check('reading returns the current value', derived.value === 6, String(derived.value));
+  check('and reading does not re-evaluate, which is the memoisation', runs === 6, String(runs));
+}
+
+{
+  const state = core.createStore({ n: 1 });
+  const derived = computed(() => { if (state.n === 2) throw new Error('boom'); return state.n * 2; });
+  check('a computed evaluates normally', derived.value === 2, String(derived.value));
+  state.n = 2;
+  check('a throwing evaluation does not escape, and keeps the last good value', derived.value === 2, String(derived.value));
+  state.n = 3;
+  check('and the next good input recovers', derived.value === 6, String(derived.value));
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
