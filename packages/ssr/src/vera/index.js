@@ -194,9 +194,16 @@ const decodeEntities = (value) =>
  * **How deep a component tree may nest before the server calls it a cycle.**
  *
  * A component that renders itself recurses without bound, and on a server that is a hung request
- * rather than a hung tab, so a limit has to exist. The number is a guess at "deeper than anyone
- * writes by hand", and it is a **divergence from the client**, which has no such limit: a 40-level
- * tree renders in a browser and 500s here. Measured, both sides.
+ * rather than a hung tab, so a limit has to exist. It is a **divergence from the client**, which has
+ * no such limit — measured on both sides.
+ *
+ * **256, raised from 32.** A cycle recurses without bound, so 256 refuses it as surely as 32 did, a
+ * few microseconds later; 32 was low enough for a real tree to reach — router children inside
+ * design-system wrappers inside a card grid — and reaching it meant a 500 for a page that renders
+ * fine in a browser. The ceiling is set *below where the client breaks*: the client managed ~340
+ * levels before `RangeError`, so the server still fails first, and fails with a sentence rather than
+ * a stack overflow. That ~340 is engine- and frame-dependent and not a constant to design against,
+ * which is the argument for an explicit limit rather than waiting for our own stack to go.
  *
  * The client's own floor for a genuine cycle is the JavaScript stack — it built ~340 levels before
  * `RangeError: Maximum call stack size exceeded`, reported through the `'error'` insert. That number
@@ -205,7 +212,7 @@ const decodeEntities = (value) =>
  *
  * Documented in the README, because a hard limit nobody can find is a 500 nobody can explain.
  */
-const MAX_DEPTH = 32;
+const MAX_DEPTH = 256;
 
 /** Tags rendered during the current `renderToString`, so only their styles reach the page shell. */
 const renderedTags = new Set();
