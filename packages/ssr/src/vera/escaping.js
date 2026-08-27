@@ -46,7 +46,14 @@ const ESCAPE = /[&<>"'\r]/g;
 const ESCAPED = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;', '\r': '&#13;' };
 
 export const escapeHtml = (value) => {
-  const text = typeof value === 'string' ? value : String(value);
+  /**
+   * `` `${value}` `` rather than `String(value)`: identical for everything except a **symbol**,
+   * which `String` special-cases into its description while every DOM conversion on the client
+   * throws. Serving `Symbol(s)` into markup the client cannot reproduce is the leniency this
+   * package's README warns about — it does not make anything work, it moves the failure across the
+   * boundary and strips the context.
+   */
+  const text = typeof value === 'string' ? value : `${value}`;
   return NEEDS_ESCAPE.test(text) ? text.replace(ESCAPE, (character) => ESCAPED[character]) : text;
 };
 
@@ -72,7 +79,7 @@ export const escapeHtml = (value) => {
  * security rule is a real risk, so `tests/ssr-escaping.test.mjs` asserts the two agree on the
  * payloads that matter rather than trusting they will be edited together.
  */
-export const escapeStyleText = (value) => String(value).replace(/<\/(style)/gi, '<\\/$1');
+export const escapeStyleText = (value) => `${value}`.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
  * The same neutralisation, for whichever RAWTEXT element the value landed in.
@@ -95,7 +102,7 @@ const RAW_TEXT_CLOSERS = { style: /<\/(style)/gi, script: /<\/(script)/gi };
 
 export const escapeRawText = (value, tag) => {
   const closer = RAW_TEXT_CLOSERS[tag];
-  return closer ? String(value).replace(closer, '<\\/$1') : escapeHtml(value);
+  return closer ? `${value}`.replace(closer, '<\\/$1') : escapeHtml(value);
 };
 
 /**

@@ -448,7 +448,17 @@ const createMarkeredPart = (parent: Node, ref: Node | null) => {
   return new ChildPart(start, end);
 };
 
-const toText = (value: unknown) => (value == null ? '' : String(value));
+/**
+ * Text for an attribute built from several expressions.
+ *
+ * `` `${value}` `` rather than `String(value)`, and the difference is exactly one case. Both are
+ * ToString with hint `'string'` for everything else; `String` alone special-cases a **symbol** and
+ * returns its description instead of throwing. Every single-expression binding assigns straight to
+ * the DOM and gets WebIDL's `DOMString` conversion, which throws on one — so `title=${symbol}` threw
+ * and `title="a ${symbol} b"` quietly rendered `a Symbol(s) b`. The same sigil on the same attribute,
+ * disagreeing with itself depending on whether static text sat beside it.
+ */
+const toText = (value: unknown) => (value == null ? '' : `${value}`);
 
 /** Binding kinds, resolved once from the attribute name's first character. */
 const ATTR = 0; // plain attribute

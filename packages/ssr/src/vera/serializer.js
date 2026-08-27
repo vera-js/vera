@@ -240,6 +240,8 @@ const compile = (strings) => {
   const owners = [];
   /** Which RAWTEXT element each binding sits inside, `''` when none. See `RAWTEXT`. */
   const raws = [];
+  /** Per part: this binding sits inside a quoted attribute value, so the attribute rule applies. */
+  const attrValues = [];
   /**
    * Whether each slot is an **element position** — inside a tag but not inside an attribute value.
    *
@@ -312,6 +314,7 @@ const compile = (strings) => {
       strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);
       raws.push(tagState.rawTag);
+      attrValues.push(false);
       elementPositions.push(false);
       if (sigilName) written.add(sigilName.toLowerCase());
       continue;
@@ -331,6 +334,7 @@ const compile = (strings) => {
       strip.push(false);
       owners.push(owner);
       raws.push(tagState.rawTag);
+      attrValues.push(false);
       elementPositions.push(false);
       continue;
     }
@@ -353,6 +357,7 @@ const compile = (strings) => {
       strip.push(dynamicTag || written.has(name.toLowerCase()));
       owners.push(owner);
       raws.push(tagState.rawTag);
+      attrValues.push(false);
       elementPositions.push(false);
       written.add(name.toLowerCase());
       continue;
@@ -364,6 +369,14 @@ const compile = (strings) => {
     strip.push(false);
     owners.push(owner);
     raws.push(tagState.rawTag);
+    /**
+     * `<p title="a ${x} b">` reaches here as TEXT — the name is in the static, so there is no sigil
+     * and no `name=` tail to match — and it is emitted straight into the stream between the
+     * statics. That made it take the **child-position** rule while `title=${x}` took the attribute
+     * rule, so an array served `a 12 b` where the client, which builds the string and calls
+     * `setAttribute`, produced `a 1,2 b`.
+     */
+    attrValues.push(tagState.inTag && tagState.inValue);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     elementPositions.push(elementPosition);
@@ -375,14 +388,14 @@ const compile = (strings) => {
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names, strip, owners, raws, elementPositions };
+  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners, raws, elementPositions } = plans.get(strings) ?? compile(strings);
+  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions } = plans.get(strings) ?? compile(strings);
   let out = '';
   /**
    * Content that belongs *after* the tag being built rather than inside it — a `<textarea>`'s
@@ -461,6 +474,16 @@ export const serializeTemplate = (template) => {
          * they keep ordinary escaping, which is what the client produces for them too.
          */
         else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
+        /**
+         * **Inside a quoted attribute value, the attribute rule applies** — the same rule
+         * `title=${x}` takes one case below, and for the same reason: the client builds the whole
+         * value as a string and hands it to `setAttribute`, which is ToString and nothing else. The
+         * child-position rule renders a value instead, so an array was iterated into `12` against
+         * the browser's `1,2`, a `Set` into `12` against `[object Set]`, and a function vanished
+         * where the client writes its source. The single-expression form was corrected for exactly
+         * this; the form with static text beside it was reached by a different branch and kept it.
+         */
+        else if (attrValues[i]) out += escapeHtml(serializeValue(value, true));
         else out += serializeValue(value);
         break;
       case BOOLEAN:
@@ -706,7 +729,7 @@ export const serializeValue = (value, raw = false) => {
    * value** against `[object Object]`. Escaped, so not an injection — and still a completely
    * different page before and after hydration.
    */
-  if (raw) return String(value);
+  if (raw) return `${value}`;
   if (Array.isArray(value)) return value.map((entry) => serializeValue(entry)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
@@ -753,5 +776,5 @@ export const serializeValue = (value, raw = false) => {
      * built one.
      */
   }
-  return raw ? String(value) : escapeHtml(value);
+  return raw ? `${value}` : escapeHtml(value);
 };
