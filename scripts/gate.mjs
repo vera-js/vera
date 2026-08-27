@@ -10,6 +10,9 @@
  * Mirrors `ci.yml` so a green run here means a green run there.
  */
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const steps = [
   ['sync-packages', 'npm', ['run', 'check']],
@@ -32,6 +35,21 @@ const steps = [
   ['browser × 3', 'npm', ['run', 'test:browser:all']],
 ];
 
+/**
+ * Lines worth surfacing from anywhere in a failed step's output, not just the end of it.
+ *
+ * The tail is the right default — most tools put their summary last — but `@web/test-runner` does
+ * not: it prints a session's error **above** the per-browser progress bars and the final summary. So
+ * for two occurrences of the random browser failure the one line naming the cause was pushed out of
+ * a twelve-line tail, and the flake stayed undiagnosed for want of output that had existed and been
+ * discarded. A gate that reports a failure it has made unreadable is most of the way to a gate that
+ * reports nothing.
+ */
+const NOTABLE = /\berror\b|timed out|timeout|did not (start|finish)|unable to (create|start)|unhandled|uncaught/i;
+
+/** Kept out of the repo: files appearing and vanishing in the tree are what broke `tests/walk.mjs`. */
+const logPath = (name) => join(tmpdir(), `vera-gate-${name.replace(/[^a-z0-9]+/gi, '-')}-${process.pid}.log`);
+
 let failed = 0;
 for (const [name, command, args] of steps) {
   process.stdout.write(`  ${name.padEnd(22)}`);
@@ -42,8 +60,30 @@ for (const [name, command, args] of steps) {
   }
   failed++;
   console.log('✗');
-  const output = ((run.stdout ?? '') + (run.stderr ?? '')).trimEnd().split('\n').slice(-12);
-  console.log(output.map((line) => `      ${line}`).join('\n'));
+
+  const full = ((run.stdout ?? '') + (run.stderr ?? '')).trimEnd();
+  const lines = full.split('\n');
+  const tail = lines.slice(-12);
+
+  /** Deduped against the tail, so a summary line that already prints is not repeated. */
+  const seen = new Set(tail);
+  const notable = lines.filter((line) => NOTABLE.test(line) && !seen.has(line)).slice(0, 10);
+  if (notable.length) {
+    console.log('      — elsewhere in the output —');
+    console.log(notable.map((line) => `      ${line}`).join('\n'));
+    console.log('      — end of output —');
+  }
+
+  console.log(tail.map((line) => `      ${line}`).join('\n'));
+
+  /** The whole thing, always, because the two filters above are guesses and the file is not. */
+  const path = logPath(name);
+  try {
+    writeFileSync(path, full);
+    console.log(`      full output: ${path}`);
+  } catch (error) {
+    console.log(`      (could not write the full output: ${error.message})`);
+  }
 }
 
 console.log(failed ? `\n  ${failed} step(s) failed.` : '\n  gate clean.');
