@@ -157,7 +157,7 @@ holding its value at the start and at the end.
 
 | | |
 | --- | --- |
-| `init(element, shadowProps?)` | call first in `connectedCallback`. `{ mode: 'open' }` for shadow DOM |
+| `init(element, shadowProps?)` | call first in `connectedCallback`. `{ mode: 'open' }` for shadow DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary) |
 | `render(template?, ...args)` | draw, and commit the setup. See below |
 | `html` | the template tag. Produces a lit-compatible result |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
@@ -207,6 +207,42 @@ write — return `false` to hold the default propagation back) and `'error'` (a 
 **Take `insert` from `@verajs/core`, not from `@verajs/inserts`.** A production bundle inlines the
 registry, so registering through a separately imported copy writes to a map core never reads — it
 works in development and silently does nothing in production.
+
+## ARIA and the shadow boundary
+
+**Every ID-based ARIA relationship resolves within a single tree, so a shadow root breaks it
+silently.** `aria-labelledby`, `aria-describedby` and `<label for>` all match by ID, and IDs do not
+cross a shadow boundary — there is no error and no warning, just an element with no accessible name.
+Verified in Chromium, Firefox and WebKit (`tests/browser/aria-shadow-boundary.test.js`); it is the
+platform's rule, not this framework's.
+
+```js
+// Broken: the label is in the page, the input is in the shadow root.
+<label for="email">Email</label>
+<my-field></my-field>            //  init(this, { mode: 'open' }); render(() => html`<input id="email">`)
+```
+
+Three ways through, in the order worth reaching for:
+
+1. **Keep the relationship inside one root.** Render the label and the control in the same template.
+   This is the common case and needs nothing special.
+2. **Put the ARIA on the host with `ElementInternals`.** The host lives in the outer tree, so a role
+   and an accessible name set there are visible to the page and need no ID at all:
+
+   ```js
+   connectedCallback() {
+     this._internals ??= this.attachInternals();
+     this._internals.role = 'button';
+     this._internals.ariaLabel = 'Save';
+     init(this, { mode: 'open' });
+   }
+   ```
+3. **Use light DOM** — omit the second argument to `init` — when a component's whole job is to
+   participate in relationships the page owns. Style isolation is what you give up; `static styles`
+   still works, hoisted once per class.
+
+`delegatesFocus: true` is the related shadow option: it makes the host focusable and forwards focus
+to the first focusable child, which is what a custom control usually wants.
 
 ## Two things that will bite you
 

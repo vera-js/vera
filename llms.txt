@@ -409,6 +409,14 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
 - Bindings inside comments are not supported (values consumed, ignored).
+- **ARIA does not cross a shadow boundary.** `aria-labelledby`, `aria-describedby` and `<label for>`
+  all match by ID, and IDs are scoped to their tree — so a page-level label cannot name a control
+  inside `init(this, { mode: 'open' })`. No error, no warning, no accessible name. Three ways through:
+  keep the relationship inside one template; put a role and name on the **host** with
+  `ElementInternals` (`this.attachInternals()` before `init`, which does not clobber it); or use light
+  DOM (`init(this)` with no second argument), where `static styles` still applies, hoisted per class.
+  `delegatesFocus: true` forwards host focus to the first focusable child. All verified in Chromium,
+  Firefox and WebKit — `tests/browser/aria-shadow-boundary.test.js`.
 - `@event` accepts **both shapes `addEventListener` accepts** — a function (called with the element
   as `this`), or an object with a `handleEvent` method. The listener is registered once, so swapping
   the handler never churns the DOM. `undefined`, `null` and `false` mean no handler, so
