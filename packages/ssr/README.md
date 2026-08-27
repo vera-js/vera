@@ -108,6 +108,23 @@ describe.
   root stays after it, and both survive every re-render — so a component that mixes `render()` with
   its own `appendChild` produces the same DOM on both sides. It also means `children` reach a
   light-DOM component and are still there after it renders.
+- **A carriage return survives, as `&#13;`.** The HTML input-stream preprocessor collapses CR and
+  CRLF to a single LF *before* tokenization, so a raw `\r` written into markup does not come back —
+  the server would render `a\r\nb` and the client read `a\nb`, which is a silent hydration mismatch
+  on every render of a `<textarea>` value, a CSV cell, or any string from a Windows-authored source.
+  Character references are resolved *after* preprocessing, so the escaped form does survive; verified
+  identical in Chromium, Firefox and WebKit.
+- **Two characters cannot survive a server round trip at all, and are the only two.**
+  - **NUL** (`\u0000`) is dropped in text and rewritten to U+FFFD in an attribute, and `&#0;` is a
+    parse error that also yields U+FFFD. No spelling round-trips, so it is left alone rather than
+    silently turned into U+FFFD — that would make the markup lie about what the component rendered
+    without making the two sides agree.
+  - **A lone surrogate** (`\uD800` with no pair) is not encodable in UTF-8, so the *transport*
+    replaces it with U+FFFD — a real HTTP response does exactly what `Buffer.toString('utf8')` does.
+    Nothing server-side can prevent that.
+
+  Both are covered by `tests/ssr-text-boundary.test.mjs`, alongside astral pairs, combining marks,
+  bidi controls, noncharacters and 20 other cases that *do* round-trip exactly.
 - **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
   an `aria-*`, a class, a reflected property.
 - **`<style>` and `<script>` content is written raw**, and their own end tags are neutralised

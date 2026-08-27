@@ -8,9 +8,9 @@
  * `.a > .b` shipped a broken stylesheet until that was understood.
  */
 
-const NEEDS_ESCAPE = /[&<>"']/;
+const NEEDS_ESCAPE = /[&<>"'\r]/;
 
-const ESCAPE = /[&<>"']/g;
+const ESCAPE = /[&<>"'\r]/g;
 
 /**
  * Escaping is the hottest thing in a large render, and most values have nothing to escape.
@@ -21,8 +21,29 @@ const ESCAPE = /[&<>"']/g;
  * a 100-row table of clean data that is a quarter of the whole render.
  */
 
-/** Precomputed, because building `'&#' + c.charCodeAt(0) + ';'` per character is the slow half. */
-const ESCAPED = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;' };
+/**
+ * **Carriage return is here for correctness, not for safety.**
+ *
+ * The HTML input-stream preprocessor rewrites CR and CRLF to a single LF *before* tokenization, so a
+ * raw `\r` written into markup does not survive being parsed — the server renders `a\r\nb` and the
+ * client reads back `a\nb`. Nothing is injected and nothing looks wrong; the two sides simply hold
+ * different strings, which is a hydration mismatch on every render of anything carrying a Windows
+ * newline: a `<textarea>` value, a CSV cell, a string from an HTTP payload.
+ *
+ * Character references are resolved *after* preprocessing, so `&#13;` does survive. **Verified in
+ * Chromium, Firefox and WebKit**, all three identical: raw CRLF parses to `[97, 10, 98]` and
+ * `a&#13;\nb` parses to `[97, 13, 10, 98]`, in text and in attribute values alike.
+ *
+ * **NUL is the other character the preprocessor rewrites, and it is not fixable here.** A raw NUL is
+ * dropped in text and becomes U+FFFD in an attribute, and `&#0;` is a parse error that also becomes
+ * U+FFFD — there is no spelling that round-trips, so a string containing NUL cannot be server
+ * rendered faithfully by anyone. It is listed as a limitation in the README rather than silently
+ * transformed here, because turning it into U+FFFD would make the markup lie about what the
+ * component rendered without making the two sides agree.
+ *
+ * Precomputed, because building `'&#' + c.charCodeAt(0) + ';'` per character is the slow half.
+ */
+const ESCAPED = { '&': '&#38;', '<': '&#60;', '>': '&#62;', '"': '&#34;', "'": '&#39;', '\r': '&#13;' };
 
 export const escapeHtml = (value) => {
   const text = typeof value === 'string' ? value : String(value);
