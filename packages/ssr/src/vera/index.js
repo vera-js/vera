@@ -190,6 +190,21 @@ const decodeEntities = (value) =>
     code ? String.fromCharCode(Number(code)) : (NAMED_ENTITIES[name] ?? match)
   );
 
+/**
+ * **How deep a component tree may nest before the server calls it a cycle.**
+ *
+ * A component that renders itself recurses without bound, and on a server that is a hung request
+ * rather than a hung tab, so a limit has to exist. The number is a guess at "deeper than anyone
+ * writes by hand", and it is a **divergence from the client**, which has no such limit: a 40-level
+ * tree renders in a browser and 500s here. Measured, both sides.
+ *
+ * The client's own floor for a genuine cycle is the JavaScript stack — it built ~340 levels before
+ * `RangeError: Maximum call stack size exceeded`, reported through the `'error'` insert. That number
+ * is engine- and frame-dependent and cannot be relied on, which is the argument for the server
+ * having an explicit limit rather than waiting for its own stack to go.
+ *
+ * Documented in the README, because a hard limit nobody can find is a 500 nobody can explain.
+ */
 const MAX_DEPTH = 32;
 
 /** Tags rendered during the current `renderToString`, so only their styles reach the page shell. */
@@ -210,7 +225,13 @@ const entryTags = new Map();
  * as strings right after each opening tag. Recursion covers components rendered by components.
  */
 const renderComponentTags = (markup, depth) => {
-  if (depth > MAX_DEPTH) throw new Error(`ssr: component nesting exceeded ${MAX_DEPTH} (cycle?)`);
+  if (depth > MAX_DEPTH)
+    throw new Error(
+      `ssr: component nesting exceeded ${MAX_DEPTH} levels. A component that renders itself ` +
+        `recurses without bound, and on a server that is a hung request — so this refuses rather ` +
+        `than waiting for the stack to go.\nIf the tree is genuinely this deep it renders fine in a ` +
+        `browser, which has no such limit; that difference is in the @verajs/ssr README.`
+    );
   /** No dash, no custom element — cheaper to ask than to walk the string and find nothing. */
   if (!markup.includes('-')) return markup;
 

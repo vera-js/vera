@@ -108,6 +108,12 @@ describe.
   root stays after it, and both survive every re-render — so a component that mixes `render()` with
   its own `appendChild` produces the same DOM on both sides. It also means `children` reach a
   light-DOM component and are still there after it renders.
+- **Component nesting is capped at 32 levels, and the client has no such cap.** A component that
+  renders itself recurses without bound, which on a server is a hung request rather than a hung tab,
+  so `renderToString` refuses past 32 and says so. This is a real divergence, measured on both sides:
+  a 40-level tree renders in a browser and throws here. The client's own floor for a genuine cycle is
+  the JavaScript stack — about 340 levels before `RangeError`, reported through the `'error'` insert —
+  and that number is engine-dependent, which is why the server does not wait for it.
 - **A carriage return survives, as `&#13;`.** The HTML input-stream preprocessor collapses CR and
   CRLF to a single LF *before* tokenization, so a raw `\r` written into markup does not come back —
   the server would render `a\r\nb` and the client read `a\nb`, which is a silent hydration mismatch
