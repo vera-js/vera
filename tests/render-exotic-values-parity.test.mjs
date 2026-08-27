@@ -28,9 +28,29 @@ const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true 
 for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment', 'Element'])
   globalThis[key] = dom.window[key];
 
+/**
+ * **Order matters, and getting it wrong makes this suite assert nothing.** Importing `@verajs/ssr`
+ * installs its own DOM over the globals — `globalThis.document` is *replaced*, and its elements hold
+ * children as a string, so `querySelector` on one answers null rather than throwing. A comparison
+ * written against the bare global after that line is the shim against itself, reading `null` for
+ * everything and agreeing perfectly.
+ *
+ * So the renderer is loaded **first**, capturing jsdom's document at its module scope, and every
+ * host below comes from `dom.window` rather than the global. The guard test right after this makes
+ * that structural rather than remembered.
+ */
 const { renderInto } = await load('renderer');
 const { html } = await load('core');
 const { serializeTemplate } = await import('@verajs/ssr/vera');
+
+test('the client half is a real DOM, not the SSR shim that just replaced the global one', () => {
+  assert.notEqual(globalThis.document, dom.window.document,
+    'the SSR shim did not install — if that changes, re-check what this suite is comparing');
+  const probe = dom.window.document.createElement('div');
+  probe.innerHTML = '<p title="a">x</p>';
+  assert.ok(probe.querySelector('p'), 'the client half must be jsdom; the shim answers null here');
+  assert.equal(probe.querySelector('p').getAttribute('title'), 'a');
+});
 
 class Stringy {
   toString() { return 'STRINGY'; }
@@ -154,4 +174,53 @@ test('a symbol is refused by both sides, in every position that converts one', (
   }
   assert.equal(onServer(POSITIONS['a boolean attribute'], Symbol('s')).hidden, true);
   assert.equal(onClient(POSITIONS['a boolean attribute'], Symbol('s')).hidden, true);
+});
+
+/**
+ * `value` is the only **string** form property the server writes, and the three elements that carry
+ * one do not share an IDL. Measured in Chromium, Firefox and WebKit rather than assumed — see
+ * `tests/browser/form-property-coercion.test.js` — because four elements with a property of the same
+ * name meaning three different things is exactly the shape a code read gets wrong.
+ *
+ * `null` and `undefined` are **not** interchangeable here, and a `== null` test is what collapsed
+ * them: `[LegacyNullToEmptyString]` makes `null` the empty string on `<input>` and `<textarea>` and
+ * nothing else does, while `undefined` is the text `"undefined"` on all of them.
+ */
+const FORM_VALUES = [
+  ['true', true],
+  ['false', false],
+  ['null', null],
+  ['undefined', undefined],
+  ['zero', 0],
+  ['the empty string', ''],
+  ['an array', [1, 2]],
+];
+
+for (const [tag, build] of [
+  ['input', (value) => html`<input .value=${value}>`],
+  ['textarea', (value) => html`<textarea .value=${value}></textarea>`],
+  ['option', (value) => html`<select><option .value=${value}>label</option></select>`],
+]) {
+  for (const [label, value] of FORM_VALUES) {
+    test(`${tag}.value: server and client agree on ${label}`, () => {
+      /** The same IDL property on both sides — an attribute against a property is not a comparison. */
+      const serverHost = dom.window.document.createElement('div');
+      serverHost.innerHTML = serializeTemplate(build(value));
+      const clientHost = dom.window.document.createElement('div');
+      renderInto(build(value), clientHost);
+      assert.equal(serverHost.querySelector(tag).value, clientHost.querySelector(tag).value);
+    });
+  }
+}
+
+test('a boolean form property still takes truthiness, which is a different rule again', () => {
+  for (const [label, value, expected] of [['a string', 'anything', true], ['zero', 0, false], ['null', null, false]]) {
+    const build = (v) => html`<input type="checkbox" .checked=${v}>`;
+    const serverHost = dom.window.document.createElement('div');
+    serverHost.innerHTML = serializeTemplate(build(value));
+    const clientHost = dom.window.document.createElement('div');
+    renderInto(build(value), clientHost);
+    assert.equal(serverHost.querySelector('input').checked, expected, `server, ${label}`);
+    assert.equal(clientHost.querySelector('input').checked, expected, `client, ${label}`);
+  }
 });

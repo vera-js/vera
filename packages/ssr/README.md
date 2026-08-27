@@ -114,15 +114,29 @@ describe.
   sit *below where the client breaks*: the client managed about 340 levels before `RangeError`
   (reported through the `'error'` insert), so the server still fails first and fails with a sentence.
   That ~340 is engine-dependent, which is why the server does not wait for it.
-- **A carriage return survives, as `&#13;`.** The HTML input-stream preprocessor collapses CR and
-  CRLF to a single LF *before* tokenization, so a raw `\r` written into markup does not come back —
-  the server would render `a\r\nb` and the client read `a\nb`, which is a silent hydration mismatch
-  on every render of a `<textarea>` value, a CSV cell, or any string from a Windows-authored source.
-  Character references are resolved *after* preprocessing, so the escaped form does survive; verified
-  identical in Chromium, Firefox and WebKit.
-- **Two characters cannot survive a server round trip at all, and are the only two.**
-  - **NUL** (`\u0000`) is dropped in text and rewritten to U+FFFD in an attribute, and `&#0;` is a
-    parse error that also yields U+FFFD. No spelling round-trips, so it is left alone rather than
+- **A carriage return survives, as `&#13;` — everywhere except `<style>` and `<script>`.** The HTML
+  input-stream preprocessor collapses CR and CRLF to a single LF *before* tokenization, so a raw
+  `\r` written into markup does not come back — the server would render `a\r\nb` and the client read
+  `a\nb`, which is a silent hydration mismatch on every render of a `<textarea>` value, a CSV cell, or
+  any string from a Windows-authored source. Character references are resolved *after* preprocessing,
+  so the escaped form does survive; verified identical in Chromium, Firefox and WebKit.
+
+  **RAWTEXT is the exception, and it is not fixable.** A browser does not decode a character
+  reference inside `<style>` or `<script>` — that is what makes them RAWTEXT — so `&#13;` there is
+  the literal six characters, while the preprocessor still collapses the raw CR. There is no spelling
+  of a carriage return that survives in those two elements. `<title>` and `<textarea>` are RCDATA,
+  which *does* decode references, which is why they round-trip correctly. All three behaviours are
+  asserted against Chromium, Firefox and WebKit in `tests/browser/rawtext-carriage-return.test.js`.
+
+  In practice this reaches an interpolated stylesheet or inline script whose source has Windows line
+  endings — a repository checked out with `core.autocrlf=true` puts CRLF inside every template
+  literal, `css` blocks included. CR and LF are interchangeable whitespace to both CSS and
+  JavaScript, so nothing renders wrongly; the two sides simply hold different strings.
+- **Three things cannot survive a server round trip, and are the only three.** Two are characters and
+  one is a character in a position — see the carriage return above, which round-trips everywhere
+  except inside `<style>` and `<script>`.
+  - **NUL** (`\u0000`) is dropped in text, rewritten to U+FFFD in an attribute **and inside
+    RAWTEXT**, and `&#0;` is a parse error that also yields U+FFFD. No spelling round-trips, so it is left alone rather than
     silently turned into U+FFFD — that would make the markup lie about what the component rendered
     without making the two sides agree.
   - **A lone surrogate** (`\uD800` with no pair) is not encodable in UTF-8, so the *transport*

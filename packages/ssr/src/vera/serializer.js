@@ -499,15 +499,40 @@ export const serializeTemplate = (template) => {
          * content goes; see `pendingText` below.
          */
         if (owners[i] === 'textarea' && names[i] === 'value') {
-          pendingText = value == null || value === false ? '' : escapeHtml(value === true ? '' : value);
+          /**
+           * `null` and `undefined` are **not** the same value here, and treating them as one is what
+           * this used to do. `value` carries `[LegacyNullToEmptyString]` in its IDL, so assigning
+           * `null` gives `''` while `undefined` goes through the ordinary ToString and gives the text
+           * `"undefined"` — measured in Chromium, Firefox and WebKit, since that is the platform's
+           * rule and not this package's to guess. A `== null` test collapses them.
+           *
+           * The booleans used to be emptied too, which disagreed with `<input>` **one branch below**
+           * — the same property, on the same rule, serialized by a different branch: `true` served an
+           * empty `<textarea>` against the browser's `true`.
+           */
+          pendingText = value === null ? '' : escapeHtml(value);
           break;
         }
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (BOOLEAN_FORM_PROPERTIES.has(names[i])) {
           if (value) out += ` ${names[i]}=""`;
-        } else if (value != null) {
-          /** A string property: `true` is `"true"`, exactly as assigning it to the element gives. */
-          out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
+        } else if (value !== null || owners[i] === 'option') {
+          /**
+           * A string property: `true` is `"true"`, exactly as assigning it to the element gives.
+           *
+           * Three rules, not one, and they were measured rather than assumed:
+           *
+           * - `<input>` and `<textarea>` carry `[LegacyNullToEmptyString]`, so `null` means the empty
+           *   string. Omitting the attribute is how markup says that — a parsed `<input>` with no
+           *   `value` answers `''`.
+           * - `<option>` does **not**. `option.value = null` is the text `"null"` in every engine, and
+           *   omitting the attribute is worse than wrong there: `option.value` then falls back to the
+           *   element's own text.
+           * - `undefined` is never the empty string on any of them. It is `"undefined"`, which looks
+           *   like a bug because it *is* one — but it is the client's bug too, and the two sides
+           *   disagreeing about it is a hydration mismatch on top of it.
+           */
+          out += ` ${names[i]}="${escapeHtml(value)}"`;
         }
         break;
       case ATTRIBUTE:
@@ -664,7 +689,7 @@ const foldSpread = (out, entries) => {
      * this one was not: a spread key means what the written binding means, always.
      */
     if (kind === 'p' && owner === 'textarea' && name === 'value') {
-      text = value == null || value === false ? '' : escapeHtml(value === true ? '' : value);
+      text = value === null ? '' : escapeHtml(value);
       continue;
     }
 
@@ -680,11 +705,22 @@ const foldSpread = (out, entries) => {
      */
     if (kind === 'b' || (kind === 'p' && BOOLEAN_FORM_PROPERTIES.has(name))) {
       if (value) added += ` ${name}=""`;
+    } else if (kind === 'p') {
+      /**
+       * **A string form property and a plain attribute are no longer the same rule**, which is why
+       * this branch split. An attribute is removed by either nullish value — the renderer's own
+       * documented behaviour, matching lit, on both sides. A `value` property is not: its IDL carries
+       * `[LegacyNullToEmptyString]` on `<input>` and `<textarea>`, so `null` alone means the empty
+       * string, `undefined` is the text `"undefined"`, and `<option>` has neither rule and takes
+       * `"null"`. Written and spread must agree about all of it —
+       * `tests/ssr-spread-equivalence.test.mjs` is what caught this one, and it caught it the same
+       * afternoon the written form was corrected.
+       */
+      if (value !== null || owner === 'option') added += ` ${name}="${escapeHtml(value)}"`;
     } else if (value != null) {
       /**
-       * An attribute and a string form property behave identically: anything not nullish is
-       * `String(value)`. `false` is `"false"` and `true` is `"true"`, because that is what
-       * `setAttribute` and a property assignment both produce.
+       * A plain attribute takes anything not nullish and is removed by either nullish value.
+       * `false` is `"false"` and `true` is `"true"`, because that is what `setAttribute` produces.
        */
       added += ` ${name}="${escapeHtml(serializeValue(value, true))}"`;
     }

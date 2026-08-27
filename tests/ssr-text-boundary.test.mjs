@@ -124,3 +124,62 @@ test('the two exceptions are documented, and neither is an injection', () => {
   assert.doesNotMatch(serverMarkup, /<script/i, 'and nothing in this set escapes the text boundary');
   assert.doesNotMatch(serverMarkup, /<\/style>/i);
 });
+
+/**
+ * **RAWTEXT is the branch the carriage-return fix above could not reach.**
+ *
+ * A browser does not decode a character reference inside `<style>` or `<script>` — that is what
+ * makes them RAWTEXT — so `&#13;` there is six literal characters, while the input-stream
+ * preprocessor still collapses the raw CR. There is no spelling that survives, which puts this
+ * beside NUL and the lone surrogate rather than beside the fix. `<title>` and `<textarea>` are
+ * RCDATA, which *does* decode references, which is why those round-trip.
+ *
+ * Asserted as a **divergence**, deliberately: if someone ever finds a representation this goes red
+ * and says to update the README, which is how a documented limitation stops being documented on
+ * purpose rather than by drift. The engines' half of the rule — that all three collapse it, and that
+ * none of them decodes a reference there — is `tests/browser/rawtext-carriage-return.test.js`,
+ * because a parser decision is never jsdom's to make.
+ */
+const rawtextMarkup = execFileSync(
+  process.execPath,
+  [
+    '--conditions',
+    'development',
+    '-e',
+    `import('@verajs/ssr/vera').then(async ({ renderToString }) => {
+       const { html } = await renderToString(new URL('./tests/fixtures/ssr/rawtext-cr.js', 'file://${root}'), { tag: 't-rawtext' });
+       process.stdout.write(html);
+     })`,
+  ],
+  { cwd: root, encoding: 'utf8', maxBuffer: 1 << 24 }
+);
+
+test('a carriage return cannot survive inside style or script, and the README says so', () => {
+  const cr = String.fromCharCode(13);
+  /** ONE parse, for the reason at the top of this file. */
+  const rawDoc = new JSDOM(`<!doctype html><body>${rawtextMarkup}</body>`).window.document;
+  const rawTemplate = rawDoc.querySelector('template');
+  const rawScope = rawTemplate ? rawTemplate.content : rawDoc;
+
+  assert.ok(rawtextMarkup.includes(cr), 'the server wrote a real CR — it has nothing else to write');
+
+  for (const tag of ['style', 'script']) {
+    const served = rawScope.querySelector(tag);
+    assert.ok(served, `${tag} is missing from the server's markup`);
+    assert.equal(served.textContent, 'a\nb', `${tag}: the parser collapses the CR the server wrote`);
+
+    const host = document.createElement('div');
+    renderInto(tag === 'style' ? html`<style>a${cr}b</style>` : html`<script>a${cr}b</script>`, host);
+    assert.equal(host.querySelector(tag).textContent, `a${cr}b`, `${tag}: the client keeps it`);
+  }
+
+  const readme = readFileSync(new URL('../packages/ssr/README.md', import.meta.url), 'utf8');
+  assert.ok(
+    readme.includes('RAWTEXT is the exception, and it is not fixable'),
+    'the SSR README must document that a CR cannot round-trip inside style or script'
+  );
+  assert.ok(
+    readme.includes('Three things cannot survive a server round trip'),
+    'and must count it among the things that cannot round-trip'
+  );
+});
