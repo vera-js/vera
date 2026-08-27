@@ -49,9 +49,15 @@ const warnNoCollections = (obj: object) => {
  *
  * It runs on every property read of every store, so a `Map.get` with a string key is paid per
  * property access. Measured on `bench/reactivity.mjs`, the lookup was worth **13%** of a tracked
- * flat read (150 → 131 ns/op) and 9% at two hops — too much to spend re-answering a question that
- * changes once per app. The write chain is deliberately *not* cached: a write is 865 ns, so the
- * same lookup is noise there and the cache would cost bytes for nothing measurable.
+ * flat read and 9% at two hops — too much to spend re-answering a question that changes once per
+ * app. The write chain is deliberately *not* cached: **a write costs several times a tracked read**,
+ * so the same lookup is noise there and the cache would cost bytes for nothing measurable.
+ *
+ * The ratio is quoted rather than the ns/op figures this comment used to carry (150 → 131, and 865
+ * for a write). Those were true of one machine and drifted to 59 and 389 with nothing to catch it,
+ * while the read-to-write ratio was 6.6x when written and 6.6x when re-measured — the absolutes
+ * belong to the machine and the ratio belongs to the design. `tests/perf-claims.test.mjs` asserts
+ * the ratios, because a number with no generator behind it is a number that will be wrong.
  *
  * `revision` is a live binding that every registration bumps, so a chain wired after the first read
  * is picked up on the next one. Caching the array itself is safe because a chain is mutated in
@@ -281,9 +287,14 @@ const createHandler = <T extends object>(
          * what comes back is the raw value rather than a proxy. This is what `shallowRef` is for and
          * it previously did nothing, because only the returned value was checked and never the owner.
          *
-         * The cost of getting this wrong is large. Holding a 1 000-row list in a deep store made a
-         * single render pass over it 2.6 ms against 0.041 ms for a plain array — 63x, paid on every
-         * render, for objects that never mutate.
+         * The cost of getting this wrong is large, and larger than this comment used to claim: a
+         * single pass over a 1 000-row list held in a deep store measures **~300x** a plain array or
+         * a `shallowRef`, paid on every render, for objects that never mutate. The comment said 63x,
+         * from an older machine and with nothing regenerating it.
+         *
+         * `tests/perf-claims.test.mjs` asserts the ratio at 20x — far below what is measured, and far
+         * enough above 1x to fail loudly if `_ignore` stops being honoured, which is exactly what
+         * happened the first time.
          */
         if ((obj as StoreProxyKeys)._ignore === true) {
           addCallback(obj, prop);
@@ -387,8 +398,9 @@ const createHandler = <T extends object>(
          * handler means it has taken responsibility and the default below is skipped.
          */
         /**
-         * Not cached, unlike the read chain. A write is 865 ns against a tracked read's 131, so the
-         * same `Map.get` is noise here and the cache would cost bytes for nothing measurable.
+         * Not cached, unlike the read chain. A write costs several times a tracked read — 6.6x when
+         * this was written and 6.6x when re-measured, on machines whose absolutes differ by 2.2x — so
+         * the same `Map.get` is noise here and the cache would cost bytes for nothing measurable.
          */
         let deferred = false;
         inserts.get('set-handler')?.forEach((insertCallback) => {
