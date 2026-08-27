@@ -16,8 +16,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { walkFiles, readIfPresent } from './walk.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
@@ -34,15 +35,7 @@ for (const entry of readdirSync(join(root, 'packages'))) {
 
 /** Every `.md`, `.txt` and `.html` in the tree, minus dependencies and build output. */
 const docs = [];
-const walk = (dir) => {
-  for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'dist' || entry === '.git' || entry === 'internal') continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full);
-    else if (/\.(md|txt|html)$/.test(entry)) docs.push(full);
-  }
-};
-walk(root);
+docs.push(...walkFiles(root, /\.(md|txt|html)$/));
 
 test('every @verajs package this repo publishes has a version to check against', () => {
   assert.ok(Object.keys(versions).length >= 8, `found ${Object.keys(versions).length} published packages`);
@@ -51,7 +44,10 @@ test('every @verajs package this repo publishes has a version to check against',
 test('a CDN URL in the docs pins the version this repo publishes', () => {
   const problems = [];
   for (const file of docs) {
-    for (const [url, name, pinned] of readFileSync(file, 'utf8').matchAll(
+    const text = readIfPresent(file);
+    /** Gone between the walk and the read; a file that is not there pins nothing. */
+    if (text === null) continue;
+    for (const [url, name, pinned] of text.matchAll(
       /https:\/\/[^"'\s)]*\/(@verajs\/[a-z-]+)@(\d+\.\d+\.\d+)[^"'\s)]*/g
     )) {
       const current = versions[name];

@@ -14,20 +14,15 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { relative } from 'node:path';
+import { walkFiles, readIfPresent } from './walk.mjs';
 
 const root = new URL('../packages', import.meta.url).pathname;
 const sources = [];
-const walk = (dir) => {
-  for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'dist') continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full);
-    else if (/\.(ts|js)$/.test(entry) && !entry.endsWith('.d.ts')) sources.push(full);
-  }
-};
-walk(root);
+sources.push(
+  ...walkFiles(root, /\.(ts|js)$/, { ignore: ['node_modules', 'dist'] }).filter((file) => !file.endsWith('.d.ts'))
+);
 
 /**
  * The call and its first template literal, which is where a prefix would be. Multi-line calls are
@@ -39,7 +34,9 @@ test('every console.warn and console.error is prefixed [vera]', () => {
   assert.ok(sources.length > 15, `expected to find the sources, found ${sources.length}`);
   const problems = [];
   for (const file of sources) {
-    const text = readFileSync(file, 'utf8');
+    const text = readIfPresent(file);
+    /** Gone between the walk and the read. */
+    if (text === null) continue;
     for (const match of text.matchAll(CONSOLE_CALL)) {
       const message = match[2] ?? match[3] ?? match[4] ?? '';
       /**

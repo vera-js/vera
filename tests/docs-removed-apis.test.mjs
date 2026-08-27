@@ -25,8 +25,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { relative } from 'node:path';
+import { walkFiles, readIfPresent } from './walk.mjs';
 
 /** Name -> what to use instead, so the failure carries the fix rather than just the complaint. */
 const REMOVED = {
@@ -47,24 +47,22 @@ const HISTORICAL = /\b(was|were|used to|no longer|removed|replaced|previously|un
 
 const root = new URL('..', import.meta.url).pathname;
 const docs = [];
-const walk = (dir) => {
-  for (const entry of readdirSync(dir)) {
-    /** `internal/` is a different repository; changelogs describe releases, not the current API. */
-    if (['node_modules', 'dist', 'internal', '.changeset'].includes(entry) || entry.startsWith('.')) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full);
-    /**
-     * **Example source and fixture markup count as documentation**, because that is what they are
-     * for: `CLAUDE.md` calls the examples the place to experiment by hand, and a page in
-     * `tests/browser/fixtures` is the buildless recipe someone copies. A removed API taught in a
-     * `.js` comment or an inline `<script>` teaches it just as effectively as one in a README, and
-     * nothing read those. (The two live mentions of `connectInserts` are both in the past tense and
-     * exempt under `HISTORICAL`, which is the rule working rather than an accident.)
-     */
-    else if (/\.(md|txt|html|js|jsx|mjs|ts)$/.test(entry) && !/CHANGELOG/i.test(entry)) docs.push(full);
-  }
-};
-walk(root);
+/**
+ * **Example source and fixture markup count as documentation**, because that is what they are for:
+ * `CLAUDE.md` calls the examples the place to experiment by hand, and a page in
+ * `tests/browser/fixtures` is the buildless recipe someone copies. A removed API taught in a `.js`
+ * comment or an inline `<script>` teaches it just as effectively as one in a README, and nothing
+ * read those. (The two live mentions of `connectInserts` are both in the past tense and exempt under
+ * `HISTORICAL`, which is the rule working rather than an accident.)
+ *
+ * `internal/` is a different repository; changelogs describe releases, not the current API.
+ */
+docs.push(
+  ...walkFiles(root, /\.(md|txt|html|js|jsx|mjs|ts)$/, {
+    ignore: ['node_modules', 'dist', 'internal', '.changeset'],
+    skipDotDirs: true,
+  }).filter((file) => !/CHANGELOG/i.test(file))
+);
 
 test('no documentation teaches an API that was removed', () => {
   assert.ok(docs.length > 10, `expected to find the docs, found ${docs.length}`);
@@ -78,7 +76,10 @@ test('no documentation teaches an API that was removed', () => {
      * read whole, because there the prose *is* the file.
      */
     const isSource = /\.(js|jsx|mjs|ts)$/.test(file);
-    const lines = readFileSync(file, 'utf8')
+    const source = readIfPresent(file);
+    /** Gone between the walk and the read; it cannot be teaching anything now. */
+    if (source === null) continue;
+    const lines = source
       .split('\n')
       .map((line) => (!isSource || /^\s*(\/\/|\/\*|\*)/.test(line) ? line : ''));
     /** Paragraph bounds, so a marker anywhere in the same block of prose counts. */

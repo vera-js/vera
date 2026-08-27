@@ -26,8 +26,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { relative } from 'node:path';
+import { walkFiles, readIfPresent } from './walk.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
@@ -63,15 +63,12 @@ const HISTORICAL = /\b(was|were|used to|no longer|renamed|previously|until|befor
 const FOREIGN_RENDER = new Set(['bench/size.mjs', 'bench/dom/impls.js', 'bench/renderer-vs-lit.mjs']);
 
 const files = [];
-const walk = (dir) => {
-  for (const entry of readdirSync(dir)) {
-    if (['node_modules', 'dist', 'internal', '.changeset'].includes(entry) || entry.startsWith('.')) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full);
-    else if (/\.(md|txt|html|js|jsx|mjs|ts|tsx)$/.test(entry) && !/CHANGELOG/i.test(entry)) files.push(full);
-  }
-};
-walk(root);
+files.push(
+  ...walkFiles(root, /\.(md|txt|html|js|jsx|mjs|ts|tsx)$/, {
+    ignore: ['node_modules', 'dist', 'internal', '.changeset'],
+    skipDotDirs: true,
+  }).filter((file) => !/CHANGELOG/i.test(file))
+);
 
 const self = (file) => file.endsWith('docs-moved-render.test.mjs');
 
@@ -80,7 +77,8 @@ test('nothing binds `render` from a renderer entry', () => {
   const problems = [];
   for (const file of files) {
     if (self(file)) continue;
-    const text = readFileSync(file, 'utf8');
+    const text = readIfPresent(file);
+    if (text === null) continue;
     for (const match of text.matchAll(BINDING)) {
       const [clause, ...specifiers] = [match[1], match[2], match[3], match[4]];
       const specifier = specifiers.find(Boolean);
@@ -99,7 +97,9 @@ test('no prose teaches `render(result, container)`', () => {
   for (const file of files) {
     const relativePath = relative(root, file);
     if (self(file) || FOREIGN_RENDER.has(relativePath)) continue;
-    readFileSync(file, 'utf8')
+    const text = readIfPresent(file);
+    if (text === null) continue;
+    text
       .split('\n')
       .forEach((line, i) => {
         if (TWO_ARG.test(line) && !HISTORICAL.test(line)) problems.push(`${relativePath}:${i + 1}  ${line.trim()}`);

@@ -17,8 +17,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+
+import { walkFiles, readIfPresent } from './walk.mjs';
 import { JSDOM } from 'jsdom';
 import { distUrl, isProduction, NO_PRODUCTION_BUILD } from './dist.mjs';
 
@@ -62,18 +62,14 @@ const SOURCE_PACKAGES = {
 
 const root = new URL('..', import.meta.url).pathname;
 const docs = [];
-const walk = (dir) => {
-  for (const entry of readdirSync(dir)) {
-    /** `internal/` is a separate private repo cloned in here, and is not documentation of this one. */
-    if (['node_modules', 'dist', '.git', 'internal', '.wireit', '.changeset'].includes(entry)) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full);
-    else if (/\.(md|txt)$/.test(entry) && !/CHANGELOG/i.test(entry)) docs.push(full);
-  }
-};
-walk(root);
+/** `internal/` is a separate private repo cloned in here, and is not documentation of this one. */
+docs.push(
+  ...walkFiles(root, /\.(md|txt)$/, {
+    ignore: ['node_modules', 'dist', '.git', 'internal', '.wireit', '.changeset'],
+  }).filter((file) => !/CHANGELOG/i.test(file))
+);
 
-const prose = docs.map((file) => readFileSync(file, 'utf8')).join('\n');
+const prose = docs.map(readIfPresent).filter((text) => text !== null).join('\n');
 
 test('the docs are actually being read', () => {
   assert.ok(docs.length > 10, `expected the documentation, found ${docs.length} files`);
