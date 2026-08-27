@@ -74,13 +74,14 @@ export function createHook(hook: Hook) {
    *
    * The warning is `__DEV__`-only, like every other guard here — the silent no-op this replaced was
    * confusing because nothing said anything *anywhere*, not because production was quiet. The usual
-   * cause is a hook registered after `render()`: hooks belong between `init()` and `render()`, or
-   * must be given their element explicitly.
+   * cause is a hook registered after the setup was committed: hooks belong between `init()` and
+   * the `render()` or `mount()` that closes it, or must be given their element explicitly.
    */
   if (!derefElement || !componentElement || !Number.isFinite(priority) || !callback) {
     if (__DEV__) {
       console.warn(
-        `[vera] hook ignored — register between init() and render(), or pass the element.` +
+        `[vera] hook ignored — register between init() and the render() or mount() that ends setup, ` +
+          `or pass the element.` +
           (Number.isFinite(priority) ? '' : ` (priority was ${String(priority)}, which is not a finite number)`)
       );
     }

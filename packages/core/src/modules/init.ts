@@ -25,11 +25,11 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   currentInstance.element = new WeakRef(element);
 
   /**
-   * Setup has to be committed by `render()`, which runs the first pass of every hook registered
-   * since `init()` and then clears the current instance. Without it the hooks exist and nobody ever
-   * runs them — silent, and easy to write, because a component whose whole job is a side effect has
-   * no obvious reason to call something named `render`. Calling it with no template is exactly that
-   * case: commit the setup, draw nothing.
+   * Setup has to be committed by `mount()` — or by `render()`, which is `useRender` plus the same
+   * commit. Either runs the first pass of every hook registered since `init()` and then clears the
+   * current instance. Without one the hooks exist and nobody ever runs them: silent, and easy to
+   * write, because a component whose whole job is a side effect has no reason to call something
+   * named `render`. That case is exactly what `mount()` is for.
    *
    * Detected without carrying any state: if this element is still the current instance once the
    * synchronous `connectedCallback` has finished, neither was called. A component mounting after
@@ -42,10 +42,11 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
     queueMicrotask(() => {
       if (currentInstance.element?.deref() === element && element._hooks?.length) {
         console.warn(
-          `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but never ` +
-            `called render(), so none of them will ever run.\n` +
-            `render() ends the setup as well as drawing. If there is nothing to draw, call it bare:\n\n` +
-            `  render();\n`
+          `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but its setup ` +
+            `was never committed, so none of them will ever run.\n` +
+            `init() opens the setup and one of these closes it:\n\n` +
+            `  render(() => html\`…\`);   // a component with markup\n` +
+            `  mount();                  // a component with none\n`
         );
       }
     });
@@ -55,7 +56,7 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
    * A new generation of hooks starts here, and the previous one stops.
    *
    * `connectedCallback` runs again every time an element is re-added — a router navigating back,
-   * a list reordering, a conditional subtree returning — so `init()` and `render()` build a fresh
+   * a list reordering, a conditional subtree returning — so `init()` and its closing call build a fresh
    * set of hooks. The old ones were dropped from `_hooks` below and left registered in the store,
    * which holds them **weakly**: correct in the end, but only once a garbage collection happens,
    * and until then the element had two live subscriptions and ran everything twice. A second
@@ -113,8 +114,8 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
         `[vera] <${element.localName}> declares \`static styles\`, but nothing is adopting them.\n` +
           `Style adoption moved out of core. Wire it once at your app entry:\n\n` +
           `  import { wire } from '@verajs/core';\n` +
-          `  import { adoptStyles } from '@verajs/styles';\n` +
-          `  wire({ on: 'init', fn: adoptStyles, priority: 50 });\n`
+          `  import { styles } from '@verajs/styles';\n` +
+          `  wire([styles]);\n`
       );
     }
   }

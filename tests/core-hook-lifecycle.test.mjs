@@ -15,7 +15,7 @@ for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements',
   globalThis[k] = dom.window[k];
 
 const core = await load('core');
-const { render: renderer } = await load('renderer');
+const { renderInto: renderer } = await load('renderer');
 core.wire({ on: 'render', fn: renderer, priority: 50 });
 
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
@@ -25,7 +25,7 @@ let pass = 0, fail = 0;
 const check = (name, ok, extra = '') => ok ? pass++ : (fail++, console.log('FAIL:', name, extra));
 
 let seq = 0;
-const mount = (setup) => {
+const define = (setup) => {
   const tag = `x-life-${seq++}`;
   customElements.define(tag, class extends HTMLElement { connectedCallback() { setup(this); } });
   const element = dom.window.document.createElement(tag);
@@ -36,7 +36,7 @@ const mount = (setup) => {
 /* ── mount, update, removal ─────────────────────────────────────────────────────────────────── */
 {
   let renders = 0, effects = 0, cleanups = 0;
-  const el = mount((element) => {
+  const el = define((element) => {
     core.init(element, { mode: 'open' });
     const state = core.createStore({ n: 0 });
     element._state = state;
@@ -64,7 +64,7 @@ const mount = (setup) => {
 /* ── re-attaching, which a list reorder does ────────────────────────────────────────────────── */
 {
   let renders = 0;
-  const el = mount((element) => {
+  const el = define((element) => {
     core.init(element, { mode: 'open' });
     const state = core.createStore({ n: 0 });
     element._state = state;
@@ -87,7 +87,7 @@ const mount = (setup) => {
   const reported = [];
   core.wire({ on: 'error', fn: (error) => reported.push(error?.message), priority: 25 });
   let before = 0, after = 0;
-  const el = mount((element) => {
+  const el = define((element) => {
     core.init(element, { mode: 'open' });
     const state = core.createStore({ n: 0 });
     element._state = state;
@@ -108,7 +108,7 @@ const mount = (setup) => {
 /* ── untrack ────────────────────────────────────────────────────────────────────────────────── */
 {
   let runs = 0;
-  const el = mount((element) => {
+  const el = define((element) => {
     core.init(element, { mode: 'open' });
     const state = core.createStore({ seen: 0, hidden: 0 });
     element._state = state;
@@ -129,50 +129,81 @@ const mount = (setup) => {
   body.removeChild(el);
 }
 
-/* ── render() with nothing to draw ──────────────────────────────────────────────────────────── */
+/* ── mount(): committing a component that draws nothing ─────────────────────────────────────── */
 {
   /**
-   * `render()` has always ended a component's setup as well as declaring its markup. A component
-   * whose whole job is a side effect has nothing to draw, so calling it bare says exactly that —
-   * rather than `render(() => html``)`, which is ceremony pretending to draw.
+   * **A separate function for this was built and rejected once, and the decision was reversed.**
    *
-   * Two alternatives were built and rejected. A separate `commit()` measured 25 B against 6 B and
-   * added a second function to choose between. Committing automatically after `connectedCallback`
-   * measured 31 B and, worse, ran a headless component's effects a microtask later than a rendering
-   * component's — identical code with two orderings depending on whether it drew anything.
+   * The original reasoning is worth keeping because half of it still holds. A standalone `commit()`
+   * measured 25 B against a bare `render()`'s 6 B, and it added a second function to choose
+   * between; committing automatically at the end of `connectedCallback` measured 31 B and, worse,
+   * ran a headless component's effects a microtask later than a rendering component's — identical
+   * code with two orderings depending on whether it drew anything. That last option stays rejected.
+   *
+   * What the size comparison could not measure is that **a bare `render()` is undiscoverable**. It
+   * is legal, documented, and guessed by nobody, because "render" names the one thing the call is
+   * not doing. Hooks that are never committed never run — no error, no render, an effect that
+   * simply does not happen — so the cost of not finding it is silent and total.
+   *
+   * `mount()` is also no longer the 25 B the rejected `commit()` was: it shares `setupTarget` and
+   * `commit` with `render`, which is the same split that makes `render` exactly `useRender` plus
+   * `mount` rather than a parallel implementation.
+   *
+   * A bare `render()` still commits, and warns. Refusing would turn a naming preference into
+   * effects that never run, which is the failure this exists to prevent.
    */
   let ran = 0;
-  const el = mount((element) => {
+  const el = define((element) => {
     core.init(element);
     const state = core.createStore({ n: 0 });
     element._state = state;
     element.innerHTML = '<span>pre-existing</span>';
     core.useEffect(() => { ran++; void state.n; });
-    core.render();
+    core.mount();
   });
-  check('a bare render() runs the first pass synchronously', ran === 1);
+  check('mount() runs the first pass synchronously', ran === 1);
 
   el._state.n = 1;
   await frame();
   check('and the effect stays subscribed afterwards', ran === 2, `ran ${ran}`);
-  check('existing light DOM is untouched', el.innerHTML === '<span>pre-existing</span>', el.innerHTML);
+  check('light DOM is untouched — nothing rendered', el.innerHTML === '<span>pre-existing</span>', el.innerHTML);
   body.removeChild(el);
 
+  /** The old spelling, kept working on purpose: it commits, and says what to write instead. */
+  let bare = 0;
+  const said = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  const legacy = define((element) => {
+    core.init(element);
+    core.useEffect(() => { bare++; });
+    core.render();
+  });
+  console.warn = realWarn;
+  check('a bare render() still commits', bare === 1);
+  if (isProduction) {
+    check('production says nothing about it', said.length === 0);
+  } else {
+    check('and warns, naming mount()', said.some((l) => l.includes('render() needs a template') && l.includes('mount()')), said.join(' | '));
+  }
+  body.removeChild(legacy);
+
   check('a bare render() outside a component does nothing', (core.render(), true));
+  check('mount() outside a component does nothing', (core.mount(), true));
 }
 
-/* ── the silent case: render() never called at all ──────────────────────────────────────────── */
+/* ── the silent case: the setup is never committed ──────────────────────────────────────────── */
 {
   let ran = 0;
   const said = [];
   const realWarn = console.warn;
   console.warn = (...args) => said.push(args.join(' '));
-  const el = mount((element) => {
+  const el = define((element) => {
     core.init(element, { mode: 'open' });
     const state = core.createStore({ n: 0 });
     element._state = state;
     core.useEffect(() => { ran++; void state.n; });
-    /** render() is never called, which is the mistake. */
+    /** Neither render() nor mount() is called, which is the mistake. */
   });
   await frame();
   console.warn = realWarn;
@@ -181,9 +212,10 @@ const mount = (setup) => {
   if (isProduction) {
     check('production says nothing about it', said.length === 0);
   } else {
-    const warned = said.filter((line) => line.includes('never called render()'));
+    const warned = said.filter((line) => line.includes('setup was never committed'));
     check('development warns it will never run', warned.length === 1, said.join(' | '));
-    check('and says a bare render() is the fix', warned[0]?.includes('call it bare'));
+    check('and names render() for a component with markup', warned[0]?.includes('render(()'));
+    check('and mount() for one without', warned[0]?.includes('mount();'));
     check('and names the component', warned[0]?.includes(el.localName));
   }
   body.removeChild(el);

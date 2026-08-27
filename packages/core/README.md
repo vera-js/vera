@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.70 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->2.73 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -140,13 +140,19 @@ holding its value at the start and at the end.
 | `html` | the template tag. Produces a lit-compatible result |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `css` | for `static styles`, with `@verajs/styles` |
+| `mount()` | commit the setup for a component that draws nothing |
 | `wire(renderer)` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
 
-**`render()` ends the setup as well as drawing it.** Call it bare when a component has no markup of
-its own — its effects still run, and without that call the setup is never committed. In development,
-a component that finishes `connectedCallback` without reaching `render()` warns.
+**`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the
+first pass of every hook registered since `init()` and clears the instance. `render(template)` is
+exactly `useRender(template)` followed by that same commit — a compound over the base operation, not
+a second way to do the same thing, which is why a component only ever calls one of them.
+
+Use `mount()` when a component has no markup of its own. Hooks that are never committed never run:
+no error, no render, an effect that simply does not happen — so in development a component that
+finishes `connectedCallback` without reaching either call warns and names both.
 
 `svg` and `mathml` are not stylistic. A namespace is decided when markup is parsed and cannot be
 fixed afterwards, so `html` alone produces an `HTMLUnknownElement` named `circle` — which parses

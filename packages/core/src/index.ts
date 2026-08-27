@@ -10,6 +10,7 @@ export { createHook } from './modules/createHook.js';
 export { createStore } from './modules/createStore.js';
 export { deps } from './modules/deps.js';
 export { init } from './modules/init.js';
+export { mount } from './modules/mount.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { render } from './modules/render.js';
 export { setRenderScheduler, microtask } from './modules/setRenderScheduler.js';
