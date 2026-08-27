@@ -93,10 +93,10 @@ let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
 
 /**
- * Priorities parallel to each element's callback array, keeping those arrays dense. `runCallbacks`
- * walks them on every write.
+ * The priorities that used to live here — a `WeakMap` keyed by the slots array — now travel with the
+ * slots as `PropSubscriptions`; see `store.ts`. The comment here also claimed `runCallbacks` walked
+ * them, which it never did: it walks the slots by index and the order is read only when inserting.
  */
-const callbackPriorities = new WeakMap<Set<WeakRef<never>>[], number[]>();
 
 /**
  * Hoisted, because it is handed to `prioritySlot` on **every tracked read** and called only on the
@@ -159,13 +159,10 @@ const addCallback = <T>(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>)
   let elements = props.get(prop);
   if (elements === undefined) props.set(prop, (elements = new Map()));
 
-  let byPriority = elements.get(elementWeakRef);
-  if (byPriority === undefined) elements.set(elementWeakRef, (byPriority = []));
+  let subscriptions = elements.get(elementWeakRef);
+  if (subscriptions === undefined) elements.set(elementWeakRef, (subscriptions = { slots: [], order: [] }));
 
-  let order = callbackPriorities.get(byPriority as never);
-  if (order === undefined) callbackPriorities.set(byPriority as never, (order = []));
-
-  prioritySlot(byPriority, order, priority, newSet).add(callbackWeakRef);
+  prioritySlot(subscriptions.slots, subscriptions.order, priority, newSet).add(callbackWeakRef);
 };
 
 /**
@@ -184,18 +181,18 @@ const runCallbacks = <T extends object>(
 ) => {
   const propCallbacks = proxyCallbacks.get(obj)?.get(prop);
   if (!propCallbacks) return;
-  for (const [elementWeakRef, priorityArray] of propCallbacks) {
+  for (const [elementWeakRef, subscriptions] of propCallbacks) {
     const element = elementWeakRef.deref();
     if (element?.isConnected === false) continue;
     if (!element) {
       propCallbacks.delete(elementWeakRef);
       continue;
     }
-    priorityArray.forEach((callbacks, index) => {
+    subscriptions.slots.forEach((callbacks, index) => {
       for (const callbackWeakRef of callbacks) {
         const callback = callbackWeakRef.deref();
         if (!callback) {
-          propCallbacks.get(elementWeakRef)?.[index].delete(callbackWeakRef);
+          propCallbacks.get(elementWeakRef)?.slots[index].delete(callbackWeakRef);
         } else {
           callback({ prop, value, prevValue } as Signal<T[keyof T]>);
         }

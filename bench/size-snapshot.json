@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6483,
-      "gzip": 2832
+      "raw": 6465,
+      "gzip": 2834
     },
     "renderer": {
       "raw": 9724,
@@ -75,7 +75,7 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12360,
+      "raw": 12342,
       "gzip": 5301,
       "deps": 2,
       "depsThirdParty": 1,
@@ -103,8 +103,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 14561,
-      "gzip": 5989,
+      "raw": 14543,
+      "gzip": 5988,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 15683,
-      "gzip": 6446
+      "raw": 15665,
+      "gzip": 6450
     },
     {
       "name": "Lit",

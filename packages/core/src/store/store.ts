@@ -47,9 +47,26 @@ export const swapCleanup = (previous: HookCleanup | void, next: HookCleanup | vo
  * that does not exist at these two call sites. One cast, at the single place the container is
  * created, is the smaller lie.
  */
+/**
+ * One element's subscriptions to one property: the priority-ordered callback sets, and the parallel
+ * priorities that decide where a new set is inserted.
+ *
+ * **They travel together because they are one fact.** The priorities used to live in a separate
+ * `WeakMap` keyed by the slots array, which meant a `WeakMap.get` on *every tracked read* to recover
+ * something only the insert path ever looks at — `runCallbacks` walks the slots by index and never
+ * consults the order at all. Folding them costs one object where there were two arrays and a
+ * `WeakMap` entry, and measured ~10% off a server render, whose every subscription is built cold.
+ */
+export type PropSubscriptions = {
+  /** Priority-ordered callback sets. Walked by index on every write. */
+  slots: Set<WeakRef<HookCallback>>[];
+  /** Parallel priorities, read only when a slot has to be inserted. */
+  order: number[];
+};
+
 export const proxyCallbacks = new WeakMap<
   object,
-  Map<string, Map<WeakRef<ComponentElement>, Set<WeakRef<HookCallback>>[]>>
+  Map<string, Map<WeakRef<ComponentElement>, PropSubscriptions>>
 >();
 
 const HTML_RESULT = 1;
