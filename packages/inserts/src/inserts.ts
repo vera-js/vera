@@ -111,11 +111,27 @@ const apply = (item: Registerable) => {
         `wire: expected a module or an insert descriptor, and received ${String(item)}. ` +
           `Check the import name — \`wire([renderer, router])\`.`
       );
-    if (shape === 'object' && (typeof descriptor!.on !== 'string' || typeof descriptor!.fn !== 'function'))
-      throw new Error(
-        `wire: ${descriptor!.name ? `\`${descriptor!.name}\`` : 'that object'} is not an insert descriptor — ` +
-          `one needs \`on\` (the insert point), \`fn\` (the callback) and \`priority\`.`
-      );
+    /**
+     * **Name the key that is wrong, not the shape that is right.**
+     *
+     * This used to report the whole contract — *"one needs `on`, `fn` and `priority`"* — for an
+     * object that had two of the three. The case that matters is `fn: undefined`, which is what an
+     * import resolving to nothing produces: `wire({ on: 'render', fn: render, priority: 50 })` after
+     * `render` moved packages is a descriptor whose `on` and `priority` are exactly right, and the
+     * reader was sent to check them. A `fn` that is `undefined` says so, and says why it usually is.
+     */
+    if (shape === 'object' && (typeof descriptor!.on !== 'string' || typeof descriptor!.fn !== 'function')) {
+      const who = descriptor!.name ? `\`${descriptor!.name}\`` : 'that object';
+      const wrong =
+        typeof descriptor!.on !== 'string'
+          ? `\`on\` names the insert point and must be a string — this one is ${String(descriptor!.on)}`
+          : `\`fn\` is the callback and must be a function — this one is ${String(descriptor!.fn)}` +
+            (descriptor!.fn === undefined
+              ? ', which is what an import that resolved to nothing looks like. Check the name: ' +
+                "`@verajs/renderer`'s draw is `renderInto`, and the module to wire is `renderer`."
+              : '');
+      throw new Error(`wire: ${who} is not an insert descriptor. ${wrong}`);
+    }
   }
   if (typeof item === 'function' && (item as Partial<InsertDescriptor>).on === undefined) {
     /**

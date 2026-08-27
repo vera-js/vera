@@ -93,6 +93,13 @@ export let css = (strings: TemplateStringsArray, ...values: (string | number)[])
 export const setCss = (
   cssFunction: (strings: TemplateStringsArray, ...values: (string | number)[]) => CSSResultGroup
 ) => {
+  /** Throws at the first `css` tag otherwise — *"css is not a function"*, naming an internal rather
+   *  than the call that broke it. `__DEV__`-only, like every other guard here. */
+  if (__DEV__ && typeof cssFunction !== 'function')
+    throw new Error(
+      `setCss: expected a function and received ${String(cssFunction)}. It replaces the \`css\` ` +
+        `tagged template, so it must be callable as one.`
+    );
   css = cssFunction;
 };
 
@@ -102,6 +109,13 @@ export const setCss = (
  */
 
 export const setHtml = (htmlFunction: (strings: TemplateStringsArray, ...values: unknown[]) => unknown) => {
+  /** Throws at the first template otherwise — *"html is not a function"*, naming an internal rather
+   *  than the call that broke it. `__DEV__`-only, like every other guard here. */
+  if (__DEV__ && typeof htmlFunction !== 'function')
+    throw new Error(
+      `setHtml: expected a function and received ${String(htmlFunction)}. It replaces the \`html\` ` +
+        `tagged template, so it must be callable as one.`
+    );
   /**
    * The parameter stays deliberately permissive while `html` is precisely typed, so the cast is the
    * seam between them. Swapping the template function is the entire point of this API, and core

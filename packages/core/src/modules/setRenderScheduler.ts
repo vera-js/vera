@@ -54,6 +54,22 @@ export let renderScheduler: RenderScheduler = animationFrame;
  * @return The scheduler that was in effect until now
  */
 export const setRenderScheduler = (scheduler: RenderScheduler) => {
+  /**
+   * **Silent and total.** Every render and every effect is handed to the scheduler, so a
+   * non-function means nothing is ever drawn and nothing ever runs — with no error, because nothing
+   * calls it. The pass is scheduled; the schedule is the broken part.
+   *
+   * The cause is almost always an import that resolved to `undefined` — a name that moved packages,
+   * a typo, a default-vs-named mix-up — and none of those are visible where the failure shows up.
+   * `__DEV__`-only: production carries neither the check nor the text, and an app that does this in
+   * production was already broken. This is the build that says why.
+   */
+  if (__DEV__ && typeof scheduler !== 'function')
+    throw new Error(
+      `setRenderScheduler: expected a function and received ${String(scheduler)}. It receives the ` +
+        `render pass and decides when to run it — \`microtask\` is exported for that, and the default ` +
+        `is requestAnimationFrame.`
+    );
   const previous = renderScheduler;
   renderScheduler = scheduler;
   return previous;

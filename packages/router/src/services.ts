@@ -47,6 +47,22 @@ export const router = (given: Inserts) => {
 
 /** The no-core path: hand the router its renderer and it needs no registry at all. */
 export const setRouterRenderer = (renderer: Renderer) => {
+  /**
+   * **Silent and total.** The router renders every view through this, so a non-function means every
+   * route resolves, every guard runs, the URL changes — and the outlet stays empty. Nothing throws,
+   * because the value is only ever spread into the render chain and called from there.
+   *
+   * The cause is almost always an import that resolved to `undefined`. `@verajs/renderer`'s draw is
+   * `renderInto` as of 0.2.0, and an app still importing `render` from it passes exactly this.
+   *
+   * `__DEV__`-only: production carries neither the check nor the text.
+   */
+  if (__DEV__ && typeof renderer !== 'function')
+    throw new Error(
+      `setRouterRenderer: expected a function and received ${String(renderer)}. ` +
+        `\`@verajs/renderer\` exports it as \`renderInto\` — or pass the module to \`wire\` instead, ` +
+        `which is what \`wire([renderer, router])\` does.`
+    );
   direct = [renderer];
 };
 
@@ -62,6 +78,13 @@ export const page = 'page';
  * @param matchFunction Match function to use when analyzing routes
  */
 export const setMatchFunction = (matchFunction: <P extends ParamData>(routePattern: string) => MatchFunction<P>) => {
+  /** Throws at the next `addRoutes` otherwise — *"routerSettings.match is not a function"*, which
+   *  names an internal and not the call that broke it. `__DEV__`-only. */
+  if (__DEV__ && typeof matchFunction !== 'function')
+    throw new Error(
+      `setMatchFunction: expected a function and received ${String(matchFunction)}. It is called ` +
+        `once per route pattern and must return a matcher — this is the seam for path-to-regexp.`
+    );
   routerSettings.match = matchFunction;
 };
 
