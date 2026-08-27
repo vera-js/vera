@@ -249,6 +249,12 @@ committed in place against templates that replaced a different template.
 the base import. **Never mix two of them in one app** — that loads two renderers with two template
 caches.
 
+**Which means an app can have one of them, not both — so a hydrating app cannot be profiled.** They
+each bundle their own renderer with its own instrumentation hook, so profiling while rendering
+through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
+frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
+zero report is otherwise indistinguishable from an app with nothing to optimise.
+
 ## `@verajs/renderer/hydrate`
 
 <!-- recipe -->

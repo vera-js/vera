@@ -138,4 +138,40 @@ test('JSX-shaped text that is not JSX is left alone', async () => {
   assert.match(mixed, /html`<p>\$\{1\}<\/p>`/, 'the real JSX was not compiled');
 });
 
-void isProduction;
+
+/**
+ * `/hydrate` and `/profiler` are both drop-in replacements for the whole renderer, each bundling its
+ * own copy with its own instrumentation hook — so an app can have one of them and not both, and
+ * profiling a hydrating app observes an instance nothing renders into.
+ *
+ * That is a design consequence rather than a bug. The bug was its **silence**: a report of all zeros
+ * is exactly what a healthy idle app produces, so the one result that cannot be read was the one
+ * being returned. Pass 94.
+ */
+test('profiling a hydrating app explains itself instead of reporting a silent zero', { skip: isProduction && 'the profiler is not built for production' }, async () => {
+  const profiler = await load('renderer/profiler');
+  const { renderInto: hydrateInto } = await load('renderer/hydrate');
+  const host = dom.window.document.createElement('div');
+  host.innerHTML = '<p>1</p>';
+
+  profiler.startProfiling();
+  hydrateInto(core.html`<p>${1}</p>`, host);
+  hydrateInto(core.html`<p>${2}</p>`, host);
+  const report = profiler.stopProfiling();
+
+  assert.equal(host.textContent, '2', 'the app must still render — only the profiler is blind');
+  assert.equal(report.frames, 0, 'if this ever observes frames, the two bundles have started sharing a hook');
+  const text = profiler.formatReport(report);
+  assert.match(text, /No renders observed/);
+  assert.match(text, /hydrating app cannot be profiled/, 'the message must name the actual cause');
+});
+
+test('and a real profiling session still reports normally', { skip: isProduction && 'the profiler is not built for production' }, async () => {
+  const profiler = await load('renderer/profiler');
+  const host = dom.window.document.createElement('div');
+  profiler.startProfiling();
+  profiler.renderInto(core.html`<p>${1}</p>`, host);
+  profiler.renderInto(core.html`<p>${2}</p>`, host);
+  const text = profiler.formatReport(profiler.stopProfiling());
+  assert.match(text, /2 frame\(s\)/, 'the zero-report branch must not swallow a real one');
+});
