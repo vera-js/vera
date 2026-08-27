@@ -48,7 +48,7 @@ export type Registerable = InsertDescriptor | Connector;
  * One call listing everything an app wires, in one place, from data rather than side effects.
  *
  * ```js
- * insert([renderer, router, { on: 'init', fn: adoptStyles, priority: 50 }, myOwnThing]);
+ * insert([renderer, router, styles, myOwnThing]);
  * ```
  *
  * A **connector** is a function: it receives the registry and decides what to do with it, which is
@@ -60,7 +60,7 @@ export type Registerable = InsertDescriptor | Connector;
  * Wires modules into the framework: one call, from data rather than side effects.
  *
  * ```js
- * wire([renderer, router, { on: 'init', fn: adoptStyles, priority: 50 }]);
+ * wire([renderer, router, styles]);
  * wire({ on: 'error', fn: report, priority: 40 });
  * ```
  *

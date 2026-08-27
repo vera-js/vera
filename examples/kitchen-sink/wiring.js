@@ -5,13 +5,13 @@
  * must run the *same* application, or a difference between their output says nothing about Vera.
  * Only the renderer differs, which is why it is a parameter.
  *
- * `insert` comes from `@verajs/core`, never from `@verajs/inserts` — a production bundle inlines
+ * `wire` comes from `@verajs/core`, never from `@verajs/inserts` — a production bundle inlines
  * the registry, so registering through your own copy writes to a map core never reads. It works in
  * development and silently does nothing in production, which is the worst way for this to fail.
  */
 import { wire } from '@verajs/core';
 import { router } from '@verajs/router';
-import { adoptStyles } from '@verajs/styles';
+import { styles } from '@verajs/styles';
 import { collections } from '@verajs/reactivity/collections';
 import { autoloader } from '@verajs/autoloader';
 import { installSinkInserts } from './components/sink-inserts.js';
@@ -31,7 +31,7 @@ export const wireApp = (renderer) => {
      */
     router,
     /** `static styles` left core in 0.2.0; a component using it renders unstyled without this. */
-    { on: 'init', fn: adoptStyles, priority: 50 },
+    styles,
     /** Reactive `Map`/`Set` left core in 0.2.0; `sink-collections` throws without this. */
     collections,
   ]);

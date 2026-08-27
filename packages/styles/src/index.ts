@@ -5,11 +5,16 @@
  *
  * ```js
  * import { wire } from '@verajs/core';
- * import { adoptStyles } from '@verajs/styles';
- * wire({ on: 'init', fn: adoptStyles, priority: 50 });
+ * import { renderer } from '@verajs/renderer';
+ * import { styles } from '@verajs/styles';
+ * wire([renderer, styles]);
  * ```
  *
- * **Why this is three lines rather than a bare `import '@verajs/styles'`.** A production
+ * `styles` is the module; `adoptStyles` is the function it registers, and wiring that function
+ * yourself — `wire({ on: 'init', fn: adoptStyles, priority: 50 })` — is the same thing written out,
+ * and what to write when you want a different priority.
+ *
+ * **Why this is a `wire` call at all, rather than a bare `import '@verajs/styles'`.** A production
  * `.min.js` inlines `@verajs/inserts`, so every bundle carries its own registry. A module that
  * registered itself at import would write into *its* copy while core read *its own* — working
  * perfectly in development, where the dependency stays external and both resolve to one module,
@@ -25,4 +30,4 @@
  * app paid 300 B gzipped for one unconditional call.
  */
 export type * from './types.js';
-export { adoptStyles, applyStyles } from './styles.js';
+export { adoptStyles, applyStyles, styles } from './styles.js';

@@ -44,11 +44,11 @@
         html,
         css,
         createStore} from '@verajs/core';
-      import { render as renderer } from '@verajs/renderer';
+      import { renderInto as renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
       import { spread } from '@verajs/renderer/spread';
       import { initRouter, router, navigate } from '@verajs/router';
-      import { adoptStyles } from '@verajs/styles';
+      import { styles } from '@verajs/styles';
       import { autoloader } from '@verajs/autoloader';
 
       /**
@@ -58,7 +58,7 @@
       wire([router]);
 
       wire({ on: 'render', fn: renderer, priority: 50 });
-      wire({ on: 'init', fn: adoptStyles, priority: 50 });
+      wire([styles]);
       wire(
         autoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
       );

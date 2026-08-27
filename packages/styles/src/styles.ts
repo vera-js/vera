@@ -159,3 +159,33 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     document.head.appendChild(styleElement);
   }
 };
+
+/**
+ * **The module.** `wire([renderer, styles])` — the same shape `@verajs/renderer`,
+ * `@verajs/router` and `@verajs/autoloader` export, so every package in the framework is wired the
+ * same way and an app entry never hand-writes a descriptor.
+ *
+ * It is the descriptor that used to be written out longhand in every README and every example:
+ * `{ on: 'init', fn: adoptStyles, priority: 50 }`. That form still works and is still the thing to
+ * write when you want a different priority — but a caller who only wants the default was being made
+ * to know that `adoptStyles` belongs on `'init'`, and that 50 is the number, in order to use a
+ * package whose entire job is one call. Two of those three facts are this package's business, not
+ * theirs.
+ *
+ * Priority 50 is the convention for a default implementation — wire your own at 50 to replace this.
+ */
+export const styles = {
+  name: '@verajs/styles',
+  on: 'init' as const,
+  fn: adoptStyles as never,
+  priority: 50,
+};
+
+/**
+ * `adoptStyles` is a raw function sitting next to the module, exactly as `render` sits next to
+ * `renderer` — and `wire` hands a bare function the registry as a *connector*, so `wire([adoptStyles])`
+ * would register nothing and throw nothing. Marking it means `wire` can say which name was meant.
+ *
+ * `__DEV__`-only: production carries neither the property nor the message that reads it.
+ */
+if (__DEV__) (adoptStyles as unknown as { $module?: string }).$module = 'styles';
