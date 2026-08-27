@@ -255,8 +255,39 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
  * Branded rather than duck-typed: the element position already means "element ref", and a props bag
  * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
  */
-export const spread = (props: Record<string, unknown>) => ({
-  _props: props,
-  _$apply$: apply,
-  _$attrs$: attributes,
-});
+export const spread = (props: Record<string, unknown>) => {
+  /**
+   * **A props bag that is not an object is iterated anyway, and a browser accepts the result.**
+   *
+   * Everything below reads `props` with `Object.keys`/`Object.entries`, which answer for any value:
+   * a **string** yields its character indices, so `spread('text')` sets four attributes named `0`,
+   * `1`, `2`, `3` — measured in Chromium, with no error and no warning. A number, a boolean and
+   * `null` yield nothing at all, so `spread(someUndefinedVariable)` applies no props and says
+   * nothing, which reads as a renderer that ignored the spread.
+   *
+   * **jsdom hides this rather than catching it.** It implements the XML Name production and throws
+   * `InvalidCharacterError` on `setAttribute('0', …)`, so a probe under jsdom sees a loud failure
+   * for the case a real engine performs silently — the inverse of the usual trap, and the reason
+   * this was verified in a browser before being called a defect (`tests/browser/spread-names.test.js`
+   * records the engines' actual rule).
+   *
+   * Warned and ignored rather than thrown, which is exactly what an unusable *key* already does a
+   * few lines above: one bad props bag should not cost the render. `__DEV__`-only, so production
+   * carries neither the check nor the text.
+   */
+  if (__DEV__ && (props === null || typeof props !== 'object' || Array.isArray(props))) {
+    console.warn(
+      `[vera] spread: ignoring a props bag that is not a plain object — received ` +
+        `${Array.isArray(props) ? 'an array' : typeof props === 'object' ? 'null' : `a ${typeof props}`}. ` +
+        `A string is iterated by character index, so \`spread('text')\` would set attributes named ` +
+        `0, 1, 2 and 3; anything else applies nothing at all. This is usually an import or a ` +
+        `property that resolved to something unexpected.`
+    );
+    props = {};
+  }
+  return {
+    _props: props,
+    _$apply$: apply,
+    _$attrs$: attributes,
+  };
+};

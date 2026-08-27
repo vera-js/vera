@@ -15,7 +15,7 @@
  *     `undefined` runs through coercing setters and `delete` cannot remove a prototype accessor.
  *     This is the question Lit's spread PR has been stuck on since 2021.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -317,4 +317,50 @@ test('a !live key reasserts against the DOM, and a .property key does not', () =
   plain.value = 'Grace';
   drawPlain(plainContainer);
   assert.equal(plain.value, 'Grace', 'the plain key kept the typed text');
+});
+
+/**
+ * **A props bag that is not an object was iterated anyway, and a browser accepted the result.**
+ *
+ * Everything in this module reads `props` with `Object.keys`/`Object.entries`, which answer for any
+ * value. A **string** yields its character indices, so `spread('text')` set four attributes named
+ * `0`, `1`, `2`, `3` — measured in Chromium, with no error and no warning. Everything else yielded
+ * nothing, so `spread(somethingUndefined)` applied no props and said nothing, which reads as a
+ * renderer that ignored the spread rather than a value that was wrong.
+ *
+ * **jsdom hid this instead of catching it**, which is why the case was confirmed in a browser before
+ * being called a defect. jsdom implements the XML Name production and throws `InvalidCharacterError`
+ * on `setAttribute('0', …)`, so the one input a real engine handles *silently* is the one input a
+ * jsdom probe reports loudly. That is the usual jsdom warning in `CLAUDE.md` running backwards: it
+ * is stricter than the platform, so its strictness can conceal a defect as easily as invent one.
+ * `tests/browser/spread-names.test.js` holds the engines' real rule.
+ *
+ * Warned and ignored rather than thrown — exactly what an unusable *key* already does, since one bad
+ * props bag should not cost the render.
+ */
+test('a props bag that is not a plain object is refused, not iterated', { skip: isProduction && 'the guard is __DEV__' }, () => {
+  for (const value of ['text', 42, true, null, undefined, ['a', 'b'], () => {}]) {
+    const said = [];
+    const warn = console.warn;
+    console.warn = (...args) => said.push(args.join(' '));
+    const host = dom.window.document.createElement('div');
+    renderInto(html`<input ${spread(value)} />`, host);
+    console.warn = warn;
+
+    const names = [...host.querySelector('input').attributes].map((a) => a.name);
+    assert.deepEqual(names, [], `spread(${String(value)}) must apply nothing`);
+    assert.equal(said.length, 1, `spread(${String(value)}) must say so`);
+    assert.match(said[0], /^\[vera\] spread: ignoring a props bag/);
+  }
+});
+
+test('a real props bag is still quiet', { skip: isProduction && 'the guard is __DEV__' }, () => {
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  const host = dom.window.document.createElement('div');
+  renderInto(html`<input ${spread({ id: 'ok' })} />`, host);
+  console.warn = warn;
+  assert.deepEqual(said, [], 'a plain object must not warn');
+  assert.equal(host.querySelector('input').getAttribute('id'), 'ok');
 });
