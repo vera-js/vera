@@ -82,6 +82,12 @@ export const coalesce = (callback: HookCallback, schedule: (run: () => void) => 
      */
     run ??= deferInHookContext(__DEV__ ? guardPass(body, label) : body);
 
-    schedule(run);
+    /** Released if the scheduler throws, or the effect never runs again — see `useRender`. */
+    try {
+      schedule(run);
+    } catch (error) {
+      scheduled = false;
+      throw error;
+    }
   };
 };

@@ -79,10 +79,29 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
        */
       if (queued) return;
       queued = true;
-      renderScheduler(() => {
+      /**
+       * **The flag is released if the scheduler throws, or the component never renders again.**
+       *
+       * `queued` is raised before the pass is handed over and lowered inside it, so a scheduler that
+       * does not run the pass leaves it raised forever — and every later write then returns at the
+       * line above. The component goes silent permanently: no error, no warning, and a `render()`
+       * that simply stops. Measured: one throwing scheduler froze a counter at its initial value for
+       * the rest of the page, and restoring the default scheduler did not revive it.
+       *
+       * A scheduler that *drops* the pass without throwing cannot be distinguished from one that is
+       * legitimately deferring, so that stays the scheduler's contract to keep — `RenderScheduler` is
+       * documented as deciding *when* to run the pass, not whether. Throwing is the case that can be
+       * recovered from, and it is the case an app hits by accident.
+       */
+      try {
+        renderScheduler(() => {
+          queued = false;
+          interiorCallback(props);
+        });
+      } catch (error) {
         queued = false;
-        interiorCallback(props);
-      });
+        throw error;
+      }
     },
     priority: 50,
   });

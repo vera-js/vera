@@ -1,0 +1,143 @@
+/**
+ * The render scheduler, under every scheduler the docs offer — and one that misbehaves.
+ *
+ * `setRenderScheduler` is a documented public API with three published shapes: the default animation
+ * frame, the exported `microtask`, and a synchronous `(run) => run()` that `llms.txt` builds its
+ * `flushSync` recipe out of for View Transitions. Every render and every effect in the framework goes
+ * through whichever one is installed, which makes it the single widest blast radius in core and,
+ * until pass 92, a thing no audit had pointed at.
+ *
+ * The failure it hides is the one this repo keeps finding: **silent and total**. The coalescing flag
+ * is raised before the pass is handed to the scheduler and lowered inside it, so a scheduler that
+ * never runs the pass leaves the flag raised — and the component stops rendering *forever*, with no
+ * error and no warning, surviving even a restore of the default scheduler.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { load } from './dist.mjs';
+
+const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
+for (const key of ['document', 'HTMLElement', 'Node', 'Element', 'customElements', 'DocumentFragment',
+                   'Text', 'Comment', 'CSSStyleSheet', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event'])
+  globalThis[key] = dom.window[key];
+
+const core = await load('core');
+const { renderInto } = await load('renderer');
+core.wire({ on: 'render', fn: renderInto, priority: 50 });
+
+const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+const macrotask = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+let seq = 0;
+/** A counter component, freshly tagged each time so no two tests share an upgrade. */
+const counter = (extra) => {
+  const tag = `x-sched-${seq++}`;
+  customElements.define(tag, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      const state = core.createStore({ n: 0 });
+      this._state = state;
+      extra?.(state);
+      core.render(() => core.html`<p>${state.n}</p>`);
+    }
+  });
+  const element = dom.window.document.createElement(tag);
+  dom.window.document.body.appendChild(element);
+  return element;
+};
+
+/** The recipe `llms.txt` publishes, copied rather than paraphrased. */
+const flushSync = (fn) => {
+  const previous = core.setRenderScheduler((run) => run());
+  try { fn(); } finally { core.setRenderScheduler(previous); }
+};
+
+test('the flushSync recipe in llms.txt renders synchronously', async () => {
+  const element = counter();
+  await frame();
+  assert.equal(element.shadowRoot.textContent, '0');
+  flushSync(() => { element._state.n = 42; });
+  assert.equal(element.shadowRoot.textContent, '42',
+    'the View Transitions recipe depends on the DOM being updated before flushSync returns');
+});
+
+test('and leaves the previous scheduler in place afterwards', async () => {
+  const element = counter();
+  await frame();
+  flushSync(() => { element._state.n = 1; });
+  element._state.n = 2;
+  assert.equal(element.shadowRoot.textContent, '1', 'the write after the swap must not still be synchronous');
+  await frame();
+  assert.equal(element.shadowRoot.textContent, '2', 'and the restored scheduler must still deliver it');
+});
+
+test('the exported microtask scheduler renders', async () => {
+  const previous = core.setRenderScheduler(core.microtask);
+  try {
+    const element = counter();
+    await macrotask();
+    element._state.n = 7;
+    await macrotask();
+    assert.equal(element.shadowRoot.textContent, '7');
+  } finally {
+    core.setRenderScheduler(previous);
+  }
+});
+
+/**
+ * The defect pass 92 found. A scheduler that throws left the coalescing flag raised, so every later
+ * write returned early and the component never rendered again — measured frozen at its initial value
+ * for the rest of the page, and *not* revived by restoring the default scheduler.
+ *
+ * Both halves are asserted because both carry the flag independently: `useRender` has `queued` and
+ * `coalesce` has `scheduled`, and fixing one would have left effects dead while renders recovered.
+ */
+test('a scheduler that throws does not freeze the component permanently', async () => {
+  let effects = 0;
+  const element = counter((state) => core.useEffect(() => { void state.n; effects++; }));
+  await frame();
+  const settled = effects;
+
+  /**
+   * The throw does **not** reach the writer, and that is deliberate: `createHook` isolates a hook's
+   * error to the `'error'` insert so one bad hook cannot take out its siblings. So a throwing
+   * scheduler is invisible to the code doing `state.n = 1` — which is exactly why the component
+   * freezing silently afterwards was so hard to see.
+   */
+  const failures = [];
+  core.wire({ on: 'error', fn: (error) => failures.push(error), priority: 50 });
+  const previous = core.setRenderScheduler(() => { throw new Error('scheduler exploded'); });
+  assert.doesNotThrow(() => { element._state.n = 1; }, 'a hook error is isolated, not rethrown at the write');
+  core.setRenderScheduler(previous);
+  assert.ok(
+    failures.some((error) => /scheduler exploded/.test(String(error?.message))),
+    'the failure should still be reported through the error insert rather than vanishing'
+  );
+
+  element._state.n = 2;
+  await frame();
+  assert.equal(element.shadowRoot.textContent, '2', 'the render never recovered — `queued` stayed raised');
+  assert.ok(effects > settled, 'the effect never recovered — `scheduled` stayed raised');
+});
+
+/**
+ * The other half is deliberately *not* fixed, and is asserted so the decision is visible.
+ *
+ * A scheduler that drops the pass without throwing cannot be told apart from one legitimately
+ * deferring — that is the whole of what a scheduler does. `RenderScheduler` is documented as
+ * deciding *when* to run the pass, not whether, so dropping it breaks the contract and the component
+ * stays frozen. Throwing is recoverable and is what an app hits by accident; this is not.
+ */
+test('a scheduler that silently drops the pass is the scheduler breaking its contract', async () => {
+  const element = counter();
+  await frame();
+  const previous = core.setRenderScheduler(() => {});
+  element._state.n = 1;
+  await macrotask();
+  core.setRenderScheduler(previous);
+  element._state.n = 2;
+  await frame();
+  assert.equal(element.shadowRoot.textContent, '0',
+    'if this ever recovers, the contract has been loosened and the README should say so');
+});
