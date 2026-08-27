@@ -16,9 +16,13 @@ import { HookCallback, ComponentElement } from '../types.js';
  */
 export const useLayoutEffect = (callback: HookCallback, element?: ComponentElement) => {
   createHook({
-    callback: coalesce(callback, (run) => {
-      Promise.resolve().then(run);
-    }),
+    callback: coalesce(
+      callback,
+      (run) => {
+        Promise.resolve().then(run);
+      },
+      'useLayoutEffect'
+    ),
     element,
     priority: 25,
   });

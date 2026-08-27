@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->6 521 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->5 882 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->6 547 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->5 882 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -59,7 +59,7 @@ by 20-30 bytes.
 
 **There is no smaller honest number than <!--size:app.kb-->5.7 KB<!--/size:app.kb-->.** Core ships no
 renderer — `render()` with none registered warns and paints nothing — so "core alone" is not a tier
-anyone can ship. Quoting core's standalone <!--size:core.gzip-->2.73 KB<!--/size:core.gzip--> as an
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->2.76 KB<!--/size:core.gzip--> as an
 app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
@@ -102,7 +102,7 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 2 799 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/core` | 2 825 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 3 722 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 3 671 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 122 B | lazy component discovery |

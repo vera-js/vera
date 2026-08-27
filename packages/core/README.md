@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.73 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->2.76 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -125,7 +125,29 @@ state.n = 1; state.n = 2; state.n = 3;
 ```
 
 `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
-write, or use `useEffect`.
+write, or use `useEffect`. In development the recursion is stopped and named at depth 50.
+
+`useEffect` and a template can loop too, and there the loop is real but not always a mistake: the
+default scheduler is an animation frame, so an effect that writes what it reads simply runs once per
+frame — which is also how you write an animation. So development **warns and does not stop it**,
+after 50 consecutive frames in which the pass fed itself:
+
+```
+[vera] useEffect has re-run for 50 consecutive frames because it writes state it also reads …
+```
+
+A write that lands *outside* the pass — from your own `requestAnimationFrame`, a timer, an event —
+never trips it at any threshold, because the count resets on the first pass that does not feed
+itself. Only a pass whose own body writes what it reads climbs. If that is deliberate, say so:
+
+```js
+init(this);
+allowRenderLoop(this);           // an animation: one store write per frame, on purpose
+useEffect(() => { state.t = state.t + 1 });
+```
+
+`allowRenderLoop(element)` silences the warning for that component, and is a no-op in production —
+where none of this exists.
 
 Every callback receives a signal describing the change: `signal.prop`, `signal.value`,
 `signal.prevValue`, and on coalesced runs `signal.changed` — a `Map` of every property in the batch,

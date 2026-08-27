@@ -169,7 +169,25 @@ state.n = 1; state.n = 2; state.n = 3;
 ```
 
 ⚠️ `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
-write or use `useEffect`.
+write or use `useEffect`. Development stops and names the recursion at depth 50.
+
+⚠️ `useEffect` and templates can loop too, and there it is ambiguous — the default scheduler is an
+animation frame, so an effect that writes what it reads runs once per frame, which is also how an
+animation is written. Development **warns without stopping it** after 50 consecutive self-feeding
+passes; production carries neither the counter nor the text.
+
+| Export | Signature | Notes |
+| --- | --- | --- |
+| `allowRenderLoop` | `(element) => void` | Marks a component's self-feeding loop as deliberate, silencing that warning for it. No-op in production. Throws in development if not given an element. |
+
+The count is per element **and** per hook, and resets on the first pass that does not feed itself —
+so a write scheduled from your own `requestAnimationFrame`, a timer or an event never trips it.
+
+```js
+init(this);
+allowRenderLoop(this);
+useEffect(() => { state.t = state.t + 1 });   // an animation, not a bug
+```
 
 ### SVG and MathML
 

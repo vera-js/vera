@@ -1,5 +1,6 @@
 import { ComponentElement, RenderTemplate, Signal } from '../types.js';
 import { createHook, deferInHookContext } from '../modules/createHook.js';
+import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';
 import { renderScheduler } from '../modules/setRenderScheduler.js';
 import { Renderer } from '@verajs/shared-types';
@@ -14,7 +15,7 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
   createHook({
     callback: <V>(props?: Signal<V>, init?: boolean) => {
       /** Wrapped so the deferred rAF pass still registers the properties the template reads. */
-      const interiorCallback = deferInHookContext(<V>(props?: Signal<V>) => {
+      const pass = <V>(props?: Signal<V>) => {
         /** `typeof`, not `instanceof Function` — realm-safe (iframes, vm) and cheaper. */
         const _template = typeof template === 'function' ? (template as RenderTemplate)(props) : template;
         const renderers = inserts.get('render');
@@ -50,12 +51,26 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
         renderers?.forEach((callback) => {
           (callback as Renderer)?.(_template, target, ...args);
         });
-      });
+      };
+
+      /**
+       * The guard wraps the pass **behind the ternary**, not inside it — see the same note in
+       * `coalesce`. `deferInHookContext` stays outermost so the guard runs with the hook's entry on
+       * the queue, which is how it names the element without being handed one.
+       */
+      const interiorCallback = deferInHookContext(__DEV__ ? guardPass(pass, 'a template') : pass);
 
       if (init) {
         interiorCallback(props);
         return;
       }
+
+      /**
+       * Before the `queued` short-circuit, not after. A write landing while a pass is in flight is
+       * what makes that pass self-feeding, and the second write of a tick is exactly the one the
+       * flag would otherwise swallow.
+       */
+      if (__DEV__) noteWrite();
 
       /**
        * Coalesced with a flag rather than cancel-and-reschedule. Cancelling meant a `cancel` plus a

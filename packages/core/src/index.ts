@@ -6,6 +6,7 @@
 export { wire, inserts } from '@verajs/inserts';
 export type * from '@verajs/inserts';
 export type * from './types.js';
+export { allowRenderLoop } from './modules/allowRenderLoop.js';
 export { createHook } from './modules/createHook.js';
 export { createStore } from './modules/createStore.js';
 export { deps } from './modules/deps.js';

@@ -1,4 +1,5 @@
 import { deferInHookContext } from '../modules/createHook.js';
+import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { swapCleanup } from '../store/store.js';
 import { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
 
@@ -19,9 +20,10 @@ import { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
  *
  * @param callback The user's effect
  * @param schedule How to defer the run (an animation frame, a microtask)
+ * @param label Which hook this is, named in the self-feeding-loop warning. Dev-only.
  * @return A hook callback that coalesces
  */
-export const coalesce = (callback: HookCallback, schedule: (run: () => void) => void) => {
+export const coalesce = (callback: HookCallback, schedule: (run: () => void) => void, label: string) => {
   let cleanup: void | HookCleanup;
   let scheduled = false;
   let changed = new Map<string, SignalChange>();
@@ -37,11 +39,25 @@ export const coalesce = (callback: HookCallback, schedule: (run: () => void) => 
     cleanup = next;
   };
 
+  /**
+   * Hoisted out of the scheduling path deliberately. Inside it, this closure is allocated on every
+   * write and thrown away on all but the first — `run ??=` skips the *call*, not the argument.
+   */
+  const body = () => {
+    scheduled = false;
+    const batch = changed;
+    changed = new Map();
+    invoke({ ...latest, changed: batch } as Signal<unknown>);
+  };
+
   return <V>(props?: Signal<V>, init?: boolean) => {
     if (init) {
       invoke(props, init);
       return;
     }
+
+    /** A write reaching this hook *during* a pass is what makes the pass self-feeding. */
+    if (__DEV__) noteWrite();
 
     if (props?.prop !== undefined) {
       const seen = changed.get(props.prop);
@@ -59,13 +75,12 @@ export const coalesce = (callback: HookCallback, schedule: (run: () => void) => 
     /**
      * Built once. `deferInHookContext` has to be called inside a hook callback to capture the
      * tracking context, but that context is stable per hook, so it never needs rebuilding.
+     *
+     * The guard wraps the body **behind the ternary**, not inside it. Written the other way, the
+     * `try`/`finally` it needs survives minification as an empty block on the hottest deferred path
+     * in the framework — 20 B gzipped in a build that can never warn.
      */
-    run ??= deferInHookContext(() => {
-      scheduled = false;
-      const batch = changed;
-      changed = new Map();
-      invoke({ ...latest, changed: batch } as Signal<V>);
-    });
+    run ??= deferInHookContext(__DEV__ ? guardPass(body, label) : body);
 
     schedule(run);
   };
