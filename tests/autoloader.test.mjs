@@ -268,6 +268,26 @@ clearHosts();
 }
 
 clearHosts();
+/**
+ * A module that imports cleanly and defines the WRONG tag. `whenDefined` never settles for the tag
+ * that was asked for, so the `catch` never ran: no console line, no `vera:autoload-error`, and an
+ * element left unupgraded for the life of the page. A blank space with a clean console, from a typo.
+ */
+{
+  const app = host('<typo-widget></typo-widget>');
+  const seen = [];
+  app.addEventListener('vera:autoload-error', (event) => seen.push(event.detail.tag));
+  autoloader(rootDir, 'components')(app);
+  await tick();
+  check('a module that defines the wrong tag is reported, not silent', seen.length === 1 && seen[0] === 'typo-widget',
+    JSON.stringify(seen));
+  check('and the message names the likely cause', errs.some((line) => /nothing defined <typo-widget>/.test(line)),
+    errs.join(' | '));
+  check('while the element stays unupgraded', !customElements.get('typo-widget'));
+}
+
+clearHosts();
+
 console.error = oe;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -206,6 +206,30 @@ export const autoloader = (
 
     try {
       await import(/* @vite-ignore */ src);
+      /**
+       * **A module can import cleanly and still not define the tag**, and that used to be silent
+       * forever: `whenDefined` never settles, so the `catch` below never runs, no event is
+       * dispatched, no line is logged, and the element sits unupgraded for the life of the page.
+       * The everyday cause is a typo — markup says `<my-widget>`, the file defines `my-wdiget` — and
+       * the everyday symptom is a blank space with a clean console.
+       *
+       * A dynamic `import()` resolves only after the module has fully evaluated, top-level `await`
+       * included, so by here every `customElements.define` the module was going to run has run.
+       * Two microtask turns are drained first anyway, which covers a define deferred by a resolved
+       * promise; anything later than that is a floating promise the module never awaited.
+       *
+       * The wait is *not* abandoned — `whenDefined` is still awaited afterwards, so a definition
+       * that does arrive late still upgrades and still gets watched. The error is a report, not a
+       * refusal.
+       */
+      await Promise.resolve();
+      await Promise.resolve();
+      if (!customElements.get(tag)) {
+        throw new Error(
+          `imported ${src} but nothing defined <${tag}>. Check the tag name in that file matches ` +
+            `the one in the markup, and that its \`customElements.define\` actually runs.`
+        );
+      }
       await customElements.whenDefined(tag);
       failed.delete(tag);
       watch(element);
