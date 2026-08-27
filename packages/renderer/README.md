@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.63 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.65 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -73,13 +73,21 @@ public and both are documented, so a reader who knew one misread the other.
 | `<x-item .item=${value}>` | property assignment, uncoerced — objects, arrays, functions |
 | `<p ?hidden=${value}>` | boolean attribute, present when truthy |
 | `<input !checked=${value}>` | property written from the **live DOM** rather than from what the binding last wrote — see below |
-| `<button @click=${fn}>` | event listener |
+| `<button @click=${fn}>` | event listener. An object with a `handleEvent` method works too — `addEventListener` takes both |
 | `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — `onclick` stays a plain attribute |
 | `<input ${fn}>` | element ref: a function is called with the element |
 | `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
 | `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
 
 A ref runs once per **distinct value**, not once per render.
+
+An event handler is called with the element as `this`, and the listener is registered once — swapping
+the handler across renders never touches the DOM, so there is no add/remove churn and no way to end
+up with two. `undefined`, `null` and `false` all mean *no handler*, so `@click=${enabled && onClick}`
+binds conditionally without a ternary. Anything else that cannot listen — a string, a number, an
+object with no `handleEvent` — is inert, and **development names it at the binding**: a listener is
+only ever called when a user clicks, so left unchecked the mistake surfaces at a point where nothing
+on the stack says where the value came from.
 
 ### `!name` — a live property
 

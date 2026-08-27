@@ -532,9 +532,25 @@ class AttrPart implements Part {
     this._committed = UNSET;
   }
 
-  /** Stable listener registered once; swapping the handler never touches the DOM. */
+  /**
+   * Stable listener registered once; swapping the handler never touches the DOM.
+   *
+   * **Two shapes, because `addEventListener` takes two.** A function is called with the element as
+   * `this`; an object with a `handleEvent` method is invoked through it — the platform's own
+   * `EventListenerObject` protocol, which every engine accepts and lit supports. This used to call
+   * `.call()` unconditionally, so passing the platform's own listener shape bound successfully and
+   * then threw `this._handler.call is not a function` on **every** dispatch.
+   *
+   * Anything else is inert rather than throwing. A truthy non-function is a mistake, and
+   * development names it at the binding (see the `EVENT` branch in `_commit`) — where the mistake
+   * still is. Throwing here instead would raise from inside the framework on every user click, at a
+   * point where the value's origin is long gone.
+   */
   handleEvent(event: Event) {
-    if (this._handler) this._handler.call(this._element as never, event);
+    const handler = this._handler as EventListener | EventListenerObject | null;
+    if (typeof handler === 'function') handler.call(this._element as never, event);
+    else if (typeof (handler as EventListenerObject)?.handleEvent === 'function')
+      (handler as EventListenerObject).handleEvent(event);
   }
 
   /**
@@ -666,6 +682,24 @@ class AttrPart implements Part {
         /** Unconditional for the same reason: `<b hidden ?hidden=${false}>` must end up not hidden. */
         this._element.toggleAttribute(this._name, !!value);
       } else if (kind === EVENT) {
+        /**
+         * A listener is the most deferred call a template makes — it is validated when a *user*
+         * clicks, which in development may be never. So it is checked where it is written, the same
+         * rule the setters took on: the stack at dispatch no longer contains the binding.
+         *
+         * `false` is deliberately allowed and silent. `@click=${enabled && onClick}` is the ordinary
+         * way to bind conditionally and produces exactly that, and it already behaves correctly —
+         * `handleEvent` finds nothing callable and does nothing. `true` is not produced by any
+         * idiom, so it is named along with strings, numbers and objects that cannot listen.
+         */
+        if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&
+            typeof (value as EventListenerObject)?.handleEvent !== 'function')
+          console.warn(
+            `[vera] @${this._name} on <${this._element.localName}> was given ${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
+              `which cannot listen — the event will do nothing.\n` +
+              `Pass a function, or an object with a handleEvent method. A missing handler is ` +
+              `\`undefined\` or \`false\`, both of which are fine; this is neither.`
+          );
         if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
         this._handler = (value as EventListener) ?? null;
       } else if (value != null) {
