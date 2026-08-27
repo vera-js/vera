@@ -2,7 +2,7 @@ import { ComponentElement, RenderTemplate, Signal } from '../types.js';
 import { createHook, deferInHookContext } from '../modules/createHook.js';
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';
-import { renderScheduler } from '../modules/setRenderScheduler.js';
+import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
 import { Renderer } from '@verajs/shared-types';
 
 /** One warning per page, not per render. */
@@ -11,6 +11,8 @@ let warnedNoRenderer = false;
 export const useRender = (template: unknown, element: ComponentElement, ...args: unknown[]) => {
   /** Set while a pass is queued, so N writes in a tick still produce one render. */
   let queued = false;
+  /** Which scheduler the queued pass was handed to — see `schedulerGeneration`. */
+  let queuedUnder = 0;
 
   createHook({
     callback: <V>(props?: Signal<V>, init?: boolean) => {
@@ -77,8 +79,16 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
        * fresh `schedule` per write; a flag skips both for every write after the first, and works
        * whatever the scheduler is — a microtask has nothing to cancel.
        */
-      if (queued) return;
+      /**
+       * **Stranded passes are re-queued rather than waited on forever.** A scheduler that drops the
+       * pass leaves `queued` raised and the component never renders again; once that scheduler has
+       * been *replaced*, whatever it was holding is provably never going to run, so the guard stops
+       * honouring it. Re-queueing may render twice in the rare case where the old scheduler does fire
+       * after all, which is idempotent and enormously preferable to a component that is simply dead.
+       */
+      if (queued && queuedUnder === schedulerGeneration) return;
       queued = true;
+      queuedUnder = schedulerGeneration;
       /**
        * **The flag is released if the scheduler throws, or the component never renders again.**
        *

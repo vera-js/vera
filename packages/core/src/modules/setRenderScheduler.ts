@@ -24,6 +24,21 @@ export const microtask: RenderScheduler = (run) => {
 export let renderScheduler: RenderScheduler = animationFrame;
 
 /**
+ * Bumped whenever the scheduler is replaced, so a pass queued under a scheduler that never ran it can
+ * be recognised as stranded and queued again.
+ *
+ * A coalescing flag is raised before the pass is handed over and lowered inside it, so a scheduler
+ * that drops the pass leaves the component frozen for the rest of the page. At the moment of
+ * scheduling there is no way to tell a dropped pass from a deferred one — deferring is the whole job.
+ * **Replacement is the moment where it becomes knowable**: whatever the old scheduler was holding is
+ * provably never going to run, because nothing will ever call it again.
+ *
+ * A live binding, exactly as `revision` is in `@verajs/inserts`, and read on the coalescing guard's
+ * early-return path only.
+ */
+export let schedulerGeneration = 0;
+
+/**
  * Replaces the render scheduler, and **returns the one it replaced**.
  *
  * ```js
@@ -72,5 +87,7 @@ export const setRenderScheduler = (scheduler: RenderScheduler) => {
     );
   const previous = renderScheduler;
   renderScheduler = scheduler;
+  /** See `schedulerGeneration`: this is what lets a stranded pass be queued again. */
+  schedulerGeneration++;
   return previous;
 };

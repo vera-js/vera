@@ -1,4 +1,5 @@
 import { deferInHookContext } from '../modules/createHook.js';
+import { schedulerGeneration } from '../modules/setRenderScheduler.js';
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { swapCleanup } from '../store/store.js';
 import { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
@@ -26,6 +27,8 @@ import { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
 export const coalesce = (callback: HookCallback, schedule: (run: () => void) => void, label: string) => {
   let cleanup: void | HookCleanup;
   let scheduled = false;
+  /** Which scheduler the queued run was handed to — see `schedulerGeneration`. */
+  let scheduledUnder = 0;
   let changed = new Map<string, SignalChange>();
   let latest: Signal<unknown> | undefined;
   let run: (() => void) | undefined;
@@ -69,8 +72,10 @@ export const coalesce = (callback: HookCallback, schedule: (run: () => void) => 
     }
     latest = props as Signal<unknown>;
 
-    if (scheduled) return;
+    /** A run stranded by a scheduler that never ran it is re-queued — see `useRender`. */
+    if (scheduled && scheduledUnder === schedulerGeneration) return;
     scheduled = true;
+    scheduledUnder = schedulerGeneration;
 
     /**
      * Built once. `deferInHookContext` has to be called inside a hook callback to capture the

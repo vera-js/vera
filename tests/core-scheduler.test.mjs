@@ -122,22 +122,55 @@ test('a scheduler that throws does not freeze the component permanently', async 
 });
 
 /**
- * The other half is deliberately *not* fixed, and is asserted so the decision is visible.
+ * The harder half, which was nearly left unfixed on the reasoning that a dropped pass cannot be told
+ * apart from a deferred one. That is true *at the moment of scheduling* and it is not the only
+ * moment: once the scheduler has been **replaced**, whatever the old one was holding is provably
+ * never going to run, because nothing will ever call it again. So the guard stops honouring a flag
+ * raised under a scheduler that no longer exists.
  *
- * A scheduler that drops the pass without throwing cannot be told apart from one legitimately
- * deferring — that is the whole of what a scheduler does. `RenderScheduler` is documented as
- * deciding *when* to run the pass, not whether, so dropping it breaks the contract and the component
- * stays frozen. Throwing is recoverable and is what an app hits by accident; this is not.
+ * A component that never renders again is not something to leave standing behind an argument about
+ * contracts.
  */
-test('a scheduler that silently drops the pass is the scheduler breaking its contract', async () => {
-  const element = counter();
+test('a scheduler that silently drops the pass does not freeze the component once it is replaced', async () => {
+  let effects = 0;
+  const element = counter((state) => core.useEffect(() => { void state.n; effects++; }));
   await frame();
+  const settled = effects;
+
   const previous = core.setRenderScheduler(() => {});
   element._state.n = 1;
   await macrotask();
+  assert.equal(element.shadowRoot.textContent, '0', 'the dropping scheduler should indeed drop it');
+
   core.setRenderScheduler(previous);
   element._state.n = 2;
   await frame();
-  assert.equal(element.shadowRoot.textContent, '0',
-    'if this ever recovers, the contract has been loosened and the README should say so');
+  assert.equal(element.shadowRoot.textContent, '2', 'the render never recovered from the stranded pass');
+  assert.ok(effects > settled, 'the effect never recovered from the stranded run');
+});
+
+test('re-queueing does not fire twice while one scheduler stays installed', async () => {
+  /**
+   * The recovery only relaxes the guard across a *replacement*. Within one scheduler the flag must
+   * still coalesce, or every write in a tick would schedule its own pass — which is the whole point
+   * of the flag.
+   */
+  let renders = 0;
+  const tag = `x-sched-${seq++}`;
+  customElements.define(tag, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      const state = core.createStore({ n: 0 });
+      this._state = state;
+      core.render(() => { renders++; return core.html`<p>${state.n}</p>`; });
+    }
+  });
+  const element = dom.window.document.createElement(tag);
+  dom.window.document.body.appendChild(element);
+  await frame();
+
+  const before = renders;
+  for (let i = 1; i <= 20; i++) element._state.n = i;
+  await frame();
+  assert.equal(renders - before, 1, `twenty writes in one tick should render once, rendered ${renders - before}`);
 });
