@@ -934,8 +934,15 @@ const builtIns: ValueHandler[] = [];
  */
 let notifyOnRemoval = false;
 
-/** Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it. */
-const _directiveSwaps = new WeakMap<object, number>();
+/**
+ * Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it.
+ *
+ * `@__PURE__` is load-bearing. Every read sits behind `__DEV__`, but a bare `new WeakMap()` at module
+ * scope is a constructor call terser must assume has side effects, so production kept the allocation
+ * with its binding dropped — a literal `new WeakMap;` statement building an object nothing could ever
+ * reach. The annotation is what lets the dead branch take it along.
+ */
+const _directiveSwaps = /* @__PURE__ */ new WeakMap<object, number>();
 
 const EMPTY = 0;
 const TEXT = 1;
@@ -1178,7 +1185,8 @@ class ChildPart implements Part {
        * part happens once or twice, not on every render.
        *
        * The counter is a module-scope `WeakMap` rather than a field, so production carries neither
-       * it nor a per-part slot to hold it.
+       * it nor a per-part slot to hold it — but only because it is marked `@__PURE__` at its
+       * declaration. Without that it said the same thing and was untrue.
        */
       if (__DEV__ && this._directiveFn !== undefined && this._directiveFn !== applyChild) {
         const swaps = (_directiveSwaps.get(this) ?? 0) + 1;

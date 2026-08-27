@@ -7,8 +7,8 @@
       "gzip": 2825
     },
     "renderer": {
-      "raw": 9449,
-      "gzip": 3722
+      "raw": 9437,
+      "gzip": 3720
     },
     "router": {
       "raw": 8598,
@@ -104,7 +104,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
       "raw": 14270,
-      "gzip": 5882,
+      "gzip": 5883,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -194,7 +194,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
       "raw": 15392,
-      "gzip": 6338
+      "gzip": 6337
     },
     {
       "name": "Lit",
