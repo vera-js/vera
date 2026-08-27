@@ -3,6 +3,9 @@ import { hooksQueue, currentInstance } from '../store/store.js';
 import { prioritySlot } from '@verajs/shared-utils';
 import { ErrorInsert, inserts } from '@verajs/inserts';
 
+/** Hoisted for the same reason as its twin in `createProxy` — see the note there. */
+const newSet = () => new Set();
+
 /**
  * Hands a thrown hook error to the `'error'` insert chain, or reports it if nothing is registered.
  *
@@ -147,7 +150,7 @@ export function createHook(hook: Hook) {
   /** Dense and priority-sorted; `runHooks` walks this on every render. */
   derefElement._hooks ??= [];
   derefElement._hookPriorities ??= [];
-  prioritySlot(derefElement._hooks, derefElement._hookPriorities, priority as number, () => new Set()).add(hookCallback);
+  prioritySlot(derefElement._hooks, derefElement._hookPriorities, priority as number, newSet).add(hookCallback);
 
   /**
    * Handed back so a caller can run the hook itself, which is the only way to record what it reads:

@@ -159,16 +159,48 @@ try {
 }
 
 const fmt = (ms) => (ms * 1000).toFixed(1).padStart(8);
+
+/**
+ * **The spread is printed, and it is the first thing to read.**
+ *
+ * A fastest-of-N hides how noisy the machine was, and this benchmark was quietly reporting swings of
+ * 1.8x on identical code while eight test workers from an unrelated project saturated the CPU — long
+ * enough to produce a "regression" that was nothing but contention, and to have that believed. A
+ * number with no spread beside it cannot be argued with, which is exactly the problem.
+ *
+ * The warning is computed **only from rows above 10 us**, and that qualification is load-bearing. A
+ * sub-microsecond row spreads 3x from timer quantisation alone, and React's own JIT warmup skews its
+ * small-component row past 4x on a completely idle machine — a threshold that counts those cries wolf
+ * on every run and is then ignored, which is worse than not warning. The 100-row rows sit at 1.0-1.4x
+ * when the machine is quiet and rise together when it is not, so they are the honest signal.
+ */
+const NOISE_FLOOR_US = 10;
+let worst = 1;
 for (const size of ['small', 'large']) {
-  console.log(`\n  ${size === 'small' ? 'small component' : '100-row table'} — µs/render, fastest of ${ROUNDS} rounds (median in parens)`);
+  console.log(`\n  ${size === 'small' ? 'small component' : '100-row table'} — µs/render, fastest of ${ROUNDS} rounds (median, spread)`);
   const entries = Object.entries(results[size])
     .map(([name, times]) => {
       const sorted = [...times].sort((a, b) => a - b);
-      return { name, best: sorted[0], median: sorted[Math.floor(sorted.length / 2)] };
+      return {
+        name,
+        best: sorted[0],
+        median: sorted[Math.floor(sorted.length / 2)],
+        spread: sorted[sorted.length - 1] / sorted[0],
+      };
     })
     .sort((a, b) => a.best - b.best);
   const fastest = entries[0].best;
-  for (const { name, best, median } of entries) {
-    console.log(`  ${name.padEnd(13)} ${fmt(best)}  (${fmt(median).trim()})   ${(best / fastest).toFixed(2)}x`);
+  for (const { name, best, median, spread } of entries) {
+    if (best * 1000 >= NOISE_FLOOR_US) worst = Math.max(worst, spread);
+    console.log(
+      `  ${name.padEnd(13)} ${fmt(best)}  (${fmt(median).trim()}, ${spread.toFixed(2)}x)   ${(best / fastest).toFixed(2)}x`
+    );
   }
 }
+console.log(
+  worst > 1.5
+    ? `\n  ⚠ widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs — the machine was not quiet, so these\n` +
+        `    numbers are not comparable to anything. Check for other work (\`uptime\`: a load average near or\n` +
+        `    above the core count means something else is running) and re-run.`
+    : `\n  widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs — quiet enough to compare.`
+);

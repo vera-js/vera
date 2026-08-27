@@ -93,6 +93,18 @@ let writingProp: PropertyKey | null = null;
 const callbackPriorities = new WeakMap<Set<WeakRef<never>>[], number[]>();
 
 /**
+ * Hoisted, because it is handed to `prioritySlot` on **every tracked read** and called only on the
+ * first one. Written inline it allocated a closure per read — including the steady-state reads the
+ * comment in `addCallback` calls allocation-free, which they were not. `prioritySlot` takes a
+ * factory rather than a value so the slot is built only when it is missing; that is worth keeping,
+ * and it costs nothing once the factory itself stops being rebuilt.
+ *
+ * Measured on the SSR component render, fastest of nine rounds over 20 000 renders, twice: 6.14 and
+ * 6.37 us against 6.73 and 6.79 inline. 7 B gzipped on `@verajs/core`.
+ */
+const newSet = () => new Set();
+
+/**
  * Adds a callback to the proxyCallbacks WeakMap for an obj/prop combo using the element, callback,
  * and priority from the current hook in the hooksQueue
  *
@@ -147,7 +159,7 @@ const addCallback = <T>(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>)
   let order = callbackPriorities.get(byPriority as never);
   if (order === undefined) callbackPriorities.set(byPriority as never, (order = []));
 
-  prioritySlot(byPriority, order, priority, () => new Set()).add(callbackWeakRef);
+  prioritySlot(byPriority, order, priority, newSet).add(callbackWeakRef);
 };
 
 /**
