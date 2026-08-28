@@ -951,9 +951,6 @@ export const OUT_OF_SCOPE = {
   },
   "tokenList": {},
   "element": {
-    "after": "places content beside this element, which needs the parent it has none of",
-    "before": "places content beside this element, which needs the parent it has none of",
-    "replaceWith": "places content beside this element, which needs the parent it has none of",
     "isDefaultNamespace": "needs a document to resolve namespaces against",
     "lookupNamespaceURI": "needs a document to resolve namespaces against",
     "lookupPrefix": "needs a document to resolve namespaces against",

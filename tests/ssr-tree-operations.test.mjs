@@ -257,3 +257,98 @@ test('getRootNode honours composed', () => {
     return inside.getRootNode({ composed: true }) === host;
   });
 });
+
+/**
+ * **The `ChildNode` trio and the fragment's whole purpose.** `before`, `after` and `replaceWith`
+ * were out of scope for needing "the parent it has none of", which stopped being true; a fragment
+ * had its markup inlined, so it still reported the children it had supposedly handed over.
+ */
+test('before, after and replaceWith place content beside a node', () => {
+  const check = (label, run) => assert.equal(run(document), run(real.document), label);
+  const seed = (d) => {
+    const host = d.createElement('div');
+    const middle = d.createElement('b');
+    host.appendChild(d.createElement('i'));
+    host.appendChild(middle);
+    host.appendChild(d.createElement('u'));
+    return [host, middle];
+  };
+  check('before', (d) => { const [host, middle] = seed(d); middle.before(d.createElement('s')); return host.innerHTML; });
+  check('after', (d) => { const [host, middle] = seed(d); middle.after(d.createElement('s')); return host.innerHTML; });
+  check('replaceWith', (d) => { const [host, middle] = seed(d); middle.replaceWith(d.createElement('s')); return host.innerHTML; });
+  check('several at once', (d) => {
+    const [host, middle] = seed(d);
+    middle.after(d.createElement('s'), d.createElement('em'));
+    return host.innerHTML;
+  });
+  check('a string becomes text', (d) => {
+    const [host, middle] = seed(d);
+    middle.after('plain');
+    return host.textContent;
+  });
+  check('on a node with no parent it does nothing', (d) => {
+    const orphan = d.createElement('b');
+    orphan.before(d.createElement('i'));
+    return orphan.outerHTML;
+  });
+  check('on a text node', (d) => {
+    const host = d.createElement('div');
+    const text = d.createTextNode('x');
+    host.appendChild(text);
+    text.before(d.createElement('b'));
+    return host.innerHTML;
+  });
+});
+
+test('a fragment hands over its children and is left empty', () => {
+  const check = (label, run) => assert.equal(run(document), run(real.document), label);
+  check('the host gets them', (d) => {
+    const fragment = d.createDocumentFragment();
+    fragment.appendChild(d.createElement('b'));
+    fragment.appendChild(d.createElement('i'));
+    const host = d.createElement('div');
+    host.appendChild(fragment);
+    return `${host.innerHTML}|${host.children.length}`;
+  });
+  check('and the fragment is emptied', (d) => {
+    const fragment = d.createDocumentFragment();
+    fragment.appendChild(d.createElement('b'));
+    const host = d.createElement('div');
+    host.appendChild(fragment);
+    return fragment.childNodes.length;
+  });
+});
+
+/**
+ * Assigning `outerHTML` was a `TypeError` — there was no setter — so an ordinary way to swap a node
+ * out did nothing on the server and worked in the browser.
+ */
+test('outerHTML replaces the element in its parent', () => {
+  const check = (label, run) => {
+    const attempt = (d) => {
+      try {
+        return ['ok', String(run(d))];
+      } catch (error) {
+        return ['threw', error.name];
+      }
+    };
+    assert.deepEqual(attempt(document), attempt(real.document), label);
+  };
+  check('replacing a child', (d) => {
+    const host = d.createElement('div');
+    const kid = d.createElement('b');
+    host.appendChild(kid);
+    kid.outerHTML = '<i>y</i>';
+    return `${host.innerHTML}|${host.children.length}`;
+  });
+  /**
+   * **A silent no-op, measured rather than guessed.** The obvious guess is
+   * `NoModificationAllowedError`, and it is wrong: the spec raises that only when the parent is a
+   * *Document*. All three engines and jsdom simply return.
+   */
+  check('with no parent it returns silently', (d) => {
+    const orphan = d.createElement('b');
+    orphan.outerHTML = '<i></i>';
+    return orphan.outerHTML;
+  });
+});

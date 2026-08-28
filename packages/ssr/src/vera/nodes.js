@@ -103,6 +103,25 @@ const serializeEntry = (entry) =>
 const isNode = (value) => typeof value?.markup === 'function';
 
 /**
+ * **`before`, `after` and `replaceWith`** — the `ChildNode` trio, which every one of these classes
+ * needs and none can inherit from the other: text and comments extend `EventTarget` directly rather
+ * than the container. Written once here and delegated to, rather than three times over.
+ *
+ * A plain string becomes a text node, which is what the spec says and what makes
+ * `node.after('some text')` do the obvious thing instead of nothing.
+ *
+ * @param {any} node @param {Array<any>} inserted @param {'before' | 'after' | 'replace'} where
+ */
+const insertAround = (node, inserted, where) => {
+  const parent = node._parent;
+  if (!parent) return;
+  const reference = where === 'after' ? node.nextSibling : node;
+  for (const one of inserted)
+    parent.insertBefore(typeof one === 'string' ? new TextShim(one) : one, reference);
+  if (where === 'replace') parent.removeChild(node);
+};
+
+/**
  * **Structural equality, as the spec defines it** — type, name, attributes as a set, and children
  * pairwise. `isEqualNode` used to compare identity, which is what `isSameNode` is for, so two
  * elements built identically reported themselves different.
@@ -292,6 +311,15 @@ class CharacterDataShim extends EventTarget {
   remove() {
     this._parent?.removeChild(this);
   }
+  before(...nodes) {
+    insertAround(this, nodes, 'before');
+  }
+  after(...nodes) {
+    insertAround(this, nodes, 'after');
+  }
+  replaceWith(...nodes) {
+    insertAround(this, nodes, 'replace');
+  }
   isSameNode(node) {
     return node === this;
   }
@@ -422,6 +450,19 @@ export class ContainerShim extends EventTarget {
      * Moving a fragment's children into this parent is the platform's behaviour and is deliberately
      * *not* step 1: it changes what `appendChild(fragment)` leaves behind.
      */
+    /**
+     * **A fragment hands over its children and is left empty**, which is what a browser does and the
+     * whole point of the type. Its markup used to be inlined instead, so the fragment still reported
+     * the children it had supposedly given away.
+     */
+    if (node?.nodeType === 11) {
+      for (const entry of node._entries) {
+        if (isNode(entry)) entry._parent = this;
+        this._entries.push(entry);
+      }
+      node._entries = [];
+      return node;
+    }
     if (!isNode(node)) {
       this._entries.push(node?.innerHTML ?? '');
       return node;
@@ -639,6 +680,16 @@ export class ContainerShim extends EventTarget {
   contains(node) {
     for (let current = node; current; current = current._parent) if (current === this) return true;
     return false;
+  }
+  /** The `ChildNode` trio, shared with text and comments through `insertAround`. */
+  before(...nodes) {
+    insertAround(this, nodes, 'before');
+  }
+  after(...nodes) {
+    insertAround(this, nodes, 'after');
+  }
+  replaceWith(...nodes) {
+    insertAround(this, nodes, 'replace');
   }
   isSameNode(node) {
     return node === this;
@@ -1619,6 +1670,22 @@ export class ElementShim extends ContainerShim {
   /** The element's own markup, which the serializer builds anyway. */
   get outerHTML() {
     return serializeElement(this);
+  }
+  /**
+   * **Replaces this element in its parent with the given markup.** Assigning it used to be a
+   * `TypeError` — there was no setter — so `element.outerHTML = '<p>x</p>'`, an ordinary way to swap
+   * a node out, did nothing on the server and worked in the browser.
+   *
+   * **With no parent it returns silently**, which is what the spec says and what all three engines
+   * do — measured, because the obvious guess was a `NoModificationAllowedError` and that is wrong:
+   * the spec raises it only when the parent is a *Document*, not when there is no parent at all.
+   */
+  set outerHTML(markup) {
+    const parent = this._parent;
+    if (!parent) return;
+    parent._entries.splice(parent._entries.indexOf(this), 1, `${markup}`);
+    parent._parsed = false;
+    this._parent = null;
   }
   get innerText() {
     return this.textContent;
