@@ -158,3 +158,72 @@ test('every implemented member answers like the real one', () => {
       `because jsdom does not implement them.)`
   );
 });
+
+/**
+ * **The same walk, but along the value axis.** The generated comparison above hands every member a
+ * benign argument, so it answers "does this member behave like the real one *in the ordinary case*".
+ * It cannot see a member that is merely **too permissive** — and per CLAUDE.md that is the more
+ * productive question, because a member that exists and accepts what the platform refuses looks
+ * exactly like one that is correct until the client throws on markup the server was happy to write.
+ *
+ * A symbol is the sharpest probe for it: `String(symbol)` answers `'Symbol(s)'` while the WebIDL
+ * `DOMString` conversion every one of these members performs throws a `TypeError`. That divergence
+ * ran through eleven members here — `_name` alone served five of them.
+ *
+ * **The engines are the oracle, not jsdom** (`tests/browser/dom-string-coercion.test.js` records
+ * their answer on Chromium, Firefox and WebKit — all three refuse all eleven with a `TypeError`).
+ * jsdom agreeing is why this can be asserted here rather than only in a browser.
+ */
+test('refuses a symbol wherever a DOM string is expected, as the engines do', () => {
+  const symbol = Symbol('s');
+  const operations = {
+    'setAttribute value': (el) => el.setAttribute('a', symbol),
+    'setAttribute name': (el) => el.setAttribute(symbol, 'v'),
+    'getAttribute name': (el) => el.getAttribute(symbol),
+    'hasAttribute name': (el) => el.hasAttribute(symbol),
+    'removeAttribute name': (el) => el.removeAttribute(symbol),
+    'toggleAttribute name': (el) => el.toggleAttribute(symbol, true),
+    'setAttributeNS value': (el) => el.setAttributeNS(null, 'a', symbol),
+    className: (el) => { el.className = symbol; },
+    id: (el) => { el.id = symbol; },
+    textContent: (el) => { el.textContent = symbol; },
+  };
+
+  const accepted = [];
+  for (const [label, operation] of Object.entries(operations)) {
+    try {
+      operation(document.createElement('div'));
+      accepted.push(label);
+    } catch (error) {
+      assert.equal(error.constructor.name, 'TypeError', `${label} threw the wrong kind of error`);
+    }
+  }
+  assert.deepEqual(accepted, [], `these accepted a symbol that every engine refuses: ${accepted.join(', ')}`);
+
+  assert.throws(() => document.createElement(symbol), TypeError, 'createElement accepted a symbol');
+});
+
+/**
+ * `insertAdjacentHTML` has two different failures and used to report them as one. A server-rendered
+ * component genuinely cannot do `beforebegin`/`afterend` — it has no parent — and that explanation
+ * is worth keeping. A position that is not one of the four is not that situation at all; it is the
+ * platform's `SyntaxError`, and answering it with the parent explanation sent whoever typo'd a
+ * position looking for a parent that was never the problem.
+ */
+test('separates an unsupported insertAdjacentHTML position from an unknown one', () => {
+  const element = document.createElement('div');
+
+  assert.throws(() => element.insertAdjacentHTML('nowhere', '<b></b>'), (error) => {
+    assert.equal(error.constructor.name, 'DOMException', 'an unknown position is a DOMException');
+    assert.equal(error.name, 'SyntaxError');
+    return true;
+  });
+
+  assert.throws(() => element.insertAdjacentHTML('beforebegin', '<b></b>'), (error) => {
+    assert.match(error.message, /needs a parent element/, 'and this one still explains itself');
+    return true;
+  });
+
+  element.insertAdjacentHTML('beforeend', '<b>x</b>');
+  assert.match(element.innerHTML, /<b>x<\/b>/, 'a position it supports still works');
+});

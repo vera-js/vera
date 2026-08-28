@@ -639,7 +639,13 @@ export class ElementShim extends ContainerShim {
    * `attributeChangedCallback` simply did not fire.
    */
   _name(name) {
-    return this._ns === HTML_NS ? String(name).toLowerCase() : String(name);
+    /**
+     * **Template coercion, not `String()`** — the difference is a symbol, which `String()` answers
+     * `'Symbol(s)'` for and which every engine refuses with a `TypeError` (recorded across all
+     * three in `tests/browser/dom-string-coercion.test.js`). Being the lenient one server-side
+     * only moves the failure to the client with the context stripped off.
+     */
+    return this._ns === HTML_NS ? `${name}`.toLowerCase() : `${name}`;
   }
   /**
    * **`mode: 'closed'` means `element.shadowRoot` is `null`** — that is the entire difference between
@@ -689,7 +695,7 @@ export class ElementShim extends ContainerShim {
         'InvalidCharacterError'
       );
     const previous = this.getAttribute(name);
-    this._attributes.set(name, String(value));
+    this._attributes.set(name, `${value}`);
     this._attributeChanged(name, previous);
   }
   hasAttribute(name) {
@@ -919,9 +925,15 @@ export class ElementShim extends ContainerShim {
    * the difference between the two methods and the one to reach for with anything from a request.
    */
   insertAdjacentHTML(position, markup) {
-    const where = String(position).toLowerCase();
+    const where = `${position}`.toLowerCase();
     if (where === 'afterbegin') this.innerHTML = markup + this.innerHTML;
     else if (where === 'beforeend') this.innerHTML += markup;
+    else if (where !== 'beforebegin' && where !== 'afterend')
+      throw new DOMException(
+        `Failed to execute 'insertAdjacentHTML' on 'Element': The value provided ` +
+          `('${position}') is not one of 'beforeBegin', 'afterBegin', 'beforeEnd', or 'afterEnd'.`,
+        'SyntaxError'
+      );
     else
       throw new Error(
         `ssr: insertAdjacentHTML('${position}') needs a parent element, and a server-rendered ` +
@@ -1048,7 +1060,7 @@ export class ElementShim extends ContainerShim {
  * so a component created imperatively had none of its own state, and `instanceof` said no.
  */
 export const createElement = (localName, namespaceURI = HTML_NS) => {
-  const name = namespaceURI === HTML_NS ? String(localName).toLowerCase() : String(localName);
+  const name = namespaceURI === HTML_NS ? `${localName}`.toLowerCase() : `${localName}`;
   /**
    * **A tag name that cannot be written is refused**, as it is in every engine. Accepting one meant
    * `createElement('a b')` serialized `<a b>` — an element `a` with an empty attribute `b` once a
