@@ -123,7 +123,7 @@ describing the bytes honestly.)*
 | --- | ---: | --- |
 | `@verajs/core` | 2 938 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 3 826 B | keyed template renderer, refs, `hold` |
-| `@verajs/router` | 3 671 B | nested routes, params, wildcards, redirects, scroll memory |
+| `@verajs/router` | 3 672 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 222 B | lazy component discovery |
 | `@verajs/styles` | 638 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 842 B | `${spread(props)}` — runtime-named bindings |

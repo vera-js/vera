@@ -65,7 +65,14 @@ export const initRouter = (
   if (routerOptions.scrollBehavior !== undefined) routerSettings.scrollBehavior = routerOptions.scrollBehavior;
 
   if (handleInitial)
-    requestAnimationFrame(() => {
+    /**
+     * **The promise is returned, not dropped.** `navigate` is async, and a frame callback that
+     * discards its result gives nobody anything to wait for — which is why a server-rendered routed
+     * component shipped an empty outlet: the render finished while this navigation was still
+     * resolving. `@verajs/ssr`'s asynchronous render awaits what a frame callback returns, so
+     * handing it back is what puts the first view in the first response.
+     */
+    requestAnimationFrame(() =>
       /**
        * `navigate` routes every connected router and dedupes on `currentPath`, so with several
        * routers the first rAF handles the whole page and the rest return immediately. No history
@@ -77,8 +84,8 @@ export const initRouter = (
        * handling passes `pathname + search + hash`. `?page=2`, `?q=…` and every filter in a
        * bookmarked URL were invisible on exactly the load that had them.
        */
-      navigate(window.location.pathname + window.location.search + window.location.hash, 'init');
-    });
+      navigate(window.location.pathname + window.location.search + window.location.hash, 'init')
+    );
 
   return {
     /**

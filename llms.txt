@@ -137,6 +137,7 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
 | `setRenderScheduler` | `(scheduler) => void` | Defaults to `requestAnimationFrame`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
+| `renderToStringAsync` | `(url, options) => Promise<{html, styles, title}>` | `@verajs/ssr` — same options as `renderToString`, but awaits the component's `connectedCallback` and lets promises settle between frames. Needed for an `async connectedCallback`, and for a routed component to render its route. Async renders take a turn each. |
 | `setStaticStores` | `(on: boolean) => void` | Makes `createStore` return a non-reactive store. **Server-side only** — `@verajs/ssr`'s `renderToString(url, { static: true })` is what calls it. Leaving it on in a browser gives you a framework that does not update. A write to such a store throws. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
 

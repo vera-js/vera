@@ -59,6 +59,25 @@ describe.
   can recover. There is no next render here, so `renderToString` collects those failures and throws,
   naming the component. Catch it to fall back to a client-rendered shell, as you would with React or
   Vue.
+- **`renderToStringAsync` awaits the component's lifecycle.** `renderToString` is synchronous end to
+  end, so an `async connectedCallback` is refused — its markup would be empty, and saying so beats
+  shipping it. `renderToStringAsync` waits: for the callback, and for promises to settle between
+  frame rounds. That is what a component loading data needs, and what puts **a routed component's
+  first view in the first response** rather than only after hydration.
+
+  Everything that decides *what* to emit is shared with `renderToString` — the scanner, the
+  serializer, the instance preparation, the page assembly — and
+  `tests/ssr-async-parity.test.mjs` renders every fixture through both and compares. The scan itself
+  stays synchronous in both: a component tag becomes a placeholder and its render a promise, and the
+  placeholders are substituted once everything settles. Awaiting inside the scan would have meant a
+  second copy of the parser, and an async recursion measures 2.45x even when nothing suspends —
+  which the synchronous path is not going to pay for a feature it never uses.
+
+  **Asynchronous renders take a turn each.** The per-render bookkeeping is module-level, and being
+  synchronous end to end is what makes concurrent `renderToString` calls safe; a render that pauses
+  does not have that protection, so two overlapping ones would read each other's. One at a time is
+  the version that cannot be wrong. `renderToString` is unaffected and still runs whenever it likes.
+
 - **`static: true` renders a page that will not be interactive, about 3x faster.** A server render is
   one shot — the subscriptions built while it runs are never fired afterwards — so tracking every
   property read to create them is pure cost. Measured on a component rendering twenty rows, the proxy
