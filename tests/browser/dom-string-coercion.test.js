@@ -55,3 +55,30 @@ it('rejects an unknown insertAdjacentHTML position with a DOMException', () => {
   expect(caught.constructor.name, 'the kind of error').to.equal('DOMException');
   expect(caught.name, 'and its name').to.equal('SyntaxError');
 });
+
+/**
+ * `CSSStyleSheet` is the one place jsdom cannot stand in at all — it has no `replaceSync` — so the
+ * rule the SSR shim's stylesheet has to match can only be measured here.
+ */
+it('coerces a stylesheet text to a string, and refuses a symbol', () => {
+  const coerced = [];
+  for (const value of [undefined, null, 0, false, {}, [1, 2]]) {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(value);
+    coerced.push(typeof value);
+  }
+  expect(coerced.length, 'none of these throw').to.equal(6);
+
+  let threw;
+  try {
+    new CSSStyleSheet().replaceSync(symbol);
+  } catch (error) {
+    threw = error.constructor.name;
+  }
+  expect(threw, 'a symbol is refused').to.equal('TypeError');
+
+  /** And what it stores is a parsed sheet, never the caller's value handed back. */
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync('p { color: red }');
+  expect(sheet.cssRules.length, 'it parsed the text').to.equal(1);
+});

@@ -10,6 +10,7 @@
 import { renderToString } from '@verajs/ssr/vera';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 
 const { wireApp } = await import('../examples/kitchen-sink/wiring.js');
 wireApp(null);
@@ -113,3 +114,30 @@ if (failures.length) {
 }
 console.log(`ssr style shapes: ${pass} checks across every form static styles accepts`);
 assert.equal(failures.length, 0);
+
+/**
+ * **The value axis on the sheet itself.** Everything above hands `replaceSync` a string, which is
+ * what `adoptStyles` does — but a component may call it directly, and the platform's argument is a
+ * `USVString`. Assigning it straight through left whatever it was given on `cssText`, so a number
+ * or a plain object reached the `<style>` block by concatenation, producing wrong text a long way
+ * from the call that caused it, and a symbol was accepted where every engine throws.
+ *
+ * jsdom has no `CSSStyleSheet.replaceSync` at all, so this rule could only be measured in a real
+ * engine — `tests/browser/dom-string-coercion.test.js` records it on Chromium, Firefox and WebKit.
+ */
+test('a stylesheet always holds text, and refuses a symbol as the engines do', () => {
+  for (const value of [undefined, null, 0, false, {}, [1, 2]]) {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(value);
+    assert.equal(typeof sheet.cssText, 'string', `replaceSync(${String(value)}) left a non-string`);
+  }
+
+  assert.throws(() => new CSSStyleSheet().replaceSync(Symbol('s')), TypeError,
+    'a symbol was accepted where every engine throws');
+
+  /** `replace` is the async spelling of the same thing and must not have its own rule. */
+  const sheet = new CSSStyleSheet();
+  return sheet.replace(7).then(() => {
+    assert.equal(sheet.cssText, '7', 'replace() coerces the way replaceSync does');
+  });
+});

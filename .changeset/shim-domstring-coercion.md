@@ -19,6 +19,11 @@ four now throws the platform's `SyntaxError` `DOMException`; `beforebegin`/`afte
 the explanation that a server-rendered component has no parent, which is a real constraint and a
 different problem from a typo'd position.
 
+`CSSStyleSheet.replaceSync` had the same gap and one more: it assigned the caller's value straight
+through, so `cssText` held whatever type it was handed. A number, an array or a plain object reached
+the `<style>` block by concatenation, producing wrong text a long way from the call that caused it.
+It now always holds a string, and `replace()` shares the one rule instead of having its own.
+
 **For a static SSR consumer** this turns silent nonsense into a throw. Code that passed a symbol was
 already rendering `Symbol(s)` into the page and already failing on the client; it now fails on the
 server, where the stack points at the call.

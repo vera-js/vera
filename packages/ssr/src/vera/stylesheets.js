@@ -36,12 +36,20 @@ export class StyleSheetShim {
   constructor() {
     this.cssText = '';
   }
+  /**
+   * **`cssText` is always a string**, because the platform's argument is a `USVString` and it
+   * parses what it is given. Assigning the caller's value straight through left a number, an array
+   * or a plain object sitting on `cssText`, which then reached the `<style>` block by concatenation
+   * — so the wrong text appeared a long way from the call that caused it. Template coercion also
+   * refuses a symbol with a `TypeError`, which is what every engine does
+   * (`tests/browser/dom-string-coercion.test.js`).
+   */
   replaceSync(cssText) {
-    this.cssText = cssText;
+    this.cssText = `${cssText}`;
   }
   /** The async spelling of the same thing; `adoptStyles` uses `replaceSync`, a component may not. */
   async replace(cssText) {
-    this.cssText = cssText;
+    this.replaceSync(cssText);
     return this;
   }
   insertRule(rule) {
