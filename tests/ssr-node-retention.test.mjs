@@ -128,7 +128,13 @@ test('prepend, append and insertAdjacentHTML keep node identity', () => {
   assert.match(host.innerHTML, /text &#38; more$/, 'and it is escaped');
 
   host.insertAdjacentHTML('beforeend', '<hr>');
-  assert.equal(host.lastElementChild, kept, 'insertAdjacentHTML kept the nodes');
+  /**
+   * The retained node is still *the same object* — which is the property under test. It is no longer
+   * last, because the inserted markup now parses into a node of its own; before there was a parser
+   * it stayed an opaque chunk and `kept` was last by default.
+   */
+  assert.ok(host.children.includes(kept), 'insertAdjacentHTML flattened the retained nodes');
+  assert.equal(host.lastElementChild?.localName, 'hr', 'and the new markup became a node too');
   assert.match(host.innerHTML, /<hr>$/);
 });
 
@@ -142,23 +148,22 @@ test('assigning innerHTML replaces the children and detaches them', () => {
 });
 
 /**
- * **The boundary step 1 deliberately leaves.** Markup assigned as a string is not parsed, so it has
- * no node view — and asking for one says so rather than answering emptily in silence. Step 2 of the
- * plan is what closes this.
+ * **The boundary as it stands after step 2.** Markup that this parser can read *and reproduce
+ * exactly* becomes nodes; markup that would need the HTML spec's error recovery stays a string and
+ * says so. An unclosed `<div>` is the second kind — the spec closes it by recovery rules, and
+ * guessing at a tree would answer a query confidently and wrongly.
  */
-test('markup assigned as a string has no node view, and warns once', () => {
+test('markup it cannot parse stays a string, and warns once', () => {
   const warnings = [];
   const original = console.warn;
   console.warn = (...args) => warnings.push(args.join(' '));
   try {
     const host = el();
-    host.innerHTML = '<span>one</span><span>two</span>';
-    assert.equal(host.children.length, 0, 'a string is not nodes');
-    assert.equal(host.childNodes.length, 0);
+    host.innerHTML = '<div><span>never closed';
+    assert.equal(host.children.length, 0, 'it declined rather than guessing');
     void host.firstElementChild;
     assert.equal(warnings.length, 1, 'warned exactly once, not once per access');
     assert.match(warnings[0], /^\[vera\] ssr:/, 'and carries the framework prefix');
-    assert.match(warnings[0], /markup but no child nodes/);
   } finally {
     console.warn = original;
   }

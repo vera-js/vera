@@ -70,7 +70,12 @@ describe.
   fails too. That second check is the one that earns its keep: enumerating presence found a single
   gap, while comparing behaviour found `tabIndex` defaulting to 0, `draggable` defaulting to true,
   `role` answering `''` where the platform answers `null`, `textContent = null` writing the word
-  "null", and a closed shadow root handed straight back. The window's ~700 interface constructors are
+  "null", and a closed shadow root handed straight back. **That comparison checks a member's *shape*
+  — the type it answers with — not its answer to every input**, so it is a net rather than a proof:
+  an empty array and a full one look the same to it. Three separate classes of defect were found by
+  going around it deliberately — passing values nobody would pass (a symbol, where the platform
+  throws), checking the members jsdom does not implement at all (which it must skip), and asking
+  whether a member that answers *emptily* should have answered at all. The window's ~700 interface constructors are
   covered by a rule rather than a list: every interface this DOM implements is exposed, so
   `instanceof` answers for anything it hands you — the list is checked in (`tests/dom-surface.mjs`, no dependency involved) and
   both halves are enforced, so a gap fails a test instead of a render. That includes the sixty reflected
@@ -83,13 +88,12 @@ describe.
   and the client re-creates it just as hidden. **Where the platform throws, this throws** — an
   attribute or tag name that cannot be written, a second `attachShadow` or `attachInternals`, an
   invalid custom-element name, `appendChild` of a non-node. A server that is lenient about an error
-  does not make anything work; it moves the failure to the client and strips the context. The two
-  exceptions are deliberate: a selector is not parsed, so an invalid one answers emptily rather than
-  raising (queries answer emptily here anyway) — **and `matches`, `closest`,
-  `mozMatchesSelector` and `webkitMatchesSelector` answer `false` for every selector, including one
-  an element plainly satisfies**, because answering some selectors and not others would be less
-  predictable than answering none;
-  **`checkVisibility()` is always `false`** for the same reason, since nothing here is laid out and a
+  does not make anything work; it moves the failure to the client and strips the context. The
+  exceptions are deliberate: **a selector this DOM cannot answer honestly throws** rather than
+  answering `null` — it matches on structure and attributes, and a pseudo-class needs user state,
+  layout or a document that a server does not have, so `:hover` raises instead of quietly reporting
+  no match;
+  **`checkVisibility()` is always `false`**, since nothing here is laid out and a
   server cannot know what CSS will do, a constructed sheet holds its CSS as **text** rather
   than a parsed rule list — so `cssRules` is empty whatever the sheet contains, which is all the
   markup needs and is why `deleteRule` says so rather than pretending, and `insertAdjacentHTML` with `beforebegin` or

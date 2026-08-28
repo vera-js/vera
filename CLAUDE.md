@@ -40,7 +40,7 @@ code, so they are not re-litigated.
   and only *collectively* wrong. The class of bug it finds is the worst one this package has: the
   server and the client disagree about something neither of them renders, so nothing fails until a
   hydration mismatch shows up somewhere else entirely. Where the two legitimately differ (this DOM
-  holds children as a string, so `append` and `closest` answer emptily) that is in the README's
+  declines markup it cannot reproduce exactly, so those queries answer emptily) that is in the README's
   out-of-scope list — check there before calling a difference a defect. **The most productive
   question is not "is this member present" but "does it refuse what the platform refuses"** — a
   member that exists and is too permissive looks exactly like one that is correct, and being lenient

@@ -32,8 +32,13 @@ const SURFACE = [
   ['children', (el) => Array.isArray(el.children)],
   ['childNodes', (el) => Array.isArray(el.childNodes)],
   ['firstElementChild', (el) => el.firstElementChild === null],
-  ['closest', (el) => el.closest('div') === null],
-  ['matches', (el) => el.matches('div') === false],
+  /**
+   * **These answer now.** Each used to return nothing whatever it was asked, which passed a check
+   * written as `=== null`; a detached `<div>` genuinely matches `div` and genuinely has no
+   * descendants, so the contract is stated rather than the old placeholder.
+   */
+  ['closest', (el) => el.closest('div') === el],
+  ['matches', (el) => el.matches('div') === true && el.matches('span') === false],
   ['querySelector', (el) => el.querySelector('div') === null],
   ['querySelectorAll', (el) => el.querySelectorAll('div').length === 0],
   ['addEventListener', (el) => (el.addEventListener('x', () => {}), true)],
@@ -233,8 +238,9 @@ const CONTAINER_SURFACE = [
   ['append', (c) => (c.append(make('i')), c.innerHTML.includes('<i>'))],
   ['appendChild', (c) => (c.appendChild(make('b')), c.innerHTML.includes('<b>'))],
   ['replaceChildren', (c) => (c.append(make('i')), c.replaceChildren(make('b')), c.innerHTML === '<b></b>')],
-  ['querySelector', (c) => c.querySelector('*') === null],
-  ['querySelectorAll', (c) => c.querySelectorAll('*').length === 0],
+  /** These containers have a child by now — the checks above this one put it there. */
+  ['querySelector', (c) => (c.replaceChildren(make('u')), c.querySelector('u')?.localName === 'u')],
+  ['querySelectorAll', (c) => (c.replaceChildren(make('u')), c.querySelectorAll('*').length === 1)],
   ['getElementById', (c) => c.getElementById('x') === null],
   ['children', (c) => Array.isArray(c.children)],
   /**

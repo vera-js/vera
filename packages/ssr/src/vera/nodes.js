@@ -10,6 +10,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
+import { parseFragment } from './parse.js';
+import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
 import { StyleSheetShim } from './stylesheets.js';
 import { registry } from './registry.js';
@@ -88,7 +90,7 @@ const SHADOW_ATTRIBUTES = [
 export const serializeElement = (element) =>
   VOID_ELEMENTS.has(element.localName)
     ? element.openTag()
-    : element.openTag() + element.innerHTML + `</${element.localName}>`;
+    : element.openTag() + element.innerHTML + (element._sourceCloseTag ?? `</${element.localName}>`);
 
 const serializeEntry = (entry) =>
   typeof entry === 'string' ? entry : entry?.openTag ? serializeElement(entry) : (entry?.innerHTML ?? '');
@@ -104,7 +106,40 @@ const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
  * or by the `children:` option has markup and no node view, so asking for one answers emptily —
  * which is a wrong answer, and says so rather than being discovered later as a defect.
  */
+/**
+ * **Parse the markup chunks, but only keep the result if it reproduces them exactly.**
+ *
+ * The parse is discarded unless re-serialising it is byte-identical to the string it came from, so
+ * reading `children` can never change what the page renders — the worst case is the behaviour that
+ * was there before, plus a warning. That check is also what makes a parser defect cheap: a wrong
+ * tree that does not round-trip is thrown away rather than served.
+ */
+const parseChunks = (container) => {
+  if (container._parsed) return;
+  container._parsed = true;
+  const entries = [];
+  let gained = false;
+  for (const entry of container._entries) {
+    if (typeof entry !== 'string') {
+      entries.push(entry);
+      continue;
+    }
+    const parsed = parseFragment(entry, (name) => new ElementShim(name));
+    let round = '';
+    if (parsed) for (const node of parsed) round += typeof node === 'string' ? node : serializeElement(node);
+    if (!parsed || round !== entry) {
+      entries.push(entry);
+      continue;
+    }
+    for (const node of parsed) if (typeof node !== 'string') node._parent = container;
+    entries.push(...parsed);
+    gained = true;
+  }
+  if (gained) container._entries = entries;
+};
+
 const nodesOf = (container) => {
+  parseChunks(container);
   const nodes = container._entries.filter((entry) => typeof entry !== 'string');
   if (
     !nodes.length &&
@@ -144,6 +179,8 @@ export class ContainerShim extends EventTarget {
     for (const entry of this._entries) if (typeof entry !== 'string') entry._parent = null;
     const text = `${markup}`;
     this._entries = text === '' ? [] : [text];
+    /** New markup has not been looked at yet, whatever was true of the markup it replaced. */
+    this._parsed = false;
   }
   appendChild(node) {
     /**
@@ -306,7 +343,10 @@ export class ContainerShim extends EventTarget {
    */
   append(...nodes) {
     for (const node of nodes) {
-      if (typeof node === 'string') this._entries.push(escapeHtml(node));
+      if (typeof node === 'string') {
+        this._entries.push(escapeHtml(node));
+        this._parsed = false;
+      }
       else this.appendChild(node);
     }
   }
@@ -321,14 +361,23 @@ export class ContainerShim extends EventTarget {
     this.append(...nodes);
     this._entries.push(...existing);
   }
-  querySelector() {
-    return null;
+  /**
+   * **Answers from the node view**, which markup assigned as a string now has. Every query used to
+   * return nothing whatever was asked, so a component branched the wrong way with nothing said.
+   * A selector this DOM cannot answer honestly throws rather than answering `null` — see
+   * `select.js`.
+   */
+  querySelector(selector) {
+    parseChunks(this);
+    return select.querySelector(this, selector);
   }
-  querySelectorAll() {
-    return [];
+  querySelectorAll(selector) {
+    parseChunks(this);
+    return select.querySelectorAll(this, selector);
   }
-  getElementById() {
-    return null;
+  getElementById(id) {
+    parseChunks(this);
+    return select.querySelector(this, `[id="${`${id}`.replace(/"/gu, '\\"')}"]`);
   }
   /**
    * **Only retained nodes.** Every entry this DOM holds as an element *is* an element, so `children`
@@ -959,6 +1008,13 @@ export class ElementShim extends ContainerShim {
    * `includes`.
    */
   _attributeChanged(name, previous) {
+    /**
+     * **A written element stops being its source text.** A parsed element serves the bytes it came
+     * from so a parse can reproduce the page exactly; the moment an attribute changes, those bytes
+     * are stale and canonical output takes over. Every write — `setAttribute`, `removeAttribute`,
+     * `toggleAttribute` — arrives here, which is why this is the only place it has to be said.
+     */
+    this._sourceOpenTag = null;
     if (!this._upgraded || !this._observed?.includes(name)) return;
     /**
      * Fired even when the value did not change, because a browser does: `setAttribute` runs the
@@ -1014,11 +1070,12 @@ export class ElementShim extends ContainerShim {
   get nodeName() {
     return this.tagName;
   }
-  closest() {
-    return null;
+  /** Walks the real parent chain, which exists now that children are nodes. */
+  closest(selector) {
+    return select.closest(this, selector);
   }
-  matches() {
-    return false;
+  matches(selector) {
+    return select.matches(this, selector);
   }
   /**
    * **A no-op until nodes were retained** — an appended child had been flattened into its parent's
@@ -1145,8 +1202,12 @@ export class ElementShim extends ContainerShim {
    */
   insertAdjacentHTML(position, markup) {
     const where = `${position}`.toLowerCase();
-    if (where === 'afterbegin') this._entries.unshift(`${markup}`);
-    else if (where === 'beforeend') this._entries.push(`${markup}`);
+    if (where === 'afterbegin' || where === 'beforeend') {
+      if (where === 'afterbegin') this._entries.unshift(`${markup}`);
+      else this._entries.push(`${markup}`);
+      /** New markup has not been looked at yet. */
+      this._parsed = false;
+    }
     else if (where !== 'beforebegin' && where !== 'afterend')
       throw new DOMException(
         `Failed to execute 'insertAdjacentHTML' on 'Element': The value provided ` +
@@ -1254,6 +1315,13 @@ export class ElementShim extends ContainerShim {
    * every one.
    */
   openTag() {
+    /**
+     * **The bytes it was parsed from**, until something writes to it. That is what lets a parsed
+     * tree reproduce its own markup exactly — quoting style, entity spelling, attribute order and
+     * interior whitespace included — instead of normalising the page as a side effect of somebody
+     * reading `children`.
+     */
+    if (this._sourceOpenTag) return this._sourceOpenTag;
     let out = `<${this.localName}`;
     for (const [name, value] of this._attributes) out += ` ${name}="${escapeHtml(value)}"`;
     return out + '>';
