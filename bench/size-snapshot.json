@@ -202,5 +202,13 @@
       "raw": 17634,
       "gzip": 6826
     }
+  ],
+  "variants": [
+    {
+      "name": "VeraJS, no reactive state",
+      "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
+      "raw": 11962,
+      "gzip": 5005
+    }
   ]
 }

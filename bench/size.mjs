@@ -62,6 +62,37 @@ const LIST_CONTENDERS = [
   },
 ];
 
+/**
+ * **The same framework, measured without reactive state.**
+ *
+ * Kept out of the comparative table on purpose, for two reasons. It is not the same app as the rows
+ * there — it renders once and updates nothing, where every one of those renders reactive state — so
+ * listing it beside them would compare a page to an application. And it would push this project's
+ * own entry down a rank by competing with itself, which is a worse kind of wrong than being
+ * unmeasured.
+ *
+ * It is measured because the comparative row uses the *full* entry, which is the only number this
+ * project has published and understates what most pages load: `createProxy` is 37% of core's
+ * minified bytes, and a bundler drops it here with nothing asked of the author.
+ */
+const VARIANTS = [
+  {
+    name: 'VeraJS, no reactive state',
+    note: 'core + @verajs/renderer, tree-shaken — renders once, updates nothing',
+    code: `
+      import { init, render, wire, html } from '@verajs/core';
+      import { renderer } from '@verajs/renderer';
+      wire([renderer]);
+      customElements.define('x-static', class extends HTMLElement {
+        connectedCallback() {
+          init(this, { mode: 'open' });
+          const items = ['a', 'b', 'c'];
+          render(() => html\`<ul>\${items.map((i) => html\`<li>\${i}</li>\`)}</ul>\`);
+        }
+      });`,
+  },
+];
+
 /** Each entry renders reactive state, so the measurement covers a usable app rather than an import. */
 const CONTENDERS = [
   {
@@ -213,6 +244,8 @@ const measure = async (c, into, tag) => {
 
 for (const c of CONTENDERS) await measure(c, results, 'counter');
 for (const c of LIST_CONTENDERS) await measure(c, listResults, 'list');
+const variantResults = [];
+for (const c of VARIANTS) await measure(c, variantResults, 'variant');
 rmSync(dir, { recursive: true, force: true });
 
 const ok = results.filter((r) => !r.error).sort((a, b) => a.gzip - b.gzip);
@@ -238,6 +271,17 @@ console.log('');
 const listOk = listResults.filter((r) => !r.error).sort((a, b) => a.gzip - b.gzip);
 if (listOk.length) {
   const lpad = Math.max(...listResults.map((r) => r.name.length));
+  const variantOk = variantResults.filter((r) => !r.error);
+  if (variantOk.length) {
+    console.log('  The same framework without reactive state — a page, not an application\n');
+    const vpad = Math.max(...variantOk.map((r) => r.name.length));
+    console.log(`  ${'Variant'.padEnd(vpad)}  ${'raw'.padStart(8)}  ${'gzip'.padStart(8)}`);
+    console.log(`  ${'-'.repeat(vpad)}  ${'-'.repeat(8)}  ${'-'.repeat(8)}`);
+    for (const r of variantOk)
+      console.log(`  ${r.name.padEnd(vpad)}  ${String(r.raw).padStart(8)}  ${String(r.gzip).padStart(8)}`);
+    console.log('');
+  }
+
   console.log('  Same measurement, keyed list — the shape reconciliation exists for\n');
   console.log(`  ${'Framework'.padEnd(lpad)}  ${'raw'.padStart(8)}  ${'gzip'.padStart(8)}`);
   console.log(`  ${'-'.repeat(lpad)}  ${'-'.repeat(8)}  ${'-'.repeat(8)}`);
@@ -353,6 +397,7 @@ if (process.argv.includes('--snapshot')) {
      * class feature — and a merged table would imply the others were measured on it too.
      */
     lists: listOk.map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })),
+    variants: variantResults.filter((r) => !r.error).map(({ name, note, raw, gzip }) => ({ name, note, raw, gzip })),
   };
   const bad = out.apps.filter((a) => a.depsUnresolved > 0);
   if (bad.length) {

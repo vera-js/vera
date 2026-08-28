@@ -55,6 +55,25 @@ Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` 
 not equivalent — it writes the original filename and mtime into the header, inflating every figure
 by 20-30 bytes.
 
+## A page, rather than an application
+
+The number above measures the **full** entry: a reactive counter, with the store and the proxy behind
+it. That is the honest headline, because reactivity is what most people come here for.
+
+It is not what every page loads. `createProxy` is **37% of core's minified bytes**, and a bundler
+drops it for a component that never creates a store — a marketing page, a server-rendered article,
+anything progressively enhanced rather than driven by state. Measured the same way, tree-shaken:
+
+**<!--size:app.static.kb-->4.9 KB<!--/size:app.static.kb--> gzipped
+(<!--size:app.static.bytes-->5 005 B<!--/size:app.static.bytes-->) —
+<!--size:app.static.underlit-->866 B<!--/size:app.static.underlit--> under Lit.**
+
+Two things this is not. It is **not the same app** as the rows in the table above — it renders once
+and updates nothing, where every one of those renders reactive state, so it is a page against their
+applications and is kept out of that comparison for exactly that reason. And it is **not a separate
+build or a flag**: no import, no configuration, nothing asked of the author. It is what a bundler
+already produces from the same package when the code does not reach for a store.
+
 ## The honest framing
 
 **There is no smaller honest number than <!--size:app.kb-->5.9 KB<!--/size:app.kb-->.** Core ships no

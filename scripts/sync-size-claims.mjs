@@ -149,6 +149,25 @@ if (snapshot && !snapshotStale) {
   values['app.count'] = String(apps.length);
 
   /**
+   * **The same framework with no reactive state**, which is what a bundler ships for a page that
+   * renders once. Deliberately not a row in the comparative table: it is not the same app as the
+   * entries there — it updates nothing, where every one of those renders reactive state — and
+   * listing it beside them would both compare a page to an application and push this project's own
+   * entry down a rank by competing with itself.
+   *
+   * It is claimed because the headline number measures the *full* entry and understates what most
+   * pages load: `createProxy` is 37% of core's minified bytes and tree-shaking drops it with
+   * nothing asked of the author.
+   */
+  const staticApp = snapshot.variants?.find((a) => a.name.includes('no reactive state'));
+  if (staticApp) {
+    const lit = apps.find((a) => a.name === 'Lit');
+    values['app.static.bytes'] = bytes(staticApp.gzip);
+    values['app.static.kb'] = kb(staticApp.gzip, 1);
+    values['app.static.underlit'] = bytes(lit.gzip - staticApp.gzip);
+  }
+
+  /**
    * The keyed-list shape. A counter is the measurement that flatters a directive-first design —
    * everything a list needs sits behind an import a counter never makes — so the claim quotes both
    * or it quotes the comparison at its least representative point.
