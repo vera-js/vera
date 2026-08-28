@@ -273,17 +273,30 @@ export class ContainerShim extends EventTarget {
   get lastElementChild() {
     return nodesOf(this).at(-1) ?? null;
   }
+  /**
+   * **The siblings are real now.** These answered `null` unconditionally, which was truthful while a
+   * child was flattened into its parent's markup and became a lie the moment nodes were retained —
+   * `element.nextSibling` on the middle of three children reported nothing at all. There are no text
+   * nodes in this DOM, so the element-wise and node-wise spellings answer the same list.
+   */
   get nextSibling() {
-    return null;
+    return this._siblingAt(1);
   }
   get previousSibling() {
-    return null;
+    return this._siblingAt(-1);
   }
   get nextElementSibling() {
-    return null;
+    return this._siblingAt(1);
   }
   get previousElementSibling() {
-    return null;
+    return this._siblingAt(-1);
+  }
+  /** @param {number} step */
+  _siblingAt(step) {
+    if (!this._parent) return null;
+    const siblings = nodesOf(this._parent);
+    const index = siblings.indexOf(this);
+    return index === -1 ? null : (siblings[index + step] ?? null);
   }
   get assignedSlot() {
     return null;
@@ -312,8 +325,14 @@ export class ContainerShim extends EventTarget {
   get ownerDocument() {
     return globalThis.document;
   }
+  /**
+   * **Walks the parent chain**, as the platform does. It compared identity only, so
+   * `host.contains(child)` was `false` for a child the host plainly held — ordinary defensive code
+   * reading as "this is not mine".
+   */
   contains(node) {
-    return node === this;
+    for (let current = node; current; current = current._parent) if (current === this) return true;
+    return false;
   }
   isSameNode(node) {
     return node === this;
@@ -322,8 +341,12 @@ export class ContainerShim extends EventTarget {
     return node === this;
   }
   normalize() {}
+  /** The furthest ancestor, which is the shadow root for anything a component rendered into one. */
   getRootNode() {
-    return this;
+    if (!this._parent) return this;
+    let root = this._parent;
+    while (root._parent) root = root._parent;
+    return root;
   }
   /** Needs layout, which a string does not have; a browser with no box returns nothing either. */
   elementFromPoint() {

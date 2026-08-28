@@ -210,3 +210,47 @@ test('a void element is serialised without an end tag', () => {
   withAttributes.appendChild(image);
   assert.equal(withAttributes.innerHTML, '<img src="a.png">');
 });
+
+/**
+ * **Six members that were truthful and became lies.** Each answered a hardcoded `null`/`false`,
+ * which was honest while a child was flattened into its parent's markup — there was no sibling to
+ * find and no chain to walk. Retaining nodes made every one of them wrong, and wrong *silently*:
+ * `element.nextSibling` reported nothing for the middle of three children, and
+ * `host.contains(child)` read as "this is not mine" for a child the host plainly held.
+ *
+ * This is the same shape as `firstElementChild` in the surface suite — a placeholder that passed
+ * because nothing could ever contradict it. Worth naming as a class: **when a capability arrives,
+ * the things that used to be honestly empty are exactly where the next defects are.**
+ */
+test('the tree-dependent members answer from the tree', () => {
+  const host = el();
+  host.innerHTML = '<b>one</b><i>two</i><u>three</u>';
+  const [first, middle, last] = host.children;
+
+  assert.equal(middle.nextSibling, last);
+  assert.equal(middle.previousSibling, first);
+  assert.equal(middle.nextElementSibling, last);
+  assert.equal(middle.previousElementSibling, first);
+  assert.equal(first.previousSibling, null, 'the first has nothing before it');
+  assert.equal(last.nextSibling, null, 'and the last nothing after');
+
+  assert.equal(host.contains(middle), true, 'a child');
+  assert.equal(host.contains(host), true, 'and itself, as the platform says');
+  assert.equal(middle.contains(host), false, 'but not upwards');
+  assert.equal(host.contains(el()), false, 'nor an unrelated node');
+
+  /** Nesting, so `contains` has more than one level to walk. */
+  const deep = el();
+  const outer = el('section');
+  const inner = el('p');
+  deep.appendChild(outer);
+  outer.appendChild(inner);
+  assert.equal(deep.contains(inner), true, 'a grandchild');
+  assert.equal(inner.getRootNode(), deep, 'and the root is the furthest ancestor');
+
+  /** For anything rendered into a shadow root, that root is what `getRootNode` should find. */
+  const root = el().attachShadow({ mode: 'open' });
+  const inRoot = el('span');
+  root.appendChild(inRoot);
+  assert.equal(inRoot.getRootNode(), root);
+});
