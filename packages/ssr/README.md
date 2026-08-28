@@ -85,7 +85,12 @@ describe.
   invalid custom-element name, `appendChild` of a non-node. A server that is lenient about an error
   does not make anything work; it moves the failure to the client and strips the context. The two
   exceptions are deliberate: a selector is not parsed, so an invalid one answers emptily rather than
-  raising (queries answer emptily here anyway), a constructed sheet holds its CSS as **text** rather
+  raising (queries answer emptily here anyway) — **and `matches`, `closest`,
+  `mozMatchesSelector` and `webkitMatchesSelector` answer `false` for every selector, including one
+  an element plainly satisfies**, because answering some selectors and not others would be less
+  predictable than answering none;
+  **`checkVisibility()` is always `false`** for the same reason, since nothing here is laid out and a
+  server cannot know what CSS will do, a constructed sheet holds its CSS as **text** rather
   than a parsed rule list — so `cssRules` is empty whatever the sheet contains, which is all the
   markup needs and is why `deleteRule` says so rather than pretending, and `insertAdjacentHTML` with `beforebegin` or
   `afterend` raises a message explaining that a server-rendered component has no parent, which is

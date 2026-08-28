@@ -141,3 +141,20 @@ test('innerText turns a line break into a <br>', () => {
   read.innerHTML = '<b>x</b><script>y</script>';
   assert.equal(read.innerText, 'xy');
 });
+
+/**
+ * **`scrollingElement` is `documentElement`, because this document declares standards mode.**
+ * `null` is the *quirks-mode* answer, so returning it beside `compatMode: 'CSS1Compat'` was the
+ * document contradicting itself — and `document.scrollingElement.scrollTop`, which every engine
+ * allows, threw a `TypeError` on the server and worked in the browser.
+ *
+ * Measured on Chromium, Firefox and WebKit in `tests/browser/inner-text.test.js`; all three answer
+ * `documentElement` and report `CSS1Compat`.
+ */
+test('the document agrees with itself about standards mode', () => {
+  assert.equal(document.compatMode, 'CSS1Compat', 'it declares standards mode');
+  assert.equal(document.scrollingElement, document.documentElement, 'so this is the documentElement');
+  assert.equal(document.scrollingElement.localName, 'html');
+  /** The point of the fix: this is the call that used to throw. */
+  assert.equal(typeof document.scrollingElement.scrollTop, 'number');
+});

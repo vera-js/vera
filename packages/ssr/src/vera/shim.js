@@ -305,7 +305,17 @@ export const installShims = () => {
     nodeType: 9,
     nodeName: '#document',
     currentScript: null,
-    scrollingElement: null,
+    /**
+     * **`documentElement`, because this document declares standards mode.** `null` is the answer a
+     * *quirks-mode* document gives, so returning it beside `compatMode: 'CSS1Compat'` two lines up
+     * was a document contradicting itself — and a component reading
+     * `document.scrollingElement.scrollTop`, which every engine allows, crashed on the server with
+     * a `TypeError` and worked in the browser. Measured on Chromium, Firefox and WebKit: all three
+     * answer `documentElement`.
+     */
+    get scrollingElement() {
+      return globalThis.document.documentElement;
+    },
     fullscreenElement: null,
     pointerLockElement: null,
     pictureInPictureElement: null,

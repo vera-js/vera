@@ -63,3 +63,14 @@ it('reads isContentEditable from the state', () => {
   });
   expect(document.createElement('div').isContentEditable, 'absent').to.equal(false);
 });
+
+/**
+ * `scrollingElement` is the `documentElement` in a standards-mode document — `null` is what a
+ * quirks-mode one answers. Recorded here because jsdom's answer was never the question: the SSR
+ * shim declares `compatMode: 'CSS1Compat'` and has to be consistent with it.
+ */
+it('reports the documentElement as the scrolling element', () => {
+  expect(document.compatMode, 'the test page is standards mode').to.equal('CSS1Compat');
+  expect(document.scrollingElement, 'and so this is the documentElement').to.equal(document.documentElement);
+  expect(document.scrollingElement.localName).to.equal('html');
+});
