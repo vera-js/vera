@@ -953,7 +953,6 @@ export const OUT_OF_SCOPE = {
   "element": {
     "insertBefore": "needs a tree; this DOM holds children as a string",
     "moveBefore": "needs a tree",
-    "removeChild": "needs a tree",
     "replaceChild": "needs a tree",
     "cloneNode": "needs a tree, and a copy that shared the string would alias it",
     "after": "places content beside this element, which needs the parent it has none of",
@@ -1013,7 +1012,6 @@ export const OUT_OF_SCOPE = {
   },
   "shadowRoot": {
     "insertBefore": "needs a tree; this DOM holds children as a string",
-    "removeChild": "needs a tree; this DOM holds children as a string",
     "replaceChild": "needs a tree; this DOM holds children as a string",
     "moveBefore": "needs a tree; this DOM holds children as a string",
     "cloneNode": "needs a tree; this DOM holds children as a string",
@@ -1035,7 +1033,7 @@ export const OUT_OF_SCOPE = {
     "prepend": "needs a tree; this DOM holds children as a string",
     "replaceChildren": "needs a tree; this DOM holds children as a string",
     "insertBefore": "needs a tree; this DOM holds children as a string",
-    "removeChild": "needs a tree; this DOM holds children as a string",
+    "removeChild": "this document is an object literal with a fixed body/head, not a container",
     "replaceChild": "needs a tree; this DOM holds children as a string",
     "moveBefore": "needs a tree; this DOM holds children as a string",
     "cloneNode": "needs a tree; this DOM holds children as a string",

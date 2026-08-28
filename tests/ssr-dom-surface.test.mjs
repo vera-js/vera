@@ -237,7 +237,13 @@ const CONTAINER_SURFACE = [
   ['querySelectorAll', (c) => c.querySelectorAll('*').length === 0],
   ['getElementById', (c) => c.getElementById('x') === null],
   ['children', (c) => Array.isArray(c.children)],
-  ['firstElementChild', (c) => c.firstElementChild === null],
+  /**
+   * **Asserted against a known child, not against `null`.** This used to check that the answer was
+   * `null`, which was true only because the member was hardcoded — and these checks run in order
+   * against the *same* `document.body`, which `replaceChildren` two lines up has just given a child.
+   * Now that children are retained the member has a real contract, so this states it.
+   */
+  ['firstElementChild', (c) => (c.replaceChildren(make('u')), c.firstElementChild?.localName === 'u')],
 ];
 
 /**

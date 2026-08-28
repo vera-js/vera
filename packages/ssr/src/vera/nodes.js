@@ -80,12 +80,69 @@ const SHADOW_ATTRIBUTES = [
  * the other in a browser. **Bubbling is still absent**: with children held as a string there is no
  * ancestor chain to walk, so an event reaches its own element's listeners and stops.
  */
+/**
+ * One entry's markup. A retained node serialises itself **at output time**, which is the entire
+ * point of keeping it: a mutation made after `appendChild` is still on the node when this runs.
+ * The expression is the one `appendChild` used to inline, unchanged, so the bytes are identical.
+ */
+const serializeEntry = (entry) =>
+  typeof entry === 'string'
+    ? entry
+    : entry?.openTag
+      ? entry.openTag() + entry.innerHTML + `</${entry.localName}>`
+      : (entry?.innerHTML ?? '');
+
+/** Warned once per container, so a component that queries in a loop says it once. */
+const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
+
+/**
+ * The retained nodes among the entries.
+ *
+ * **Markup supplied as a string is not nodes**, and this is where that shows. Until the parser
+ * arrives (step 2 of `internal/docs/PLAN-ssr-node-retention.md`) a container filled by `innerHTML`
+ * or by the `children:` option has markup and no node view, so asking for one answers emptily —
+ * which is a wrong answer, and says so rather than being discovered later as a defect.
+ */
+const nodesOf = (container) => {
+  const nodes = container._entries.filter((entry) => typeof entry !== 'string');
+  if (
+    !nodes.length &&
+    !warnedAboutMarkup.has(container) &&
+    container._entries.some((entry) => typeof entry === 'string' && entry.trim())
+  ) {
+    warnedAboutMarkup.add(container);
+    console.warn(
+      `[vera] ssr: this element has markup but no child nodes, so children/querySelector answer ` +
+        `emptily. Markup assigned as a string is not parsed on the server. Build children with ` +
+        `createElement/appendChild if a component needs to read them back.`
+    );
+  }
+  return nodes;
+};
+
 export class ContainerShim extends EventTarget {
   constructor() {
     super();
-    this.innerHTML = '';
+    /**
+     * **Children are entries, not one string.** Each entry is either a retained node or a chunk of
+     * raw markup. Serialisation happens when `innerHTML` is *read*, not when a child is appended —
+     * appending used to serialise immediately and drop the node, so `appendChild(kid)` followed by
+     * `kid.textContent = 'x'` rendered `<b></b>` and lost the text with no diagnostic.
+     */
+    this._entries = [];
+    this._parent = null;
     /** A server-rendered node is in the document being built, so it is connected. */
     this.isConnected = true;
+  }
+  get innerHTML() {
+    let out = '';
+    for (const entry of this._entries) out += serializeEntry(entry);
+    return out;
+  }
+  set innerHTML(markup) {
+    for (const entry of this._entries) if (typeof entry !== 'string') entry._parent = null;
+    const text = `${markup}`;
+    this._entries = text === '' ? [] : [text];
   }
   appendChild(node) {
     /**
@@ -105,7 +162,51 @@ export class ContainerShim extends EventTarget {
       node.setAttribute(INSTANCE_ATTRIBUTE, String(++instanceCount));
       pendingInstances.set(String(instanceCount), node);
     }
-    this.innerHTML += node?.openTag ? node.openTag() + node.innerHTML + `</${node.localName}>` : (node?.innerHTML ?? '');
+    /**
+     * **A node cannot contain itself.** Retaining nodes makes this reachable where inlining markup
+     * never could: appending an ancestor into its own descendant would recurse forever the next
+     * time anything read `innerHTML`. Every engine throws `HierarchyRequestError`.
+     */
+    let contains = node === this;
+    for (let above = this._parent; above && !contains; above = above._parent)
+      if (above === node) contains = true;
+    if (contains)
+      throw new DOMException(
+        `Failed to execute 'appendChild' on 'Node': The new child element contains the parent.`,
+        'HierarchyRequestError'
+      );
+    /**
+     * A node with no tag of its own — a fragment — contributes its markup exactly as it did before.
+     * Moving a fragment's children into this parent is the platform's behaviour and is deliberately
+     * *not* step 1: it changes what `appendChild(fragment)` leaves behind.
+     */
+    if (!node?.openTag) {
+      this._entries.push(node?.innerHTML ?? '');
+      return node;
+    }
+    node._parent?._detach(node);
+    this._entries.push(node);
+    node._parent = this;
+    return node;
+  }
+  /** Remove a node from this container's entries without touching its own parent pointer. */
+  _detach(node) {
+    const index = this._entries.indexOf(node);
+    if (index !== -1) this._entries.splice(index, 1);
+  }
+  /**
+   * **Absent until nodes were retained**, so `host.removeChild(kid)` was a `TypeError` — there was
+   * nothing to remove, the child having been flattened into a string at append time.
+   */
+  removeChild(node) {
+    const index = this._entries.indexOf(node);
+    if (index === -1)
+      throw new DOMException(
+        `Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.`,
+        'NotFoundError'
+      );
+    this._entries.splice(index, 1);
+    node._parent = null;
     return node;
   }
 
@@ -119,19 +220,20 @@ export class ContainerShim extends EventTarget {
    * ordinary defensive code and it crashed.
    */
   get parentNode() {
-    return null;
+    return this._parent;
   }
+  /** `null` when the parent is not an element — a shadow root is a parent and not an element. */
   get parentElement() {
-    return null;
+    return this._parent?.openTag ? this._parent : null;
   }
   get firstChild() {
-    return null;
+    return nodesOf(this)[0] ?? null;
   }
   get lastChild() {
-    return null;
+    return nodesOf(this).at(-1) ?? null;
   }
   get lastElementChild() {
-    return null;
+    return nodesOf(this).at(-1) ?? null;
   }
   get nextSibling() {
     return null;
@@ -152,10 +254,10 @@ export class ContainerShim extends EventTarget {
     return null;
   }
   get childElementCount() {
-    return 0;
+    return nodesOf(this).length;
   }
   hasChildNodes() {
-    return false;
+    return nodesOf(this).length > 0;
   }
   get nodeValue() {
     return null;
@@ -196,9 +298,14 @@ export class ContainerShim extends EventTarget {
     return null;
   }
   /** `append` takes several nodes, and strings as text — the modern spelling of `appendChild`. */
+  /**
+   * A string is markup to escape and keep as a chunk. It used to go through `innerHTML +=`, which
+   * now reads every retained node back into text and writes it as one chunk — flattening the tree
+   * this class exists to keep. Pushing the chunk is the same bytes and keeps the nodes.
+   */
   append(...nodes) {
     for (const node of nodes) {
-      if (typeof node === 'string') this.innerHTML += escapeHtml(node);
+      if (typeof node === 'string') this._entries.push(escapeHtml(node));
       else this.appendChild(node);
     }
   }
@@ -206,11 +313,12 @@ export class ContainerShim extends EventTarget {
     this.innerHTML = '';
     this.append(...nodes);
   }
+  /** Splices the entries rather than concatenating markup, for the reason `append` gives. */
   prepend(...nodes) {
-    const existing = this.innerHTML;
-    this.innerHTML = '';
+    const existing = this._entries;
+    this._entries = [];
     this.append(...nodes);
-    this.innerHTML += existing;
+    this._entries.push(...existing);
   }
   querySelector() {
     return null;
@@ -221,14 +329,19 @@ export class ContainerShim extends EventTarget {
   getElementById() {
     return null;
   }
+  /**
+   * **Only retained nodes.** Every entry this DOM holds as an element *is* an element, so `children`
+   * and `childNodes` answer the same list — there are no text nodes to separate them, and markup
+   * kept as a string is not nodes at all (`nodesOf` says so).
+   */
   get children() {
-    return [];
+    return nodesOf(this);
   }
   get childNodes() {
-    return [];
+    return nodesOf(this);
   }
   get firstElementChild() {
-    return null;
+    return nodesOf(this)[0] ?? null;
   }
 }
 
@@ -906,7 +1019,14 @@ export class ElementShim extends ContainerShim {
   matches() {
     return false;
   }
-  remove() {}
+  /**
+   * **A no-op until nodes were retained** — an appended child had been flattened into its parent's
+   * markup, so there was no parent to ask and nothing to take out. It silently left the element on
+   * the page.
+   */
+  remove() {
+    this._parent?.removeChild(this);
+  }
   /**
    * Backed by the `class` attribute, so a class added during `connectedCallback` reaches the
    * markup — which it now can, because the opening tag is written from these attributes rather
@@ -1024,8 +1144,8 @@ export class ElementShim extends ContainerShim {
    */
   insertAdjacentHTML(position, markup) {
     const where = `${position}`.toLowerCase();
-    if (where === 'afterbegin') this.innerHTML = markup + this.innerHTML;
-    else if (where === 'beforeend') this.innerHTML += markup;
+    if (where === 'afterbegin') this._entries.unshift(`${markup}`);
+    else if (where === 'beforeend') this._entries.push(`${markup}`);
     else if (where !== 'beforebegin' && where !== 'afterend')
       throw new DOMException(
         `Failed to execute 'insertAdjacentHTML' on 'Element': The value provided ` +
