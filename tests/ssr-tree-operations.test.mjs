@@ -352,3 +352,50 @@ test('outerHTML replaces the element in its parent', () => {
     return orphan.outerHTML;
   });
 });
+
+/**
+ * **What a `<slot>` projects.** `assignedNodes`, `assignedElements` and `assignedSlot` answered
+ * nothing for every node, so a component inspecting what it had been handed found an empty list and
+ * rendered its fallback content — on the server only, where the browser would have shown the real
+ * thing. All of it is answerable here: the host, its children and their `slot` names are all
+ * present.
+ */
+test('a slot projects the host children that name it', () => {
+  const build = (d) => {
+    const host = d.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    root.innerHTML = '<slot name="title"></slot><slot><i>fallback</i></slot>';
+    const titled = d.createElement('h1');
+    titled.setAttribute('slot', 'title');
+    const body = d.createElement('p');
+    host.appendChild(titled);
+    host.appendChild(body);
+    return [host, root, titled, body];
+  };
+  const check = (label, run) => assert.equal(run(document), run(real.document), label);
+
+  check('the named slot takes what names it', (d) => {
+    const [, root] = build(d);
+    return [...root.querySelectorAll('slot')][0].assignedNodes().map((node) => node.nodeName).join(',');
+  });
+  check('the default slot takes the rest', (d) => {
+    const [, root] = build(d);
+    return [...root.querySelectorAll('slot')][1].assignedNodes().map((node) => node.nodeName).join(',');
+  });
+  check('assignedElements filters to elements', (d) => {
+    const [, root] = build(d);
+    return [...root.querySelectorAll('slot')][0].assignedElements().length;
+  });
+  check('a node knows its slot', (d) => {
+    const [, , titled] = build(d);
+    return titled.assignedSlot?.getAttribute('name') ?? 'null';
+  });
+  check('flatten falls back to the slot content', (d) => {
+    const host = d.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    root.innerHTML = '<slot><i>fallback</i></slot>';
+    return root.querySelector('slot').assignedNodes({ flatten: true }).map((node) => node.nodeName).join(',');
+  });
+  check('an element that is not a slot assigns nothing', (d) =>
+    d.createElement('div').assignedNodes?.().length ?? 'ABSENT');
+});

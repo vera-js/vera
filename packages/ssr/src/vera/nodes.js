@@ -103,6 +103,34 @@ const serializeEntry = (entry) =>
 const isNode = (value) => typeof value?.markup === 'function';
 
 /**
+ * The slot a node asks for. Text has no attributes, so it can only take the default slot.
+ * A free function so neither caller has to alias `this` — see `equalNodes` for the same reason.
+ *
+ * @param {any} node
+ */
+const slotNameOf = (node) => (node.nodeType === 1 ? (node.getAttribute('slot') ?? '') : '');
+
+/**
+ * **What a `<slot>` projects.** A slot shows the host's light-DOM children whose `slot` attribute
+ * names it — the default slot taking everything unnamed. That is answerable on a server: the host,
+ * its children and their names are all here. It answered nothing, so a component inspecting what it
+ * had been given found an empty list and rendered its fallback content, on the server only.
+ *
+ * `flatten` falls back to the slot's own children when nothing is assigned, which is what makes it
+ * the useful form: it answers "what will actually be shown here".
+ *
+ * @param {any} slot @param {{flatten?: boolean}} [options]
+ */
+const assignedTo = (slot, options) => {
+  const root = slot.getRootNode();
+  const host = root?._host;
+  if (!host) return options?.flatten ? nodesOf(slot) : [];
+  const name = slot.getAttribute('name') ?? '';
+  const assigned = nodesOf(host).filter((node) => slotNameOf(node) === name);
+  return assigned.length || !options?.flatten ? assigned : nodesOf(slot);
+};
+
+/**
  * **`before`, `after` and `replaceWith`** — the `ChildNode` trio, which every one of these classes
  * needs and none can inherit from the other: text and comments extend `EventTarget` directly rather
  * than the container. Written once here and delegated to, rather than three times over.
@@ -645,8 +673,20 @@ export class ContainerShim extends EventTarget {
     const index = siblings.indexOf(this);
     return index === -1 ? null : (siblings[index + step] ?? null);
   }
+  /**
+   * **The slot this node is projected into**, which needs the host's shadow root and the node's own
+   * `slot` name — both of which are here. It answered `null` for every node, so a component asking
+   * where its light DOM had landed was told "nowhere".
+   */
   get assignedSlot() {
-    return null;
+    const root = this._parent?._shadowRoot;
+    if (!root) return null;
+    const name = slotNameOf(this);
+    return (
+      root
+        .querySelectorAll('slot')
+        .find((slot) => (slot.getAttribute('name') ?? '') === name) ?? null
+    );
   }
   get offsetParent() {
     return null;
@@ -1793,6 +1833,23 @@ export class ElementShim extends ContainerShim {
     return copy;
   }
   /** This element's own markup, end tag included — the call every node kind answers. */
+  /**
+   * A `<slot>` shows the host's children that name it; see `assignedTo`.
+   *
+   * **Getters returning `undefined` off a slot**, because these live on `HTMLSlotElement` and this
+   * DOM has one element class. Defining them as plain methods put them on every element, where
+   * `typeof element.assignedNodes === 'function'` — the ordinary way to ask "is this a slot" —
+   * answered yes for a `<div>`. Being present where the platform has nothing is the same kind of
+   * divergence as answering wrongly, and it is the one a feature check walks straight into.
+   */
+  get assignedNodes() {
+    if (this.localName !== 'slot') return undefined;
+    return (options) => assignedTo(this, options);
+  }
+  get assignedElements() {
+    if (this.localName !== 'slot') return undefined;
+    return (options) => assignedTo(this, options).filter((node) => node.nodeType === 1);
+  }
   markup() {
     return serializeElement(this);
   }
