@@ -227,6 +227,107 @@ export class ContainerShim extends EventTarget {
     node._parent = this;
     return node;
   }
+  /**
+   * **Position a node among the children**, which needed a tree and now has one. `reference` of
+   * `null` appends, as the platform says, and a reference that is not a child is a `NotFoundError`
+   * rather than a silent append — the difference between "put it at the end" and "you asked about
+   * a node I do not have" is exactly the kind of thing a server should not paper over.
+   */
+  insertBefore(node, reference) {
+    if (node === null || typeof node !== 'object')
+      throw new TypeError(
+        `Failed to execute 'insertBefore' on 'Node': parameter 1 is not of type 'Node'.`
+      );
+    if (reference === null || reference === undefined) return this.appendChild(node);
+    if (this._entries.indexOf(reference) === -1)
+      throw new DOMException(
+        `Failed to execute 'insertBefore' on 'Node': The node before which the new node is to be ` +
+          `inserted is not a child of this node.`,
+        'NotFoundError'
+      );
+    let contains = node === this;
+    for (let above = this._parent; above && !contains; above = above._parent)
+      if (above === node) contains = true;
+    if (contains)
+      throw new DOMException(
+        `Failed to execute 'insertBefore' on 'Node': The new child element contains the parent.`,
+        'HierarchyRequestError'
+      );
+    if (!node?.openTag) {
+      this._entries.splice(this._entries.indexOf(reference), 0, node?.innerHTML ?? '');
+      return node;
+    }
+    node._parent?._detach(node);
+    /** Re-found after the detach: moving a node forwards within one parent shifts the index. */
+    this._entries.splice(this._entries.indexOf(reference), 0, node);
+    node._parent = this;
+    return node;
+  }
+  /**
+   * **`moveBefore` is `insertBefore` with a precondition**: the node must already have a parent.
+   * Measured on Chromium and Firefox, which agree on all of it (WebKit does not implement it yet):
+   * an unparented node is a `HierarchyRequestError`, and a *parented* node with a reference that is
+   * not a child here is a `NotFoundError` — a different error from the same call depending on which
+   * argument is wrong, and checked in that order.
+   *
+   * The point of the API in a browser is moving a node without tearing down its state. There is no
+   * state to preserve on a server, so this is a move; having it means code written for the browser
+   * runs here rather than hitting a missing method.
+   */
+  moveBefore(node, reference) {
+    if (node === null || typeof node !== 'object')
+      throw new TypeError(`Failed to execute 'moveBefore' on 'Node': parameter 1 is not of type 'Node'.`);
+    if (!node._parent)
+      throw new DOMException(
+        `Failed to execute 'moveBefore' on 'Node': The node to be moved has no parent.`,
+        'HierarchyRequestError'
+      );
+    if (reference !== null && reference !== undefined && this._entries.indexOf(reference) === -1)
+      throw new DOMException(
+        `Failed to execute 'moveBefore' on 'Node': The node before which the new node is to be ` +
+          `inserted is not a child of this node.`,
+        'NotFoundError'
+      );
+    return this.insertBefore(node, reference ?? null);
+  }
+  replaceChild(node, old) {
+    if (node === null || typeof node !== 'object')
+      throw new TypeError(
+        `Failed to execute 'replaceChild' on 'Node': parameter 1 is not of type 'Node'.`
+      );
+    if (this._entries.indexOf(old) === -1)
+      throw new DOMException(
+        `Failed to execute 'replaceChild' on 'Node': The node to be replaced is not a child of this node.`,
+        'NotFoundError'
+      );
+    node._parent?._detach(node);
+    this._entries.splice(this._entries.indexOf(old), 1, node?.openTag ? node : (node?.innerHTML ?? ''));
+    if (node?.openTag) node._parent = this;
+    old._parent = null;
+    return old;
+  }
+  /**
+   * **Where each node sits relative to another**, as the spec's bit field. Two nodes with no common
+   * root are `DISCONNECTED | IMPLEMENTATION_SPECIFIC` plus a direction the spec leaves to the
+   * implementation, so only the disconnected bit is worth comparing across implementations.
+   */
+  compareDocumentPosition(other) {
+    if (other === this) return 0;
+    if (this.contains(other)) return 16 + 4;
+    if (other.contains?.(this)) return 8 + 2;
+    const chain = (node) => {
+      const out = [];
+      for (let current = node; current; current = current._parent) out.unshift(current);
+      return out;
+    };
+    const mine = chain(this);
+    const theirs = chain(other);
+    if (mine[0] !== theirs[0]) return 1 + 32 + 2;
+    let depth = 0;
+    while (mine[depth] === theirs[depth]) depth++;
+    const siblings = nodesOf(mine[depth - 1]);
+    return siblings.indexOf(mine[depth]) < siblings.indexOf(theirs[depth]) ? 4 : 2;
+  }
   /** Remove a node from this container's entries without touching its own parent pointer. */
   _detach(node) {
     const index = this._entries.indexOf(node);
@@ -903,6 +1004,13 @@ export class ElementShim extends ContainerShim {
     this._attributes = new Map();
     this.innerHTML = '';
     this._shadowRoot = null;
+    /**
+     * The bytes this element's own tags were parsed from, when it came from markup rather than
+     * `createElement`. Declared here so every element has the same shape — and so a type-checker
+     * knows about a field the parser is what assigns.
+     */
+    this._sourceOpenTag = /** @type {string | null} */ (null);
+    this._sourceCloseTag = /** @type {string | null} */ (null);
   }
   /** @override */
   get namespaceURI() {
@@ -1337,6 +1445,28 @@ export class ElementShim extends ContainerShim {
    * present on the client after hydration, absent in the server markup, so the two disagreed on
    * every one.
    */
+  /**
+   * **A copy that shares nothing.** The reason this was out of scope was that a copy sharing the
+   * markup string would alias it; entries are an array now, so a deep clone copies them. The source
+   * text rides along, so a cloned subtree still reproduces the markup it was parsed from.
+   */
+  cloneNode(deep = false) {
+    const copy = createElement(this.localName, this._ns);
+    for (const [name, value] of this._attributes) copy.setAttribute(name, value);
+    copy._sourceOpenTag = this._sourceOpenTag;
+    copy._sourceCloseTag = this._sourceCloseTag;
+    if (!deep) return copy;
+    for (const entry of this._entries) {
+      if (typeof entry === 'string') copy._entries.push(entry);
+      else {
+        const child = entry.cloneNode(true);
+        child._parent = copy;
+        copy._entries.push(child);
+      }
+    }
+    copy._parsed = this._parsed;
+    return copy;
+  }
   openTag() {
     /**
      * **The bytes it was parsed from**, until something writes to it. That is what lets a parsed

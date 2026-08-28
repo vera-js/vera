@@ -18,6 +18,7 @@
  */
 import '@verajs/ssr/vera';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { SURFACES, OUT_OF_SCOPE, GLOBALS } from './dom-surface.mjs';
 
 const make = (tag = 'div') => globalThis.document.createElement(tag);
@@ -465,13 +466,26 @@ for (const [name, expected] of Object.entries(GLOBALS)) {
   else failures.push(`global ${name} exists, but is listed as absent because ${expected}`);
 }
 
-/** Absent on purpose — see the header. If one of these appears, it needs a real implementation. */
+/**
+ * **The tripwire this replaced did its job.** It asserted `insertBefore` and `cloneNode` stayed
+ * *absent*, on the grounds that each needs a tree and a stub would silently misplace content — and
+ * it fired the moment they appeared. They have a tree now, and what it asked for exists: each is
+ * compared against jsdom doing the same operation in `ssr-tree-operations.test.mjs`, error cases
+ * included. This asserts the replacement is actually there, so the guarantee cannot be dropped by
+ * deleting a file.
+ */
 {
   const el = make();
-  for (const name of ['insertBefore', 'cloneNode']) {
-    assert.equal(typeof el[name], 'undefined',
-      `${name} exists now — it needs a tree, so make sure it does not silently misplace content`);
-  }
+  for (const name of ['insertBefore', 'replaceChild', 'moveBefore', 'cloneNode', 'compareDocumentPosition'])
+    assert.equal(typeof el[name], 'function', `${name} is missing`);
+
+  const differential = readFileSync(new URL('./ssr-tree-operations.test.mjs', import.meta.url), 'utf8');
+  for (const name of ['insertBefore', 'replaceChild', 'cloneNode', 'compareDocumentPosition'])
+    assert.ok(
+      differential.includes(name),
+      `${name} exists but nothing compares it against a real DOM — that is what the old tripwire ` +
+        `was protecting against`
+    );
 }
 
 if (failures.length) {
