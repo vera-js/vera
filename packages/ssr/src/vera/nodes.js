@@ -412,18 +412,54 @@ const REFLECTED = {
   nonce: 'nonce',
   accessKey: 'accesskey',
   role: 'role',
+  autocorrect: 'autocorrect',
+};
+
+/** The reflected strings declared `DOMString?`, which answer `null` rather than `''`. */
+const NULLABLE_REFLECTED = new Set(['role']);
+
+/**
+ * **Enumerated reflections answer a *state*, not the attribute's text.** `inputmode="bogus"` reads
+ * back as `''` in every engine, not `'bogus'`, and an absent attribute has its own answer that is
+ * often different again — `autocapitalize` is `''` when missing and `'sentences'` when invalid. The
+ * markup is unaffected either way (the attribute is stored verbatim, which is also what the engines
+ * do), so this is only visible to a component that *reads* the property server-side — and that is
+ * exactly the divergence that surfaces later as a hydration mismatch with nothing left to explain it.
+ *
+ * Every value here was measured on Chromium, Firefox and WebKit rather than read off a spec; all
+ * three agree on all of it. `tests/browser/reflected-enumerations.test.js` records the measurement.
+ * Two deliberate omissions:
+ *
+ * - **`spellcheck` is not here** — the engines genuinely disagree (an invalid value reads `true` in
+ *   Chromium and WebKit, `false` in Firefox), so there is no single answer to match.
+ * - **`autocorrect` is not here** for the same reason: Chromium does not implement it at all, and
+ *   Firefox and WebKit answer a boolean rather than a string.
+ *
+ * `popover: 'hint'` is treated as known because the spec and two engines say so; WebKit does not
+ * implement that state yet and clamps it to `'manual'`. Following the majority is the lesser wrong,
+ * and it cannot affect markup.
+ */
+const ENUMERATED = {
+  popover: [['auto', 'manual', 'hint'], null, 'manual'],
+  autocapitalize: [['none', 'off', 'on', 'sentences', 'words', 'characters'], '', 'sentences'],
+  enterKeyHint: [['enter', 'done', 'go', 'next', 'previous', 'search', 'send'], '', ''],
+  inputMode: [['none', 'text', 'tel', 'url', 'email', 'numeric', 'decimal', 'search'], '', ''],
+  writingSuggestions: [['true', 'false'], 'true', 'true'],
+  virtualKeyboardPolicy: [['auto', 'manual'], '', ''],
+};
+
+/** The attribute each of them reflects. */
+const ENUMERATED_ATTRIBUTES = {
   popover: 'popover',
   autocapitalize: 'autocapitalize',
-  autocorrect: 'autocorrect',
   enterKeyHint: 'enterkeyhint',
   inputMode: 'inputmode',
-  contentEditable: 'contenteditable',
   writingSuggestions: 'writingsuggestions',
   virtualKeyboardPolicy: 'virtualkeyboardpolicy',
 };
 
-/** The two reflected strings declared `DOMString?`, which answer `null` rather than `''`. */
-const NULLABLE_REFLECTED = new Set(['role', 'popover']);
+/** `contentEditable` is enumerated too, and is the only one whose setter validates. */
+const CONTENT_EDITABLE_STATES = ['true', 'false', 'plaintext-only'];
 
 /** Present or absent. */
 const REFLECTED_PRESENCE = { hidden: 'hidden', autofocus: 'autofocus', inert: 'inert' };
@@ -523,6 +559,53 @@ const defineReflections = (Shim) => {
       configurable: true,
     });
   }
+  for (const [property, attribute] of Object.entries(ENUMERATED_ATTRIBUTES)) {
+    const [known, missing, invalid] = ENUMERATED[property];
+    Object.defineProperty(Shim.prototype, property, {
+      get() {
+        const raw = this.getAttribute(attribute);
+        if (raw === null) return missing;
+        /** Enumerated attributes are ASCII case-insensitive and the getter answers canonically. */
+        const state = raw.toLowerCase();
+        return known.includes(state) ? state : invalid;
+      },
+      /** The setter writes what it is given; only the getter maps to a state. */
+      set(value) {
+        this.setAttribute(attribute, value);
+      },
+      configurable: true,
+    });
+  }
+  /**
+   * **`contentEditable` is the one whose setter validates.** Every engine throws a `SyntaxError`
+   * for a value outside the three states, lowercases what it accepts, and treats `'inherit'` as
+   * "remove the attribute" rather than a value to write. An empty string throws — it is not the
+   * same as `'inherit'`, though the attribute *being* empty reads back as `'true'`.
+   */
+  Object.defineProperty(Shim.prototype, 'contentEditable', {
+    get() {
+      const raw = this.getAttribute('contenteditable');
+      if (raw === null) return 'inherit';
+      const state = raw.toLowerCase();
+      if (state === '') return 'true';
+      return CONTENT_EDITABLE_STATES.includes(state) ? state : 'inherit';
+    },
+    set(value) {
+      const state = `${value}`.toLowerCase();
+      if (state === 'inherit') {
+        this.removeAttribute('contenteditable');
+        return;
+      }
+      if (!CONTENT_EDITABLE_STATES.includes(state))
+        throw new DOMException(
+          `Failed to set the 'contentEditable' property on 'HTMLElement': The value provided ` +
+            `('${value}') is not one of 'true', 'false', 'plaintext-only' or 'inherit'.`,
+          'SyntaxError'
+        );
+      this.setAttribute('contenteditable', state);
+    },
+    configurable: true,
+  });
   for (const [property, attribute] of Object.entries(REFLECTED_PRESENCE)) {
     Object.defineProperty(Shim.prototype, property, {
       get() {
@@ -821,6 +904,10 @@ export class ElementShim extends ContainerShim {
   get classList() {
     return tokenListView(this, 'class');
   }
+  /** `[PutForwards=value]`, for the same reason as `part`. */
+  set classList(value) {
+    this.setAttribute('class', value);
+  }
 
   /**
    * What a **detached, childless** element answers.
@@ -960,6 +1047,16 @@ export class ElementShim extends ContainerShim {
   /** `part` is a token list over the `part` attribute, exactly as `classList` is over `class`. */
   get part() {
     return tokenListView(this, 'part');
+  }
+  /**
+   * **Assignable, because the IDL says `[PutForwards=value]`.** Both `part` and `classList` are
+   * declared that way, so `element.part = 'a b'` is a legal operation in every engine and writes
+   * the attribute. A getter with no setter made it a `TypeError` here instead — a server that
+   * refuses what the browser performs, which is the same failure as being too permissive with the
+   * direction reversed.
+   */
+  set part(value) {
+    this.setAttribute('part', value);
   }
 
   /**
