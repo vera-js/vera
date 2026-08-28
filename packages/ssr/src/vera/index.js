@@ -432,10 +432,22 @@ const renderInstance = (element, tag, depth, props, children) => {
   setRenderingTag(previousTag);
 
   /**
-   * Rendering is synchronous end to end — the recursion runs inside `String.replace`, which cannot
-   * await — so an `async connectedCallback` returns a promise nobody can wait for, and everything
-   * after its first `await` happens long after the markup was serialized. That produced an empty
-   * component and said nothing about it, which is the worst of the available outcomes.
+   * Rendering is synchronous end to end, so an `async connectedCallback` returns a promise nobody
+   * can wait for, and everything after its first `await` happens long after the markup was
+   * serialized. That produced an empty component and said nothing about it, which is the worst of
+   * the available outcomes.
+   *
+   * **The reason it is synchronous is not what this used to say.** It claimed the recursion runs
+   * inside `String.replace` and therefore cannot await; `renderComponentTags` is a plain `while`
+   * loop and there is no such callback anywhere in the chain. The real constraint is the one stated
+   * at `renderPage`: the per-render bookkeeping — `renderedTags`, `renderErrors`,
+   * `pendingInstances`, `instanceCount`, the hoisting state — is **module-level**, so two renders
+   * that interleaved would read each other's. Being synchronous end to end is what makes concurrent
+   * `renderToString` calls safe, which `tests/ssr-request-isolation.test.mjs` relies on.
+   *
+   * Making this async is therefore a matter of threading that state through rather than of the shape
+   * of the recursion — a real change with a real payoff (async lifecycles, and a routed component
+   * rendering its route), and one nobody should start from this comment alone.
    *
    * Load data before `renderToString` and pass it in through attributes.
    */
