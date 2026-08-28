@@ -31,3 +31,20 @@ README's list, and `tests/render-exotic-values-parity.test.mjs` now fails if tha
 disappears, so a documented divergence cannot quietly stop being documented.
 
 2 B gzipped on `@verajs/renderer`; `@verajs/ssr` ships no bundle.
+
+## If you render server-side without hydrating
+
+Every change above makes the server agree with the client, so a **hydrating** app sees the same page
+it always saw — the difference was the mismatch, and the mismatch is what went away. A **static** SSR
+consumer has no client to agree with, and for them these are visible output changes:
+
+| written | before | now |
+| --- | --- | --- |
+| `<input .value=${undefined}>` | `<input>` | `<input value="undefined">` |
+| `<textarea .value=${true}>` | empty | `true` |
+| `<p title="a ${[1, 2]} b">` | `a 12 b` | `a 1,2 b` |
+| `${Symbol('s')}` at any position | `Symbol(s)` | **throws** |
+
+Each new answer is the one a browser gives, which is why it changed — but `undefined` becoming the
+visible text `"undefined"` is a surprise worth knowing about rather than discovering. It was always
+what the client showed after hydration; only the server was hiding it.
