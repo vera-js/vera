@@ -1535,8 +1535,21 @@ export const renderInto = (result: unknown, container: Node) => {
     container.appendChild(marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
-  part._set(result);
-  flushSelects();
+  /**
+   * **The flush is in a `finally`, and that is not tidiness.** A render that throws after a
+   * `<select>.value` has been queued but before the flush left the queue holding the element — which
+   * retains it in module state, and, worse, hands the stranded value to the *next* `renderInto` call.
+   * An unrelated component's render then silently changed a select it has nothing to do with.
+   * Measured: a failed update left the value to be applied by the following render.
+   *
+   * Flushing on the way out applies it with its own pass, where it belongs, and leaves nothing
+   * behind either way. The error still propagates.
+   */
+  try {
+    part._set(result);
+  } finally {
+    flushSelects();
+  }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };
 

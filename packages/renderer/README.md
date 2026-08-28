@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.73 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.74 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -366,9 +366,11 @@ written `@event` bindings behave too.
 ### What it costs, and why it is a separate entry
 
 `@verajs/renderer` grows **5 B** gzipped for the protocol this uses, whether or not you import it —
-measured 2026-08-27 by deleting the `_$apply$` branch and rebuilding (3 815 B against 3 810 B). This
-figure has no generator behind it, so it is dated; `llms.txt` and this file disagreed about it for a
-while, at 16 B and 8 B respectively, and both were wrong.
+measured 2026-08-27 by deleting the `_$apply$` branch and rebuilding, as a **difference** rather than
+a pair of totals — the totals move with every change to this package and the difference does not,
+which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
+for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
+dated; re-measure the same way if it matters.
 The entry itself is **<!--size:spread.gzip-->842 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 

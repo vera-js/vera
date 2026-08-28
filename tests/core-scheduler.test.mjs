@@ -174,3 +174,34 @@ test('re-queueing does not fire twice while one scheduler stays installed', asyn
   await frame();
   assert.equal(renders - before, 1, `twenty writes in one tick should render once, rendered ${renders - before}`);
 });
+
+/**
+ * A render that throws must not leave the `<select>.value` queue holding anything.
+ *
+ * The queue is module state in the renderer, filled during a pass and drained at the end of
+ * `renderInto`. A throw in between left the element in it — retaining it, and handing the stranded
+ * value to the **next** `renderInto` call, so an unrelated component's render silently changed a
+ * select it has nothing to do with. Found by re-running pass 84's leak lens over the module state
+ * this session added, rather than over the state that existed when pass 84 ran.
+ */
+test('a render that throws leaves nothing queued for the next one', async () => {
+  const { renderInto } = await load('renderer');
+  const D = dom.window.document;
+  const explode = { toString() { throw new Error('value exploded'); } };
+  const draw = (value, tail) =>
+    core.html`<div><select .value=${value}><option value="a">A</option><option value="b">B</option></select><p title=${tail}>x</p></div>`;
+
+  const host = D.createElement('div');
+  renderInto(draw('a', 'fine'), host);
+  const select = host.querySelector('select');
+  assert.equal(select.value, 'a');
+
+  assert.throws(() => renderInto(draw('b', explode), host), /value exploded/);
+  assert.equal(select.value, 'b', 'the queued value should be applied by its own pass, not a later one');
+
+  /** Reset by hand: anything still queued would land on the next unrelated render. */
+  select.value = 'a';
+  renderInto(core.html`<p>${'unrelated'}</p>`, D.createElement('div'));
+  assert.equal(select.value, 'a',
+    'an unrelated render applied a value stranded by an earlier failure');
+});
