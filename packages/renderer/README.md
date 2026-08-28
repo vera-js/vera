@@ -365,7 +365,10 @@ written `@event` bindings behave too.
 
 ### What it costs, and why it is a separate entry
 
-`@verajs/renderer` grows **8 B** gzipped for the protocol this uses, whether or not you import it.
+`@verajs/renderer` grows **5 B** gzipped for the protocol this uses, whether or not you import it —
+measured 2026-08-27 by deleting the `_$apply$` branch and rebuilding (3 815 B against 3 810 B). This
+figure has no generator behind it, so it is dated; `llms.txt` and this file disagreed about it for a
+while, at 16 B and 8 B respectively, and both were wrong.
 The entry itself is **<!--size:spread.gzip-->842 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
@@ -488,7 +491,7 @@ writing something that has to agree with both; do not build on them.
 
 The renderer holds no directive system. It holds a **protocol**, at the two positions worth
 extending, and everything built on it is an ordinary package the renderer knows nothing about —
-`@verajs/renderer/spread` is the proof, at 8 B of protocol in this bundle and its own weight only
+`@verajs/renderer/spread` is the proof, at 5 B of protocol in this bundle and its own weight only
 for apps that import it.
 
 | position | brand | called as |

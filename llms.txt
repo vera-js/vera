@@ -344,7 +344,7 @@ Keys carry the same sigils as written bindings, so a spread key and a written bi
 thing — including `&ref` for an element ref. A key that cannot be written into markup is **skipped**
 (whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
 those and markup cannot carry them, so both sides refuse them rather than disagreeing.
-`@verajs/renderer` costs 16 B for the protocol whether or not you install this; the package
+`@verajs/renderer` costs 5 B for the protocol whether or not you install this; the package
 is <!--size:spread.gzip-->842 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
