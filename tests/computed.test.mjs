@@ -7,7 +7,7 @@
  * re-invoked the function on every read — a getter with extra steps, and the one property that
  * makes the primitive worth having was the property it lacked.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
@@ -135,6 +135,39 @@ const mount = () => {
   check('a throwing evaluation does not escape, and keeps the last good value', derived.value === 2, String(derived.value));
   state.n = 3;
   check('and the next good input recovers', derived.value === 6, String(derived.value));
+}
+
+
+
+/* ── a non-function is refused by name ────────────────────────────────────────────────────────
+ * `computed(undefined)` — what a mistyped argument or a missing import produces — was accepted and
+ * failed at the first read with `evaluate is not a function`: the name of a local variable inside
+ * `computed.ts`, naming neither the API that was called wrong nor what to pass instead. It was the
+ * only public function in the framework that did this, found by a sweep calling every export with
+ * wrong-typed input.
+ *
+ * `__DEV__`-only, like the other diagnostics here, so production carries neither check nor message.
+ */
+if (!isProduction) {
+  for (const bad of [undefined, null, 5, {}, [], 'x']) {
+    let message = '';
+    try {
+      computed(bad);
+    } catch (error) {
+      message = String(error?.message ?? '');
+    }
+    check(`computed(${String(bad)}) is refused`, /^computed: expected a function/.test(message), message.slice(0, 60));
+    check(`computed(${String(bad)}) shows the shape it wanted`, /computed\(\(\) => a \+ b\)/.test(message));
+  }
+}
+
+/** The guard must not disturb the ordinary path, in either build. */
+{
+  const store = core.createStore({ n: 2 });
+  const doubled = computed(() => store.n * 2);
+  check('a real function still evaluates', doubled.value === 4, String(doubled.value));
+  store.n = 3;
+  check('and still recomputes', doubled.value === 6, String(doubled.value));
 }
 
 console.log(`${pass} passed, ${fail} failed`);

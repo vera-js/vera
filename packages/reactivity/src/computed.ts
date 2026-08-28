@@ -26,6 +26,22 @@ import { createHook, createStore } from '@verajs/core';
  */
 export const computed = <T>(evaluate: () => T) => {
   /**
+   * **Refused by name, like every other public function here.** `computed(undefined)` — the shape a
+   * mistyped argument or a missing import produces — was accepted and failed later at the first read
+   * with `evaluate is not a function`, which names a local variable inside this file and neither the
+   * API that was called wrong nor what to pass instead. Every other exported function in this
+   * framework says which one it was and what it wanted; a sweep calling all of them with wrong-typed
+   * input found this one alone.
+   *
+   * `__DEV__`-only, as diagnostics here are: production is a browser the author has already run.
+   */
+  if (__DEV__ && typeof evaluate !== 'function')
+    throw new TypeError(
+      `computed: expected a function to derive the value from, and received ${
+        evaluate === null ? 'null' : typeof evaluate
+      }. Pass the expression as a function — computed(() => a + b), not computed(a + b).`
+    );
+  /**
    * A plain object as the hook's owner, never a DOM element.
    *
    * `runCallbacks` skips an owner whose `isConnected` is `false`, which is how a removed component
