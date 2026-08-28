@@ -92,3 +92,52 @@ test('accepts an assignment to part and classList', () => {
   /** And the markup carries what was assigned, which is the point of doing it on a server. */
   assert.match(a.openTag(), /part="a b"/);
 });
+
+/**
+ * `isContentEditable` follows the *state*, so `plaintext-only`, an empty attribute and `TRUE` are
+ * all editable. It compared the attribute's text to `'true'` and got all three wrong.
+ *
+ * The rule is measured attached, in `tests/browser/inner-text.test.js` — WebKit's answer for a
+ * detached element is unstable (it flips depending on whether an attached editable element exists
+ * elsewhere in the document), so it is not evidence about the mapping. Attached, all three agree.
+ */
+test('isContentEditable follows the contentEditable state', () => {
+  const answers = {};
+  for (const value of ['true', 'false', 'plaintext-only', 'TRUE', ''])
+    answers[value || '(empty)'] = withAttribute('contenteditable', value).isContentEditable;
+
+  assert.deepEqual(answers, {
+    true: true, false: false, 'plaintext-only': true, TRUE: true, '(empty)': true,
+  });
+  assert.equal(document.createElement('div').isContentEditable, false, 'absent');
+});
+
+/**
+ * **`innerText` is the one in this group that reaches markup.** Its setter turns every line break
+ * into a `<br>`; assigning through `textContent` left a literal newline, which the page lays out as
+ * a single space — so a component setting `innerText` rendered its lines run together on the server
+ * and correctly broken on the client.
+ *
+ * The escaping between the breaks is this package's own (numeric entities, as everywhere else here)
+ * rather than the `&lt;` an engine emits. Both parse to the same text, and the convention is shared
+ * with every other escape this serializer writes, so it is asserted through the text rather than
+ * the bytes.
+ */
+test('innerText turns a line break into a <br>', () => {
+  const element = document.createElement('div');
+  element.innerText = 'a\nb';
+  assert.equal(element.innerHTML, 'a<br>b');
+
+  const breaks = document.createElement('div');
+  breaks.innerText = 'a\r\nb\rc';
+  assert.equal(breaks.innerHTML, 'a<br>b<br>c', 'CRLF is one break, not two');
+
+  const escaped = document.createElement('div');
+  escaped.innerText = '<b>&</b>';
+  assert.doesNotMatch(escaped.innerHTML, /<b>/, 'the text is escaped, not written as markup');
+
+  /** Detached, the getter is `textContent` — which is what every engine answers too. */
+  const read = document.createElement('div');
+  read.innerHTML = '<b>x</b><script>y</script>';
+  assert.equal(read.innerText, 'xy');
+});

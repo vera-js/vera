@@ -536,9 +536,20 @@ const defineReflections = (Shim) => {
   for (const name of ['scrollLeft', 'scrollTop'])
     Object.defineProperty(Shim.prototype, name, { value: 0, writable: true, configurable: true });
   Object.defineProperty(Shim.prototype, 'currentCSSZoom', { value: 1, configurable: true });
+  /**
+   * **It follows the `contentEditable` *state*, not the attribute's text.** Comparing the raw
+   * attribute to `'true'` answered `false` for `plaintext-only`, for an empty attribute and for
+   * `TRUE` — all three of which are editable in Chromium and Firefox whether the element is in the
+   * document or not, and in WebKit once it is.
+   *
+   * WebKit's answer for a *detached* element is unstable — it flips depending on whether an
+   * attached editable element happens to exist elsewhere in the document — so it is not evidence
+   * about the mapping. The mapping itself is unanimous.
+   */
   Object.defineProperty(Shim.prototype, 'isContentEditable', {
     get() {
-      return this.getAttribute('contenteditable') === 'true';
+      const state = this.contentEditable;
+      return state === 'true' || state === 'plaintext-only';
     },
     configurable: true,
   });
@@ -1041,8 +1052,19 @@ export class ElementShim extends ContainerShim {
   get innerText() {
     return this.textContent;
   }
+  /**
+   * **A line break becomes a `<br>`, which is the whole difference from `textContent`.** Every
+   * engine splits the assigned string on `\r\n`, `\r` and `\n` and joins the escaped pieces with
+   * `<br>`; assigning through `textContent` instead left a literal newline, which collapses to a
+   * single space when the page is laid out. So a component that set `innerText` rendered its lines
+   * run together on the server and correctly broken on the client — a visible difference in the
+   * markup itself, not merely in what a property reads back.
+   *
+   * Measured on Chromium, Firefox and WebKit, attached and detached, in
+   * `tests/browser/inner-text.test.js`.
+   */
   set innerText(value) {
-    this.textContent = value;
+    this.innerHTML = `${value}`.split(/\r\n|[\r\n]/u).map(escapeHtml).join('<br>');
   }
   /** `part` is a token list over the `part` attribute, exactly as `classList` is over `class`. */
   get part() {
