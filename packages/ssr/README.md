@@ -105,8 +105,8 @@ describe.
   more use than the platform's bare `SyntaxError`. A `style` value is stored as it was
   written rather than re-serialized, so `url("data:…")` keeps its quotes where a browser's CSS
   serializer drops them — equivalent CSS, and a semicolon inside a value does not split the
-  declaration, which is what matters for an inline `data:` URI. Queries answer emptily and layout reads as zero because that
-  is what a detached element answers in a browser too. **Names fold the way the platform folds
+  declaration, which is what matters for an inline `data:` URI. Layout reads as zero because that is what a
+  detached element answers in a browser too. **Names fold the way the platform folds
   them**: an HTML element lower-cases its tag and its attribute names, so `setAttribute('Data-Flag', …)`
   and `getAttribute('data-flag')` are one attribute and an `attributes` entry spelled `User-ID`
   still matches an `observedAttributes` entry spelled `user-id`; an element created through
@@ -277,9 +277,11 @@ Known limits:
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
 - **A routed component renders its shell, not its route.** `initRouter` works server-side — the
   shim provides enough `window` for it — so the nav and the `[view]` outlet reach the markup and the
-  client fills the outlet on hydration. The route's own content does not, because the server holds
-  markup as a string rather than a tree and the router finds its outlet by query. Render the route
-  yourself and pass it as `children` if it has to be in the first response.
+  client fills the outlet on hydration. The route's own content does not — **but no longer for the
+  reason this said**. The outlet *is* found now that markup has a node view; what does not happen is
+  the router's first route resolution, which never runs during a server render, so `router.current`
+  is `null` and the route's component is never called. Render the route yourself and pass it as
+  `children` if it has to be in the first response.
 - **A dynamic attribute *name* is refused.** `<b ${name}="x">` is malformed on both sides: the
   client hands the template to the platform's parser and a marker is not a name, and this serializer
   used to emit `<b="x">`, which is not an attribute either. Rather than write markup no browser would
