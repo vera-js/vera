@@ -277,11 +277,13 @@ Known limits:
 - `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
 - **A routed component renders its shell, not its route.** `initRouter` works server-side — the
   shim provides enough `window` for it — so the nav and the `[view]` outlet reach the markup and the
-  client fills the outlet on hydration. The route's own content does not — **but no longer for the
-  reason this said**. The outlet *is* found now that markup has a node view; what does not happen is
-  the router's first route resolution, which never runs during a server render, so `router.current`
-  is `null` and the route's component is never called. Render the route yourself and pass it as
-  `children` if it has to be in the first response.
+  client fills the outlet on hydration. The route's own content does not, **for the same reason an
+  `async connectedCallback` is refused**: rendering is synchronous end to end and `navigate` is
+  `async`. The initial navigation is scheduled on a frame, the frame runs, `navigate` is called and
+  returns a promise — and the markup is serialized before that promise settles, so the component
+  behind the route is never called. The outlet itself *is* found, and awaiting `navigate` outside a
+  render works. Render the route yourself and pass it as `children` if it has to be in the first
+  response.
 - **A dynamic attribute *name* is refused.** `<b ${name}="x">` is malformed on both sides: the
   client hands the template to the platform's parser and a marker is not a name, and this serializer
   used to emit `<b="x">`, which is not an attribute either. Rather than write markup no browser would
