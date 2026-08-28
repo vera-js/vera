@@ -59,10 +59,14 @@ describe.
   can recover. There is no next render here, so `renderToString` collects those failures and throws,
   naming the component. Catch it to fall back to a client-rendered shell, as you would with React or
   Vue.
-- **Events are real** — `EventTarget` semantics on elements, shadow roots, `document` and `window`,
-  including `once`, `handleEvent` objects, `event.target` and a `dispatchEvent` return value that
-  reflects `preventDefault`. What is absent is **bubbling**: this DOM holds children as a string, so
-  there is no ancestor chain to walk and an event reaches its own target's listeners and stops.
+- **Events are real, and they propagate** — `EventTarget` semantics on elements, shadow roots,
+  `document` and `window`, including `once`, `handleEvent` objects, `event.target` and a
+  `dispatchEvent` return value that reflects `preventDefault` — plus the capture, target and bubble
+  phases, `stopPropagation`, `stopImmediatePropagation`, `composedPath()`, and a shadow boundary
+  crossed only by a `composed` event. Bubbling used to be absent because this DOM held children as a
+  string and there was no ancestor chain to walk; children are nodes now, so there is. The walk is
+  over the node tree — an event does not continue into `document` or `window`, which are not part of
+  it here.
 - **The server DOM is complete, and checked twice.** Every member a real element, shadow root,
   document, `CSSStyleSheet`, `DOMTokenList` **or window** exposes in Chromium, Firefox and WebKit is
   either implemented or listed as out of scope with a reason — and every member that *is* implemented

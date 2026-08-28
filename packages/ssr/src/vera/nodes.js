@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { parseFragment } from './parse.js';
+import { addListener, removeListener, dispatch } from './events.js';
 import * as select from './select.js';
 import { datasetView, styleView, tokenListView } from './views.js';
 import { StyleSheetShim } from './stylesheets.js';
@@ -280,6 +281,21 @@ class CharacterDataShim extends EventTarget {
     this._parent = /** @type {any} */ (null);
     this.isConnected = true;
   }
+  /**
+   * Registered here rather than on the platform's `EventTarget`; see `events.js`.
+   * @override
+   */
+  addEventListener(type, callback, options) {
+    addListener(this, type, callback, options);
+  }
+  /** @override */
+  removeEventListener(type, callback, options) {
+    removeListener(this, type, callback, options);
+  }
+  /** @override */
+  dispatchEvent(event) {
+    return dispatch(this, event);
+  }
   get data() {
     return this._data;
   }
@@ -429,6 +445,21 @@ export class ContainerShim extends EventTarget {
     this._parent = null;
     /** A server-rendered node is in the document being built, so it is connected. */
     this.isConnected = true;
+  }
+  /**
+   * Registered here rather than on the platform's `EventTarget`; see `events.js`.
+   * @override
+   */
+  addEventListener(type, callback, options) {
+    addListener(this, type, callback, options);
+  }
+  /** @override */
+  removeEventListener(type, callback, options) {
+    removeListener(this, type, callback, options);
+  }
+  /** @override */
+  dispatchEvent(event) {
+    return dispatch(this, event);
   }
   get innerHTML() {
     let out = '';
