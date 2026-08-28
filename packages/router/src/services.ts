@@ -484,7 +484,24 @@ const routeChange = async (
 
   for (const link of chain) {
     /** A guard belonging to this route alone, and the outer ones get to refuse first. */
-    if ((await link.beforeEnter?.(params, currentRoute, previousRoute)) === false) return false;
+    const verdict = await link.beforeEnter?.(params, currentRoute, previousRoute);
+    /**
+     * **Only `false` cancels**, which is the documented contract and is easy to write past. A guard
+     * returning a *path* is the Vue Router habit — `beforeEnter: () => '/login'` redirects there —
+     * and here it is truthy, so the route it was guarding renders anyway. Silently, and in an auth
+     * guard that is the whole point of the guard defeated.
+     *
+     * This router redirects with the `redirect` route option instead, so the mistake has a fix worth
+     * naming. Warned rather than obeyed: making a returned string redirect would be a second way to
+     * do the same thing, and the two would disagree the moment `redirect` was also set.
+     */
+    if (__DEV__ && typeof verdict === 'string')
+      console.warn(
+        `[vera] router: \`beforeEnter\` on "${link.path ?? currentRoute?.path}" returned the string ` +
+          `"${verdict}", which is truthy, so the route was allowed. Only \`false\` cancels — to send ` +
+          `someone elsewhere, use the \`redirect\` route option, or call \`navigate()\` and return false.`
+      );
+    if (verdict === false) return false;
     if (id !== navigationId) return false;
   }
 

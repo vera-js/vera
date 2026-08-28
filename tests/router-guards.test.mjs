@@ -8,7 +8,7 @@
  * Tests the BUILT artifacts, development AND production (see ./dist.mjs).
  */
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/', pretendToBeVisual: true });
 for (const k of ['document', 'HTMLElement', 'Node', 'Event', 'CustomEvent', 'PopStateEvent', 'MouseEvent', 'customElements']) globalThis[k] = dom.window[k];
@@ -168,6 +168,33 @@ const makeApp = (routes) => {
   await navigate('/f-prog');
   check('programmatic navigate leaves focus alone even with focusView on', document.activeElement === outside);
   check('but it did route', view.querySelector('#prog') !== null);
+}
+
+/**
+ * **Only `false` cancels**, and a guard returning a path is the Vue Router habit — there,
+ * `beforeEnter: () => '/login'` redirects. Here a string is truthy, so the route it was guarding
+ * renders anyway; in an auth guard that is the guard defeated, silently.
+ *
+ * Warned rather than obeyed: making a returned string redirect would be a second way to do what the
+ * `redirect` route option already does, and the two would disagree the moment both were set.
+ */
+{
+  /** The warning is `__DEV__`-only, so production has nothing to observe — see dist.mjs. */
+  const said = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  makeApp([{ path: '/redirecting-guard', component: () => '<p>guarded</p>', beforeEnter: () => '/elsewhere' }]);
+  await navigate('/redirecting-guard');
+  console.warn = realWarn;
+
+  const warning = said.find((line) => line.includes('beforeEnter'));
+  if (isProduction) {
+    check('production says nothing about a guard returning a path', !warning, warning ?? '');
+  } else {
+    check('a guard returning a path is warned about', !!warning, said.join(' | ') || '(nothing said)');
+    check('and the warning names the redirect option', !!warning && warning.includes('`redirect` route option'), warning ?? '');
+    check('and carries the [vera] prefix', !!warning && warning.startsWith('[vera]'), warning ?? '');
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
