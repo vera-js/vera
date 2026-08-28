@@ -76,11 +76,23 @@ const CLOSES_P = new Set([
 ]);
 
 /**
- * Elements whose content this parser will not model. `svg` and `math` switch the spec into foreign
- * content, where self-closing means something different and names are case-sensitive; `template`
- * holds a separate document fragment. Each is a decline rather than a guess.
+ * `<template>` holds a separate document fragment rather than children, which this DOM has no way to
+ * represent. A decline rather than a guess.
  */
-const REFUSED = new Set(['svg', 'math', 'template']);
+const REFUSED = new Set(['template']);
+
+/**
+ * **Foreign content is kept whole.** `svg` and `math` switch the spec into rules this parser does
+ * not implement — self-closing tags mean something different, names stay case-sensitive, and
+ * attributes are adjusted (`viewBox`, not `viewbox`). Guessing at the interior would produce a tree
+ * a real parser disagrees with.
+ *
+ * So the element itself is modelled and its **content is kept as one opaque chunk**: the surrounding
+ * markup parses normally, the icon is an element you can find and style, and nothing inside it is
+ * claimed. Refusing the whole fragment instead — which is what this used to do — meant a card with
+ * an icon in it got no node view at all, which is a great deal to give up for one `<svg>`.
+ */
+const FOREIGN = new Set(['svg', 'math']);
 
 const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
 const ATTRIBUTE = /^([^\s/>="'<]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/;
@@ -225,7 +237,7 @@ export const parseFragment = (markup, create) => {
      * perfectly ordinary. An element built by `createElement` has no source close tag at all and
      * still gets the canonical one.
      */
-    const node = { element, children: /** @type {Array<any>} */ ([]), localName: name, closeTag: '' };
+    const node = { element, children: /** @type {Array<any>} */ ([]), localName: name, closeTag: '', foreign: false };
     open().children.push(node);
     index = end + 1;
 
@@ -236,6 +248,35 @@ export const parseFragment = (markup, create) => {
      * Treating it as closed is a common and quiet way to build the wrong tree, so it declines.
      */
     if (selfClosing) return null;
+
+    /**
+     * Foreign content runs to its matching end tag and is kept verbatim, nesting counted so an
+     * `<svg>` inside an `<svg>` closes the right one.
+     */
+    if (FOREIGN.has(name)) {
+      let depth = 1;
+      let cursorAt = index;
+      let closeAt = -1;
+      const opener = new RegExp(`<(/?)${name}\\b`, 'giu');
+      opener.lastIndex = index;
+      for (let found = opener.exec(markup); found; found = opener.exec(markup)) {
+        depth += found[1] ? -1 : 1;
+        if (depth === 0) {
+          closeAt = found.index;
+          break;
+        }
+        cursorAt = opener.lastIndex;
+      }
+      void cursorAt;
+      if (closeAt === -1) return null;
+      const closeEnd = markup.indexOf('>', closeAt);
+      if (closeEnd === -1) return null;
+      if (index !== closeAt) node.children.push(markup.slice(index, closeAt));
+      node.closeTag = markup.slice(closeAt, closeEnd + 1);
+      node.foreign = true;
+      index = closeEnd + 1;
+      continue;
+    }
 
     /** Raw text runs to its own end tag and is never parsed as markup. */
     if (RAW_TEXT_ELEMENTS.has(name)) {
@@ -281,6 +322,8 @@ export const parseFragment = (markup, create) => {
       }
     }
     node.element._sourceCloseTag = node.closeTag;
+    /** Marked so anything comparing this tree knows the interior is not modelled. */
+    if (node.foreign) node.element._foreign = true;
     return node.element;
   };
   return root.children.map((child) =>

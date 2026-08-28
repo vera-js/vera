@@ -21,23 +21,44 @@ import { TextShim, CommentShim } from '../packages/ssr/src/vera/nodes.js';
 import '@verajs/ssr';
 
 /** Element structure only — the part a selector can see, and where error recovery shows up. */
+/**
+ * **Foreign content is compared at its boundary only.** `<svg>` and `<math>` switch the spec into
+ * rules this parser does not implement, so it models the element and keeps the interior as one
+ * opaque chunk — deliberately, because refusing the whole fragment meant a card with an icon in it
+ * got no node view at all. Comparing the interior would therefore always fail, and comparing the
+ * attributes would fail on casing (`viewBox` stays `viewBox` in the markup and is lowercased on the
+ * element, which is what `getAttribute` then answers either way).
+ *
+ * The comparison stops there rather than being skipped: the element itself, and everything around
+ * it, still has to match.
+ */
+const FOREIGN = new Set(['svg', 'math']);
+
 const ours = (entries) =>
   entries
     .filter((entry) => typeof entry !== 'string' && entry.openTag)
-    .map((element) => ({
-      tag: element.localName,
-      attrs: [...element._attributes].sort(([a], [b]) => (a < b ? -1 : 1)),
-      children: ours(element._entries),
-    }));
+    .map((element) =>
+      FOREIGN.has(element.localName)
+        ? { tag: element.localName, foreign: true }
+        : {
+            tag: element.localName,
+            attrs: [...element._attributes].sort(([a], [b]) => (a < b ? -1 : 1)),
+            children: ours(element._entries),
+          }
+    );
 
 const theirs = (nodes) =>
   nodes
     .filter((node) => node.tagName)
-    .map((node) => ({
-      tag: node.tagName,
-      attrs: node.attrs.map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)),
-      children: theirs(node.childNodes ?? []),
-    }));
+    .map((node) =>
+      FOREIGN.has(node.tagName)
+        ? { tag: node.tagName, foreign: true }
+        : {
+            tag: node.tagName,
+            attrs: node.attrs.map((a) => [a.name, a.value]).sort(([a], [b]) => (a < b ? -1 : 1)),
+            children: theirs(node.childNodes ?? []),
+          }
+    );
 
 const CORPUS = [
   /* Ordinary, well-formed. */
@@ -79,10 +100,43 @@ const CORPUS = [
   '<p>a &amp; b</p>',
   '<p title="a &#38; b">t</p>',
 
+  /* Foreign content: the element is modelled, its interior is kept whole. */
+  '<svg viewBox="0 0 8 8"><circle cx="4" /></svg>',
+  '<div class="card"><svg viewBox="0 0 8 8"><circle cx="4"/></svg><h2>T</h2></div>',
+  '<p>before</p><svg><g><path d="M0 0"/></g></svg><p>after</p>',
+  '<math><mi>x</mi></math>',
+
+  /* Markup of the shape components actually emit. */
+  '<button type="button" class="btn btn-primary" aria-pressed="false">Save</button>',
+  '<div class="card"><header><h2>Title</h2></header><p>Body text.</p></div>',
+  '<nav><ul><li><a href="/a">A</a></li><li><a href="/b">B</a></li></ul></nav>',
+  '<form><label for="n">Name</label><input id="n" name="n" required></form>',
+  '<select name="s"><option value="1" selected>One</option><option value="2">Two</option></select>',
+  '<table><thead><tr><th>H</th></tr></thead><tbody><tr><td>C</td></tr></tbody></table>',
+  '<picture><source srcset="a.webp" type="image/webp"><img src="a.png" alt="a"></picture>',
+  '<details><summary>More</summary><p>Hidden</p></details>',
+  '<slot name="header"></slot><slot></slot>',
+  '<my-component prop="1"><span slot="title">T</span></my-component>',
+  '<div data-a="1" data-b data-c="">flags</div>',
+  '<p>Text with <strong>nesting</strong> and <em>more <code>deep</code></em>.</p>',
+  '<div\n><span\n  class="x"\n  >y</span\n></div>',
+  '<blockquote cite="https://example.com/a?b=1&amp;c=2">q</blockquote>',
+  '<pre>  spaced\n  lines  </pre>',
+  '<dl><dt>a<dd>b</dl>',
+  '<ruby>base<rt>note</rt></ruby>',
+  '<video controls muted playsinline><source src="a.mp4"></video>',
+  '<div>&lt;not a tag&gt;</div>',
+  '<span>5 &gt; 3 &amp;&amp; 2 &lt; 4</span>',
+  '<div title="quotes \'inside\'">x</div>',
+  "<div title='double \"inside\"'>x</div>",
+  '<input value="">',
+  '<div></div><div></div><div></div>',
+  '<a href="#">#</a>',
+  '<h1>a</h1><h2>b</h2><h3>c</h3>',
+
   /* Things it is expected to decline rather than guess at. */
   '<div><span>never closed',
   '<b><i></b></i>',
-  '<svg><circle /></svg>',
   '<div/>',
   '<table><tr><td>a</td></tr></table>',
   '<table><tbody><tr><td>a</td></tr></tbody></table>',
