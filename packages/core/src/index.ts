@@ -15,6 +15,7 @@ export { mount } from './modules/mount.js';
 export { ref, shallowRef } from './modules/ref.js';
 export { render } from './modules/render.js';
 export { setRenderScheduler, microtask } from './modules/setRenderScheduler.js';
+export { setStaticStores } from './modules/createStore.js';
 export type { RenderScheduler } from './modules/setRenderScheduler.js';
 export { untrack } from './modules/untrack.js';
 export { css, html, mathml, setCss, setHtml, svg } from './store/store.js';

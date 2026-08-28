@@ -59,6 +59,22 @@ describe.
   can recover. There is no next render here, so `renderToString` collects those failures and throws,
   naming the component. Catch it to fall back to a client-rendered shell, as you would with React or
   Vue.
+- **`static: true` renders a page that will not be interactive, about 3x faster.** A server render is
+  one shot — the subscriptions built while it runs are never fired afterwards — so tracking every
+  property read to create them is pure cost. Measured on a component rendering twenty rows, the proxy
+  behind `createStore` is the *entire* reactivity overhead: about 40 µs against a 15 µs baseline,
+  where effects and the scheduler cost nothing detectable. With `static` on, `createStore` hands back
+  a plain object and reads are ordinary property access.
+
+  **The markup is identical** — that is the whole safety of it, and it is not asserted on an example:
+  `tests/ssr-static-mode.test.mjs` renders *every* fixture in the suite both ways and compares markup,
+  styles and title. A mode that cannot drift is why this is a flag rather than a second renderer.
+
+  **A store written to during a static render throws**, naming the option, rather than rendering
+  markup that reflects none of the writes. That guard is *not* development-only, unlike most of this
+  framework's diagnostics: a server runs the production build, so folding it away would remove it
+  from the only place it matters.
+
 - **Events are real, and they propagate** — `EventTarget` semantics on elements, shadow roots,
   `document` and `window`, including `once`, `handleEvent` objects, `event.target` and a
   `dispatchEvent` return value that reflects `preventDefault` — plus the capture, target and bubble

@@ -3,8 +3,8 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 6578,
-      "gzip": 2880
+      "raw": 6726,
+      "gzip": 2938
     },
     "renderer": {
       "raw": 9737,
@@ -75,8 +75,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12406,
-      "gzip": 5342,
+      "raw": 12514,
+      "gzip": 5386,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -101,21 +101,21 @@
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 14620,
-      "gzip": 6026,
-      "deps": 1,
-      "depsThirdParty": 0,
-      "depsThirdPartyNames": [],
-      "depsUnresolved": 0
-    },
-    {
       "name": "Preact + signals",
       "note": "preact + @preact/signals-core",
       "raw": 15156,
       "gzip": 6031,
       "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
+    },
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 14728,
+      "gzip": 6073,
+      "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 15742,
-      "gzip": 6483
+      "raw": 15850,
+      "gzip": 6531
     },
     {
       "name": "Lit",

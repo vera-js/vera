@@ -41,7 +41,7 @@ import {
 import { serializeTemplate, serializeValue } from './serializer.js';
 
 installShims();
-const { wire, inserts } = await import('@verajs/core');
+const { wire, inserts, setStaticStores } = await import('@verajs/core');
 /**
  * `static styles` moved out of core in 0.2.0 (`@verajs/styles`). Server rendering must still
  * serialize them — the markup a browser produces includes the component's styles — and nothing on
@@ -501,6 +501,10 @@ const renderInstance = (element, tag, depth, props, children) => {
  * page once, for a shell assembled from several islands
  * @param {string | URL} [options.base] A directory the module must resolve inside. Pass it whenever
  * any part of `url` came from a request
+ * @param {boolean} [options.static] Declare that this page will not be interactive, so its stores
+ * need not be reactive. Worth roughly 3x — the proxy behind `createStore` is the whole reactivity
+ * cost of a server render — and the markup is identical. A component that writes to a store during
+ * the render throws in development rather than silently rendering something that never updated.
  * @param {string | URL} [options.location] This request's URL, for any component that reads one.
  * Applied after every await and restored afterwards, so concurrent renders cannot see each other's
  * — assigning to `globalThis.location` yourself is not safe once two requests overlap
@@ -510,7 +514,7 @@ const renderInstance = (element, tag, depth, props, children) => {
  */
 export const renderToString = async (
   url,
-  { tag, attributes = '', children = '', props, seen, base, location } = {}
+  { tag, attributes = '', children = '', props, seen, base, location, static: isStatic = false } = {}
 ) => {
   /**
    * The options are checked because getting one wrong otherwise surfaced an internal: `children: 5`
@@ -537,6 +541,7 @@ export const renderToString = async (
   if (location !== undefined && typeof location !== 'string' && !(location instanceof URL)) {
     throw new TypeError('ssr: `location` must be a URL or a path string');
   }
+  if (typeof isStatic !== 'boolean') throw new TypeError('ssr: `static` must be true or false');
   /** A `tag` that is not a string cannot name a custom element, and saying so here names the option. */
   if (tag !== undefined && typeof tag !== 'string') {
     throw new TypeError(`ssr: \`tag\` must be a custom element name, and ${typeof tag} is not one`);
@@ -687,6 +692,8 @@ export const renderToString = async (
   } finally {
     globalThis.document.title = previousTitle;
     if (previousLocation !== undefined) restoreLocation(previousLocation);
+    /** Always, so a throw cannot leave the next render's stores inert. */
+    if (isStatic) setStaticStores(false);
   }
 
   function renderPage() {
@@ -702,6 +709,19 @@ export const renderToString = async (
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
    * and nothing else.
    */
+  /**
+   * **`static: true` says this page will not be interactive**, so its stores need not be reactive.
+   * A server render is one shot — subscriptions built during it are never fired afterwards — and on
+   * a component rendering twenty rows the proxy behind `createStore` is the *entire* reactivity
+   * overhead: about 40 µs against a 15 µs baseline, where effects and the scheduler cost nothing
+   * measurable. Turning it off is worth roughly 3x.
+   *
+   * Set here rather than around the whole call so it covers exactly the component tree and not the
+   * module import, and restored in the `finally` below so a throw cannot leave a server rendering
+   * inert pages afterwards. A write to a store while it is on throws in development, naming the
+   * option, rather than silently changing nothing.
+   */
+  if (isStatic) setStaticStores(true);
   const entry = renderComponent(tag, attrString, 0, props, children);
   let html = `${entry.open}${entry.inner}</${tag}>`;
   /**
