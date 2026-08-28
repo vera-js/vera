@@ -141,3 +141,119 @@ test('moveBefore follows the rule the engines that ship it agree on', () => {
   assert.throws(() => host.moveBefore(kids[2], document.createElement('p')),
     (error) => error.name === 'NotFoundError', 'a parented node with a reference that is not a child');
 });
+
+/**
+ * **The collection queries, `isEqualNode` and `normalize`** — three more members that answered a
+ * constant because there was nothing to look at, and became wrong the moment there was.
+ * `getElementsByTagName` returned `[]` for a tree plainly holding matches, `isEqualNode` compared
+ * identity (which is what `isSameNode` is for, so two identically-built elements reported
+ * themselves different), and `normalize` was a no-op because there were no text nodes to merge.
+ */
+const populate = (make) => {
+  const host = make('div');
+  host.innerHTML = '<p class="a x" id="one">1</p><span class="a">2</span><p class="b">3</p>';
+  return host;
+};
+
+test('the collection queries answer from the tree', () => {
+  const check = (label, run) => {
+    const mine = run(populate((tag) => document.createElement(tag)));
+    const oracle = run(populate((tag) => real.document.createElement(tag)));
+    assert.deepEqual(mine, oracle, label);
+  };
+  check('by tag name', (host) => [...host.getElementsByTagName('p')].map((e) => e.getAttribute('class')));
+  check('by tag name, wildcard', (host) => [...host.getElementsByTagName('*')].map((e) => e.localName));
+  check('by class name', (host) => [...host.getElementsByClassName('a')].map((e) => e.localName));
+  check('by two class names', (host) => [...host.getElementsByClassName('a x')].map((e) => e.localName));
+  check('by a class nothing has', (host) => [...host.getElementsByClassName('nope')].length);
+  check('by tag name and namespace', (host) =>
+    [...host.getElementsByTagNameNS('http://www.w3.org/1999/xhtml', 'p')].map((e) => e.getAttribute('class')));
+  check('getElementById', (host) => host.getElementById?.('one')?.localName ?? host.querySelector('#one').localName);
+});
+
+test('isEqualNode compares structure, not identity', () => {
+  const build = (make) => {
+    const one = make('b');
+    one.setAttribute('x', '1');
+    one.innerHTML = '<i>q</i>';
+    return one;
+  };
+  const check = (label, run) => assert.equal(
+    run((tag) => document.createElement(tag)),
+    run((tag) => real.document.createElement(tag)),
+    label
+  );
+  check('two identical elements', (make) => build(make).isEqualNode(build(make)));
+  check('itself', (make) => { const one = build(make); return one.isEqualNode(one); });
+  check('a different tag', (make) => build(make).isEqualNode(make('i')));
+  check('a different attribute value', (make) => {
+    const other = build(make);
+    other.setAttribute('x', '2');
+    return build(make).isEqualNode(other);
+  });
+  check('a different child count', (make) => {
+    const other = build(make);
+    other.appendChild(make('u'));
+    return build(make).isEqualNode(other);
+  });
+  check('null', (make) => build(make).isEqualNode(null));
+});
+
+test('normalize merges adjacent text', () => {
+  const check = (label, run) => assert.equal(
+    run(document),
+    run(real.document),
+    label
+  );
+  check('two text nodes become one', (d) => {
+    const host = d.createElement('div');
+    host.appendChild(d.createTextNode('a'));
+    host.appendChild(d.createTextNode('b'));
+    host.normalize();
+    return `${host.childNodes.length}:${host.firstChild.data}`;
+  });
+  check('an empty text node is dropped', (d) => {
+    const host = d.createElement('div');
+    host.appendChild(d.createTextNode(''));
+    host.appendChild(d.createElement('b'));
+    host.normalize();
+    return host.childNodes.length;
+  });
+  check('text either side of an element is left alone', (d) => {
+    const host = d.createElement('div');
+    host.innerHTML = 'a<b>x</b>c';
+    host.normalize();
+    return host.childNodes.length;
+  });
+  check('it reaches into descendants', (d) => {
+    const host = d.createElement('div');
+    const inner = d.createElement('p');
+    inner.appendChild(d.createTextNode('a'));
+    inner.appendChild(d.createTextNode('b'));
+    host.appendChild(inner);
+    host.normalize();
+    return inner.childNodes.length;
+  });
+});
+
+/**
+ * `getRootNode({composed: true})` crosses the shadow boundary through the host, which is the whole
+ * difference between the two forms. jsdom implements shadow roots, so it decides this one too.
+ */
+test('getRootNode honours composed', () => {
+  const check = (label, run) => assert.equal(run(document), run(real.document), label);
+  check('inside a shadow root', (d) => {
+    const host = d.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    const inside = d.createElement('p');
+    root.appendChild(inside);
+    return inside.getRootNode() === root;
+  });
+  check('composed crosses the host', (d) => {
+    const host = d.createElement('div');
+    const root = host.attachShadow({ mode: 'open' });
+    const inside = d.createElement('p');
+    root.appendChild(inside);
+    return inside.getRootNode({ composed: true }) === host;
+  });
+});

@@ -184,6 +184,9 @@ const descendants = (node, out = []) => {
   return out;
 };
 
+/** Every descendant element, in document order — shared with the collection queries. */
+export const descendantsOf = (node) => descendants(node);
+
 export const querySelectorAll = (node, selector) => {
   const compiled = compile(selector);
   return descendants(node).filter((element) => compiled.some((steps) => matchesComplex(element, steps)));

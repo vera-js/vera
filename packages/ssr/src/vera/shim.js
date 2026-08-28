@@ -93,6 +93,14 @@ const delegateEvents = (target, self) => ({
 const windowEvents = new EventTarget();
 
 /** Idempotent. Installs the server environment; the registry is filled as modules execute. */
+/**
+ * The roots a document-level query has to cover. `documentElement` and `body` are separate elements
+ * here rather than one nested pair, so every query walks both — `documentElement` first, which is
+ * where a real document would find anything under `<html>` before reaching `<body>`.
+ */
+const documentRoots = () =>
+  /** @type {Array<any>} */ ([globalThis.document.documentElement, globalThis.document.body]);
+
 export const installShims = () => {
   if (globalThis.__veraSsrShimmed) return registry;
   globalThis.__veraSsrShimmed = true;
@@ -277,14 +285,37 @@ export const installShims = () => {
     createElementNS: (namespace, localName) => createElement(localName, namespace),
     createTextNode: (text) => new TextShim(text),
     createDocumentFragment: () => new FragmentShim(),
-    querySelector: () => null,
-    querySelectorAll: () => [],
-    getElementById: () => null,
+    /**
+     * **The document's queries search the document.** Each answered nothing whatever it was asked,
+     * because there was no tree to search; `document.getElementById('x')` was `null` for an element
+     * that had been appended to `body` moments earlier.
+     *
+     * `documentElement` and `body` are separate roots here rather than one nested pair, so each
+     * query covers both — the order is `documentElement` first, which is where a real document would
+     * have found anything under `<html>` before reaching `<body>`.
+     */
+    querySelector: (selector) => {
+      for (const root of documentRoots()) {
+        const found = root.querySelector(selector);
+        if (found) return found;
+      }
+      return null;
+    },
+    querySelectorAll: (selector) => documentRoots().flatMap((root) => root.querySelectorAll(selector)),
+    getElementById: (id) => {
+      for (const root of documentRoots()) {
+        const found = root.getElementById(id);
+        if (found) return found;
+      }
+      return null;
+    },
     ...NODE_CONSTANTS,
-    getElementsByTagName: () => [],
-    getElementsByTagNameNS: () => [],
-    getElementsByClassName: () => [],
-    getElementsByName: () => [],
+    getElementsByTagName: (name) => documentRoots().flatMap((root) => root.getElementsByTagName(name)),
+    getElementsByTagNameNS: (namespace, name) =>
+      documentRoots().flatMap((root) => root.getElementsByTagNameNS(namespace, name)),
+    getElementsByClassName: (names) => documentRoots().flatMap((root) => root.getElementsByClassName(names)),
+    getElementsByName: (name) =>
+      globalThis.document.querySelectorAll(`[name="${`${name}`.replace(/"/gu, '\\"')}"]`),
     /**
      * **`complete`, because nothing more is coming.** `loading` is the truthful description of a
      * document still being assembled, and it is the wrong answer to give a component: the guard

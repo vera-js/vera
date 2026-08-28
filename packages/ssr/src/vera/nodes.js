@@ -103,6 +103,30 @@ const serializeEntry = (entry) =>
 const isNode = (value) => typeof value?.markup === 'function';
 
 /**
+ * **Structural equality, as the spec defines it** — type, name, attributes as a set, and children
+ * pairwise. `isEqualNode` used to compare identity, which is what `isSameNode` is for, so two
+ * elements built identically reported themselves different.
+ *
+ * A free function rather than a method so neither node has to be `this`: a shadow root and a
+ * fragment are containers with no attributes and no `nodeName` of their own, and reaching for those
+ * through `this` needs a cast that the lint rules and the type-checker disagree about.
+ *
+ * @param {any} a @param {any} b
+ */
+const equalNodes = (a, b) => {
+  if (a === b) return true;
+  if (!b || b.nodeType !== a.nodeType || b.nodeName !== a.nodeName) return false;
+  const mine = a._attributes ?? new Map();
+  const theirs = b._attributes ?? new Map();
+  if (mine.size !== theirs.size) return false;
+  for (const [name, value] of mine) if (theirs.get(name) !== value) return false;
+  const ours = nodesOf(a);
+  const others = nodesOf(b);
+  if (ours.length !== others.length) return false;
+  return ours.every((child, index) => child.isEqualNode(others[index]));
+};
+
+/**
  * **Walks the tree**, as `textContent` is defined to. It used to strip tags out of the serialised
  * markup with a regular expression and undo the numeric escapes, which answered `a &amp; b` for an
  * element holding the text `a & b` — the entity spellings this package does not itself emit came
@@ -619,16 +643,47 @@ export class ContainerShim extends EventTarget {
   isSameNode(node) {
     return node === this;
   }
+  /**
+   * **Structural equality, not identity** — that is what `isSameNode` is for, and this answered the
+   * same thing, so two elements built identically reported themselves different. The spec compares
+   * type, name, attributes as a set, and children pairwise.
+   */
   isEqualNode(node) {
-    return node === this;
+    return equalNodes(this, node);
   }
-  normalize() {}
-  /** The furthest ancestor, which is the shadow root for anything a component rendered into one. */
-  getRootNode() {
+  /**
+   * **Merges adjacent text and drops the empty**, which is what it is for. It was a no-op because
+   * there were no text nodes to merge — appending two of them left two entries a browser would have
+   * joined into one, so `childNodes.length` disagreed after the most ordinary DOM building there is.
+   */
+  normalize() {
+    parseChunks(this);
+    const merged = [];
+    for (const entry of this._entries) {
+      const previous = merged[merged.length - 1];
+      if (entry?.nodeType === 3 && entry.data === '') continue;
+      if (entry?.nodeType === 3 && previous?.nodeType === 3) {
+        previous.data += entry.data;
+        entry._parent = null;
+        continue;
+      }
+      merged.push(entry);
+    }
+    this._entries = merged;
+    for (const entry of merged) if (isNode(entry) && entry.nodeType === 1) entry.normalize();
+  }
+  /**
+   * The furthest ancestor, which is the shadow root for anything a component rendered into one —
+   * unless `composed` is asked for, which keeps going out through the root's host as a browser does.
+   */
+  getRootNode(options) {
     if (!this._parent) return this;
     let root = this._parent;
-    while (root._parent) root = root._parent;
-    return root;
+    for (;;) {
+      while (root._parent) root = root._parent;
+      if (!options?.composed || !root._host) return root;
+      root = root._host;
+    }
   }
   /** Needs layout, which a string does not have; a browser with no box returns nothing either. */
   elementFromPoint() {
@@ -1430,14 +1485,36 @@ export class ElementShim extends ContainerShim {
   checkVisibility() {
     return false;
   }
-  getElementsByTagName() {
-    return [];
+  /**
+   * **The collection queries answer from the tree.** Each returned an empty array whatever the tree
+   * held — the same placeholder shape `querySelector` had, and just as silent. They are live
+   * `HTMLCollection`s in a browser and plain arrays here, which is already recorded as a deliberate
+   * difference: there is nothing to be live *over* while a render is a single pass.
+   */
+  getElementsByTagName(name) {
+    parseChunks(this);
+    const wanted = `${name}`.toLowerCase();
+    return select.descendantsOf(this).filter((element) => wanted === '*' || element.localName === wanted);
   }
-  getElementsByTagNameNS() {
-    return [];
+  getElementsByTagNameNS(namespace, name) {
+    parseChunks(this);
+    const wanted = `${name}`.toLowerCase();
+    const ns = `${namespace}`;
+    return select
+      .descendantsOf(this)
+      .filter(
+        (element) =>
+          (wanted === '*' || element.localName === wanted) && (ns === '*' || element.namespaceURI === ns)
+      );
   }
-  getElementsByClassName() {
-    return [];
+  getElementsByClassName(names) {
+    parseChunks(this);
+    const wanted = `${names}`.split(/\s+/u).filter(Boolean);
+    if (!wanted.length) return [];
+    return select.descendantsOf(this).filter((element) => {
+      const has = (element.getAttribute('class') ?? '').split(/\s+/u);
+      return wanted.every((one) => has.includes(one));
+    });
   }
   /**
    * Namespaces collapse to the plain attribute methods. This DOM serializes HTML, where an
