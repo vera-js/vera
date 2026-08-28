@@ -24,7 +24,7 @@ const core = await load('core');
 const {
   init, createStore, render, useEffect, useSyncEffect, useLayoutEffect, useRender,
   ref, shallowRef, untrack, deps, html, css, setHtml, setCss,
-  setRenderScheduler, microtask, wire} = core;
+  setRenderScheduler, microtask, wire, setStaticStores} = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -273,4 +273,62 @@ test('useRender renders into an element given explicitly', async () => {
   const mine = seen.filter((s) => s.element === el.shadowRoot);
   assert.equal(mine.length > 0, true, 'useRender drove the renderer into the element it was given');
   assert.equal(seen.some((s) => s.element === el), false, 'the host itself is never the target');
+});
+
+/**
+ * **`setStaticStores` — the export `@verajs/ssr` calls for `renderToString(url, { static: true })`.**
+ *
+ * A server render is one shot, so the subscriptions a reactive store builds during it are never
+ * fired afterwards and tracking every read to create them is pure cost. With this on, `createStore`
+ * hands back the object it was given.
+ *
+ * It was reached only *through* the SSR option, so gutting it here would have failed nothing in this
+ * package — which is the exact gap this file was created to close, reopened by a new export. Found
+ * by walking every public export and asking which are never named in a test.
+ */
+test('setStaticStores makes a store plain, and a write to one is refused', () => {
+  const initial = { n: 1, nested: { deep: true } };
+
+  setStaticStores(true);
+  try {
+    const plain = createStore(initial);
+    assert.equal(plain.n, 1, 'reads work');
+    assert.equal(plain.nested.deep, true, 'including nested ones');
+
+    /**
+     * The guard is deliberately not development-only: a server runs the production build, which is
+     * the only place a page declared static that writes to a store would silently ship wrong.
+     */
+    assert.throws(() => {
+      plain.n = 2;
+    }, TypeError, 'a write must be refused rather than silently changing nothing');
+    assert.equal(initial.n, 1, 'and must not have happened');
+  } finally {
+    setStaticStores(false);
+  }
+
+  /** Off again, the same object is reactive: a write reaches a render. */
+  const reactive = createStore({ n: 1 });
+  reactive.n = 2;
+  assert.equal(reactive.n, 2, 'a reactive store still takes a write');
+});
+
+test('setStaticStores only affects stores created while it is on', () => {
+  const before = createStore({ n: 1 });
+  setStaticStores(true);
+  let during;
+  try {
+    during = createStore({ n: 1 });
+    /** The one made earlier is unaffected — it was already a reactive proxy. */
+    before.n = 2;
+    assert.equal(before.n, 2, 'a store created before is still reactive');
+    assert.throws(() => {
+      during.n = 2;
+    }, TypeError);
+  } finally {
+    setStaticStores(false);
+  }
+  const after = createStore({ n: 1 });
+  after.n = 2;
+  assert.equal(after.n, 2, 'and one created afterwards is reactive again');
 });
