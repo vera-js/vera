@@ -98,6 +98,86 @@ const windowEvents = new EventTarget();
  * here rather than one nested pair, so every query walks both — `documentElement` first, which is
  * where a real document would find anything under `<html>` before reaching `<body>`.
  */
+/**
+ * Shared by `createTreeWalker` and `createNodeIterator`, which differ in surface rather than in what
+ * they visit: a tree walker can also be steered with `parentNode`/`firstChild`/`nextSibling`, while
+ * an iterator only goes forwards and backwards. Both honour `whatToShow` and a filter, and both
+ * visit in document order — the root included for an iterator and not for a walker, which is the
+ * one behavioural difference between them.
+ *
+ * @param {any} root @param {number} [whatToShow] @param {any} [filter] @param {boolean} [isWalker]
+ */
+const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
+  const accepts = (node) => {
+    const bit = node.nodeType === 1 ? 1 : node.nodeType === 3 ? 4 : node.nodeType === 8 ? 128 : 0;
+    if (!(whatToShow & bit)) return false;
+    const verdict = typeof filter === 'function' ? filter(node) : filter?.acceptNode?.(node);
+    return verdict === undefined || verdict === 1;
+  };
+  /** Document order, depth first — the order both of these are defined to visit in. */
+  const flatten = (node, out = []) => {
+    /** `childNodes` rather than `_entries`: it is what makes markup held as a string get parsed. */
+    for (const child of node.childNodes ?? []) {
+      out.push(child);
+      flatten(child, out);
+    }
+    return out;
+  };
+  const all = () => (isWalker ? flatten(root) : [root, ...flatten(root)]).filter(accepts);
+  let current = isWalker ? root : null;
+  const step = (direction) => {
+    const nodes = all();
+    const index = current === null ? -1 : nodes.indexOf(current);
+    const next = direction > 0 ? nodes[index + 1] : nodes[index - 1];
+    if (!next) return null;
+    current = next;
+    return next;
+  };
+  return {
+    root,
+    whatToShow,
+    filter: filter ?? null,
+    get currentNode() {
+      return current;
+    },
+    set currentNode(node) {
+      current = node;
+    },
+    nextNode: () => step(1),
+    previousNode: () => step(-1),
+    parentNode: () => {
+      const parent = current?._parent;
+      if (!parent || !accepts(parent)) return null;
+      current = parent;
+      return parent;
+    },
+    firstChild: () => {
+      const first = (current?.childNodes ?? []).find((entry) => accepts(entry));
+      if (!first) return null;
+      current = first;
+      return first;
+    },
+    lastChild: () => {
+      const kids = (current?.childNodes ?? []).filter((entry) => accepts(entry));
+      if (!kids.length) return null;
+      current = kids[kids.length - 1];
+      return current;
+    },
+    nextSibling: () => {
+      const sibling = current?.nextSibling;
+      if (!sibling || !accepts(sibling)) return null;
+      current = sibling;
+      return sibling;
+    },
+    previousSibling: () => {
+      const sibling = current?.previousSibling;
+      if (!sibling || !accepts(sibling)) return null;
+      current = sibling;
+      return sibling;
+    },
+  };
+};
+
 const documentRoots = () =>
   /** @type {Array<any>} */ ([globalThis.document.documentElement, globalThis.document.body]);
 
@@ -379,18 +459,13 @@ export const installShims = () => {
      * could not be server-rendered at all. Nothing walks this DOM (`@verajs/ssr` has its own
      * renderer and never uses these), so an inert walker is the whole requirement.
      */
-    createTreeWalker: () => ({
-      currentNode: null,
-      root: null,
-      nextNode: () => null,
-      previousNode: () => null,
-      parentNode: () => null,
-      firstChild: () => null,
-      lastChild: () => null,
-      nextSibling: () => null,
-      previousSibling: () => null,
-    }),
-    createNodeIterator: () => ({ nextNode: () => null, previousNode: () => null }),
+    /**
+     * **The walkers walk.** Both existed and answered `null` to everything, whatever the tree held —
+     * a stub that reported "no more nodes" from the first call, so a component walking its own
+     * subtree found it empty and did nothing, on the server only. There is a tree to walk now.
+     */
+    createTreeWalker: (root, whatToShow, filter) => makeWalker(root, whatToShow, filter, true),
+    createNodeIterator: (root, whatToShow, filter) => makeWalker(root, whatToShow, filter, false),
     elementFromPoint: () => null,
     elementsFromPoint: () => [],
     /**

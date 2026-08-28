@@ -399,3 +399,91 @@ test('a slot projects the host children that name it', () => {
   check('an element that is not a slot assigns nothing', (d) =>
     d.createElement('div').assignedNodes?.().length ?? 'ABSENT');
 });
+
+/**
+ * **The walkers walk.** `createTreeWalker` and `createNodeIterator` both existed and answered `null`
+ * to everything whatever the tree held — a stub reporting "no more nodes" from its first call, so a
+ * component walking its own subtree found it empty and did nothing, on the server only.
+ */
+test('the tree walkers visit the tree', () => {
+  const check = (label, run) => assert.equal(run(document), run(real.document), label);
+  const seed = (d) => {
+    const host = d.createElement('div');
+    host.innerHTML = '<b>1</b><i>2</i>';
+    return host;
+  };
+  const drain = (walker, read = (node) => node.nodeName) => {
+    const seen = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) seen.push(read(node));
+    return seen.join(',');
+  };
+  check('a tree walker visits everything but the root', (d) => drain(d.createTreeWalker(seed(d))));
+  check('a node iterator includes the root', (d) => drain(d.createNodeIterator(seed(d))));
+  check('whatToShow: elements only', (d) => drain(d.createTreeWalker(seed(d), 1)));
+  check('whatToShow: text only', (d) => drain(d.createTreeWalker(seed(d), 4), (node) => node.data));
+  check('a filter function', (d) =>
+    drain(d.createTreeWalker(seed(d), 1, (node) => (node.localName === 'b' ? 1 : 2))));
+  check('stepping back', (d) => {
+    const walker = d.createTreeWalker(seed(d), 1);
+    walker.nextNode();
+    walker.nextNode();
+    return walker.previousNode()?.nodeName ?? 'null';
+  });
+  check('firstChild from the root', (d) => {
+    const walker = d.createTreeWalker(seed(d), 1);
+    return walker.firstChild()?.nodeName ?? 'null';
+  });
+});
+
+/**
+ * `attributes` is an array here rather than a live `NamedNodeMap` — a recorded difference — but its
+ * methods were missing, so `attributes.getNamedItem('x')`, which a good deal of existing code uses,
+ * was a `TypeError` on the server and worked in a browser.
+ */
+test('the attribute map answers its own methods', () => {
+  const check = (label, run) => {
+    const attempt = (d) => {
+      try {
+        return ['ok', String(run(d))];
+      } catch (error) {
+        return ['threw', error.name];
+      }
+    };
+    assert.deepEqual(attempt(document), attempt(real.document), label);
+  };
+  const seed = (d) => {
+    const element = d.createElement('div');
+    element.setAttribute('x', '1');
+    element.setAttribute('y', '2');
+    return element;
+  };
+  check('getNamedItem', (d) => seed(d).attributes.getNamedItem('x').value);
+  check('getNamedItem, missing', (d) => seed(d).attributes.getNamedItem('zz'));
+  check('item by index', (d) => seed(d).attributes.item(1).name);
+  check('item out of range', (d) => seed(d).attributes.item(9));
+  check('length', (d) => seed(d).attributes.length);
+  check('removeNamedItem', (d) => {
+    const element = seed(d);
+    element.attributes.removeNamedItem('x');
+    return element.getAttribute('x');
+  });
+  check('removeNamedItem, missing', (d) => seed(d).attributes.removeNamedItem('zz'));
+});
+
+/**
+ * `:scope` is the element a query started from, which **is** knowable on a server — unlike the
+ * pseudo-classes beside it. It is what makes `element.querySelector(':scope > b')` mean "a direct
+ * child", which is the usual reason to want a pseudo-class in a server render at all.
+ */
+test(':scope means the element the query started from', () => {
+  const check = (label, run) => assert.equal(run(document), run(real.document), label);
+  const seed = (d) => {
+    const host = d.createElement('div');
+    host.innerHTML = '<b>1</b><p><b>2</b></p>';
+    return host;
+  };
+  check('a direct child', (d) => seed(d).querySelectorAll(':scope > b').length);
+  check('without :scope, any descendant', (d) => seed(d).querySelectorAll('b').length);
+  check('deeper', (d) => seed(d).querySelector(':scope > p > b').textContent);
+  check('matches against itself', (d) => seed(d).matches(':scope'));
+});

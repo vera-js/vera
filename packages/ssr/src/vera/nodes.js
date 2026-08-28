@@ -100,6 +100,43 @@ const serializeEntry = (entry) =>
       ? entry.markup()
       : (entry?.innerHTML ?? '');
 
+/**
+ * The attribute list, with the `NamedNodeMap` methods on it. A free function taking the element so
+ * nothing has to alias `this`, and one cast because the methods are added to an array.
+ *
+ * @param {any} element
+ */
+const namedNodeMap = (element) => {
+  const list = /** @type {any} */ (
+    [...element._attributes].map(([name, value]) => ({
+      name,
+      value,
+      localName: name,
+      namespaceURI: null,
+      ownerElement: element,
+    }))
+  );
+  list.getNamedItem = (name) => list.find((entry) => entry.name === `${name}`.toLowerCase()) ?? null;
+  list.getNamedItemNS = (_namespace, name) => list.getNamedItem(name);
+  list.item = (index) => list[index] ?? null;
+  list.setNamedItem = (attribute) => {
+    const previous = list.getNamedItem(attribute?.name);
+    element.setAttribute(attribute.name, attribute.value);
+    return previous;
+  };
+  list.removeNamedItem = (name) => {
+    const previous = list.getNamedItem(name);
+    if (!previous)
+      throw new DOMException(
+        `Failed to execute 'removeNamedItem' on 'NamedNodeMap': No item with name '${name}' was found.`,
+        'NotFoundError'
+      );
+    element.removeAttribute(name);
+    return previous;
+  };
+  return list;
+};
+
 /** A node this DOM keeps by reference, rather than inlining its markup — see `appendChild`. */
 const isNode = (value) => typeof value?.markup === 'function';
 
@@ -1513,8 +1550,14 @@ export class ElementShim extends ContainerShim {
     observerOf(this)?.call(this, name, previous, this.getAttribute(name));
   }
   /** Enough of a `NamedNodeMap` to iterate, which is what component code does with it. */
+  /**
+   * An array rather than a live `NamedNodeMap` — already a recorded difference, since there is
+   * nothing to be live over in a single render pass. **The map's own methods are on it**, though:
+   * `attributes.getNamedItem('x')` is how a good deal of existing code reads an attribute, and it
+   * was simply missing, so that code got a `TypeError` on the server and worked in a browser.
+   */
   get attributes() {
-    return [...this._attributes].map(([name, value]) => ({ name, value }));
+    return namedNodeMap(this);
   }
   getAttributeNames() {
     return [...this._attributes.keys()];

@@ -52,7 +52,7 @@ const parseCompound = (source, selector) => {
       const inner = parseCompound(rest.slice(match[0].length), selector);
       const after = rest.slice(match[0].length + inner.consumed);
       if (!after.startsWith(')')) refuse(selector, ':not() takes a single compound selector here');
-      tests.push((element) => !inner.tests.every((test) => test(element)));
+      tests.push((element, scope) => !inner.tests.every((test) => test(element, scope)));
       match = { 0: rest.slice(0, match[0].length + inner.consumed + 1) };
     } else if ((match = ATTRIBUTE.exec(rest))) {
       const [, name, operator, quoted, single, bare, flag] = match;
@@ -84,6 +84,15 @@ const parseCompound = (source, selector) => {
             return false;
         }
       });
+    } else if (/^:scope\b/iu.test(rest)) {
+      /**
+       * **`:scope` is the element the query started from**, which is knowable here — unlike the
+       * pseudo-classes below it, which need user state, layout or a document. It is what makes
+       * `element.querySelector(':scope > b')` mean "a direct child", the usual reason to reach for
+       * a pseudo-class in a server render at all.
+       */
+      tests.push((element, scope) => element === scope);
+      match = { 0: rest.slice(0, ':scope'.length) };
     } else if (rest.startsWith(':')) {
       refuse(selector, 'a pseudo-class needs user state, layout or a document, and a server has none');
     } else {
@@ -140,15 +149,15 @@ const childrenOf = (node) =>
 const siblingsOf = (element) => childrenOf(element._parent);
 
 /** Match one complex selector against one element, walking its steps from right to left. */
-const matchesComplex = (element, steps) => {
+const matchesComplex = (element, steps, scope) => {
   const last = steps[steps.length - 1];
-  if (!last.tests.every((test) => test(element))) return false;
+  if (!last.tests.every((test) => test(element, scope))) return false;
 
   let current = element;
   for (let i = steps.length - 2; i >= 0; i--) {
     const step = steps[i];
     const combinator = steps[i + 1].combinator;
-    const passes = (candidate) => candidate && step.tests.every((test) => test(candidate));
+    const passes = (candidate) => candidate && step.tests.every((test) => test(candidate, scope));
     if (combinator === '>') {
       current = current._parent;
       if (!passes(current)) return false;
@@ -172,8 +181,8 @@ const matchesComplex = (element, steps) => {
 };
 
 /** @param {any} element @param {string} selector */
-export const matches = (element, selector) =>
-  compile(selector).some((steps) => matchesComplex(element, steps));
+export const matches = (element, selector, scope = element) =>
+  compile(selector).some((steps) => matchesComplex(element, steps, scope));
 
 /** Every descendant, in document order. */
 const descendants = (node, out = []) => {
@@ -189,17 +198,17 @@ export const descendantsOf = (node) => descendants(node);
 
 export const querySelectorAll = (node, selector) => {
   const compiled = compile(selector);
-  return descendants(node).filter((element) => compiled.some((steps) => matchesComplex(element, steps)));
+  return descendants(node).filter((element) => compiled.some((steps) => matchesComplex(element, steps, node)));
 };
 
 export const querySelector = (node, selector) => {
   const compiled = compile(selector);
-  return descendants(node).find((element) => compiled.some((steps) => matchesComplex(element, steps))) ?? null;
+  return descendants(node).find((element) => compiled.some((steps) => matchesComplex(element, steps, node))) ?? null;
 };
 
 export const closest = (element, selector) => {
   const compiled = compile(selector);
   for (let current = element; current; current = current._parent)
-    if (current.localName && compiled.some((steps) => matchesComplex(current, steps))) return current;
+    if (current.localName && compiled.some((steps) => matchesComplex(current, steps, element))) return current;
   return null;
 };
