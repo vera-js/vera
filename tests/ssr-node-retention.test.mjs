@@ -164,6 +164,14 @@ test('markup it cannot parse stays a string, and warns once', () => {
     void host.firstElementChild;
     assert.equal(warnings.length, 1, 'warned exactly once, not once per access');
     assert.match(warnings[0], /^\[vera\] ssr:/, 'and carries the framework prefix');
+    /**
+     * **The content, not only the prefix.** Asserting the shape alone let the message say anything —
+     * the wording is the whole value of a diagnostic, and it is what a reader acts on. This
+     * assertion was in the first version of this test and was lost when it was rewritten for the
+     * parser; a sweep asking which diagnostics no test quotes is what found it missing.
+     */
+    assert.match(warnings[0], /markup but no child nodes/, 'and says what is actually wrong');
+    assert.match(warnings[0], /createElement\/appendChild/, 'and what to do about it');
   } finally {
     console.warn = original;
   }
