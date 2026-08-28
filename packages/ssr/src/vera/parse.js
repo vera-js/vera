@@ -89,10 +89,11 @@ const ATTRIBUTE = /^([^\s/>="'<]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/
  * Parse a fragment into entries — elements and raw text.
  *
  * @param {string} markup
- * @param {(name: string) => any} makeElement builds a bare element; the caller owns node identity
+ * @param {{element: (name: string) => any, text: (data: string) => any, comment: (data: string) => any}} create
+ *   node factories; the caller owns node identity, so this file never imports the DOM it builds
  * @returns {Array<any> | null} entries, or `null` when the markup needs more than this will guess at
  */
-export const parseFragment = (markup, makeElement) => {
+export const parseFragment = (markup, create) => {
   if (typeof markup !== 'string' || markup === '') return null;
 
   const root = { children: /** @type {Array<any>} */ ([]), localName: '#root' };
@@ -102,9 +103,18 @@ export const parseFragment = (markup, makeElement) => {
   let index = 0;
   let text = '';
 
-  /** Text is kept verbatim, so it needs no escaping on the way back out. */
+  /**
+   * A text run becomes a node carrying **both** its decoded value and the bytes it came from — the
+   * value is what `textContent` should answer, and the bytes are what re-serialising has to write
+   * back. Keeping only the bytes made `textContent` return `a &amp; b`; keeping only the value
+   * would have rewritten the page as `a &#38; b`.
+   */
   const flushText = () => {
-    if (text !== '') open().children.push(text);
+    if (text !== '') {
+      const node = create.text(decode(text));
+      node._source = text;
+      open().children.push(node);
+    }
     text = '';
   };
 
@@ -120,7 +130,10 @@ export const parseFragment = (markup, makeElement) => {
     if (markup.startsWith('<!--', next)) {
       const end = markup.indexOf('-->', next + 4);
       if (end === -1) return null;
-      text += markup.slice(next, end + 3);
+      flushText();
+      const node = create.comment(markup.slice(next + 4, end));
+      node._source = markup.slice(next, end + 3);
+      open().children.push(node);
       index = end + 3;
       continue;
     }
@@ -202,7 +215,7 @@ export const parseFragment = (markup, makeElement) => {
      */
     if ((name === 'tr' || name === 'td' || name === 'th') && open().localName === 'table') return null;
 
-    const element = makeElement(name);
+    const element = create.element(name);
     for (const [attributeName, value] of attributes) element.setAttribute(attributeName, value);
     element._sourceOpenTag = openTag;
     /**
@@ -230,8 +243,12 @@ export const parseFragment = (markup, makeElement) => {
       if (close === -1) return null;
       const closeEnd = markup.indexOf('>', close);
       if (closeEnd === -1) return null;
-      const content = markup.slice(index, close);
-      if (content !== '') node.children.push(content);
+      /** Raw text is not markup and is never decoded — a `<script>` means its bytes exactly. */
+      if (index !== close) {
+        const raw = create.text(markup.slice(index, close));
+        raw._source = markup.slice(index, close);
+        node.children.push(raw);
+      }
       node.closeTag = markup.slice(close, closeEnd + 1);
       index = closeEnd + 1;
       continue;
@@ -249,8 +266,10 @@ export const parseFragment = (markup, makeElement) => {
   /** Build the real nodes now that the shape is known to be sound. */
   const build = (node) => {
     for (const child of node.children) {
-      if (typeof child === 'string') node.element._entries.push(child);
-      else {
+      if (typeof child === 'string' || typeof child.markup === 'function') {
+        node.element._entries.push(child);
+        if (typeof child !== 'string') child._parent = node.element;
+      } else {
         build(child);
         /**
          * Pushed rather than appended: `appendChild` marks an unrendered registered component so
@@ -264,5 +283,7 @@ export const parseFragment = (markup, makeElement) => {
     node.element._sourceCloseTag = node.closeTag;
     return node.element;
   };
-  return root.children.map((child) => (typeof child === 'string' ? child : build(child)));
+  return root.children.map((child) =>
+    typeof child === 'string' || typeof child.markup === 'function' ? child : build(child)
+  );
 };

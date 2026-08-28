@@ -93,7 +93,34 @@ export const serializeElement = (element) =>
     : element.openTag() + element.innerHTML + (element._sourceCloseTag ?? `</${element.localName}>`);
 
 const serializeEntry = (entry) =>
-  typeof entry === 'string' ? entry : entry?.openTag ? serializeElement(entry) : (entry?.innerHTML ?? '');
+  typeof entry === 'string'
+    ? entry
+    : typeof entry?.markup === 'function'
+      ? entry.markup()
+      : (entry?.innerHTML ?? '');
+
+/** A node this DOM keeps by reference, rather than inlining its markup — see `appendChild`. */
+const isNode = (value) => typeof value?.markup === 'function';
+
+/**
+ * **Walks the tree**, as `textContent` is defined to. It used to strip tags out of the serialised
+ * markup with a regular expression and undo the numeric escapes, which answered `a &amp; b` for an
+ * element holding the text `a & b` — the entity spellings this package does not itself emit came
+ * back raw. A comment contributes nothing, which is what the platform says.
+ *
+ * A chunk of markup this DOM could not parse has no nodes to walk, so it keeps the old treatment.
+ */
+const textOf = (container) => {
+  parseChunks(container);
+  let out = '';
+  for (const entry of container._entries) {
+    if (typeof entry === 'string')
+      out += entry.replace(/<[^>]*>/gu, '').replace(/&#(\d+);/gu, (_, code) => String.fromCharCode(Number(code)));
+    else if (entry.nodeType === 8) continue;
+    else out += entry.textContent;
+  }
+  return out;
+};
 
 /** Warned once per container, so a component that queries in a loop says it once. */
 const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
@@ -124,9 +151,13 @@ const parseChunks = (container) => {
       entries.push(entry);
       continue;
     }
-    const parsed = parseFragment(entry, (name) => new ElementShim(name));
+    const parsed = parseFragment(entry, {
+      element: (name) => new ElementShim(name),
+      text: (data) => new TextShim(data),
+      comment: (data) => new CommentShim(data),
+    });
     let round = '';
-    if (parsed) for (const node of parsed) round += typeof node === 'string' ? node : serializeElement(node);
+    if (parsed) for (const node of parsed) round += serializeEntry(node);
     if (!parsed || round !== entry) {
       entries.push(entry);
       continue;
@@ -137,6 +168,9 @@ const parseChunks = (container) => {
   }
   if (gained) container._entries = entries;
 };
+
+/** **Elements only** — what `children` and every element-wise accessor mean. */
+const elementsOf = (container) => nodesOf(container).filter((node) => node.openTag);
 
 const nodesOf = (container) => {
   parseChunks(container);
@@ -155,6 +189,152 @@ const nodesOf = (container) => {
   }
   return nodes;
 };
+
+/**
+ * **Text and comments are nodes.**
+ *
+ * They were not: `createTextNode` returned an object literal with an `innerHTML` string, so it had
+ * no identity, no parent and no `nodeType`, and appending one inlined its markup and lost the node.
+ * `childNodes` therefore reported `1` for `text <b>bold</b> tail`, where every browser says `3`.
+ *
+ * Like an element, a parsed one keeps **the exact bytes it came from** so re-serialising reproduces
+ * the input — `&amp;` stays `&amp;` rather than becoming this package's `&#38;` — and falls back to
+ * escaping its data the moment somebody writes to it.
+ */
+class CharacterDataShim extends EventTarget {
+  constructor(data) {
+    super();
+    this._data = `${data}`;
+    this._source = /** @type {string | null} */ (null);
+    this._parent = /** @type {any} */ (null);
+    this.isConnected = true;
+  }
+  get data() {
+    return this._data;
+  }
+  set data(value) {
+    this._data = `${value}`;
+    this._source = null;
+  }
+  get nodeValue() {
+    return this._data;
+  }
+  set nodeValue(value) {
+    this.data = value;
+  }
+  get textContent() {
+    return this._data;
+  }
+  set textContent(value) {
+    this.data = value;
+  }
+  get length() {
+    return this._data.length;
+  }
+  get parentNode() {
+    return this._parent;
+  }
+  get parentElement() {
+    return this._parent?.openTag ? this._parent : null;
+  }
+  get childNodes() {
+    return [];
+  }
+  get firstChild() {
+    return null;
+  }
+  get lastChild() {
+    return null;
+  }
+  hasChildNodes() {
+    return false;
+  }
+  get ownerDocument() {
+    return globalThis.document ?? null;
+  }
+  get nextSibling() {
+    return this._siblingAt(1);
+  }
+  get previousSibling() {
+    return this._siblingAt(-1);
+  }
+  /** @param {number} step @param {(container: any) => Array<any>} view */
+  _siblingAt(step, view = nodesOf) {
+    if (!this._parent) return null;
+    const siblings = view(this._parent);
+    const index = siblings.indexOf(this);
+    return index === -1 ? null : (siblings[index + step] ?? null);
+  }
+  remove() {
+    this._parent?.removeChild(this);
+  }
+  isSameNode(node) {
+    return node === this;
+  }
+  isEqualNode(node) {
+    /** `nodeType` is the subclass's — this base is never instantiated on its own. */
+    return node?.nodeType === /** @type {any} */ (this).nodeType && node?.data === this._data;
+  }
+  contains(node) {
+    return node === this;
+  }
+  getRootNode() {
+    if (!this._parent) return this;
+    let root = this._parent;
+    while (root._parent) root = root._parent;
+    return root;
+  }
+  appendData(value) {
+    this.data = this._data + `${value}`;
+  }
+  substringData(offset, count) {
+    return this._data.substr(offset, count);
+  }
+}
+
+export class TextShim extends CharacterDataShim {
+  get nodeType() {
+    return 3;
+  }
+  get nodeName() {
+    return '#text';
+  }
+  get wholeText() {
+    return this._data;
+  }
+  markup() {
+    return this._source ?? escapeHtml(this._data);
+  }
+  cloneNode() {
+    const copy = new TextShim(this._data);
+    copy._source = this._source;
+    return copy;
+  }
+  /** Splits at `offset`, leaving this node with the first half and inserting the second after it. */
+  splitText(offset) {
+    const tail = new TextShim(this._data.slice(offset));
+    this.data = this._data.slice(0, offset);
+    if (this._parent) this._parent.insertBefore(tail, this.nextSibling);
+    return tail;
+  }
+}
+
+export class CommentShim extends CharacterDataShim {
+  get nodeType() {
+    return 8;
+  }
+  get nodeName() {
+    return '#comment';
+  }
+  markup() {
+    return this._source ?? `<!--${this._data}-->`;
+  }
+  cloneNode() {
+    const copy = new CommentShim(this._data);
+    copy._source = this._source;
+    return copy;
+  }
+}
 
 export class ContainerShim extends EventTarget {
   constructor() {
@@ -218,7 +398,7 @@ export class ContainerShim extends EventTarget {
      * Moving a fragment's children into this parent is the platform's behaviour and is deliberately
      * *not* step 1: it changes what `appendChild(fragment)` leaves behind.
      */
-    if (!node?.openTag) {
+    if (!isNode(node)) {
       this._entries.push(node?.innerHTML ?? '');
       return node;
     }
@@ -253,7 +433,7 @@ export class ContainerShim extends EventTarget {
         `Failed to execute 'insertBefore' on 'Node': The new child element contains the parent.`,
         'HierarchyRequestError'
       );
-    if (!node?.openTag) {
+    if (!isNode(node)) {
       this._entries.splice(this._entries.indexOf(reference), 0, node?.innerHTML ?? '');
       return node;
     }
@@ -301,8 +481,8 @@ export class ContainerShim extends EventTarget {
         'NotFoundError'
       );
     node._parent?._detach(node);
-    this._entries.splice(this._entries.indexOf(old), 1, node?.openTag ? node : (node?.innerHTML ?? ''));
-    if (node?.openTag) node._parent = this;
+    this._entries.splice(this._entries.indexOf(old), 1, isNode(node) ? node : (node?.innerHTML ?? ''));
+    if (isNode(node)) node._parent = this;
     old._parent = null;
     return old;
   }
@@ -372,7 +552,7 @@ export class ContainerShim extends EventTarget {
     return nodesOf(this).at(-1) ?? null;
   }
   get lastElementChild() {
-    return nodesOf(this).at(-1) ?? null;
+    return elementsOf(this).at(-1) ?? null;
   }
   /**
    * **The siblings are real now.** These answered `null` unconditionally, which was truthful while a
@@ -387,15 +567,16 @@ export class ContainerShim extends EventTarget {
     return this._siblingAt(-1);
   }
   get nextElementSibling() {
-    return this._siblingAt(1);
+    return this._siblingAt(1, elementsOf);
   }
   get previousElementSibling() {
-    return this._siblingAt(-1);
+    return this._siblingAt(-1, elementsOf);
   }
   /** @param {number} step */
-  _siblingAt(step) {
+  /** @param {number} step @param {(container: any) => Array<any>} view */
+  _siblingAt(step, view = nodesOf) {
     if (!this._parent) return null;
-    const siblings = nodesOf(this._parent);
+    const siblings = view(this._parent);
     const index = siblings.indexOf(this);
     return index === -1 ? null : (siblings[index + step] ?? null);
   }
@@ -406,7 +587,7 @@ export class ContainerShim extends EventTarget {
     return null;
   }
   get childElementCount() {
-    return nodesOf(this).length;
+    return elementsOf(this).length;
   }
   hasChildNodes() {
     return nodesOf(this).length > 0;
@@ -509,13 +690,13 @@ export class ContainerShim extends EventTarget {
    * kept as a string is not nodes at all (`nodesOf` says so).
    */
   get children() {
-    return nodesOf(this);
+    return elementsOf(this);
   }
   get childNodes() {
     return nodesOf(this);
   }
   get firstElementChild() {
-    return nodesOf(this)[0] ?? null;
+    return elementsOf(this)[0] ?? null;
   }
 }
 
@@ -615,7 +796,7 @@ export class ShadowRootShim extends ContainerShim {
   }
   /** A shadow root's text is its content's text, and setting it replaces the content. */
   get textContent() {
-    return this.innerHTML.replace(/<[^>]*>/g, '');
+    return textOf(this);
   }
   set textContent(value) {
     this.innerHTML = escapeHtml(value);
@@ -1467,6 +1648,10 @@ export class ElementShim extends ContainerShim {
     copy._parsed = this._parsed;
     return copy;
   }
+  /** This element's own markup, end tag included — the call every node kind answers. */
+  markup() {
+    return serializeElement(this);
+  }
   openTag() {
     /**
      * **The bytes it was parsed from**, until something writes to it. That is what lets a parsed
@@ -1489,7 +1674,7 @@ export class ElementShim extends ContainerShim {
    * from author markup and is text as written.
    */
   get textContent() {
-    return this.innerHTML.replace(/<[^>]*>/g, '').replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    return textOf(this);
   }
   /**
    * Escaped for an ordinary element, stored as-is for a raw-text one.

@@ -134,7 +134,9 @@ const compile = (selector) => {
   return compiled;
 };
 
-const childrenOf = (node) => (node?._entries ?? []).filter((entry) => typeof entry !== 'string');
+/** **Elements only.** A selector matches elements; text and comment nodes are not candidates. */
+const childrenOf = (node) =>
+  (node?._entries ?? []).filter((entry) => typeof entry !== 'string' && entry.openTag);
 const siblingsOf = (element) => childrenOf(element._parent);
 
 /** Match one complex selector against one element, walking its steps from right to left. */

@@ -17,13 +17,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFragment as parse5Fragment } from 'parse5';
 import { parseFragment } from '../packages/ssr/src/vera/parse.js';
-import { serializeElement } from '../packages/ssr/src/vera/nodes.js';
+import { TextShim, CommentShim } from '../packages/ssr/src/vera/nodes.js';
 import '@verajs/ssr';
 
 /** Element structure only — the part a selector can see, and where error recovery shows up. */
 const ours = (entries) =>
   entries
-    .filter((entry) => typeof entry !== 'string')
+    .filter((entry) => typeof entry !== 'string' && entry.openTag)
     .map((element) => ({
       tag: element.localName,
       attrs: [...element._attributes].sort(([a], [b]) => (a < b ? -1 : 1)),
@@ -96,7 +96,11 @@ test('never disagrees with parse5 — it matches or it declines', () => {
   let agreed = 0;
 
   for (const markup of CORPUS) {
-    const parsed = parseFragment(markup, (name) => document.createElement(name));
+    const parsed = parseFragment(markup, {
+      element: (name) => document.createElement(name),
+      text: (data) => new TextShim(data),
+      comment: (data) => new CommentShim(data),
+    });
     if (parsed === null) {
       declined.push(markup);
       continue;
@@ -107,7 +111,7 @@ test('never disagrees with parse5 — it matches or it declines', () => {
 
     /** And the parse must reproduce its input, or `nodes.js` throws it away. */
     let round = '';
-    for (const entry of parsed) round += typeof entry === 'string' ? entry : serializeElement(entry);
+    for (const entry of parsed) round += typeof entry === 'string' ? entry : entry.markup();
     assert.equal(round, markup, `did not round-trip ${JSON.stringify(markup)}`);
     agreed++;
   }

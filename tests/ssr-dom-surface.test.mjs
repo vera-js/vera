@@ -281,7 +281,15 @@ const EVENT_SURFACE = [
 const DOCUMENT_SURFACE = [
   ['createElement', () => globalThis.document.createElement('div').localName === 'div'],
   ['createElementNS', () => globalThis.document.createElementNS('svg', 'circle').localName === 'circle'],
-  ['createTextNode', () => globalThis.document.createTextNode('<b>').innerHTML === '&#60;b&#62;'],
+  /**
+   * **A real node now**, not an object literal with an `innerHTML` string. It has a `nodeType`, its
+   * data is what was passed rather than the escaped form, and the escaping happens when it is
+   * serialised — which is what let `childNodes` start reporting text at all.
+   */
+  ['createTextNode', () => {
+    const node = globalThis.document.createTextNode('<b>');
+    return node.nodeType === 3 && node.data === '<b>' && node.markup() === '&#60;b&#62;';
+  }],
   ['createDocumentFragment', () => typeof globalThis.document.createDocumentFragment().append === 'function'],
   /** `@verajs/renderer` builds these at import time, so a component using `keyed` needs them. */
   ['createTreeWalker walks nothing', () => globalThis.document.createTreeWalker(globalThis.document, 1).nextNode() === null],

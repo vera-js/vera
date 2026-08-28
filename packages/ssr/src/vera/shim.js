@@ -22,6 +22,8 @@ import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting } 
 import { frames, flushFrames } from './frames.js';
 import { registry } from './registry.js';
 import {
+  TextShim,
+  CommentShim,
   ContainerShim,
   FragmentShim,
   ShadowRootShim,
@@ -273,7 +275,7 @@ export const installShims = () => {
     },
     createElement: (localName) => createElement(localName),
     createElementNS: (namespace, localName) => createElement(localName, namespace),
-    createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
+    createTextNode: (text) => new TextShim(text),
     createDocumentFragment: () => new FragmentShim(),
     querySelector: () => null,
     querySelectorAll: () => [],
@@ -335,7 +337,7 @@ export const installShims = () => {
     plugins: [],
     anchors: [],
     hasFocus: () => false,
-    createComment: (text) => ({ innerHTML: `<!--${text}-->`, textContent: String(text) }),
+    createComment: (text) => new CommentShim(text),
     getSelection: () => null,
     /**
      * An empty walk over an empty tree, which is the truthful answer for a DOM that holds strings.
