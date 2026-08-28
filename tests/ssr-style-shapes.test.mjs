@@ -141,3 +141,42 @@ test('a stylesheet always holds text, and refuses a symbol as the engines do', (
     assert.equal(sheet.cssText, '7', 'replace() coerces the way replaceSync does');
   });
 });
+
+/**
+ * **CSS that varies per request is dropped, and now says so.**
+ *
+ * A tag's stylesheets are established once per class for the life of the process — whichever render
+ * reaches it first sets them, and every later request serves those. That rule is deliberate: it is
+ * what stops a per-class sheet being emitted once per instance. What was wrong is that a component
+ * whose CSS depends on the request had that variation discarded in silence, so the second visitor
+ * got the first visitor's colours with nothing anywhere to explain it.
+ *
+ * Found while building the concurrency gate for the async-render work: a fixture written to make a
+ * hoist leak visible could not, *because* this rule had already thrown the difference away.
+ */
+test('hoisting different CSS for the same tag warns and keeps the first', async () => {
+  const { renderToString: render } = await import('@verajs/ssr/vera');
+  const fixture = new URL('./fixtures/ssr/head-style-ssr.js', import.meta.url);
+
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  let first, second, third;
+  try {
+    first = await render(fixture, { tag: 'head-style-ssr', attributes: { tone: 'teal' } });
+    second = await render(fixture, { tag: 'head-style-ssr', attributes: { tone: 'coral' } });
+    third = await render(fixture, { tag: 'head-style-ssr', attributes: { tone: 'coral' } });
+  } finally {
+    console.warn = original;
+  }
+
+  assert.match(first.styles, /teal/, 'the first render establishes the sheet');
+  assert.match(second.styles, /teal/, 'and a later one still serves it');
+  assert.doesNotMatch(second.styles, /coral/, 'the varying CSS is dropped, as the rule says');
+
+  const drift = warnings.filter((line) => /hoisted different CSS/.test(line));
+  assert.equal(drift.length, 1, 'warned once, not once per render');
+  assert.match(drift[0], /^\[vera\] ssr:/, 'with the framework prefix');
+  assert.match(drift[0], /head-style-ssr/, 'naming the component');
+  assert.ok(third, 'a third render still succeeds');
+});
