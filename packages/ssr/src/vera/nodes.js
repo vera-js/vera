@@ -9,7 +9,7 @@
  * tripping over it.
  */
 import { randomUUID } from 'node:crypto';
-import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS } from './escaping.js';
+import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { datasetView, styleView, tokenListView } from './views.js';
 import { StyleSheetShim } from './stylesheets.js';
 import { registry } from './registry.js';
@@ -85,12 +85,13 @@ const SHADOW_ATTRIBUTES = [
  * point of keeping it: a mutation made after `appendChild` is still on the node when this runs.
  * The expression is the one `appendChild` used to inline, unchanged, so the bytes are identical.
  */
+export const serializeElement = (element) =>
+  VOID_ELEMENTS.has(element.localName)
+    ? element.openTag()
+    : element.openTag() + element.innerHTML + `</${element.localName}>`;
+
 const serializeEntry = (entry) =>
-  typeof entry === 'string'
-    ? entry
-    : entry?.openTag
-      ? entry.openTag() + entry.innerHTML + `</${entry.localName}>`
-      : (entry?.innerHTML ?? '');
+  typeof entry === 'string' ? entry : entry?.openTag ? serializeElement(entry) : (entry?.innerHTML ?? '');
 
 /** Warned once per container, so a component that queries in a loop says it once. */
 const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
@@ -1162,12 +1163,12 @@ export class ElementShim extends ContainerShim {
     this.insertAdjacentHTML(position, escapeHtml(text));
   }
   insertAdjacentElement(position, element) {
-    this.insertAdjacentHTML(position, element.openTag() + element.innerHTML + `</${element.localName}>`);
+    this.insertAdjacentHTML(position, serializeElement(element));
     return element;
   }
   /** The element's own markup, which the serializer builds anyway. */
   get outerHTML() {
-    return `${this.openTag()}${this.innerHTML}</${this.localName}>`;
+    return serializeElement(this);
   }
   get innerText() {
     return this.textContent;

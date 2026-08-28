@@ -175,3 +175,33 @@ test('a nested tree serialises in order', () => {
   outer.setAttribute('id', 'o');
   assert.equal(host.innerHTML, '<section id="o"><p>deep</p></section>');
 });
+
+/**
+ * **A void element has no end tag, and writing one changes what the page renders.** A parser reads
+ * `</br>` as another `<br>`, so `appendChild(createElement('br'))` served two line breaks where the
+ * client has one. The same content assigned as a markup string was already correct, so the two
+ * paths disagreed with each other as well as with the browser.
+ */
+test('a void element is serialised without an end tag', () => {
+  const host = el();
+  for (const tag of ['br', 'img', 'input', 'hr', 'meta', 'link', 'wbr']) host.appendChild(el(tag));
+  assert.equal(host.innerHTML, '<br><img><input><hr><meta><link><wbr>');
+
+  assert.equal(el('br').outerHTML, '<br>', 'outerHTML shared the same expression');
+
+  const adjacent = el();
+  adjacent.insertAdjacentElement('beforeend', el('img'));
+  assert.equal(adjacent.innerHTML, '<img>', 'and so did insertAdjacentElement');
+
+  /** A non-void element still gets its end tag, including when empty. */
+  const normal = el();
+  normal.appendChild(el('span'));
+  assert.equal(normal.innerHTML, '<span></span>');
+
+  /** Attributes still ride along on the open tag. */
+  const withAttributes = el();
+  const image = el('img');
+  image.setAttribute('src', 'a.png');
+  withAttributes.appendChild(image);
+  assert.equal(withAttributes.innerHTML, '<img src="a.png">');
+});

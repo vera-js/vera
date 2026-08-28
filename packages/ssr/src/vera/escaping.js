@@ -111,3 +111,14 @@ export const escapeRawText = (value, tag) => {
  * escaping there does not protect anything and does corrupt the content.
  */
 export const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title']);
+
+/**
+ * Elements that have no end tag. Writing one is not merely redundant — a parser reads `</br>` as
+ * *another* `<br>`, so `appendChild(createElement('br'))` served `<br></br>` and rendered two line
+ * breaks where the client has one. The same content assigned as a markup string was already correct,
+ * so the two paths disagreed with each other as well as with the browser.
+ */
+export const VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
