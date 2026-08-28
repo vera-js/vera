@@ -86,3 +86,40 @@ test('and every guarded call still works when called correctly', () => {
   assert.match(host.innerHTML, /<b>x<\/b>/);
   assert.equal(keyed('id', core.html`<i>x</i>`).key, 'id');
 });
+
+/**
+ * The inverse, and the half that is easy to skip: **a guard that refuses something legitimate is
+ * itself a defect.** The first version of the template-literal check tested for `raw`, which also
+ * refused a hand-built `html([markup])` that `ssr-scale.test.mjs` depends on — caught by the full
+ * suite rather than by this file, which is the wrong way round.
+ *
+ * So every shape the guards must let through is listed here explicitly, including the awkward ones:
+ * a ShadowRoot and a DocumentFragment are containers, a `hold()` result is a legal thing to key, and
+ * a key may be a number or an object.
+ */
+test('no guard refuses a legitimate input', async () => {
+  const { hold } = await load('renderer');
+  const { html: tagHtml } = await load('renderer/tag');
+  const D = dom.window.document;
+  const shadowHost = D.createElement('div');
+  const shadow = shadowHost.attachShadow({ mode: 'open' });
+  const heading = tag`h1`;
+
+  const accepted = [
+    ['renderInto into an Element', () => renderInto(core.html`<p>${1}</p>`, D.createElement('div'))],
+    ['renderInto into a ShadowRoot', () => renderInto(core.html`<p>${1}</p>`, shadow)],
+    ['renderInto into a DocumentFragment', () => renderInto(core.html`<p>${1}</p>`, D.createDocumentFragment())],
+    ['keyed wrapping a template', () => keyed('a', core.html`<li>${1}</li>`)],
+    ['keyed wrapping a hold()', () => keyed('a', hold(core.html`<li>${1}</li>`))],
+    ['keyed with a numeric key', () => keyed(0, core.html`<li>${1}</li>`)],
+    ['keyed with an object key', () => keyed({}, core.html`<li>${1}</li>`)],
+    ['tag with no interpolation', () => tag`h1`],
+    ['tag used in a template', () => tagHtml`<${heading}>x</${heading}>`],
+    ['html with no interpolation', () => core.html`<p>x</p>`],
+    ['css with interpolation', () => core.css`p { color: ${'red'} }`],
+    ['untrack with a named function', () => core.untrack(function named() { return 1; })],
+    ['applyStyles(sheet, element)', () => styleModule.applyStyles(core.css`p{}`, shadowHost)],
+  ];
+
+  for (const [label, call] of accepted) assert.doesNotThrow(call, `a guard refuses ${label}`);
+});
