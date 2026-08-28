@@ -245,6 +245,16 @@ export const navigate = async (
   origin?: HTMLElement,
   redirectDepth = 0
 ): Promise<boolean> => {
+  /**
+   * `navigate(routes[i])` with a bad index, or a name that resolved to nothing, reached `target.name`
+   * on `undefined` and failed with `Cannot read properties of undefined (reading 'name')` — inside an
+   * async function, so it surfaced as an unhandled rejection with no mention of `navigate` at all.
+   * The two shapes it does accept are worth naming, since the object form is the less obvious one.
+   */
+  if (__DEV__ && (target === null || (typeof target !== 'string' && typeof target !== 'object')))
+    throw new TypeError(
+      `navigate: expected a path or a { name, params } object and received ${String(target)}.`
+    );
   /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
   let path = typeof target === 'string' ? target : resolve(target.name, target.params);
 

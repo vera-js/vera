@@ -134,6 +134,16 @@ export const jsxName = (key: string): string =>
  * there is no `unsafeHTML`: a sanctioned opt-out reads as blessed in tutorials and in review.
  */
 export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag => {
+  /**
+   * A *template tag*, so it is written `` tag`h1` `` and not `tag('h1')`. The call form is the
+   * likelier mistake of the two and failed with `Cannot read properties of undefined (reading '0')`,
+   * which says nothing about either.
+   */
+  if (__DEV__ && (!strings || !Array.isArray((strings as unknown as { raw?: unknown[] }).raw)))
+    throw new TypeError(
+      `tag: expected a template literal and received ${String(strings)}. ` +
+        "It is a tagged template — write tag`h1`, not tag('h1')."
+    );
   let text = strings[0];
   for (let i = 0; i < values.length; i++) {
     const value = values[i] as Tag | undefined;

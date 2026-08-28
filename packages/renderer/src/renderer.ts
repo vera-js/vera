@@ -1518,6 +1518,16 @@ const rootParts = new WeakMap<Node, ChildPart>();
  * this entry carries zero hydration code.
  */
 export const renderInto = (result: unknown, container: Node) => {
+  /**
+   * The container is the argument people forget, and forgetting it failed with
+   * `Cannot read properties of undefined (reading 'appendChild')` — a message about the internals of
+   * a function the caller never named. Everything after this line assumes a node.
+   */
+  if (__DEV__ && (!container || typeof (container as Node).appendChild !== 'function'))
+    throw new TypeError(
+      `renderInto: expected a container node as the second argument and received ${String(container)}. ` +
+        `It renders *into* something — \`renderInto(html\`…\`, document.body)\`.`
+    );
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) {

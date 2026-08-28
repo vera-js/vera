@@ -73,9 +73,35 @@ const HTML_RESULT = 1;
 const SVG_RESULT = 2;
 const MATHML_RESULT = 3;
 
+/**
+ * **These are tagged templates, and calling one as a function is silent.** `html('<p>hi</p>')` puts a
+ * *string* where the renderer expects the strings array, so the value looks like a template, passes
+ * every shape check, and fails much later inside the renderer with `Invalid value used as weak map
+ * key` — the template cache is keyed by the strings array, and a string is not a legal WeakMap key.
+ * Nothing in that message mentions `html`, the call site, or what was wrong with it.
+ *
+ * It is a plausible mistake rather than an exotic one: it is how the same job is done in libraries
+ * that take a markup string, and it is what building markup by concatenation leads to.
+ *
+ * **The check is `Array.isArray`, and deliberately not `raw`.** Only a real template literal carries
+ * `raw`, so testing for it would also refuse a hand-built `html([markup])` — which
+ * `tests/ssr-scale.test.mjs` uses to generate a hundred nested components, and which works. That
+ * shape does have a cost, since a fresh array per render is a fresh template identity and so a rebuild
+ * rather than an update; that is the render profiler's business to report, not this guard's to
+ * forbid. The defect being fixed here is the *silent* one, and a string is unambiguously it.
+ */
+const refuseCall = (name: string, strings: unknown) => {
+  if (Array.isArray(strings)) return;
+  throw new TypeError(
+    `${name}: expected a template literal and received ${typeof strings === 'string' ? JSON.stringify(strings) : String(strings)}. ` +
+      `It is a tagged template — write ${name}\`<p>hi</p>\`, not ${name}('<p>hi</p>').`
+  );
+};
+
 const tag =
-  <T extends ResultType>(type: T) =>
+  <T extends ResultType>(type: T, name: string) =>
   (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
+      if (__DEV__) refuseCall(name, strings);
       return {
         ['_$litType$']: type,
         strings,
@@ -83,9 +109,9 @@ const tag =
       };
     };
 
-export let html = tag(HTML_RESULT);
-export const svg = tag(SVG_RESULT);
-export const mathml = tag(MATHML_RESULT);
+export let html = tag(HTML_RESULT, 'html');
+export const svg = tag(SVG_RESULT, 'svg');
+export const mathml = tag(MATHML_RESULT, 'mathml');
 
 /**
  * A template literal function that creates a CSSStyleSheet from the given CSS string.
@@ -100,6 +126,7 @@ export let css = (strings: TemplateStringsArray, ...values: (string | number)[])
    * so the rule silently lost a property rather than failing. Every zero from a computed layout hit
    * this, and an empty string is the only value that should vanish.
    */
+  if (__DEV__) refuseCall('css', strings);
   const cssText = strings.reduce((acc, str, i) => acc + str + (values[i] ?? ''), '');
   const styleSheet = new CSSStyleSheet();
   styleSheet.replaceSync?.(cssText);

@@ -130,6 +130,16 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
  * ```
  */
 export const keyed = <T>(key: unknown, result: T): T => {
+  /**
+   * Two arguments, and the second is the one that goes missing — `keyed(row.id)` instead of
+   * `keyed(row.id, html\`…\`)`. It failed with `Cannot set properties of undefined (setting 'key')`,
+   * which names this function's internals and not the call.
+   */
+  if (__DEV__ && (result === null || typeof result !== 'object'))
+    throw new TypeError(
+      `keyed: expected a template as the second argument and received ${String(result)}. ` +
+        `It marks a template with a key — \`keyed(row.id, html\`<li>…</li>\`)\`.`
+    );
   (result as KeyedResult).key = key;
   (result as KeyedResult).$r = reconcile;
   return result;

@@ -25,6 +25,19 @@ import { ComponentHook } from '../types.js';
  * @return Whatever `fn` returns
  */
 export const untrack = <T>(fn: () => T): T => {
+  /**
+   * Checked because the mistake is easy and the failure names the wrong thing: `untrack(state.a)`
+   * instead of `untrack(() => state.a)` reads the property *before* untrack is entered — so it is
+   * tracked after all, which is the opposite of what was asked for — and then throws
+   * `fn is not a function`, naming a parameter rather than the call. Every other direct entry point
+   * in core says what it wanted; this one did not.
+   */
+  if (__DEV__ && typeof fn !== 'function')
+    throw new TypeError(
+      `untrack: expected a function and received ${String(fn)}. It runs the function without ` +
+        `subscribing — \`untrack(() => state.a)\`, not \`untrack(state.a)\`, which reads the property ` +
+        `before untrack can do anything about it.`
+    );
   hooksQueue.push({} as ComponentHook);
   try {
     return fn();

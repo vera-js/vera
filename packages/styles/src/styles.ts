@@ -35,6 +35,16 @@ const HOISTED = '_$veraStyles$';
  * so components never call it and core never has to know about styling.
  */
 export const adoptStyles = (element: StyledElement) => {
+  /**
+   * Reads `element.constructor.styles`, so a missing element failed with
+   * `Cannot read properties of undefined (reading 'constructor')` — a message about this function's
+   * first line rather than about the call.
+   */
+  if (__DEV__ && (!element || typeof (element as { addEventListener?: unknown }).addEventListener !== 'function'))
+    throw new TypeError(
+      `adoptStyles: expected a component element and received ${String(element)}. ` +
+        `It adopts the element's own class \`static styles\` — \`adoptStyles(this)\`.`
+    );
   applyStyles((element.constructor as unknown as { styles: CSSResultGroup | CSSResultGroup[] }).styles, element);
 };
 
@@ -57,6 +67,16 @@ export const adoptStyles = (element: StyledElement) => {
  */
 export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, element: StyledElement) => {
   if (!styles) return;
+  /**
+   * Two arguments, styles first and the element second — the order is the trap, since
+   * `applyStyles(this, sheet)` reads naturally and is backwards. It failed with
+   * `Cannot read properties of undefined (reading '_root')`, which names neither argument.
+   */
+  if (__DEV__ && (!element || typeof (element as { addEventListener?: unknown }).addEventListener !== 'function'))
+    throw new TypeError(
+      `applyStyles: expected a component element as the *second* argument and received ${String(element)}. ` +
+        `The order is styles first — \`applyStyles(sheet, this)\`.`
+    );
   /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
   const shadowRoot = (element as StyledElement & { _root?: ShadowRoot })._root ?? element.shadowRoot;
   const stylesArray = Array.isArray(styles) ? styles : [styles];
