@@ -35,7 +35,34 @@ export const swapCleanup = (previous: HookCleanup | void, next: HookCleanup | vo
   if (!element) return;
   const cleanups = (element._cleanups ??= new Set());
   if (previous) cleanups.delete(previous);
-  if (next) cleanups.add(next);
+  if (!next) return;
+  /**
+   * **An element that removed itself while its own effect was running has already torn down.**
+   *
+   * `disconnectedCallback` runs every cleanup and clears the set. A cleanup is registered when the
+   * effect *returns*, so an effect that calls `this.remove()` — a toast dismissing itself, a
+   * component that redirects — finishes after that sweep and adds its cleanup to a set nothing will
+   * ever drain again. The interval or listener it was meant to release runs forever, silently, which
+   * is the exact failure `_cleanups` exists to prevent.
+   *
+   * Running it now is what the teardown would have done a moment earlier. `_removed` rather than
+   * `isConnected`, because a component rendered into a detached container has never been connected
+   * and its cleanups are still owed a later removal.
+   */
+  if (element._removed) {
+    /**
+     * Not routed through `reportHookError`: that lives in `createHook`, which imports this module,
+     * and a cycle for one call site is a worse trade than repeating the prefix. A cleanup that
+     * throws must not take the effect down with it either way.
+     */
+    try {
+      next();
+    } catch (error) {
+      console.error('[vera] a cleanup threw while its element was being removed', error);
+    }
+    return;
+  }
+  cleanups.add(next);
 };
 
 /**

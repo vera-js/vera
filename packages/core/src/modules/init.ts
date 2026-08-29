@@ -120,6 +120,8 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   }
 
   element._cleanups = new Set();
+  /** A fresh connection: cleanups registered from here are owed a later removal again. */
+  element._removed = false;
 
   const initInserts = inserts.get('init');
   initInserts?.forEach((callback) => (callback as InitInsert)(element));
@@ -172,6 +174,12 @@ if (typeof customElements !== 'undefined') {
         }
       });
       this._cleanups?.clear();
+      /**
+       * Marked *after* the sweep, so a cleanup registered from here on — an effect that called
+       * `remove()` on itself and has not returned yet — is run immediately rather than added to a
+       * set nothing will drain again. See `swapCleanup`.
+       */
+      this._removed = true;
     };
     return nativeDefine(name, Class, options);
   };

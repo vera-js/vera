@@ -504,5 +504,43 @@ const define = (setup) => {
   check('and none of them warn', seen.filter((l) => /init\(\) twice/.test(l)).length === 0, seen.join(' | '));
 }
 
+
+/* ── an element that removes itself inside its own effect ──────────────────────────────────────
+ * `disconnectedCallback` runs every cleanup and clears the set. A cleanup is registered when the
+ * effect *returns*, so an effect that calls `this.remove()` — a toast dismissing itself, a component
+ * that redirects — finished *after* that sweep and added its cleanup to a set nothing would ever
+ * drain again. The interval or listener it was meant to release ran forever, silently: the exact
+ * failure `_cleanups` exists to prevent, reached by the one order that skips it.
+ *
+ * Found by a sweep of timing hazards. The control matters as much as the case: an element removed on
+ * a later tick must still run its cleanup exactly once, and one never removed must not run it at all.
+ */
+{
+  const runFor = async (when) => {
+    let cleanups = 0;
+    const tag = `x-selfrm-${when}-${Math.random().toString(36).slice(2, 8)}`;
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        core.init(this, { mode: 'open' });
+        core.useEffect(() => {
+          if (when === 'in-effect') this.remove();
+          return () => { cleanups++; };
+        });
+        core.render(() => core.html`<p>x</p>`);
+      }
+    });
+    const element = dom.window.document.createElement(tag);
+    body.appendChild(element);
+    await frame();
+    await frame();
+    if (when === 'later') { element.remove(); await frame(); }
+    return cleanups;
+  };
+
+  check('CONTROL: removed on a later tick runs its cleanup', (await runFor('later')) === 1);
+  check('an element removed inside its own effect runs it too', (await runFor('in-effect')) === 1);
+  check('and one never removed does not', (await runFor('never')) === 0);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
