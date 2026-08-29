@@ -17,7 +17,7 @@
  * state, which is the failure mode with the worst reproduction story available: intermittent, only
  * under load, and shaped like a bug in the component rather than the renderer.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString, renderToStringAsync } from '@verajs/ssr/vera';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -144,4 +144,50 @@ test('the shared state is clean once the storm passes', async () => {
       baselines.get(keyOf(subject)),
       `${subject.file} changed after concurrent renders — state leaked between requests`
     );
+});
+
+/**
+ * **The two entry points share one queue, and once they did not.**
+ *
+ * The turn queue was introduced holding only the *asynchronous* renders, on the stated reasoning
+ * that `renderToString` "is unaffected and still runs whenever it likes". That is true of two
+ * synchronous renders against each other — they are synchronous end to end, so neither can
+ * interleave. It is not true of a synchronous render fired **inside an asynchronous one's suspension
+ * window**: it runs to completion on the shared bookkeeping, and the async render resumes into the
+ * wreckage.
+ *
+ * Measured before the fix, the async component came back as
+ * `<slow-lifecycle-ssr><template shadowrootmode="open"></template></slow-lifecycle-ssr>` — empty —
+ * while core reported `render() did nothing, no component is being set up`, because the setup it was
+ * closing had been replaced by the synchronous render's.
+ *
+ * A server that renders some routes synchronously and others asynchronously is the ordinary case, so
+ * "do not mix them" was never a restriction anyone could keep. The failure is silent, produces
+ * individually plausible markup, and only happens under overlap.
+ */
+test('a synchronous render during an asynchronous one damages neither', async () => {
+  const slow = fixture('slow-lifecycle-ssr.js');
+  const quick = fixture('hello-ssr.js');
+
+  /** Serial baselines: what each looks like with nothing else happening. */
+  const slowAlone = (await renderToStringAsync(slow)).html;
+  const quickAlone = (await renderToString(quick)).html;
+  assert.match(slowAlone, /slow, and complete/, 'the baseline async render is not itself broken');
+
+  /** Now start the async one and fire synchronous renders into its suspension window. */
+  const inFlight = renderToStringAsync(slow);
+  const during = [];
+  for (let i = 0; i < 5; i++) {
+    during.push((await renderToString(quick)).html);
+    await new Promise((resolve) => setTimeout(resolve, 8));
+  }
+  const overlapped = (await inFlight).html;
+
+  assert.equal(overlapped, slowAlone, 'the asynchronous render saw a synchronous one and lost its content');
+  for (const [i, html] of during.entries())
+    assert.equal(html, quickAlone, `the synchronous render at position ${i} was disturbed`);
+
+  /** And the shared state is left usable, rather than merely surviving the one round. */
+  assert.equal((await renderToStringAsync(slow)).html, slowAlone, 'a later asynchronous render is wrong');
+  assert.equal((await renderToString(quick)).html, quickAlone, 'a later synchronous render is wrong');
 });

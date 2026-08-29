@@ -979,23 +979,44 @@ const renderModule = async (
  * @param url Module URL @param {object} [options] The same options `renderToStringAsync` takes
  * @return `{ html, styles, title }`
  */
-export const renderToString = (url, options) => renderModule(url, options, false);
+export const renderToString = (url, options) => takeTurn(() => renderModule(url, options, false));
 
 /**
- * **One render at a time**, so an asynchronous render cannot see another's bookkeeping.
+ * **One render at a time**, so no render can see another's bookkeeping.
  *
  * The per-render state this package keeps — `renderedTags`, `renderErrors`, `pendingInstances`,
  * `instanceCount`, the hoisting state — is module-level, and being synchronous end to end is what
- * makes concurrent `renderToString` calls safe today. An asynchronous render pauses, so that
- * protection does not hold for it, and two overlapping ones would read each other's.
+ * makes two `renderToString` calls safe against *each other*. An asynchronous render pauses, so
+ * that protection does not hold for it.
  *
- * Taking a turn each is the version of this that cannot be wrong. It costs concurrency between
- * *asynchronous* renders — `renderToString` is unaffected and still runs whenever it likes — and
- * that is the honest trade for a first version. Holding the state per render instead (Node's
- * `AsyncLocalStorage` is the mechanism, measured at ~220 ns a render) would lift the restriction,
- * and is a separate change with its own gate.
+ * **The turn covers both entry points, and it did not always.** This queue once held only the
+ * asynchronous renders, on the reasoning that `renderToString` "is unaffected and still runs
+ * whenever it likes". It is not: a synchronous render fired *inside* an asynchronous one's
+ * suspension window runs to completion on the shared state, and the async render resumes into the
+ * wreckage. Measured, the async component came back as `<slow-a><template shadowrootmode="open">
+ * </template></slow-a>` — empty — while core reported `render() did nothing, no component is being
+ * set up`, because the setup it was closing had been replaced.
+ *
+ * A server that renders some routes synchronously and others asynchronously is the ordinary case,
+ * so "do not mix them" was never a restriction anyone could keep. `renderModule` is `async` and
+ * every caller already awaits, so taking a turn is invisible to them; when nothing is in flight it
+ * costs one microtask.
+ *
+ * Holding the state per render instead (Node's `AsyncLocalStorage` is the mechanism, measured at
+ * ~220 ns a render) would remove the queue altogether, and is a separate change with its own gate.
  */
 let asyncTurn = Promise.resolve();
+
+/** Runs `work` once every render queued before it has settled, failed or not. */
+const takeTurn = (work) => {
+  const mine = asyncTurn.then(work);
+  /** The queue must survive a failed render, or one throw stops every later one. */
+  asyncTurn = mine.then(
+    () => undefined,
+    () => undefined
+  );
+  return mine;
+};
 
 /**
  * Render a component module to markup, **awaiting its lifecycle**.
@@ -1013,14 +1034,6 @@ let asyncTurn = Promise.resolve();
  * @param url Module URL @param {object} [options] The same options `renderToString` takes
  * @return `{ html, styles, title }`
  */
-export const renderToStringAsync = (url, options) => {
-  const mine = asyncTurn.then(() => renderModule(url, options, true));
-  /** The queue must survive a failed render, or one throw stops every later one. */
-  asyncTurn = mine.then(
-    () => undefined,
-    () => undefined
-  );
-  return mine;
-};
+export const renderToStringAsync = (url, options) => takeTurn(() => renderModule(url, options, true));
 
 export { registry, serializeTemplate };
