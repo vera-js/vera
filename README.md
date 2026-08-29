@@ -8,8 +8,8 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 6.86 KB | **2.99 KB** |
-| `@verajs/renderer` | 9.52 KB | 3.75 KB |
+| `@verajs/core` | 6.90 KB | **3.00 KB** |
+| `@verajs/renderer` | 9.63 KB | 3.82 KB |
 | `@verajs/router` | 8.39 KB | 3.59 KB |
 | `@verajs/autoloader` | 2.37 KB | 1.19 KB |
 | `@verajs/styles` | 1.17 KB | 638 B |
@@ -21,12 +21,12 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/inserts` | 486 B | 357 B |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.0 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.1 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->6.0 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->6.1 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 

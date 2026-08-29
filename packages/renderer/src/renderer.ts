@@ -499,6 +499,27 @@ const BOOLEAN = 2; // ?name
  */
 const LIVE = 3;
 const EVENT = 4; // @name
+/**
+ * Calls an element ref, and survives one that throws.
+ *
+ * A ref runs in the middle of committing a template's parts, so an unguarded throw left the commit
+ * half applied and unwound the render that triggered it — the component's shadow root ended up
+ * **empty and stayed that way**, and every later update threw at the same line. The error was
+ * reported, so the only symptom was a component that had silently stopped existing.
+ *
+ * The same judgement `handleEvent` makes a few lines up: a mistake in code the template was handed
+ * is named, not raised from inside the framework at a point where the value's origin is long gone.
+ * The prefix goes on our own sentence and the error is passed alongside, so it stays filterable
+ * without misattributing someone else's `Error`.
+ */
+const applyRef = (callback: (el: Element | null) => void, element: Element | null) => {
+  try {
+    callback(element);
+  } catch (error) {
+    console.error('[vera] an element ref threw; the render continued without it.', error);
+  }
+};
+
 const REF = 5; // element-position expression
 
 class AttrPart implements Part {
@@ -566,7 +587,7 @@ class AttrPart implements Part {
    */
   _release() {
     const value = this._committed;
-    if (typeof value === 'function') (value as (el: Element | null) => void)(null);
+    if (typeof value === 'function') applyRef(value as (el: Element | null) => void, null);
     else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
       (value as { value: unknown }).value = null;
     this._committed = UNSET;
@@ -770,7 +791,7 @@ class AttrPart implements Part {
          * ref, reactively. Runs once per distinct value, not once per render.
          */
         notifyOnRemoval = true;
-        if (typeof value === 'function') (value as (el: Element) => void)(this._element);
+        if (typeof value === 'function') applyRef(value as (el: Element | null) => void, this._element);
         else if (typeof value === 'object') {
           /**
            * A self-applying value: anything that knows what to do with an element applies itself.
