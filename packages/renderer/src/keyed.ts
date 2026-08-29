@@ -44,6 +44,21 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
   const oldItems: (Item | null)[] = items;
   const newKeys: unknown[] = new Array(count);
   for (let i = 0; i < count; i++) newKeys[i] = (newValues[i] as KeyedResult).key;
+  /**
+   * Said once, where it is nearly free: the general algorithm already walks every key, and a list
+   * whose keys never move never reaches here at all. A duplicate key is a mistake that behaves
+   * *correctly* in the common case and arbitrarily in the rest, which is the shape of bug that
+   * survives a test suite.
+   */
+  if (__DEV__ && new Set(newKeys).size !== count) {
+    const seen = new Set<unknown>();
+    const repeated = newKeys.filter((key) => (seen.has(key) ? true : (seen.add(key), false)));
+    console.warn(
+      `[vera] keyed: the key ${String(repeated[0])} is used by more than one item in this list. ` +
+        `A key identifies one item, so which of them keeps the existing DOM is not defined — ` +
+        `the list still renders, but nothing about which node ends up where can be relied on.`
+    );
+  }
   const newItems: Item[] = new Array(count);
   let oldHead = 0;
   let oldTail = oldItems.length - 1;
@@ -96,14 +111,43 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
         oldTail--;
       } else {
         const oldIndex = oldKeyToIndex!.get(newKeys[newHead]);
-        if (oldIndex === undefined) {
+        /**
+         * **`oldItems[oldIndex]` can be null, and reading it crashed the render.** The map holds one
+         * index per key, so a list where a key appears twice finds, for the second one, the slot the
+         * first already consumed and nulled. `part.$m(null, …)` then read `_element` of null and took
+         * the whole render down with a `TypeError` naming the renderer's internals rather than
+         * anything the caller wrote.
+         *
+         * Duplicate keys are documented as undefined behaviour and stay that way — which of the two
+         * keeps the existing node is not specified. Undefined must still mean *a list*, though, not
+         * an exception from three frames inside a private algorithm: the shapes that crash are
+         * particular (a duplicate **and** a reorder **and** a new key, found by fuzzing over a
+         * four-key alphabet), so this passes in development and takes the page down later.
+         *
+         * Two ways a slot can already be spoken for, and both have to be checked. The map nulls what
+         * it consumes, so `oldItems[oldIndex] === null` catches one. The other is invisible: the map
+         * is built once, and the head/tail branches above consume items by *moving the pointers*
+         * without nulling anything — so an index that was live when the map was built can now sit
+         * outside `[oldHead, oldTail]`. With unique keys that is unreachable, because a key is looked
+         * up at most once; with a repeated key it hands the same item to two positions, and the list
+         * then renders one item short of what it holds. Checking only for null fixed the crash and
+         * left that, which is the worse of the two — nothing throws and the page is quietly wrong.
+         *
+         * Treating either as "not found" gives the second occurrence a fresh item, which is what the
+         * branch below already does for a key that never existed.
+         */
+        const reusable =
+          oldIndex === undefined || oldIndex < oldHead || oldIndex > oldTail
+            ? null
+            : oldItems[oldIndex];
+        if (reusable === null) {
           newItems[newHead] = part.$c(newValues[newHead], parent, part.$f(oldItems[oldHead]!));
         } else {
-          const item = oldItems[oldIndex]!;
+          const item = reusable;
           part.$m(item, part.$f(oldItems[oldHead]!), parent);
           part.$u(item, newValues[newHead]);
           newItems[newHead] = item;
-          oldItems[oldIndex] = null;
+          oldItems[oldIndex!] = null;
         }
         newHead++;
       }
@@ -123,6 +167,10 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
 /**
  * Marks a template result with a stable key so list reconciliation moves it instead of rewriting
  * it. Key all items in a list or none — mixing is undefined behaviour, as are duplicate keys.
+ *
+ * **Undefined means the list is arbitrary, not that the render fails.** With a repeated key, which
+ * item keeps the existing node is unspecified; the render still completes and the DOM still holds
+ * what the list holds. Development warns, once per render.
  *
  * ```js
  * import { keyed } from '@verajs/renderer/keyed';

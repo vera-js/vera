@@ -27,8 +27,8 @@
       "gzip": 528
     },
     "keyed": {
-      "raw": 1156,
-      "gzip": 581
+      "raw": 1184,
+      "gzip": 599
     },
     "spread": {
       "raw": 1582,
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 15972,
-      "gzip": 6586
+      "raw": 16000,
+      "gzip": 6605
     },
     {
       "name": "Lit",

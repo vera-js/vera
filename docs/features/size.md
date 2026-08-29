@@ -45,10 +45,10 @@ the thing reconciliation exists for:
 
 | | gzipped |
 | --- | ---: |
-| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->6 586 B<!--/size:list.bytes-->** |
+| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->6 605 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-<!--size:list.vs-lit.bytes-->240 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
+<!--size:list.vs-lit.bytes-->221 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -130,7 +130,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/tag` | 1 439 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
 | `@verajs/reactivity/collections` | 528 B | reactive `Map` and `Set` in a store |
-| `@verajs/renderer/keyed` | 581 B | `keyed()` — keyed list reconciliation |
+| `@verajs/renderer/keyed` | 599 B | `keyed()` — keyed list reconciliation |
 | `@verajs/inserts` | 357 B | the extension point |
 <!--/size:table.permodule-->
 
