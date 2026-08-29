@@ -9,6 +9,7 @@
  * tripping over it.
  */
 import { randomUUID } from 'node:crypto';
+import { interfaceFor } from './reflections.js';
 import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { parseFragment } from './parse.js';
 import { addListener, removeListener, dispatch } from './events.js';
@@ -261,7 +262,7 @@ const parseChunks = (container) => {
       continue;
     }
     const parsed = parseFragment(entry, {
-      element: (name) => new ElementShim(name),
+      element: (name) => build(name),
       text: (data) => new TextShim(data),
       comment: (data) => new CommentShim(data),
     });
@@ -1980,6 +1981,23 @@ export class ElementShim extends ContainerShim {
  * initialisers are in place before anyone touches the element. This returned a bare `ElementShim`,
  * so a component created imperatively had none of its own state, and `instanceof` said no.
  */
+/**
+ * A fresh element carrying the properties its tag actually has — `input.disabled`, `a.href` — as
+ * well as the ones every element shares. See `reflections.js`; without this an assignment to an
+ * element-specific property became a plain JavaScript property that reached no markup at all.
+ *
+ * Only HTML elements get one. An SVG element's properties are a different interface again, and
+ * guessing at them is what this whole file exists not to do.
+ */
+const build = (name, namespaceURI = HTML_NS) => {
+  const element = new ElementShim(name, namespaceURI);
+  if (namespaceURI === HTML_NS) {
+    const proto = interfaceFor(name, ElementShim.prototype);
+    if (proto !== ElementShim.prototype) Object.setPrototypeOf(element, proto);
+  }
+  return element;
+};
+
 export const createElement = (localName, namespaceURI = HTML_NS) => {
   const name = namespaceURI === HTML_NS ? `${localName}`.toLowerCase() : `${localName}`;
   /**
@@ -1994,7 +2012,7 @@ export const createElement = (localName, namespaceURI = HTML_NS) => {
       'InvalidCharacterError'
     );
   const Component = registry.get(name);
-  if (!Component) return new ElementShim(name, namespaceURI);
+  if (!Component) return build(name, namespaceURI);
   const element = new Component();
   element.localName = name;
   element._ns = namespaceURI;

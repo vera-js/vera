@@ -102,6 +102,20 @@ describe.
   string and there was no ancestor chain to walk; children are nodes now, so there is. The walk is
   over the node tree — an event does not continue into `document` or `window`, which are not part of
   it here.
+- **The properties only *some* elements have are there too, and reach the markup.** `input.disabled`,
+  `a.href`, `td.colSpan`, `option.selected` — 273 of them across 44 tags, measured from Chromium,
+  Firefox and WebKit rather than written from memory (`scripts/measure-element-reflections.mjs`).
+  Each tag gets a prototype carrying exactly its own interface, so `'disabled' in paragraph` stays
+  `false`: an element answering for members it does not have is the same lie as one missing the
+  members it does. Without this layer `button.disabled = true` stored a plain JavaScript property —
+  it read back `true`, wrote no attribute, and **served a button that was not disabled** until the
+  bundle landed. A property is only in the table when all three engines agree on every measured cell
+  *and* reading the attribute back gives what was written, which excludes the ones resolved against a
+  document URL (`form.action`), read out of layout (`input.width`) or clamped (`meter.value`); those
+  are listed with the measurement that produced each. `value`, `checked` and `selected` are the
+  deliberate exception — a browser keeps them off the markup, and on a server the markup is the whole
+  output, so they are mirrored exactly as `serializer.js` already mirrors the same three for template
+  bindings.
 - **The server DOM is complete, and checked twice.** Every member a real element, shadow root,
   document, `CSSStyleSheet`, `DOMTokenList` **or window** exposes in Chromium, Firefox and WebKit is
   either implemented or listed as out of scope with a reason — and every member that *is* implemented
