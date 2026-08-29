@@ -145,5 +145,74 @@ const app = (routes, options = {}) => {
   check('a path function is called once per navigation', compiles === 3, `${compiles} calls for 3`);
 }
 
+/**
+ * **Three overlapping navigations, not two.**
+ *
+ * The two-navigation race above is the one that gets written, and a router can pass it with a single
+ * "is this still the latest?" flag while a third in flight still slips through — the middle one
+ * resolves after the last and there is nothing left holding it back. Arranged so the *first* is
+ * slowest and the last is fastest, which is the ordering that makes a missing guard visible: all
+ * three are provably in flight, and the two losers both resolve after the winner has already
+ * rendered.
+ */
+{
+  const host = window.document.createElement('div');
+  window.document.body.appendChild(host);
+  host.innerHTML = '<main view="main"></main>';
+  const finished = [];
+  const instance = initRouter(host, { view: 'main' });
+  const slow = (name, ms) => async () => {
+    await new Promise((r) => setTimeout(r, ms));
+    finished.push(name);
+    return name;
+  };
+  instance.addRoutes([
+    { path: '/three-start', component: () => 'START' },
+    { path: '/three-a', component: slow('A', 90) },
+    { path: '/three-b', component: slow('B', 50) },
+    { path: '/three-c', component: slow('C', 5) },
+  ]);
+  await navigate('/three-start');
+
+  const caught = [];
+  const fire = (path) => navigate(path).catch((error) => caught.push(error.message));
+  fire('/three-a');
+  await new Promise((r) => setTimeout(r, 5));
+  fire('/three-b');
+  await new Promise((r) => setTimeout(r, 5));
+  await fire('/three-c');
+  await new Promise((r) => setTimeout(r, 200));
+
+  const view = host.querySelector('[view="main"]');
+  /** The control: unless the two losers actually finished after C, this proves nothing. */
+  check('all three route components ran', finished.length === 3, finished.join(','));
+  check('the slowest finished last, so the race was real', finished[finished.length - 1] === 'A', finished.join(','));
+  check('the last navigation wins the view', view.textContent === 'C', view.textContent);
+  check('the last navigation wins the URL', window.location.pathname === '/three-c', window.location.pathname);
+}
+
+/**
+ * A route that navigates from inside its own component — the render-time redirect. The view and the
+ * URL have to end up describing the same route; the failure worth catching is the URL moving on
+ * while the outlet keeps the route that asked to leave.
+ */
+{
+  const host = window.document.createElement('div');
+  window.document.body.appendChild(host);
+  host.innerHTML = '<main view="main"></main>';
+  const instance = initRouter(host, { view: 'main' });
+  instance.addRoutes([
+    { path: '/hop-start', component: () => 'START' },
+    { path: '/hop-from', component: () => { navigate('/hop-to').catch(() => {}); return 'FROM'; } },
+    { path: '/hop-to', component: () => 'TO' },
+  ]);
+  await navigate('/hop-start');
+  await navigate('/hop-from').catch(() => {});
+  await new Promise((r) => setTimeout(r, 120));
+  const view = host.querySelector('[view="main"]');
+  check('a render-time redirect lands on the target', view.textContent === 'TO', view.textContent);
+  check('and the URL agrees with the view', window.location.pathname === '/hop-to', window.location.pathname);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
