@@ -368,6 +368,28 @@ const createHandler = <T extends object>(
     set(obj: T, prop: Extract<keyof T, string>, value: T[Extract<keyof T, string>], receiver) {
       const prevValue = Reflect.get(obj, prop, receiver);
       if (prevValue === value) return true;
+      /**
+       * **The same nested object, read back and assigned, is not a change either.**
+       *
+       * `Reflect.get` on the raw target answers the raw object, while the *getter* hands out that
+       * object's proxy — so `state.o = state.o` arrives here as proxy-against-raw, compares
+       * unequal, and notified every subscriber that nothing had happened. It also wrote the proxy
+       * *into the target*: code still holding the original object saw its own property stop being
+       * the object it had passed in. (`state.o === original` is false either way — reads are
+       * wrapped — so the difference is only visible from the object the store was built from,
+       * which is exactly where it is hardest to notice.)
+       *
+       * The line above already says a write of the same value is not a change; this is that same
+       * rule for the half of the store where reads are wrapped. It matters because the idiom it
+       * breaks is the common one — `state.items = update(state.items)`, where `update` returns its
+       * input untouched when there is nothing to do, is exactly how "no change" is normally
+       * written, and it cost a render pass every time.
+       *
+       * `value` is checked for objecthood rather than `prevValue`, so that a cache entry of `null`
+       * (which marks a value this store does not proxy) cannot match a `null` being assigned.
+       */
+      if (value !== null && typeof value === 'object' && proxyCache.get(prevValue as object) === value)
+        return true;
       /** Whether this write changes the key set, and so whether enumerators have to hear about it. */
       const added = !Object.prototype.hasOwnProperty.call(obj, prop);
       /**

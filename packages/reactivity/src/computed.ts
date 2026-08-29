@@ -20,6 +20,26 @@ import { createHook, createStore } from '@verajs/core';
  * propagates. Shape matches `ref()` deliberately — both are `.value`, so they are interchangeable
  * at a call site.
  *
+ * **A diamond is not settled between its two halves, and `useSyncEffect` can see that.** Where two
+ * computeds read the same store and a third reads both, one write propagates depth-first: the third
+ * re-evaluates once with the first half updated and the second half stale, then again with both.
+ *
+ * ```js
+ * const double = computed(() => state.n * 2);
+ * const triple = computed(() => state.n * 3);
+ * const sum = computed(() => double.value + triple.value);   // 5·n, always — except in between
+ * state.n = 2;   // a sync effect over `sum` sees 7, then 10
+ * ```
+ *
+ * Seven is not a value `sum` ever has; it is `double(2) + triple(1)`. **Nothing that renders can
+ * observe it** — `render()` and `useEffect` are both coalesced and see `5, 10, 15` — so this reaches
+ * only `useSyncEffect`, which exists to see every step and is documented as the sharp one. If a sync
+ * effect does something a wrong value would spoil (a request, a log, an imperative API), read the
+ * store rather than a derived value across a diamond, or use `useEffect`.
+ *
+ * The cost otherwise is one extra evaluation of the dependent per write, which
+ * `tests/reactivity-graph.test.mjs` measures rather than assumes.
+ *
  * **Nothing was added to core for this.** It is built on `createStore` and `createHook` through
  * their public API, which is the module system doing its job: `@verajs/core` grew two bytes, for
  * returning a function it already constructed.
