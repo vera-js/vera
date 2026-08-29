@@ -279,6 +279,11 @@ markup was just thrown away, and with nothing observable to notice, the only sym
 paint that is slower than the one you paid a server render for. An attribute that disagrees is
 simply re-set during adoption and is not a fallback at all.
 
+**Comments are outside the comparison, in both directions** — a comment in your template is not
+required in the server markup, and one in the server markup that your template does not have is not
+a disagreement. A comment renders nothing, so neither direction changes what a reader sees; matching
+on them would only cost every commented template its adoption.
+
 On a CDN page, point the import map's `@verajs/renderer` at `vera-renderer-hydrate.min.js` and
 nothing else changes. Apps that never hydrate download none of this.
 

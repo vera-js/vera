@@ -113,3 +113,47 @@ assert.equal(withNode.querySelector('span'), clientOnly, 'the client node was in
 assert.equal(withNode.textContent, 'serverclient');
 
 console.log('hydrate ok — markerless adoption, identity preserved, fallback safe');
+
+/* ── a comment in the template must not cost hydration ─────────────────────────────────────────
+ * `html`<p>a<!-- note -->b</p>`` compiles with the comment in its statics and the server emits it,
+ * so the adopted DOM is text / comment / text where the walk wanted one run of text. Bailing on that
+ * meant **every template containing an HTML comment lost hydration**: the server's markup thrown
+ * away and re-rendered, for markup the client had itself produced.
+ *
+ * Nothing failed, because the page stays correct either way — that is the point of the fallback and
+ * also why this went unnoticed. The cost was the first paint the server render was paid for.
+ *
+ * Found by hydrating the markup shapes this package emits, rather than the shapes the suite already
+ * had fixtures for.
+ */
+{
+  const complaints = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => complaints.push(args.join(' '));
+  try {
+    const shapes = [
+      ['a comment between text', '<p>a<!-- note -->b</p>', html`<p>a<!-- note -->b</p>`],
+      ['a comment before text', '<p><!-- lead -->tail</p>', html`<p><!-- lead -->tail</p>`],
+      ['a comment after text', '<p>lead<!-- tail --></p>', html`<p>lead<!-- tail --></p>`],
+      ['two comments', '<p>a<!--x-->b<!--y-->c</p>', html`<p>a<!--x-->b<!--y-->c</p>`],
+      ['a comment before an element', '<p><!--x--><b>y</b></p>', html`<p><!--x--><b>y</b></p>`],
+      ['a comment between elements', '<p><b>y</b><!--x--><i>z</i></p>', html`<p><b>y</b><!--x--><i>z</i></p>`],
+    ];
+    for (const [label, markup, result] of shapes) {
+      complaints.length = 0;
+      const host = dom.window.document.createElement('div');
+      host.innerHTML = markup;
+      const adopted = host.querySelector('p');
+      renderInto(result, host);
+      assert.deepEqual(
+        complaints.filter((line) => /fell back/.test(line)),
+        [],
+        `${label}: hydration fell back for markup the client itself produces`
+      );
+      assert.equal(host.querySelector('p'), adopted, `${label}: the server's element was not adopted`);
+      assert.equal(host.textContent, adopted.textContent, `${label}: the text changed`);
+    }
+  } finally {
+    console.warn = originalWarn;
+  }
+}

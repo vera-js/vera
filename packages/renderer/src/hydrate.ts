@@ -82,10 +82,38 @@ const cursorSplit = (cursor: Cursor): Node | null => {
   return cursor.node;
 };
 
+/**
+ * **A comment carries no rendered content, so hydration neither matches nor requires one.**
+ *
+ * `instanceWalker` is `ELEMENT | TEXT`, and the part indices in `_parts` are numbered by that same
+ * walker — so a comment in a template's statics is structurally invisible to this walk, and cannot
+ * be made visible without renumbering every part the client renderer relies on. The live DOM,
+ * however, still has it: `html`<p>a<!-- note -->b</p>`` adopts as text/comment/text where the walk
+ * wanted one run of text, and `<p>lead<!-- tail --></p>` leaves a child the walk never asked for.
+ * Both read as a disagreement, so **every template containing an HTML comment lost hydration** —
+ * the server's markup discarded and re-rendered, for markup the client had itself produced. Nothing
+ * failed, because the page is correct either way; that is what the fallback is for, and why this
+ * went unnoticed. What it cost was the first paint the server render was paid for.
+ *
+ * Stepping over them is sound rather than merely convenient: the invisibility is symmetric, so a
+ * comment can differ in either direction and neither direction can change what a reader sees. This
+ * is only safe because hydration is markerless — the adopted markup carries no framework comments,
+ * so there is nothing here whose position is load-bearing.
+ *
+ * Not folded into `cursorSplit`, which also answers "where do I insert?" — moving an insertion point
+ * past a comment would put a slot's content on the wrong side of it.
+ */
+const passComments = (cursor: Cursor) => {
+  while (cursor.offset === 0 && cursor.node !== null && cursor.node.nodeType === 8) {
+    cursor.node = cursor.node.nextSibling;
+  }
+};
+
 /** Consumes exactly `text` from the live cursor; anything else is a mismatch. */
 const expectText = (cursor: Cursor, text: string) => {
   let need = text;
   while (need.length > 0) {
+    passComments(cursor);
     const node = cursor.node;
     if (node === null || node.nodeType !== 3) {
       if (__DEV__) why = `expected the text ${JSON.stringify(text)} and found ${describe(node)}`;
@@ -182,6 +210,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
   }
 
   /** Element: same tag, commit its attribute parts live, then descend children in lockstep. */
+  passComments(cursor);
   const live = cursorSplit(cursor);
   if (live === null || live.nodeType !== 1) {
     if (__DEV__) why = `expected <${(canonical as Element).localName}> and found ${describe(live)}`;
@@ -236,6 +265,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
   }
 
   /** Leftover live children the template does not account for = not our markup. */
+  passComments(inner);
   if (inner.node !== null && !(inner.node.nodeType === 3 && (inner.node as Text).data === '' && inner.node.nextSibling === null)) {
     if (__DEV__)
       why = `<${(live as Element).localName}> contains ${describe(inner.node)}, which the template does not describe`;
@@ -410,6 +440,7 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(getTemplate(result), result.values, cursor);
+    passComments(cursor);
     if (cursor.node !== null) {
       if (__DEV__) why = `${describe(cursor.node)} follows everything the template describes`;
       throw MISMATCH;

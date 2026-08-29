@@ -57,7 +57,6 @@ test('a mismatch names the first place the two renders disagreed', { skip }, () 
     ['<div>a</div>', () => html`<p>${'a'}</p>`, /expected <p> and found <div>/],
     ['<p>a</p><b>x</b>', () => html`<p>${'a'}</p>`, /<b> follows everything the template describes/],
     ['plain', () => html`<p>${'a'}</p>`, /expected <p> and found the text "plain"/],
-    ['<!--c--><p>a</p>', () => html`<p>${'a'}</p>`, /expected <p> and found a comment/],
     ['<ul><li>1</li></ul>', () => html`<ul>${[1, 2].map((n) => html`<li>${n}</li>`)}</ul>`, /expected <li> and found nothing/],
     [
       '<ul><li>1</li><li>2</li><li>3</li></ul>',
@@ -72,6 +71,41 @@ test('a mismatch names the first place the two renders disagreed', { skip }, () 
     assert.match(said[0], expected, markup);
     /** And it says what was lost, not just that something was wrong. */
     assert.match(said[0], /server markup was discarded/);
+  }
+});
+
+/**
+ * A comment is the one difference that is not a disagreement — see `passComments` in `hydrate.ts`.
+ * The walk is `ELEMENT | TEXT` and the part indices are numbered by that same walker, so a comment
+ * is invisible to it in **both** directions: a template's own comment cannot be matched, and a
+ * stray one cannot be required. Since a comment renders nothing, neither direction can change what
+ * a reader sees — so the symmetric rule (step over them) is the one that keeps hydration, and the
+ * alternative cost every commented template its adoption for a difference nobody could observe.
+ */
+test('a comment is not a disagreement, in either direction', { skip }, () => {
+  const cases = [
+    /** The server has a comment the template does not describe. */
+    ['<!--c--><p>a</p>', () => html`<p>${'a'}</p>`],
+    ['<p>a<!--c--></p>', () => html`<p>${'a'}</p>`],
+    /** The template has comments the server rendered — the case that was losing hydration. */
+    ['<p>a<!--c-->b</p>', () => html`<p>a<!--c-->b</p>`],
+    ['<p><!--c--><b>a</b></p>', () => html`<p><!--c--><b>a</b></p>`],
+  ];
+  for (const [markup, template] of cases) {
+    const host = document.createElement('div');
+    host.innerHTML = markup;
+    const served = host.querySelector('p');
+    const said = [];
+    const warn = console.warn;
+    console.warn = (...args) => said.push(args.join(' '));
+    try {
+      renderInto(template(), host);
+    } finally {
+      console.warn = warn;
+    }
+    assert.deepEqual(said, [], `${markup} — fell back over a comment`);
+    /** Adoption, not a re-render: the server's element is still the one in the document. */
+    assert.equal(host.querySelector('p'), served, `${markup} — the server's <p> was replaced`);
   }
 });
 
