@@ -81,6 +81,15 @@ public and both are documented, so a reader who knew one misread the other.
 
 A ref runs once per **distinct value**, not once per render.
 
+**A ref is released when its subtree is rendered away, and not when its component is removed from
+the document.** Toggling `${show ? html`<i ${box}>` : 'gone'}` sets `box.value` back to `null` (and
+calls a function ref with `null`); removing the whole component leaves `box.value` pointing at the
+element, now detached. That is deliberate rather than an oversight: here a disconnect is not a
+destruction — moving a node between parents fires one, and the component re-renders on reconnect —
+so releasing would blank every ref for the frame it takes a move to complete. Guard with
+`box.value?.isConnected` if you need to know, and note that a ref created inside the component (the
+way every example writes it) becomes garbage along with it either way.
+
 An event handler is called with the element as `this`, and the listener is registered once — swapping
 the handler across renders never touches the DOM, so there is no add/remove churn and no way to end
 up with two. `undefined`, `null` and `false` all mean *no handler*, so `@click=${enabled && onClick}`

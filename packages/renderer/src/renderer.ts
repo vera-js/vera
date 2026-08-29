@@ -581,7 +581,17 @@ class AttrPart implements Part {
    * passes `undefined` for the same reason.
    *
    * `null` rather than `undefined`, because `.value` is a store property and `null` reads as
-   * "deliberately nothing" where `undefined` reads as "never set". A **self-applying** value is
+   * "deliberately nothing" where `undefined` reads as "never set".
+   *
+   * **Reached when a subtree is rendered away, and deliberately not when a component is removed
+   * from the document.** The two are the same event to a reader and not to this renderer: a
+   * disconnect here is not a destruction, since moving a node between parents fires one and the
+   * component renders again on reconnect. Releasing there would blank every ref for the frame a
+   * move takes, and `_committed = UNSET` below means the re-apply could only happen on the next
+   * pass. Measured in `tests/renderer-ref-lifetime.test.mjs`, which asserts both halves so the
+   * asymmetry is a decision rather than something nobody looked at.
+   *
+   * A **self-applying** value is
    * skipped: `_$apply$` receives the part and owns its own lifecycle, so telling it about detachment
    * here would be a second protocol contradicting the first.
    */
