@@ -301,6 +301,32 @@ const scan = (strings: TemplateStringsArray) => {
               `  html\`<\${heading}>…</\${heading}>\`\n`
           );
         }
+        /**
+         * **And in attribute-*name* position, which is the same mistake one step along.**
+         *
+         * `<b ${name}="x">`, `<b data-${name}="1">` and `<b a${name}b="1">` all land here: the
+         * marker is not preceded by `=`, so it reads as an element ref, and the `="x"` after it
+         * stays literal markup. The browser's parser then makes `<b ="x"="">` of it — attributes
+         * nobody wrote, silently.
+         *
+         * **The server already refuses this**, and said so in its README while the client shipped
+         * the garbage. A developer rendering only in a browser saw malformed output with no clue,
+         * and adding SSR later turned it into a throw with no obvious connection.
+         *
+         * Told apart from a real element ref by what follows it: a ref is always followed by
+         * whitespace, `>` or `/`. Anything else means the marker landed inside a name.
+         */
+        const after = strings[i + 1] ?? '';
+        if (__DEV__ && after !== '' && !/^[\s>/]/.test(after)) {
+          console.error(
+            `[vera] an expression in attribute-name position (\`<b \${…}="x">\`) is not a dynamic ` +
+              `attribute name — a marker is not a name, and the parser makes attributes nobody ` +
+              `wrote out of what follows it.\n` +
+              `Runtime-named bindings live in @verajs/renderer/spread:\n\n` +
+              `  import { spread } from '@verajs/renderer/spread';\n` +
+              `  html\`<b \${spread({ [name]: 'x' })}>…</b>\`\n`
+          );
+        }
         markup += ` ${specs.length}${MARKER}="${MARKER}"`;
         specs.push({ _type: ATTRIBUTE, _name: '&' });
       }

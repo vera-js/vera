@@ -198,3 +198,50 @@ test('a template with no ref renders and clears normally', async () => {
   renderInto(draw(10), host);
   assert.equal(host.textContent, '101112');
 });
+
+/* ── an expression in attribute-name position ────────────────────────────────────────────────── */
+
+/**
+ * **The server refused this and the client shipped the garbage.**
+ *
+ * `<b ${name}="x">` is not a dynamic attribute name: the marker is not preceded by `=`, so it reads
+ * as an element ref, and the `="x"` after it stays literal markup. The parser then makes
+ * `<b ="x"="">` of it — attributes nobody wrote, silently. `<b data-${n}="1">` and `<b a${n}b="1">`
+ * are the same mistake in the middle of a name.
+ *
+ * `@verajs/ssr`'s README already said this is *"malformed on both sides"* and the serializer threw
+ * rather than emit it. The client did not, so a developer rendering only in a browser saw malformed
+ * output with no clue, and adding SSR later turned it into a throw with no obvious connection to
+ * what they had written.
+ *
+ * Found by a sweep putting expressions in every unusual template position.
+ */
+test('an expression in attribute-name position is reported', { skip: isProduction && 'the guard is __DEV__' }, () => {
+  const said = [];
+  const original = console.error;
+  console.error = (...args) => said.push(args.join(' '));
+  const complaints = (make) => {
+    said.length = 0;
+    renderInto(make(), dom.window.document.createElement('div'));
+    return said.filter((line) => /attribute-name position/.test(line));
+  };
+  try {
+    assert.equal(complaints(() => html`<b ${'title'}="x">y</b>`).length, 1, 'a whole name');
+    assert.equal(complaints(() => html`<b data-${'x'}="1">y</b>`).length, 1, 'a name prefix');
+    assert.equal(complaints(() => html`<b a${'x'}b="1">y</b>`).length, 1, 'a marker inside a name');
+
+    const named = complaints(() => html`<b ${'title'}="x">y</b>`)[0];
+    assert.match(named, /^\[vera\]/, 'carries the framework prefix');
+    assert.match(named, /spread/, 'and names the entry that does support runtime names');
+
+    /**
+     * The controls matter more than the cases: an element ref is the *legitimate* reading of an
+     * expression in this position, and a diagnostic that fired on every `ref` would be unusable.
+     */
+    assert.deepEqual(complaints(() => html`<b ${(e) => e}>y</b>`), [], 'a bare element ref');
+    assert.deepEqual(complaints(() => html`<b ${(e) => e} class="c">y</b>`), [], 'a ref before an attribute');
+    assert.deepEqual(complaints(() => html`<input ${(e) => e} />`), [], 'a ref in a self-closing element');
+  } finally {
+    console.error = original;
+  }
+});
