@@ -208,3 +208,77 @@ test('a listener that throws does not stop the others', () => {
   assert.equal(errors.length, 1, 'the failure was reported');
   assert.match(errors[0], /^\[vera\]/, 'with the framework prefix');
 });
+
+/**
+ * **`eventPhase` reported `NONE` for the whole dispatch**, where every engine reports 1, 2 and 3 —
+ * and the four constants a browser puts on `Event.prototype` were missing, because Node puts them
+ * on `Event` alone.
+ *
+ * The two compound into the failure that is worth the test. `event.eventPhase === event.AT_TARGET`
+ * is the ordinary way a component asks "was this mine, or a descendant's?", and against `undefined`
+ * it is `false` in every phase — so the branch is not taken wrongly, it is never taken at all. The
+ * server and the client then disagree about an event both of them dispatched, with nothing to show
+ * for it until something else fails.
+ *
+ * Measured on Chromium, Firefox and WebKit before it was called a defect: all three report `1,2,3`
+ * and all three carry `NONE`, `CAPTURING_PHASE`, `AT_TARGET` and `BUBBLING_PHASE` on the prototype.
+ */
+test('eventPhase says which phase is running, as the engines do', () => {
+  const seen = { vera: [], real: [] };
+  for (const [key, d] of [['vera', globalThis.document], ['real', real.document]]) {
+    const [host, middle, target] = tree(d);
+    host.addEventListener('x', (e) => seen[key].push(e.eventPhase), true);
+    target.addEventListener('x', (e) => seen[key].push(e.eventPhase));
+    middle.addEventListener('x', (e) => seen[key].push(e.eventPhase));
+    target.dispatchEvent(new (key === 'vera' ? Event : real.Event)('x', { bubbles: true }));
+  }
+  assert.deepEqual(seen.vera, [1, 2, 3], 'capture, target, bubble');
+  assert.deepEqual(seen.vera, seen.real, 'and the same as a real dispatch');
+});
+
+test('a finished event is back to NONE', () => {
+  const [, , target] = tree(globalThis.document);
+  const event = new Event('x');
+  assert.equal(event.eventPhase, 0, 'before dispatch');
+  target.addEventListener('x', () => {});
+  target.dispatchEvent(event);
+  assert.equal(event.eventPhase, 0, 'after dispatch');
+});
+
+test('the phase constants are on the event, not only on the interface', () => {
+  const event = new Event('x');
+  assert.deepEqual(
+    [event.NONE, event.CAPTURING_PHASE, event.AT_TARGET, event.BUBBLING_PHASE],
+    [0, 1, 2, 3],
+    'a browser answers these on the instance; Node has them on Event alone'
+  );
+  /** Which is what makes the idiom work at all. */
+  const [host, , target] = tree(globalThis.document);
+  const phases = [];
+  host.addEventListener('x', (e) => phases.push(e.eventPhase === e.AT_TARGET));
+  target.addEventListener('x', (e) => phases.push(e.eventPhase === e.AT_TARGET));
+  target.dispatchEvent(new Event('x', { bubbles: true }));
+  assert.deepEqual(phases, [true, false], 'true at the target, false while bubbling');
+});
+
+/**
+ * The guard here checked `typeof event.type === 'string'`, which `{ type: 'click' }` satisfies. So
+ * the server accepted a dispatch every engine refuses with a `TypeError`, and the mistake that
+ * produced it travelled to the client before failing. Where the platform throws, this throws.
+ */
+test('dispatchEvent takes an Event, not something shaped like one', () => {
+  const [, , target] = tree(globalThis.document);
+  for (const wrong of [{ type: 'click' }, 'click', null, undefined, 42, { type: 'x', bubbles: true }]) {
+    assert.throws(
+      () => target.dispatchEvent(wrong),
+      TypeError,
+      `dispatching ${JSON.stringify(wrong)} was accepted`
+    );
+  }
+  /** And the real thing still works, including a subclass. */
+  let ran = 0;
+  target.addEventListener('x', () => ran++);
+  target.dispatchEvent(new Event('x'));
+  target.dispatchEvent(new CustomEvent('x', { detail: 1 }));
+  assert.equal(ran, 2);
+});

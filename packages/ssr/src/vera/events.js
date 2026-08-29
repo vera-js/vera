@@ -58,6 +58,12 @@ export const removeListener = (node, type, callback, options) => {
 };
 
 /**
+ * `Event.CAPTURING_PHASE`, `AT_TARGET`, `BUBBLING_PHASE` — the numbers every engine reports, and
+ * which `installShims` also puts on `Event.prototype` where a browser has them and Node does not.
+ */
+const PHASES = { capture: 1, target: 2, bubble: 3 };
+
+/**
  * Run the listeners registered on one node for one phase.
  *
  * @param {any} node @param {any} event @param {'capture' | 'target' | 'bubble'} phase
@@ -67,6 +73,13 @@ const runListeners = (node, event, phase, immediatelyStopped) => {
   const entries = node._listeners?.get(event.type);
   if (!entries?.length) return;
   Object.defineProperty(event, 'currentTarget', { value: node, configurable: true });
+  /**
+   * **`eventPhase` said `NONE` for the whole dispatch**, where every engine reports 1, 2 and 3.
+   * `event.eventPhase === event.AT_TARGET` is the ordinary way a component asks "was this mine, or
+   * a descendant's?", so the server took the other branch from the client for an event both of them
+   * dispatched — with nothing to show for it until the two renders disagreed somewhere else.
+   */
+  Object.defineProperty(event, 'eventPhase', { value: PHASES[phase], configurable: true });
   /** A copy, because a listener may add or remove listeners while this runs. */
   for (const entry of [...entries]) {
     if (phase === 'capture' && !entry.capture) continue;
@@ -88,7 +101,13 @@ const runListeners = (node, event, phase, immediatelyStopped) => {
  * @returns {boolean} false when a cancelable event was prevented, as the platform reports
  */
 export const dispatch = (node, event) => {
-  if (!event || typeof event.type !== 'string')
+  /**
+   * **An `Event`, not something shaped like one.** This checked `typeof event.type === 'string'`,
+   * which `{ type: 'click' }` satisfies — so the server accepted a dispatch every engine refuses
+   * with a `TypeError`, and the code that made it got as far as the client before failing. Being
+   * lenient here does not make anything work; it moves the failure and strips the context.
+   */
+  if (!(event instanceof Event))
     throw new TypeError(`Failed to execute 'dispatchEvent' on 'EventTarget': parameter 1 is not of type 'Event'.`);
 
   const path = pathFrom(node, Boolean(event.composed));
@@ -139,5 +158,7 @@ export const dispatch = (node, event) => {
       runListeners(path[index], event, 'bubble', immediatelyStopped);
 
   Object.defineProperty(event, 'currentTarget', { value: null, configurable: true });
+  /** Back to `NONE` once the dispatch is over, as the platform reports for a finished event. */
+  Object.defineProperty(event, 'eventPhase', { value: 0, configurable: true });
   return !event.defaultPrevented;
 };

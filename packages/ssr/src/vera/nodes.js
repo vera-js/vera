@@ -1990,12 +1990,8 @@ export class ElementShim extends ContainerShim {
  * guessing at them is what this whole file exists not to do.
  */
 const build = (name, namespaceURI = HTML_NS) => {
-  const element = new ElementShim(name, namespaceURI);
-  if (namespaceURI === HTML_NS) {
-    const proto = interfaceFor(name, ElementShim.prototype);
-    if (proto !== ElementShim.prototype) Object.setPrototypeOf(element, proto);
-  }
-  return element;
+  const Element = namespaceURI === HTML_NS ? interfaceFor(name, ElementShim) : ElementShim;
+  return new Element(name, namespaceURI);
 };
 
 export const createElement = (localName, namespaceURI = HTML_NS) => {

@@ -666,6 +666,16 @@ export const installShims = () => {
       }
     }
   );
+  /**
+   * **The phase constants belong on the prototype, not only on the interface.** Node puts
+   * `CAPTURING_PHASE` and friends on `Event` alone; all three engines put them on `Event.prototype`
+   * too, so `event.AT_TARGET` reads `2` in a browser and `undefined` here. That matters because
+   * `event.eventPhase === event.AT_TARGET` is how the comparison is normally written, and against
+   * `undefined` it is `false` for every phase — the test silently never matches instead of failing.
+   */
+  for (const [name, value] of [['NONE', 0], ['CAPTURING_PHASE', 1], ['AT_TARGET', 2], ['BUBBLING_PHASE', 3]])
+    if (!(name in Event.prototype))
+      Object.defineProperty(Event.prototype, name, { value, enumerable: false, configurable: true });
 
 
   /**

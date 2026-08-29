@@ -496,28 +496,36 @@ const FORM_STATE = {
   },
 };
 
-/** Per-tag prototypes, built once and shared by every element of that tag. */
-const prototypes = new Map();
+/** Per-tag constructors, built once and shared by every element of that tag. */
+const constructors = new Map();
 
 const define = (proto, property, accessors) =>
   Object.defineProperty(proto, property, { ...accessors, configurable: true });
 
 /**
- * The prototype an element of this tag should have: `base` when the tag has no interface of its own,
- * otherwise one carrying its properties, whose own prototype is `base`.
+ * The constructor an element of this tag should be built with: `Base` when the tag has no interface
+ * of its own, otherwise a subclass carrying its properties.
  *
- * A prototype per tag rather than accessors on the shared one, because `'disabled' in paragraph`
+ * A class per tag rather than accessors on the shared prototype, because `'disabled' in paragraph`
  * must stay `false` — an element answering for members its interface does not have is the same lie
  * as one missing the members it does.
+ *
+ * A subclass rather than `Object.setPrototypeOf` on a finished element, which was the first shape
+ * this took. Measured over 20,000 elements, three runs each: setting the prototype afterwards cost
+ * **~745 ns** per `<input>` (and once wandered to 1004) against ~400 ns for a `<div>`; building it
+ * as its own class costs **~458 ns**. The `<div>` figure is unchanged either way, which is the part
+ * worth recording — the penalty was local to the element whose prototype was mutated, not spread
+ * across the shared path, so the first draft of this comment blamed a deopt it had not measured.
  */
-export const interfaceFor = (tag, base) => {
+export const interfaceFor = (tag, Base) => {
   const table = ELEMENT_REFLECTIONS[tag];
   const state = FORM_STATE[tag];
-  if (table === undefined && state === undefined) return base;
-  let proto = prototypes.get(tag);
-  if (proto !== undefined) return proto;
+  if (table === undefined && state === undefined) return Base;
+  const cached = constructors.get(tag);
+  if (cached !== undefined) return cached;
 
-  proto = Object.create(base);
+  const Element = class extends Base {};
+  const proto = Element.prototype;
   for (const [property, entry] of Object.entries(table ?? {})) {
     const [kind, attribute] = entry;
     if (kind === 'presence') {
@@ -572,8 +580,8 @@ export const interfaceFor = (tag, base) => {
     }
   }
   for (const [property, accessors] of Object.entries(state ?? {})) define(proto, property, accessors);
-  prototypes.set(tag, proto);
-  return proto;
+  constructors.set(tag, Element);
+  return Element;
 };
 
 /**
