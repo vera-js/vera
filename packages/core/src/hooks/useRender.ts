@@ -22,13 +22,24 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
         const _template = typeof template === 'function' ? (template as RenderTemplate)(props) : template;
         const renderers = inserts.get('render');
 
-        if (__DEV__) {
-          /**
-           * Core ships no renderer of its own, so nothing rendering is the expected first mistake.
-           * Silence here looks like a broken component; this names the two missing lines instead.
-           */
-          if (!renderers?.length && !warnedNoRenderer) {
-            warnedNoRenderer = true;
+        /**
+         * **Not `__DEV__`-only, and this is the one place in core that must not be.**
+         *
+         * Core ships no renderer of its own, so nothing rendering is the expected first mistake —
+         * and the mistake has three causes that all end here: `wire` never called, wired with a
+         * name that resolved to nothing, or wired something that is not a module. Every one of them
+         * produces a blank page.
+         *
+         * **Buildless is a first-class mode**, and someone pasting `vera.min.js` into CodePen from a
+         * CDN never runs a development build at all. Folding this away left that user with a blank
+         * page and complete silence — no warning here, none from `wire`, nothing anywhere. It is
+         * warned once per process and only on the failing path, so a working app never reaches it.
+         *
+         * Only the explanation folds away, which is where the bytes are.
+         */
+        if (!renderers?.length && !warnedNoRenderer) {
+          warnedNoRenderer = true;
+          if (__DEV__)
             console.warn(
               `[vera] render() called with no renderer registered — nothing will appear.\n` +
                 `Wire one once, at your app entry:\n\n` +
@@ -36,7 +47,7 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
                 `  import { renderer } from '@verajs/renderer';\n` +
                 `  wire([renderer]);\n`
             );
-          }
+          else console.warn('[vera] render(): no renderer wired');
         }
 
         /**
