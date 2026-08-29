@@ -213,7 +213,23 @@ const register = <K extends keyof InsertFunctionMap>(
      * Named where the descriptor named itself, since "something replaced something at 50" is not
      * actionable. `__DEV__`-only: production carries neither the check nor the text.
      */
-    if (__DEV__)
+    /**
+     * **The same module wired twice is not two things.**
+     *
+     * An app whose entry points share a wiring module calls `wire([styles])` from each of them, and
+     * this warned that the second had replaced the first — of a callback identical to the one
+     * already there, so nothing was replaced and nothing was lost. The advice it gave was wrong for
+     * that case too: giving `styles` a second priority would make it run twice.
+     *
+     * It fired in this repo's own kitchen-sink example, which is the reference application. A
+     * warning the reference app trips on is a warning people learn to scroll past, and then the real
+     * one — two *different* modules silently claiming 50 — goes past with it.
+     *
+     * The comparison is inside the `__DEV__` guard, so production carries neither it nor the text.
+     * A module that builds a fresh closure per call (`autoloader(base, dir)`) still warns, correctly:
+     * those are two observers, and only one of them would run.
+     */
+    if (__DEV__ && chain[existing] !== callback)
       console.warn(
         `[vera] two things were wired to '${insertName}' at priority ${priority}, so the second ` +
           `replaced the first${replacing ? ` — ${replacing}` : ''}. If both are meant to run, give ` +

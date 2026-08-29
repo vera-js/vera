@@ -79,7 +79,35 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     );
   /** `_root` first: a closed shadow root is not reachable through `element.shadowRoot`. */
   const shadowRoot = (element as StyledElement & { _root?: ShadowRoot })._root ?? element.shadowRoot;
-  const stylesArray = Array.isArray(styles) ? styles : [styles];
+  /**
+   * **`[base, isDark && darkSheet]` is how conditional styles are written**, and it produced
+   * `[sheet, false]` — which broke both paths here, differently and neither of them legibly.
+   *
+   * The shadow path reached `escapeStyleText(false)` and threw `value.replace is not a function`
+   * out of `connectedCallback`, from a file the author has never opened, taking the component with
+   * it. The light-DOM path did not throw at all: `false.cssText` is `undefined`, so the literal text
+   * `undefined` was joined into the stylesheet and hoisted to the document. `null` from a ternary
+   * threw a third message one step earlier.
+   *
+   * A falsy entry means "no styles here", exactly as the top of this function already reads a falsy
+   * `styles` argument. Dropping them once, here, is the same rule applied to the members.
+   */
+  const stylesArray = (Array.isArray(styles) ? styles : [styles]).filter(Boolean);
+
+  /**
+   * And an entry that is neither a string nor a stylesheet is a mistake worth naming, since the
+   * alternative is `value.replace is not a function` pointing at a local variable in here.
+   * `adoptStyles` and the second argument above are already refused by name; this is the same rule
+   * for the members of the first one.
+   */
+  if (__DEV__)
+    for (const style of stylesArray)
+      if (typeof style !== 'string' && !(style as CSSResultGroup).cssText && !(style as CSSResultGroup).styleSheet)
+        throw new TypeError(
+          `applyStyles: expected CSS and received ${typeof style === 'object' ? 'an object with neither cssText nor styleSheet' : `a ${typeof style}`}. ` +
+            `Pass a css\`…\` result, a string of CSS, or an array of those — a falsy entry is fine ` +
+            `and is skipped, so \`[base, dark && darkSheet]\` works.`
+        );
 
   if (shadowRoot) {
     /**

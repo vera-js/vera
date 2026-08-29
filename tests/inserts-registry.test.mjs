@@ -93,5 +93,47 @@ check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get
 }
 
 
+/**
+ * **Wiring the same module twice is not two things claiming a priority.**
+ *
+ * The duplicate-priority warning exists for a real failure: two *different* modules both taking the
+ * default 50, where the first silently never runs. It also fired when the identical callback was
+ * wired again — an app whose entry points share a wiring module does exactly that — and told the
+ * author the second had replaced the first, of a function identical to the one already there.
+ *
+ * The advice was wrong for that case too: giving `styles` a second priority would run it twice.
+ *
+ * It fired in this repo's own kitchen-sink example, which is the reference application. A warning
+ * the reference app trips on is one people learn to scroll past — and the real one goes past with
+ * it. That is the whole cost, and it is the reason to fix a false positive in a diagnostic.
+ */
+{
+  const said = [];
+  const originalWarn = console.warn;
+  const collect = (label, run) => {
+    said.length = 0;
+    console.warn = (...args) => said.push(args.join(' '));
+    try { run(); } finally { console.warn = originalWarn; }
+    return said.filter((line) => /two things were wired/.test(line)).length;
+  };
+
+  const same = () => {};
+  const descriptor = { name: 'twice-test', on: 'value', fn: same, priority: 41 };
+
+  check('wiring a module once is quiet', collect('first', () => wire(descriptor)) === 0);
+  check('wiring the identical module again is quiet', collect('again', () => wire(descriptor)) === 0);
+  check(
+    'wiring an equivalent descriptor with the same function is quiet',
+    collect('equivalent', () => wire({ name: 'twice-test', on: 'value', fn: same, priority: 41 })) === 0
+  );
+  /** And the failure it exists for still warns: a different function at the same priority.
+   * The `wire` call is made unconditionally — putting it behind `isProduction ||` short-circuited
+   * the *side effect* along with the assertion, so the replacement below never happened. */
+  const warnings = collect('different', () => wire({ name: 'other-test', on: 'value', fn: () => {}, priority: 41 }));
+  check('a different module at the same priority still warns', isProduction ? true : warnings === 1);
+  /** The replacement itself must still have happened. */
+  check('and the second one is what runs', inserts.get('value').filter((fn) => fn === same).length === 0);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
