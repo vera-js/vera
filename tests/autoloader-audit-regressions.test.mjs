@@ -74,3 +74,93 @@ test('a refused directory can be corrected and retried', () => {
   element.setAttribute('autoload-dir', 'components');
   assert.equal(instance.url('later-card', element), 'https://x.test/app/components/later-card.js');
 });
+
+/**
+ * **Every other way into the URL builder, held to the same boundary.**
+ *
+ * The test above covers `autoload-dir`, which is the untrusted vector — an ordinary HTML attribute
+ * on a page whose markup may be partly authored elsewhere. The guard it exercises also sits in front
+ * of the tag name, the `resolve` option, the `extension` option and `componentsDir`, and none of
+ * those had a test. They are all refused today; this is what keeps that true, since a containment
+ * check is exactly the kind of thing a refactor relaxes without anyone noticing.
+ *
+ * `resolve`, `extension` and `componentsDir` are the developer's own, so this is an invariant rather
+ * than a trust boundary — but "the URL is always inside `rootDir`" is worth being an invariant, and
+ * a `resolve` that quietly returns another origin is a mistake worth being told about.
+ */
+test('the containment boundary holds for every input that reaches it', () => {
+  const base = 'https://x.test/app/entry.js';
+  const outside = /resolves outside https:\/\/x\.test\/app\//;
+
+  /** A tag name arrives from markup, so it gets the same treatment as `autoload-dir`. */
+  for (const tag of ['../../../etc/passwd', '../../../../x', '../../etc/passwd'])
+    assert.throws(() => instance.url(tag), outside, `the tag ${JSON.stringify(tag)} must be refused`);
+
+  /** `resolve` replaces the whole builder, so it can return anything at all. */
+  for (const [label, resolve] of [
+    ['a traversal', () => '../../../../etc/passwd.js'],
+    ['another origin', () => 'https://evil.test/x.js'],
+    ['a protocol-relative URL', () => '//evil.test/x.js'],
+    ['a data: URL', () => 'data:text/javascript,alert(1)'],
+  ])
+    assert.throws(
+      () => autoloader(base, 'components', { resolve }).url('my-card'),
+      outside,
+      `a resolve returning ${label} must be refused`
+    );
+
+  /** The extension is appended to the path, so it can climb too. */
+  assert.throws(
+    () => autoloader(base, 'components', { extension: '.js/../../../etc/x.js' }).url('my-card'),
+    outside,
+    'an extension that climbs out must be refused'
+  );
+
+  /** And so can the directory the autoloader was created with. */
+  assert.throws(
+    () => autoloader(base, '../../..').url('my-card'),
+    outside,
+    'a componentsDir that climbs out must be refused'
+  );
+});
+
+/**
+ * **The jail is `rootDir`, not `componentsDir`** — and the difference is worth pinning, because it
+ * is the half a reader gets wrong. Climbing out of `components/` into the entry's own directory is
+ * legitimate and resolves; climbing past the entry's directory is refused.
+ *
+ * These were written the other way round first, asserting that anything containing `..` is refused,
+ * and the probe corrected it: a guard that refused `../sibling` would be refusing a URL the
+ * autoloader is supposed to be able to build.
+ */
+test('containment is measured against rootDir, not the components directory', () => {
+  assert.equal(instance.url('../sibling'), 'https://x.test/app/sibling.js', 'climbing into rootDir is allowed');
+  /** `..` is not a path segment here — appending the extension makes it the filename `...js`. */
+  assert.equal(instance.url('..'), 'https://x.test/app/components/...js');
+  assert.equal(instance.url('../..'), 'https://x.test/app/...js');
+});
+
+/**
+ * And the shape that *looks* like an escape and is not, so the guard is not simply "refuse anything
+ * unusual". A percent-encoded traversal in a tag name stays encoded, which makes it a literal
+ * filename inside the directory rather than a path segment.
+ */
+test('an encoded traversal is a filename, not a path', () => {
+  assert.equal(
+    instance.url('a-%2e%2e%2f%2e%2e%2fb'),
+    'https://x.test/app/components/a-%2e%2e%2f%2e%2e%2fb.js'
+  );
+});
+
+test('the extension is accepted with or without its dot', () => {
+  const base = 'https://x.test/app/entry.js';
+  assert.equal(autoloader(base, 'components', { extension: '.ts' }).url('my-card'), 'https://x.test/app/components/my-card.ts');
+  assert.equal(autoloader(base, 'components', { extension: 'ts' }).url('my-card'), 'https://x.test/app/components/my-card.ts');
+});
+
+test('a custom resolve that stays inside is built as it asked', () => {
+  const instance2 = autoloader('https://x.test/app/entry.js', 'components', {
+    resolve: (tag, dir) => `${dir}/${tag}/${tag}.js`,
+  });
+  assert.equal(instance2.url('my-card'), 'https://x.test/app/components/my-card/my-card.js');
+});
