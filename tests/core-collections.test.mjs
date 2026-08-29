@@ -151,5 +151,61 @@ check('for..of over a Set subscribes', iterRuns === i0 + 2 && forOfSnap === '12'
 iter.s.delete(2);
 check('and hears a delete', iterRuns === i0 + 3 && forOfSnap === '1');
 
+/**
+ * **A chained mutation was called on the raw collection**, and everything after the first link went
+ * unseen.
+ *
+ * `Map.prototype.set` and `Set.prototype.add` return the collection so they can be chained, and the
+ * wrapper returned what `method.apply(rawCollection, args)` gave it — the unproxied one. So
+ * `tags.add(1).add(2).add(3)` notified once, and the subscriber was left holding a stale value while
+ * the data was completely correct.
+ *
+ * The case that makes it worth a test rather than a footnote is a chain whose **first** link happens
+ * to change nothing — `add` of a value already present. Then there is no first notification either,
+ * nothing else is pending, and the render never happens: the collection holds three items and the
+ * page shows one, until something unrelated moves. Nothing throws and nothing logs.
+ *
+ * `forEach` had the same escape by a different door: it passes the collection to its callback as a
+ * third argument, and that was the raw one too, so a callback writing through it mutated past the
+ * proxy.
+ */
+{
+  const chained = core.createStore({ m: new Map(), s: new Set([1]) });
+  let notifications = 0;
+  core.createHook({ element: host, priority: 61, callback: () => {
+    notifications++;
+    void chained.m.size;
+    void chained.s.size;
+  }});
+  [...host._hooks[host._hooks.length - 1]][0](undefined, true);
+  const base = notifications;
+
+  /** The returned value is the collection you called it on, exactly as the built-in reports. */
+  check('set returns the store collection, not the raw one', chained.m.set('a', 1) === chained.m);
+  check('add returns the store collection', chained.s.add(2) === chained.s);
+
+  const beforeChain = notifications;
+  chained.m.set('b', 2).set('c', 3).set('d', 4);
+  check('three chained sets notify three times', notifications - beforeChain === 3);
+  check('and all three landed', chained.m.size === 4);
+
+  /** The sharp one: the first link changes nothing, so without the fix nobody hears at all. */
+  const beforeNoop = notifications;
+  chained.s.add(1).add(3).add(4);
+  check('a chain whose first link is a no-op still notifies', notifications - beforeNoop === 2);
+  check('and the set holds everything', [...chained.s].join(',') === '1,2,3,4');
+
+  /** forEach hands its callback the receiver, so writing through it is tracked. */
+  const beforeEach = notifications;
+  let sawReceiver = false;
+  chained.m.forEach((value, key, self) => {
+    if (key === 'a') { sawReceiver = self === chained.m; self.set('e', 5); }
+  });
+  check('forEach passes the store collection as its third argument', sawReceiver);
+  check('so a write through it notifies', notifications - beforeEach > 0);
+  check('and it landed', chained.m.get('e') === 5);
+  void base;
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

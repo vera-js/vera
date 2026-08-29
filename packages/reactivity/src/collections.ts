@@ -98,7 +98,20 @@ export const collectionMethod = (
       (runCallbacks as (o: object, k: unknown, v: unknown, p: unknown) => void)(obj, key, value, prevValue);
     const track = (key: unknown) => (addCallback as (o: object, k: unknown) => void)(obj, key);
 
-    wrapper = (...args: unknown[]) => {
+    /**
+     * **A `function`, not an arrow, because the receiver is the return value.**
+     *
+     * `Map.prototype.set` and `Set.prototype.add` return the collection so they can be chained, and
+     * `method.apply(obj, args)` returns the **raw** one. So the second link of
+     * `tags.add(1).add(2).add(3)` was called on the unproxied collection and every mutation after
+     * the first went unseen: the data was right and nobody was told.
+     *
+     * A chain whose *first* call happens to change nothing — `add` of a value already present, `set`
+     * of the value already there — notified **nobody at all**, and since nothing else was pending,
+     * the render never happened. The collection held three items and the page showed one, until
+     * something unrelated moved.
+     */
+    wrapper = function (this: unknown, ...args: unknown[]) {
       const [key, value] = args;
       switch (prop) {
         case 'set': {
@@ -109,7 +122,10 @@ export const collectionMethod = (
             notify(key, value, prevValue);
             notify(GLOBAL, value, prevValue);
           }
-          return result;
+          /** The proxy, so the next link of a chain is tracked too. `this` is absent only when the
+           * method was pulled off the store and called bare, where the raw collection is what the
+           * caller already had. */
+          return this ?? result;
         }
         case 'add': {
           const had = collection.has(key);
@@ -118,7 +134,7 @@ export const collectionMethod = (
             notify(key, key, undefined);
             notify(GLOBAL, key, undefined);
           }
-          return result;
+          return this ?? result;
         }
         case 'delete': {
           const prevValue = collection.get ? collection.get(key) : key;
@@ -155,10 +171,22 @@ export const collectionMethod = (
          * documented workaround was `[...state.tags.values()]`, which nobody arrives at from a
          * component that renders correctly the first time.
          */
+        /**
+         * `forEach` hands the collection to its callback as a third argument, and that was the raw
+         * one — so a callback that wrote through it mutated past the proxy and notified nobody, the
+         * same escape as the chained `set` above. The built-in passes the receiver, so this does.
+         */
+        case 'forEach': {
+          track(GLOBAL);
+          const self = this ?? obj;
+          const [callback, thisArg] = args as [(...a: unknown[]) => void, unknown];
+          return method.call(obj, (value: unknown, key: unknown) =>
+            callback.call(thisArg, value, key, self)
+          );
+        }
         case 'entries':
         case 'keys':
         case 'values':
-        case 'forEach':
         case Symbol.iterator: {
           track(GLOBAL);
           return method.apply(obj, args);

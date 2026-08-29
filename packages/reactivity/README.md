@@ -9,7 +9,7 @@ would otherwise pay for.
 | Entry | | |
 | --- | ---: | --- |
 | `@verajs/reactivity/computed` | <!--size:computed.gzip-->241 B<!--/size:computed.gzip--> | memoised derived values |
-| `@verajs/reactivity/collections` | <!--size:collections.gzip-->528 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
+| `@verajs/reactivity/collections` | <!--size:collections.gzip-->576 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
 subpath and a buildless page downloads only that one. Both entries are **additive**: neither inlines

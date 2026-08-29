@@ -129,7 +129,7 @@ describing the bytes honestly.)*
 | `@verajs/renderer/spread` | 842 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 1 439 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
-| `@verajs/reactivity/collections` | 528 B | reactive `Map` and `Set` in a store |
+| `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 599 B | `keyed()` — keyed list reconciliation |
 | `@verajs/inserts` | 357 B | the extension point |
 <!--/size:table.permodule-->
