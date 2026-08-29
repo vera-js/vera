@@ -22,6 +22,31 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   if (!element) throw new Error('init: element required');
   const shadowRoot = element.shadowRoot ?? element._root;
 
+  /**
+   * **A second `init()` in the same setup discards the hooks registered since the first, silently.**
+   *
+   * Dropping them is correct and load-bearing on a *reconnect* — `connectedCallback` runs again
+   * every time an element is re-added, and a fresh generation is what stops effects doubling, as the
+   * comment below says. Called twice in one setup it is a mistake instead, and the hooks between the
+   * two calls simply never run: no error, no warning, an effect that looks registered and is not.
+   *
+   * Told apart from a reconnect by the same signal the deferred check below uses, read *before* this
+   * call overwrites it: if this element is already the current instance, a setup is open, and a
+   * second `init()` is closing nothing and starting over. On a reconnect the pointer has been
+   * cleared by the `render()` or `mount()` that committed the last setup.
+   *
+   * `__DEV__`-only; production carries neither the check nor the message.
+   */
+  if (__DEV__ && currentInstance.element?.deref() === element && element._hooks?.length) {
+    console.warn(
+      `[vera] <${element.localName}> called init() twice in one setup, so the ${element._hooks.length} ` +
+        `hook(s) registered since the first call were discarded and will never run.\n` +
+        `init() starts a fresh generation of hooks — which is what makes it safe when a component ` +
+        `reconnects — so anything registered before a second call is dropped. Call init() once, then ` +
+        `register hooks, then render() or mount().`
+    );
+  }
+
   currentInstance.element = new WeakRef(element);
 
   /**

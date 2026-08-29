@@ -428,5 +428,81 @@ const define = (setup) => {
     said.some((line) => /cleanup exploded/.test(line)), said.join(' | ') || '(nothing reported)');
 }
 
+
+/* ── a second init() in one setup discards the hooks between them ──────────────────────────────
+ * Dropping hooks is correct and load-bearing on a *reconnect*: `connectedCallback` runs again every
+ * time an element is re-added, and a fresh generation is what stops effects doubling. Called twice
+ * in one setup it is a mistake instead, and the hooks registered between the two calls simply never
+ * ran — no error, no warning, an effect that looks registered and is not.
+ *
+ * Found by a sweep calling the lifecycle in wrong orders. The two cases are told apart by whether a
+ * setup is already open, so the reconnect path must stay silent — which is asserted here too,
+ * because a diagnostic that fires on every router navigation would be worse than none.
+ */
+{
+  const seen = [];
+  const before = console.warn;
+  console.warn = (...args) => seen.push(args.join(' '));
+  let effects = 0;
+  let effectsWithoutSecondInit = 0;
+  try {
+    const lossy = define((element) => {
+      core.init(element, { mode: 'open' });
+      core.useEffect(() => { effects++; });
+      core.init(element, { mode: 'open' });
+      core.render(() => core.html`<p>x</p>`);
+    });
+    const control = define((element) => {
+      core.init(element, { mode: 'open' });
+      core.useEffect(() => { effectsWithoutSecondInit++; });
+      core.render(() => core.html`<p>x</p>`);
+    });
+    await frame();
+    void lossy;
+    void control;
+  } finally {
+    console.warn = before;
+  }
+  check('the control effect ran', effectsWithoutSecondInit === 1, String(effectsWithoutSecondInit));
+  check('a hook registered before a second init() does not run', effects === 0, String(effects));
+  if (!isProduction) {
+    const warned = seen.filter((line) => /called init\(\) twice in one setup/.test(line));
+    check('and it says so', warned.length === 1, seen.join(' | ') || '(silent)');
+    check('naming how many hooks were discarded', /1 hook\(s\)/.test(warned[0] ?? ''), warned[0] ?? '');
+  }
+}
+
+/* ── and the reconnect path stays silent ───────────────────────────────────────────────────────
+ * The whole value of the warning above depends on this: a component re-added by a router calls
+ * `init()` again with hooks from the previous generation still on the element, and must not warn.
+ */
+{
+  const seen = [];
+  const before = console.warn;
+  console.warn = (...args) => seen.push(args.join(' '));
+  let runs = 0;
+  try {
+    const tag = `x-reconnect-${Math.random().toString(36).slice(2, 8)}`;
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        core.init(this, { mode: 'open' });
+        core.useEffect(() => { runs++; });
+        core.render(() => core.html`<p>x</p>`);
+      }
+    });
+    const element = dom.window.document.createElement(tag);
+    for (let cycle = 0; cycle < 3; cycle++) {
+      body.appendChild(element);
+      await frame();
+      body.removeChild(element);
+      await frame();
+    }
+  } finally {
+    console.warn = before;
+  }
+  check('three reconnects run the effect three times', runs === 3, String(runs));
+  check('and none of them warn', seen.filter((l) => /init\(\) twice/.test(l)).length === 0, seen.join(' | '));
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
