@@ -24,7 +24,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-import { distUrl } from './dist.mjs';
+import { distUrl, isProduction } from './dist.mjs';
 
 const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
@@ -46,6 +46,11 @@ const PACKAGES = {
   '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
   '@verajs/jsx': 'jsx',
+  /** Every published entry, so a recipe can be written for any of them. `renderer/profiler` was
+   * missing, and the suite's own error said so — "add it to PACKAGES to run a recipe that imports
+   * it" — which is a message nobody sees until they try to mark a profiler recipe. */
+  '@verajs/renderer/profiler': 'renderer/profiler',
+  '@verajs/ssr': 'ssr',
 };
 
 /**
@@ -208,11 +213,15 @@ const recipes = readmes.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  /** Newly runnable: the runner had no `MutationObserver` and executed recipes as `data:` URLs, so
+   * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
+   * quick start is executed rather than merely printed. */
+  'packages/autoloader/README.md': 1,
   'packages/core/README.md': 1,
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
   'packages/reactivity/README.md': 1,
-  'packages/renderer/README.md': 3,
+  'packages/renderer/README.md': 4,
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
 };
@@ -229,7 +238,15 @@ test('the marked recipes are exactly the ones we expect', () => {
 const RUNNER = new URL('./run-recipe.mjs', import.meta.url).pathname;
 
 for (const { path, body, index } of recipes) {
-  test(`${path} — recipe ${index} runs clean`, () => {
+  /**
+   * `@verajs/renderer/profiler` has **no production build** — its instrumentation sits behind a
+   * `__DEV__` constant the build folds away, so there is nothing to ship and `exports` names no
+   * `.min.js`. A recipe importing it can only run against the development artifacts.
+   */
+  const developmentOnly = isProduction && /@verajs\/renderer\/profiler/.test(body)
+    ? 'the profiler has no production build'
+    : false;
+  test(`${path} — recipe ${index} runs clean`, { skip: developmentOnly }, () => {
     const resolved = resolveImports(body, `recipe-${index}`);
     const result = spawnSync('node', [RUNNER, Buffer.from(resolved).toString('base64')], {
       encoding: 'utf8',

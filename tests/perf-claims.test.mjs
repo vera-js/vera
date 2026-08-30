@@ -40,6 +40,41 @@ const best = (fn, reps, rounds = 7) => {
   return fastest;
 };
 
+/**
+ * The best **ratio** of two costs, measured in the same round.
+ *
+ * `best(a)` then `best(b)` takes the minimum of each *independently*, which is the right statistic
+ * for either one alone and the wrong one for their ratio. The two are not equally fragile: the
+ * cheaper measurement is short enough that a single scheduling preemption dominates its minimum,
+ * while the dearer one absorbs the same interruption. So under load the *fast* side inflates and the
+ * ratio collapses — this claim measures ~300x on a quiet machine and was seen at **16.9x and 14.7x**
+ * during full gate runs, twice failing an assertion set at 20x while passing every time it was
+ * re-run alone.
+ *
+ * Timing both inside one round makes them see the same machine, and taking the best ratio across
+ * rounds picks the least-contended pair rather than combining two unrelated minima. The assertion is
+ * unchanged: a real 20x is still required.
+ */
+const bestRatio = (dear, cheap, reps, rounds = 7) => {
+  let ratio = 0;
+  let sample = [0, 0];
+  for (let round = 0; round < rounds; round++) {
+    const dearStarted = performance.now();
+    for (let i = 0; i < reps; i++) dear(i);
+    const dearCost = (performance.now() - dearStarted) * 1e6;
+
+    const cheapStarted = performance.now();
+    for (let i = 0; i < reps; i++) cheap(i);
+    const cheapCost = (performance.now() - cheapStarted) * 1e6;
+
+    if (cheapCost > 0 && dearCost / cheapCost > ratio) {
+      ratio = dearCost / cheapCost;
+      sample = [dearCost / reps, cheapCost / reps];
+    }
+  }
+  return { ratio, dear: sample[0], cheap: sample[1] };
+};
+
 /** Accumulated into a global so nothing can be optimised away as unused. */
 globalThis.__perfSink = 0;
 const walk = (list) => {
@@ -53,8 +88,11 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
   const deep = core.createStore({ rows: rows() });
   const shallow = core.shallowRef(rows());
 
-  const deepCost = best(() => walk(deep.rows), 200);
-  const shallowCost = best(() => walk(shallow.value), 200);
+  const { ratio, dear: deepCost, cheap: shallowCost } = bestRatio(
+    () => walk(deep.rows),
+    () => walk(shallow.value),
+    200
+  );
 
   /**
    * Measured at ~300x. Asserted at 20x, which is far enough below to survive any machine and far
@@ -63,8 +101,8 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
    * did nothing at all.
    */
   assert.ok(
-    deepCost / shallowCost > 20,
-    `a deep store should be far costlier to walk than a shallowRef; measured ${(deepCost / shallowCost).toFixed(1)}x ` +
+    ratio > 20,
+    `a deep store should be far costlier to walk than a shallowRef; measured ${ratio.toFixed(1)}x ` +
       `(deep ${deepCost.toFixed(0)} ns/row, shallow ${shallowCost.toFixed(0)} ns/row). ` +
       `If this dropped, shallowRef has stopped being shallow.`
   );

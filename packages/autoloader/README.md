@@ -17,6 +17,7 @@ npm i @verajs/autoloader
 
 ## Quick start
 
+<!-- recipe -->
 ```js
 import { wire } from '@verajs/core';
 import { autoloader } from '@verajs/autoloader';

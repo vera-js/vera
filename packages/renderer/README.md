@@ -427,6 +427,7 @@ it loads alongside any renderer that honours the protocol, including your own.
 
 ## `@verajs/renderer/profiler`
 
+<!-- recipe -->
 ```js
 import { renderInto, profile, formatReport } from '@verajs/renderer/profiler';
 
