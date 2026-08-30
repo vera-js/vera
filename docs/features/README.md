@@ -17,7 +17,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 | | Claim | Strength |
 | --- | --- | --- |
 | [Size](size.md) | <!--size:app.kb-->6.1 KB<!--/size:app.kb--> for a working app — level with Lit, under Preact, 10x under React | **Strong** — measured |
-| [Zero dependencies](zero-dependencies.md) | No third-party runtime deps in any of the seven packages | **Strong** — measured, but shared |
+| [Zero dependencies](zero-dependencies.md) | No third-party runtime deps in any published package | **Strong** — measured, but shared |
 | [Buildless](buildless.md) | Works in CodePen with no toolchain at all | **Strong** — architectural |
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
 | [No base class](no-base-class.md) | Attaches to a plain `HTMLElement`; retrofittable | **Strong** — structural, Lit cannot match |

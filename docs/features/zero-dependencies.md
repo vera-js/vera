@@ -25,14 +25,28 @@ measured in [size.md](size.md):
 | Vue | 22 | `@babel/helper-string-parser`, `@babel/helper-validator-identifier`, `@babel/parser`, `@babel/types`, +18 more |
 <!--/size:table.deps-->
 
-All seven published packages — `core`, `renderer`, `router`, `autoloader`, `inserts`, `jsx`, `ssr` —
-declare no third-party dependency. The only entry in any `dependencies` field is `@verajs/inserts`,
-which is first-party, and the production bundles inline it. Verify with:
+**All eleven published packages** declare no third-party dependency: `core`, `renderer`, `router`,
+`autoloader`, `inserts`, `jsx`, `ssr`, `reactivity`, `styles`, `eslint-config` and `tsconfig`. The
+only entries in any `dependencies` field are first-party — `@verajs/inserts` for core, and
+`@verajs/core` for `reactivity` — and the production bundles inline them.
+
+Verify by enumerating rather than by list, since a list is what went stale here: this said "seven"
+from before `reactivity` and `styles` were split out of core in 0.2.0, and the command below named
+the same seven, so running it confirmed the claim about a subset while reading as though it covered
+everything.
 
 ```bash
-node -e "for (const p of ['core','renderer','router','autoloader','inserts','jsx','ssr'])
-  console.log(p, require('./packages/'+p+'/package.json').dependencies ?? {})"
+node -e "const { globSync, readFileSync } = require('fs');
+for (const f of globSync('packages/*/package.json')) {
+  const m = JSON.parse(readFileSync(f, 'utf8'));
+  if (m.private) continue;
+  const third = [...Object.keys(m.dependencies ?? {}), ...Object.keys(m.peerDependencies ?? {})]
+    .filter((d) => !d.startsWith('@verajs/'));
+  console.log(m.name, third.length ? third : 'zero third-party');
+}"
 ```
+
+`tests/zero-dependencies.test.mjs` asserts the same thing on every run.
 
 ## Why measured this way
 
