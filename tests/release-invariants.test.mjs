@@ -16,6 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { globSync, readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -114,4 +115,36 @@ test('every published package has what npm needs to publish it', () => {
     if (!existsSync(join(root, dir, 'README.md'))) problems.push(`${json.name}: no README.md`);
   }
   assert.deepEqual(problems, [], `these would publish wrong or not at all:\n  ${problems.join('\n  ')}`);
+});
+
+/**
+ * **`llms.txt` must not say a package is on npm before it is.**
+ *
+ * It listed `@verajs/reactivity` among the packages "live" on npm. That package has never been
+ * published — confirmed against the registry, and independently against the release tags, which is
+ * the check used here because it needs no network. A reader following the file's own list runs
+ * `npm i @verajs/reactivity` and gets a 404, and `llms.txt` is the file most likely to be copied.
+ *
+ * A package with no `@verajs/<name>@*` tag has never been released — `scripts/tag-release.mjs`
+ * tags on release and reports the untagged ones — so the tags are the local record of what exists
+ * on the registry.
+ */
+test('llms.txt does not claim an unreleased package is on npm', () => {
+  const doc = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
+  const claim = /Published to npm as of([\s\S]*?)Every release/.exec(doc);
+  assert.ok(claim, 'the "published to npm" list in llms.txt has changed shape');
+
+  /** Names inside that sentence, `@verajs/`-prefixed or bare. */
+  const listed = [...claim[1].matchAll(/`@?(?:verajs\/)?([a-z-]+)`/g)].map((m) => m[1]);
+  assert.ok(listed.length >= 5, `only found ${listed.length} package names in the claim`);
+
+  const tags = execFileSync('git', ['tag', '--list', '@verajs/*'], { cwd: root, encoding: 'utf8' });
+  const released = new Set([...tags.matchAll(/@verajs\/([a-z-]+)@/g)].map((m) => m[1]));
+
+  const overclaimed = listed.filter((name) => !released.has(name));
+  assert.deepEqual(
+    overclaimed,
+    [],
+    `llms.txt says these are on npm and they carry no release tag, so they have never been published: ${overclaimed.join(', ')}`
+  );
 });

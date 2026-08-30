@@ -18,9 +18,13 @@ it correctly. Everything else is standard Custom Elements and lit-html, which mo
 >   operations of the benchmark (create/append/update/select/swap/remove/clear); prefer it.
 > - Render scheduling defaults to `requestAnimationFrame` — settled: the browser benchmarks were
 >   won on that default. `setRenderScheduler(microtask)` remains for apps that want Lit/Vue timing.
-> - Published to npm as of 2026-08-21. `@verajs/core`, `renderer`, `router`, `autoloader`,
->   `inserts`, `jsx`, `ssr`, `styles` and `reactivity` are live; every release from 0.1.1 carries a
->   GitHub Actions provenance attestation (`npm audit signatures`).
+> - Published to npm as of 2026-08-21: `@verajs/core`, `renderer`, `router`, `autoloader`,
+>   `inserts`, `jsx`, `ssr` and `styles`. Every release from 0.1.1 carries a GitHub Actions
+>   provenance attestation (`npm audit signatures`).
+> - **`@verajs/reactivity` is NOT on npm yet.** It exists in the repository and is built and tested
+>   like the rest, but a brand-new package's first publish cannot use Trusted Publishing — npm
+>   requires the package to exist before a publisher can be attached — so its first version goes up
+>   by hand. Install it from the repository until then; `npm i @verajs/reactivity` will 404.
 > - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
 >   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
 >   under `@web/test-runner` and Playwright. Green in CI. `npm run gate` runs all of it.
