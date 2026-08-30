@@ -3,7 +3,7 @@
 Operational conventions and project parameters. Records decisions that are **not** derivable from the
 code, so they are not re-litigated.
 
-- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (nine principles, equally weighted)
+- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (ten principles, equally weighted)
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
 - **AI-facing API spec:** `llms.txt` at the root (convention puts it there, like `robots.txt`).
   Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source

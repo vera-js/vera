@@ -1,6 +1,6 @@
 # Code Principles
 
-The bar every change in **VeraJS** must clear. These nine principles are the definition of "good"
+The bar every change in **VeraJS** must clear. These ten principles are the definition of "good"
 for this codebase — reviews, audits, and new work are measured against all of them.
 
 **All nine are equally important. None outranks another.** Do not trade one away to maximize
@@ -219,12 +219,55 @@ trap for users.
 
 ---
 
+## 10. Documentation has exact parity with behaviour
+
+**A document that describes the code is part of the code.** Every change carries its documentation
+with it, in the same pass — not as a follow-up, not as a task for later, not "when things settle".
+
+- **Changing a feature changes its docs.** The README, the doc comment, `llms.txt`, the feature page
+  — whichever of them describes it. If the change moves a number, the number moves in the same
+  commit.
+- **Changing a document means checking it against the code.** Prose is not a place to write what you
+  intend; it is a place to write what happens. If you find you are describing something that is not
+  quite true yet, either make it true or write what is true.
+- **Fixing a bug means asking what the docs said about it.** A defect usually has a sentence
+  somewhere claiming the opposite, and that sentence is what sent someone into the wrong file. Fix
+  both.
+- **Removing a feature means removing every mention.** Names live in prose as much as in code, and
+  prose is the half no import check or recipe runner reaches — `setRenderer` survived its own
+  deletion in 23 places across four READMEs, `llms.txt` and `docs/ARCHITECTURE.md` with every suite
+  green. Adding the name to `tests/docs-removed-apis.test.mjs` is one line at the moment the
+  knowledge exists.
+
+**A wrong document is worse than a missing one.** Missing documentation makes someone read the code;
+wrong documentation makes them trust a sentence and stop looking. The audits keep finding the same
+shape — a claim that was true once, describing something that has moved:
+
+- `hydrate.ts` called a `<textarea>` carve-out "the one respect in which a hydrated DOM is not
+  byte-identical to a client-rendered one". There were four, and the sentence made a probe report one
+  of the other three as a defect.
+- `hold` was documented as preserving "a scroll offset". Every engine discards it on detach, so the
+  claim was impossible rather than unimplemented — read as a bug, it sends someone into `hold`
+  hunting for a line that was never there.
+- The buildless JSX recipe in `llms.txt` explained that `keyed` is injected from `@verajs/renderer`.
+  It comes from `@verajs/renderer/keyed`, and a page built on the sentence does not render.
+- `docs/features/zero-dependencies.md` said "all seven published packages" when there were eleven,
+  and printed a verification command naming the same seven — so running the document's own
+  instructions confirmed a claim about a subset.
+
+**Prefer a check to a promise.** Where a claim can be executed, execute it: a `<!-- recipe -->` block,
+a test that reads the documented list out of the source and requires the prose to match, a
+measurement checked in beside the number it justifies. Every example in the list above was found by
+running a document that nothing had ever run, and each is now held by something that runs.
+
+---
+
 ## Applying these
 
-- **Every non-trivial change should be checkable against this list.** For an audit, walk all nine per
+- **Every non-trivial change should be checkable against this list.** For an audit, walk all ten per
   file/behavior and note where each is met, at risk, or violated.
 - **Equal weight is the rule that makes the others honest:** you cannot justify insecure code by "it's
-  simpler," or duplicated code by "it's faster." If you cannot satisfy all nine, that is a
+  simpler," or duplicated code by "it's faster." If you cannot satisfy all ten, that is a
   conversation with the developer, not a silent trade.
 - **Surface, don't bury.** Trade-offs, legacy smells, and better patterns spotted in passing get
   raised with why/where/how — the developer decides whether to act now, defer, or accept.
