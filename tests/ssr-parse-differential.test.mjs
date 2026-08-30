@@ -254,3 +254,61 @@ test('and the warning does not claim markup is never parsed', () => {
     `the warning claims markup is not parsed, and almost all of it is: ${message}`
   );
 });
+
+/**
+ * **The warning has to survive the container having other children.**
+ *
+ * It was guarded on `!nodes.length`, so a container holding both parsed nodes and a declined chunk
+ * answered `children` with only the nodes, said **nothing**, and still emitted the declined markup
+ * into the output. Some content visible and some invisible is harder to diagnose than none visible,
+ * and it was precisely the half with no warning.
+ *
+ * Dropping that guard is safe because a surviving string entry means exactly one thing. Asserted
+ * below rather than argued: markup that parses becomes nodes, `append('text')` becomes a text node,
+ * and `append('<p>x</b>')` becomes a text node too — a string argument is text, not markup. So the
+ * only entry still a string after parsing is a chunk the parser declined.
+ */
+test('a declined chunk is reported even when the element has other children', () => {
+  const warningsFor = (build) => {
+    const said = [];
+    const { warn } = console;
+    console.warn = (...args) => said.push(args.join(' '));
+    try {
+      const host = document.createElement('div');
+      build(host);
+      void host.children.length;
+      return { said: said.filter((line) => /could not be parsed/.test(line)), children: host.children.length };
+    } finally {
+      console.warn = warn;
+    }
+  };
+
+  /** Declined on its own — the case the warning was originally written for. */
+  const alone = warningsFor((host) => {
+    host.innerHTML = '<p>x</b>';
+  });
+  assert.equal(alone.said.length, 1, 'a declined chunk on its own should warn');
+
+  /** Declined alongside a real node — the case that used to be silent. */
+  const mixed = warningsFor((host) => {
+    host.innerHTML = '<p>x</b>';
+    host.appendChild(document.createElement('b'));
+  });
+  assert.equal(mixed.children, 1, 'the appended element should be visible');
+  assert.equal(
+    mixed.said.length,
+    1,
+    'a declined chunk went unreported because the element had another child — the harder case, not the easier one'
+  );
+
+  /** And nothing legitimate triggers it. */
+  for (const [name, build] of [
+    ['well-formed markup', (host) => { host.innerHTML = '<b>good</b>'; }],
+    ['markup plus an appended element', (host) => { host.innerHTML = '<b>good</b>'; host.appendChild(document.createElement('i')); }],
+    ['append() with plain text', (host) => { host.append('plain text'); }],
+    ['append() with a string that looks like markup', (host) => { host.append('<p>x</b>'); }],
+  ]) {
+    const quiet = warningsFor(build);
+    assert.equal(quiet.said.length, 0, `${name} should not warn — a string argument is text, not declined markup`);
+  }
+});
