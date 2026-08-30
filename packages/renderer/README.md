@@ -296,6 +296,25 @@ on them would only cost every commented template its adoption.
 On a CDN page, point the import map's `@verajs/renderer` at `vera-renderer-hydrate.min.js` and
 nothing else changes. Apps that never hydrate download none of this.
 
+### Importing this in Node
+
+**`@verajs/renderer` needs a DOM to be imported at all**, not merely to render. It captures
+`document` at module scope and builds two shared `TreeWalker`s there, which is what saves an
+allocation per instance — so `import '@verajs/renderer'` on a server throws
+`ReferenceError: document is not defined` before any of your code runs. The same is true of
+`/hydrate` and `/profiler`, and of `@verajs/jsx/standalone`, which contains a renderer.
+
+This is worth stating because [`@verajs/router`](../router#node-and-ssr) documents the opposite
+about itself, and the asymmetry is easy to read the wrong way. The rest of the family is Node-safe:
+`@verajs/core`, `@verajs/inserts`, `@verajs/reactivity` and `/collections`, `@verajs/router`,
+`@verajs/styles`, `@verajs/autoloader`, `@verajs/jsx` (the transform), `@verajs/ssr` — **and
+`@verajs/renderer/keyed`, `/spread` and `/tag`**, which hold no DOM of their own even though their
+parent entry does.
+
+In a universal app, hand the renderer in rather than importing it in shared code — which is what
+`examples/kitchen-sink/wiring.js` does, taking it as a parameter so the server can pass `null`.
+`tests/node-import-safety.test.mjs` holds both halves of that list.
+
 ## `@verajs/renderer/spread`
 
 Spread a props object onto an element, with names resolved at runtime.

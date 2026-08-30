@@ -556,6 +556,12 @@ Semantics worth stating:
   decodes individually. A malformed escape yields the raw text rather than throwing.
 - Window listeners attach on the first `initRouter`, so importing the router is side-effect-free
   and Node-safe (SSR can import it; routing itself is browser-only).
+- **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
+  where there is no DOM throws `ReferenceError: document is not defined`. Same for
+  `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
+  `inserts`, `reactivity`, `reactivity/collections`, `renderer/keyed`, `renderer/spread`,
+  `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
+  renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow
   root are invisible to the click listener (event retargeting).
 - A `before-leave`/`before-route` handler returning `false` cancels navigation; a **throwing**
