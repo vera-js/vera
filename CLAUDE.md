@@ -45,6 +45,19 @@ code, so they are not re-litigated.
   question is not "is this member present" but "does it refuse what the platform refuses"** — a
   member that exists and is too permissive looks exactly like one that is correct, and being lenient
   server-side only moves the failure to the client with the context stripped off.
+- **A retention probe needs two controls, and `const x = …` in the loop is not one of them.**
+  Measuring whether the framework leaks means measuring against something, or the number means
+  nothing in either direction: a **retained** control that must stay alive (or the run is collecting
+  things it should not, and everything looks clean) and a **dropped** plain object that must die (or
+  `gc()` is not running, and everything looks leaked).
+  The specific trap, measured with **no framework and no DOM at all**: 30 plain objects each bound to
+  a `const` and then `WeakRef`'d leave the **last one alive**; the same 30 created inline inside the
+  `WeakRef()` call leave **none**. So `for (…) { const el = make(); …; refs.push(new WeakRef(el)) }`
+  always reports one survivor — the loop's final binding, not a leak — and it survives arbitrary
+  further churn, which makes it look like a bounded framework hold rather than an artefact. That
+  reading cost a bisect across six component shapes before a plain-object control settled it.
+  **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
+  `--expose-gc` made the old behaviour look correct); keep gc measurement in `.probe/`.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
