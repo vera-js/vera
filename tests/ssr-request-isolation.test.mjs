@@ -173,12 +173,23 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 {
   const { html: markup } = await renderToString(fixture('adversarial-ssr.js'));
 
-  assert.equal(markup.split('<b>MARK</b>').length - 1, 2,
-    `expected exactly the two real components to render:\n${markup}`);
+  assert.equal(markup.split('<b>MARK</b>').length - 1, 3,
+    `expected exactly the three real components to render:\n${markup}`);
   assert.match(markup, /<mark-comp title="x &#62; y">/,
     'a `>` inside an attribute value keeps the whole value');
   assert.ok(!/<!--[^>]*shadowrootmode/.test(markup), 'nothing is rendered inside a comment');
   assert.ok(!/<textarea>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside a textarea');
+  /**
+   * `<iframe>` and `<noscript>` are raw text in every engine, so a component named inside one is
+   * never upgraded on the client — rendering it on the server would put markup on the page that the
+   * browser reads as characters, and nothing would ever replace it.
+   */
+  assert.ok(!/<iframe>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside an iframe');
+  assert.ok(!/<noscript>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside a noscript');
+  /** Templates nest, so the skip is depth-aware rather than a search for the next closing tag. */
+  assert.ok(!/<template><template>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside nested templates');
+  /** An unquoted attribute value ends at whitespace, so the tag after it is a real one. */
+  assert.match(markup, /<mark-comp id="unquoted"><template/, 'a component after an unquoted attribute renders');
   assert.match(markup, /<div id="a" title="a > b">/, 'a plain element with `>` in an attribute is untouched');
 }
 
