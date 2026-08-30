@@ -7,9 +7,29 @@
  * matcher that silently mishandles `:hover` would be the same defect in a new place, so anything
  * outside the grammar below throws and names itself.
  *
- * The grammar is what a server can answer honestly: structure and attributes. Everything it refuses
- * needs something a server does not have — user state (`:hover`, `:focus`), layout (`:visible`), or
- * a document (`:root`, `:target`).
+ * ## What it accepts
+ *
+ * Type, universal, class, id, every attribute operator with the `i`/`s` flag, `:not()` over one
+ * compound, and all four combinators — descendant, `>`, `+`, `~`.
+ *
+ * ## What it refuses, and why that is two different reasons
+ *
+ * Most refusals need something a server does not have: user state (`:hover`, `:focus`, `:checked`),
+ * layout (`:visible`), or a document (`:root`, `:target`).
+ *
+ * **But not all of them, and the difference used to be papered over.** `:first-child`,
+ * `:last-child`, `:nth-child()`, `:only-child`, `:empty`, `:first-of-type` and `:nth-of-type()` are
+ * pure structure — this DOM has everything needed to answer them — and they are refused too, because
+ * this matcher does not implement them. So are `:is()`, `:where()` and `:has()`.
+ *
+ * Saying only "a pseudo-class needs user state, layout or a document" made that sound like a
+ * property of servers rather than a limit of this file, and a reader following the rule would predict
+ * `:first-child` works. Refusing is still the right behaviour — it is loud, and a wrong answer would
+ * not be — but the reason has to be the true one. Implementing the structural set is a **feature**,
+ * not a fix, and is not being done here on the way past.
+ *
+ * `tests/ssr-selector-grammar.test.mjs` holds the boundary as a list, so a selector moving from one side
+ * to the other is a decision rather than a surprise.
  */
 
 /** `[name op "value" i]` — every attribute operator the platform defines. */

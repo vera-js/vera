@@ -143,9 +143,13 @@ describe.
   invalid custom-element name, `appendChild` of a non-node. A server that is lenient about an error
   does not make anything work; it moves the failure to the client and strips the context. The
   exceptions are deliberate: **a selector this DOM cannot answer honestly throws** rather than
-  answering `null` — it matches on structure and attributes, and a pseudo-class needs user state,
-  layout or a document that a server does not have, so `:hover` raises instead of quietly reporting
-  no match;
+  answering `null`. It matches type, class, id, every attribute operator, `:not()` and all four
+  combinators — descendant, `>`, `+` and `~`. Everything else raises instead of quietly reporting no
+  match, for **two different reasons**: `:hover`, `:checked`, `:visible` and `:root` need user state,
+  layout or a document a server does not have, while `:first-child`, `:nth-child()`, `:empty`,
+  `:first-of-type`, `:is()` and `:has()` are answerable here and simply are not implemented. That
+  second group used to be covered by the first reason, which made a limit of this matcher read as a
+  property of servers — and predicted, wrongly, that `:first-child` would work;
   **`checkVisibility()` is always `false`**, since nothing here is laid out and a
   server cannot know what CSS will do, a constructed sheet holds its CSS as **text** rather
   than a parsed rule list — so `cssRules` is empty whatever the sheet contains, which is all the
