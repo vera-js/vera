@@ -268,13 +268,52 @@ export const navigate = async (
    * `SecurityError` that nothing caught. An open-redirect payload therefore took the page down
    * rather than being declined.
    *
-   * Only paths that *look* absolute are re-resolved, so a hash-only or relative navigation keeps
-   * its exact current handling. A same-origin absolute URL is normalised to the path form the
-   * matcher expects, which is what a link already passes.
+   * **Every string is resolved, not only the ones that look absolute.** This condition used to be
+   * `path.startsWith('//') || /^scheme:/`, which meant `navigate()` and a routed link disagreed about
+   * every other shape a URL can take. `methods.ts` resolves a clicked `href` through this same
+   * `new URL(…)` and takes `.pathname`, so a click was always fully normalised while the programmatic
+   * call was not. Measured from a page at `/shop/items`:
+   *
+   * | input | as a link | via `navigate()`, before |
+   * | --- | --- | --- |
+   * | `edit`, `./edit` | `/shop/edit` | nothing |
+   * | `../a/b` | `/a/b` | nothing |
+   * | `/a/./b`, `/a/c/../b` | `/a/b` | nothing |
+   * | `#top`, `?q=1` | the current route | nothing |
+   *
+   * Seven of eight silently dead-ended, and the README's own motivating example —
+   * `navigate(params.get('next'))` for a `?next=` redirect — is a direct route to it.
+   *
+   * The cost is named rather than hidden: `navigate('login')` used to dead-end and warn, which
+   * surfaced a typo, and now resolves against the current page like any relative URL. A loud failure
+   * becomes a quiet redirection. That is the same trade `<a route href="login">` has always made, and
+   * relative resolution against the current document is the oldest rule on the web — a developer
+   * writing `navigate('login')` means the relative URL.
    */
-  if (typeof path === 'string' && (path.startsWith('//') || /^[a-z][a-z\d+\-.]*:/i.test(path))) {
-    const resolved = new URL(path, window.location.href);
-    if (resolved.origin !== window.location.origin) {
+  if (typeof path === 'string') {
+    /**
+     * **A base the URL parser rejects leaves the path alone.**
+     *
+     * `new URL('/never', 'about:blank')` throws `Invalid URL` — an opaque base has no origin to
+     * resolve against, and the same is true of a `srcdoc` iframe or a freshly-`window.open`ed blank
+     * window. Before this function resolved every string, an absolute path skipped the parser
+     * entirely and worked there; widening it turned that into a synchronous throw inside an `async`
+     * function, which surfaces as an unhandled rejection naming neither `navigate` nor the URL.
+     *
+     * Found by the gate rather than by reasoning — `tests/module-api.test.mjs` runs under a jsdom
+     * whose document is `about:blank`, and it failed in both builds the moment the condition widened.
+     *
+     * Falling back to the raw path restores exactly the old behaviour for the only case that can
+     * reach it: there is no base, so there is nothing to normalise against, and an absolute path is
+     * already the form the matcher wants.
+     */
+    let resolved;
+    try {
+      resolved = new URL(path, window.location.href);
+    } catch {
+      resolved = null;
+    }
+    if (resolved && resolved.origin !== window.location.origin) {
       if (__DEV__)
         console.warn(
           `[vera] navigate() refused "${path}" — it resolves to ${resolved.origin}, and this ` +
@@ -282,7 +321,7 @@ export const navigate = async (
         );
       return false;
     }
-    path = resolved.pathname + resolved.search + resolved.hash;
+    if (resolved) path = resolved.pathname + resolved.search + resolved.hash;
   }
   if (path === state.currentPath) return true;
   const id = ++navigationId;

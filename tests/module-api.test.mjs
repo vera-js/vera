@@ -88,7 +88,19 @@ test('setMatchFunction replaces the route matcher', async () => {
   r.addRoutes([{ path: '/never', component: () => '' }]);
   assert.ok(calls.includes('/never'), 'the custom matcher compiled the route pattern');
 
-  /** And the replacement decides matching: /never can never match under it. */
+  /**
+   * And the replacement decides matching: /never can never match under it.
+   *
+   * **This line also pins something it does not look like it pins.** This suite runs under a jsdom
+   * whose document is `about:blank`, so `window.location.href` is an opaque base and
+   * `new URL('/never', 'about:blank')` throws `Invalid URL`. When `navigate()` was widened to resolve
+   * every string rather than only the ones that look absolute, that throw escaped from inside an
+   * `async` function as an unhandled rejection naming neither `navigate` nor the URL — and this was
+   * the only test in the repo that caught it, in both builds.
+   *
+   * `services.ts` now falls back to the raw path when the base is unparseable. Do not "fix" this
+   * suite by giving the JSDOM a `url:`; the opaque base is what makes it load-bearing.
+   */
   await router.navigate('/never');
   assert.equal(view.textContent, '', 'the custom matcher refused the route');
 });

@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.59 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.57 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -156,7 +156,22 @@ navigate({ name: 'user', params: { id: 5 } }); // by name
 
 navigate('https://this-site/users/5');         // same origin, normalised to the path
 navigate('//elsewhere.test/x');                // refused — returns false, warns in development
+
+navigate('edit');                              // relative to the current page, like an href
+navigate('../a/b');                            // dot-segments resolve, like an href
+navigate('?q=1');                              // same route, new query
 ```
+
+**`navigate()` resolves a path exactly as a routed link does.** Both put it through
+`new URL(path, location.href)`, so relative paths, `.` and `..` segments, and a bare `?query` all mean
+what they mean in an `href`. They did not always agree: `navigate()` used to resolve only paths that
+*looked* absolute, so seven of eight of the shapes above silently matched nothing while the same
+value in an `<a route href>` worked.
+
+The trade is worth naming. `navigate('login')` from `/shop/items` now goes to `/shop/login` rather
+than dead-ending with a warning, so a typo becomes a wrong page instead of a visible failure — the
+same trade `<a route href="login">` has always made, and relative resolution against the current
+document is the oldest rule on the web.
 
 **A path that names an origin is checked against this one**, exactly as a routed link is: the router
 moves within one site, and anything else belongs to the browser. That matters because

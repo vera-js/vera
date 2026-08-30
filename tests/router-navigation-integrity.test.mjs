@@ -214,5 +214,56 @@ const app = (routes, options = {}) => {
   check('and the URL agrees with the view', window.location.pathname === '/hop-to', window.location.pathname);
 }
 
+// ── navigate() accepts what a routed link accepts ─────────────────────────────────────────────
+/**
+ * **`navigate()` and `<a route href>` have to resolve a path the same way.**
+ *
+ * `methods.ts` puts a clicked `href` through `new URL(href, location.href)` and takes `.pathname`, so
+ * a click has always been fully normalised. `navigate()` only did that for paths that *looked*
+ * absolute — `//host` or a scheme — so every other shape a URL can take reached the matcher raw and
+ * silently matched nothing. Measured from `/shop/items`, seven of eight inputs dead-ended where the
+ * equivalent link worked, and the README's own example for the feature —
+ * `navigate(params.get('next'))` honouring a `?next=` redirect — is a direct route to it.
+ *
+ * Each case is asserted against the **route reached**, not the resulting URL, because a path that
+ * normalises to the wrong thing still produces a plausible-looking URL.
+ */
+{
+  const hits = [];
+  const { router } = app([
+    { path: '/shop/items', component: () => (hits.push('items'), 'items') },
+    { path: '/shop/edit', component: () => (hits.push('edit'), 'edit') },
+    { path: '/a/b', component: () => (hits.push('a/b'), 'a/b') },
+  ]);
+  void router;
+
+  const from = async (input) => {
+    await navigate('/shop/items');
+    hits.length = 0;
+    await navigate(input);
+    return hits[hits.length - 1];
+  };
+
+  for (const [input, expected] of [
+    ['edit', 'edit'],
+    ['./edit', 'edit'],
+    ['../a/b', 'a/b'],
+    ['/a/./b', 'a/b'],
+    ['/a/c/../b', 'a/b'],
+    ['?q=1', 'items'],
+  ]) {
+    const reached = await from(input);
+    check(`navigate(${JSON.stringify(input)}) resolves like a link`, reached === expected, `reached ${reached}`);
+  }
+
+  /** The origin guard has to survive the widening — it is the reason this code path exists. */
+  const refused = await navigate('//elsewhere.test/a/b');
+  check('a cross-origin path is still refused', refused === false, String(refused));
+
+  /** A same-origin absolute URL still normalises to its path, as the README shows. */
+  const same = await from(`${window.location.origin}/a/b`);
+  check('a same-origin absolute URL still resolves', same === 'a/b', String(same));
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
