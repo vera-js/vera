@@ -110,7 +110,18 @@ export const escapeRawText = (value, tag) => {
  * the text as written: inside `<style>` or `<script>` a character reference is **not** decoded, so
  * escaping there does not protect anything and does corrupt the content.
  */
-export const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title']);
+/**
+ * Elements a parser reads the children of as text.
+ *
+ * `iframe` and `noscript` were absent, so this DOM built a tree no browser builds:
+ * `<noscript><img src="x"></noscript>` parsed to an element here and `querySelectorAll('noscript img')`
+ * answered **1** where every engine answers 0, because the content is a text node.
+ *
+ * Measured across Chromium, Firefox and WebKit rather than read off a spec — and jsdom is not the
+ * oracle for this one. It parses with scripting *disabled*, so it agrees with the old list about
+ * `noscript` and all three real engines disagree with both.
+ */
+export const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title', 'iframe', 'noscript']);
 
 /**
  * Elements that have no end tag. Writing one is not merely redundant — a parser reads `</br>` as

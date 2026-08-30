@@ -116,7 +116,24 @@ const markerWalker = doc.createTreeWalker(doc, 129 /* ELEMENT | COMMENT */);
  */
 const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
 
-const RAW_TEXT_TAGS = /^(?:script|style|textarea|title)$/i;
+/**
+ * Elements whose children a parser reads as **text**, so a marker written inside one arrives as
+ * characters rather than a comment and the binding never becomes a part.
+ *
+ * `iframe` and `noscript` were missing, and both were measured broken in a browser rather than
+ * reasoned about: `html\`<iframe>${v}</iframe>\`` painted the literal marker — `<?$v8hpsho$>` — onto
+ * the page in **all three engines** and never updated.
+ *
+ * **`noscript` is the one worth the comment, because the engines disagree.** A template's contents
+ * are parsed with the scripting flag *disabled*, which is what decides whether `noscript` is raw
+ * text — and Chromium and WebKit parse it as markup there while Firefox parses it as text. So
+ * `html\`<noscript>${v}</noscript>\`` worked in two engines and painted the marker in the third: an
+ * app developed in Chrome shipping the framework's internals onto the page for Firefox users.
+ *
+ * Listing it here is safe in both parses. Where the marker became a comment the raw-text branch does
+ * not trigger, because it looks for the marker in `textContent` and finds none.
+ */
+const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
 const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 
 /** What an expression position turned out to be. */

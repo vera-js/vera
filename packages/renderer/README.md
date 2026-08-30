@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.82 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.83 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
