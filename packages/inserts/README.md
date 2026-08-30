@@ -43,6 +43,8 @@ path, which cost roughly 238 ns per store read.
 | `'proxy-handler'` | a store property is read | `(obj, prop, value, addCallback, runCallbacks)` |
 | `'set-handler'` | a store property is written, before the default propagation. Return `false` to suppress it — that is how batching, transactions and undo/redo hold changes back | `(obj, prop, value, prevValue, runCallbacks)` |
 | `'error'` | a hook callback threw. Core never lets one failing effect stop the others, so this decides what happens to it. With nothing registered it falls back to `console.error` | `(error, element)` |
+| `'collection'` | a method is read off a `Map` or `Set` **inside a store**. Type-keyed, so a plain-object read never reaches it — that is what lets reactive collections live outside core. With nothing registered, a `Map` in a store is inert and core raises a `__DEV__` error naming the package | `(obj, prop, propValue, addCallback, runCallbacks)` |
+| `'value'` | a **child-position** value the renderer does not already handle — `<div>${value}</div>`. For types you do not own: a `Promise`, an `Observable`, a `Temporal.PlainDate`. Return `true` to claim the value and stop the chain. **Strings, numbers, `null` and `undefined` never reach it** — those take a fast path — so this cannot be used to intercept text | `(part, value)` |
 
 Priority 50 is the convention for a default implementation: register below it to run first, or at it
 to replace.
@@ -67,6 +69,9 @@ position:
   the most useful place it could surface, and swallowing it would leave the write in an undefined
   state — a suppressed handler has already decided whether the value propagates. These are also the
   hottest paths in the framework, and a `try`/`catch` on every property read is not free.
+- **`'collection'` and `'value'` are the same case as those two**, for the same reason: the first
+  runs inside a `Map` or `Set` method and the second inside a child-position commit, so a throw comes
+  out of `tags.add('x')` or of `renderInto` at the line that called it.
 - **`'init'` and `'render'` run inside `init()` and the render, so a throw surfaces there.**
 - **`'error'` is the one that must not throw.** It is already handling a failure, and a throw from it
   replaces the error being reported with its own.
