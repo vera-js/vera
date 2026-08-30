@@ -184,7 +184,18 @@ const define = (setup) => {
   if (isProduction) {
     check('production says nothing about it', said.length === 0);
   } else {
-    check('and warns, naming mount()', said.some((l) => l.includes('render() needs a template') && l.includes('mount()')), said.join(' | '));
+    /**
+     * **Asserted for substance, not for wording.** This used to match the literal string
+     * "render() needs a template", which is what let that message drift into saying something false:
+     * it claimed a bare `render()` no longer commits, two lines below a check proving it does. The
+     * message now has to name `mount()` and must not contradict the line above it.
+     */
+    check('and warns, naming mount()', said.some((l) => l.includes('mount()')), said.join(' | '));
+    check(
+      'and the warning does not claim the hooks failed to run',
+      said.every((l) => !/needs a template|used to do|will not run|never run/.test(l)),
+      said.join(' | ')
+    );
   }
   body.removeChild(legacy);
 

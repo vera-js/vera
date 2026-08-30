@@ -43,10 +43,19 @@ export const render = (template: unknown, ...args: any[]) => {
      *
      * `__DEV__`-only, so production carries neither the check nor the message.
      */
+    /**
+     * **The message has to agree with the paragraph above it.** It used to read "render() needs a
+     * template … call mount() instead — it commits the setup and runs the hooks, which is what a
+     * bare render() used to do", which says two things that are not true of this function: it does
+     * not need a template, and it still commits exactly as it always did. A reader debugging a
+     * component would take it as "your hooks are not running" and go looking for a fault that is not
+     * there — from a diagnostic, at runtime, which is the worst place to be told something false.
+     */
     if (__DEV__)
       console.warn(
-        `[vera] render() needs a template. If this component has no markup, call mount() instead — ` +
-          `it commits the setup and runs the hooks, which is what a bare render() used to do.\n\n` +
+        `[vera] render() was called with no template. That works — the setup is committed and the ` +
+          `hooks run, exactly as with a template — but mount() is the name for it, and says so at ` +
+          `the call site.\n\n` +
           `  import { mount } from '@verajs/core';\n` +
           `  mount();\n`
       );
