@@ -621,7 +621,21 @@ class AttrPart implements Part {
   }
 
   /**
-   * Stable listener registered once; swapping the handler never touches the DOM.
+   * Stable listener; swapping one function for another never touches the DOM.
+   *
+   * **It is not registered exactly once, and the difference is load-bearing.** A handler set back to
+   * `undefined` or `false` nulls `_handler` *without removing the listener* — inert, because
+   * `handleEvent` finds nothing callable — so the next non-null value sees `_handler === null` and
+   * calls `addEventListener` again. Measured: `function -> undefined -> function` registers twice.
+   *
+   * That is harmless only because the listener passed is **`this`, the part object itself**. The
+   * platform ignores a repeated `(type, listener, capture)` triple, verified with no framework
+   * involved — the same listener object added three times fires once. Pass a fresh closure here
+   * instead and dedup stops applying: every toggle through null adds another live listener, silently,
+   * and only in components that turn a handler off and on again.
+   *
+   * `tests/event-binding-fuzz.test.mjs` holds that as an invariant — it counts *fires*, not
+   * `addEventListener` calls, and making this listener a closure fails it.
    *
    * **Two shapes, because `addEventListener` takes two.** A function is called with the element as
    * `this`; an object with a `handleEvent` method is invoked through it — the platform's own
