@@ -90,3 +90,43 @@ setMatchFunction(<P extends Record<string, string | string[] | undefined>>(patte
 initRouter(document.body, { view: 'main' });
 void navigate('/x'); void resolve('home', {}); void setRouterRenderer(domRender);
 back(); forward(); go(-1);
+
+/**
+ * **The exports nothing here referenced.** A derived sweep — every public export of every entry,
+ * minus every name this file and `ssrcheck.ts` mention — came back with sixteen, among them the
+ * whole of `@verajs/renderer/profiler`, which no consumer check imported at all.
+ *
+ * That gap is the same shape as an unexecuted recipe: the declaration is written, published and
+ * installed, and nothing has ever compiled a line against it. A `.d.ts` is documentation that
+ * compiles, so an unexercised one is an unverified claim.
+ */
+import { allowRenderLoop, setStaticStores } from '@verajs/core';
+import { revision } from '@verajs/inserts';
+import { GLOBAL, collectionMethod } from '@verajs/reactivity';
+import {
+  formatReport, getReport, isProfiling, profile, showProfiler, startProfiling, stopProfiling,
+} from '@verajs/renderer/profiler';
+
+class LateAdditions extends HTMLElement {
+  connectedCallback() {
+    init(this);
+    allowRenderLoop(this);
+    mount();
+  }
+}
+customElements.define('x-late', LateAdditions);
+
+setStaticStores(true);
+void revision;
+void GLOBAL;
+void collectionMethod;
+
+/** The profiler's own surface, in the order a user meets it. */
+startProfiling();
+void isProfiling();
+void profile(() => 'work');
+const report = getReport();
+void formatReport(report);
+showProfiler();
+showProfiler({});
+stopProfiling();

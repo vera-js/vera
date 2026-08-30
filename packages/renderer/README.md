@@ -452,6 +452,12 @@ console.log(formatReport(report));
 function that removes it. The panel is plain DOM in a shadow root — it never renders itself through
 the renderer, so it does not appear in its own measurements.
 
+**Calling it again replaces the panel rather than adding one**, and a second call's `options` take
+effect. That matters because the natural way to use this is a console — `showProfiler()`, look,
+`showProfiler()` again — where the first return value is already gone: two panels would sit on top of
+each other in the same corner, and the second one's teardown would stop profiling for the first,
+which kept repainting a frozen report.
+
 Full API: `startProfiling()`, `stopProfiling()`, `getReport()`, `isProfiling()`, `profile(fn)`,
 `formatReport(report)`, `showProfiler(options?)`.
 

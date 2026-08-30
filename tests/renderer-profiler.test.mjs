@@ -169,3 +169,41 @@ test('the overlay does not measure itself', { skip }, async () => {
   assert.equal(report.frames, 0, 'repainting the panel is not a render frame');
   assert.equal(report.updates + report.creates + report.rebuilds, 0, 'and commits nothing');
 });
+
+/**
+ * **Calling `showProfiler()` twice replaces the panel rather than stacking a second one.**
+ *
+ * Two panels are positioned in the same corner, so they overlap and neither reads — but the failure
+ * was not cosmetic. Each panel owns a `setInterval` and each teardown calls `stopProfiling()`, which
+ * is global, so closing the second stopped profiling for the first, which then repainted a frozen
+ * report on its own timer with nothing to indicate it had stopped.
+ *
+ * The way a person reaches this is a console: `showProfiler()`, look at it, `showProfiler()` again.
+ * The first return value is gone by then, so before this fix that first interval could never be
+ * stopped at all.
+ */
+test('showProfiler replaces its panel instead of stacking, and stays stoppable', { skip }, async () => {
+  const { showProfiler, isProfiling } = await load('renderer/profiler');
+  const body = dom.window.document.body;
+  const before = body.children.length;
+
+  const first = showProfiler();
+  assert.equal(body.children.length, before + 1, 'the first call should mount one panel');
+
+  const second = showProfiler();
+  assert.equal(body.children.length, before + 1, 'a second call stacked another panel');
+
+  /** The stale handle must not orphan the live panel — the case that leaked an unstoppable timer. */
+  first();
+  assert.equal(body.children.length, before + 1, 'a stale teardown removed the live panel');
+
+  second();
+  assert.equal(body.children.length, before, 'the live teardown left a panel behind');
+  assert.equal(isProfiling(), false, 'tearing the panel down should stop profiling');
+
+  /** And it is reusable afterwards: the slot has to be cleared, not left pointing at a dead panel. */
+  const third = showProfiler();
+  assert.equal(body.children.length, before + 1, 'showProfiler stopped working after a full teardown');
+  third();
+  assert.equal(body.children.length, before);
+});

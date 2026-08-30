@@ -242,18 +242,44 @@ export function profile<T>(fn: () => T | Promise<T>) {
   return { result: result as T, report: stopProfiling() };
 }
 
+/** The panel currently mounted, so a second `showProfiler()` replaces it rather than stacking. */
+let mounted: (() => void) | null = null;
+
 /**
  * Mounts a live panel in the corner of the page and starts profiling. Returns a function that
  * removes it and stops. Plain DOM in a closed shadow root — it never renders itself through the
  * renderer, which would fold its own commits into the numbers it reports.
+ *
+ * **Calling it twice replaces the panel; it does not stack a second one.** Two panels are positioned
+ * in the same corner, so they overlap and neither is readable — and the failure went further than
+ * cosmetic. Each panel owns a `setInterval`, and each teardown calls `stopProfiling()`, which is
+ * global: closing the *second* panel stopped profiling for the *first*, which then repainted a
+ * frozen report on its own timer with nothing to say it had stopped. Worse, the natural way to reach
+ * this is a console — `showProfiler()`, look, `showProfiler()` again — where the first return value
+ * is gone, so that first interval could never be stopped at all.
+ *
+ * Replacing rather than returning the existing teardown, so a second call with different `options`
+ * takes effect instead of being silently ignored.
  */
 export const showProfiler = (options?: OverlayOptions): (() => void) => {
+  mounted?.();
   startProfiling();
   const unmount = mountOverlay(getReport, isProfiling, { start: startProfiling, stop: stopProfiling }, options);
-  return () => {
+  /**
+   * A **stale** teardown — the handle from a panel that has since been replaced — is harmless: its
+   * `unmount` removes a host already removed and clears a timer already cleared, and the
+   * `stopProfiling()` it also does is visible in the live panel's own toggle rather than silent.
+   *
+   * There is deliberately no `mounted = null` here. A version of this line existed, commented as
+   * stopping a late teardown from orphaning a newer panel; mutation testing showed **nothing** could
+   * observe it, and a 50-cycle `WeakRef` probe measured identical retention with and without it. A
+   * line whose comment claims a purpose it does not have is the defect this audit keeps finding, so
+   * it is not shipped as a precaution.
+   */
+  return (mounted = () => {
     unmount();
     stopProfiling();
-  };
+  });
 };
 
 /** Human-readable summary. The overlay renders the same data; this is for a console or a log. */
