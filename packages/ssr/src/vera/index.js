@@ -1007,7 +1007,18 @@ export const renderToString = (url, options) => takeTurn(() => renderModule(url,
  */
 let asyncTurn = Promise.resolve();
 
-/** Runs `work` once every render queued before it has settled, failed or not. */
+/**
+ * Runs `work` once every render queued before it has settled, failed or not.
+ *
+ * Typed generically rather than left to inference: without the annotation the emitted `.d.ts` said
+ * `Promise<void>` for both entry points, because the wrapper hid `renderModule`'s return. Nothing
+ * about the runtime changed and the consumer typecheck (`tests/consumer/ssrcheck.ts`) is what said
+ * so — a published type is not exercised by any test that only imports.
+ *
+ * @template T
+ * @param {() => Promise<T>} work
+ * @returns {Promise<T>}
+ */
 const takeTurn = (work) => {
   const mine = asyncTurn.then(work);
   /** The queue must survive a failed render, or one throw stops every later one. */

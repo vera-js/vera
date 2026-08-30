@@ -29,11 +29,18 @@ jobs:
       - run: node scripts/sync-packages.mjs
       # Clean as of this commit, so it can stay clean. It was previously linting dist/ and the
       # private internal/ clone, which buried the real findings under ~2 200 generated-code errors.
+      # Before typecheck, because typecheck's last pass reads what this writes. `tests/consumer`
+      # resolves through each package's exports -> types exactly as npm does, so it reads
+      # dist/development/*.d.ts and packages/ssr/types/*.d.ts. Ordered the other way it checked
+      # whatever declarations were on disk: locally that means yesterday's, and a stale declaration
+      # that is *better* than the source lets a real regression through — removing one @template
+      # annotation in @verajs/ssr turns both entry points into Promise<void> for every consumer and
+      # all twelve configs still reported clean.
+      - run: npm run build
       # The build transpiles TypeScript but does not fail on type errors, so without this the
       # type layer gates nothing — a real error sat in hydrate.ts until the 2026-08-22 audit.
       - run: npm run typecheck
       - run: npx eslint .
-      - run: npm run build
       # Published size claims are generated from the build. This fails if any of them has drifted,
       # or if bench/size-snapshot.json no longer describes the current dist. The competing
       # frameworks are NOT needed here: per-module sizes come from dist, and the cross-framework

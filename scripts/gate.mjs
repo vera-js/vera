@@ -17,6 +17,24 @@ import { join } from 'node:path';
 const steps = [
   ['sync-packages', 'npm', ['run', 'check']],
   ['tag-release', 'node', ['scripts/tag-release.mjs', '--check']],
+  /**
+   * **Before `typecheck`, because `typecheck`'s last pass reads generated files.**
+   *
+   * `scripts/typecheck.mjs` ends with `tests/consumer`, which resolves imports through each
+   * package's `exports` → `types` exactly as npm does — and so reads `dist/development/*.d.ts` and
+   * `packages/ssr/types/*.d.ts`. The script's own comment says that pass "requires a build"; the
+   * gate did not do one, so it checked whatever declarations happened to be on disk.
+   *
+   * That fails safely in one direction and not the other. A *stale* declaration that is worse than
+   * the source makes the gate fail for no reason, which is how this was noticed. A stale declaration
+   * that is **better** than the source makes the gate pass over a real regression — demonstrated by
+   * removing a `@template` annotation from `@verajs/ssr`, which turns both entry points into
+   * `Promise<void>` for every consumer, and watching all twelve configs report clean.
+   *
+   * Wireit caches this, so when nothing has changed it costs a few seconds and the rest of the gate
+   * was going to need it anyway.
+   */
+  ['build', 'npm', ['run', 'build']],
   ['typecheck', 'npm', ['run', 'typecheck']],
   ['eslint', 'npx', ['eslint', '.']],
   ['size claims', 'node', ['scripts/sync-size-claims.mjs', '--check']],

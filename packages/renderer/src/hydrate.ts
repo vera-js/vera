@@ -251,8 +251,25 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
    * holding the value: adoption deliberately does not write `.value` (see `AttrPart._commit`), so
    * clearing the content would empty the field it just adopted. A person who typed here before the
    * bundle landed has made the field dirty, and a dirty textarea ignores its content anyway — so
-   * their text survives either way, and the server's stays as what `form.reset()` restores. The one
-   * respect in which a hydrated DOM is not byte-identical to a client-rendered one, deliberately.
+   * their text survives either way, and the server's stays as what `form.reset()` restores.
+   *
+   * **One of four respects in which a hydrated DOM is not byte-identical to a client-rendered one**,
+   * and all four have the same cause: `@verajs/ssr` mirrors `.value`, `.checked` and `.selected` on
+   * form elements into markup, because markup is the only way form state reaches the client at all.
+   * The client sets those as properties and writes nothing, exactly as a browser does — so the
+   * server's copy stays behind after adoption:
+   *
+   * | binding | hydrated | client-rendered |
+   * | --- | --- | --- |
+   * | `<input .value=${x}>` | `<input value="x">` | `<input>` |
+   * | `<input .checked=${true}>` | `<input checked="">` | `<input>` |
+   * | `<option .selected=${true}>` | `<option selected="">` | `<option>` |
+   * | `<textarea .value=${x}>` | `<textarea>x</textarea>` | `<textarea></textarea>` |
+   *
+   * They are defaults rather than state — what `form.reset()` restores — so the *rendered* result is
+   * the same and only a reset tells them apart. `tests/hydrate-parity.test.mjs` records the list,
+   * because "the one respect" was written here when there was one, and a reader comparing a hydrated
+   * DOM against a client-rendered one needs to know which differences are meant.
    */
   if (
     inner.node !== null &&
