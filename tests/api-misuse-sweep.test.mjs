@@ -14,6 +14,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { isProduction, load } from './dist.mjs';
+import { globSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = fileURLToPath(new URL('..', import.meta.url));
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' });
 for (const key of ['window', 'document', 'HTMLElement', 'Node', 'Element', 'customElements', 'DocumentFragment',
@@ -25,7 +30,9 @@ const core = await load('core');
 const { renderInto } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { tag } = await load('renderer/tag');
-const { navigate } = await load('router');
+const routerModule = await load('router');
+const { navigate } = routerModule;
+const reactivity = await load('reactivity');
 const styleModule = await load('styles');
 
 const skip = isProduction && 'development-only diagnostics';
@@ -42,6 +49,21 @@ const CASES = [
   ['tag("h1") called, not tagged', () => tag('h1'), /tag: expected a template literal/],
   ['adoptStyles(nothing)', () => styleModule.adoptStyles(undefined), /adoptStyles: expected a component element/],
   ['applyStyles(sheet, nothing)', () => styleModule.applyStyles('p{}', undefined), /applyStyles: expected a component element/],
+  /**
+   * The eight below were guarded in the source and absent from this list — found by enumerating
+   * every `name: expected …` message in the package sources and comparing, which is now the assertion
+   * at the bottom of this file. A hand-kept list of guards is a list that stops growing when the
+   * guards do: `computed`'s was added during the 2026-08-26 sweep and never landed here, and `wire`
+   * is the most-called function in the framework.
+   */
+  ['wire(notAModule)', () => core.wire(42), /wire: expected a module or an insert descriptor/],
+  ['computed(notAFunction)', () => reactivity.computed(42), /computed: expected a function to derive the value from/],
+  ['setRenderScheduler(notAFunction)', () => core.setRenderScheduler(42), /setRenderScheduler: expected a function/],
+  ['setHtml(notAFunction)', () => core.setHtml(42), /setHtml: expected a function/],
+  ['setCss(notAFunction)', () => core.setCss(42), /setCss: expected a function/],
+  ['setRouterRenderer(notAFunction)', () => routerModule.setRouterRenderer(42), /setRouterRenderer: expected a function/],
+  ['setMatchFunction(notAFunction)', () => routerModule.setMatchFunction(42), /setMatchFunction: expected a function/],
+  ['allowRenderLoop(notAnElement)', () => core.allowRenderLoop(42), /allowRenderLoop: expected a component element/],
 ];
 
 for (const [label, call, expected] of CASES) {
@@ -122,4 +144,34 @@ test('no guard refuses a legitimate input', async () => {
   ];
 
   for (const [label, call] of accepted) assert.doesNotThrow(call, `a guard refuses ${label}`);
+});
+
+/**
+ * **Every guard in the source has a case here.**
+ *
+ * The list above is hand-kept, and a hand-kept list of guards stops growing when the guards do. Eight
+ * of the fifteen `name: expected …` messages in the package sources had no case when this was written —
+ * including `wire`, the most-called function in the framework, and `computed`, whose guard was added
+ * during the same audit that wrote the rest of this file.
+ *
+ * Derived from the source rather than restated, so adding a guard and forgetting a case fails here
+ * instead of leaving a diagnostic nobody has ever executed.
+ */
+test('every by-name guard in the source is exercised above', () => {
+  const guards = new Set();
+  for (const file of globSync('packages/*/src/**/*.{ts,js}', { cwd: root })) {
+    if (file.endsWith('.d.ts')) continue;
+    for (const match of readFileSync(join(root, file), 'utf8').matchAll(/`([a-zA-Z]+): expected /g))
+      guards.add(match[1]);
+  }
+  assert.ok(guards.size >= 15, `only found ${guards.size} guards — has the message shape changed?`);
+
+  const exercised = new Set(CASES.map(([, , pattern]) => /\/?\^?([a-zA-Z]+): expected/.exec(String(pattern))?.[1]).filter(Boolean));
+  exercised.add('navigate');
+  const missing = [...guards].filter((name) => !exercised.has(name)).sort();
+  assert.deepEqual(
+    missing,
+    [],
+    `guards with no misuse case: ${missing.join(', ')} — add one to CASES above`
+  );
 });
