@@ -43,17 +43,22 @@ export default [
   defaultRollupConfig(pkg.filename, [], /^_[a-z]/),
   defaultRollupConfig(`${pkg.filename}-hydrate`, [], /^_[a-z]/, { input: 'src/hydrate.ts' }),
   /**
-   * `spread` is the one entry here that is **additive** rather than a substitute. The others inline
-   * `./renderer.js` and carry their own template cache, so two of them must never load together;
-   * this one imports nothing at all — it talks to whatever renderer is present through the
-   * `_$apply$` protocol — so it is safe alongside any of them.
+   * **Additive**, the first of three. It imports nothing at all and talks to whatever renderer is
+   * present through the `_$apply$` protocol, so it is safe alongside any of them.
+   *
+   * This comment used to open "`spread` is the one entry here that is additive", and add that "the
+   * others inline `./renderer.js`" — with `keyed` and `tag` documented as additive immediately below
+   * it. Same contradiction as the file header had, one level down, and it survived the header being
+   * corrected because that fix stopped at the top of the file.
    */
   defaultRollupConfig(`${pkg.filename}-spread`, [], /^_[a-z]/, { input: 'src/spread.ts' }),
   /**
-   * Additive for the same reason: it imports nothing and reaches the renderer only through the
-   * exempt `$c`/`$d`/`$f`/`$k`/`$m`/`$r`/`$u` members (the full set, taken from the source — this
-   * list previously named five of the seven and omitted `$k` and `$r`, which carry the key itself). It is safe alongside `hydrate`, which is exactly why it
-   * cannot import `./renderer.js` — that would bind it to the base renderer's template cache.
+   * Additive for the same reason: it imports nothing and reaches the renderer only through the exempt
+   * `$c`/`$d`/`$f`/`$k`/`$m`/`$r`/`$u` members — the full set, read from the source. This list named
+   * five of the seven, omitting `$k` and `$r`, which are the two carrying the key itself.
+   *
+   * Safe alongside `hydrate`, which is exactly why it cannot import `./renderer.js` — that would bind
+   * it to the base renderer's template cache.
    */
   defaultRollupConfig(`${pkg.filename}-keyed`, [], /^_[a-z]/, { input: 'src/keyed.ts' }),
   /** Additive for the same reason, and it inlines `spread` because it builds on that protocol. */

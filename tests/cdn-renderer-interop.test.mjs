@@ -20,6 +20,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
@@ -105,4 +106,45 @@ test('hold keeps user state across a swap, against the production bundle', async
   await frame();
 
   assert.equal(host.querySelector('.i')?.value, 'typed', 'hold rebuilt the input instead of re-adopting it');
+});
+
+/**
+ * **Which bundles are additive, asserted rather than commented.**
+ *
+ * `packages/renderer/rollup.config.js` splits its six builds into *substitutes* — `renderer`,
+ * `hydrate`, `profiler`, each carrying its own renderer with its own template cache, so two of them
+ * must never load together — and *additions*: `keyed`, `spread`, `tag`, which carry no renderer and
+ * may be loaded freely beside one.
+ *
+ * That split was written twice in prose and was wrong both times. The file header said every entry
+ * was a superset that must never be co-loaded, which would have forbidden the README's own CDN
+ * recipe; correcting the header left the same contradiction one level down, where `spread`'s comment
+ * still called itself the only additive entry with `keyed` and `tag` documented as additive directly
+ * beneath it.
+ *
+ * The property is measurable, so it should not be prose at all. `renderInto` is the tell: a bundle
+ * that has one carries a renderer.
+ */
+test('the additive bundles carry no renderer, and the substitutes do', () => {
+  const source = (file) => readFileSync(new URL(`../packages/renderer/dist/${file}`, import.meta.url), 'utf8');
+
+  for (const file of ['vera-renderer.min.js', 'vera-renderer-hydrate.min.js'])
+    assert.ok(
+      source(file).includes('renderInto'),
+      `${file} is a substitute and should carry a renderer — if this changed, the co-loading rule changed with it`
+    );
+
+  for (const file of ['vera-renderer-keyed.min.js', 'vera-renderer-spread.min.js', 'vera-renderer-tag.min.js'])
+    assert.ok(
+      !source(file).includes('renderInto'),
+      `${file} is documented as additive and now carries a renderer, so loading it beside one gives the page two template caches`
+    );
+
+  /** And the sizes, which are what make the claim obvious to a reader rather than merely true. */
+  const size = (file) => source(file).length;
+  for (const file of ['vera-renderer-keyed.min.js', 'vera-renderer-spread.min.js', 'vera-renderer-tag.min.js'])
+    assert.ok(
+      size(file) < size('vera-renderer.min.js') / 2,
+      `${file} is ${size(file)} B against the renderer's ${size('vera-renderer.min.js')} B — too large to be carrying no renderer`
+    );
 });
