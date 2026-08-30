@@ -188,5 +188,87 @@ const shape = (el) => el.innerHTML;
   say('css/text', String(sheet.cssText ?? sheet).replace(/\s+/g, ' ').trim());
 }
 
+/* ── 10. misuse ─────────────────────────────────────────────────────────────────────────────── */
+/**
+ * **The half this corpus was missing.** Every section above feeds the framework code that is
+ * *correct*, and correct code is the case least likely to diverge — the branches that differ between
+ * builds are the ones guarding against mistakes, and `__DEV__` is where those guards live.
+ *
+ * The defect that prompted this: `spread`'s refusal of a non-object props bag sat inside `__DEV__`
+ * together with its warning, so development applied nothing and production iterated a string by
+ * character index onto attributes named `0`, `1`, `2`, `3`. Development behaved *better* than
+ * production, which is the direction that hides a bug rather than surfacing it — the app under test
+ * looked right and only the shipped one was wrong.
+ *
+ * A dev-only **throw** is the opposite and is fine: development is stricter, so the mistake is caught
+ * in the build where someone is looking. What must never differ is what the program *does* with input
+ * it accepts in both.
+ *
+ * **So this section deliberately does not exercise the dev-only validation throws** — `keyed`
+ * without a template, `wire` with a bad descriptor, `tag` with a string. Those are supposed to
+ * diverge, each is already covered by its own suite (which asserts the throw under development and
+ * skips under production), and including them here would make this test fail for the one kind of
+ * difference the project wants. Every case below is input **both** builds accept.
+ *
+ * Warnings are silenced here because the messages are development-only by design; the point is the
+ * DOM either side of them.
+ */
+{
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    /** Bad props bags — the case that was diverging. */
+    for (const bad of ['text', 42, ['a'], null, undefined, true]) {
+      const h = D.createElement('div');
+      renderInto(html`<p ${spread(bad)}></p>`, h);
+      const el = h.querySelector('p');
+      say(`misuse/spread ${String(bad)}`, el ? [...el.attributes].map((a) => `${a.name}=${a.value}`).join(',') || '(none)' : '(no element)');
+    }
+
+    /** Keys an attribute name cannot hold, and values that are not strings. */
+    const h2 = D.createElement('div');
+    renderInto(html`<p ${spread({ 'a b': 1, 'a>b': 2, ok: 3, '': 4, '.value': 'v', '@click': null })}></p>`, h2);
+    attempt('misuse/spread keys', () => h2.querySelector('p').outerHTML);
+
+    /** A listener that cannot listen — warned about, and applied identically either way. */
+    const h3 = D.createElement('div');
+    let fired = 0;
+    for (const handler of ['string', 42, {}, null, false, () => fired++]) {
+      renderInto(html`<button @click=${handler}>b</button>`, h3);
+      h3.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click'));
+    }
+    say('misuse/uncallable listeners fired', String(fired));
+
+    /** Values in child position that are not renderable. */
+    const h4 = D.createElement('div');
+    for (const value of [undefined, null, false, 0, NaN, Symbol.iterator ? [] : [], {}, () => {}]) {
+      attempt(`misuse/child ${String(value)}`, () => {
+        renderInto(html`<p>${value}</p>`, h4);
+        return h4.querySelector('p').innerHTML;
+      });
+    }
+
+    /**
+     * Duplicate keys in a keyed list. Both builds accept it and render — which of the two nodes keeps
+     * its DOM is undefined, so only the text is compared, not identity.
+     */
+    const h5 = D.createElement('div');
+    attempt('misuse/duplicate keys', () => {
+      renderInto(html`<ul>${[1, 1, 2].map((n) => keyed(n, html`<li>${n}</li>`))}</ul>`, h5);
+      return h5.querySelector('ul').textContent;
+    });
+
+    /**
+     * **Not included: a write to a store over a frozen source.** It throws the engine's own
+     * `TypeError: 'set' on proxy: trap returned falsish` in *both* builds — a proxy invariant, not a
+     * divergence — and this harness disqualifies any item that throws in development. Recorded here
+     * so it is not re-added: the parity question about it is settled, and whether that bare engine
+     * message should be a `[vera]` one is a separate question from this file's.
+     */
+  } finally {
+    console.warn = warn;
+  }
+}
+
 console.log(`### ${which}`);
 for (const line of out) console.log(line);

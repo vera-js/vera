@@ -364,3 +364,34 @@ test('a real props bag is still quiet', { skip: isProduction && 'the guard is __
   assert.deepEqual(said, [], 'a plain object must not warn');
   assert.equal(host.querySelector('input').getAttribute('id'), 'ok');
 });
+
+/**
+ * **A guard that changes behaviour has to exist in both builds.**
+ *
+ * The refusal and its warning were both inside `if (__DEV__)`, so a bad props bag applied nothing in
+ * development and was iterated by character index in production — `spread('text')` giving an element
+ * attributes named `0`, `1`, `2` and `3`. The divergence ran in the direction that hides the bug: the
+ * app under test looked fine and only the shipped one was wrong.
+ *
+ * This suite runs against both artifacts (`tests/dist.mjs`), so asserting the *behaviour* here is
+ * what pins it — the warning is still development-only and is asserted separately.
+ */
+test('a props bag that is not a plain object applies nothing, in either build', () => {
+  const original = console.warn;
+  console.warn = () => {};
+  try {
+    for (const bad of ['text', 42, ['a'], null, undefined, true, Symbol('s')]) {
+      const host = document.createElement('div');
+      renderInto(html`<p ${spread(bad)}></p>`, host);
+      const element = host.querySelector('p');
+      assert.ok(element, `spread(${String(bad)}) lost the element entirely`);
+      assert.deepEqual(
+        [...element.attributes].map((a) => a.name),
+        [],
+        `spread(${String(bad)}) applied attributes; a string is iterated by character index`
+      );
+    }
+  } finally {
+    console.warn = original;
+  }
+});

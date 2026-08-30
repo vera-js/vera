@@ -272,17 +272,28 @@ export const spread = (props: Record<string, unknown>) => {
    * records the engines' actual rule).
    *
    * Warned and ignored rather than thrown, which is exactly what an unusable *key* already does a
-   * few lines above: one bad props bag should not cost the render. `__DEV__`-only, so production
-   * carries neither the check nor the text.
+   * few lines above: one bad props bag should not cost the render.
+   *
+   * **The message is `__DEV__`-only; the refusal is not.** They were both inside the guard, which
+   * made the two builds behave differently for the same code — and differently in the direction that
+   * hides the bug. Measured: `spread('text')` applies nothing in development, so the app under test
+   * looks fine; in production the string is iterated by character index and the element ends up with
+   * attributes named `0`, `1`, `2` and `3` (under jsdom, an `InvalidCharacterError` instead — the
+   * usual inversion, and why this was measured against both builds rather than reasoned about).
+   *
+   * A diagnostic belongs in `__DEV__`. A guard that changes what the program does cannot, or the
+   * development build stops being a faithful model of the production one, which is the property that
+   * makes testing in it worth anything. Costs 27 B gzipped (842 → 869, A-B-A) and buys the two builds agreeing.
    */
-  if (__DEV__ && (props === null || typeof props !== 'object' || Array.isArray(props))) {
-    console.warn(
-      `[vera] spread: ignoring a props bag that is not a plain object — received ` +
-        `${Array.isArray(props) ? 'an array' : typeof props === 'object' ? 'null' : `a ${typeof props}`}. ` +
-        `A string is iterated by character index, so \`spread('text')\` would set attributes named ` +
-        `0, 1, 2 and 3; anything else applies nothing at all. This is usually an import or a ` +
-        `property that resolved to something unexpected.`
-    );
+  if (props === null || typeof props !== 'object' || Array.isArray(props)) {
+    if (__DEV__)
+      console.warn(
+        `[vera] spread: ignoring a props bag that is not a plain object — received ` +
+          `${Array.isArray(props) ? 'an array' : typeof props === 'object' ? 'null' : `a ${typeof props}`}. ` +
+          `A string is iterated by character index, so \`spread('text')\` would set attributes named ` +
+          `0, 1, 2 and 3; anything else applies nothing at all. This is usually an import or a ` +
+          `property that resolved to something unexpected.`
+      );
     props = {};
   }
   return {
