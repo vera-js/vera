@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, useEffect, ref, wire, html } from '../../packages/core/dist/development/vera.js';
+import { init, createStore, render, useEffect, ref, wire, html, mount } from '../../packages/core/dist/development/vera.js';
 import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { keyed } from '../../packages/renderer/dist/development/vera-renderer-keyed.js';
 
@@ -99,7 +99,17 @@ const cycleComponent = async (body, { renders = true, times = 40 } = {}) => {
     connectedCallback() {
       init(this, { mode: 'open' });
       body(this);
-      if (renders) return;
+      /**
+       * **`init()` opens a setup and something has to close it.** `render()` does; a component that
+       * only registers effects has to call `mount()`. This read `if (renders) return;`, which closes
+       * nothing — so the three effect-only shapes below registered hooks that never ran, and the
+       * cases most likely to retain something were measuring components with no live effects at all.
+       *
+       * Core said so on every run — "registered 1 hook(s) but its setup was never committed" — in a
+       * suite whose output nobody was reading, which is the whole reason a warning has to be a
+       * failure somewhere.
+       */
+      if (!renders) mount();
     }
   });
   const refs = [];
@@ -122,19 +132,19 @@ const outliving = createStore({ n: 0, rows: [1, 2, 3] });
 const SHAPES = [
   ['a plain rendering component', () => render(() => html`<i>x</i>`)],
   ['one subscribed to a store that outlives it', () => render(() => html`<i>${outliving.n}</i>`)],
-  ['one with an effect on that store', () => useEffect(() => { void outliving.n; })],
-  ['one whose effect registers a cleanup', () => useEffect(() => { void outliving.n; return () => {}; })],
+  ['one with an effect on that store', () => useEffect(() => { void outliving.n; }), { renders: false }],
+  ['one whose effect registers a cleanup', () => useEffect(() => { void outliving.n; return () => {}; }), { renders: false }],
   ['one with an event listener in its template', () => render(() => html`<button @click=${() => {}}>go</button>`)],
   ['one rendering a keyed list', () => render(() => html`<ul>${outliving.rows.map((r) => keyed(r, html`<li>${r}</li>`))}</ul>`)],
   ['one listening to itself', (self) => { self.addEventListener('custom', () => {}); render(() => html`<i>x</i>`); }],
   ['one holding an element ref of its own', () => { const box = ref(); render(() => html`<i ${box}>x</i>`); }],
 ];
 
-for (const [label, body] of SHAPES) {
+for (const [label, body, options] of SHAPES) {
   it(`${label} is collectable once removed`, async function () {
     if (!window.gc) this.skip();
     this.timeout(20000);
-    const retained = await cycleComponent(body);
+    const retained = await cycleComponent(body, options);
     expect(retained, `${retained}/40 still reachable`).to.be.below(5);
   });
 }
