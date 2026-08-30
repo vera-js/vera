@@ -145,6 +145,21 @@ An element the router never rendered into is left alone, even if it carries a `v
 `beforeEnter` and `action` run down the same chain, so a parent can refuse before a child does any
 work.
 
+**Only `false` cancels.** Returning a *path* is the Vue Router habit and does not redirect here — a
+string is truthy, so the guarded route renders anyway, which in an auth guard defeats the guard
+entirely. Development warns when a guard returns a string.
+
+There are two ways to send someone elsewhere, and **they settle differently**:
+
+| | after `await navigate('/guarded')` |
+| --- | --- |
+| `redirect: '/b'` on the route | already at `/b` |
+| guard calls `navigate('/b')` and returns `false` | still where you were — `/b` a task later |
+
+`redirect` is handled inside that navigation, so the promise `navigate()` returns covers it. A guard
+calling `navigate()` starts a **separate** navigation the promise knows nothing about; awaiting it
+tells you only that the guarded route was cancelled. Prefer `redirect` when the caller awaits.
+
 ## Navigating
 
 ```js

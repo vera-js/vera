@@ -533,12 +533,28 @@ const routeChange = async (
      * This router redirects with the `redirect` route option instead, so the mistake has a fix worth
      * naming. Warned rather than obeyed: making a returned string redirect would be a second way to
      * do the same thing, and the two would disagree the moment `redirect` was also set.
+     *
+     * **The two fixes are not interchangeable, and this message used to offer them as if they were.**
+     * Measured, from `/a`:
+     *
+     * | how | after `await navigate('/guarded')` |
+     * | --- | --- |
+     * | `redirect: '/b'` on the route | already at `/b` |
+     * | guard calls `navigate('/b')`, returns `false` | still at `/a` — lands on `/b` a task later |
+     *
+     * `redirect` is handled inside this navigation, so the promise `navigate()` returns covers it. A
+     * guard calling `navigate()` starts a **separate** navigation that this promise knows nothing
+     * about; awaiting it tells you only that the guarded route was cancelled. That distinction is
+     * load-bearing because the README makes awaiting the supported way to handle an outcome —
+     * "`navigate()` rejects, so a caller that awaits it can handle the failure itself".
      */
     if (__DEV__ && typeof verdict === 'string')
       console.warn(
         `[vera] router: \`beforeEnter\` on "${link.path ?? currentRoute?.path}" returned the string ` +
-          `"${verdict}", which is truthy, so the route was allowed. Only \`false\` cancels — to send ` +
-          `someone elsewhere, use the \`redirect\` route option, or call \`navigate()\` and return false.`
+          `"${verdict}", which is truthy, so the route was allowed. Only \`false\` cancels.\n` +
+          `To send someone elsewhere, either set \`redirect: "${verdict}"\` on the route — which settles ` +
+          `inside the promise \`navigate()\` returns — or call \`navigate("${verdict}")\` and return ` +
+          `\`false\`, which starts a separate navigation that promise does not cover.`
       );
     if (verdict === false) return false;
     if (id !== navigationId) return false;
