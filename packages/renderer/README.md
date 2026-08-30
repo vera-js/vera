@@ -290,10 +290,16 @@ adoption of everything around it.
 
 **A fallback warns in development, naming the first place the two renders disagreed** — *"expected
 `<p>` and found `<div>`"*, *"`<ul>` contains `<li>`, which the template does not describe"*. The page
-is correct either way, which is the point of the fallback and also why it needs saying: the server's
-markup was just thrown away, and with nothing observable to notice, the only symptom is a first
-paint that is slower than the one you paid a server render for. An attribute that disagrees is
-simply re-set during adoption and is not a fallback at all.
+is correct either way, which is the point of the fallback and also why it needs saying: that
+container's markup was just thrown away, and with nothing observable to notice, the only symptom is
+a first paint that is slower than the one you paid a server render for. An attribute that disagrees
+is simply re-set during adoption and is not a fallback at all.
+
+**A fallback costs one container, not the page.** Adoption is decided per container, so components
+hydrating into their own roots are independent: one that disagrees rebuilds and warns, and every
+other one keeps the server's nodes. Measured in `tests/hydrate-mismatch.test.mjs` — three containers,
+one mismatch, one warning, two adoptions. Worth stating because the warning used to imply otherwise
+and sent the reader hunting for a page-wide cause.
 
 **Comments are outside the comparison, in both directions** — a comment in your template is not
 required in the server markup, and one in the server markup that your template does not have is not

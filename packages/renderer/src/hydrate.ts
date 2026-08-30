@@ -519,13 +519,25 @@ export const renderInto = (result: unknown, container: Node) => {
      *
      * `__DEV__`-only, and the reason comes from the check that failed, so it names the first place
      * the two renders disagreed rather than announcing that they did.
+     *
+     * **Scoped to this container, because that is what happened.** This function runs once per
+     * container, and a mismatch clears exactly one — measured: three containers, one carrying markup
+     * the template does not describe, and the other two adopt their server nodes unchanged while one
+     * warning prints. The message used to say "nothing the server rendered was used", which reads as
+     * a page-wide failure and sends the reader looking for a page-wide cause: a bad doctype, a broken
+     * handoff, state that differs everywhere. The truth is narrower and the message already names the
+     * element, so the advice can be local.
+     *
+     * It also said the markup was discarded, full stop; `clearPreservingStyles` keeps
+     * `<style vera-styles>`, which is the whole reason that function exists.
      */
     if (__DEV__)
       console.warn(
-        `[vera] hydration fell back to a client render: ${why}. The server markup was discarded, ` +
-          `so the page is correct but nothing the server rendered was used. The two renders have to ` +
-          `agree exactly — check for markup the template does not describe, or state settled after ` +
-          `the server render.`
+        `[vera] hydration fell back to a client render: ${why}. This container's server markup was ` +
+          `discarded and rebuilt (its SSR <style> is kept), so the page is correct but the server's ` +
+          `work on this part of it was wasted. Other containers on the page hydrate independently ` +
+          `and are unaffected. The two renders have to agree exactly — check for markup the template ` +
+          `does not describe, or state settled after the server render.`
       );
     clearPreservingStyles(container);
   }

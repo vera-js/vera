@@ -70,7 +70,17 @@ test('a mismatch names the first place the two renders disagreed', { skip }, () 
     assert.match(said[0], /^\[vera\] hydration fell back to a client render: /);
     assert.match(said[0], expected, markup);
     /** And it says what was lost, not just that something was wrong. */
-    assert.match(said[0], /server markup was discarded/);
+    assert.match(said[0], /server markup was discarded and rebuilt/);
+    /**
+     * **Scoped to the container.** It used to say "nothing the server rendered was used", which is a
+     * page-wide claim about a per-container event — see the isolation test below. Pinned negatively
+     * because the wrong version of this message is the one that reads more naturally.
+     */
+    assert.doesNotMatch(
+      said[0],
+      /nothing the server rendered/,
+      'the message claims the whole server render was wasted, and only this container fell back'
+    );
   }
 });
 
@@ -133,4 +143,67 @@ test('an attribute disagreement is repaired, not reported — adoption re-sets t
     assert.deepEqual(said, [], markup);
     assert.equal(host.querySelector('p').getAttribute('class'), 'c', markup);
   }
+});
+
+/**
+ * **A fallback is per container, and the warning has to say so.**
+ *
+ * `renderInto` adopts or falls back once per container, so a page of components hydrating into their
+ * own roots loses exactly the one that disagreed. The message said "nothing the server rendered was
+ * used", which is a page-wide claim about a per-container event — it sends the reader looking for a
+ * page-wide cause when the message has already named the element.
+ *
+ * Asserted as behaviour first (the neighbours keep their server nodes) and wording second, because
+ * the wording is only worth pinning if the behaviour it describes is what happens.
+ */
+test('a mismatch in one container does not cost the others their server markup', { skip }, () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+
+  const draw = (label) => html`<p>hello ${label}</p>`;
+  const containers = ['a', 'b', 'c'].map((label) => {
+    const host = document.createElement('div');
+    /** Only `b` carries markup the template does not describe. */
+    host.innerHTML =
+      label === 'b'
+        ? `<p>hello ${label}</p><span>undescribed</span>`
+        : `<p>hello ${label}</p>`;
+    return { label, host, served: host.querySelector('p') };
+  });
+
+  try {
+    for (const { label, host } of containers) renderInto(draw(label), host);
+  } finally {
+    console.warn = original;
+  }
+
+  assert.equal(said.length, 1, `one container disagreed, so one warning: ${JSON.stringify(said)}`);
+
+  const adopted = containers.filter(({ host, served }) => host.querySelector('p') === served).map((c) => c.label);
+  assert.deepEqual(adopted, ['a', 'c'], 'the containers that agreed should have kept their server nodes');
+
+  /** And the one that did fall back is still correct, which is the point of falling back. */
+  const b = containers.find((c) => c.label === 'b');
+  assert.equal(b.host.textContent.replace(/\s+/g, ' ').trim(), 'hello b');
+  assert.equal(b.host.querySelector('span'), null, 'the undescribed markup should be gone');
+
+  assert.match(said[0], /Other containers on the page hydrate independently/);
+});
+
+/** The SSR stylesheet survives a fallback — `clearPreservingStyles` exists for exactly this. */
+test('a fallback keeps the SSR stylesheet, and the message says so', { skip }, () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  const host = document.createElement('div');
+  host.innerHTML = `<style vera-styles>p{color:red}</style><p>x</p><span>undescribed</span>`;
+  try {
+    renderInto(html`<p>x</p>`, host);
+  } finally {
+    console.warn = original;
+  }
+  assert.ok(host.querySelector('style[vera-styles]'), 'the SSR stylesheet was thrown away with the rest');
+  assert.equal(host.querySelector('span'), null);
+  assert.match(said[0], /SSR <style> is kept/, 'the message says the markup was discarded without the exception');
 });
