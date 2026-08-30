@@ -89,6 +89,24 @@ There is no warning for this. A `Date` read to format it is far more common than
 mutate it, so a warning would be noise on the ordinary case — which is why it is written down here
 instead.
 
+### A frozen source object stays frozen
+
+A store is a proxy, and a proxy has to respect its target's rules. `createStore(Object.freeze(…))`
+reads fine and **throws on any write**, because JavaScript says the object is not writable and no
+amount of proxying changes that. The same goes for a sealed object gaining a *new* key, an object
+under `Object.preventExtensions`, a property defined `writable: false`, and a getter with no setter —
+and it applies to a frozen object nested inside an ordinary store, which is the way it usually turns
+up: a constants table sitting in state.
+
+Everything that is *not* forbidden works, which is the larger half. Sealed objects take writes to
+existing keys, setters run with `this` bound through the proxy, class instances keep their prototype
+getters, `Object.create(null)` objects and symbol keys both round-trip.
+
+In development the error names the rule that refused — *"the object is frozen, so `n` cannot be
+changed"*. In production you get the engine's own `TypeError: 'set' on proxy: trap returned falsish`,
+which is a message about the proxy's internals; the development build exists to tell you what it
+actually means. It throws either way.
+
 **Adding and removing keys counts as a change.** A component that enumerates — `Object.keys`,
 `for…in`, `{ ...state.filters }`, `JSON.stringify`, or `key in state.form` — depends on the set of
 keys rather than on any one of them, and hears about a key arriving or leaving. That is what makes

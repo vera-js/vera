@@ -10,7 +10,7 @@
  * subscriber was notified exactly when it should have been. A store that updates without notifying
  * renders a stale page; one that notifies without changing renders constantly.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 
@@ -157,6 +157,105 @@ const watch = async (read) => {
   const state = core.createStore({ a: shared, b: shared });
   state.a.n = 5;
   check('two references to one object stay one object', state.b.n === 5, String(state.b.n));
+}
+
+/* ── objects the language itself constrains ─────────────────────────────────────────────────── */
+/**
+ * A store is a proxy, and a proxy must respect its target's invariants. So a frozen, sealed or
+ * accessor-bearing source is not a framework decision at all — the language decides, and the store
+ * has to report what it decided.
+ *
+ * **The half that works is pinned first**, because it is the larger half and the easy assumption is
+ * that a "constrained" object is simply unsupported. Sealed objects take writes, accessors run,
+ * class instances keep their getters, a null-prototype object and a symbol key both work.
+ */
+{
+  const attempt = (fn) => {
+    try {
+      return { value: fn() };
+    } catch (error) {
+      return { error };
+    }
+  };
+
+  const sealed = core.createStore(Object.seal({ n: 1 }));
+  sealed.n = 2;
+  check('a sealed object takes a write to an existing key', sealed.n === 2, String(sealed.n));
+
+  let backing = 1;
+  const accessor = core.createStore({
+    get n() {
+      return backing;
+    },
+    set n(value) {
+      backing = value * 10;
+    },
+  });
+  accessor.n = 2;
+  check('a setter runs, with this bound through the proxy', accessor.n === 20, String(accessor.n));
+
+  class Point {
+    constructor() {
+      this.x = 1;
+    }
+    get double() {
+      return this.x * 2;
+    }
+  }
+  const point = core.createStore(new Point());
+  point.x = 3;
+  check('a class instance keeps its prototype getter', point.double === 6, String(point.double));
+
+  const bare = Object.create(null);
+  bare.n = 1;
+  const nullProto = core.createStore(bare);
+  nullProto.n = 2;
+  check('a null-prototype object is writable', nullProto.n === 2, String(nullProto.n));
+
+  const symbolKey = Symbol('k');
+  const withSymbol = core.createStore({ [symbolKey]: 1 });
+  withSymbol[symbolKey] = 2;
+  check('a symbol key round-trips', withSymbol[symbolKey] === 2, String(withSymbol[symbolKey]));
+
+  const frozenRead = core.createStore(Object.freeze({ n: 1 }));
+  check('a frozen object is still readable', frozenRead.n === 1, String(frozenRead.n));
+
+  /**
+   * And the half the language refuses. The engine reports a refused write as
+   * `TypeError: 'set' on proxy: trap returned falsish` — a message about the *trap*, which is
+   * internals the reader never wrote. Development replaces it with one naming the actual rule.
+   *
+   * Skipped under production, where the explanation is folded away and the engine's own message is
+   * what a user sees. The **behaviour** is identical in both builds: it throws either way, which is
+   * what keeps this a diagnostic rather than a divergence.
+   */
+  const refusals = [
+    ['a frozen object refuses a write', () => { const s = core.createStore(Object.freeze({ n: 1 })); s.n = 2; }, /the object is frozen, so `n` cannot be changed/],
+    ['a frozen object refuses a new key', () => { const s = core.createStore(Object.freeze({ n: 1 })); s.z = 9; }, /the object is frozen, so `z` cannot be added/],
+    ['a frozen object refuses a delete', () => { const s = core.createStore(Object.freeze({ n: 1 })); delete s.n; }, /refused the delete — the object is frozen/],
+    ['a sealed object refuses a new key', () => { const s = core.createStore(Object.seal({ n: 1 })); s.z = 9; }, /the object is sealed, so `z` cannot be added/],
+    ['a non-extensible object refuses a new key', () => { const s = core.createStore(Object.preventExtensions({ n: 1 })); s.z = 9; }, /the object is not extensible/],
+    ['a non-writable property refuses a write', () => {
+      const raw = {};
+      Object.defineProperty(raw, 'n', { value: 1, writable: false, configurable: false, enumerable: true });
+      const s = core.createStore(raw);
+      s.n = 2;
+    }, /`n` is not writable/],
+    ['a getter with no setter refuses a write', () => { const s = core.createStore({ get n() { return 7; } }); s.n = 2; }, /`n` has a getter and no setter/],
+    ['a frozen object nested in a store refuses a write', () => { const s = core.createStore({ inner: Object.freeze({ n: 1 }) }); s.inner.n = 2; }, /the object is frozen/],
+  ];
+
+  for (const [name, fn, expected] of refusals) {
+    const { error } = attempt(fn);
+    check(`${name} — it throws`, error instanceof TypeError, String(error));
+    if (isProduction) continue;
+    check(`${name} — and names the rule`, expected.test(error?.message ?? ''), error?.message ?? '(no error)');
+    check(
+      `${name} — not the engine's trap message`,
+      !/trap returned falsish/.test(error?.message ?? ''),
+      error?.message ?? '(no error)'
+    );
+  }
 }
 
 if (failures.length) {

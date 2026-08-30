@@ -89,6 +89,48 @@ let proxyHandlers: ProxyHandlerInsert[] | undefined;
  * inside a setter can clear the slot without stranding an outer one. In a `finally` because a
  * throwing setter must not leave writes suppressed for the rest of the page.
  */
+/**
+ * Explains a write or delete the *language* refused, for a store's source object.
+ *
+ * A proxy must report a refused write by returning `false`, and the engine turns that into
+ * `TypeError: 'set' on proxy: trap returned falsish for property 'n'` — a message about the **trap**,
+ * which is framework internals the reader never wrote and cannot act on. The same assignment to an
+ * unproxied frozen object says `Cannot assign to read only property 'n'`, which at least names the
+ * cause. Putting a store in front of an object made the diagnosis *worse*, and
+ * `createStore(Object.freeze(defaults))` is an ordinary thing to write.
+ *
+ * Every case measured here is one of the language's own invariants and not a framework decision —
+ * frozen, sealed with a new key, `preventExtensions`, a non-writable property, a getter with no
+ * setter — so this reports rather than repairs, and derives the reason from the target instead of
+ * guessing at it.
+ *
+ * `__DEV__`-only, which is exactly where a **message** belongs: it throws either way, so the two
+ * builds still agree on what the program *does*. The one behavioural difference runs in the safe
+ * direction — in sloppy mode a refused write is silent rather than throwing, and this makes it loud.
+ *
+ * @param obj The store's source object
+ * @param prop The property the write or delete was refused for
+ * @param verb What was attempted, for the sentence
+ * @return The error to throw
+ */
+const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
+  const key = `\`${String(prop)}\``;
+  const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+  const state = Object.isFrozen(obj) ? 'frozen' : Object.isSealed(obj) ? 'sealed' : null;
+  const why = !own
+    ? `the object is ${state ?? 'not extensible'}, so ${key} cannot be added`
+    : own.get && !own.set
+      ? `${key} has a getter and no setter`
+      : state
+        ? `the object is ${state}, so ${key} cannot be ${verb}`
+        : `${key} is not ${verb === 'deleted' ? 'configurable' : 'writable'}`;
+  return new TypeError(
+    `[vera] createStore: this store's source object refused the ${verb === 'deleted' ? 'delete' : 'write'} — ${why}. A store proxies the ` +
+      `object it was given and cannot override what JavaScript declines. Pass a mutable object to ` +
+      `createStore, or keep this one outside the store and read it directly.`
+  );
+};
+
 let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
 
@@ -410,6 +452,28 @@ const createHandler = <T extends object>(
         writingObj = null;
       }
 
+      /**
+       * **When the language refuses the write, say which language rule refused it.**
+       *
+       * A proxy has to report a refused write by returning `false`, and the engine turns that into
+       * `TypeError: 'set' on proxy: trap returned falsish for property 'n'` — a message about the
+       * *trap*, which is framework internals the reader never wrote and cannot act on. The same
+       * assignment to an unproxied frozen object says `Cannot assign to read only property 'n'`,
+       * which at least names the cause. Putting a store in front of the object makes the diagnosis
+       * worse, and `createStore(Object.freeze(defaults))` is an ordinary thing to write.
+       *
+       * Every measured case is the language's own invariant and not a framework decision — frozen,
+       * sealed-plus-new-key, `preventExtensions`, a non-writable property, a getter with no setter —
+       * so this reports rather than repairs, and the reason is derived from the target instead of
+       * guessed at.
+       *
+       * `__DEV__`-only, which pass 49 says is exactly right for a **message**: it throws either way,
+       * so the two builds still agree on what the program *does*. In sloppy mode a refused write is
+       * silent rather than throwing, and this makes it loud — development being stricter, which is
+       * the safe direction.
+       */
+      if (__DEV__ && !result) throw refusedWrite(obj, prop, 'changed');
+
       if (result) {
         /**
          * Extension point for anything that wants to take over propagation — batching,
@@ -480,6 +544,8 @@ const createHandler = <T extends object>(
       const had = prop in obj;
       const prevValue = (had ? Reflect.get(obj, prop) : undefined) as Value;
       const success = Reflect.deleteProperty(obj, prop);
+      /** Same reasoning as the `set` trap above — see `refusedWrite`. */
+      if (__DEV__ && !success && had) throw refusedWrite(obj, prop, 'deleted');
       if (success && had) {
         runCallbacks(obj, prop, undefined as Value, prevValue);
         runCallbacks(obj, GLOBAL as Extract<keyof T, string>, undefined as Value, prevValue);
