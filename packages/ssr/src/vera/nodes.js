@@ -185,7 +185,15 @@ const insertAround = (node, inserted, where) => {
   const reference = where === 'after' ? node.nextSibling : node;
   for (const one of inserted)
     parent.insertBefore(typeof one === 'string' ? new TextShim(one) : one, reference);
-  if (where === 'replace') parent.removeChild(node);
+  /**
+   * **Unless the node replaced itself.** `x.replaceWith(x)` inserted `x` back where it was and then
+   * removed it, so a node replaced by itself **disappeared** — measured against jsdom, which leaves
+   * it in place.
+   *
+   * Same root cause as the `after` case above: this helper treated `node` and `inserted` as disjoint,
+   * and every operation here allows them to overlap.
+   */
+  if (where === 'replace' && !inserted.includes(node)) parent.removeChild(node);
 };
 
 /**
@@ -609,6 +617,25 @@ export class ContainerShim extends EventTarget {
         `Failed to execute 'insertBefore' on 'Node': The new child element contains the parent.`,
         'HierarchyRequestError'
       );
+    /**
+     * **Inserting a node before itself is a no-op, and it was not.** The spec's pre-insert step 3 is
+     * "if referenceChild is node, then set referenceChild to node's next sibling", and without it the
+     * detach below removes `node` and the `indexOf(reference)` that follows returns `-1` — so
+     * `splice(-1, 0, node)` puts it back **before the last child** instead of where it was.
+     *
+     * Reached in practice through `after()`: `insertAround` computes its reference once, up front, so
+     * `a.after(b)` where `b` is already `a`'s next sibling becomes exactly `insertBefore(b, b)`.
+     * Measured against jsdom, with `n` children the node landed at index `n - 2` every time — two
+     * children put it *first*, five put it second-to-last, and **three put it back where it belonged**,
+     * which is the size a hand-written test uses.
+     *
+     * Found by fuzzing sequences of tree mutations rather than operations one at a time; every
+     * individual member here already agreed with jsdom.
+     */
+    if (reference === node) {
+      reference = node.nextSibling;
+      if (reference === null) return this.appendChild(node);
+    }
     if (!isNode(node)) {
       this._entries.splice(this._entries.indexOf(reference), 0, node?.innerHTML ?? '');
       return node;
@@ -656,10 +683,45 @@ export class ContainerShim extends EventTarget {
         `Failed to execute 'replaceChild' on 'Node': The node to be replaced is not a child of this node.`,
         'NotFoundError'
       );
+    /**
+     * **The one insertion path that had no ancestor check.** `prepend`, `append`, `appendChild`,
+     * `before` and `replaceWith` all route through `insertBefore` and inherit its guard; this does
+     * not, so `root.replaceChild(root, child)` was accepted and built a tree containing itself.
+     *
+     * A cycle in the tree is worse than a misordered one: it is not a wrong answer, it is a structure
+     * nothing downstream can walk. The nesting cap in `index.js` would eventually refuse the render,
+     * naming recursion rather than the call that caused it.
+     *
+     * Found by fuzzing mutation *sequences* against jsdom — `ssr-tree-operations` covers this method
+     * and could not see it, because the case needs a node and its own ancestor in one call.
+     */
+    let contains = node === this;
+    for (let above = this._parent; above && !contains; above = above._parent) if (above === node) contains = true;
+    if (contains)
+      throw new DOMException(
+        `Failed to execute 'replaceChild' on 'Node': The new child element contains the parent.`,
+        'HierarchyRequestError'
+      );
+    /**
+     * **Where `old` sits, captured before anything moves.** Detaching `node` can remove `old` from
+     * this list — they are allowed to be the same node — and the `indexOf(old)` that followed then
+     * returned `-1`, so `splice(-1, 1, …)` **replaced the last child instead**: `x.replaceChild(x, x)`
+     * moved `x` to the end and destroyed whatever had been there.
+     *
+     * The spec makes replacing a node with itself a no-op, by the same step `insertBefore` needed —
+     * "if referenceChild is node, then set referenceChild to node's next sibling". Third instance of
+     * one root cause: this file treated a node and its own argument as necessarily different, and
+     * every one of these operations allows them to be the same.
+     */
+    const at = this._entries.indexOf(old);
     node._parent?._detach(node);
-    this._entries.splice(this._entries.indexOf(old), 1, isNode(node) ? node : (node?.innerHTML ?? ''));
+    /** Re-found after the detach: moving a node forwards within one parent shifts the index. */
+    const index = this._entries.indexOf(old);
+    const value = isNode(node) ? node : (node?.innerHTML ?? '');
+    if (index === -1) this._entries.splice(at, 0, value);
+    else this._entries.splice(index, 1, value);
     if (isNode(node)) node._parent = this;
-    old._parent = null;
+    if (old !== node) old._parent = null;
     return old;
   }
   /**
@@ -889,11 +951,31 @@ export class ContainerShim extends EventTarget {
     this.append(...nodes);
   }
   /** Splices the entries rather than concatenating markup, for the reason `append` gives. */
+  /**
+   * **The restore has to survive a throw.** `append` can reject a node — an ancestor of `this` is a
+   * `HierarchyRequestError` — and the children were already moved aside by then, so the final
+   * `push` never ran and **every existing child was destroyed by a call that failed**.
+   *
+   * Measured against jsdom: `child.prepend(root)` throws on both, and afterwards jsdom still holds
+   * the child's text while this held nothing. A failed operation that mutates is worse than one that
+   * does the wrong thing, because the caller has already handled the error and moved on.
+   *
+   * `finally`, not a validity pre-pass: matching the spec exactly would mean checking every argument
+   * before inserting any, so that a second bad node undoes a first good one. That difference is
+   * narrower than this one and is left alone deliberately — what is fixed here is the destruction of
+   * children that were never arguments.
+   *
+   * Found by fuzzing sequences of tree mutations against jsdom; the failing sequence ended
+   * `prepend(n1, root)` and the loss showed up as a missing text node four operations later.
+   */
   prepend(...nodes) {
     const existing = this._entries;
     this._entries = [];
-    this.append(...nodes);
-    this._entries.push(...existing);
+    try {
+      this.append(...nodes);
+    } finally {
+      this._entries.push(...existing);
+    }
   }
   /**
    * **Answers from the node view**, which markup assigned as a string now has. Every query used to
