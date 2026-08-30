@@ -204,8 +204,15 @@ renderInto(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, ho
 
 `hold(result)` parks the DOM it replaces instead of destroying it, keyed by template identity, and
 brings it back when that template returns. lit calls this `cache`. What survives is everything no
-attribute records: what the user typed, which element had focus, a scroll offset, a `<details>` left
-open, a media element's playback position.
+attribute records: what the user typed, a checkbox or radio the user set, a `<select>`'s chosen
+option, a `<details>` left open, a media element's playback position — and the nodes themselves, so
+the element that had focus is the same element when it comes back.
+
+**A scroll offset does not survive, and cannot.** Every engine resets `scrollTop` to zero the moment
+an element leaves the document — measured on Chromium, Firefox and WebKit, which report `0` while
+parked, `0` on return, and `0` even for a node moved directly between two attached parents. Nothing a
+directive does with the nodes can hold it, and lit's `cache()` cannot either. If a scroll position
+matters, read it before the toggle and restore it after.
 
 Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write.
 
