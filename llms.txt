@@ -6,7 +6,11 @@
 
 **This file is the complete API.** It is written to be pasted into an LLM context window — the whole
 public surface is about 30 functions, so an assistant does not need training data on VeraJS to write
-it correctly. Everything else is standard Custom Elements and lit-html, which models already know.
+it correctly. Everything else is standard Custom Elements and tagged template literals.
+
+If you already know lit-html the templates will look familiar, and the semantics are deliberately the
+same — but VeraJS ships its own renderer and needs nothing from lit. Using lit-html instead is a
+one-line swap, documented under *Swapping the template tag* near the end, and is entirely optional.
 
 > ⚠️ **LIVING DOCUMENT — EXPECT DRIFT.** VeraJS is pre-release and under active development. The API
 > is not frozen and this file will keep changing. It is maintained by hand, so it can fall behind the
@@ -48,10 +52,10 @@ There are no dependency arrays, no reactive-property declarations, and no base c
 ## Minimal component
 
 ```js
-import { init, createStore, render, setHtml } from '@verajs/core';
-import { html } from 'lit-html';
+import { init, createStore, render, html, wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setHtml(html); // once, at startup — see "Setup" below
+wire([renderer]); // once, at startup — see "Setup" below
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
@@ -69,11 +73,10 @@ customElements.define('click-counter', ClickCounter);
 ## Setup — required once, before any component defines itself
 
 ```js
-import { setHtml, wire, inserts } from '@verajs/core';
-import { html, render as litRender } from 'lit-html';
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setHtml(html);          // the template tag
-wire({ on: 'render', fn: litRender, priority: 50 }); // what writes to the DOM
+wire([renderer]);       // what writes to the DOM. Core's `html` already produces what it accepts.
 ```
 
 **Core ships no renderer.** `render()` with none registered paints nothing and warns once in
@@ -85,20 +88,20 @@ import { renderer } from '@verajs/renderer';
 wire([renderer]);
 ```
 
-Core's `html` needs no `setHtml` with `@verajs/renderer` — it already produces the shape the
-renderer accepts. lit-html works too: `wire({ on: 'render', fn: litRender, priority: 50 }); setHtml(litHtml);`
+Core's `html` needs no `setHtml` — it already produces the shape `@verajs/renderer` accepts, so the
+one `wire` call above is the whole of the setup.
 
 **Order matters.** A component that defines itself before `wire(renderer)` renders with nothing on
 the `'render'` chain — `render()` warns once in development and draws nothing. Static
 `import` declarations are **hoisted**, so this is wrong:
 
 ```js
-setHtml(html);
-import './components/app.js';        // WRONG — hoisted, runs before setHtml
+wire([renderer]);
+import './components/app.js';        // WRONG — hoisted, runs before wire()
 ```
 
 ```js
-setHtml(html);
+wire([renderer]);
 await import('./components/app.js'); // correct — dynamic import is not hoisted
 ```
 
@@ -135,7 +138,7 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 | `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
-| `html` | tagged template | Replaceable via `setHtml`. Core's built-in produces a lit-compatible object. |
+| `html` | tagged template | What you use. Replaceable via `setHtml` if you want a different tag — see *Swapping the template tag*. |
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
@@ -676,14 +679,38 @@ Semantics worth stating:
 
 ---
 
+## Swapping the template tag — optional
+
+**Skip this unless you specifically want it.** Core's `html` and `@verajs/renderer` are the default
+and need no configuration; this exists because the renderer is an insert like any other, so the
+template tag and the thing that writes to the DOM can both be replaced.
+
+It is here for two reasons: an app already written against lit-html can move to VeraJS without
+rewriting its templates, and it is the proof that core is not welded to one renderer. Neither is a
+reason to reach for it in new code — `@verajs/renderer` is smaller, and browser-confirmed faster than
+or equal to lit-html on all eight benchmark operations.
+
+```js
+import { setHtml, wire } from '@verajs/core';
+import { html, render as litRender } from 'lit-html';
+
+setHtml(html);                                        // the template tag
+wire({ on: 'render', fn: litRender, priority: 50 });  // what writes to the DOM
+```
+
+Both calls are needed and both must run before any component defines itself. A string renderer, a
+test double, or anything else implementing the same two contracts works the same way.
+
+---
+
 ## CDN / buildless
 
 ```html
 <script type="importmap">
   { "imports": {
-      "@verajs/core":   "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
-      "@verajs/router": "https://cdn.jsdelivr.net/npm/@verajs/router/dist/vera-router.min.js",
-      "lit-html":       "https://cdn.jsdelivr.net/npm/lit-html@3/lit-html.js" } }
+      "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
+      "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js",
+      "@verajs/router":   "https://cdn.jsdelivr.net/npm/@verajs/router/dist/vera-router.min.js" } }
 </script>
 ```
 

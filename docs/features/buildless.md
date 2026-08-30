@@ -23,14 +23,14 @@ Verified against the shipped bundles: zero bundler artifacts, zero bare imports.
 ```html
 <script type="importmap">
   { "imports": {
-      "@verajs/core": "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
-      "lit-html":     "https://cdn.jsdelivr.net/npm/lit-html@3/lit-html.js" } }
+      "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
+      "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js" } }
 </script>
 
 <script type="module">
-  import { init, createStore, render, setHtml } from '@verajs/core';
-  import { html } from 'lit-html';
-  setHtml(html);
+  import { init, createStore, render, html, wire } from '@verajs/core';
+  import { renderer } from '@verajs/renderer';
+  wire([renderer]);
 
   customElements.define('click-counter', class extends HTMLElement {
     connectedCallback() {

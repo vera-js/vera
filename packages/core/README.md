@@ -13,8 +13,11 @@ npm i @verajs/core @verajs/renderer
 ```
 
 Core does not write to the DOM itself — a renderer does, and it is a separate install. That is the
-one piece of wiring VeraJS asks for, and it is what lets you swap in lit-html, a string renderer for
-tests, or your own.
+one piece of wiring VeraJS asks for: `wire([renderer])`, once, at your app entry.
+
+It is also what makes the renderer replaceable — a string renderer for tests, lit-html for an app
+already written against it, or your own — but that is a door, not a step. `@verajs/renderer` and
+core's `html` need nothing configured between them.
 
 ## A component, whole
 
@@ -159,7 +162,7 @@ holding its value at the start and at the end.
 | --- | --- |
 | `init(element, shadowProps?)` | call first in `connectedCallback`. `{ mode: 'open' }` for shadow DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary) |
 | `render(template?, ...args)` | draw, and commit the setup. See below |
-| `html` | the template tag. Produces a lit-compatible result |
+| `html` | the template tag. `@verajs/renderer` takes what it produces with no configuration |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `css` | for `static styles`, with `@verajs/styles` |
 | `mount()` | commit the setup for a component that draws nothing |
