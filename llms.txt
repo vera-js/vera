@@ -705,8 +705,13 @@ the price of the modules being genuinely independent of core.
 For CodePen, a demo or a single-file app. Copy this shape; it works with no toolchain at all.
 
 ```html
-<!-- BOTH specifiers are required: the transform auto-injects `html` from @verajs/core and
-     `keyed` from @verajs/renderer, so a missing renderer entry fails at import time. -->
+<!-- All three entries are required, for two different reasons. The transform auto-injects
+     `import { html } from '@verajs/core'` into every block, and — only when you write `key={…}` on a
+     JSX element — `import { keyed } from '@verajs/renderer/keyed'`. Note the subpath: mapping
+     `@verajs/renderer` alone is not enough for `key={…}`, and the page fails at import time with
+     "Failed to resolve module specifier". The `@verajs/renderer` entry is needed for the
+     `import { renderer }` below, which you write yourself. An explicit `keyed(…)` call is not
+     auto-injected either — import it, as this block does. -->
 <script type="importmap">
 { "imports": {
     "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.2.1/dist/vera.min.js",

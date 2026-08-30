@@ -85,3 +85,55 @@ process.stdout.write('ok');
   });
   assert.equal(out, 'ok');
 });
+
+/**
+ * **The buildless import map has to cover every specifier the transform can inject.**
+ *
+ * `llms.txt` told readers the transform injects "`html` from `@verajs/core` and `keyed` from
+ * `@verajs/renderer`". The first half is right; the second names the wrong package and omits the
+ * condition. `keyed` comes from **`@verajs/renderer/keyed`**, and only when a block writes
+ * `key={…}` on an element — an explicit `keyed(…)` call is not injected at all.
+ *
+ * That is not pedantry about a subpath. A page built on the stated mechanism — `key={…}` in the JSX,
+ * `@verajs/core` and `@verajs/renderer` in the map — **does not render**, in every engine, with
+ * `Failed to resolve module specifier "@verajs/renderer/keyed"`. Measured in a browser before this
+ * was written.
+ *
+ * So the map is checked against the transform rather than against the prose: whatever the transform
+ * would inject has to be resolvable by the recipe's own import map.
+ */
+test('every specifier the JSX transform injects is in the buildless import map', () => {
+  const text = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
+  /** `llms.txt` carries two import maps — the plain CDN one and the JSX one — and only the JSX
+   * recipe has anything injected into it. Take the last map before the first JSX block. */
+  const jsxAt = text.indexOf('<script type="text/vera-jsx">');
+  assert.ok(jsxAt > 0, 'the buildless JSX recipe is gone');
+  const maps = [...text.slice(0, jsxAt).matchAll(/<script type="importmap">\s*(\{[\s\S]*?\})\s*<\/script>/g)];
+  assert.ok(maps.length, 'the buildless JSX recipe no longer has an import map before it');
+  const imports = JSON.parse(maps[maps.length - 1][1]).imports;
+
+  /** Every shape the transform injects for, so a new injection target fails here. */
+  const sources = [
+    ['a plain element', '<p>hi</p>'],
+    ['a keyed element', '<ul>{[1].map((i) => <li key={i}>{i}</li>)}</ul>'],
+    ['a fragment', '<><p>a</p><p>b</p></>'],
+    ['a component', '<Row label="x" />'],
+  ];
+  const injected = new Set();
+  for (const [, source] of sources) {
+    const output = transformJsx(`const a = ${source};`, 'inline.jsx');
+    for (const line of String(output.code ?? output).split('\n')) {
+      const match = /^import .*? from '([^']+)';/.exec(line);
+      if (match) injected.add(match[1]);
+    }
+  }
+  assert.ok(injected.has('@verajs/core'), 'the transform no longer injects html from core');
+  assert.ok(injected.has('@verajs/renderer/keyed'), 'the transform no longer injects keyed from the subpath entry');
+
+  const missing = [...injected].filter((specifier) => !(specifier in imports));
+  assert.deepEqual(
+    missing,
+    [],
+    `the recipe's import map cannot resolve what the transform injects: ${missing.join(', ')}`
+  );
+});
