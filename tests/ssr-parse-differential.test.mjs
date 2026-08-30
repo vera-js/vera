@@ -180,3 +180,77 @@ test('never disagrees with parse5 — it matches or it declines', () => {
   for (const markup of declined) console.log(`      declined: ${JSON.stringify(markup)}`);
   assert.ok(agreed >= CORPUS.length * 0.6, `only ${agreed} of ${CORPUS.length} parsed — too many declines to be useful`);
 });
+
+/**
+ * **The warning for unparsed markup has to describe the parser that exists.**
+ *
+ * It said "markup assigned as a string is not parsed on the server", which was true before this
+ * parser and is now false for almost everything — nested elements, attributes, void elements,
+ * comments, an unclosed tag, a table fragment and raw text all parse. Only markup the parser cannot
+ * re-serialise byte-identically is declined.
+ *
+ * The distinction changes what the reader does next. "Not parsed" sends them to rewrite working code
+ * with `createElement`; the truth is that one piece of markup was refused and making it well-formed
+ * is usually the fix.
+ *
+ * Asserted as *when it fires* rather than by its words, which is the mistake `core-hook-lifecycle`
+ * made with the bare-`render()` message: a literal match pins the wording and leaves the meaning
+ * free to drift away from it.
+ */
+test('the unparsed-markup warning fires only for markup this DOM declines', () => {
+  const warnsFor = (markup) => {
+    const said = [];
+    const { warn } = console;
+    console.warn = (...args) => said.push(args.join(' '));
+    try {
+      const host = document.createElement('div');
+      host.innerHTML = markup;
+      void host.children.length;
+      return { warned: said.some((line) => /could not be parsed/.test(line)), children: host.children.length };
+    } finally {
+      console.warn = warn;
+    }
+  };
+
+  /** Everything the parser handles must be quiet *and* produce children. */
+  for (const markup of [
+    '<b>x</b>',
+    '<div><p><i>x</i></p></div>',
+    '<a href="/x" class="y">z</a>',
+    '<br><img src="x">',
+    'lead<b>x</b>tail',
+    '<!-- c --><b>x</b>',
+    '<p>unclosed',
+    '<td>cell</td>',
+    '<script>var a = 1;</script>',
+  ]) {
+    const { warned, children } = warnsFor(markup);
+    assert.equal(warned, false, `${markup} warned, but it parses`);
+    assert.ok(children > 0, `${markup} produced no children`);
+  }
+
+  /** And the declined case warns, with advice that matches why it was declined. */
+  const declined = warnsFor('<p>x</b>');
+  assert.equal(declined.warned, true, 'a mismatched close should be declined and reported');
+  assert.equal(declined.children, 0);
+});
+
+test('and the warning does not claim markup is never parsed', () => {
+  const said = [];
+  const { warn } = console;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    const host = document.createElement('div');
+    host.innerHTML = '<p>x</b>';
+    void host.children.length;
+  } finally {
+    console.warn = warn;
+  }
+  const message = said.find((line) => /could not be parsed/.test(line)) ?? '';
+  assert.ok(message, 'the warning did not fire');
+  assert.doesNotMatch(
+    message,
+    /is not parsed|never parsed|not parsed on the server/,
+    `the warning claims markup is not parsed, and almost all of it is: ${message}`
+  );
+});

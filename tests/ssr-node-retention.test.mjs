@@ -169,9 +169,24 @@ test('markup it cannot parse stays a string, and warns once', () => {
      * the wording is the whole value of a diagnostic, and it is what a reader acts on. This
      * assertion was in the first version of this test and was lost when it was rewritten for the
      * parser; a sweep asking which diagnostics no test quotes is what found it missing.
+     *
+     * **What it pins changed once already.** The message used to say markup assigned as a string "is
+     * not parsed on the server", which was true before `parse.js` and false after it — nested
+     * elements, attributes, void elements, comments, `<p>unclosed`, a bare `<td>` and raw text all
+     * parse. Only what this DOM cannot re-serialise exactly is declined, which is the case here.
+     *
+     * So the claim is pinned *positively* (it names parsing and refusal) and the false one is pinned
+     * negatively below — a regex quoting a phrase is only as good as the phrase being true, and this
+     * one outlived its own subject.
      */
-    assert.match(warnings[0], /markup but no child nodes/, 'and says what is actually wrong');
+    assert.match(warnings[0], /could not be parsed/, 'and says what is actually wrong');
+    assert.match(warnings[0], /declines the rest/, 'and that refusal is the deliberate behaviour');
     assert.match(warnings[0], /createElement\/appendChild/, 'and what to do about it');
+    assert.doesNotMatch(
+      warnings[0],
+      /is not parsed|never parsed|not parsed on the server/,
+      'the message claims markup is not parsed, and nearly all of it is'
+    );
   } finally {
     console.warn = original;
   }

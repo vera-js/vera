@@ -291,9 +291,23 @@ const nodesOf = (container) => {
     container._entries.some((entry) => typeof entry === 'string' && entry.trim())
   ) {
     warnedAboutMarkup.add(container);
+    /**
+     * **The message has to describe the parser that exists.** It used to say "markup assigned as a
+     * string is not parsed on the server", which was true before `parse.js` and is now false for
+     * almost everything: nested elements, attributes, void elements, comments, an unclosed tag, a
+     * table fragment and raw text all parse. What reaches this line is the narrow case the parser
+     * *declined* — markup it cannot re-serialise byte-identically, so it keeps the string rather than
+     * hand back a tree the client would not build.
+     *
+     * The distinction changes the advice. "Not parsed" tells the author to rewrite working code with
+     * `createElement`; the truth is that this particular markup was refused, and making it
+     * well-formed is usually the fix.
+     */
     console.warn(
-      `[vera] ssr: this element has markup but no child nodes, so children/querySelector answer ` +
-        `emptily. Markup assigned as a string is not parsed on the server. Build children with ` +
+      `[vera] ssr: this element's markup could not be parsed, so children/querySelector answer ` +
+        `emptily for it. This DOM parses markup it can reproduce exactly and declines the rest, ` +
+        `rather than building a tree the browser would not — a mismatched or stray closing tag is ` +
+        `the usual cause. Make the markup well-formed, or build the children with ` +
         `createElement/appendChild if a component needs to read them back.`
     );
   }
