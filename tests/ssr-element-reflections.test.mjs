@@ -161,3 +161,74 @@ test('an unknown or custom tag is left alone', () => {
   custom.disabled = true;
   assert.equal(custom.hasAttribute('disabled'), false, 'a plain property, as it is in a browser');
 });
+
+/**
+ * **A numeric property converts before it writes.**
+ *
+ * The platform applies the WebIDL conversion for the property's type at *assignment* and writes the
+ * **converted** number to the attribute, not what the caller passed. This wrote the value verbatim, so
+ * `element.width = 3.9` produced `width="3.9"` on the server where the client writes `width="3"` — a
+ * hydration mismatch from ordinary code, since a fractional dimension is what arithmetic produces.
+ *
+ * Every expectation below is **measured in Chromium**, not derived. That distinction has already paid
+ * twice in this area: `area.shape` came to answer the probe value used to measure it because a row was
+ * reasoned about rather than measured, and an earlier draft of this very test asserted
+ * `iframe.width = 'probe'` writes `"0"` — recalled, and wrong, because `iframe.width` is a `DOMString`
+ * reflection that echoes.
+ *
+ * **What is deliberately not covered**: the per-property handling of a *negative* value. Eleven of
+ * these properties clamp it to 0, six to 1, four refuse it, two allow it, and `canvas` and
+ * `input.size` substitute an element default. Encoding that means thirty-one hand-classified rows in
+ * a table whose hand-classified rows are what produced Defect 49. A negative width is already a
+ * caller's mistake; a fractional one is not. The measured table is in the audit if that trade is worth
+ * revisiting.
+ */
+test('a numeric reflection writes the converted number, not the value it was given', () => {
+  /** `[tag, property, attribute, written, the attribute Chromium writes]` */
+  const MEASURED = [
+    ['img', 'width', 'width', 3.9, '3'],
+    ['img', 'width', 'width', 'probe', '0'],
+    ['img', 'width', 'width', '', '0'],
+    ['img', 'height', 'height', 7, '7'],
+    ['td', 'colSpan', 'colspan', 3.9, '3'],
+    ['canvas', 'width', 'width', 'probe', '0'],
+    ['input', 'maxLength', 'maxlength', 3.9, '3'],
+    ['ol', 'start', 'start', 3.9, '3'],
+    ['select', 'size', 'size', 'probe', '0'],
+    ['textarea', 'rows', 'rows', 3.9, '3'],
+  ];
+
+  for (const [tag, property, attribute, written, expected] of MEASURED) {
+    const element = document.createElement(tag);
+    element[property] = written;
+    assert.equal(
+      element.getAttribute(attribute),
+      expected,
+      `<${tag}>.${property} = ${JSON.stringify(written)} wrote ${JSON.stringify(element.getAttribute(attribute))}; Chromium writes ${JSON.stringify(expected)}`
+    );
+  }
+});
+
+/**
+ * And the properties that only *look* numeric. `iframe.width`, `embed.width`, `object.width` and
+ * `table.width` are `DOMString` reflections in IDL — measured in Chromium, they echo what is written.
+ * Applying the numeric conversion to them would be a regression, so both directions are pinned.
+ */
+test('a string reflection that looks numeric still echoes what it was given', () => {
+  /**
+   * `table` is **not** in this list, and not because it behaves differently: it is absent from the
+   * reflections table entirely, because `table` is absent from the tag list
+   * `scripts/measure-element-reflections.mjs` measures. `table.width = 'probe'` therefore lands as a
+   * plain JavaScript property and writes no attribute at all, where Chromium reflects it. Recorded in
+   * the audit with the other per-tag members that are neither implemented nor listed out of scope.
+   */
+  for (const tag of ['iframe', 'embed', 'object']) {
+    const element = document.createElement(tag);
+    element.width = 'probe';
+    assert.equal(
+      element.getAttribute('width'),
+      'probe',
+      `<${tag}>.width is a DOMString reflection and should echo; the numeric conversion has been over-applied`
+    );
+  }
+});

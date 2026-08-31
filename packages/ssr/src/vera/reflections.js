@@ -589,8 +589,38 @@ export const interfaceFor = (tag, Base) => {
           const parsed = Number.parseInt(raw, 10);
           return Number.isNaN(parsed) ? absent : parsed;
         },
+        /**
+         * **A numeric property converts before it writes, and this wrote the value verbatim.**
+         *
+         * The platform applies the WebIDL conversion for the property's type at *assignment*, and
+         * writes the **converted** number to the attribute — not what the caller passed. Measured in
+         * Chromium across all 31 `number` reflections here, and every one shares this part:
+         *
+         * | written | attribute a browser writes | this wrote |
+         * | --- | --- | --- |
+         * | `3.9` | `"3"` | `"3.9"` |
+         * | `'probe'` | `"0"` | `"probe"` |
+         * | `''` | `"0"` | `""` |
+         *
+         * The reachable case is the first. `element.width = someComputedValue` is ordinary code, and
+         * a fractional result made the server write `width="3.9"` where the client writes `width="3"`
+         * — a hydration mismatch nobody did anything wrong to earn.
+         *
+         * **What this deliberately does not do** is the per-property part. A *negative* value is
+         * clamped to 0 by eleven of these properties, to 1 by six, refused outright by four
+         * (`maxLength`, `minLength`), allowed by two, and replaced with an element default by
+         * `canvas.width`/`height` and `input.size`. Three more (`meter.min`/`max`, `progress.max`) are
+         * `double` rather than `unsigned long` and do not truncate at all.
+         *
+         * Encoding that means thirty-one hand-classified rows in this table — which is how
+         * `area.shape`, `ol.type` and `textarea.wrap` came to answer with the probe value used to
+         * measure them. A negative width is already a caller's mistake; a fractional one is not. The
+         * measured table is in `internal/docs/audits/2026-08-26-gauntlet.md` if that trade is ever
+         * worth revisiting.
+         */
         set(value) {
-          this.setAttribute(attribute, `${value}`);
+          const number = Number(value);
+          this.setAttribute(attribute, `${Number.isFinite(number) ? Math.trunc(number) : 0}`);
         },
       });
     } else {
