@@ -540,7 +540,14 @@ export class ContainerShim extends EventTarget {
   }
   set innerHTML(markup) {
     for (const entry of this._entries) if (typeof entry !== 'string') entry._parent = null;
-    const text = `${markup}`;
+    /**
+     * **`[LegacyNullToEmptyString]`** — `innerHTML` stores `''` for `null`, not the word `"null"`.
+     * Same rule as `input.value` and `textarea.value` in `reflections.js`, and the same rule the
+     * README already records as fixed for `textContent`; it was fixed there for the member rather
+     * than for the class, so the rest of the class stayed wrong. `undefined` is not special-cased —
+     * the platform stringifies it.
+     */
+    const text = markup === null ? '' : `${markup}`;
     this._entries = text === '' ? [] : [text];
     /** New markup has not been looked at yet, whatever was true of the markup it replaced. */
     this._parsed = false;

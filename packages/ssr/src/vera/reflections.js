@@ -430,6 +430,25 @@ export const ELEMENT_REFLECTIONS = {
  * The reads follow the platform exactly: absent means `''` or `false`, `textarea.value` is its
  * content, and `select.value` is the value of the option that is selected.
  */
+/**
+ * **`[LegacyNullToEmptyString]`** — a handful of IDL string attributes store `''` for `null` rather
+ * than the word `"null"`, and `input.value`, `textarea.value` and `innerHTML` are three of them.
+ *
+ * This is the same defect the README already records as found and fixed: *"`textContent = null`
+ * writing the word 'null'"*. It was fixed where it was found rather than for the rule, so the other
+ * members of the class stayed wrong — the exact pattern `tests/ssr-spread-equivalence.test.mjs`
+ * opens by describing.
+ *
+ * It matters because `element.value = maybeNull` in a component is ordinary code. The server wrote
+ * `value="null"` where the client stores `''`, so the control showed the word "null" until hydration
+ * replaced it — and the surface comparison could not catch it, because that check compares a member's
+ * *shape* rather than its answer to a particular input, which the README says in as many words.
+ *
+ * `undefined` is **not** included: the platform stringifies it to `"undefined"`, and only `null` is
+ * special-cased by the extended attribute.
+ */
+const legacyNullToEmptyString = (value) => (value === null ? '' : `${value}`);
+
 const FORM_STATE = {
   input: {
     value: {
@@ -437,7 +456,7 @@ const FORM_STATE = {
         return this.getAttribute('value') ?? '';
       },
       set(value) {
-        this.setAttribute('value', `${value}`);
+        this.setAttribute('value', legacyNullToEmptyString(value));
       },
     },
     checked: {
@@ -457,7 +476,7 @@ const FORM_STATE = {
         return this.textContent;
       },
       set(value) {
-        this.textContent = `${value}`;
+        this.textContent = legacyNullToEmptyString(value);
       },
     },
   },

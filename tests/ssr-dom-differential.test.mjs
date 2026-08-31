@@ -227,3 +227,56 @@ test('separates an unsupported insertAdjacentHTML position from an unknown one',
   element.insertAdjacentHTML('beforeend', '<b>x</b>');
   assert.match(element.innerHTML, /<b>x<\/b>/, 'a position it supports still works');
 });
+
+/**
+ * **`[LegacyNullToEmptyString]`, for the whole class rather than one member.**
+ *
+ * A handful of IDL string attributes store `''` when assigned `null`, rather than the word `"null"`.
+ * The SSR README already records one of them as found and fixed — *"`textContent = null` writing the
+ * word 'null'"* — and that fix went to the member instead of the rule, so `input.value`,
+ * `textarea.value` and `innerHTML` stayed wrong.
+ *
+ * The member-by-member surface comparison could not have caught it, and says so in its own header:
+ * it compares a member's **shape**, the type it answers with, not its answer to a particular input.
+ * `"null"` and `""` are both strings.
+ *
+ * It reaches a page through ordinary code. `element.value = maybeNull` in a component made the server
+ * write `value="null"`, so the control showed the word "null" until hydration replaced it.
+ *
+ * `undefined` is deliberately **not** included: the platform stringifies it to `"undefined"`, and only
+ * `null` is special-cased by the extended attribute. Both directions are asserted, so a fix that
+ * over-applied the rule fails here too.
+ */
+test('assigning null to a [LegacyNullToEmptyString] property stores the empty string', () => {
+  const cases = [
+    ['input', 'value'],
+    ['textarea', 'value'],
+    ['div', 'innerHTML'],
+    ['div', 'textContent'],
+  ];
+
+  for (const [tag, property] of cases) {
+    const mine = globalThis.document.createElement(tag);
+    mine[property] = null;
+    assert.equal(mine[property], '', `<${tag}>.${property} = null should store '' and stored ${JSON.stringify(mine[property])}`);
+
+    /** And the platform's answer, so this is pinned against a real DOM rather than against a belief. */
+    const theirs = real.document.createElement(tag);
+    theirs[property] = null;
+    assert.equal(mine[property], theirs[property], `<${tag}>.${property} = null disagrees with a real DOM`);
+  }
+});
+
+test('and undefined is still stringified, because only null is special-cased', () => {
+  for (const [tag, property] of [['input', 'value'], ['textarea', 'value'], ['div', 'innerHTML']]) {
+    const mine = globalThis.document.createElement(tag);
+    mine[property] = undefined;
+    const theirs = real.document.createElement(tag);
+    theirs[property] = undefined;
+    assert.equal(
+      mine[property],
+      theirs[property],
+      `<${tag}>.${property} = undefined should match a real DOM; the null rule has been over-applied`
+    );
+  }
+});
