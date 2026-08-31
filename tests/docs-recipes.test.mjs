@@ -199,6 +199,7 @@ import { spawnSync } from 'node:child_process';
 
 const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
 
+const repoRoot = new URL('..', import.meta.url).pathname;
 const readmes = ['README.md', ...globSync('packages/*/README.md').sort()];
 const recipes = readmes.flatMap((path) => {
   const text = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -225,6 +226,47 @@ const EXPECTED_RECIPES = {
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
 };
+
+/**
+ * **A marker outside the executed set would be a promise nothing keeps.**
+ *
+ * This suite reads `README.md` and `packages/*&#47;README.md`; `llms.txt` has its own
+ * (`tests/llms-recipes.test.mjs`). Nothing reads `docs/`, `CLAUDE.md` or an example — and a
+ * `<!-- recipe -->` there is not inert, it is a claim that the block below it runs, written by someone
+ * who believed it would be executed.
+ *
+ * That is the failure this file already has a history of: `llms.txt` carried the buildless JSX recipe
+ * and *"docs-recipes globs the READMEs and had never read this file at all"*. The input list was
+ * corrected then; nothing stopped a third location appearing.
+ *
+ * The marker has to be **followed by a fence** to count. `docs/CODE-PRINCIPLES.md` and `CLAUDE.md`
+ * both name the string in prose while describing this very practice, and a guard that flagged them
+ * would be reporting its own documentation.
+ */
+test('no recipe marker sits outside the files that execute them', () => {
+  const executed = new Set([...readmes, 'llms.txt']);
+  const MARKED_BLOCK = /<!--\s*recipe\s*-->\s*\n```/;
+
+  const candidates = [
+    ...globSync('*.md', { cwd: repoRoot }),
+    ...globSync('*.txt', { cwd: repoRoot }),
+    ...globSync('docs/**/*.md', { cwd: repoRoot }),
+    ...globSync('packages/*/README.md', { cwd: repoRoot }),
+    ...globSync('examples/**/*.md', { cwd: repoRoot }),
+  ];
+
+  const orphans = [...new Set(candidates)]
+    .filter((file) => !executed.has(file))
+    .filter((file) => MARKED_BLOCK.test(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')));
+
+  assert.ok(candidates.length > 10, `only ${candidates.length} documents were scanned`);
+  assert.deepEqual(
+    orphans,
+    [],
+    `these carry a <!-- recipe --> marker that nothing runs — either move the recipe into a README, ` +
+      `or add the file to this suite:\n  ${orphans.join('\n  ')}`
+  );
+});
 
 test('the marked recipes are exactly the ones we expect', () => {
   const byFile = {};
