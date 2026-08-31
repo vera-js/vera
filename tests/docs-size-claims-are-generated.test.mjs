@@ -30,10 +30,56 @@ const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { 
  */
 const MEASURED_DELTAS = {
   '116 B gzipped': 'packages/renderer/README.md — the directive protocol inside the renderer, not a module',
+  /**
+   * Found by widening the pattern below, having sat unnoticed in a published README. It is written
+   * `**5 B** gzipped`, with the emphasis closing between the unit and the word, and the old pattern
+   * required whitespace there — so a live claim was invisible to the guard that exists to find them.
+   *
+   * The README states its own provenance: measured 2026-08-27 by deleting the `_$apply$` branch and
+   * rebuilding, as a difference rather than a pair of totals, "and nothing regenerates it, so it is
+   * dated". That is precisely what this list is for.
+   */
+  '5 B gzipped': 'packages/renderer/README.md — what the directive protocol adds to the renderer, a delta',
 };
 
 const MARKED = /<!--size:[\w.-]+-->[\s\S]*?<!--\/size:[\w.-]+-->/g;
-const GZIP_SIZE = /[\d\s.,]*\d\s*(?:B|KB)\s+gzip[a-z]*/g;
+
+/**
+ * **Every qualifier a live size claim is written with, not only `gzip`.**
+ *
+ * This matched `gzip` alone, "because that is the form a live module-size claim takes". It is the
+ * *dominant* form rather than the only one — "1.4 KB, minified", "1400 bytes after minification" and
+ * "1.4 KB compressed" all read as current claims about a shipped bundle, and all three slipped
+ * through. A guard whose reach is narrower than its stated reason is the shape this audit keeps
+ * finding, and it is worth less here than elsewhere: the whole point of this file is that a figure
+ * nothing regenerates will eventually be wrong.
+ *
+ * A **delta** still has no qualifier at all — "292 B recovered", "16 B" — so widening the qualifier
+ * list cannot start catching those, and `MEASURED_DELTAS` stays the place for the one that is
+ * qualified.
+ */
+const SIZE_QUALIFIER = 'gzip[a-z]*|minified|minifies|minification|compressed|brotli|minzipped';
+/**
+ * `\W{0,3}` lets markdown emphasis and a comma sit between the unit and the qualifier — the figure is
+ * almost always written `**1.4 KB**, minified`. `(?:after |when )?` is the only word allowed through,
+ * because anything looser starts matching a delta whose sentence happens to mention compression later.
+ */
+const GZIP_SIZE = new RegExp(
+  `\\b\\d[\\d.,]*\\s*(?:B|KB|bytes?)\\W{0,3}\\s*(?:after |when )?(?:${SIZE_QUALIFIER})`,
+  'gi'
+);
+
+/**
+ * The matched text is the key into `MEASURED_DELTAS`, so it has to be the *claim* rather than however
+ * the surrounding markdown happened to bold it. `116 B gzipped` is written `**116 B** gzipped` in one
+ * README and `**116 B gzipped**` in another; without stripping the emphasis the exclusion matches one
+ * and not the other.
+ *
+ * `\b` on the number matters for the same reason: without it the engine could begin a match part-way
+ * through `116`, yielding `5 B** gzipped` — a key nothing excludes, reported as a drifting claim while
+ * the real figure sat in the list all along.
+ */
+const asClaim = (found) => found.replace(/\*+/g, '').replace(/\s+/g, ' ').trim();
 
 test('the published docs are being read', () => {
   assert.ok(PUBLISHED.length > 8, `found ${PUBLISHED.length} published docs`);
@@ -44,7 +90,7 @@ test('every gzipped size in the published docs comes from the generator', () => 
   for (const file of PUBLISHED) {
     const outsideMarkers = readFileSync(root + file, 'utf8').replace(MARKED, '');
     for (const [found] of outsideMarkers.matchAll(GZIP_SIZE)) {
-      const claim = found.trim().replace(/\s+/g, ' ');
+      const claim = asClaim(found);
       if (!MEASURED_DELTAS[claim]) problems.push(`${file}: "${claim}" is stated in prose`);
     }
   }
