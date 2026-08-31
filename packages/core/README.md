@@ -197,6 +197,22 @@ Use `mount()` when a component has no markup of its own. Hooks that are never co
 no error, no render, an effect that simply does not happen — so in development a component that
 finishes `connectedCallback` without reaching either call warns and names both.
 
+**Setup is one synchronous block, which matters for `async connectedCallback()`.** Only one component
+is being set up at a time, so a second component's `init()` takes the slot from the first — and an
+`await` between `init()` and `render()` hands it over. One component alone is fine; two on a page,
+each fetching, and whichever resumes second renders nothing. Await *before* `init()`:
+
+```js
+async connectedCallback() {
+  const data = await fetch(this.dataset.url).then((r) => r.json());   // await first
+  init(this, { mode: 'open' });                                       // then set up, synchronously
+  const state = createStore({ data });
+  render(() => html`<p>${state.data.title}</p>`);
+}
+```
+
+Server-side this is already handled for you: `renderToStringAsync` awaits `connectedCallback`.
+
 `svg` and `mathml` are not stylistic. A namespace is decided when markup is parsed and cannot be
 fixed afterwards, so `html` alone produces an `HTMLUnknownElement` named `circle` — which parses
 fine and never draws anything.
