@@ -153,3 +153,45 @@ test('the prefix reaches the built artifacts', () => {
     assert.match(text, /\[vera\]/, `${bundle} carries no [vera] diagnostic`);
   }
 });
+
+/**
+ * **`console.warn` and `console.error`, and nothing else.**
+ *
+ * The rule above is about those two, and a diagnostic written with a third method escapes it twice
+ * over. `console.info('[vera] …')` is not read by the prefix check, which only looks at those two
+ * names — and it is not dropped by the production build, whose terser config is `drop_console:
+ * ['log']` rather than `true`, deliberately, so that real failures survive minification.
+ *
+ * So it would ship, unchecked, and be invisible to the console filter this convention exists to give
+ * a user. `console.debug` and `console.trace` are the same. `console.log` fails differently and is
+ * arguably worse: it is *dropped* in production, so a diagnostic written with it works in development
+ * and silently does not exist for the people who need it — the dev/prod divergence this audit already
+ * has a defect for.
+ *
+ * The profiler's single `console.log` is the exception and is deliberate: that entry is built for
+ * development only, and printing a report is what it is for.
+ */
+test('no diagnostic uses a console method outside warn and error', () => {
+  const ALLOWED = new Set(['warn', 'error']);
+  /** `[file, method]` pairs that are deliberate, each with the reason. */
+  const EXCEPTIONS = new Map([['renderer/src/profiler.ts', 'log — a development-only entry printing its report']]);
+
+  const found = [];
+  for (const file of sources) {
+    const text = readIfPresent(file);
+    if (text === null) continue;
+    const where = relative(root, file);
+    for (const [, method] of text.matchAll(/console\.(\w+)\(/g)) {
+      if (ALLOWED.has(method)) continue;
+      if (EXCEPTIONS.get(where)?.startsWith(method)) continue;
+      found.push(`${where}: console.${method}()`);
+    }
+  }
+
+  assert.deepEqual(
+    found,
+    [],
+    `a diagnostic here would be unfilterable and unchecked — the prefix rule reads only warn and ` +
+      `error, and production drops only log:\n  ${found.join('\n  ')}`
+  );
+});
