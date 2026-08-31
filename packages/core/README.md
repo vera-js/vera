@@ -213,6 +213,31 @@ async connectedCallback() {
 
 Server-side this is already handled for you: `renderToStringAsync` awaits `connectedCallback`.
 
+**Taking input from an attribute.** Attributes are half of how a web component receives anything, and
+the wiring is yours: write the new value into a store the template reads. The one sharp edge is the
+platform's ordering — `attributeChangedCallback` runs *before* `connectedCallback` for any attribute
+already in the markup, so the store does not exist yet on that first call. Guard it, and read the
+initial value in `connectedCallback`:
+
+```js
+static observedAttributes = ['label'];
+
+attributeChangedCallback(name, previous, value) {
+  if (!this.state) return;          // upgrade: setup has not run yet
+  this.state.label = value;
+}
+
+connectedCallback() {
+  init(this, { mode: 'open' });
+  this.state = createStore({ label: this.getAttribute('label') });   // the initial value
+  render(() => html`<p>${this.state.label}</p>`);
+}
+```
+
+Without the guard the component still renders, because a custom-element reaction that throws is
+*reported* rather than rethrown — so the cost is an uncaught `TypeError` in the console of every page
+using one, and nothing here can warn about it.
+
 `svg` and `mathml` are not stylistic. A namespace is decided when markup is parsed and cannot be
 fixed afterwards, so `html` alone produces an `HTMLUnknownElement` named `circle` — which parses
 fine and never draws anything.
