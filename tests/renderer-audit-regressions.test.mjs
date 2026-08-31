@@ -241,6 +241,24 @@ test('an expression in attribute-name position is reported', { skip: isProductio
     assert.deepEqual(complaints(() => html`<b ${(e) => e}>y</b>`), [], 'a bare element ref');
     assert.deepEqual(complaints(() => html`<b ${(e) => e} class="c">y</b>`), [], 'a ref before an attribute');
     assert.deepEqual(complaints(() => html`<input ${(e) => e} />`), [], 'a ref in a self-closing element');
+
+    /**
+     * **The `after !== ''` clause has its own control, because it is the one that looks like an
+     * oversight.** The rule is that a ref is followed by whitespace, `>` or `/`; an empty string is
+     * none of those, and is excluded anyway.
+     *
+     * It is empty in exactly one situation — two expressions with nothing between them — and there
+     * that reading is right: both are element refs, and the markup comes out clean. Reporting on an
+     * empty `after` would fire on every `<b ${refA}${refB}>`, so the exclusion is load-bearing rather
+     * than forgotten.
+     */
+    assert.deepEqual(complaints(() => html`<b ${(e) => e}${(e) => e}>y</b>`), [], 'two adjacent refs');
+    const twice = dom.window.document.createElement('div');
+    renderInto(html`<b ${(e) => e}${(e) => e}>y</b>`, twice);
+    assert.equal(twice.innerHTML.replace(/<!---->/g, ''), '<b>y</b>', 'and neither leaves anything in the markup');
+
+    /** The last marker still decides: put an `=` after the pair and it is the same mistake again. */
+    assert.equal(complaints(() => html`<b ${(e) => e}${'title'}="x">y</b>`).length, 1, 'adjacent, then a name');
   } finally {
     console.error = original;
   }
