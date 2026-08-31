@@ -616,5 +616,59 @@ const define = (setup) => {
   }
 }
 
+/* ── a subclass that registers hooks after super's setup has closed ────────────────────────────
+ * `class Child extends Base { connectedCallback() { super.connectedCallback(); useEffect(...) } }`
+ * is the natural way to extend a component, and it does not work: `super.connectedCallback()` ends
+ * with `render()`, which *commits* the setup, so anything registered after it is past the boundary.
+ *
+ * That boundary is documented and the hook is refused rather than half-registered -- but nothing
+ * asserted the warning, and no test in the repo called `super.connectedCallback()` at all, so the
+ * shape a subclass author actually writes was unexercised. Found while auditing what the styles
+ * hoisting fuzzer's generator could not build, which is the same blind spot in a different file.
+ *
+ * The base's own hooks are unaffected, which is the half that makes this a trap: the component
+ * renders, its inherited effects run, and only the *new* one is missing.
+ */
+{
+  const runs = { base: 0, child: 0 };
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+
+  const baseTag = `sub-base-${Date.now().toString(36)}`;
+  class SubBase extends dom.window.HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      core.useEffect(() => { runs.base++; });
+      core.render(() => core.html`<p>${this.localName}</p>`);
+    }
+  }
+  class SubChild extends SubBase {
+    connectedCallback() {
+      super.connectedCallback();
+      core.useEffect(() => { runs.child++; });
+    }
+  }
+  dom.window.customElements.define(baseTag, SubBase);
+  dom.window.customElements.define(`${baseTag}-child`, SubChild);
+
+  const child = dom.window.document.createElement(`${baseTag}-child`);
+  body.appendChild(child);
+  await frame();
+  console.warn = original;
+
+  check('the subclass still renders', child.shadowRoot?.textContent.trim() === `${baseTag}-child`, child.shadowRoot?.textContent);
+  check("and the base's own hook still ran", runs.base === 1, `${runs.base}`);
+  check('the late hook did not run', runs.child === 0, `${runs.child}`);
+  if (isProduction) {
+    check('production still refuses it rather than half-registering', runs.child === 0);
+  } else {
+    check('and it was reported rather than dropped silently', said.length === 1, said.join(' | '));
+    check('naming the boundary it missed', /between init\(\) and the render\(\)/.test(said[0] ?? ''), said[0]);
+  }
+  child.remove();
+  await frame();
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

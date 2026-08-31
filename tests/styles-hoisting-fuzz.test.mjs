@@ -60,6 +60,10 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
   const failures = [];
   let classes = 0;
   let instances = 0;
+  let derived = 0;
+  /** Light-DOM base classes from earlier rounds, and the shadow mode each one's callback installs. */
+  const parents = [];
+  const shadowOf = new WeakMap();
 
   /** The package warns once per page about the missing `@scope`; it is expected and not the subject. */
   const originalWarn = console.warn;
@@ -75,16 +79,37 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
         const marker = `m${seed}r${round}`;
         const shadow = random() < 0.4;
 
-        dom.window.customElements.define(
-          name,
-          class extends dom.window.HTMLElement {
-            static styles = css`.${'' + marker} { color: rgb(1, 2, 3); }`;
-            connectedCallback() {
-              init(this, shadow ? { mode: 'open' } : undefined);
-              render(() => html`<i>${marker}</i>`);
+        /**
+         * **Some classes derive from an earlier one, which is the shape that produced Defect 58.**
+         *
+         * Hoisting is deduplicated with a flag on the class, and `class Child extends Base` makes
+         * `Base` the prototype of `Child` — so a flag read without `hasOwnProperty` finds the base's
+         * and the subclass never hoists at all. Every class this generator built was flat, so its
+         * "once per class" invariant could not see a class that hoisted *zero* times.
+         *
+         * The base is always from an earlier round, so it has already been instantiated: that is the
+         * base-before-child order, and the only one that failed. Inheritance looks upward only, so
+         * the reverse order hoists both even when the read is wrong.
+         */
+        const base = parents.length && random() < 0.4 ? parents[Math.floor(random() * parents.length)] : null;
+        const Component = base
+          ? class extends base {
+              static styles = css`.${'' + marker} { color: rgb(1, 2, 3); }`;
             }
-          }
-        );
+          : class extends dom.window.HTMLElement {
+              static styles = css`.${'' + marker} { color: rgb(1, 2, 3); }`;
+              connectedCallback() {
+                init(this, shadow ? { mode: 'open' } : undefined);
+                render(() => html`<i>${marker}</i>`);
+              }
+            };
+
+        dom.window.customElements.define(name, Component);
+        if (!base) parents.push(Component);
+        if (base) derived++;
+        /** A subclass inherits its base's `connectedCallback`, so it inherits the base's shadow mode. */
+        const isShadow = base ? shadowOf.get(base) : shadow;
+        shadowOf.set(Component, isShadow);
 
         /** Several instances, each churned, so "once per class" is put under real pressure. */
         const count = 2 + Math.floor(random() * 4);
@@ -104,9 +129,9 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
         }
 
         const occurrences = hoisted().split(marker).length - 1;
-        if (shadow && occurrences !== 0)
+        if (isShadow && occurrences !== 0)
           failures.push(`${name} is a shadow component and hoisted its marker to the document ${occurrences} time(s)`);
-        if (!shadow && occurrences !== 1)
+        if (!isShadow && occurrences !== 1)
           failures.push(`${name} (${count} instances, each re-connected) hoisted its marker ${occurrences} time(s), expected 1`);
 
         for (const element of made) element.remove();
@@ -118,6 +143,8 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
   }
 
   assert.equal(classes, SEEDS.length * ROUNDS, 'the generator did not define the expected number of classes');
+  /** A generator that produced no subclasses would satisfy every check below without testing them. */
+  assert.ok(derived > 4, `only ${derived} of ${classes} classes derived from another — the hierarchy arm is not running`);
   assert.ok(instances > 80, `only ${instances} instances were created`);
   assert.deepEqual(failures.slice(0, 10), [], `${failures.length} class(es) hoisted wrongly:\n  ${failures.slice(0, 10).join('\n  ')}`);
 });
