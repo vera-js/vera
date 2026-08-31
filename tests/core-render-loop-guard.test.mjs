@@ -236,5 +236,51 @@ const OVER = 60;
   }
 }
 
+/* ── the streak resets, so separate sub-limit bursts do not accumulate ───────────────────────── */
+
+/**
+ * **A converging loop is the shape the warning itself recommends.**
+ *
+ * "Guard the write (`if (next !== state.x) state.x = next`)" produces a loop that runs a few passes
+ * and then stops — a list settling, a measurement converging. It is legitimate, and it is *not* the
+ * animation case above, which is discriminated by its write landing in a later frame. This one writes
+ * inside the pass, exactly as an accidental loop does, and differs only in stopping.
+ *
+ * So the guard has to count *consecutive* frames rather than total ones. Without the reset, an app
+ * that converges forty passes twice an hour eventually warns about a loop that never existed — and a
+ * warning the app trips on legitimately is one people learn to scroll past, which is the argument
+ * `inserts.ts` already makes about its own replacement warning.
+ *
+ * The must-fire and must-not-fire cases above are both single episodes; this is the one that spans
+ * two.
+ */
+{
+  let passes = 0;
+  const warnings = await listen(async () => {
+    const el = define((element) => {
+      core.init(element, { mode: 'open' });
+      const state = core.createStore({ n: 0, target: 0 });
+      element._state = state;
+      core.useEffect(() => {
+        passes++;
+        if (state.n !== state.target) state.n = state.n + 1;
+      });
+      core.render(() => core.html`<p>${state.n}</p>`);
+    });
+
+    el._state.target = 40;
+    await frames(OVER);
+    /** Quiet frames in between: this is where the streak has to fall back to zero. */
+    await frames(20);
+    el._state.target = 80;
+    await frames(OVER);
+    el.remove();
+  });
+
+  /** Both bursts must have run, or "no warning" is just an idle component. */
+  check('both bursts ran, past the limit in total', passes > 70, `${passes} passes`);
+  check('two sub-limit bursts do not accumulate', warnings.length === 0, warnings.join(' | '));
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
