@@ -150,6 +150,11 @@ describe.
   `:first-of-type`, `:is()` and `:has()` are answerable here and simply are not implemented. That
   second group used to be covered by the first reason, which made a limit of this matcher read as a
   property of servers — and predicted, wrongly, that `:first-child` would work;
+  **A collection is a plain array**, not a live `NodeList` or `HTMLCollection` — `childNodes`,
+  `children`, `querySelectorAll` and the `getElementsBy*` family all answer with one. There is nothing
+  to be live *over* while a render is a single pass, and an array is more useful to a caller than a
+  collection they have to spread. `item()` and `namedItem()` are provided anyway, because losing them
+  was a side effect of that choice rather than part of it: `list.item(0)` is ordinary code, and threw.
   **`checkVisibility()` is always `false`**, since nothing here is laid out and a
   server cannot know what CSS will do, a constructed sheet holds its CSS as **text** rather
   than a parsed rule list — so `cssRules` is empty whatever the sheet contains, which is all the

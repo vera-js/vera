@@ -287,8 +287,55 @@ const parseChunks = (container) => {
   if (gained) container._entries = entries;
 };
 
+/**
+ * **A collection is a plain array here, and that costs `item()` unless it is given one.**
+ *
+ * `childNodes`, `children` and the query methods answer with arrays rather than live `NodeList`s and
+ * `HTMLCollection`s. That is deliberate and the reason is good — there is nothing to be live *over*
+ * while a render is a single pass, and an array is more useful to the caller.
+ *
+ * But liveness is not the only difference, and the rest was a side effect rather than a decision:
+ * `list.item(0)` is a plain method on both interfaces, `namedItem` on `HTMLCollection`, and an array
+ * has neither. `list.item(0)` threw `TypeError` — from ordinary code, and from any library written
+ * against the DOM rather than against arrays.
+ *
+ * The prototype is built once and shared. `item` answers `null` out of range, as the platform does,
+ * rather than `undefined`.
+ */
+const COLLECTION_PROTOTYPE = Object.assign(Object.create(Array.prototype), {
+  /** @this {any[]} @param {number} index */
+  item(index) {
+    return this[index] ?? null;
+  },
+  /**
+   * `HTMLCollection` only. **Document order, not `id` before `name`** — the spec says "the first
+   * element in the collection" for which *either* holds, so a `name="x"` earlier in the tree wins
+   * over an `id="x"` later.
+   *
+   * Written the other way round first, from memory, and caught by comparing against a real DOM
+   * instead of against the expectation. The two orders are indistinguishable unless one element
+   * carries the `name` and a *later* one carries the `id`, which is why the fixture has exactly that.
+   *
+   * @this {any[]} @param {any} name
+   */
+  namedItem(name) {
+    const wanted = `${name}`;
+    return (
+      this.find(
+        (element) => element.getAttribute?.('id') === wanted || element.getAttribute?.('name') === wanted
+      ) ?? null
+    );
+  },
+});
+
+/** @param {any[]} list */
+const asCollection = (list) => {
+  Object.setPrototypeOf(list, COLLECTION_PROTOTYPE);
+  return list;
+};
+
 /** **Elements only** — what `children` and every element-wise accessor mean. */
-const elementsOf = (container) => nodesOf(container).filter((node) => node.openTag);
+const elementsOf = (container) => asCollection(nodesOf(container).filter((node) => node.openTag));
 
 const nodesOf = (container) => {
   parseChunks(container);
@@ -1008,7 +1055,7 @@ export class ContainerShim extends EventTarget {
   }
   querySelectorAll(selector) {
     parseChunks(this);
-    return select.querySelectorAll(this, selector);
+    return asCollection(select.querySelectorAll(this, selector));
   }
   getElementById(id) {
     parseChunks(this);
@@ -1023,7 +1070,7 @@ export class ContainerShim extends EventTarget {
     return elementsOf(this);
   }
   get childNodes() {
-    return nodesOf(this);
+    return asCollection(nodesOf(this));
   }
   get firstElementChild() {
     return elementsOf(this)[0] ?? null;
@@ -1769,8 +1816,10 @@ export class ElementShim extends ContainerShim {
   /**
    * **The collection queries answer from the tree.** Each returned an empty array whatever the tree
    * held — the same placeholder shape `querySelector` had, and just as silent. They are live
-   * `HTMLCollection`s in a browser and plain arrays here, which is already recorded as a deliberate
-   * difference: there is nothing to be live *over* while a render is a single pass.
+   * `HTMLCollection`s in a browser and plain arrays here, a deliberate difference recorded in the
+   * README: there is nothing to be live *over* while a render is a single pass. (That comment said
+   * "already recorded" while the README said nothing about it — the difference is written down now,
+   * along with the `item()`/`namedItem()` half of it that was a side effect rather than a decision.)
    */
   getElementsByTagName(name) {
     parseChunks(this);
@@ -2171,3 +2220,10 @@ const internals = new WeakMap();
 defineReflections(ElementShim);
 /** `Node`'s constants are on every node, so they go on the shared base. */
 Object.assign(ContainerShim.prototype, NODE_CONSTANTS);
+/**
+ * **And on the interface object itself.** WebIDL puts a constant on both the prototype and the
+ * constructor, so `node.nodeType === Node.TEXT_NODE` is the ordinary spelling — and `Node` is this
+ * class (`shim.js` assigns it). The constants reached instances and not the constructor, so that
+ * comparison was against `undefined` and quietly false for every node.
+ */
+Object.assign(ContainerShim, NODE_CONSTANTS);

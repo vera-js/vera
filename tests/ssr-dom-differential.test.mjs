@@ -280,3 +280,66 @@ test('and undefined is still stringified, because only null is special-cased', (
     );
   }
 });
+
+/**
+ * **A collection is an array here, and that is a decision about *liveness* only.**
+ *
+ * `childNodes`, `children`, `querySelectorAll` and the `getElementsBy*` family answer with plain
+ * arrays rather than live `NodeList`s and `HTMLCollection`s. That is deliberate — there is nothing to
+ * be live over while a render is a single pass — but `item()` and `namedItem()` went with it, and
+ * those were never part of the reasoning. `list.item(0)` threw `TypeError` from ordinary code, and
+ * from any library written against the DOM rather than against arrays.
+ *
+ * Each expectation is compared against a real DOM rather than written down: out-of-range answers
+ * `null` and not `undefined`, a negative index answers `null`, and `namedItem` matches `id` before
+ * `name`. Those are the three details easiest to get subtly wrong from memory.
+ */
+test('a collection answers item() and namedItem() the way a real one does', () => {
+  const build = (D) => {
+    const parent = D.createElement('div');
+    const first = D.createElement('span');
+    first.setAttribute('id', 'first');
+    const second = D.createElement('em');
+    second.setAttribute('name', 'second');
+    /**
+     * **The order case.** One element's `name` and a later element's `id` are the same string, so
+     * `namedItem('shared')` can only be right if `id` is preferred — with two separate elements each
+     * carrying one attribute, either order finds something and the test proves nothing.
+     */
+    const byName = D.createElement('b');
+    byName.setAttribute('name', 'shared');
+    const byId = D.createElement('i');
+    byId.setAttribute('id', 'shared');
+    parent.append(first, second, byName, byId, D.createTextNode('t'));
+    return parent;
+  };
+
+  const cases = {
+    'children.item(0)': (p) => p.children.item(0)?.localName ?? String(p.children.item(0)),
+    'children.item(9) is null, not undefined': (p) => String(p.children.item(9)),
+    'children.item(-1)': (p) => String(p.children.item(-1)),
+    'namedItem matches id': (p) => p.children.namedItem('first')?.localName ?? 'null',
+    'namedItem falls back to name': (p) => p.children.namedItem('second')?.localName ?? 'null',
+    'namedItem with no match': (p) => String(p.children.namedItem('nope')),
+    'namedItem prefers id over name': (p) => p.children.namedItem('shared')?.localName ?? 'null',
+    'childNodes.item reaches a text node': (p) => String(p.childNodes.item(4)?.nodeType),
+    'querySelectorAll().item(0)': (p) => p.querySelectorAll('*').item(0)?.localName ?? 'null',
+  };
+
+  for (const [name, act] of Object.entries(cases))
+    assert.equal(act(build(globalThis.document)), act(build(real.document)), name);
+});
+
+/**
+ * **`Node.TEXT_NODE`, not just `node.TEXT_NODE`.** WebIDL puts a constant on both the prototype and
+ * the interface object, and `node.nodeType === Node.TEXT_NODE` is the ordinary spelling. The
+ * constants reached instances and not the constructor, so that comparison read against `undefined`
+ * and was quietly false for every node — the worst shape for a guard, since it fails open.
+ */
+test('the node-type constants are on the Node interface as well as on instances', () => {
+  for (const name of ['ELEMENT_NODE', 'TEXT_NODE', 'COMMENT_NODE', 'DOCUMENT_FRAGMENT_NODE'])
+    assert.equal(globalThis.Node[name], real.Node[name], `Node.${name}`);
+
+  const text = globalThis.document.createTextNode('t');
+  assert.equal(text.nodeType, globalThis.Node.TEXT_NODE, 'a text node does not match Node.TEXT_NODE');
+});
