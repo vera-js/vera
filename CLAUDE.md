@@ -78,6 +78,23 @@ code, so they are not re-litigated.
   then wrong in the same direction. Render through **one** `draw()` function called twice. This has
   produced confident false findings about `keyed`, `hold` and `!live` on separate occasions; when a
   result says the DOM was rebuilt or a value was lost, suspect the probe before the renderer.
+- **A probe that measures nothing reports perfect behaviour**, so assert the control produced a
+  non-zero result *before* concluding anything from a silence. This is the generalisation of the
+  retention-probe rule above and it has cost four separate passes: hooks registered after `render()`
+  are ignored, so a recovery probe read `0` before and `0` after and looked like "nothing recovered"
+  when it meant **nothing ran**; plain `<div>`s never fire `disconnectedCallback`, so a teardown probe
+  reported every cleanup balanced while running none; `watch()` returns early on an element with no
+  `autoloader` attribute, so an idempotence check counted `observe()` at 0 twice and called it
+  idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
+  no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
+  perfectly by an entry that never ran at all.
+- **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
+  to be an insert point no package registers and no doc mentions; the pattern had matched inside
+  **`setupTarget('mount')`** and there is no such insert point. `!live` appeared to be a public
+  feature with two test files while `hold` had sixteen; `!live` is a **test-title word** and the API
+  is `!checked`/`!value`, covered in five places including a browser suite. Both were one step from
+  being written up. Anchor on the call — `inserts\.get\(` — and re-run the search before believing a
+  count.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 
