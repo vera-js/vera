@@ -15,7 +15,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString, renderToStringAsync } from '@verajs/ssr/vera';
 import { isProduction } from './dist.mjs';
 
 /**
@@ -105,4 +105,55 @@ test('the option is checked like the others', async () => {
     () => renderToString(url, { tag: 'hello-ssr', static: 'yes' }),
     /`static` must be true or false/
   );
+});
+
+/**
+ * **`setStaticStores` is a global, and an async render holds it across an `await`.**
+ *
+ * Measured directly: for the whole duration of an async static render, every store the process
+ * creates is inert — a write throws in development and does nothing in production. So a second render
+ * running inside that window would produce markup with none of its updates applied, silently, which on
+ * a server is one request corrupting another's output.
+ *
+ * `takeTurn` is what prevents it: every render is chained onto one promise, and the chain is rebuilt
+ * from both outcomes so a rejection cannot stop later work.
+ *
+ * ## Getting the overlap on purpose
+ *
+ * The first version of this raced the two renders by starting them together, and it proved nothing:
+ * removing `takeTurn` entirely left it passing, because the synchronous render happened to finish
+ * before the async one set the flag. The dynamic render has to be started **after** the static one is
+ * already suspended, which is what the tick below is for — and with that, removing the serialisation
+ * does fail it.
+ */
+test('a render started during an async static render is not made inert by it', async () => {
+  const writer = new URL('./fixtures/ssr/static-writer-ssr.js', import.meta.url);
+  const slow = new URL('./fixtures/ssr/slow-lifecycle-ssr.js', import.meta.url);
+
+  const reference = await renderToString(writer, { tag: 'static-writer-ssr' });
+  assert.match(reference.html, /<p>2<\/p>/, 'reactive on its own — the control');
+
+  const suspended = renderToStringAsync(slow, { static: true });
+  /** Long enough that the static render has set the flag and is waiting on its timer. */
+  await new Promise((resolve) => setTimeout(resolve, 8));
+
+  const during = renderToString(writer, { tag: 'static-writer-ssr' });
+  const [, alongside] = await Promise.all([suspended, during]);
+
+  assert.equal(alongside.html, reference.html, 'it waited its turn rather than rendering inert');
+});
+
+test('and a static render that throws still frees the queue for the next one', async () => {
+  const writer = new URL('./fixtures/ssr/static-writer-ssr.js', import.meta.url);
+
+  const reference = await renderToString(writer, { tag: 'static-writer-ssr' });
+  const failing = renderToString(writer, { tag: 'static-writer-ssr', static: true }).then(
+    () => 'resolved',
+    (error) => `rejected: ${error.constructor.name}`
+  );
+  const after = renderToString(writer, { tag: 'static-writer-ssr' });
+  const [outcome, later] = await Promise.all([failing, after]);
+
+  assert.equal(outcome, 'rejected: TypeError', 'the static render still refused the write');
+  assert.equal(later.html, reference.html, 'and the queue carried on, reactive');
 });
