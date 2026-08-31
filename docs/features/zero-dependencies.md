@@ -40,7 +40,9 @@ node -e "const { globSync, readFileSync } = require('fs');
 for (const f of globSync('packages/*/package.json')) {
   const m = JSON.parse(readFileSync(f, 'utf8'));
   if (m.private) continue;
-  const third = [...Object.keys(m.dependencies ?? {}), ...Object.keys(m.peerDependencies ?? {})]
+  const names = (v) => (Array.isArray(v) ? v : Object.keys(v ?? {}));
+  const third = [...names(m.dependencies), ...names(m.peerDependencies),
+    ...names(m.optionalDependencies), ...names(m.bundledDependencies), ...names(m.bundleDependencies)]
     .filter((d) => !d.startsWith('@verajs/'));
   console.log(m.name, third.length ? third : 'zero third-party');
 }"
@@ -50,9 +52,16 @@ for (const f of globSync('packages/*/package.json')) {
 
 ## Why measured this way
 
-`dependencies` only. `devDependencies` never reach a consumer, and counting them would flatter
-every framework equally while describing nothing anyone installs. `peerDependencies` are counted
-where declared, since a consumer must install them.
+**Every field npm installs from.** `devDependencies` never reach a consumer, and counting them would
+flatter every framework equally while describing nothing anyone installs — so they are the one
+exclusion. `peerDependencies` are counted, since a consumer must install them. So are
+`optionalDependencies`, which npm installs by default and merely tolerates failing. So are
+`bundledDependencies` — those are packed **inside the tarball**, so a consumer receives them without
+resolving anything, which would make the claim false in the most direct way available.
+
+The command above and `tests/zero-dependencies.test.mjs` read the same five fields. They checked two
+until 2026-08-30: the other three were a one-line manifest edit away from shipping a dependency while
+both reported zero.
 
 The count is transitive: a single direct dependency that drags in twenty is twenty packages in the
 lockfile, twenty entries in an audit, and twenty chances for a supply-chain advisory.

@@ -29,12 +29,30 @@ test('every published package declares zero third-party dependencies', () => {
   assert.ok(packages.length >= 7, `only found ${packages.length} published packages`);
   const offenders = [];
   for (const manifest of packages) {
-    /** `peerDependencies` count: a consumer has to install those too. `devDependencies` never reach
-     * one, which is why the document says it counts neither. */
-    const third = [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})].filter(
-      (name) => !name.startsWith('@verajs/')
-    );
-    if (third.length) offenders.push(`${manifest.name}: ${third.join(', ')}`);
+    /**
+     * **Every field npm installs from, not the two obvious ones.**
+     *
+     * `dependencies` and `peerDependencies` were checked; `optionalDependencies` and
+     * `bundledDependencies` were not, and a one-line manifest edit could add either while this test
+     * went on reporting zero. `bundledDependencies` is the sharpest of the four — npm packs those
+     * **inside the tarball**, so a consumer receives the dependency whether they resolve it or not,
+     * which is the most direct contradiction of the claim this file defends.
+     *
+     * `devDependencies` stays out, and the document says so: they never reach a consumer.
+     *
+     * `bundleDependencies` is npm's other accepted spelling of the same field, and an array rather
+     * than an object — `Object.keys` reads both shapes, since the keys of an array are its indices
+     * and the *values* are the names. Hence the flatten below.
+     */
+    const declared = [
+      ...Object.entries(manifest.dependencies ?? {}).map(([name]) => name),
+      ...Object.entries(manifest.peerDependencies ?? {}).map(([name]) => name),
+      ...Object.entries(manifest.optionalDependencies ?? {}).map(([name]) => name),
+      ...(Array.isArray(manifest.bundledDependencies) ? manifest.bundledDependencies : Object.keys(manifest.bundledDependencies ?? {})),
+      ...(Array.isArray(manifest.bundleDependencies) ? manifest.bundleDependencies : Object.keys(manifest.bundleDependencies ?? {})),
+    ];
+    const third = declared.filter((name) => !String(name).startsWith('@verajs/'));
+    if (third.length) offenders.push(`${manifest.name}: ${[...new Set(third)].join(', ')}`);
   }
   assert.deepEqual(offenders, [], `these published packages depend on third-party code:\n  ${offenders.join('\n  ')}`);
 });
