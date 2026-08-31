@@ -258,3 +258,64 @@ test('wire refuses a raw function a package marked as not-the-module', async () 
   /** The module itself still wires. */
   wire(renderer.renderer);
 });
+
+// ── @verajs/router: the origin check under an opaque base ───────────────────
+
+/**
+ * **The fallback for an unparseable base sits above the origin check, so one shape skips it.**
+ *
+ * `navigate()` resolves every string against `window.location.href` and refuses a foreign origin.
+ * When the parser throws it falls back to the raw path, justified as "an absolute path is already the
+ * form the matcher wants" — true of `/a`, and not true of `//evil.test/x`, which is a *host*.
+ *
+ * An opaque base makes the parser throw for every **relative** form while an absolute URL parses
+ * fine and is checked normally. So `//evil.test/x` — the one shape that names another origin without
+ * being absolute — was the one shape that reached `pushState` unchecked, where the browser refuses it
+ * with the uncaught `SecurityError` that block exists to prevent. The open-redirect payload still
+ * took the page down, in exactly the context the fallback carved out.
+ *
+ * This suite is the right home because its base really is opaque — see the note on `setMatchFunction`
+ * above, and do not give this JSDOM a `url:`.
+ */
+test('navigate refuses a protocol-relative target when the base cannot resolve one', async () => {
+  const router = await load('router');
+  const el = document.createElement('div');
+  const view = document.createElement('main');
+  el.appendChild(view);
+  document.body.appendChild(el);
+  const r = router.initRouter(el, { view, focusView: false, handleInitial: false });
+  r.addRoutes([{ path: '/ok', component: () => '' }]);
+
+  /** The premise: this base is opaque, which is what routes the call through the fallback. */
+  assert.throws(() => new URL('/ok', window.location.href), 'the base must be unparseable');
+  /**
+   * And the target names an origin *only* once there is a base to take a scheme from — which is
+   * precisely why it slips past: it is not absolute, so an opaque base sends it to the fallback,
+   * and it is not a path either, so the fallback's premise does not hold for it.
+   */
+  assert.throws(() => new URL('//evil.test/x'), 'it is not an absolute URL on its own');
+  assert.equal(new URL('//evil.test/x', 'https://a.test').origin, 'https://evil.test');
+
+  /**
+   * **The return value cannot tell refusal from a route that simply did not match** — both are
+   * `false`, which is why asserting it left this test green with the fix removed. The warning is the
+   * only observable that distinguishes them, so it is what gets asserted; it is folded away in
+   * production along with its branch, hence the skip.
+   */
+  const warnings = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    assert.equal(await router.navigate('//evil.test/x'), false, 'not navigated to');
+    assert.equal(await router.navigate('//evil.test'), false, 'with or without a path');
+  } finally {
+    console.warn = realWarn;
+  }
+
+  if (isProduction) return;
+  assert.equal(warnings.length, 2, 'each attempt is reported');
+  for (const warning of warnings) {
+    assert.match(warning, /navigate\(\) refused/, 'refused, rather than quietly failing to match');
+    assert.match(warning, /cannot resolve one/, 'and says why this base is the reason');
+  }
+});

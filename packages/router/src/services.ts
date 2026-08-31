@@ -313,6 +313,31 @@ export const navigate = async (
     } catch {
       resolved = null;
     }
+    /**
+     * **The fallback accepts any string, and the origin check is below it.**
+     *
+     * An opaque base makes the parser throw for every *relative* form — `/a`, `../x` and
+     * `//evil.test/x` alike — while an absolute URL parses fine and is checked normally. So the one
+     * shape that names another origin without being absolute is the one shape that skips the check.
+     *
+     * The justification written for the fallback is that "an absolute path is already the form the
+     * matcher wants", which is true of `/a` and not true of `//evil.test/x`: that is a *host*, and
+     * without a base there is nothing to resolve it against and no origin to compare. Passing it on
+     * lands it in `pushState`, which refuses it with the same uncaught `SecurityError` this whole
+     * block exists to prevent — so the open-redirect payload still takes the page down, in exactly
+     * the context the fallback carved out.
+     *
+     * `about:blank` and `about:srcdoc` are real: a sandboxed iframe, an embedded widget, a
+     * freshly-`window.open`ed window.
+     */
+    if (!resolved && path.startsWith('//')) {
+      if (__DEV__)
+        console.warn(
+          `[vera] navigate() refused "${path}" — it names an origin, and this document's base ` +
+            `(${window.location.href}) cannot resolve one. Use location.assign() to leave the site.`
+        );
+      return false;
+    }
     if (resolved && resolved.origin !== window.location.origin) {
       if (__DEV__)
         console.warn(

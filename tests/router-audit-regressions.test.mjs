@@ -88,4 +88,16 @@ test('navigate refuses a path that resolves to another origin', async () => {
   hits.length = 0;
   assert.equal(await navigate('/u/6'), true);
   assert.deepEqual(hits, ['6']);
+
+  /**
+   * **Protocol-relative is refused for the origin it names, not for its shape.** `//x.test/u/7` is
+   * this origin, so it routes exactly as `https://x.test/u/7` does.
+   *
+   * Worth pinning explicitly: the opaque-base fix added a second refusal keyed on the `//` prefix,
+   * and a version of it that fired unconditionally passed every router suite in the repo. Nothing
+   * asserted that the allowed half of that condition stays allowed.
+   */
+  hits.length = 0;
+  assert.equal(await navigate('//x.test/u/7'), true, 'same origin, so it is a path like any other');
+  assert.deepEqual(hits, ['7']);
 });
