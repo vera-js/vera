@@ -14,7 +14,16 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
 import '@verajs/ssr';
+
+/**
+ * A real DOM to compare against, built **after** the shim has installed itself over the globals so
+ * the two are separate. Used only by the cases at the end of this file, which assert against what a
+ * real element answers rather than against a written-down expectation.
+ */
+const real = new JSDOM('<!doctype html><body></body>').window;
 
 const withAttribute = (attribute, value) => {
   const element = document.createElement('div');
@@ -157,4 +166,55 @@ test('the document agrees with itself about standards mode', () => {
   assert.equal(document.scrollingElement.localName, 'html');
   /** The point of the fix: this is the call that used to throw. */
   assert.equal(typeof document.scrollingElement.scrollTop, 'number');
+});
+
+/**
+ * **An enumerated *content* attribute is not an enumerated *IDL* attribute.**
+ *
+ * `area.shape`, `ol.type` and `textarea.wrap` each name a limited set of keywords that affect
+ * rendering — and each has a plain `attribute DOMString` in its IDL, so the property echoes whatever
+ * was written. They were listed as `enum` in the reflections table, with an invalid-value answer of
+ * `"zzz-not-a-state"`: not a string any engine produces, but the **probe value** used to discover an
+ * invalid-value default, recorded as though it were the answer.
+ *
+ * So `shape = 'probe'` answered `"zzz-not-a-state"`, and `shape = 'CIRCLE'` answered `"circle"`,
+ * where every engine echoes the input.
+ *
+ * The table's own header says every enumerated state there "was measured on three engines instead of
+ * read off a spec". These three were not — a measurement would have shown the echo — which is why
+ * this asserts against a real DOM rather than against the expected strings.
+ */
+test('an enumerated content attribute whose IDL is a plain DOMString echoes what was written', () => {
+  for (const [tag, property] of [['area', 'shape'], ['ol', 'type'], ['textarea', 'wrap']]) {
+    for (const written of ['probe', 'circle', 'CIRCLE', 'a', '1', '']) {
+      const mine = globalThis.document.createElement(tag);
+      const theirs = real.document.createElement(tag);
+      mine[property] = written;
+      theirs[property] = written;
+      assert.equal(
+        mine[property],
+        theirs[property],
+        `<${tag}>.${property} = ${JSON.stringify(written)} answered ${JSON.stringify(mine[property])}, a real DOM answers ${JSON.stringify(theirs[property])}`
+      );
+    }
+    /** Absent is `''` for a plain reflection, and that half was already right. */
+    assert.equal(globalThis.document.createElement(tag)[property], '');
+  }
+});
+
+/**
+ * And no reflection *entry* answers with a probe value.
+ *
+ * Comments are stripped first: the explanation of this defect names the sentinel, and matching the
+ * whole file would fail on the account of the fix rather than on a recurrence of the fault.
+ */
+test('no reflection entry answers with a measurement sentinel', () => {
+  const table = readFileSync(new URL('../packages/ssr/src/vera/reflections.js', import.meta.url), 'utf8');
+  const data = table.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(data.includes('ELEMENT_REFLECTIONS'), 'the table body was stripped away with the comments');
+  assert.doesNotMatch(
+    data,
+    /zzz-not-a-state/,
+    'a reflection entry holds a probe value as though it were an answer'
+  );
 });

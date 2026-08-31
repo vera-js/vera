@@ -46,6 +46,18 @@
  * - `number` — the attribute parsed as an integer, or the third entry when absent or unparseable.
  * - `enum` — `[missing, invalid, states]`: a limited set of states, answered canonically, with its
  *   own answer for absent and for anything outside the set.
+ *
+ * **An enumerated *content* attribute is not an enumerated *IDL* attribute**, and three rows here
+ * confused the two. `area.shape`, `ol.type` and `textarea.wrap` all name a limited set of keywords
+ * that affect rendering — but their IDL is a plain `attribute DOMString`, so the property echoes
+ * whatever was written. They were listed as `enum` with an invalid-value answer of
+ * `"zzz-not-a-state"`, which is not a string any engine produces: it is the **probe value** whoever
+ * wrote those rows used to discover an invalid-value default, recorded as though it were the answer.
+ *
+ * So `area.shape = 'probe'` answered `"zzz-not-a-state"` and `shape = 'CIRCLE'` answered `"circle"`,
+ * where every engine echoes the input. The header above says every enumerated state here "was
+ * measured on three engines instead of read off a spec" — these three were not; a measurement would
+ * have shown the echo. Reclassified as `string`, which is what the IDL says and what a real DOM does.
  */
 export const ELEMENT_REFLECTIONS = {
   a: {
@@ -72,7 +84,7 @@ export const ELEMENT_REFLECTIONS = {
     ping: ["string","ping"],
     referrerPolicy: ["enum","referrerpolicy","","",["","no-referrer","no-referrer-when-downgrade","same-origin","origin","strict-origin","origin-when-cross-origin","strict-origin-when-cross-origin","unsafe-url"]],
     rel: ["string","rel"],
-    shape: ["enum","shape","","zzz-not-a-state",["rect","circle","poly","default"]],
+    shape: ["string","shape"],
     target: ["string","target"],
   },
   base: {
@@ -283,7 +295,7 @@ export const ELEMENT_REFLECTIONS = {
     compact: ["presence","compact"],
     reversed: ["presence","reversed"],
     start: ["number","start",1],
-    type: ["enum","type","","zzz-not-a-state",["1","a","A","i","I"]],
+    type: ["string","type"],
   },
   optgroup: {
     disabled: ["presence","disabled"],
@@ -375,7 +387,7 @@ export const ELEMENT_REFLECTIONS = {
     readOnly: ["presence","readonly"],
     required: ["presence","required"],
     rows: ["number","rows",2],
-    wrap: ["enum","wrap","","zzz-not-a-state",["soft","hard"]],
+    wrap: ["string","wrap"],
   },
   th: {
     abbr: ["string","abbr"],
