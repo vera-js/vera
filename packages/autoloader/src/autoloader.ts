@@ -146,6 +146,35 @@ export const autoloader = (
     const dir = (element?.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
     const href = new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
     /**
+     * **`?` and `#` end the path, so a directory cannot contain either.**
+     *
+     * The default layout builds `${dir}/${tag}${extension}` as text, and URL syntax then reads the
+     * result rather than the intent. `autoload-dir="components?v=2"` — an ordinary cache-buster, and
+     * the reason this is a mistake someone makes rather than an attack — resolves to
+     * `site/components?v=2/my-widget.js`, so the request goes to `site/components` with the **tag
+     * name inside the query string**. The component file is never asked for. `#` is worse: the
+     * fragment never reaches the network, so `site/components` is fetched outright.
+     *
+     * That is a wrong module, not a missing one, which is why it is refused rather than left to
+     * 404. Containment does not catch it — the URL is genuinely inside the entry's directory, and
+     * `autoload-dir="?"` resolves to the entry file itself, re-importing the whole application under
+     * a URL distinct enough to evaluate a second time.
+     *
+     * Only the default path is checked. `resolve` replaces URL building entirely and is documented
+     * that way, so a query it adds is the caller's own — `components/tag.js?v=2` is exactly the
+     * cache-buster the attribute cannot express, and it keeps working.
+     */
+    if (!resolve && /[?#]/.test(dir)) {
+      const url = new URL(href);
+      const refusal = new Error(
+        `[vera] autoloader: refused ${href} for <${tag}> — autoload-dir "${dir}" contains ? or #, ` +
+          `which ends the path, so <${tag}> lands in the query or fragment and ` +
+          `${url.origin}${url.pathname} would be fetched instead. Use \`resolve\` to add a query.`
+      );
+      (refusal as Error & { href: string }).href = href;
+      throw refusal;
+    }
+    /**
      * **Containment belongs here, not only at the fetch.**
      *
      * `autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored

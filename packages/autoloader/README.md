@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1.19 KB<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1.32 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -123,6 +123,19 @@ module URL is exactly the thing that needs bounding.
 <x-y autoload-dir="https://example.com/x"></x-y>   <!-- refused: absolute -->
 <x-y autoload-dir="//example.com/x"></x-y>         <!-- refused: protocol-relative -->
 <x-y autoload-dir="../../../"></x-y>               <!-- refused: escapes upward -->
+<x-y autoload-dir="components?v=2"></x-y>          <!-- refused: ? ends the path -->
+```
+
+**A directory cannot contain `?` or `#`.** Both end the path, so the tag name would land in the
+query or the fragment: `autoload-dir="components?v=2"` requests `components` with `x-y.js` inside
+the query string, and the component file is never asked for. That is a *wrong* module rather than a
+missing one, so it is refused rather than left to 404 — and note that containment does not catch it,
+because such a URL is genuinely inside the entry's directory.
+
+To cache-bust, use `resolve`, which owns URL building and can put the query where it belongs:
+
+```js
+autoloader(import.meta.url, 'components', { resolve: (tag, dir) => `${dir}/${tag}.js?v=2` });
 ```
 
 A custom `resolve` is checked the same way. `rootDir` is your own code and is trusted; everything

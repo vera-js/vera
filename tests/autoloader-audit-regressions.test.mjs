@@ -164,3 +164,92 @@ test('a custom resolve that stays inside is built as it asked', () => {
   });
   assert.equal(instance2.url('my-card'), 'https://x.test/app/components/my-card/my-card.js');
 });
+
+/* ── a directory cannot contain `?` or `#` ───────────────────────────────────────────────────── */
+
+/**
+ * The default layout builds `${dir}/${tag}${extension}` as **text**, and URL syntax then reads the
+ * result rather than the intent. `?` and `#` end the path, so the tag name lands in the query or the
+ * fragment and the request goes somewhere else entirely.
+ *
+ * Containment never saw this: every one of these URLs is genuinely *inside* the entry's own
+ * directory, which is the only question that check asks. The 2026-08-26 sweep found it by listing
+ * what the check **allowed** rather than what it refused — the refusals were all correct, and the
+ * defect was sitting in the other column.
+ *
+ * `autoload-dir="components?v=2"` is the case that matters, because it is a cache-buster someone
+ * writes on purpose rather than an attack: it fetches `app/components` with `<my-card>` inside the
+ * query string, so the component file is never requested at all.
+ */
+test('a directory containing a query is refused, not silently misfetched', () => {
+  assert.throws(() => instance.url('my-card', withDir('components?v=2')), /contains \? or #/);
+
+  /** The URL it would have built is inside the base, so containment cannot be what catches it. */
+  const wrong = new URL('components?v=2/my-card.js', 'https://x.test/app/entry.js').href;
+  assert.ok(wrong.startsWith('https://x.test/app/'), 'the mis-built URL is inside the base');
+  assert.equal(new URL(wrong).pathname, '/app/components', 'and the tag name is not in the path');
+});
+
+/** A fragment never reaches the network at all, so the wrong module is fetched outright. */
+test('and so is one containing a fragment', () => {
+  assert.throws(() => instance.url('my-card', withDir('components#2')), /contains \? or #/);
+  assert.throws(() => instance.url('my-card', withDir('#')), /contains \? or #/);
+});
+
+/**
+ * `autoload-dir="?"` resolves to the **entry file itself** under a URL distinct enough to evaluate a
+ * second time — the whole application re-imported from an attribute in markup.
+ */
+test('and one that resolves to the entry module itself', () => {
+  assert.throws(() => instance.url('my-card', withDir('?')), /contains \? or #/);
+  assert.equal(
+    new URL('?/my-card.js', 'https://x.test/app/entry.js').pathname,
+    '/app/entry.js',
+    'the URL this would have built is the entry module'
+  );
+});
+
+/**
+ * Only the default path is checked. `resolve` replaces URL building entirely and is documented that
+ * way, so a query it adds is the caller's own — and it is the supported way to cache-bust, which is
+ * what makes refusing the attribute a fix rather than a removal.
+ */
+test('a custom resolve may still add a query, because that is what resolve is for', () => {
+  const versioned = autoloader('https://x.test/app/entry.js', 'components', {
+    resolve: (tag, dir) => `${dir}/${tag}.js?v=2`,
+  });
+  assert.equal(versioned.url('my-card'), 'https://x.test/app/components/my-card.js?v=2');
+});
+
+/**
+ * The exemption is checked where it actually bites: a `dir` that itself carries a query, handed to a
+ * `resolve` written to understand it. Refusing before `resolve` runs would break a caller who is
+ * doing exactly what the option documents.
+ *
+ * Asserting only the case above does not test this — `dir` is `components` there, with no `?` in it,
+ * so the check never fires either way. Dropping the exemption left that test green, which is how the
+ * gap was found.
+ */
+test('and receives a dir with a query rather than having it refused first', () => {
+  const splitting = autoloader('https://x.test/app/entry.js', 'components', {
+    resolve: (tag, dir) => {
+      const [path, query] = dir.split('?');
+      return `${path}/${tag}.js${query ? `?${query}` : ''}`;
+    },
+  });
+  assert.equal(
+    splitting.url('my-card', withDir('components?v=2')),
+    'https://x.test/app/components/my-card.js?v=2'
+  );
+});
+
+/** The refusal carries `href`, so discovery dedupes it exactly as it dedupes an out-of-base one. */
+test('the refusal is deduplicable like every other', () => {
+  try {
+    instance.url('my-card', withDir('components?v=2'));
+    assert.fail('expected a refusal');
+  } catch (error) {
+    assert.equal(typeof error.href, 'string', 'the refused URL rides on the error');
+    assert.ok(error.message.startsWith('[vera] autoloader:'), 'and carries the diagnostics prefix');
+  }
+});
