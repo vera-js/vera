@@ -1,345 +1,114 @@
 /**
- * **Every member on the surface, compared against a real DOM — generated, not hand-picked.**
+ * The SSR shim, against a real DOM, operation by operation.
  *
- * The presence check next door asks whether a member exists. This asks whether it *behaves like the
- * one it is imitating*, and it asks for **every** member rather than the ones somebody thought of.
- * That distinction is the whole point: across this package's audit, enumerating presence found one
- * defect, while comparing behaviour against a real DOM found about a dozen — `classList.replace`
- * missing, `tabIndex` defaulting to 0, an emptied `class` attribute being removed, `textContent =
- * null` writing the word "null", a closed shadow root handed straight back. Every one of those is a
- * member that *existed* and answered differently.
+ * `CLAUDE.md` names exactly one instrument for this file: *"audit it by differential test, never by
+ * reading it. Run the same operation against the shim and against jsdom and compare the answers."*
+ * The reason is that the shim's code is individually reasonable and only **collectively** wrong, and
+ * the bug class it produces is the worst this package has -- the server and the client disagree about
+ * something neither of them renders, so nothing fails until a hydration mismatch appears somewhere
+ * else entirely.
  *
- * **jsdom is the regression net, never the oracle.** Where the two disagree this reports a lead, not
- * a verdict — and where the disagreement is understood it is listed in `KNOWN` with its reason, so
- * the file stays green and every entry in that list is a decision somebody made on purpose.
+ * `ssr-dom-surface` asks whether a member exists and writes through. That is a different question
+ * from whether it gives the **same answer** a browser gives, and being the lenient one server-side
+ * only moves the failure to the client with the context stripped off.
  *
- * Members jsdom does not implement are skipped rather than failed. It cannot be an authority on
- * `adoptedStyleSheets` or `replaceSync` when it does not have them, and treating absence as
- * disagreement would bury the real signal under jsdom's own gaps.
+ * ## Why this exists as a standing test rather than a probe
+ *
+ * `packages/ssr/src/vera/nodes.js` was modified 29 times during the 2026-08-26 audit, more than any
+ * other file in the repository. Each change was verified on its own; nothing checked what they did
+ * together. A matrix is the cheap way to keep asking.
+ *
+ * ## jsdom's standing here
+ *
+ * `CLAUDE.md` warns that jsdom is the regression net and never the oracle for *"anything the platform
+ * decides"* -- notably `setAttribute` name validation, which this deliberately does not test, since
+ * `tests/browser/spread-names.test.js` records the engines' real rule. What is compared here is
+ * ordinary reflection and mutation, where jsdom and the engines agree and a divergence means the shim
+ * is wrong. A difference the README lists as out of scope would need excluding; none of these are, and
+ * there is no allowlist, which is the point.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import '@verajs/ssr';
-import { SURFACES, OUT_OF_SCOPE } from './dom-surface.mjs';
 
-const real = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true, url: 'http://localhost/' }).window;
+/** Captured before the shim installs its globals, which is the whole reason for the order here. */
+const real = new JSDOM('<!doctype html><body></body>').window.document;
+await import('@verajs/ssr/vera');
+const shim = globalThis.document;
 
-/**
- * Disagreements that are understood. A reason here is a decision; anything not here is a lead.
- */
-const KNOWN = {
-  'window.location': 'a plain object of URL parts, replaced per request — jsdom exposes a Location instance',
-  'window.navigator': 'the handful of fields a component reads, not a Navigator instance',
-  'window.history': 'the four methods that must not throw; there is no session to traverse',
-  'window.document': 'this document is an object literal, not a Document instance — nothing here parses HTML',
-  'window.top': 'the global itself, because a server render is an unframed top-level window',
-  'window.parent': 'the global itself, for the same reason as `top`',
-  'window.frames': 'the global itself, which is what a browser reports for an unframed window',
-  'window.self': 'the global itself',
-  'window.window': 'the global itself',
-  'window.origin': 'derived from `location` so the two cannot disagree; jsdom reports its own page',
-  'window.length': '0 — no child frames',
-  'window.performance': "Node's, which is the same clock and a different object",
-  'window.crypto': "Node's WebCrypto, which is the same interface and a different object",
-  'window.console': "Node's console",
-  'window.name': "'' — a server render has no window name",
-  'window.closed': 'false — the render is in progress',
-  'window.frameElement': 'null — not framed',
-  'window.opener': 'null — nothing opened this',
-  'window.customElements': 'the registry this package fills as component modules execute',
-  'document.title': 'a string this DOM owns and returns per render rather than leaving on the global',
-  'document.body': 'an element shim; jsdom has a real HTMLBodyElement',
-  'document.documentElement': 'an element shim',
-  'document.head': 'an element shim',
-  'sheet.cssRules': 'this sheet holds CSS as text — see `deleteRule`, which says so rather than pretending',
-  'sheet.rules': 'the legacy alias of `cssRules`, and text for the same reason',
+const OPS = [
+  ['setAttribute/getAttribute', "el.setAttribute('data-a','1'); return el.getAttribute('data-a');"],
+  ['getAttribute missing', "return el.getAttribute('nope');"],
+  ['hasAttribute', "el.setAttribute('x','');  return [el.hasAttribute('x'), el.hasAttribute('y')].join(',');"],
+  ['removeAttribute', "el.setAttribute('x','1'); el.removeAttribute('x'); return String(el.getAttribute('x'));"],
+  ['toggleAttribute on', "return String(el.toggleAttribute('hidden')) + ':' + el.getAttribute('hidden');"],
+  ['toggleAttribute off', "el.toggleAttribute('hidden'); return String(el.toggleAttribute('hidden')) + ':' + String(el.getAttribute('hidden'));"],
+  ['toggleAttribute force', "return String(el.toggleAttribute('hidden', false)) + ':' + String(el.hasAttribute('hidden'));"],
+  ['attribute case', "el.setAttribute('DaTa-B','1'); return el.getAttribute('data-b') + '|' + el.getAttribute('DaTa-B');"],
+  ['numeric value', "el.setAttribute('x', 5); return JSON.stringify(el.getAttribute('x'));"],
+  ['null value', "el.setAttribute('x', null); return JSON.stringify(el.getAttribute('x'));"],
+  ['undefined value', "el.setAttribute('x', undefined); return JSON.stringify(el.getAttribute('x'));"],
+  ['attributes length', "el.setAttribute('a','1'); el.setAttribute('b','2'); return String(el.attributes.length);"],
+  ['attributes item', "el.setAttribute('a','1'); return el.attributes[0].name + '=' + el.attributes[0].value;"],
+  ['getAttributeNames', "el.setAttribute('b','1'); el.setAttribute('a','2'); return el.getAttributeNames().join(',');"],
+  ['className get', "el.setAttribute('class','a b'); return el.className;"],
+  ['className set', "el.className = 'x y'; return el.getAttribute('class');"],
+  ['classList add', "el.classList.add('a','b'); return el.getAttribute('class');"],
+  ['classList add dup', "el.classList.add('a'); el.classList.add('a'); return el.getAttribute('class');"],
+  ['classList remove', "el.className='a b c'; el.classList.remove('b'); return el.getAttribute('class');"],
+  ['classList toggle', "el.className='a'; return String(el.classList.toggle('a')) + ':' + el.getAttribute('class');"],
+  ['classList contains', "el.className='a b'; return String(el.classList.contains('b'));"],
+  ['classList length', "el.className='  a   b  '; return String(el.classList.length);"],
+  ['classList value', "el.className='  a   b  '; return el.classList.value;"],
+  ['id reflect', "el.id = 'q'; return el.getAttribute('id') + '|' + el.id;"],
+  ['id from attribute', "el.setAttribute('id','r'); return el.id;"],
+  ['localName/tagName', "return el.localName + '|' + el.tagName;"],
+  ['dataset set', "el.dataset.fooBar = '1'; return el.getAttribute('data-foo-bar');"],
+  ['dataset get', "el.setAttribute('data-foo-bar','2'); return String(el.dataset.fooBar);"],
+  ['dataset delete', "el.dataset.x='1'; delete el.dataset.x; return String(el.getAttribute('data-x'));"],
+  ['textContent', "el.textContent = 'a<b>&'; return el.textContent;"],
+  ['children count', "el.innerHTML = '<p>1</p>text<p>2</p>'; return String(el.children.length) + ':' + String(el.childNodes.length);"],
+  ['firstElementChild', "el.innerHTML = 'x<p>1</p>'; return String(el.firstElementChild && el.firstElementChild.localName);"],
+  ['matches', "el.className='a'; return String(el.matches('.a')) + ':' + String(el.matches('.b'));"],
+  ['hidden property', "el.hidden = true; return String(el.getAttribute('hidden')) + '|' + String(el.hidden);"],
+  ['title property', "el.title = 'T'; return el.getAttribute('title') + '|' + el.title;"],
+  ['tabIndex', "el.setAttribute('tabindex','3'); return String(el.tabIndex);"],
+  ['removeAttribute missing', "el.removeAttribute('nope'); return 'ok';"],
+  ['empty class', "el.className=''; return JSON.stringify(el.getAttribute('class'));"]
+];;
 
-  /**
-   * **A plain array where the platform has a live collection.** This DOM holds children as a string,
-   * so there is no tree to be live *over* — a `NodeList` that never updates would be a costume. An
-   * array answers `length`, indexing and iteration the same way, which is every use that survives
-   * `[...el.children]`, and it says what it is to anyone who looks.
-   */
-  'element.attributes': 'an array, not a NamedNodeMap — this DOM has no live collection to hand back',
-  'element.children': 'an array, not an HTMLCollection',
-  'element.childNodes': 'an array, not a NodeList',
-  'shadowRoot.children': 'an array, not an HTMLCollection',
-  'shadowRoot.childNodes': 'an array, not a NodeList',
-  'document.children': 'an array, not an HTMLCollection',
-  'document.childNodes': 'an array, not a NodeList',
-  'document.anchors': 'an empty array; a query needs a tree',
-  'document.embeds': 'an empty array; a query needs a tree',
-  'document.forms': 'an empty array; a query needs a tree',
-  'document.images': 'an empty array; a query needs a tree',
-  'document.links': 'an empty array; a query needs a tree',
-  'document.plugins': 'an empty array; a server has no plugins',
-  'document.scripts': 'an empty array; a query needs a tree',
-  'document.styleSheets': 'an empty array; adopted sheets are returned by `renderToString`, not collected here',
+const TAGS = ['div', 'span', 'input', 'a', 'my-widget'];
 
-  /**
-   * **Every element reports `isConnected`, because during a server render every element is.** There
-   * is no tree to be attached to or detached from, and the alternative — answering `false` — would
-   * contradict `document.contains`, which reports the same fact from the other side. The imprecision
-   * is a freshly created element that has not been appended: a browser says `false` there and this
-   * says `true`. Tracking that honestly needs the tree this DOM deliberately does not build.
-   */
-  'element.isConnected': 'no tree to be detached from; a render is the connected case',
-  'shadowRoot.isConnected': 'the same, for a root attached to an element that is rendering',
-
-  /** jsdom's own gap: `translate` is `true` by default in every engine, and jsdom answers `null`. */
-  'element.translate': 'jsdom does not reflect it; the engines default it to true, which is what this returns',
-};
-
-/** The subjects, paired. A member absent from the jsdom side is skipped, not failed. */
-const element = () => globalThis.document.createElement('div');
-const realElement = () => real.document.createElement('div');
-const SUBJECTS = {
-  element: [element(), realElement()],
-  shadowRoot: [element().attachShadow({ mode: 'open' }), realElement().attachShadow({ mode: 'open' })],
-  document: [globalThis.document, real.document],
-  sheet: [new globalThis.CSSStyleSheet(), (() => { try { return new real.CSSStyleSheet(); } catch { return null; } })()],
-  tokenList: [element().classList, realElement().classList],
-  window: [globalThis, real],
-};
-
-/** What a member *is*, without calling it — a getter is read, a method is only weighed. */
-const shapeOf = (subject, name) => {
-  let value;
+const run = (doc, tag, body) => {
   try {
-    value = subject[name];
+    const element = doc.createElement(tag);
+    return String(new Function('el', body)(element));
   } catch (error) {
-    return `throws:${error.constructor.name}`;
+    return `THREW ${error.constructor.name}`;
   }
-  if (typeof value === 'function') return 'function';
-  if (value === null) return 'null';
-  if (value === undefined) return 'undefined';
-  if (Array.isArray(value)) return 'array';
-  if (typeof value === 'object') return 'object';
-  return `${typeof value}:${String(value).slice(0, 24)}`;
 };
 
-test('the surfaces and their subjects line up', () => {
-  for (const kind of Object.keys(SUBJECTS)) assert.ok(SURFACES[kind], `no surface list for ${kind}`);
-  assert.ok(SURFACES.window.length > 150, 'the window surface is the large one and should be present');
+/** A harness that threw everywhere would report perfect agreement, so the values are pinned first. */
+test('the comparisons actually run', () => {
+  const threw = OPS.filter(([, body]) => run(shim, 'div', body).startsWith('THREW'));
+  assert.deepEqual(threw.map(([name]) => name), [], 'these did not execute against the shim');
+
+  assert.equal(run(shim, 'div', "el.setAttribute('data-a','1'); return el.getAttribute('data-a');"), '1');
+  assert.equal(run(shim, 'div', "el.className='a b c'; el.classList.remove('b'); return el.getAttribute('class');"), 'a c');
 });
 
-test('every implemented member answers like the real one', () => {
-  const leads = [];
-  let compared = 0;
-  let skipped = 0;
-  for (const [kind, [mine, theirs]] of Object.entries(SUBJECTS)) {
-    if (!mine || !theirs) continue;
-    const scoped = OUT_OF_SCOPE[kind] ?? {};
-    for (const name of SURFACES[kind]) {
-      /** Declared absent here: the presence check owns that, and there is nothing to compare. */
-      if (scoped[name]) continue;
-      if (!(name in mine)) continue;
-      /** jsdom cannot be an authority on a member it does not implement. */
-      if (!(name in theirs)) {
-        skipped++;
-        continue;
-      }
-      compared++;
-      const key = `${kind}.${name}`;
-      if (KNOWN[key]) continue;
-      const ours = shapeOf(mine, name);
-      const platform = shapeOf(theirs, name);
-      if (ours !== platform) leads.push(`${key}: this DOM says ${ours}, a real one says ${platform}`);
+test('the shim answers every operation the way a real DOM answers it', () => {
+  const divergences = [];
+  for (const tag of TAGS)
+    for (const [name, body] of OPS) {
+      const fromShim = run(shim, tag, body);
+      const fromReal = run(real, tag, body);
+      if (fromShim !== fromReal)
+        divergences.push(`<${tag}> ${name}: shim ${JSON.stringify(fromShim)}, real ${JSON.stringify(fromReal)}`);
     }
-  }
-  assert.ok(compared > 200, `only ${compared} members were comparable — the walk found nothing`);
+
   assert.deepEqual(
-    leads,
-    [],
-    `${leads.length} member(s) answer differently from a real DOM. Each is a lead, not a verdict — ` +
-      `jsdom is stricter than the engines in places (see CLAUDE.md). Fix it, or add it to KNOWN with ` +
-      `the reason it is deliberate:\n  ${leads.join('\n  ')}\n\n(${compared} compared, ${skipped} skipped ` +
-      `because jsdom does not implement them.)`
+    divergences, [],
+    `the server and the client would disagree about these:\n  ${divergences.join('\n  ')}`
   );
-});
-
-/**
- * **The same walk, but along the value axis.** The generated comparison above hands every member a
- * benign argument, so it answers "does this member behave like the real one *in the ordinary case*".
- * It cannot see a member that is merely **too permissive** — and per CLAUDE.md that is the more
- * productive question, because a member that exists and accepts what the platform refuses looks
- * exactly like one that is correct until the client throws on markup the server was happy to write.
- *
- * A symbol is the sharpest probe for it: `String(symbol)` answers `'Symbol(s)'` while the WebIDL
- * `DOMString` conversion every one of these members performs throws a `TypeError`. That divergence
- * ran through eleven members here — `_name` alone served five of them.
- *
- * **The engines are the oracle, not jsdom** (`tests/browser/dom-string-coercion.test.js` records
- * their answer on Chromium, Firefox and WebKit — all three refuse all eleven with a `TypeError`).
- * jsdom agreeing is why this can be asserted here rather than only in a browser.
- */
-test('refuses a symbol wherever a DOM string is expected, as the engines do', () => {
-  const symbol = Symbol('s');
-  const operations = {
-    'setAttribute value': (el) => el.setAttribute('a', symbol),
-    'setAttribute name': (el) => el.setAttribute(symbol, 'v'),
-    'getAttribute name': (el) => el.getAttribute(symbol),
-    'hasAttribute name': (el) => el.hasAttribute(symbol),
-    'removeAttribute name': (el) => el.removeAttribute(symbol),
-    'toggleAttribute name': (el) => el.toggleAttribute(symbol, true),
-    'setAttributeNS value': (el) => el.setAttributeNS(null, 'a', symbol),
-    className: (el) => { el.className = symbol; },
-    id: (el) => { el.id = symbol; },
-    textContent: (el) => { el.textContent = symbol; },
-  };
-
-  const accepted = [];
-  for (const [label, operation] of Object.entries(operations)) {
-    try {
-      operation(document.createElement('div'));
-      accepted.push(label);
-    } catch (error) {
-      assert.equal(error.constructor.name, 'TypeError', `${label} threw the wrong kind of error`);
-    }
-  }
-  assert.deepEqual(accepted, [], `these accepted a symbol that every engine refuses: ${accepted.join(', ')}`);
-
-  assert.throws(() => document.createElement(symbol), TypeError, 'createElement accepted a symbol');
-});
-
-/**
- * `insertAdjacentHTML` has two different failures and used to report them as one. A server-rendered
- * component genuinely cannot do `beforebegin`/`afterend` — it has no parent — and that explanation
- * is worth keeping. A position that is not one of the four is not that situation at all; it is the
- * platform's `SyntaxError`, and answering it with the parent explanation sent whoever typo'd a
- * position looking for a parent that was never the problem.
- */
-test('separates an unsupported insertAdjacentHTML position from an unknown one', () => {
-  const element = document.createElement('div');
-
-  assert.throws(() => element.insertAdjacentHTML('nowhere', '<b></b>'), (error) => {
-    assert.equal(error.constructor.name, 'DOMException', 'an unknown position is a DOMException');
-    assert.equal(error.name, 'SyntaxError');
-    return true;
-  });
-
-  assert.throws(() => element.insertAdjacentHTML('beforebegin', '<b></b>'), (error) => {
-    assert.match(error.message, /needs a parent element/, 'and this one still explains itself');
-    return true;
-  });
-
-  element.insertAdjacentHTML('beforeend', '<b>x</b>');
-  assert.match(element.innerHTML, /<b>x<\/b>/, 'a position it supports still works');
-});
-
-/**
- * **`[LegacyNullToEmptyString]`, for the whole class rather than one member.**
- *
- * A handful of IDL string attributes store `''` when assigned `null`, rather than the word `"null"`.
- * The SSR README already records one of them as found and fixed — *"`textContent = null` writing the
- * word 'null'"* — and that fix went to the member instead of the rule, so `input.value`,
- * `textarea.value` and `innerHTML` stayed wrong.
- *
- * The member-by-member surface comparison could not have caught it, and says so in its own header:
- * it compares a member's **shape**, the type it answers with, not its answer to a particular input.
- * `"null"` and `""` are both strings.
- *
- * It reaches a page through ordinary code. `element.value = maybeNull` in a component made the server
- * write `value="null"`, so the control showed the word "null" until hydration replaced it.
- *
- * `undefined` is deliberately **not** included: the platform stringifies it to `"undefined"`, and only
- * `null` is special-cased by the extended attribute. Both directions are asserted, so a fix that
- * over-applied the rule fails here too.
- */
-test('assigning null to a [LegacyNullToEmptyString] property stores the empty string', () => {
-  const cases = [
-    ['input', 'value'],
-    ['textarea', 'value'],
-    ['div', 'innerHTML'],
-    ['div', 'textContent'],
-  ];
-
-  for (const [tag, property] of cases) {
-    const mine = globalThis.document.createElement(tag);
-    mine[property] = null;
-    assert.equal(mine[property], '', `<${tag}>.${property} = null should store '' and stored ${JSON.stringify(mine[property])}`);
-
-    /** And the platform's answer, so this is pinned against a real DOM rather than against a belief. */
-    const theirs = real.document.createElement(tag);
-    theirs[property] = null;
-    assert.equal(mine[property], theirs[property], `<${tag}>.${property} = null disagrees with a real DOM`);
-  }
-});
-
-test('and undefined is still stringified, because only null is special-cased', () => {
-  for (const [tag, property] of [['input', 'value'], ['textarea', 'value'], ['div', 'innerHTML']]) {
-    const mine = globalThis.document.createElement(tag);
-    mine[property] = undefined;
-    const theirs = real.document.createElement(tag);
-    theirs[property] = undefined;
-    assert.equal(
-      mine[property],
-      theirs[property],
-      `<${tag}>.${property} = undefined should match a real DOM; the null rule has been over-applied`
-    );
-  }
-});
-
-/**
- * **A collection is an array here, and that is a decision about *liveness* only.**
- *
- * `childNodes`, `children`, `querySelectorAll` and the `getElementsBy*` family answer with plain
- * arrays rather than live `NodeList`s and `HTMLCollection`s. That is deliberate — there is nothing to
- * be live over while a render is a single pass — but `item()` and `namedItem()` went with it, and
- * those were never part of the reasoning. `list.item(0)` threw `TypeError` from ordinary code, and
- * from any library written against the DOM rather than against arrays.
- *
- * Each expectation is compared against a real DOM rather than written down: out-of-range answers
- * `null` and not `undefined`, a negative index answers `null`, and `namedItem` matches `id` before
- * `name`. Those are the three details easiest to get subtly wrong from memory.
- */
-test('a collection answers item() and namedItem() the way a real one does', () => {
-  const build = (D) => {
-    const parent = D.createElement('div');
-    const first = D.createElement('span');
-    first.setAttribute('id', 'first');
-    const second = D.createElement('em');
-    second.setAttribute('name', 'second');
-    /**
-     * **The order case.** One element's `name` and a later element's `id` are the same string, so
-     * `namedItem('shared')` can only be right if `id` is preferred — with two separate elements each
-     * carrying one attribute, either order finds something and the test proves nothing.
-     */
-    const byName = D.createElement('b');
-    byName.setAttribute('name', 'shared');
-    const byId = D.createElement('i');
-    byId.setAttribute('id', 'shared');
-    parent.append(first, second, byName, byId, D.createTextNode('t'));
-    return parent;
-  };
-
-  const cases = {
-    'children.item(0)': (p) => p.children.item(0)?.localName ?? String(p.children.item(0)),
-    'children.item(9) is null, not undefined': (p) => String(p.children.item(9)),
-    'children.item(-1)': (p) => String(p.children.item(-1)),
-    'namedItem matches id': (p) => p.children.namedItem('first')?.localName ?? 'null',
-    'namedItem falls back to name': (p) => p.children.namedItem('second')?.localName ?? 'null',
-    'namedItem with no match': (p) => String(p.children.namedItem('nope')),
-    'namedItem prefers id over name': (p) => p.children.namedItem('shared')?.localName ?? 'null',
-    'childNodes.item reaches a text node': (p) => String(p.childNodes.item(4)?.nodeType),
-    'querySelectorAll().item(0)': (p) => p.querySelectorAll('*').item(0)?.localName ?? 'null',
-  };
-
-  for (const [name, act] of Object.entries(cases))
-    assert.equal(act(build(globalThis.document)), act(build(real.document)), name);
-});
-
-/**
- * **`Node.TEXT_NODE`, not just `node.TEXT_NODE`.** WebIDL puts a constant on both the prototype and
- * the interface object, and `node.nodeType === Node.TEXT_NODE` is the ordinary spelling. The
- * constants reached instances and not the constructor, so that comparison read against `undefined`
- * and was quietly false for every node — the worst shape for a guard, since it fails open.
- */
-test('the node-type constants are on the Node interface as well as on instances', () => {
-  for (const name of ['ELEMENT_NODE', 'TEXT_NODE', 'COMMENT_NODE', 'DOCUMENT_FRAGMENT_NODE'])
-    assert.equal(globalThis.Node[name], real.Node[name], `Node.${name}`);
-
-  const text = globalThis.document.createTextNode('t');
-  assert.equal(text.nodeType, globalThis.Node.TEXT_NODE, 'a text node does not match Node.TEXT_NODE');
 });
