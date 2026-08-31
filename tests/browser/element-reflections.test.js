@@ -41,6 +41,18 @@ const EXCLUDED = new Set([
   'iframe.adAuctionHeaders', 'iframe.browsingTopics', 'iframe.privateToken',
   'iframe.sharedStorageWritable', 'img.browsingTopics', 'img.sharedStorageWritable',
   'script.browsingTopics',
+  /**
+   * `<template>`'s newest members, measured here rather than assumed: `shadowRootCustomElementRegistry`
+   * is in Chromium and WebKit but not Firefox, and `htmlFor` is Chromium only. The table records a
+   * property when all three engines agree, so both wait until they do.
+   *
+   * `shadowRootSlotAssignment` is the mirror image: **Firefox and WebKit only**, absent from Chromium.
+   * They agree with each other exactly (missing and invalid both answer `'named'`, states
+   * `named`/`manual`, case-folded), so it becomes a table row the moment Chromium ships it.
+   *
+   * `shadowRootMode` is **not** here — all three agree on it exactly, and it is in the table.
+   */
+  'template.shadowRootCustomElementRegistry', 'template.htmlFor', 'template.shadowRootSlotAssignment',
 ]);
 
 /** The six the table takes a majority on, because the engines disagree and an enumerated state

@@ -93,6 +93,9 @@ export const ELEMENT_REFLECTIONS = {
   blockquote: {
     cite: ["string","cite"],
   },
+  br: {
+    clear: ["string","clear"],
+  },
   button: {
     disabled: ["presence","disabled"],
     formEnctype: ["enum","formenctype","","application/x-www-form-urlencoded",["application/x-www-form-urlencoded","multipart/form-data","text/plain"]],
@@ -107,6 +110,9 @@ export const ELEMENT_REFLECTIONS = {
   canvas: {
     height: ["number","height",150],
     width: ["number","width",300],
+  },
+  caption: {
+    align: ["string","align"],
   },
   col: {
     align: ["string","align"],
@@ -139,6 +145,12 @@ export const ELEMENT_REFLECTIONS = {
     closedBy: ["enum","closedby","none","none",["any","closerequest","none"]],
     open: ["presence","open"],
   },
+  div: {
+    align: ["string","align"],
+  },
+  dl: {
+    compact: ["presence","compact"],
+  },
   embed: {
     align: ["string","align"],
     height: ["string","height"],
@@ -161,6 +173,31 @@ export const ELEMENT_REFLECTIONS = {
     noValidate: ["presence","novalidate"],
     rel: ["string","rel"],
     target: ["string","target"],
+  },
+  h1: {
+    align: ["string","align"],
+  },
+  h2: {
+    align: ["string","align"],
+  },
+  h3: {
+    align: ["string","align"],
+  },
+  h4: {
+    align: ["string","align"],
+  },
+  h5: {
+    align: ["string","align"],
+  },
+  h6: {
+    align: ["string","align"],
+  },
+  hr: {
+    align: ["string","align"],
+    color: ["string","color"],
+    noShade: ["presence","noshade"],
+    size: ["string","size"],
+    width: ["string","width"],
   },
   iframe: {
     align: ["string","align"],
@@ -238,6 +275,9 @@ export const ELEMENT_REFLECTIONS = {
   label: {
     htmlFor: ["string","for"],
   },
+  legend: {
+    align: ["string","align"],
+  },
   li: {
     type: ["string","type"],
     value: ["number","value",0],
@@ -261,6 +301,9 @@ export const ELEMENT_REFLECTIONS = {
   },
   map: {
     name: ["string","name"],
+  },
+  menu: {
+    compact: ["presence","compact"],
   },
   meta: {
     content: ["string","content"],
@@ -310,11 +353,17 @@ export const ELEMENT_REFLECTIONS = {
   output: {
     name: ["string","name"],
   },
+  p: {
+    align: ["string","align"],
+  },
   param: {
     name: ["string","name"],
     type: ["string","type"],
     value: ["string","value"],
     valueType: ["string","valuetype"],
+  },
+  pre: {
+    width: ["number","width",0],
   },
   progress: {
     max: ["number","max",1],
@@ -359,6 +408,23 @@ export const ELEMENT_REFLECTIONS = {
     media: ["string","media"],
     type: ["string","type"],
   },
+  table: {
+    align: ["string","align"],
+    bgColor: ["string","bgcolor"],
+    border: ["string","border"],
+    cellPadding: ["string","cellpadding"],
+    cellSpacing: ["string","cellspacing"],
+    frame: ["string","frame"],
+    rules: ["string","rules"],
+    summary: ["string","summary"],
+    width: ["string","width"],
+  },
+  tbody: {
+    align: ["string","align"],
+    ch: ["string","char"],
+    chOff: ["string","charoff"],
+    vAlign: ["string","valign"],
+  },
   td: {
     abbr: ["string","abbr"],
     align: ["string","align"],
@@ -375,6 +441,18 @@ export const ELEMENT_REFLECTIONS = {
     vAlign: ["string","valign"],
     width: ["string","width"],
   },
+  template: {
+    /**
+     * Measured identical on Chromium, Firefox and WebKit: absent and invalid both answer `''`, and a
+     * valid keyword is answered lowercased (`'OPEN'` → `'open'`). It is here rather than excluded
+     * because this package **emits** `<template shadowrootmode>` for declarative shadow DOM, so a
+     * component reading it back on the server is asking about markup this renderer wrote.
+     */
+    shadowRootMode: ["enum","shadowrootmode","","",["open","closed"]],
+    shadowRootClonable: ["presence","shadowrootclonable"],
+    shadowRootDelegatesFocus: ["presence","shadowrootdelegatesfocus"],
+    shadowRootSerializable: ["presence","shadowrootserializable"],
+  },
   textarea: {
     autocomplete: ["enum","autocomplete","","",["on","off"]],
     cols: ["number","cols",20],
@@ -388,6 +466,12 @@ export const ELEMENT_REFLECTIONS = {
     required: ["presence","required"],
     rows: ["number","rows",2],
     wrap: ["string","wrap"],
+  },
+  tfoot: {
+    align: ["string","align"],
+    ch: ["string","char"],
+    chOff: ["string","charoff"],
+    vAlign: ["string","valign"],
   },
   th: {
     abbr: ["string","abbr"],
@@ -405,8 +489,21 @@ export const ELEMENT_REFLECTIONS = {
     vAlign: ["string","valign"],
     width: ["string","width"],
   },
+  thead: {
+    align: ["string","align"],
+    ch: ["string","char"],
+    chOff: ["string","charoff"],
+    vAlign: ["string","valign"],
+  },
   time: {
     dateTime: ["string","datetime"],
+  },
+  tr: {
+    align: ["string","align"],
+    bgColor: ["string","bgcolor"],
+    ch: ["string","char"],
+    chOff: ["string","charoff"],
+    vAlign: ["string","valign"],
   },
   track: {
     default: ["presence","default"],
@@ -414,6 +511,10 @@ export const ELEMENT_REFLECTIONS = {
     label: ["string","label"],
     src: ["string","src"],
     srclang: ["string","srclang"],
+  },
+  ul: {
+    compact: ["presence","compact"],
+    type: ["string","type"],
   },
   video: {
     disablePictureInPicture: ["presence","disablepictureinpicture"],

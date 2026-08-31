@@ -19,11 +19,28 @@
  */
 import { chromium, firefox, webkit } from 'playwright';
 
+/**
+ * **The tag list is this measurement's real boundary, and it was the source of three findings.**
+ *
+ * A member missing from `reflections.js` looked like a member somebody had skipped. It was not: it was
+ * a *tag* nobody measured. `option.text`, `form.action` and `table.width` each traced back to here,
+ * and the second half of the list below — `table` through `menu` — exists because of them.
+ *
+ * Those are mostly the legacy presentational attributes (`align`, `bgColor`, `vAlign`, `compact`):
+ * deprecated, still reflected by every engine, and therefore still reaching markup the moment a
+ * component assigns one. `template`'s declarative-shadow-DOM booleans are here for a better reason —
+ * this package emits that element.
+ *
+ * A tag with no interface of its own contributes nothing, so adding one costs a measurement rather
+ * than a row.
+ */
 const TAGS = [
   'a','area','audio','base','blockquote','button','canvas','col','colgroup','data','del','details',
   'dialog','embed','fieldset','form','iframe','img','input','ins','label','li','link','map','meta',
   'meter','object','ol','optgroup','option','output','param','progress','q','script','select',
   'slot','source','style','td','textarea','th','time','track','video',
+  'table','tr','tbody','thead','tfoot','caption','hr','p','div','ul','dl','pre','template',
+  'h1','h2','h3','h4','h5','h6','br','legend','menu',
 ];
 
 const measure = async (browserType, name) => {
