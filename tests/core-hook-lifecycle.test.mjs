@@ -553,5 +553,68 @@ const define = (setup) => {
   check('and one never removed does not', (await runFor('never')) === 0);
 }
 
+/* ── and when that self-removed element's cleanup throws ───────────────────────────────────────
+ * The case above pins that the cleanup *runs*. It does not pin what happens when it throws, and
+ * `swapCleanup` wraps exactly this call in a `try` with its own prefixed diagnostic -- deliberately
+ * not routed through `reportHookError`, because that lives in `createHook`, which imports this
+ * module.
+ *
+ * Removing that `try` left **all 837 node tests passing**. The path is the narrowest one in the
+ * lifecycle: an element removes itself inside its own effect, so the cleanup is registered after the
+ * teardown sweep has already run, and then that cleanup throws. A toast that dismisses itself and
+ * fails to clear its timer is the real shape.
+ *
+ * What this `try` buys is **attribution**, and measuring said so more precisely than expecting did:
+ * removing it leaves the later component still mounting, so the effect machinery survives either way.
+ * What is lost is the sentence naming what happened. Without it a user sees their own `Error` and
+ * nothing tying it to a teardown they did not write, which is the same one-filter argument
+ * `diagnostics-convention` makes -- and the reason `store.ts` repeats the prefix by hand rather than
+ * routing through `reportHookError`, which it cannot import without a cycle.
+ */
+{
+  const ran = [];
+  const said = [];
+  const original = console.error;
+  console.error = (...args) => said.push(args.map((a) => (a && a.stack ? `ERR<${a.message}>` : String(a))).join(' | '));
+
+  const tag = `toast-throwing-${Date.now().toString(36)}`;
+  customElements.define(tag, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      core.useEffect(() => {
+        this.remove();
+        return () => { ran.push('cleanup'); throw new Error('toast cleanup threw'); };
+      });
+      core.render(() => core.html`<p>t</p>`);
+    }
+  });
+
+  const element = dom.window.document.createElement(tag);
+  body.appendChild(element);
+  await frame();
+
+  /** A later component, to show the effect machinery survived rather than merely stayed quiet. */
+  const afterTag = `after-${Date.now().toString(36)}`;
+  customElements.define(afterTag, class extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      core.render(() => core.html`<p>after</p>`);
+    }
+  });
+  const after = dom.window.document.createElement(afterTag);
+  body.appendChild(after);
+  await frame();
+  console.error = original;
+
+  check('the self-removed cleanup ran even though it throws', ran.length === 1, `${ran.length}`);
+  check('a later component still mounts', after.shadowRoot?.textContent.trim() === 'after', after.shadowRoot?.textContent);
+  if (isProduction) {
+    check('production still contains the throw', ran.length === 1);
+  } else {
+    check('the throw is reported', said.length === 1, said.join(' | '));
+    check('and attributed to the framework', said[0]?.startsWith('[vera] a cleanup threw'), said[0]);
+  }
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
