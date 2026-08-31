@@ -166,9 +166,24 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     return;
   }
 
-  /** Light DOM: hoist once per class, scoped to the component's tag. */
+  /**
+   * Light DOM: hoist once per class, scoped to the component's tag.
+   *
+   * **Read as an *own* property, because a class inherits its base's.** `class Child extends Base`
+   * makes `Base` the prototype of `Child`, so a plain `owner[HOISTED]` on a subclass finds the flag
+   * the base set and returns — and the subclass's `static styles` are never hoisted at all. The
+   * component renders unstyled, with nothing logged.
+   *
+   * It was **order-dependent**, which is what made it survivable: mounting the child first hoisted
+   * both, because inheritance only looks upward. So a page could style correctly in development and
+   * not in production, decided by which instance rendered first.
+   *
+   * The same read covers a subclass that declares no styles of its own. It inherits the base's CSS,
+   * but its tag is different, so the base's `@scope (base-tag)` block never matches it; hoisting its
+   * own `@scope (child-tag)` copy is what makes those rules apply.
+   */
   const owner = element.constructor as unknown as Record<string, boolean>;
-  if (owner[HOISTED]) return;
+  if (Object.prototype.hasOwnProperty.call(owner, HOISTED)) return;
   owner[HOISTED] = true;
 
   const cssText = stylesArray
