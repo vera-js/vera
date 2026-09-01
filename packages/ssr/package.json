@@ -43,6 +43,10 @@
   },
   "wireit": {
     "build": {
+      "dependencies": [
+        "../core:build",
+        "../styles:build"
+      ],
       "command": "npx tsc -p tsconfig.json --noEmit false --declaration --emitDeclarationOnly --rootDir src/vera --outDir types",
       "clean": "if-file-deleted",
       "files": [
