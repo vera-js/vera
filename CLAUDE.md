@@ -95,6 +95,25 @@ code, so they are not re-litigated.
   is `!checked`/`!value`, covered in five places including a browser suite. Both were one step from
   being written up. Anchor on the call — `inserts\.get\(` — and re-run the search before believing a
   count.
+- **A recording is only as portable as the machine it was taken on.** Three checked-in recordings
+  failed this way in one session, all green here and red in CI. `tests/lit-output.mjs` held
+  `new Date(0)` stringified in Pacific time and CI renders UTC. `tests/dom-surface.mjs` did not list
+  `PublicKeyCredential`, which Linux WebKit exposes and macOS WebKit does not. A browser test slept
+  150 ms into a 600 ms transition and asserted the value was mid-interpolation, which a loaded machine
+  does not honour. **Before checking a measurement in, ask what about the machine is in it** —
+  timezone, locale, engine build, CPU speed, screen. `bench/size-snapshot.json` is the same shape and
+  has not bitten yet. Where the answer is "something", either exclude that value (a `Date` exercises
+  nothing an object does not) or wait for the property rather than sampling at a chosen instant.
+- **The local gate is never a clean build, so it cannot see a missing build dependency.** `wireit`
+  keeps its state in `packages/*/.wireit`, not only at the root: deleting every `dist/` and running
+  `npm run build` reports **"Ran 0 scripts and skipped 26"** and rebuilds nothing. To reproduce what
+  CI does, clear both —
+  `find . -maxdepth 3 -name .wireit -type d -not -path "*/node_modules/*" -exec rm -rf {} +` and
+  `rm -rf packages/*/dist`. This hid a real defect for months: `packages/ssr:build` declared no
+  dependencies and its `tsc` needs core's and styles' **built** declarations, because
+  `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
+  the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
+  built `dist`; ssr is the one that does.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 
