@@ -184,6 +184,7 @@ holding its value at the start and at the end.
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `css` | for `static styles`, with `@verajs/styles` |
 | `mount()` | commit the setup for a component that draws nothing |
+| `useRender(template, element, ...args)` | the lower-level half of `render`, for driving a render outside the setup window |
 | `wire(renderer)` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
@@ -252,9 +253,9 @@ render(() => html`
 
 ## Extending it
 
-Core dispatches five extension points and knows nothing about what is registered on them. Renderers,
-autoloaders, `static styles` adoption, error boundaries and write batching are all built this way,
-outside core, on the same public surface you have.
+Core dispatches seven extension points and knows nothing about what is registered on them.
+Renderers, autoloaders, `static styles` adoption, reactive collections, error boundaries and write
+batching are all built this way, outside core, on the same public surface you have.
 
 | | |
 | --- | --- |
@@ -263,10 +264,12 @@ outside core, on the same public surface you have.
 | `createHook({ callback, priority, element? })` | build your own hook type |
 
 The points are `'render'`, `'init'`, `'proxy-handler'` (a store read), `'set-handler'` (a store
-write — return `false` to hold the default propagation back) and `'error'` (a hook threw).
-[`@verajs/inserts`](../inserts) documents each one.
+write — return `false` to hold the default propagation back), `'error'` (a hook threw),
+`'collection'` (a `Map`/`Set` method read in a store — how `@verajs/reactivity/collections`
+attaches) and `'value'` (a child-position value the renderer has no built-in answer for).
+[`@verajs/inserts`](../inserts) documents each one, with signatures.
 
-**Take `insert` from `@verajs/core`, not from `@verajs/inserts`.** A production bundle inlines the
+**Take `wire` from `@verajs/core`, not from `@verajs/inserts`.** A production bundle inlines the
 registry, so registering through a separately imported copy writes to a map core never reads — it
 works in development and silently does nothing in production.
 

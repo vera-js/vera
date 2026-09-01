@@ -76,7 +76,10 @@ describe.
   **Asynchronous renders take a turn each.** The per-render bookkeeping is module-level, and being
   synchronous end to end is what makes concurrent `renderToString` calls safe; a render that pauses
   does not have that protection, so two overlapping ones would read each other's. One at a time is
-  the version that cannot be wrong. `renderToString` is unaffected and still runs whenever it likes.
+  the version that cannot be wrong — and the turn covers **both** entry points, because a
+  synchronous render fired inside an asynchronous one's suspension window would run to completion
+  on the shared state and the async render would resume into the wreckage. Every caller already
+  awaits, so the turn is invisible; when nothing is in flight it costs one microtask.
 
 - **`static: true` renders a page that will not be interactive, about 3x faster.** A server render is
   one shot — the subscriptions built while it runs are never fired afterwards — so tracking every
@@ -356,3 +359,18 @@ Known limits:
 
 The pre-native strategies (wcc fork, lit-labs renderer, Astro sketch, Reef-era diff renderer)
 are retired; strategy 4 is the only one shipped.
+
+## Also exported
+
+`registry` is the `Map` of tag → class this process has seen through `customElements.define`, and
+`serializeTemplate` is the sigil-aware template flattener — the two seams an advanced integration
+(a custom scanner, a fixture builder) reaches for. Everything an ordinary server needs is
+`renderToString` / `renderToStringAsync`; these are listed so their presence is a decision rather
+than an accident.
+
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.

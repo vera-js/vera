@@ -17,24 +17,19 @@ one-line swap, documented under *Swapping the template tag* near the end, and is
 > code. **When it disagrees with the source, the source wins.** Verify against
 > `packages/*/dist/development/*.d.ts`, which is generated from the actual build.
 >
-> **TODO / known instability:**
-> - `@verajs/renderer` is browser-confirmed faster than or equal to lit-html on all eight
->   operations of the benchmark (create/append/update/select/swap/remove/clear); prefer it.
-> - Render scheduling defaults to `requestAnimationFrame` — settled: the browser benchmarks were
->   won on that default. `setRenderScheduler(microtask)` remains for apps that want Lit/Vue timing.
-> - Published to npm as of 2026-08-21: `@verajs/core`, `renderer`, `router`, `autoloader`,
->   `inserts`, `jsx`, `ssr` and `styles`. Every release from 0.1.1 carries a GitHub Actions
+> **Current facts (2026-08-31):**
+> - All nine runtime packages are on npm: `@verajs/core`, `renderer`, `router`, `autoloader`,
+>   `inserts`, `styles`, `reactivity`, `jsx` and `ssr` — each release with a GitHub Actions
 >   provenance attestation (`npm audit signatures`).
-> - **`@verajs/reactivity` is NOT on npm yet.** It exists in the repository and is built and tested
->   like the rest, but a brand-new package's first publish cannot use Trusted Publishing — npm
->   requires the package to exist before a publisher can be attached — so its first version goes up
->   by hand. Install it from the repository until then; `npm i @verajs/reactivity` will 404.
+> - `@verajs/renderer` is browser-confirmed fastest-or-tied against lit-html on the benchmark's
+>   eight operations; prefer it.
+> - Render scheduling defaults to `requestAnimationFrame` (frame-aligned batching).
+>   `setRenderScheduler(microtask)` gives Lit/Vue-style microtask flushing — it is what the
+>   published DOM benchmarks use for like-for-like timing, and the right choice when update
+>   latency matters more than frame alignment.
 > - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
 >   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
 >   under `@web/test-runner` and Playwright. Green in CI. `npm run gate` runs all of it.
-> - Fixed in 0.1.2: `ChildPart._clear` could walk off the end of the child list when several
->   sibling child-expressions in one parent each toggled between a template and `''`. If you are
->   on 0.1.0 or 0.1.1, upgrade.
 
 ---
 
@@ -144,9 +139,8 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
 | `setRenderScheduler` | `(scheduler) => void` | Defaults to `requestAnimationFrame`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
-| `renderToStringAsync` | `(url, options) => Promise<{html, styles, title}>` | `@verajs/ssr` — same options as `renderToString`, but awaits the component's `connectedCallback` and lets promises settle between frames. Needed for an `async connectedCallback`, and for a routed component to render its route. Async renders take a turn each. |
-| `setStaticStores` | `(on: boolean) => void` | Makes `createStore` return a non-reactive store. **Server-side only** — `@verajs/ssr`'s `renderToString(url, { static: true })` is what calls it. Leaving it on in a browser gives you a framework that does not update. A write to such a store throws. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
+| `setStaticStores` | `(on: boolean) => void` | Server-only; `@verajs/ssr` calls it for `{ static: true }` renders — see the SSR section. In a browser it gives you a framework that does not update. |
 
 ### Effects
 
@@ -239,7 +233,7 @@ and **end** of the batch.
 | `wire` | `(descriptor \| connector \| array) => void` — a descriptor is `{ on, fn, priority, name? }`, **priority is required** |
 | `inserts` | the registry `Map` |
 | `connect` | optional on a descriptor — handed the registry before `fn` is registered, so a module that keeps none can be given core's |
-| `createHook` | `({ callback, priority, element? }) => void` — build your own hook type |
+| `createHook` | `({ callback, priority, element? }) => run` — build your own hook type. Returns the wrapped callback so a standalone value can drive its own first pass (`run(undefined, true)`), or `undefined` if registration was refused |
 
 There is no reconciliation step. A module that would otherwise carry its own registry is handed
 core's instead — `wire([router])` — which reads the same under a bundler and on a CDN page.
@@ -249,7 +243,12 @@ Insert points: `'render'`, `'init'` (an element was set up by `init()` — after
 exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
 (property read — **what it returns becomes the value read**, so an observer must return nothing;
 `undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
-suppress default propagation), `'error'` (a hook threw).
+suppress default propagation), `'error'` (a hook threw), `'collection'` (a method read off a
+`Map`/`Set` in a store — type-keyed, so plain-object reads never reach it; how
+`@verajs/reactivity/collections` attaches), and `'value'` (a child-position value the renderer has
+no built-in answer for — return `true` to claim it; strings, numbers and nullish values never reach
+it). `@verajs/inserts`' README documents each signature. `revision` (from `@verajs/inserts`) bumps
+on every registration, so a reader may cache a chain against it.
 
 ⚠️ `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` returns a number, so **every read of every store
 yields that number** instead of the value. Write observers with a block body — `() => { count++; }`.
@@ -305,7 +304,7 @@ strings); light DOM is hoisted to the document once per component class, wrapped
 `@scope (tag-name) { … }`. `applyStyles(styles, element)` is exported for manual use. Omit the
 wiring and a component with `static styles` renders unstyled — core warns once, in development.
 
-**Take `insert` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js` inlines
+**Take `wire` from `@verajs/core`, never from `@verajs/inserts`.** A production `.min.js` inlines
 the registry into every bundle, so registering through your own copy writes to a map core never
 reads: it works in development and silently does nothing in production. This applies to any module
 that registers an insert.
@@ -650,32 +649,32 @@ Semantics worth stating:
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.
 
-### Reactive Map / Set / WeakMap / WeakSet — built into core
-
-Collections in stores just work; no module, no wiring:
+### Reactive collections — semantics (`@verajs/reactivity/collections`, wired above)
 
 ```js
 const state = createStore({ tags: new Set(), users: new Map() });
 state.users.set(id, user);   // re-renders subscribers of that key (and of size/iteration)
 ```
 
-Semantics worth stating:
-- `get`/`has` subscribe per key; `entries`/`keys`/`values`/`forEach` and `size` subscribe to every
-  change. `for…of` and spread work but do **not** subscribe — iterate via `entries()` when you
-  need reactivity.
+Semantics worth stating (the wiring requirement is in the Collections section above — this does
+NOT work without `wire(collections)`):
+- `get`/`has` subscribe per key; `size`, `entries`/`keys`/`values`/`forEach`, `for…of` and spread
+  all subscribe to every change.
 - No-op mutations are silent: `set` with the same value, `add` of an existing member, `delete` of
   a missing key. `clear` notifies every previous key plus the global channel.
 - Reactivity is **per-entry, not deep**: values returned by `get` are raw, so mutating
   `map.get(k).x` is untracked — replace the entry instead. `'_global'` is the reserved
-  every-change channel key.
-- Method identity is stable (`map.get === map.get`).
+  every-change channel key (exported as `GLOBAL`).
+- Method identity is stable (`map.get === map.get`), and chained calls (`set().set()`) stay
+  tracked.
 - **`WeakMap` and `WeakSet` are reactive too**, per key, and hold nothing: their dependencies are
   stored in a `WeakMap`, so a tracked key is still collected once you drop it. They have no `size`
   and no iteration, so only `get`/`has` subscribe and only `set`/`add`/`delete` notify.
 - **`Date` and `RegExp` are not proxied**, in Vue either. Their methods read internal slots, so a
   bare proxy throws (`this is not a Date object`), and reactivity would mean wrapping every mutator
   for a case whose idiom is replacement. `state.when = new Date(t)` is a property write and fully
-  reactive; `state.when.setTime(t)` is not.
+  reactive; `state.when.setTime(t)` is not. This is core's rule, and applies with or without the
+  collections module.
 
 ---
 
@@ -826,6 +825,48 @@ DOM-shape-dependent bugs are otherwise intermittent and will waste your time.
 
 ---
 
+## Server-side rendering (`@verajs/ssr`) — Node only
+
+Vera-native, zero dependencies (no parse5, no jsdom, no lit). Components render to **declarative
+shadow DOM**; `@verajs/renderer/hydrate` adopts the markup client-side.
+
+```js
+import { renderToString } from '@verajs/ssr';   // import BEFORE anything importing @verajs/renderer
+const { html, styles, title } = await renderToString(new URL('./app.js', import.meta.url), options);
+```
+
+| Option | Means |
+| --- | --- |
+| `tag` | which element to render when the module defines several; otherwise the exported class is matched against the registry |
+| `attributes` | entry tag's attributes. **An object — values escaped, names validated.** A string is written through raw |
+| `props` | structured data, assigned before `connectedCallback` (an attribute can only carry a string). `__proto__` is skipped |
+| `children` | markup placed inside the entry tag — what a `<slot>` renders. **Raw markup; sanitize anything from a request** |
+| `location` | this request's URL. Pass it — never assign `globalThis.location` yourself; concurrent renders would race |
+| `seen` | a `Set` carried across renders so shared components' styles reach a multi-island page once |
+| `base` | a directory the module URL must resolve inside. Pass it whenever any part of `url` came from a request |
+| `static` | `true` = stores need not be reactive: ~3x faster, identical markup. A store *write* during such a render throws in development |
+
+Rules an assistant must not guess around:
+
+- **Import order:** `@verajs/ssr` installs the DOM shims, so import it before any module that
+  imports `@verajs/renderer` (which needs a DOM at import time).
+- **`renderToString` is synchronous end to end** and refuses an `async connectedCallback` (its
+  markup would be empty). **`renderToStringAsync`** (same options) awaits the lifecycle and lets
+  promises settle between frame rounds — use it for async setup and for a routed component to
+  render its route into the first response. Renders take a turn each: both entry points queue, so
+  concurrent calls cannot read each other's in-flight state.
+- **A component that throws rejects the render** — it is never silently empty markup. Catch and
+  fall back to a client-rendered shell.
+- `keyed()`/`hold()` are client-renderer constructs — templates that must also server-render use
+  plain `.map`. `document.title` set during the render comes back as `title`.
+- Escaping is at the render boundary, always; `<style>`/`<script>` contents get end-tag
+  neutralisation instead (references are not decoded there). `registry` (tag → class seen by
+  `customElements.define`) and `serializeTemplate` (the template flattener) are exported for
+  advanced integration.
+- Full semantics, limits and the measured out-of-scope list: `packages/ssr/README.md`.
+
+---
+
 ## Not supported
 
 Say so rather than inventing an API:
@@ -877,16 +918,16 @@ Say so rather than inventing an API:
    replacement is named in a development warning.
 4. `createStore` for large lists → use `shallowRef`.
 5. Forgetting `init(this)` before `render` → nothing renders.
-5b. **Registering hooks and never committing the setup → none of them ever run.** `init()` opens a
+6. **Registering hooks and never committing the setup → none of them ever run.** `init()` opens a
    component's setup and one of two calls closes it: `render(template)` for a component with markup,
    `mount()` for one whose whole job is a side effect. Both run the first pass of every hook
    registered since `init()`. Development warns if neither happens, and names both.
-6. Hooks after the setup is committed → ignored with a console warning. Register hooks between
+7. Hooks after the setup is committed → ignored with a console warning. Register hooks between
    `init()` and the `render()` or `mount()` that closes it, or pass the element explicitly.
-7. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
-8. An autoloaded file that loads but never calls `customElements.define` for its tag → the
-   autoloader waits forever, silently. The module must define the element it is named for.
-9. **TypeScript: a plain class field on a custom element silently destroys values set before the
+8. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
+9. An autoloaded file that loads and defines a different tag than its name → reported via
+   `vera:autoload-error` and the console; the module must define the element it is named for.
+10. **TypeScript: a plain class field on a custom element silently destroys values set before the
    element upgrades.** Use `declare`. See below — this one is invisible and costs you real data.
 
 ## TypeScript: always `declare` custom-element fields

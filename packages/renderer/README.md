@@ -259,6 +259,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/hydrate` | a superset whose first render adopts server-rendered DOM | yes |
 | `@verajs/renderer/keyed` | `keyed(key, result)` — keyed list reconciliation | yes |
 | `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
+| `@verajs/renderer/tag` | `` tag`h1` `` — an element whose tag name is decided at runtime | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
 `/hydrate` and `/profiler` each re-export the whole public API, so they are drop-in replacements for
@@ -588,11 +589,11 @@ Three rules, each of which is a real trap:
   It **notifies, it does not defer**. The nodes are already going. To hold content on screen while it
   animates out, do not remove it: a directive owns what it commits, so it can simply not commit the
   removal until it is ready — see *Deferring a removal* below.
-- **The older note said there was no teardown at all.** `_clear`
-  bulk-removes DOM and, when the part owns its parent, does `parent.textContent = ''` — the thing
-  that makes clearing a 1 000-row table ~5 ms against lit-html's ~22 ms. Calling teardown on a
-  nested directive would mean walking the part tree on every removal, which is exactly the per-node
-  work that fast path exists to skip. If you need to unsubscribe, do it from the component.
+- **Why declaring `_$detach$` is what arms it:** `_clear` bulk-removes DOM — when the part owns
+  its parent, one `parent.textContent = ''`, which is what makes clearing a 1 000-row table ~5 ms
+  against lit-html's ~22 ms. Notifying nested directives means walking the part tree on removal,
+  which is exactly the per-node work that fast path exists to skip — so the walk runs only once
+  something, anywhere, has declared teardown, and an app with none pays nothing.
 
 ### Deferring a removal
 
@@ -681,17 +682,22 @@ Directives other renderers ship, and what replaces them here.
 | `ifDefined()` | built in — `null`/`undefined` remove an attribute |
 | `classMap()` / `styleMap()` | build the string: `class="base ${extra}"` |
 | `guard()` | reactivity already skips unchanged work |
-| `until()`, `asyncReplace()` | render a loading state and re-render from an effect |
+| `until()`, `asyncReplace()` | render a loading state and re-render from an effect — or nine lines against [`_$child$`](#extending-it--apply-and-child) |
 | `unsafeHTML()` | `.innerHTML=${trusted}`, above |
 | `literal()` / `static-html` | [`/tag`](#verajsrenderertag) — and a tag doubles as a JSX component |
 | `live()` | [`!name`](#name--a-live-property) — a sigil, for the case that needs it |
-| `until()`, `asyncReplace()` — as directives | writable against [`_$child$`](#extending-it--apply-and-child) |
-| `live()` | not available. A property bound to a value it already holds is not re-applied, so a field the user has typed into keeps their text |
 
 ## Types
 
 `TemplateResult` is exported for annotating what a template function returns. The rest of the
 surface is inferred.
+
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.
 
 ## License
 

@@ -131,8 +131,9 @@ test('every published package has what npm needs to publish it', () => {
  */
 test('llms.txt does not claim an unreleased package is on npm', () => {
   const doc = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
-  const claim = /Published to npm as of([\s\S]*?)Every release/.exec(doc);
-  assert.ok(claim, 'the "published to npm" list in llms.txt has changed shape');
+  /** The sentence anchors moved when the list was rewritten (2026-08-31); the mechanism did not. */
+  const claim = /packages are on npm:([\s\S]*?)provenance attestation/.exec(doc);
+  assert.ok(claim, 'the "on npm" list in llms.txt has changed shape');
 
   /** Names inside that sentence, `@verajs/`-prefixed or bare. */
   const listed = [...claim[1].matchAll(/`@?(?:verajs\/)?([a-z-]+)`/g)].map((m) => m[1]);

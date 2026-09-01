@@ -31,7 +31,8 @@ Reproduce it with `cd bench && npm install`, then `npm run build && node bench/s
 repository root.
 
 > **Status: early, pre-1.0.** Published to npm since 2026-08-21 — `core`, `renderer`, `router`,
-> `autoloader`, `inserts`, `styles`, `jsx` and `ssr` are live, each with a provenance attestation.
+> `autoloader`, `inserts`, `styles`, `reactivity`, `jsx` and `ssr` are live, each with a
+> provenance attestation.
 > Versions are per-package and move independently; npm is the source of truth for current numbers.
 > The structure and tooling are still being reworked, after which the project gets an honest
 > viability evaluation.
@@ -46,11 +47,12 @@ module system is open — use the prebuilt ones or write your own.
 **At minimum you need a renderer.** Everything else is your choice.
 
 ```
-@verajs/core          reactive state (incl. Map and Set), hooks, lifecycle, rendering
+@verajs/core          reactive state, hooks, lifecycle, rendering
 @verajs/renderer      keyed template renderer; beats lit-html across the board  (or bring your own)
 @verajs/router        tiny router with nested routes, wildcards, params
 @verajs/autoloader    lazy-loads custom elements on discovery
 @verajs/styles        adopts `static styles` — shadow sheets, @scope for light DOM
+@verajs/reactivity    computed values; reactive Map/Set for stores
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
 ```
@@ -208,7 +210,8 @@ dist/<name>.min.js              minified, fully standalone           (CDN, <scri
 - [`docs/CODE-PRINCIPLES.md`](docs/CODE-PRINCIPLES.md) — the bar every change must clear
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the render pipeline and insert system
 - [`docs/RELEASING.md`](docs/RELEASING.md) — how a change becomes a published version
-- [`packages/ssr/README.md`](packages/ssr/README.md) — the three SSR strategies
+- [`packages/ssr/README.md`](packages/ssr/README.md) — vera-native SSR: how it works, and its limits
+- [`llms.txt`](llms.txt) — **the complete API in one file, written for AI context windows** and just as readable by people
 
 ## License
 

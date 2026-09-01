@@ -17,7 +17,7 @@ the same public function you have. `@verajs/renderer` is a `'render'` insert. `@
 insert — both are a few dozen lines, and both are worked examples in
 [`examples/cdn-js/src/inserts/`](../../examples/cdn-js/src/inserts).
 
-**Take `insert` from the package that owns the extension point, never from `@verajs/inserts`
+**Take `wire` from the package that owns the extension point, never from `@verajs/inserts`
 directly.** A production `.min.js` inlines this package into every bundle, so registering through a
 separately imported copy writes to a map that package never reads — it works in development and
 silently does nothing in production.
@@ -105,6 +105,13 @@ why `@verajs/router` has no dependencies at all. `tests/cdn-cross-bundle.test.mj
 
 **Take `wire` from `@verajs/core`, never from this package.** `@verajs/eslint-config` has a rule for
 exactly that mistake.
+
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.
 
 ## License
 

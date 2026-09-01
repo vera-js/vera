@@ -32,7 +32,8 @@ Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Im
 | --- | --- | --- |
 | `inject` | `true` | Add the `html` / `keyed` imports. `false` if you import them yourself |
 | `html` | `['html', '@verajs/core']` | `[export, module]` to import `html` from |
-| `keyed` | `['keyed', '@verajs/renderer']` | `[export, module]` to import `keyed` from |
+| `keyed` | `['keyed', '@verajs/renderer/keyed']` | `[export, module]` to import `keyed` from |
+| `spread` | `['spread', '@verajs/renderer/spread']` | `[export, module]` to import `spread` from, for `{...rest}` on elements |
 
 For a playground with no build at all, `@verajs/jsx/standalone` transforms
 `<script type="text/vera-jsx">` blocks in the browser. It is for demos — the transform runs on every
@@ -130,3 +131,10 @@ It does not make Vera components React components. `<Comp />` calls `Comp` as a 
 what it returns; there is no reconciler, no hooks-by-position and no synthetic event system. A
 component is a custom element, defined the way every other Vera component is, and JSX is how you
 write the markup inside it.
+
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.

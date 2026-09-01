@@ -425,6 +425,13 @@ cannot be caught where that decision is made.
 Importing the router is side-effect-free: window listeners attach on the first `initRouter`, not at
 import time, so `import '@verajs/router'` is safe in Node. Routing itself is browser-only.
 
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.
+
 ## License
 
 MIT

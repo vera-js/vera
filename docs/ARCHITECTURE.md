@@ -11,14 +11,11 @@ route renders alike. It is the `'render'` insert chain.
 
 ### Registration
 
-`inserts` is a `Map<insertName, callback[]>`. The callback array is **indexed by priority**, so
-`wire({ on: name, fn: cb, priority: priority })` writes to `array[priority]`:
-
-```js
-export const insert = (insertName, callback, priority) => {
-  get(inserts).get(insertName, []).value[priority] = callback;
-};
-```
+`inserts` is a `Map<insertName, callback[]>`. Each chain is a **dense, priority-sorted array** —
+`wire({ on: name, fn, priority })` splices the callback in at its ordered slot, with the priorities
+carried beside the chain. It was indexed by priority once (`array[50]` for the renderer), which
+left 50 holes that every hot-path walk paid for — roughly 238 ns per store read. Dense storage is
+why registration order never matters and iteration costs only what is registered.
 
 Two things register into `'render'`:
 
@@ -36,9 +33,9 @@ Wiring a second callback at 50 **replaces** the first, because a taken priority 
 appends — that is how a renderer is swapped, and the duplicate is named in a development warning so
 two modules both claiming 50 is not silent.
 
-> **Priority is required.** `wire(name, cb)` with no priority writes to `array[undefined]`, which
-> creates a plain object property rather than an array element — and `forEach` skips it. The insert
-> silently never runs. This is a real footgun.
+> **Priority is required, and validated.** A non-finite priority (`undefined`, `NaN` — what
+> `parseInt` of a bad config produces) would both break replacement (`indexOf(NaN)` never matches)
+> and sort to the front, so `wire` throws on it in development rather than misbehaving quietly.
 
 ### Execution
 
@@ -48,9 +45,10 @@ Both call sites iterate the whole chain:
 inserts.get('render')?.forEach((callback) => callback(template, element, ...args));
 ```
 
-- `packages/core/src/hooks/useRender.ts:14` — component renders, scheduled via
-  `requestAnimationFrame` and cancelled/coalesced if another render lands first.
-- `packages/router/src/services.ts:126` — route renders, into the resolved `[view=...]` element.
+- `packages/core/src/hooks/useRender.ts` — component renders, deferred through the render
+  scheduler (an animation frame by default) and coalesced by a flag, so N writes in a tick cost
+  one pass.
+- `packages/router/src/services.ts` — route renders, into the resolved `[view=...]` outlet.
 
 Because the router runs the *same* chain, a route render also triggers the autoloader at priority
 75. That is how lazily-loaded components inside a routed view get discovered without the router
@@ -58,28 +56,25 @@ knowing anything about the autoloader.
 
 ### Consequence: configuration must precede definition
 
-Since the renderer chain and the `html` tag are **global mutable state** (`wire`, `setHtml`), any
-component that defines itself before configuration runs will render through core's defaults.
-
-The failure is silent and looks like this: core's default `html` returns a plain object
-(`{_$litType$, strings, values}`), and the default renderer assigns it to `innerHTML` — so the page
-paints the literal string **`[object Object]`**.
+The renderer chain is **global mutable state** (`wire`), so a component that defines itself
+before configuration runs renders with nothing on the `'render'` chain. Core ships no default
+renderer — it did once, was removed in 0.2.0, and with nothing registered `render()` warns once in
+development and paints nothing.
 
 This bites in a way that is easy to miss, because **static `import` declarations are hoisted**:
 
 ```js
 wire([renderer]);
-setHtml(html);
-import './components/app.js';   // WRONG - evaluated BEFORE the two lines above
+import './components/app.js';   // WRONG - evaluated BEFORE the line above
 ```
 
 ```js
 wire([renderer]);
-setHtml(html);
 await import('./components/app.js');   // correct - evaluated after
 ```
 
-Both examples use the dynamic form for this reason.
+(`setHtml` is not part of the setup — core's own `html` produces the shape `@verajs/renderer`
+accepts. It exists for swapping the tag, e.g. to lit-html.)
 
 ---
 
@@ -137,10 +132,13 @@ callbacks re-run. Tracking is per-property rather than per-store, so unrelated p
 re-render.
 
 Bookkeeping is deliberately weak-referenced — `proxyCallbacks` is a
-`WeakMap<object, Map<string, Map<WeakRef<Element>, Set<WeakRef<Callback>>[]>>>` — so detached
+`WeakMap<object, Map<string, Map<WeakRef<Element>, PropSubscriptions>>>`, where
+`PropSubscriptions` pairs the priority-ordered callback sets with their priorities — so detached
 elements are not retained. Anything that stores a strong element reference defeats this.
 
-The `'proxy-handler'` insert is the extension point for transforming values as they are read.
-Map/Set reactivity began there before being integrated into core (`services/collections.ts`) —
-the original insert is kept as a reference implementation, and
-`examples/cdn-js/src/inserts/computed.js` demonstrates the same point today.
+The `'proxy-handler'` insert is the extension point for transforming values as they are read
+(`examples/cdn-js/src/inserts/computed.js` demonstrates it). Map/Set reactivity is **not** built
+on it: after a spell inside core it moved out to `@verajs/reactivity/collections` on its own
+**type-keyed `'collection'` insert point** — core computes `isSetOrMap` once and only collection
+reads ever reach the chain, which is what makes reactive collections affordable outside core where
+the per-read `'proxy-handler'` walk was not.

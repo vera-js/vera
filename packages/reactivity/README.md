@@ -28,10 +28,6 @@ npm i @verajs/reactivity
 
 ## `computed` — memoised derived values
 
-```sh
-npm i @verajs/reactivity
-```
-
 <!-- recipe -->
 ```js
 import { init, createStore, render, wire, html } from '@verajs/core';
@@ -155,6 +151,13 @@ rather than importing it.** A production bundle inlines its dependencies, so an 
 development and, in production, subscribe to one string while notifying another. Core tracks it from
 `ownKeys` and from a `size` read; a collection implementation notifies it on every mutation that adds
 or removes an entry. Notify something else and `${state.map.size}` silently stops updating.
+
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.
 
 ## License
 

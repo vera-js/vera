@@ -248,6 +248,13 @@ the page, long after everything had loaded. Watching `document` instead of each 
 have been the expensive shape: it taxes every DOM mutation in the app by ~47%, because every
 mutation is inside it.
 
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.
+
 ## License
 
 MIT

@@ -104,3 +104,10 @@ what changes. Verified against a real browser in `tests/browser/styles-dynamic.t
 This lived in `@verajs/core` until 0.2.0. It moved because most apps do not use `static styles` and
 every app was paying for it. If a component declares `static styles` with this package absent, core
 warns once in development.
+
+## For AI assistants — and anyone who wants the whole API on one page
+
+The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API
+reference for every package, written to be pasted into a model's context window: full export
+tables, the buildless CDN and JSX recipes, semantics that differ from other frameworks, and the
+mistakes that come up most. Its recipes are executed by the test suite, so they stay honest.
