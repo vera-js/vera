@@ -47,11 +47,17 @@ export const resetIds = () => { nextId = 1; };
  * renderer is an insert at priority 50, and registering at a taken priority replaces, which is
  * exactly what the old call did.
  */
-import { init, ref, shallowRef, render as veraRender, setHtml, wire } from '@verajs/core';
+import { init, ref, shallowRef, render as veraRender, setHtml, setRenderScheduler, microtask, wire } from '@verajs/core';
 import { html as litHtml, render as litRender, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 
 const veraImpl = (mount) => {
+  /**
+   * The same scheduling model Lit and Vue use in this table: both flush on a microtask, so the
+   * measurement window between "framework told to update" and paint contains no frame boundary.
+   * `microtask` is core's documented scheduler for exactly this trade — see setRenderScheduler.
+   */
+  setRenderScheduler(microtask);
   setHtml(litHtml);
   wire({ on: 'render', fn: litRender, priority: 50 });
 
@@ -279,6 +285,8 @@ import { keyed } from '@verajs/renderer/keyed';
 const rawHtml = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
 const veraOwnImpl = (mount) => {
+  /** Microtask scheduling, matching Lit and Vue — see the note in veraImpl. */
+  setRenderScheduler(microtask);
   setHtml(rawHtml);
   wire({ on: 'render', fn: veraDomRender, priority: 50 });
 

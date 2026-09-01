@@ -358,6 +358,8 @@ type TemplatePart = {
   _index: number;
   _name?: string;
   _statics?: string[];
+  /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
+  _present?: boolean;
   _node?: Node; // only during construction, carrying identity between the two passes
 };
 
@@ -414,6 +416,15 @@ class Template {
                 _index: -1,
                 _name: spec._name,
                 _statics: element.getAttribute(attributeName)!.split(MARKER),
+                /**
+                 * Computed here — once per template, ever — so the first commit of a nullish
+                 * binding knows whether a fresh clone even carries the attribute. It usually does
+                 * not, and the unconditional removal this feeds cost a real DOM call per element
+                 * per create: 1,000 no-op `removeAttribute`s on the 1,000-row benchmark. The one
+                 * case that must still remove — `<b title="a" title=${null}>`, where the parser
+                 * keeps the first duplicate — is exactly what this reads.
+                 */
+                _present: element.hasAttribute(spec._name),
                 _node: element,
               });
               element.removeAttribute(attributeName);
@@ -550,8 +561,10 @@ class AttrPart implements Part {
   _handler: EventListener | null = null;
   /** `<select>.value`, which cannot be applied where it is written — see `pendingSelects`. */
   _select = false;
+  /** The template statically wrote this attribute, so a first nullish commit must still remove. */
+  _present: boolean;
 
-  constructor(element: Element, name: string, statics: string[]) {
+  constructor(element: Element, name: string, statics: string[], present = false) {
     const first = name[0];
     let kind =
       first === '.'
@@ -588,6 +601,7 @@ class AttrPart implements Part {
     this._isFullValue = this._slots === 1 && statics[0] === '' && statics[1] === '';
     /** Resolved once, here, so the commit path costs one boolean rather than two comparisons. */
     this._select = kind === PROPERTY && realName === 'value' && element.localName === 'select';
+    this._present = present;
   }
 
   /**
@@ -721,18 +735,19 @@ class AttrPart implements Part {
       return index + this._slots;
     }
     if (value !== this._committed) {
-      this._committed = value;
       if (kind === ATTR) {
         /**
-         * The removal is unconditional, including on the first commit.
-         *
-         * It used to be skipped then, on the reasoning that a fresh clone has no such attribute —
-         * true unless the template *statically* carries one, and `<b title="a" title=${null}>` does.
-         * The binding is authoritative because it is written last, and the server agrees; skipping
-         * left `title="a"` in the browser against no attribute at all server-side. One DOM call per
-         * nullish attribute binding on first render is what that costs.
+         * A nullish value removes the attribute — except on the first commit of a template that
+         * never statically wrote it, where a fresh clone has nothing to remove. That skip used to
+         * be unconditional-removal instead, for the one case that genuinely needs it:
+         * `<b title="a" title=${null}>` parses keeping the first duplicate, so the binding —
+         * written last, and authoritative on the server too — must clear it. `_present` is that
+         * case, read off the parsed template once ever; without it the removal was a real DOM call
+         * per nullish binding per element on create — 1,000 no-ops in the 1,000-row benchmark.
          */
-        if (value == null) this._element.removeAttribute(this._name);
+        if (value == null) {
+          if (this._present || this._committed !== UNSET) this._element.removeAttribute(this._name);
+        }
         else this._element.setAttribute(this._name, value as string);
       } else if (kind === PROPERTY) {
         const target = this._element as unknown as Record<string, unknown>;
@@ -751,8 +766,10 @@ class AttrPart implements Part {
          * Only these three, and only while adopting. A property the server cannot express — any
          * other `.prop` — is not in the DOM yet and must be written.
          */
-        if (__HYDRATING__ && adopting && (name === 'value' || name === 'checked' || name === 'selected'))
+        if (__HYDRATING__ && adopting && (name === 'value' || name === 'checked' || name === 'selected')) {
+          this._committed = value;
           return index + this._slots;
+        }
         target[name] = value;
         /**
          * Detection only, and deliberately not repair.
@@ -850,6 +867,7 @@ class AttrPart implements Part {
         }
         // any other value type at element position is consumed and ignored
       }
+      this._committed = value;
     }
     return index + this._slots;
   }
@@ -935,7 +953,7 @@ class Instance {
       this._parts.push(
         templatePart._type === CHILD
           ? new TextPart(node as Text)
-          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!)
+          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
     }
   }

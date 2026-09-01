@@ -23,7 +23,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 | [No base class](no-base-class.md) | Attaches to a plain `HTMLElement`; retrofittable | **Strong** — structural, Lit cannot match |
 | [Reactivity](reactivity.md) | Automatic tracking; no dep arrays, no property declarations | **Strong** — Solid-class DX without a compiler |
 | [Module system](module-system.md) | Genuinely independent modules; 4 extension points | **Medium** — real, but needs explaining |
-| [Performance](performance.md) | ~200 ns tracked reads, coalesced effects | **Medium** — good, not category-leading |
+| [Performance](performance.md) | Fastest or tied on 5 of 8 DOM operations in a 9-framework table; within 9% on the rest | **Strong** — measured, min-of-21 sessions |
 
 ## The one-line pitch
 

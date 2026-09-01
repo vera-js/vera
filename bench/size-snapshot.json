@@ -7,8 +7,8 @@
       "gzip": 3056
     },
     "renderer": {
-      "raw": 9732,
-      "gzip": 3845
+      "raw": 9800,
+      "gzip": 3885
     },
     "router": {
       "raw": 8592,
@@ -27,8 +27,8 @@
       "gzip": 576
     },
     "keyed": {
-      "raw": 1184,
-      "gzip": 599
+      "raw": 1311,
+      "gzip": 664
     },
     "spread": {
       "raw": 1714,
@@ -113,8 +113,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 14744,
-      "gzip": 6101,
+      "raw": 14809,
+      "gzip": 6133,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 15894,
-      "gzip": 6573
+      "raw": 16084,
+      "gzip": 6644
     },
     {
       "name": "Lit",
@@ -207,8 +207,8 @@
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 11966,
-      "gzip": 5027
+      "raw": 12032,
+      "gzip": 5059
     }
   ]
 }

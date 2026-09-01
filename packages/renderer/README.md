@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.75 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.79 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -169,7 +169,7 @@ renderInto(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>
 `keyed(key, result)` tags a result with its identity, so a reorder **moves** the existing elements
 instead of rebuilding them — focus, scroll position, form state and running animations all survive.
 It is its own entry because most apps never reorder a list, and the algorithm that makes reordering
-cheap is <!--size:keyed.gzip-->599 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
+cheap is <!--size:keyed.gzip-->664 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
 nothing registers, and there is no `wire()` call — the marker stamps each result with the strategy
 that understands it, so a list always names its own reconciler and two strategies cannot disagree
 about one. Lit splits `repeat` out for the same reason; the difference is that this one arrives on

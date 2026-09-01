@@ -8,31 +8,42 @@
 ## Against the field, in a real browser
 
 Nine implementations, all emitting identical markup from one seeded generator. Each figure is the
-**fastest run across seven sessions** — every operation is timed through to paint, and noise here is
-one-sided, so the minimum is the cleanest estimate of what a framework actually costs.
+**fastest run across twenty-one sessions** (three seven-session runs) — every operation is timed
+through to paint, and noise here is one-sided, so the minimum is the cleanest estimate of what a
+framework actually costs.
 
-> **Re-run it yourself:** `node bench/dom/build.mjs && node bench/dom/run.mjs 7`.
+> **Re-run it yourself:** `node bench/dom/build.mjs && node bench/dom/run.mjs 7` — three times, on
+> a machine that is not allowed to sleep (`caffeinate -dims` on macOS; a display that sleeps
+> mid-run drops CPU power states and one throttled window measured a framework 57% slower than its
+> own minimum an hour earlier).
 >
 > **Use several sessions and read the minimum.** These operations are small enough that one session
 > is mostly noise: the same build measured `swap` at 12.1, 3.3 and 3.6 ms across three consecutive
-> sessions, and `select` at 5.8 ms across a three-session minimum that seven sessions put at 0.3.
-> Absolute numbers are machine-specific; the ratios are the claim.
+> sessions. Absolute numbers are machine-specific; the ratios are the claim.
+>
+> **The VeraJS implementations schedule on a microtask** (`setRenderScheduler(microtask)`), the
+> same flush model Lit and Vue use in this table, so no row contains a frame boundary for one
+> framework and not another. The default scheduler is an animation frame — frame-aligned batching
+> at the cost of ~0.2–0.4 ms of latency on small updates, which is a real trade an app picks with
+> one documented call; see `setRenderScheduler`.
 
 `@verajs/core` + `@verajs/renderer` — the default pairing:
 
 | Operation | VeraJS | Lit | Solid | Vue | Preact | Svelte | Van.js | React | vs fastest |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| select row | **0.3** | 0.4 | 0.8 | 1.0 | 0.6 | 0.8 | 0.5 | 0.7 | **wins** |
-| swap 2 rows | **2.3** | 3.3 | 3.1 | 3.0 | 3.2 | 4.3 | 19.1 | 17.2 | **wins** |
-| create 1 000 | **14.8** | 15.9 | 17.9 | 15.1 | 15.3 | 17.6 | 17.0 | 16.7 | **wins** |
-| create 10 000 | **163.6** | 168.4 | 196.9 | 167.4 | 182.9 | 319.5 | 183.7 | 308.7 | **wins** |
-| update every 10th | 2.5 | 2.6 | 4.9 | 3.5 | 3.3 | 4.1 | 19.4 | 3.9 | 1.04x |
-| append 1 000 | 23.7 | 22.8 | 23.6 | 23.6 | 25.3 | 29.8 | 35.8 | 24.6 | 1.04x |
-| remove row | 3.5 | 3.5 | 4.0 | 3.9 | 3.4 | 5.1 | 18.2 | 3.5 | 1.17x |
-| clear 1 000 | 2.8 | 9.6 | 3.0 | 2.6 | 2.7 | 2.8 | 2.3 | 3.8 | 1.22x |
+| create 1 000 | **13.3** | 14.4 | 15.8 | 13.6 | 15.0 | 16.1 | 17.6 | 16.6 | **wins** |
+| create 10 000 | **161.9** | 167.5 | 185.8 | 163.4 | 181.2 | 311.5 | 182.2 | 301.3 | **wins** |
+| append 1 000 | **21.6** | 22.8 | 23.1 | 22.2 | 23.2 | 28.7 | 35.1 | 24.4 | **wins** |
+| update every 10th | **2.2** | 2.3 | 4.7 | 3.2 | 2.9 | 4.0 | 17.5 | 3.3 | **wins** |
+| select row | **0.2** | 0.2 | 0.6 | 0.9 | 0.6 | 0.6 | 0.5 | 0.6 | **ties** |
+| swap 2 rows | 2.5 | 2.8 | 2.5 | 2.5 | 2.3 | 3.5 | 17.1 | 16.4 | 1.09x |
+| remove row | 3.1 | 3.2 | 3.2 | 3.7 | 3.3 | 4.9 | 18.6 | 3.0 | 1.03x |
+| clear 1 000 | 2.5 | 9.2 | 2.9 | 2.4 | 2.5 | 2.9 | 2.4 | 4.0 | 1.04x |
 
-**Four operations won outright, six of eight within 5% of the fastest, and 1.22x at worst.** That is
-competitive with Lit, Solid and Vue on their own terms — not "good for something this small".
+**Four operations won outright, a fifth tied at the measurement floor, and no operation is more
+than 9% — 0.2 ms — from the fastest.** No other framework in the table wins more than one row.
+That is competitive with Lit, Solid and Vue on their own terms — not "good for something this
+small".
 
 ### Running on lit-html instead
 
@@ -41,10 +52,10 @@ everywhere except `clear`:
 
 | Operation | VeraJS + `@verajs/renderer` | VeraJS + lit-html | Lit |
 | --- | ---: | ---: | ---: |
-| clear 1 000 | **2.8** | 9.9 | 9.6 |
-| swap 2 rows | **2.3** | 2.9 | 3.3 |
-| update every 10th | 2.5 | **2.4** | 2.6 |
-| remove row | 3.5 | **3.0** | 3.5 |
+| clear 1 000 | **2.5** | 9.3 | 9.2 |
+| swap 2 rows | **2.5** | 2.7 | 2.8 |
+| update every 10th | **2.2** | 2.7 | 2.3 |
+| remove row | **3.1** | 3.4 | 3.2 |
 
 `clear` is **lit-html's cost, not VeraJS's** — Lit itself scores 9.6 on the same test, because
 lit-html removes list nodes one at a time where the others replace the subtree. It was the one

@@ -153,7 +153,22 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
       }
     }
   }
-  while (newHead <= newTail) {
+  /**
+   * The trailing fill inserts every remaining item before the same reference — `refAt(newTail + 1)`
+   * cannot move while the loop runs, because the loop itself only fills slots *below* it. Built
+   * into a fragment and landed with one `insertBefore`, an append of 1 000 rows costs one live-DOM
+   * insertion instead of 1 000 — the same batching the renderer's index-mode grow path has always
+   * had, which this path silently lacked. A single item skips the fragment: one insert either way.
+   */
+  if (newHead < newTail) {
+    const ref = refAt(newTail + 1);
+    const fragment = parent.ownerDocument!.createDocumentFragment();
+    while (newHead <= newTail) {
+      newItems[newHead] = part.$c(newValues[newHead], fragment, null);
+      newHead++;
+    }
+    parent.insertBefore(fragment, ref);
+  } else if (newHead === newTail) {
     newItems[newHead] = part.$c(newValues[newHead], parent, refAt(newTail + 1));
     newHead++;
   }

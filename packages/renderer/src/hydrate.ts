@@ -216,7 +216,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
 
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
-    const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!);
+    const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!, templatePart._present);
     state._out.push(attrPart);
     /** Attributes re-set (idempotent), listeners attached, refs fired — the server could only
      * mirror form state; the client wires behavior. The `true` marks this as adoption, which is
