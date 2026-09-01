@@ -7,9 +7,14 @@
  * it against a different implementation, which is the only thing that can actually settle a
  * compatibility claim.
  *
- * `tests/lit-output.mjs` holds lit's answers, measured from lit-html and checked in — because lit
- * lives in `bench/node_modules`, which is deliberately not a workspace member, so CI cannot import
- * it. The last test here re-measures when lit *is* present, so the recording cannot quietly go stale.
+ * `tests/lit-output.mjs` holds lit's answers, measured from lit-html and checked in, so every build
+ * everywhere can be compared without lit being resolvable. The last test re-measures when lit *is*
+ * present, so the recording cannot quietly go stale.
+ *
+ * **It is present more often than this file used to claim.** `lit-html` is a root `devDependency`,
+ * not only a `bench/` one, so a root `npm ci` installs it and CI runs that re-measurement too. The
+ * old note said CI could not import lit, which is why a recording that only held on one machine went
+ * unnoticed here and failed there.
  *
  * **The divergences are the interesting half.** `llms.txt` documents exactly one, and this suite
  * requires that list to be exactly right in both directions: a difference not on it fails, and one on
@@ -56,7 +61,14 @@ const VALUES = {
   'an array with holes': ['a', null, undefined, 'b'],
   'a nested array': [['a', ['b']], 'c'],
   'an object': { a: 1 },
-  'a Date': new Date(0),
+  /**
+   * **No `Date`.** Both libraries render a non-plain object with `String(value)`, so a `Date`
+   * exercises nothing `an object` does not — and its string form carries the machine's timezone
+   * and locale. Recorded on one machine it fails on every other: this suite was green here and
+   * red in CI, which runs UTC, comparing `GMT-0800 (Pacific Standard Time)` against
+   * `GMT+0000 (Coordinated Universal Time)`. A recording can only hold output that does not
+   * depend on where it was taken.
+   */
   'a Set': new Set(['a', 'b']),
   'a Map': new Map([['k', 'v']]),
   'markup in a string': '<b>not markup</b>',
