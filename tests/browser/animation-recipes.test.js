@@ -35,13 +35,29 @@ it('the documented ?hidden fade runs in every engine', async () => {
       element.className = 'fade';
       element.textContent = 'x';
       document.body.appendChild(element);
+      /** Reading it commits the starting style; without that the change can coalesce with the
+       *  append and no transition is generated at all. */
+      expect(Number(getComputedStyle(element).opacity), 'starts opaque').to.equal(1);
       await frame();
 
       element.hidden = true;
-      await settle(150);
-      const mid = getComputedStyle(element);
-      expect(mid.display, 'the UA hidden rule must stay overridden or there is nothing to fade').to.equal('block');
-      expect(Number(mid.opacity), `${engine()}: mid-transition opacity`).to.be.within(0.2, 0.95);
+
+      /**
+       * **Polled, not sampled at a fixed instant.** The previous version slept 150ms into a 600ms
+       * transition and asserted the value was mid-interpolation. That holds on an idle machine and
+       * not on a loaded one: CI saw opacity still exactly `1`, because the transition had not begun
+       * when the timer fired. The claim being made is that the element *fades rather than jumps*,
+       * and any value strictly between the endpoints proves that whenever it happens to land.
+       */
+      let mid = null;
+      for (let i = 0; i < 120 && mid === null; i++) {
+        const style = getComputedStyle(element);
+        expect(style.display, 'the UA hidden rule must stay overridden or there is nothing to fade').to.equal('block');
+        const value = Number(style.opacity);
+        if (value > 0 && value < 1) mid = value;
+        else await settle(10);
+      }
+      expect(mid, `${engine()}: opacity never took a value between 1 and 0 — it jumped`).to.be.a('number');
 
       await settle(700);
       expect(Number(getComputedStyle(element).opacity)).to.equal(0);

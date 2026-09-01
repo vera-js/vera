@@ -589,6 +589,7 @@ export const SURFACES = {
     "NaN",
     "NodeFilter",
     "Proxy",
+    "PublicKeyCredential",
     "Reflect",
     "SVGUnitTypes",
     "Temporal",
