@@ -72,6 +72,20 @@ test('`@name` and `onName` both bind events', () => {
   assert.equal(react, 1, 'onClick is accepted as @click, matching written bindings');
 });
 
+test('an object with handleEvent listens, as the platform allows', () => {
+  /**
+   * `addEventListener` takes two shapes, and the written `@event` binding was taught the second in
+   * the event-lifecycle pass while this module kept calling `.call()` unconditionally — so the same
+   * value fired through `@click` and threw `this._handler.call is not a function` on every dispatch
+   * through a spread. Counted as fires, not as "did not throw": jsdom reports a listener's throw to
+   * the virtual console rather than rethrowing, so a throw here reads as zero fires.
+   */
+  let fired = 0;
+  renderInto(html`<button ${spread({ onClick: { handleEvent: () => fired++ } })}></button>`, host);
+  click(host.querySelector('button'));
+  assert.equal(fired, 1, 'the object bound but never listened');
+});
+
 test('all-lowercase `onclick` stays a plain attribute', () => {
   /** Legal inline-handler HTML; the same rule the renderer applies to written names. */
   renderInto(html`<button ${spread({ onclick: 'noop()' })}></button>`, host);

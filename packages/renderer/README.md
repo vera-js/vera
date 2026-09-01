@@ -417,7 +417,7 @@ a pair of totals — the totals move with every change to this package and the d
 which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
 for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
 dated; re-measure the same way if it matters.
-The entry itself is **<!--size:spread.gzip-->869 B<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->883 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -531,7 +531,7 @@ attribute `hidden="false"` and any value at all applies it.
   writing tests for it.
 - HTML only. There is no `svg`/`mathml` equivalent yet.
 
-<!--size:tag.gzip-->1.43 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+<!--size:tag.gzip-->1.45 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 

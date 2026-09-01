@@ -92,8 +92,23 @@ class Binding {
             : null;
   }
 
+  /**
+   * **Two shapes, because `addEventListener` takes two** — the same rule `AttrPart.handleEvent`
+   * applies, and it did not travel here when that one was fixed. A function is called with the
+   * element as `this`; an object with a `handleEvent` method is invoked through it — the platform's
+   * own `EventListenerObject` protocol, which every engine accepts. This called `.call()`
+   * unconditionally, so `spread({ onClick: { handleEvent } })` bound without complaint, never
+   * fired, and raised `this._handler.call is not a function` on **every** dispatch — while the
+   * identical value through a written `@click` worked.
+   *
+   * Anything else is inert rather than throwing, exactly as there: development names it at the
+   * binding (see the event branch in `write`), where the mistake still is.
+   */
   handleEvent(event: Event) {
-    if (this._handler) this._handler.call(this._element as never, event);
+    const handler = this._handler as EventListener | EventListenerObject | null;
+    if (typeof handler === 'function') handler.call(this._element as never, event);
+    else if (typeof (handler as EventListenerObject)?.handleEvent === 'function')
+      (handler as EventListenerObject).handleEvent(event);
   }
 }
 
@@ -143,6 +158,21 @@ const write = (binding: Binding, value: unknown) => {
     if (typeof value === 'function') (value as (el: Element) => void)(element);
     else if (value !== null && typeof value === 'object') (value as { value: unknown }).value = element;
   } else {
+    /**
+     * A listener is validated when a *user* clicks, which in development may be never — so it is
+     * checked where it is written, the same rule `AttrPart` applies to `@event`. `false` stays
+     * silent: `{ onClick: enabled && onClick }` is the ordinary conditional form and already
+     * behaves correctly, since `handleEvent` finds nothing callable and does nothing.
+     */
+    if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&
+        typeof (value as EventListenerObject)?.handleEvent !== 'function')
+      console.warn(
+        `[vera] spread: @${name} on <${element.localName}> was given ` +
+          `${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
+          `which cannot listen — the event will do nothing.\n` +
+          `Pass a function, or an object with a handleEvent method. A missing handler is ` +
+          `\`undefined\` or \`false\`, both of which are fine; this is neither.`
+      );
     if (binding._handler === null && value != null) element.addEventListener(name, binding);
     binding._handler = (value as EventListener) ?? null;
   }

@@ -39,6 +39,16 @@ it('and so does an @event binding', () => {
   expect(self, 'the event should still come from the bound element').to.equal(button);
 });
 
+it('and so does a spread event key', async () => {
+  /** The same shape through `@verajs/renderer/spread`, which missed the fix `@event` got. */
+  const { spread } = await import('../../packages/renderer/dist/development/vera-renderer-spread.js');
+  const container = into();
+  let fired = 0;
+  renderInto(html`<button ${spread({ onClick: { handleEvent() { fired++; } } })}>x</button>`, container);
+  container.querySelector('button').click();
+  expect(fired, 'the object bound through spread but never listened').to.equal(1);
+});
+
 it('a function binding still receives the element as `this`', () => {
   const container = into();
   let receivedElement = false;
