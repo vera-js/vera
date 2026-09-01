@@ -104,7 +104,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
       /**
        * **Rollup's own relative paths land outside the repository.** Measured: every `sources` entry
        * in every map resolved to somewhere above the checkout — `../../../../src/store/store.ts`
-       * from `packages/core/dist/` is `/Users/omni/dev/src/…`, and the development maps were a level
+       * from `packages/core/dist/` is `/Users/…/dev/src/…`, and the development maps were a level
        * further out again. Nothing *broke*, because `sourcesContent` is embedded and a browser
        * prefers it, but anything that resolves `sources` on disk — an error reporter, a bundler
        * consuming the map, an editor — got nothing, and a published path naming a directory tree
