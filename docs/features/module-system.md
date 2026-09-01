@@ -10,18 +10,19 @@ most people need; everything else is opt-in, including things you write yourself
 `@verajs/router`, `@verajs/autoloader` and `@verajs/renderer` **do not require
 `@verajs/core` at runtime**. Take one on its own, or use it with another framework entirely.
 
-The proof is uncomfortable but honest: production bundles inline everything, so loading
-`vera.min.js` *and* `vera-router.min.js` gives you **two separate internal registries**. That is why
-`connectInserts()` exists:
+The proof is concrete: production bundles inline everything, so a module that carried its own
+registry would end up writing to one core never reads. None of them carry one. The router is handed
+core's, by the same `wire` call that installs everything else:
 
 ```js
-import { inserts } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
-connectInserts(inserts);            // point the router at core's registry
+import { wire } from '@verajs/core';
+import { router } from '@verajs/router';
+wire([router]);              // point the router at core's registry
 ```
 
-Under a bundler everything resolves to one instance and the call does nothing. **This is the price
-of independence, not a bug** — a router that cannot work without core is not an independent module.
+That reads identically under a bundler and on a CDN page. **This is the price of independence, not a
+bug** — a router that cannot work without core is not an independent module — and without core at
+all the router takes what it needs directly (`setRouterRenderer`), with no registry involved.
 
 ## The extension points
 
@@ -36,11 +37,11 @@ Returning `false` from a `'set-handler'` suppresses core's default propagation, 
 takes over. That is what makes `batch()` a module rather than core surface:
 
 ```js
-insert('set-handler', (obj, prop, value, prevValue, runCallbacks) => {
+wire({ on: 'set-handler', fn: (obj, prop, value, prevValue, runCallbacks) => {
   if (!batching) return;
   queued.push([obj, prop, value, prevValue, runCallbacks]);
   return false;                     // hold it back; flush later
-}, 50);
+}, priority: 50 });
 ```
 
 Verified: three writes deduped to two propagations.
@@ -60,7 +61,7 @@ Things that are **modules, not core**, and need no changes to core to build:
 
 ## Renderer-agnostic
 
-`setHtml` and `setRenderer` mean the template function and the renderer are both swappable. Use
+`setHtml`, and wiring a different function on `'render'`, mean the template function and the renderer are both swappable. Use
 lit-html, use `@verajs/renderer`, or write your own.
 
 That is a real strategic hedge rather than a checkbox: core survives lit-html falling out of favour,
@@ -68,7 +69,7 @@ and if TC39 Signals land natively the reactivity layer can be swapped to them an
 
 ## Caveat
 
-Independence has a cost and you should say it out loud: the duplicated registries are surprising the
-first time, and `connectInserts` is a papercut in the CDN path. The honest framing is that it is a
-deliberate trade — most "modular" frameworks are modular in packaging only, and their pieces will
+Independence has a cost and you should say it out loud: every module has to be wired, and a module
+you forget is a module that does nothing until a development warning tells you so. The honest
+framing is that it is a deliberate trade — most "modular" frameworks are modular in packaging only, and their pieces will
 not run without the core.

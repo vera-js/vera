@@ -24,7 +24,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-import { distUrl } from './dist.mjs';
+import { distUrl, isProduction } from './dist.mjs';
 
 const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
@@ -39,8 +39,18 @@ const PACKAGES = {
   '@verajs/inserts': 'inserts',
   '@verajs/reactivity': 'reactivity',
   '@verajs/reactivity/computed': 'reactivity/computed',
+  '@verajs/reactivity/collections': 'reactivity/collections',
   '@verajs/renderer/spread': 'renderer/spread',
+  '@verajs/renderer/keyed': 'renderer/keyed',
+  '@verajs/renderer/hydrate': 'renderer/hydrate',
+  '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
+  '@verajs/jsx': 'jsx',
+  /** Every published entry, so a recipe can be written for any of them. `renderer/profiler` was
+   * missing, and the suite's own error said so — "add it to PACKAGES to run a recipe that imports
+   * it" — which is a message nobody sees until they try to mark a profiler recipe. */
+  '@verajs/renderer/profiler': 'renderer/profiler',
+  '@verajs/ssr': 'ssr',
 };
 
 /**
@@ -54,9 +64,15 @@ const PACKAGES = {
  */
 const resolveImports = (code, generation) =>
   /** `[a-z/]`, not `[a-z]`: subpath entries like `@verajs/renderer/spread` are specifiers too. */
-  code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, spec) =>
-    PACKAGES[spec] ? `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'` : whole
-  );
+  code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, spec) => {
+    /**
+     * An unmapped specifier used to be left bare, which a `data:` module cannot resolve — so a new
+     * entry appearing in a recipe failed with `ERR_UNSUPPORTED_RESOLVE_REQUEST` and a base64 blob,
+     * naming neither the file nor the missing map entry. Saying it plainly costs one line.
+     */
+    if (!PACKAGES[spec]) throw new Error(`tests/docs-recipes: add "${spec}" to PACKAGES to run a recipe that imports it`);
+    return `from '${distUrl(PACKAGES[spec], `?recipe=${generation}`)}'`;
+  });
 
 let generation = 0;
 const runModule = async (code) => {
@@ -148,11 +164,17 @@ test('the install line names the packages the recipes import', () => {
   }
 });
 
-test('the multi-module CDN snippet wires connectInserts', () => {
-  /** Documented as load-bearing: standalone bundles each inline their own registry. */
-  const block = blocks.find((b) => b.lang === 'js' && b.body.includes('setAutoloader'));
+test('the multi-module CDN snippet hands the router core\u2019s registry', () => {
+  /**
+   * Standalone bundles each inline their dependencies, so a module carrying its own registry would
+   * write to one core never reads — in production only. None carry one; the router is handed core's
+   * through `wire`. This asserted `connectInserts` until that function was removed in 0.2.0, and it
+   * is the one check that keeps the README from drifting back to a reconciliation step.
+   */
+  const block = blocks.find((b) => b.lang === 'js' && b.body.includes('router'));
   assert.ok(block, 'the multi-module snippet is present');
-  assert.match(block.body, /connectInserts\(/, 'it must call connectInserts');
+  assert.match(block.body, /wire\(\[/, 'it must install the modules through wire([\u2026])');
+  assert.doesNotMatch(block.body, /connectInserts/, 'connectInserts no longer exists');
 });
 
 /* ── Marked recipes, every README in the repo ─────────────────────────────────────────────────────
@@ -177,6 +199,7 @@ import { spawnSync } from 'node:child_process';
 
 const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
 
+const repoRoot = new URL('..', import.meta.url).pathname;
 const readmes = ['README.md', ...globSync('packages/*/README.md').sort()];
 const recipes = readmes.flatMap((path) => {
   const text = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -191,11 +214,59 @@ const recipes = readmes.flatMap((path) => {
  * means both adding and removing a recipe is a deliberate edit here.
  */
 const EXPECTED_RECIPES = {
+  /** Newly runnable: the runner had no `MutationObserver` and executed recipes as `data:` URLs, so
+   * `import.meta.url` was a base64 blob and the autoloader refused it. Both fixed, so the package's
+   * quick start is executed rather than merely printed. */
+  'packages/autoloader/README.md': 1,
   'packages/core/README.md': 1,
+  'packages/inserts/README.md': 2,
+  'packages/jsx/README.md': 1,
   'packages/reactivity/README.md': 1,
-  'packages/renderer/README.md': 2,
+  'packages/renderer/README.md': 4,
+  'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
 };
+
+/**
+ * **A marker outside the executed set would be a promise nothing keeps.**
+ *
+ * This suite reads `README.md` and `packages/*&#47;README.md`; `llms.txt` has its own
+ * (`tests/llms-recipes.test.mjs`). Nothing reads `docs/`, `CLAUDE.md` or an example — and a
+ * `<!-- recipe -->` there is not inert, it is a claim that the block below it runs, written by someone
+ * who believed it would be executed.
+ *
+ * That is the failure this file already has a history of: `llms.txt` carried the buildless JSX recipe
+ * and *"docs-recipes globs the READMEs and had never read this file at all"*. The input list was
+ * corrected then; nothing stopped a third location appearing.
+ *
+ * The marker has to be **followed by a fence** to count. `docs/CODE-PRINCIPLES.md` and `CLAUDE.md`
+ * both name the string in prose while describing this very practice, and a guard that flagged them
+ * would be reporting its own documentation.
+ */
+test('no recipe marker sits outside the files that execute them', () => {
+  const executed = new Set([...readmes, 'llms.txt']);
+  const MARKED_BLOCK = /<!--\s*recipe\s*-->\s*\n```/;
+
+  const candidates = [
+    ...globSync('*.md', { cwd: repoRoot }),
+    ...globSync('*.txt', { cwd: repoRoot }),
+    ...globSync('docs/**/*.md', { cwd: repoRoot }),
+    ...globSync('packages/*/README.md', { cwd: repoRoot }),
+    ...globSync('examples/**/*.md', { cwd: repoRoot }),
+  ];
+
+  const orphans = [...new Set(candidates)]
+    .filter((file) => !executed.has(file))
+    .filter((file) => MARKED_BLOCK.test(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')));
+
+  assert.ok(candidates.length > 10, `only ${candidates.length} documents were scanned`);
+  assert.deepEqual(
+    orphans,
+    [],
+    `these carry a <!-- recipe --> marker that nothing runs — either move the recipe into a README, ` +
+      `or add the file to this suite:\n  ${orphans.join('\n  ')}`
+  );
+});
 
 test('the marked recipes are exactly the ones we expect', () => {
   const byFile = {};
@@ -209,7 +280,15 @@ test('the marked recipes are exactly the ones we expect', () => {
 const RUNNER = new URL('./run-recipe.mjs', import.meta.url).pathname;
 
 for (const { path, body, index } of recipes) {
-  test(`${path} — recipe ${index} runs clean`, () => {
+  /**
+   * `@verajs/renderer/profiler` has **no production build** — its instrumentation sits behind a
+   * `__DEV__` constant the build folds away, so there is nothing to ship and `exports` names no
+   * `.min.js`. A recipe importing it can only run against the development artifacts.
+   */
+  const developmentOnly = isProduction && /@verajs\/renderer\/profiler/.test(body)
+    ? 'the profiler has no production build'
+    : false;
+  test(`${path} — recipe ${index} runs clean`, { skip: developmentOnly }, () => {
     const resolved = resolveImports(body, `recipe-${index}`);
     const result = spawnSync('node', [RUNNER, Buffer.from(resolved).toString('base64')], {
       encoding: 'utf8',

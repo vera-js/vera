@@ -1,18 +1,22 @@
 {
+  "recorded": {
+    "at": "2026-08-26",
+    "commit": "8690f07"
+  },
   "size": {
-    "core": 2633,
-    "renderer": 3650,
-    "renderer/hydrate": 4771,
-    "renderer/spread": 688,
-    "router": 3544,
-    "autoloader": 1007,
-    "styles": 566,
-    "inserts": 363,
-    "core+renderer": 6283
+    "core": 2764,
+    "renderer": 3719,
+    "renderer/hydrate": 4902,
+    "renderer/spread": 842,
+    "router": 3613,
+    "autoloader": 1122,
+    "styles": 598,
+    "inserts": 357,
+    "core+renderer": 6483
   },
   "speed": {
-    "serialize small": 0.138,
-    "serialize table": 36.62,
-    "renderToString": 4.114
+    "serialize small": 0.149,
+    "serialize table": 35.844,
+    "renderToString": 4.667
   }
 }

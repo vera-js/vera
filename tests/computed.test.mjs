@@ -7,10 +7,12 @@
  * re-invoked the function on every read — a getter with extra steps, and the one property that
  * makes the primitive worth having was the property it lacked.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 
 const core = await load('core');
+const { collections } = await load('reactivity/collections');
+core.wire(collections);
 const { computed } = await load('reactivity/computed');
 const dom = new JSDOM('<body></body>');
 globalThis.HTMLElement = dom.window.HTMLElement;
@@ -97,7 +99,7 @@ const mount = () => {
 {
   const state = core.createStore({ n: 1 });
   const seen = [];
-  core.insert('error', (error) => seen.push(error), 25);
+  core.wire({ on: 'error', fn: (error) => seen.push(error), priority: 25 });
   let threw = false;
   try {
     const bad = computed(() => { if (state.n > 1) throw new Error('boom'); return state.n; });
@@ -106,6 +108,66 @@ const mount = () => {
   } catch { threw = true; }
   check('an evaluation that throws does not escape', threw === false);
   check('it reaches the error insert instead', seen.some((e) => e?.message === 'boom'));
+}
+
+/**
+ * **Eager, not lazy** — the opposite of what the name promises everywhere else, so it is asserted
+ * rather than left to be discovered. A computed evaluates at creation and re-evaluates on every
+ * dependency change with no reader at all, because reading `.value` subscribes and a component can
+ * only be told the value *changed* if it has been computed. Documented in the package README.
+ */
+{
+  let runs = 0;
+  const state = core.createStore({ n: 1 });
+  const derived = computed(() => { runs++; return state.n; });
+  check('a computed evaluates at creation, before any read', runs === 1, String(runs));
+  for (let i = 2; i <= 6; i++) state.n = i;
+  check('and on every dependency write with no reader — if this drops, it went lazy', runs === 6, String(runs));
+  check('reading returns the current value', derived.value === 6, String(derived.value));
+  check('and reading does not re-evaluate, which is the memoisation', runs === 6, String(runs));
+}
+
+{
+  const state = core.createStore({ n: 1 });
+  const derived = computed(() => { if (state.n === 2) throw new Error('boom'); return state.n * 2; });
+  check('a computed evaluates normally', derived.value === 2, String(derived.value));
+  state.n = 2;
+  check('a throwing evaluation does not escape, and keeps the last good value', derived.value === 2, String(derived.value));
+  state.n = 3;
+  check('and the next good input recovers', derived.value === 6, String(derived.value));
+}
+
+
+
+/* ── a non-function is refused by name ────────────────────────────────────────────────────────
+ * `computed(undefined)` — what a mistyped argument or a missing import produces — was accepted and
+ * failed at the first read with `evaluate is not a function`: the name of a local variable inside
+ * `computed.ts`, naming neither the API that was called wrong nor what to pass instead. It was the
+ * only public function in the framework that did this, found by a sweep calling every export with
+ * wrong-typed input.
+ *
+ * `__DEV__`-only, like the other diagnostics here, so production carries neither check nor message.
+ */
+if (!isProduction) {
+  for (const bad of [undefined, null, 5, {}, [], 'x']) {
+    let message = '';
+    try {
+      computed(bad);
+    } catch (error) {
+      message = String(error?.message ?? '');
+    }
+    check(`computed(${String(bad)}) is refused`, /^computed: expected a function/.test(message), message.slice(0, 60));
+    check(`computed(${String(bad)}) shows the shape it wanted`, /computed\(\(\) => a \+ b\)/.test(message));
+  }
+}
+
+/** The guard must not disturb the ordinary path, in either build. */
+{
+  const store = core.createStore({ n: 2 });
+  const doubled = computed(() => store.n * 2);
+  check('a real function still evaluates', doubled.value === 4, String(doubled.value));
+  store.n = 3;
+  check('and still recomputes', doubled.value === 6, String(doubled.value));
 }
 
 console.log(`${pass} passed, ${fail} failed`);

@@ -11,6 +11,13 @@
  *      copies it into each bundle — which is why two standalone bundles hold two registries and
  *      `connectInserts` exists at all.
  *
+ * **A development bundle can still reach production code.** `dist/development/*.js` keeps workspace
+ * deps external, so loading core's development bundle resolves `@verajs/inserts` through its
+ * `exports` map — and with no `development` condition set, that lands on `dist/*.min.js`, where the
+ * `__DEV__` guards are gone. A suite checking a development-only warning must therefore `load` the
+ * package that *owns* the guard rather than reach it through a re-export, or it silently asserts
+ * against the production build. A real app is unaffected: a bundler sets the condition.
+ *
  * A suite that only ever loaded `dist/development` proved the logic and nothing about the artifact
  * that ships. Notably, `_p` in `@verajs/inserts` is a cross-bundle contract that a mangling regex
  * would silently rename; the development build cannot show that.
@@ -32,8 +39,11 @@ const ENTRY = {
   inserts: ['inserts', 'vera-inserts'],
   'reactivity/computed': ['reactivity', 'vera-reactivity-computed'],
   reactivity: ['reactivity', 'vera-reactivity'],
+  'renderer/keyed': ['renderer', 'vera-renderer-keyed'],
   'renderer/spread': ['renderer', 'vera-renderer-spread'],
+  'renderer/tag': ['renderer', 'vera-renderer-tag'],
   styles: ['styles', 'vera-styles'],
+  'reactivity/collections': ['reactivity', 'vera-reactivity-collections'],
 };
 
 /**
@@ -42,8 +52,20 @@ const ENTRY = {
  */
 export const NO_PRODUCTION_BUILD = new Set(['renderer/profiler']);
 
+/**
+ * The packages that publish `src` directly and have no `dist` at all, mapped to their entry file.
+ *
+ * `@verajs/jsx` is a build-time transform: it never reaches a browser, so it has no `__DEV__`
+ * branches to fold and no size to minify, and the same file is the artifact under both conditions.
+ * `@verajs/ssr` is Node-only for the same reason (see `CLAUDE.md`, *Source of truth rules*).
+ */
+const UNBUILT = {
+  jsx: 'jsx/src/index.js',
+};
+
 /** Absolute URL of a built bundle. `query` forces a fresh module instance (`?copy=a`). */
 export const distUrl = (name, query = '') => {
+  if (UNBUILT[name] !== undefined) return new URL(`../packages/${UNBUILT[name]}${query}`, import.meta.url).href;
   const entry = ENTRY[name];
   if (entry === undefined) throw new Error(`tests/dist.mjs: unknown bundle "${name}"`);
   const [pkg, file] = entry;

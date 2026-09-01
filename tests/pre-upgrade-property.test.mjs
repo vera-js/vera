@@ -28,7 +28,7 @@ for (const k of ['window', 'document', 'customElements', 'HTMLElement', 'Node', 
                  'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[k] = dom.window[k];
 
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 /** The shape core's built-in `html` tag produces, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
@@ -47,7 +47,7 @@ const store = { message: 'Hello Dark World' };
 
 /* ── the binding lands before the definition exists ───────────────────────────────────────────── */
 let host = mount();
-render(html`<preup-undef .item=${store}></preup-undef>`, host);
+renderInto(html`<preup-undef .item=${store}></preup-undef>`, host);
 await frame();
 const undef = host.querySelector('preup-undef');
 check('binding applies before upgrade', undef.item === store);
@@ -63,7 +63,7 @@ check(`${isProduction ? 'production is silent' : 'development warns'} about a ba
 
 /* ── the spelling the removed repair could not see ────────────────────────────────────────────── */
 host = mount();
-render(html`<preup-default .count=${5}></preup-default>`, host);
+renderInto(html`<preup-default .count=${5}></preup-default>`, host);
 await frame();
 const dflt = host.querySelector('preup-default');
 took = since();
@@ -79,21 +79,21 @@ check(`${isProduction ? 'production is silent' : 'development warns'} about a de
 customElements.define('preup-defined', class extends HTMLElement {});
 host = mount();
 took = since();
-render(html`<preup-defined .item=${store}></preup-defined>`, host);
+renderInto(html`<preup-defined .item=${store}></preup-defined>`, host);
 await frame();
 check('an already-defined element keeps the property', host.querySelector('preup-defined').item === store);
 check('and says nothing', took().length === 0, took().join(' | '));
 
 host = mount();
 took = since();
-render(html`<input .value=${'typed'} />`, host);
+renderInto(html`<input .value=${'typed'} />`, host);
 await frame();
 check('plain built-ins still take properties', host.querySelector('input').value === 'typed');
 check('and say nothing', took().length === 0, took().join(' | '));
 
 /* ── a definition that never clobbers must stay quiet ─────────────────────────────────────────── */
 host = mount();
-render(html`<preup-clean .item=${store}></preup-clean>`, host);
+renderInto(html`<preup-clean .item=${store}></preup-clean>`, host);
 await frame();
 const clean = host.querySelector('preup-clean');
 took = since();

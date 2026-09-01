@@ -5,7 +5,7 @@ import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
  *
  * That is the point — it is how a module transforms values on their way out, which is what the
  * `computed` recipe uses to unwrap a box — but it means a handler written only to *observe* must
- * return nothing. `insert('proxy-handler', () => count++, 30)` returns a number, and every read of
+ * return nothing. `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` registers a callback returning a number, and every read of
  * every store then yields that number instead of the value: silent, total, and indistinguishable
  * from the store being broken.
  *
@@ -67,15 +67,50 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  */
 export type InitInsert = (element: HTMLElement) => void;
 
+/**
+ * Returns a tracking wrapper for a `Map`/`Set` method read through a store proxy — the extension
+ * point `@verajs/reactivity/collections` registers on.
+ *
+ * **Type-keyed, not per-read.** Core dispatches it only when the target is already known to be a
+ * `Map` or a `Set`, so a plain-object read never reaches the lookup. That is the whole difference
+ * from `'proxy-handler'`, which runs on every read of every store and is why reactive collections
+ * could not affordably live out of core before.
+ *
+ * With nothing registered, a `Map` in a store is inert — core raises a `__DEV__` error naming the
+ * package rather than letting the mutation pass silently.
+ */
+export type CollectionInsert = (
+  obj: object,
+  prop: PropertyKey,
+  propValue: unknown,
+  addCallback: (obj: never, prop: never) => void,
+  runCallbacks: (obj: never, prop: never, value: never, prevValue: never) => void
+) => unknown;
+
+/**
+ * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.
+ *
+ * The point of this one is types you do not own. `_$child$` requires a property on the value, which
+ * is fine for `keyed()` or a directive you wrote and impossible for a `Promise`, an `Observable` or a
+ * `Temporal.PlainDate`. Return `true` to say the value is handled and stop the chain.
+ *
+ * Declared here rather than structurally in the renderer so `wire([renderer])` typechecks for a
+ * consumer: a descriptor's `connect` receives the whole `Inserts` map, and a narrower parameter is
+ * not assignable to that.
+ */
+export type ValueInsert = (part: object, value: unknown) => boolean | void;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
   'set-handler': SetHandlerInsert;
   'error': ErrorInsert;
   'init': InitInsert;
+  'collection': CollectionInsert;
+  'value': ValueInsert;
 };
 
 export type Inserts = Map<
   keyof InsertFunctionMap,
-  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert)[]
+  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert | CollectionInsert | ValueInsert)[]
 >;

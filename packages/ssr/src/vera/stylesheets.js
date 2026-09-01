@@ -36,12 +36,20 @@ export class StyleSheetShim {
   constructor() {
     this.cssText = '';
   }
+  /**
+   * **`cssText` is always a string**, because the platform's argument is a `USVString` and it
+   * parses what it is given. Assigning the caller's value straight through left a number, an array
+   * or a plain object sitting on `cssText`, which then reached the `<style>` block by concatenation
+   * — so the wrong text appeared a long way from the call that caused it. Template coercion also
+   * refuses a symbol with a `TypeError`, which is what every engine does
+   * (`tests/browser/dom-string-coercion.test.js`).
+   */
   replaceSync(cssText) {
-    this.cssText = cssText;
+    this.cssText = `${cssText}`;
   }
   /** The async spelling of the same thing; `adoptStyles` uses `replaceSync`, a component may not. */
   async replace(cssText) {
-    this.cssText = cssText;
+    this.replaceSync(cssText);
     return this;
   }
   insertRule(rule) {
@@ -112,13 +120,34 @@ const hoistedThisRender = new Set();
 export const beginHoisting = () => hoistedThisRender.clear();
 
 /** Records a hoisted sheet against whichever component is mid-render. */
+/** Warned once per tag, so a component hoisting per render says it once rather than every time. */
+const warnedAboutDrift = /* @__PURE__ */ new Set();
+
 export const hoist = (cssText) => {
   const sheets = hoistedStyles.get(renderingTag);
   /**
    * A tag established elsewhere keeps what it had: appending here would be a second hoist for a
    * class that has already been hoisted, which is the thing the rule forbids.
    */
-  if (sheets && !hoistedThisRender.has(renderingTag)) return;
+  if (sheets && !hoistedThisRender.has(renderingTag)) {
+    /**
+     * **Silence here was the sharp edge.** A component whose CSS depends on the request — a theme,
+     * a colour from a prop — has that variation dropped: whichever render arrived first set this
+     * tag's sheets for the life of the process, and every later request quietly serves those. The
+     * rule is deliberate and stays, because a per-class sheet emitted per instance is what it exists
+     * to prevent. What was wrong was that nothing said so.
+     */
+    if (!sheets.includes(cssText) && !warnedAboutDrift.has(renderingTag)) {
+      warnedAboutDrift.add(renderingTag);
+      console.warn(
+        `[vera] ssr: <${renderingTag}> hoisted different CSS than it did on an earlier render, and ` +
+          `the new stylesheet was dropped. A tag's styles are established once per class for the ` +
+          `life of the process, so CSS that varies per request cannot be hoisted — put the varying ` +
+          `part in an inline style or a custom property instead.`
+      );
+    }
+    return;
+  }
   hoistedThisRender.add(renderingTag);
   const list = sheets ?? [];
   if (!list.includes(cssText)) list.push(cssText);

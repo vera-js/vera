@@ -7,7 +7,7 @@
  * being rebuilt, which is the whole claim of a keyed renderer over server markup.
  */
 import { init, render, html, shallowRef, untrack } from '@verajs/core';
-import { keyed } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 
 export default class SinkList extends HTMLElement {
   connectedCallback() {

@@ -101,7 +101,7 @@ test('after hydration, releasing a key restores the server value — deliberatel
   for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements', 'Event',
                    'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
     globalThis[k] = dom.window[k];
-  const { render } = await import('../packages/renderer/dist/development/vera-renderer-hydrate.js');
+  const { renderInto } = await import('../packages/renderer/dist/development/vera-renderer-hydrate.js');
   const { spread } = await import('../packages/renderer/dist/development/vera-renderer-spread.js');
   const tag = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
@@ -110,7 +110,7 @@ test('after hydration, releasing a key restores the server value — deliberatel
   dom.window.document.body.appendChild(host);
   const before = host.querySelector('input');
 
-  const draw = (p) => render(tag`<input ${spread(p)} />`, host);
+  const draw = (p) => renderInto(tag`<input ${spread(p)} />`, host);
   draw({ id: 'field' });
   assert.equal(host.querySelector('input'), before, 'the server element was adopted, not rebuilt');
 
@@ -155,13 +155,13 @@ test('server and client render the same attributes for a shadowing spread', asyn
   for (const k of ['document', 'HTMLElement', 'Node', 'Element', 'customElements', 'Event',
                    'requestAnimationFrame', 'DocumentFragment', 'Text', 'Comment'])
     globalThis[k] = dom.window[k];
-  const { render } = await import('../packages/renderer/dist/development/vera-renderer.js');
+  const { renderInto } = await import('../packages/renderer/dist/development/vera-renderer.js');
   const { spread } = await import('../packages/renderer/dist/development/vera-renderer-spread.js');
   const tag = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
   const host = dom.window.document.createElement('div');
   dom.window.document.body.appendChild(host);
-  render(
+  renderInto(
     tag`<input type="text" disabled id='keep' lang=en ${spread({
       type: 'number', '?disabled': false, title: 'added', id: null,
     })} />`,

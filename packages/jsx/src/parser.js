@@ -21,6 +21,9 @@ const EXPRESSION_KEYWORDS = new Set([
 ]);
 
 const isNameStart = (ch) => /[A-Za-z_$]/.test(ch);
+
+/** The renderer's binding sigils, which may open an attribute name — see `parseJsx`. */
+const SIGILS = new Set(['.', '?', '@', '&']);
 /**
  * Tag names. The `.` is for a member component (`<Icons.Chevron/>`), and the `-` is for a **custom
  * element** — which on this framework is the tag people write most, and which did not parse at all:
@@ -38,6 +41,16 @@ export class ParseState {
     /** The last significant character / word seen, for the expression-position heuristic. */
     this.lastChar = '';
     this.lastWord = '';
+    /**
+     * A closing tag that names a different element than the one it closes, if one was seen.
+     *
+     * Every other parse failure returns `null` and leaves the source alone, and it has to: `<` is
+     * ambiguous, and `a < b` must fall through untouched rather than be called broken JSX. **A
+     * `</name>` that does not match the tag it closes is the one failure that cannot be anything
+     * else** — reaching it means a whole open tag and its children were already consumed — so it is
+     * the one that can be reported instead of shrugged at.
+     */
+    this.mismatch = null;
   }
   atExpressionPosition() {
     if (this.lastChar === '' || EXPRESSION_PREFIX.has(this.lastChar)) return true;
@@ -258,10 +271,25 @@ export const parseJsx = (state) => {
       });
       continue;
     }
-    if (!isNameStart(ch)) return null;
+    /**
+     * **A sigil may start an attribute name**, so the renderer's own bindings are writable here:
+     * `.prop=`, `?bool=`, `@event=` and `&ref=` mean in JSX exactly what they mean in `html`.
+     *
+     * Without this, `<x-el .rows={data} />` — the natural way to hand a custom element structured
+     * data, and the only way, since JSX had no property binding beyond `value` and `checked` — was
+     * not an attribute name at all. The parser returned `null`, which is how it says "this was never
+     * JSX", and **the whole file was emitted untransformed**: every other component in it stopped
+     * compiling too, and the error came from somewhere else entirely.
+     *
+     * No JSX dialect gives `.`, `?`, `@` or `&` a meaning at the start of an attribute name, so
+     * nothing is being taken away to make room.
+     */
+    if (!isNameStart(ch) && !SIGILS.has(ch)) return null;
     const nameStart = state.i;
-    let name = '';
+    let name = SIGILS.has(ch) ? code[state.i++] : '';
     while (state.i < code.length && isAttrNameChar(code[state.i])) name += code[state.i++];
+    /** A lone sigil is a name only for `&`, which is how the renderer spells an explicit ref. */
+    if (name.length === 1 && SIGILS.has(name) && name !== '&') return null;
     skipWhitespace(state);
     if (code[state.i] !== '=') {
       attrs.push({ name, kind: 'none', start: nameStart });
@@ -309,7 +337,11 @@ const parseChildren = (state, closingTag) => {
         let name = '';
         while (state.i < code.length && isNameChar(code[state.i])) name += code[state.i++];
         skipWhitespace(state);
-        if (name !== closingTag || code[state.i] !== '>') return null;
+        if (name !== closingTag || code[state.i] !== '>') {
+          if (name !== closingTag && state.mismatch === null)
+            state.mismatch = { expected: closingTag, found: name, at: state.i - name.length - 2 };
+          return null;
+        }
         state.i++;
         return children;
       }
@@ -335,6 +367,7 @@ const parseChildren = (state, closingTag) => {
 /** All top-level JSX roots in a source file. */
 export const findRoots = (code) => {
   const roots = [];
-  scanCode(new ParseState(code), null, roots);
-  return roots;
+  const state = new ParseState(code);
+  scanCode(state, null, roots);
+  return { roots, mismatch: state.mismatch };
 };

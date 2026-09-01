@@ -27,6 +27,11 @@
       "development": "./dist/development/vera-renderer-hydrate.js",
       "default": "./dist/vera-renderer-hydrate.min.js"
     },
+    "./keyed": {
+      "types": "./dist/development/vera-renderer-keyed.d.ts",
+      "development": "./dist/development/vera-renderer-keyed.js",
+      "default": "./dist/vera-renderer-keyed.min.js"
+    },
     "./profiler": {
       "types": "./dist/development/vera-renderer-profiler.d.ts",
       "default": "./dist/development/vera-renderer-profiler.js"
@@ -35,6 +40,11 @@
       "types": "./dist/development/vera-renderer-spread.d.ts",
       "development": "./dist/development/vera-renderer-spread.js",
       "default": "./dist/vera-renderer-spread.min.js"
+    },
+    "./tag": {
+      "types": "./dist/development/vera-renderer-tag.d.ts",
+      "development": "./dist/development/vera-renderer-tag.js",
+      "default": "./dist/vera-renderer-tag.min.js"
     }
   },
   "files": [

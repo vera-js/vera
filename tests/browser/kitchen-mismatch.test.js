@@ -11,10 +11,10 @@
  * behind that the component does not describe — which is the rule that actually matters.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
-import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** The client always renders `client`; the fixture decides what the "server" sent. */

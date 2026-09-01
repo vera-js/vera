@@ -1,7 +1,8 @@
 import { ComponentElement, RenderTemplate, Signal } from '../types.js';
 import { createHook, deferInHookContext } from '../modules/createHook.js';
+import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';
-import { renderScheduler } from '../modules/setRenderScheduler.js';
+import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
 import { Renderer } from '@verajs/shared-types';
 
 /** One warning per page, not per render. */
@@ -10,36 +11,67 @@ let warnedNoRenderer = false;
 export const useRender = (template: unknown, element: ComponentElement, ...args: unknown[]) => {
   /** Set while a pass is queued, so N writes in a tick still produce one render. */
   let queued = false;
+  /** Which scheduler the queued pass was handed to — see `schedulerGeneration`. */
+  let queuedUnder = 0;
 
   createHook({
     callback: <V>(props?: Signal<V>, init?: boolean) => {
       /** Wrapped so the deferred rAF pass still registers the properties the template reads. */
-      const interiorCallback = deferInHookContext(<V>(props?: Signal<V>) => {
+      const pass = <V>(props?: Signal<V>) => {
         /** `typeof`, not `instanceof Function` — realm-safe (iframes, vm) and cheaper. */
         const _template = typeof template === 'function' ? (template as RenderTemplate)(props) : template;
         const renderers = inserts.get('render');
 
-        if (__DEV__) {
-          /**
-           * Core ships no renderer of its own, so nothing rendering is the expected first mistake.
-           * Silence here looks like a broken component; this names the two missing lines instead.
-           */
-          if (!renderers?.length && !warnedNoRenderer) {
-            warnedNoRenderer = true;
+        /**
+         * **Not `__DEV__`-only, and this is the one place in core that must not be.**
+         *
+         * Core ships no renderer of its own, so nothing rendering is the expected first mistake —
+         * and the mistake has three causes that all end here: `wire` never called, wired with a
+         * name that resolved to nothing, or wired something that is not a module. Every one of them
+         * produces a blank page.
+         *
+         * **Buildless is a first-class mode**, and someone pasting `vera.min.js` into CodePen from a
+         * CDN never runs a development build at all. Folding this away left that user with a blank
+         * page and complete silence — no warning here, none from `wire`, nothing anywhere. It is
+         * warned once per process and only on the failing path, so a working app never reaches it.
+         *
+         * Only the explanation folds away, which is where the bytes are.
+         */
+        if (!renderers?.length && !warnedNoRenderer) {
+          warnedNoRenderer = true;
+          if (__DEV__)
             console.warn(
               `[vera] render() called with no renderer registered — nothing will appear.\n` +
                 `Wire one once, at your app entry:\n\n` +
-                `  import { setRenderer } from '@verajs/core';\n` +
-                `  import { render } from '@verajs/renderer';\n` +
-                `  setRenderer(render);\n`
+                `  import { wire } from '@verajs/core';\n` +
+                `  import { renderer } from '@verajs/renderer';\n` +
+                `  wire([renderer]);\n`
             );
-          }
+          else console.warn('[vera] render(): no renderer wired');
         }
 
+        /**
+         * The root is resolved **here**, not when a renderer registers.
+         *
+         * `_root` first: a closed shadow root is not reachable through `element.shadowRoot`, and
+         * that applies to the framework too. This used to live inside `setRenderer`'s wrapper, so
+         * a renderer wired any other way silently rendered into the light DOM instead — the
+         * resolution belonged to one registration path rather than to the act of rendering.
+         */
+        const target =
+          (element as HTMLElement & { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element;
+
         renderers?.forEach((callback) => {
-          (callback as Renderer)?.(_template, element, ...args);
+          (callback as Renderer)?.(_template, target, ...args);
         });
-      });
+      };
+
+      /**
+       * The guard wraps the pass **behind the ternary**, not inside it — see the same note in
+       * `coalesce`. `deferInHookContext` stays outermost so the guard runs with the hook's entry on
+       * the queue, which is how it names the element without being handed one.
+       */
+      const interiorCallback = deferInHookContext(__DEV__ ? guardPass(pass, 'a template') : pass);
 
       if (init) {
         interiorCallback(props);
@@ -47,16 +79,50 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
       }
 
       /**
+       * Before the `queued` short-circuit, not after. A write landing while a pass is in flight is
+       * what makes that pass self-feeding, and the second write of a tick is exactly the one the
+       * flag would otherwise swallow.
+       */
+      if (__DEV__) noteWrite();
+
+      /**
        * Coalesced with a flag rather than cancel-and-reschedule. Cancelling meant a `cancel` plus a
        * fresh `schedule` per write; a flag skips both for every write after the first, and works
        * whatever the scheduler is — a microtask has nothing to cancel.
        */
-      if (queued) return;
+      /**
+       * **Stranded passes are re-queued rather than waited on forever.** A scheduler that drops the
+       * pass leaves `queued` raised and the component never renders again; once that scheduler has
+       * been *replaced*, whatever it was holding is provably never going to run, so the guard stops
+       * honouring it. Re-queueing may render twice in the rare case where the old scheduler does fire
+       * after all, which is idempotent and enormously preferable to a component that is simply dead.
+       */
+      if (queued && queuedUnder === schedulerGeneration) return;
       queued = true;
-      renderScheduler(() => {
+      queuedUnder = schedulerGeneration;
+      /**
+       * **The flag is released if the scheduler throws, or the component never renders again.**
+       *
+       * `queued` is raised before the pass is handed over and lowered inside it, so a scheduler that
+       * does not run the pass leaves it raised forever — and every later write then returns at the
+       * line above. The component goes silent permanently: no error, no warning, and a `render()`
+       * that simply stops. Measured: one throwing scheduler froze a counter at its initial value for
+       * the rest of the page, and restoring the default scheduler did not revive it.
+       *
+       * A scheduler that *drops* the pass without throwing cannot be distinguished from one that is
+       * legitimately deferring, so that stays the scheduler's contract to keep — `RenderScheduler` is
+       * documented as deciding *when* to run the pass, not whether. Throwing is the case that can be
+       * recovered from, and it is the case an app hits by accident.
+       */
+      try {
+        renderScheduler(() => {
+          queued = false;
+          interiorCallback(props);
+        });
+      } catch (error) {
         queued = false;
-        interiorCallback(props);
-      });
+        throw error;
+      }
     },
     priority: 50,
   });

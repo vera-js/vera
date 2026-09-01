@@ -1,6 +1,5 @@
 ---
-'@verajs/core': minor
-'@verajs/shared-utils': patch
+'@verajs/core': patch
 ---
 
 Make `WeakMap` and `WeakSet` reactive.
@@ -27,4 +26,5 @@ regular `Map`s keep the strong container and their `size` channel.
 bare proxy throws, and reactivity would mean wrapping every mutator for a case whose idiom is
 replacement: `state.when = new Date(t)` is a property write and already reactive.
 
-Costs 30 B gzipped in core, 2 585 B to 2 615 B.
+Costs **30 B gzipped** in core. (Stated as a delta rather than a before-and-after: several changes
+release together, so an absolute figure written here would be wrong by the time it publishes.)

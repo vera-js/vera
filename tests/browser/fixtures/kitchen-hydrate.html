@@ -254,8 +254,8 @@
         <b id="spread" title="a &#34;quoted&#34; title" data-x="1">sp</b>
         <b id="spreadNull">sn</b>
 
-        <input id="ref"  />
-        <input id="fnref"  />
+        <input id="ref" />
+        <input id="fnref" />
 
         <svg id="svg" viewBox="0 0 10 10" width="10" height="10">
           <circle id="circle" cx="5" cy="5" r="3" fill="currentColor" />
@@ -368,8 +368,8 @@
       </div></template></sink-shell>
     <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import { render } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
-      await start(render);
+      import { renderInto } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
+      await start(renderInto);
       document.documentElement.dataset.sinkMode = 'hydrate';
     </script>
   </body>

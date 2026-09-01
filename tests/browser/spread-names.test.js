@@ -7,7 +7,7 @@
  * the keys `@verajs/renderer/spread` refuses for itself, and this covers the ones it must not.
  */
 import { expect } from '@esm-bundle/chai';
-import { render } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { spread } from '../../packages/renderer/dist/development/vera-renderer-spread.js';
 import { html } from '../../packages/core/dist/development/vera.js';
 
@@ -25,7 +25,7 @@ const into = () => {
 it('binds a legal name that is a regex metacharacter, and leaves its neighbour alone', () => {
   for (const key of ['a|b', 'a.b', 'a*b', 'a+b', 'a(b)', 'a[b]', 'a{b}', 'a?b', 'a$b', 'a^b']) {
     const container = into();
-    render(html`<b title="keep" ${spread({ [key]: '1' })}>x</b>`, container);
+    renderInto(html`<b title="keep" ${spread({ [key]: '1' })}>x</b>`, container);
     const element = container.querySelector('b');
     expect(element.getAttribute('title'), `${key}: the static beside it`).to.equal('keep');
     expect(element.getAttribute(key), `${key}: its own value`).to.equal('1');
@@ -58,7 +58,7 @@ it('agrees with the engine about which names are impossible', () => {
 it('refuses a name the engine allows but markup cannot carry', () => {
   for (const key of ['a"b', "a'b", 'a<b', 'a`b']) {
     const container = into();
-    render(html`<b title="keep" ${spread({ [key]: '1' })}>x</b>`, container);
+    renderInto(html`<b title="keep" ${spread({ [key]: '1' })}>x</b>`, container);
     const element = container.querySelector('b');
     expect(element.attributes.length, `${key}: only the static survived`).to.equal(1);
     expect(element.getAttribute('title')).to.equal('keep');

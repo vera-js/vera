@@ -11,3 +11,4 @@
  * registry and one store identity.
  */
 export { computed } from './computed.js';
+export { collections, collectionMethod, GLOBAL } from './collections.js';

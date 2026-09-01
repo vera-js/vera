@@ -19,8 +19,10 @@
 const ATTR = 0;
 const PROPERTY = 1;
 const BOOLEAN = 2;
-const EVENT = 3;
-const REF = 4;
+/** `!name` — a property compared against the live DOM rather than against what this last wrote. */
+const LIVE = 3;
+const EVENT = 4;
+const REF = 5;
 
 /**
  * A key that cannot be written into a tag, and therefore cannot be used at all.
@@ -60,7 +62,17 @@ class Binding {
   constructor(element: Element, key: string) {
     const first = key[0];
     let kind =
-      first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : ATTR;
+      first === '.'
+        ? PROPERTY
+        : first === '?'
+          ? BOOLEAN
+          : first === '@'
+            ? EVENT
+            : first === '&'
+              ? REF
+              : first === '!'
+                ? LIVE
+                : ATTR;
     let name = kind ? key.slice(1) : key;
     /** `on` + a capital: `onClick` ≡ `@click`. All-lowercase `onclick` stays a plain attribute. */
     if (kind === ATTR && first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
@@ -75,7 +87,7 @@ class Binding {
         ? element.getAttribute(name)
         : kind === BOOLEAN
           ? element.hasAttribute(name)
-          : kind === PROPERTY
+          : kind === PROPERTY || kind === LIVE
             ? (element as unknown as Record<string, unknown>)[name]
             : null;
   }
@@ -97,6 +109,17 @@ const owned = new WeakMap<object, Map<string, Binding>>();
 
 const write = (binding: Binding, value: unknown) => {
   /** One comparison per key per render — the same dirty check a written binding gets. */
+  /**
+   * A live property asks the element rather than its own memory — see `AttrPart` in the renderer.
+   * The dirty check is what keeps a field someone typed into, and it is exactly wrong for a control
+   * whose DOM state changes when a *sibling* is interacted with, a radio group being the case.
+   */
+  if (binding._kind === LIVE) {
+    binding._committed = value;
+    const live = binding._element as unknown as Record<string, unknown>;
+    if (live[binding._name] !== value) live[binding._name] = value;
+    return;
+  }
   if (value === binding._committed) return;
   binding._committed = value;
   const element = binding._element;
@@ -163,7 +186,7 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
     if (UNSAFE_NAME.test(key[0] === '.' || key[0] === '?' || key[0] === '@' || key[0] === '&' ? key.slice(1) : key)) {
       if (__DEV__)
         console.warn(
-          `@verajs/renderer/spread: ignoring the key ${JSON.stringify(key)} — an attribute name ` +
+          `[vera] spread: ignoring the key ${JSON.stringify(key)} — an attribute name ` +
             `cannot contain whitespace, a quote, \`<\`, \`>\`, \`/\`, \`=\` or a control character, ` +
             `and one that cannot be written into markup would not survive server rendering.`
         );
@@ -206,7 +229,17 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
   const out: [string, string, unknown][] = [];
   for (const key in this._props) {
     const first = key[0];
-    const kind = first === '.' ? 'p' : first === '?' ? 'b' : first === '@' ? 'e' : first === '&' ? 'r' : 'a';
+    /** `!` reports as a property: the server has nothing to re-read, so it serializes as `.` does. */
+    const kind =
+      first === '.' || first === '!'
+        ? 'p'
+        : first === '?'
+          ? 'b'
+          : first === '@'
+            ? 'e'
+            : first === '&'
+              ? 'r'
+              : 'a';
     if (kind !== 'a') {
       out.push([kind, key.slice(1), this._props[key]]);
     } else if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
@@ -222,8 +255,50 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
  * Branded rather than duck-typed: the element position already means "element ref", and a props bag
  * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
  */
-export const spread = (props: Record<string, unknown>) => ({
-  _props: props,
-  _$apply$: apply,
-  _$attrs$: attributes,
-});
+export const spread = (props: Record<string, unknown>) => {
+  /**
+   * **A props bag that is not an object is iterated anyway, and a browser accepts the result.**
+   *
+   * Everything below reads `props` with `Object.keys`/`Object.entries`, which answer for any value:
+   * a **string** yields its character indices, so `spread('text')` sets four attributes named `0`,
+   * `1`, `2`, `3` — measured in Chromium, with no error and no warning. A number, a boolean and
+   * `null` yield nothing at all, so `spread(someUndefinedVariable)` applies no props and says
+   * nothing, which reads as a renderer that ignored the spread.
+   *
+   * **jsdom hides this rather than catching it.** It implements the XML Name production and throws
+   * `InvalidCharacterError` on `setAttribute('0', …)`, so a probe under jsdom sees a loud failure
+   * for the case a real engine performs silently — the inverse of the usual trap, and the reason
+   * this was verified in a browser before being called a defect (`tests/browser/spread-names.test.js`
+   * records the engines' actual rule).
+   *
+   * Warned and ignored rather than thrown, which is exactly what an unusable *key* already does a
+   * few lines above: one bad props bag should not cost the render.
+   *
+   * **The message is `__DEV__`-only; the refusal is not.** They were both inside the guard, which
+   * made the two builds behave differently for the same code — and differently in the direction that
+   * hides the bug. Measured: `spread('text')` applies nothing in development, so the app under test
+   * looks fine; in production the string is iterated by character index and the element ends up with
+   * attributes named `0`, `1`, `2` and `3` (under jsdom, an `InvalidCharacterError` instead — the
+   * usual inversion, and why this was measured against both builds rather than reasoned about).
+   *
+   * A diagnostic belongs in `__DEV__`. A guard that changes what the program does cannot, or the
+   * development build stops being a faithful model of the production one, which is the property that
+   * makes testing in it worth anything. Costs 27 B gzipped (842 → 869, A-B-A) and buys the two builds agreeing.
+   */
+  if (props === null || typeof props !== 'object' || Array.isArray(props)) {
+    if (__DEV__)
+      console.warn(
+        `[vera] spread: ignoring a props bag that is not a plain object — received ` +
+          `${Array.isArray(props) ? 'an array' : typeof props === 'object' ? 'null' : `a ${typeof props}`}. ` +
+          `A string is iterated by character index, so \`spread('text')\` would set attributes named ` +
+          `0, 1, 2 and 3; anything else applies nothing at all. This is usually an import or a ` +
+          `property that resolved to something unexpected.`
+      );
+    props = {};
+  }
+  return {
+    _props: props,
+    _$apply$: apply,
+    _$attrs$: attributes,
+  };
+};

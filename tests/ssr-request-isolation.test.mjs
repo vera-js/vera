@@ -173,12 +173,23 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 {
   const { html: markup } = await renderToString(fixture('adversarial-ssr.js'));
 
-  assert.equal(markup.split('<b>MARK</b>').length - 1, 2,
-    `expected exactly the two real components to render:\n${markup}`);
+  assert.equal(markup.split('<b>MARK</b>').length - 1, 3,
+    `expected exactly the three real components to render:\n${markup}`);
   assert.match(markup, /<mark-comp title="x &#62; y">/,
     'a `>` inside an attribute value keeps the whole value');
   assert.ok(!/<!--[^>]*shadowrootmode/.test(markup), 'nothing is rendered inside a comment');
   assert.ok(!/<textarea>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside a textarea');
+  /**
+   * `<iframe>` and `<noscript>` are raw text in every engine, so a component named inside one is
+   * never upgraded on the client — rendering it on the server would put markup on the page that the
+   * browser reads as characters, and nothing would ever replace it.
+   */
+  assert.ok(!/<iframe>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside an iframe');
+  assert.ok(!/<noscript>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside a noscript');
+  /** Templates nest, so the skip is depth-aware rather than a search for the next closing tag. */
+  assert.ok(!/<template><template>[^<]*<mark-comp><template/.test(markup), 'nothing is rendered inside nested templates');
+  /** An unquoted attribute value ends at whitespace, so the tag after it is a real one. */
+  assert.match(markup, /<mark-comp id="unquoted"><template/, 'a component after an unquoted attribute renders');
   assert.match(markup, /<div id="a" title="a > b">/, 'a plain element with `>` in an attribute is untouched');
 }
 
@@ -420,7 +431,8 @@ for (const [what, file, message] of [
   assert.ok(registry.has('hello-ssr'), 'a definition from an earlier render is still registered');
   assert.throws(
     () => customElements.define('hello-ssr', class extends HTMLElement {}),
-    /already been defined/,
+    /** `NotSupportedError` is what every engine raises, and the name is the part code branches on. */
+    (error) => error.name === 'NotSupportedError' && /already been used/.test(error.message),
     'redefining a tag is refused'
   );
 }
@@ -760,18 +772,18 @@ export default customElements.get('grow-ssr');
 
 /**
  * **Last on purpose.** Displacing the renderer is a global side effect with no way back — the check
- * compares against the entry `setRenderer` added when this module loaded, and re-registering makes a
+ * compares against the entry this module registered when it loaded, and re-registering makes a
  * different one. Every case above it would fail with the very error it is asserting.
  */
 /**
- * An app entry doing the ordinary thing — `setRenderer(domRender)` — displaces the server renderer
- * the moment that module is imported server-side, because `setRenderer` registers at priority 50 and
+ * An app entry doing the ordinary thing — `wire({ on: 'render', fn: renderer, priority: 50 })` — displaces the server renderer
+ * the moment that module is imported server-side, because the server renderer is at priority 50 and
  * a taken priority replaces. Every component then rendered empty, with no error and nothing in the
  * output to suggest why.
  */
 {
-  const { setRenderer } = await import('@verajs/core');
-  setRenderer(() => {});
+  const { wire } = await import('@verajs/core');
+  wire({ on: 'render', fn: () => {}, priority: 50 });
   await assert.rejects(
     () => renderToString(fixture('hello-ssr.js')),
     /server renderer has been replaced/,

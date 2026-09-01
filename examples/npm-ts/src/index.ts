@@ -7,17 +7,17 @@
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, setRenderer, setAutoloader, inserts } from '@verajs/core';
-import { initAutoloader } from '@verajs/autoloader';
-import { connectInserts } from '@verajs/router';
+import { setHtml, wire } from '@verajs/core';
+import { autoloader } from '@verajs/autoloader';
+import { router } from '@verajs/router';
 import { html, render } from 'lit-html';
 
 /**
- * The router ships as an independent module, so under a bundler it shares this one `inserts`
- * registry with core. Calling `connectInserts` is a no-op here and is kept to mirror the CDN
- * example, where the two modules genuinely do carry separate registries.
+ * The router imports no registry of its own, so this hands it core's — the same line, and the same
+ * meaning, as in the CDN example. It used to be `connectInserts`, which was a no-op here and
+ * load-bearing there; that asymmetry is gone.
  */
-connectInserts(inserts);
+wire([router]);
 
 
 /**
@@ -25,12 +25,12 @@ connectInserts(inserts);
  * serves the TypeScript sources; a dev server will not answer a request for `hello-component.js`
  * when only `hello-component.ts` exists on disk.
  */
-const autoload = initAutoloader(import.meta.url, 'components', {
+const autoload = autoloader(import.meta.url, 'components', {
   extension: import.meta.env.DEV ? '.ts' : '.js',
 });
 
 /** Covers every component that renders. */
-setAutoloader(autoload);
+wire(autoload);
 
 /** And this covers what no render touches — the marked host written by hand in index.html. */
 autoload();
@@ -45,13 +45,13 @@ addEventListener('vera:autoload-error', (event) => {
   addEventListener('online', () => autoload.retry(element), { once: true });
 });
 
-setRenderer(render);
+wire({ on: 'render', fn: render, priority: 50 });
 setHtml(html);
 
 /**
  * Loaded with dynamic `import()` on purpose — a static `import` declaration is **hoisted** and runs
  * before this module's body, so the components would `customElements.define()` and upgrade before
- * `setRenderer` / `setHtml` above had run. They would then render through core's defaults, and a lit
+ * `wire(render)` / `setHtml` above had run. They would then render through core's defaults, and a lit
  * template object would reach `template.innerHTML`, painting a literal `[object Object]`.
  *
  * Configuration must complete before any component defines itself.

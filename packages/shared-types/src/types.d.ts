@@ -12,20 +12,7 @@
  */
 export type Autoloader = (element: HTMLElement) => void;
 
-/** The result of a custom get function */
-export interface GetResult<T> {
-  get: <K>(key: K, defaultValue: GetValueType<T>) => GetResult<GetValueType<T>>;
-  value: T;
-}
 
-/** Infers value of subfunctions for get function */
-export type GetValueType<T> = T extends Array<infer U>
-  ? U
-  : T extends Map<unknown, infer V>
-  ? V
-  : T extends WeakMap<object, infer V>
-  ? V
-  : never;
 
 /** Proxy object shape that is used in signal */
 export type ProxyObject<T extends object> = (T | { value: T }) & StoreProxyKeys;

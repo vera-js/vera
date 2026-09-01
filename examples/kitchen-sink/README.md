@@ -11,7 +11,7 @@ node examples/kitchen-sink/server.mjs
 | `/` | server-rendered, then hydrated in place | the handoff — and the one mode that can be wrong while the other two look perfect |
 | `/csr` | the same components, rendered from scratch | the application with the server removed |
 | `/ssr` | the server's markup, no client script | what a reader without JavaScript sees, and what a crawler indexes |
-| `/buildless` | the **minified** bundles, resolved by an import map | no toolchain at all — and the only mode where each bundle inlines its own registry, which is what `connectInserts` is for |
+| `/buildless` | the **minified** bundles, resolved by an import map | no toolchain at all — and the only mode where each bundle inlines its own registry, which is what `the router being handed core's registry` is for |
 | `/jsx` | JSX transformed in the browser | the same transform the Vite plugin uses, with no build step |
 
 ## Trying it by hand

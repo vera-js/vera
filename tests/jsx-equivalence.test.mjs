@@ -60,6 +60,24 @@ const CASES = {
   ],
   'a tag with several dashes': ['<a-b-c>x</a-b-c>', 'html`<a-b-c>x</a-b-c>`'],
   'a dashed tag with a slot': ['<my-comp slot="a">x</my-comp>', 'html`<my-comp slot="a">x</my-comp>`'],
+  /**
+   * A **dynamic tag**. `<H>` compiles to `H({…})` and a `tag` *is* that function, so the same value
+   * covers both notations — which is only worth anything if the two produce the same template.
+   */
+  'a dynamic tag': ['<H1>{s.str}</H1>', 'tagHtml`<${H1}>${s.str}</${H1}>`'],
+  'a dynamic tag with an attribute': [
+    '<H1 class="t">{s.str}</H1>',
+    'tagHtml`<${H1} class="t">${s.str}</${H1}>`',
+  ],
+  'a dynamic tag with a React name': [
+    '<H1 className="t">{s.str}</H1>',
+    'tagHtml`<${H1} class="t">${s.str}</${H1}>`',
+  ],
+  'a dynamic tag with a bound boolean': [
+    '<H1 hidden={s.f}>{s.str}</H1>',
+    'tagHtml`<${H1} ?hidden=${s.f}>${s.str}</${H1}>`',
+  ],
+  'a dynamic tag, nested': ['<div><H1>{s.str}</H1></div>', 'tagHtml`<div><${H1}>${s.str}</${H1}></div>`'],
   'a list': ['<ul>{s.arr.map((n) => <li>{n}</li>)}</ul>', 'html`<ul>${s.arr.map((n) => html`<li>${n}</li>`)}</ul>`'],
   'a keyed list': [
     '<ul>{s.arr.map((n) => <li key={n}>{n}</li>)}</ul>',
@@ -131,8 +149,10 @@ const compiled = transformJsx(jsxModule, 'cases.jsx', { inject: false });
 const script = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html } = await import('@verajs/core');
-const { keyed } = await import('@verajs/renderer');
+const { keyed } = await import('@verajs/renderer/keyed');
 const { spread } = await import('@verajs/renderer/spread');
+const { html: tagHtml, tag } = await import('@verajs/renderer/tag');
+const H1 = tag\`h1\`;
 
 ${compiled}
 

@@ -26,7 +26,7 @@ export const useEffect = (callback: HookCallback, element?: ComponentElement) =>
      * the two then ran on different clocks, which is not what an author asks for by swapping one
      * scheduler.
      */
-    callback: coalesce(callback, (run) => renderScheduler(run)),
+    callback: coalesce(callback, (run) => renderScheduler(run), 'useEffect'),
     element,
     priority: 75,
   });

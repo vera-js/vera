@@ -8,7 +8,7 @@
  * Tests the BUILT artifacts, development AND production (see ./dist.mjs).
  */
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost/', pretendToBeVisual: true });
 for (const k of ['document', 'HTMLElement', 'Node', 'Event', 'CustomEvent', 'PopStateEvent', 'MouseEvent', 'customElements']) globalThis[k] = dom.window[k];
@@ -20,15 +20,15 @@ const router = await load('router');
 const { initRouter, navigate } = router;
 
 /**
- * The router hands a component's return value to the `'render'` insert chain — it does not touch
- * the DOM itself. With nothing registered the view stays empty and `focusView` has no first child
- * to focus.
+ * The router hands a component's return value to a renderer — it does not touch the DOM itself.
+ * With none set the view stays empty and `focusView` has no first child to focus.
  *
- * Registered through `router.setRenderer`, NOT through a separately loaded `@verajs/inserts`:
- * those are different registry objects, so registering on the standalone copy writes to a map the
- * router never reads. Verified — it silently did nothing until this was corrected.
+ * Handed straight to the router. This used to read "register through `router.setRenderer`, NOT
+ * through a separately loaded `@verajs/inserts`, because those are different registry objects and
+ * the standalone copy writes to a map the router never reads" — a hazard that was verified, silent,
+ * and is now impossible: the router imports no registry, so there is no wrong one to pick.
  */
-router.setRenderer((template, container) => {
+router.setRouterRenderer((template, container) => {
   container.innerHTML = typeof template === 'string' ? template : '';
 });
 
@@ -168,6 +168,107 @@ const makeApp = (routes) => {
   await navigate('/f-prog');
   check('programmatic navigate leaves focus alone even with focusView on', document.activeElement === outside);
   check('but it did route', view.querySelector('#prog') !== null);
+}
+
+/**
+ * **Only `false` cancels**, and a guard returning a path is the Vue Router habit — there,
+ * `beforeEnter: () => '/login'` redirects. Here a string is truthy, so the route it was guarding
+ * renders anyway; in an auth guard that is the guard defeated, silently.
+ *
+ * Warned rather than obeyed: making a returned string redirect would be a second way to do what the
+ * `redirect` route option already does, and the two would disagree the moment both were set.
+ */
+{
+  /** The warning is `__DEV__`-only, so production has nothing to observe — see dist.mjs. */
+  const said = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  makeApp([{ path: '/redirecting-guard', component: () => '<p>guarded</p>', beforeEnter: () => '/elsewhere' }]);
+  await navigate('/redirecting-guard');
+  console.warn = realWarn;
+
+  const warning = said.find((line) => line.includes('beforeEnter'));
+  if (isProduction) {
+    check('production says nothing about a guard returning a path', !warning, warning ?? '');
+  } else {
+    check('a guard returning a path is warned about', !!warning, said.join(' | ') || '(nothing said)');
+    /**
+     * **Repointed when the message changed, not deleted.** It named "`redirect` route option"; the
+     * message now names `redirect:` with the guard's own string in it, and says which of the two
+     * fixes settles inside the awaited promise — see the settling test below. Pinning that it offers
+     * `redirect` at all is the part worth keeping.
+     */
+    check('and the warning names the redirect option', !!warning && /set `redirect:/.test(warning), warning ?? '');
+    check('and carries the [vera] prefix', !!warning && warning.startsWith('[vera]'), warning ?? '');
+  }
+}
+
+/**
+ * **The two ways to send someone elsewhere settle differently**, and the diagnostic used to offer
+ * them as interchangeable.
+ *
+ * `redirect` is handled inside the navigation, so the promise `navigate()` returns covers it. A guard
+ * calling `navigate()` starts a *separate* navigation that promise knows nothing about — awaiting it
+ * reports only that the guarded route was cancelled.
+ *
+ * That distinction is load-bearing because the README makes awaiting the supported way to handle an
+ * outcome: *"`navigate()` rejects, so a caller that awaits it can handle the failure itself."* A
+ * caller who awaits gets a different answer depending on which form the route's author picked.
+ *
+ * Asserted as behaviour, with the wording checked separately below — a message is only worth pinning
+ * once what it describes is pinned.
+ */
+{
+  const drain = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const built = makeApp([
+    { path: '/settle-a', component: () => 'A' },
+    { path: '/settle-b', component: () => 'B' },
+    { path: '/settle-redirect', redirect: '/settle-b' },
+    {
+      path: '/settle-guarded',
+      component: () => 'G',
+      beforeEnter: () => {
+        navigate('/settle-b');
+        return false;
+      },
+    },
+  ]);
+  void built;
+
+  await navigate('/settle-a');
+  await navigate('/settle-redirect');
+  check('the redirect option settles inside the awaited promise', window.location.pathname === '/settle-b');
+
+  await navigate('/settle-a');
+  await navigate('/settle-guarded');
+  check('a guard calling navigate does NOT settle inside the awaited promise', window.location.pathname === '/settle-a');
+
+  await drain();
+  check('and lands on the guard target one task later', window.location.pathname === '/settle-b');
+}
+
+/** And the message names which of the two settles, rather than presenting them as equivalent. */
+{
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    makeApp([
+      { path: '/str-a', component: () => 'A' },
+      { path: '/str-b', component: () => 'B' },
+      { path: '/str-guard', component: () => 'S', beforeEnter: () => '/str-b' },
+    ]);
+    await navigate('/str-guard');
+  } finally {
+    console.warn = original;
+  }
+  const message = said.find((line) => /returned the string/.test(line)) ?? '';
+  /** The whole diagnostic is `__DEV__`-only, so production has nothing to find. */
+  if (!isProduction) {
+    check('a guard returning a string is warned about', Boolean(message), JSON.stringify(said));
+    check('and the message says redirect settles inside the promise', /settles inside the promise/.test(message));
+    check('and that navigate() from a guard does not', /separate navigation that promise does not cover/.test(message));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

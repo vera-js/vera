@@ -16,7 +16,7 @@ const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
 for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[key] = dom.window[key];
 
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const html = (strings, ...values) => ({ strings, values });
 
 let pass = 0;
@@ -31,10 +31,10 @@ const check = (name, condition, extra = '') => (condition ? pass++ : failures.pu
   owned.dataset.chart = 'attached';
 
   const container = dom.window.document.createElement('div');
-  render(html`<div>${owned}</div>`, container);
+  renderInto(html`<div>${owned}</div>`, container);
   check('a DOM node is moved into place, not copied', container.querySelector('#owned') === owned);
 
-  render(html`<div>${owned}</div>`, container);
+  renderInto(html`<div>${owned}</div>`, container);
   check('and the same node survives a re-render', container.querySelector('#owned') === owned);
   check('with what the library attached to it', container.querySelector('#owned')?.dataset.chart === 'attached');
 }
@@ -49,7 +49,7 @@ const check = (name, condition, extra = '') => (condition ? pass++ : failures.pu
   fragment.append(first, second);
 
   const container = dom.window.document.createElement('div');
-  render(html`<div>${fragment}</div>`, container);
+  renderInto(html`<div>${fragment}</div>`, container);
   check('a DocumentFragment renders its children', container.querySelector('#first') === first);
   check('all of them', container.querySelector('#second') === second);
 }
@@ -59,7 +59,7 @@ const check = (name, condition, extra = '') => (condition ? pass++ : failures.pu
   const owned = dom.window.document.createElement('span');
   owned.id = 'between';
   const container = dom.window.document.createElement('div');
-  render(html`<div>before${owned}after</div>`, container);
+  renderInto(html`<div>before${owned}after</div>`, container);
   const text = container.querySelector('div').textContent;
   check('a node sits between its siblings', /before/.test(text) && /after/.test(text), text);
   check('and is still the node handed over', container.querySelector('#between') === owned);

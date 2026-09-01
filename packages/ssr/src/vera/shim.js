@@ -6,17 +6,24 @@
  * with the thing it is made of: the nodes in `./nodes.js`, escaping in `./escaping.js`, the frame
  * queue in `./frames.js`, stylesheets in `./stylesheets.js`, the registry in `./registry.js`.
  *
- * The rule every one of them follows: **answer honestly or do not exist.** A detached element has no
+ * The rule every one of them follows: **answer honestly or do not exist** — and its corollary,
+ * **where the platform throws, this throws.** A server that is lenient about an error does not make
+ * anything work: it moves the failure to the client, strips the context that would have explained
+ * it, and in the meantime writes markup no browser would have produced from the same call. That
+ * corollary has found more defects here than asking whether a member is present, because a member
+ * that is present and too permissive looks exactly like one that is correct. A detached element has no
  * parent, no siblings and no box, and a browser returns exactly what these do. Where a server cannot
  * answer at all — `localStorage` is one browser's state — the global stays undefined, because
  * `typeof localStorage === 'undefined'` is the guard the ecosystem already writes and it only works
  * if this does not lie. `tests/ssr-dom-surface.test.mjs` enforces both halves.
  */
-import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS } from './escaping.js';
+import { escapeHtml, escapeStyleText, escapeRawText, RAW_TEXT_ELEMENTS } from './escaping.js';
 import { hoistedStyles, setRenderingTag, StyleSheetShim, hoist, beginHoisting } from './stylesheets.js';
-import { frames, flushFrames } from './frames.js';
+import { frames, flushFrames, flushFramesAsync } from './frames.js';
 import { registry } from './registry.js';
 import {
+  TextShim,
+  CommentShim,
   ContainerShim,
   FragmentShim,
   ShadowRootShim,
@@ -27,6 +34,18 @@ import {
   NODE_CONSTANTS,
 } from './nodes.js';
 
+/** The eight hyphenated names SVG and MathML already define, which a custom element may not take. */
+const RESERVED_NAMES = new Set([
+  'annotation-xml',
+  'color-profile',
+  'font-face',
+  'font-face-src',
+  'font-face-uri',
+  'font-face-format',
+  'font-face-name',
+  'missing-glyph',
+]);
+
 /**
  * Re-exported so a consumer of the server environment has one import, not seven. The homes above are
  * where the code lives; this is the door.
@@ -34,11 +53,13 @@ import {
 export {
   escapeHtml,
   escapeStyleText,
+  escapeRawText,
   RAW_TEXT_ELEMENTS,
   hoistedStyles,
   beginHoisting,
   setRenderingTag,
   flushFrames,
+  flushFramesAsync,
   registry,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
@@ -73,6 +94,94 @@ const delegateEvents = (target, self) => ({
 const windowEvents = new EventTarget();
 
 /** Idempotent. Installs the server environment; the registry is filled as modules execute. */
+/**
+ * The roots a document-level query has to cover. `documentElement` and `body` are separate elements
+ * here rather than one nested pair, so every query walks both — `documentElement` first, which is
+ * where a real document would find anything under `<html>` before reaching `<body>`.
+ */
+/**
+ * Shared by `createTreeWalker` and `createNodeIterator`, which differ in surface rather than in what
+ * they visit: a tree walker can also be steered with `parentNode`/`firstChild`/`nextSibling`, while
+ * an iterator only goes forwards and backwards. Both honour `whatToShow` and a filter, and both
+ * visit in document order — the root included for an iterator and not for a walker, which is the
+ * one behavioural difference between them.
+ *
+ * @param {any} root @param {number} [whatToShow] @param {any} [filter] @param {boolean} [isWalker]
+ */
+const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
+  const accepts = (node) => {
+    const bit = node.nodeType === 1 ? 1 : node.nodeType === 3 ? 4 : node.nodeType === 8 ? 128 : 0;
+    if (!(whatToShow & bit)) return false;
+    const verdict = typeof filter === 'function' ? filter(node) : filter?.acceptNode?.(node);
+    return verdict === undefined || verdict === 1;
+  };
+  /** Document order, depth first — the order both of these are defined to visit in. */
+  const flatten = (node, out = []) => {
+    /** `childNodes` rather than `_entries`: it is what makes markup held as a string get parsed. */
+    for (const child of node.childNodes ?? []) {
+      out.push(child);
+      flatten(child, out);
+    }
+    return out;
+  };
+  const all = () => (isWalker ? flatten(root) : [root, ...flatten(root)]).filter(accepts);
+  let current = isWalker ? root : null;
+  const step = (direction) => {
+    const nodes = all();
+    const index = current === null ? -1 : nodes.indexOf(current);
+    const next = direction > 0 ? nodes[index + 1] : nodes[index - 1];
+    if (!next) return null;
+    current = next;
+    return next;
+  };
+  return {
+    root,
+    whatToShow,
+    filter: filter ?? null,
+    get currentNode() {
+      return current;
+    },
+    set currentNode(node) {
+      current = node;
+    },
+    nextNode: () => step(1),
+    previousNode: () => step(-1),
+    parentNode: () => {
+      const parent = current?._parent;
+      if (!parent || !accepts(parent)) return null;
+      current = parent;
+      return parent;
+    },
+    firstChild: () => {
+      const first = (current?.childNodes ?? []).find((entry) => accepts(entry));
+      if (!first) return null;
+      current = first;
+      return first;
+    },
+    lastChild: () => {
+      const kids = (current?.childNodes ?? []).filter((entry) => accepts(entry));
+      if (!kids.length) return null;
+      current = kids[kids.length - 1];
+      return current;
+    },
+    nextSibling: () => {
+      const sibling = current?.nextSibling;
+      if (!sibling || !accepts(sibling)) return null;
+      current = sibling;
+      return sibling;
+    },
+    previousSibling: () => {
+      const sibling = current?.previousSibling;
+      if (!sibling || !accepts(sibling)) return null;
+      current = sibling;
+      return sibling;
+    },
+  };
+};
+
+const documentRoots = () =>
+  /** @type {Array<any>} */ ([globalThis.document.documentElement, globalThis.document.body]);
+
 export const installShims = () => {
   if (globalThis.__veraSsrShimmed) return registry;
   globalThis.__veraSsrShimmed = true;
@@ -193,8 +302,25 @@ export const installShims = () => {
      * hiding it.
      */
     define: (name, Class) => {
+      /**
+       * **A name the browser will refuse is refused here too**, or the server renders markup the
+       * client can never upgrade: `customElements.define('nodash', …)` throws `SyntaxError` in every
+       * engine, and this accepted it — so the component rendered server-side, shipped, and the
+       * client threw on the very line that was supposed to bring it to life.
+       *
+       * The rule is the spec's: starts with a lowercase ASCII letter, contains a hyphen, contains no
+       * uppercase, and is not one of the eight names SVG and MathML already use.
+       */
+      if (typeof name !== 'string' || !/^[a-z][^A-Z]*-[^A-Z]*$/.test(name) || RESERVED_NAMES.has(name))
+        throw new DOMException(
+          `Failed to execute 'define' on 'CustomElementRegistry': "${String(name)}" is not a valid custom element name`,
+          'SyntaxError'
+        );
       if (registry.has(name)) {
-        throw new Error(`customElements.define: '${name}' has already been defined`);
+        throw new DOMException(
+          `Failed to execute 'define' on 'CustomElementRegistry': the name "${name}" has already been used with this registry`,
+          'NotSupportedError'
+        );
       }
       registry.set(name, Class);
     },
@@ -214,24 +340,73 @@ export const installShims = () => {
     title: '',
     body: new ElementShim('body'),
     documentElement: new ElementShim('html'),
-    createElement: (localName) => createElement(localName),
-    createElementNS: (_namespace, localName) => createElement(localName),
-    createTextNode: (text) => ({ innerHTML: escapeHtml(text), textContent: String(text) }),
-    createDocumentFragment: () => new FragmentShim(),
-    querySelector: () => null,
-    querySelectorAll: () => [],
-    getElementById: () => null,
-    ...NODE_CONSTANTS,
-    getElementsByTagName: () => [],
-    getElementsByTagNameNS: () => [],
-    getElementsByClassName: () => [],
-    getElementsByName: () => [],
     /**
-     * What a document being *built* reports. `readyState` is `'loading'` because that is exactly
-     * what is happening: nothing has finished parsing, and a component that waits for
-     * `DOMContentLoaded` on the client is right to see this rather than a lie about being ready.
+     * **`body` is what a browser reports when nothing has focus**, and it never answers `null` for a
+     * document that exists. `null` here meant `document.activeElement.tagName` — ordinary code —
+     * threw on the server and worked in the browser.
      */
-    readyState: 'loading',
+    get activeElement() {
+      return globalThis.document.body;
+    },
+    /**
+     * This document *has* a `documentElement`, so saying it has no children contradicted itself —
+     * the same shape as `document.contains` answering `false` while every element reported
+     * `isConnected`. One element, first and last, exactly as a real document reports.
+     */
+    get firstElementChild() {
+      return globalThis.document.documentElement;
+    },
+    get lastElementChild() {
+      return globalThis.document.documentElement;
+    },
+    get childElementCount() {
+      return 1;
+    },
+    createElement: (localName) => createElement(localName),
+    createElementNS: (namespace, localName) => createElement(localName, namespace),
+    createTextNode: (text) => new TextShim(text),
+    createDocumentFragment: () => new FragmentShim(),
+    /**
+     * **The document's queries search the document.** Each answered nothing whatever it was asked,
+     * because there was no tree to search; `document.getElementById('x')` was `null` for an element
+     * that had been appended to `body` moments earlier.
+     *
+     * `documentElement` and `body` are separate roots here rather than one nested pair, so each
+     * query covers both — the order is `documentElement` first, which is where a real document would
+     * have found anything under `<html>` before reaching `<body>`.
+     */
+    querySelector: (selector) => {
+      for (const root of documentRoots()) {
+        const found = root.querySelector(selector);
+        if (found) return found;
+      }
+      return null;
+    },
+    querySelectorAll: (selector) => documentRoots().flatMap((root) => root.querySelectorAll(selector)),
+    getElementById: (id) => {
+      for (const root of documentRoots()) {
+        const found = root.getElementById(id);
+        if (found) return found;
+      }
+      return null;
+    },
+    ...NODE_CONSTANTS,
+    getElementsByTagName: (name) => documentRoots().flatMap((root) => root.getElementsByTagName(name)),
+    getElementsByTagNameNS: (namespace, name) =>
+      documentRoots().flatMap((root) => root.getElementsByTagNameNS(namespace, name)),
+    getElementsByClassName: (names) => documentRoots().flatMap((root) => root.getElementsByClassName(names)),
+    getElementsByName: (name) =>
+      globalThis.document.querySelectorAll(`[name="${`${name}`.replace(/"/gu, '\\"')}"]`),
+    /**
+     * **`complete`, because nothing more is coming.** `loading` is the truthful description of a
+     * document still being assembled, and it is the wrong answer to give a component: the guard
+     * everyone writes is `if (readyState === 'loading') addEventListener('DOMContentLoaded', boot)`,
+     * and this DOM never fires that event — so `loading` meant the callback was registered and never
+     * ran, and the component silently rendered nothing. `@verajs/jsx/standalone` is written exactly
+     * that way. `complete` sends the same code down the branch that runs `boot()` now, which is what
+     * the browser ends up doing too.
+     */
+    readyState: 'complete',
     visibilityState: 'visible',
     hidden: false,
     characterSet: 'UTF-8',
@@ -243,16 +418,26 @@ export const installShims = () => {
     designMode: 'off',
     nodeType: 9,
     nodeName: '#document',
-    activeElement: null,
     currentScript: null,
-    scrollingElement: null,
+    /**
+     * **`documentElement`, because this document declares standards mode.** `null` is the answer a
+     * *quirks-mode* document gives, so returning it beside `compatMode: 'CSS1Compat'` two lines up
+     * was a document contradicting itself — and a component reading
+     * `document.scrollingElement.scrollTop`, which every engine allows, crashed on the server with
+     * a `TypeError` and worked in the browser. Measured on Chromium, Firefox and WebKit: all three
+     * answer `documentElement`.
+     */
+    get scrollingElement() {
+      return globalThis.document.documentElement;
+    },
     fullscreenElement: null,
     pointerLockElement: null,
     pictureInPictureElement: null,
-    doctype: null,
-    firstElementChild: null,
-    lastElementChild: null,
-    childElementCount: 0,
+    /**
+     * The output is an HTML document, so it has a doctype. A browser reports these three fields and
+     * an empty public and system id, which is exactly what `<!doctype html>` means.
+     */
+    doctype: { name: 'html', publicId: '', systemId: '' },
     children: [],
     childNodes: [],
     styleSheets: [],
@@ -264,7 +449,7 @@ export const installShims = () => {
     plugins: [],
     anchors: [],
     hasFocus: () => false,
-    createComment: (text) => ({ innerHTML: `<!--${text}-->`, textContent: String(text) }),
+    createComment: (text) => new CommentShim(text),
     getSelection: () => null,
     /**
      * An empty walk over an empty tree, which is the truthful answer for a DOM that holds strings.
@@ -275,21 +460,22 @@ export const installShims = () => {
      * could not be server-rendered at all. Nothing walks this DOM (`@verajs/ssr` has its own
      * renderer and never uses these), so an inert walker is the whole requirement.
      */
-    createTreeWalker: () => ({
-      currentNode: null,
-      root: null,
-      nextNode: () => null,
-      previousNode: () => null,
-      parentNode: () => null,
-      firstChild: () => null,
-      lastChild: () => null,
-      nextSibling: () => null,
-      previousSibling: () => null,
-    }),
-    createNodeIterator: () => ({ nextNode: () => null, previousNode: () => null }),
+    /**
+     * **The walkers walk.** Both existed and answered `null` to everything, whatever the tree held —
+     * a stub that reported "no more nodes" from the first call, so a component walking its own
+     * subtree found it empty and did nothing, on the server only. There is a tree to walk now.
+     */
+    createTreeWalker: (root, whatToShow, filter) => makeWalker(root, whatToShow, filter, true),
+    createNodeIterator: (root, whatToShow, filter) => makeWalker(root, whatToShow, filter, false),
     elementFromPoint: () => null,
     elementsFromPoint: () => [],
-    contains: () => false,
+    /**
+     * Everything this DOM builds is in the document — the shim sets `isConnected` on every element
+     * for the same reason, since a server render is exactly the case where the tree *is* live. A
+     * flat `false` contradicted that, and `if (!document.contains(el)) return;` is ordinary
+     * defensive code that bailed out of a render that was in fact perfectly connected.
+     */
+    contains: (node) => node?.isConnected === true,
     /** Nothing here owns another document, so importing and adopting are the identity. */
     importNode: (node) => node,
     adoptNode: (node) => node,
@@ -350,7 +536,30 @@ export const installShims = () => {
    * afterwards; assigning to this global directly is safe only until two requests overlap.
    */
   globalThis.window = /** @type {any} */ (globalThis);
-  globalThis.location ??= /** @type {any} */ ({ pathname: '/', search: '', hash: '', href: 'http://localhost/' });
+  /**
+   * `self` is the other name for the global, and UMD bundles feature-detect on it. `window` is
+   * already defined here, so those bundles have taken the browser branch regardless — leaving `self`
+   * undefined only made the two disagree.
+   */
+  globalThis.self = /** @type {any} */ (globalThis);
+  /**
+   * Every part, built from a real `URL`, so the default is as complete as the one `renderToString`'s
+   * `location` option installs. It used to carry four properties — `pathname`, `search`, `hash`,
+   * `href` — so `location.origin`, `.protocol`, `.host` and `.hostname` read `undefined` until a
+   * render supplied a URL, and then started working. Two different shapes for the same object
+   * depending on when you looked at it.
+   */
+  globalThis.location ??= /** @type {any} */ (
+    (() => {
+      const url = new URL('http://localhost/');
+      return Object.fromEntries(
+        ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'].map((part) => [
+          part,
+          url[part],
+        ])
+      );
+    })()
+  );
   globalThis.history = /** @type {any} */ ({
     scrollRestoration: 'auto',
     pushState: () => {},
@@ -360,7 +569,91 @@ export const installShims = () => {
     forward: () => {},
   });
   Object.assign(globalThis, delegateEvents(windowEvents, () => globalThis.window));
-  globalThis.scrollTo = () => {};
+  /**
+   * **A server render is a top-level, unframed, open window — and saying nothing says otherwise.**
+   *
+   * This is the one place where *absence* gives the wrong answer rather than no answer.
+   * `window.top === window` is how a page asks "am I in an iframe"; with `top` undefined that
+   * comparison is **false**, so a component concludes it *is* framed and takes the branch meant for
+   * a page it does not control. Every value here is what a browser reports for a page that is not
+   * framed, which is exactly the situation a server render is in.
+   */
+  globalThis.top = /** @type {any} */ (globalThis);
+  globalThis.parent = /** @type {any} */ (globalThis);
+  globalThis.frames = /** @type {any} */ (globalThis);
+  globalThis.frameElement = null;
+  globalThis.opener = null;
+  globalThis.length = 0;
+  globalThis.closed = false;
+  /** `name` is `Window`'s, not `globalThis`'s, so TypeScript needs telling which one this is. */
+  /** @type {any} */ (globalThis).name ??= '';
+
+  /**
+   * Derived from `location` rather than stored, so the two cannot disagree — `renderToString`'s
+   * `location` option rewrites the URL per request, and a copied-at-install `origin` would answer
+   * for whichever request installed the shim.
+   */
+  Object.defineProperty(globalThis, 'origin', {
+    get: () => globalThis.location?.origin ?? '',
+    configurable: true,
+  });
+
+  /**
+   * **Inert, because a server has no user and no window to move** — the same reason the observers
+   * are inert and `scrollTo` already was. A browser does not throw for any of these, so neither can
+   * this: a component that calls one during setup would work in the browser and crash here, which
+   * is the divergence this package exists to remove.
+   *
+   * The ones with a return value get the answer a browser gives when the thing did not happen —
+   * `confirm` when the user declines, `prompt` when they cancel, `open` when the browser refuses,
+   * `find` when there is no match. None of those is invented; each is a real outcome of the call.
+   */
+  for (const name of [
+    'alert', 'print', 'blur', 'focus', 'close', 'stop', 'scroll', 'scrollBy', 'scrollTo',
+    'moveBy', 'moveTo', 'resizeBy', 'resizeTo', 'postMessage', 'captureEvents', 'releaseEvents',
+  ])
+    globalThis[name] = () => {};
+  globalThis.confirm = () => false;
+  globalThis.prompt = () => null;
+  globalThis.find = () => false;
+  globalThis.open = () => null;
+
+  /**
+   * `reportError` hands an error to the page's error handling. A no-op would **swallow** it, which
+   * is the one outcome worse than not having the function — so it goes where every other unhandled
+   * failure in this package goes.
+   */
+  globalThis.reportError ??= (error) => console.error(error);
+
+  /**
+   * The `NodeFilter` constants, because `createTreeWalker` is provided and these are what it takes.
+   * `@verajs/renderer` passes the numbers directly, so nothing here needs them — but a component
+   * writing `NodeFilter.SHOW_ELEMENT` is writing ordinary DOM code, and these are facts rather than
+   * answers this DOM has to invent.
+   */
+  globalThis.NodeFilter = /** @type {any} */ (
+    Object.assign(function NodeFilter() {
+      throw new TypeError('Illegal constructor');
+    }, {
+      FILTER_ACCEPT: 1,
+      FILTER_REJECT: 2,
+      FILTER_SKIP: 3,
+      SHOW_ALL: 0xffffffff,
+      SHOW_ELEMENT: 1,
+      SHOW_ATTRIBUTE: 2,
+      SHOW_TEXT: 4,
+      SHOW_CDATA_SECTION: 8,
+      SHOW_ENTITY_REFERENCE: 16,
+      SHOW_ENTITY: 32,
+      SHOW_PROCESSING_INSTRUCTION: 64,
+      SHOW_COMMENT: 128,
+      SHOW_DOCUMENT: 256,
+      SHOW_DOCUMENT_TYPE: 512,
+      SHOW_DOCUMENT_FRAGMENT: 1024,
+      SHOW_NOTATION: 2048,
+    })
+  );
+  Object.freeze(globalThis.NodeFilter);
   /**
    * Node supplies `Event` and `CustomEvent`; this fills in only where it does not, and matches the
    * shape `EventTarget` dispatches.
@@ -373,6 +666,16 @@ export const installShims = () => {
       }
     }
   );
+  /**
+   * **The phase constants belong on the prototype, not only on the interface.** Node puts
+   * `CAPTURING_PHASE` and friends on `Event` alone; all three engines put them on `Event.prototype`
+   * too, so `event.AT_TARGET` reads `2` in a browser and `undefined` here. That matters because
+   * `event.eventPhase === event.AT_TARGET` is how the comparison is normally written, and against
+   * `undefined` it is `false` for every phase — the test silently never matches instead of failing.
+   */
+  for (const [name, value] of [['NONE', 0], ['CAPTURING_PHASE', 1], ['AT_TARGET', 2], ['BUBBLING_PHASE', 3]])
+    if (!(name in Event.prototype))
+      Object.defineProperty(Event.prototype, name, { value, enumerable: false, configurable: true });
 
 
   /**
@@ -388,7 +691,14 @@ export const installShims = () => {
    * Shimmed rather than left undefined so that unguarded callers — `@verajs/router`'s initial
    * navigation, any third-party component measuring itself — run instead of throwing.
    */
-  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+  /** A browser raises `TypeError` for a non-callable, and a silent no-op here is a frame that never runs. */
+  globalThis.requestAnimationFrame = (fn) => {
+    if (typeof fn !== 'function')
+      throw new TypeError(
+        `Failed to execute 'requestAnimationFrame' on 'Window': parameter 1 is not of type 'Function'.`
+      );
+    return frames.push(fn);
+  };
   globalThis.cancelAnimationFrame = (id) => {
     frames[id - 1] = null;
   };

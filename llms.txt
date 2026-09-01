@@ -1,12 +1,16 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->5.8 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->6.1 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
 **This file is the complete API.** It is written to be pasted into an LLM context window — the whole
 public surface is about 30 functions, so an assistant does not need training data on VeraJS to write
-it correctly. Everything else is standard Custom Elements and lit-html, which models already know.
+it correctly. Everything else is standard Custom Elements and tagged template literals.
+
+If you already know lit-html the templates will look familiar, and the semantics are deliberately the
+same — but VeraJS ships its own renderer and needs nothing from lit. Using lit-html instead is a
+one-line swap, documented under *Swapping the template tag* near the end, and is entirely optional.
 
 > ⚠️ **LIVING DOCUMENT — EXPECT DRIFT.** VeraJS is pre-release and under active development. The API
 > is not frozen and this file will keep changing. It is maintained by hand, so it can fall behind the
@@ -14,16 +18,20 @@ it correctly. Everything else is standard Custom Elements and lit-html, which mo
 > `packages/*/dist/development/*.d.ts`, which is generated from the actual build.
 >
 > **TODO / known instability:**
-> - `@verajs/renderer` was just rebuilt (template-identity, keyed, element-mode items). Browser-
->   confirmed fastest of 7 implementations on create-10k/append/select/swap; prefer it over lit-html.
+> - `@verajs/renderer` is browser-confirmed faster than or equal to lit-html on all eight
+>   operations of the benchmark (create/append/update/select/swap/remove/clear); prefer it.
 > - Render scheduling defaults to `requestAnimationFrame` — settled: the browser benchmarks were
 >   won on that default. `setRenderScheduler(microtask)` remains for apps that want Lit/Vue timing.
-> - Published to npm as of 2026-08-21. `@verajs/core`, `renderer`, `router`, `autoloader`,
->   `inserts`, `jsx` and `ssr` are live; every release from 0.1.1 carries a GitHub Actions
+> - Published to npm as of 2026-08-21: `@verajs/core`, `renderer`, `router`, `autoloader`,
+>   `inserts`, `jsx`, `ssr` and `styles`. Every release from 0.1.1 carries a GitHub Actions
 >   provenance attestation (`npm audit signatures`).
-> - Tests: ~55 checks under `node --test` + jsdom against BUILT artifacts, green in CI. A real
->   browser layer is chosen but not yet installed, so shadow DOM, upgrade timing and
->   `adoptedStyleSheets` behaviour is asserted under emulation only.
+> - **`@verajs/reactivity` is NOT on npm yet.** It exists in the repository and is built and tested
+>   like the rest, but a brand-new package's first publish cannot use Trusted Publishing — npm
+>   requires the package to exist before a publisher can be attached — so its first version goes up
+>   by hand. Install it from the repository until then; `npm i @verajs/reactivity` will 404.
+> - Tests: `node --test` + jsdom against BUILT artifacts, run twice — against the development build
+>   and the production one — plus a browser layer on three real engines (Chromium, Firefox, WebKit)
+>   under `@web/test-runner` and Playwright. Green in CI. `npm run gate` runs all of it.
 > - Fixed in 0.1.2: `ChildPart._clear` could walk off the end of the child list when several
 >   sibling child-expressions in one parent each toggled between a template and `''`. If you are
 >   on 0.1.0 or 0.1.1, upgrade.
@@ -44,10 +52,10 @@ There are no dependency arrays, no reactive-property declarations, and no base c
 ## Minimal component
 
 ```js
-import { init, createStore, render, setHtml } from '@verajs/core';
-import { html } from 'lit-html';
+import { init, createStore, render, html, wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setHtml(html); // once, at startup — see "Setup" below
+wire([renderer]); // once, at startup — see "Setup" below
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
@@ -65,36 +73,35 @@ customElements.define('click-counter', ClickCounter);
 ## Setup — required once, before any component defines itself
 
 ```js
-import { setHtml, setRenderer, setAutoloader, inserts, insert } from '@verajs/core';
-import { html, render as litRender } from 'lit-html';
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setHtml(html);          // the template tag
-setRenderer(litRender); // what writes to the DOM
+wire([renderer]);       // what writes to the DOM. Core's `html` already produces what it accepts.
 ```
 
 **Core ships no renderer.** `render()` with none registered paints nothing and warns once in
 development, naming the two lines to add. Wire one at your app entry:
 
 ```js
-import { setRenderer } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
-setRenderer(domRender);
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+wire([renderer]);
 ```
 
-Core's `html` needs no `setHtml` with `@verajs/renderer` — it already produces the shape the
-renderer accepts. lit-html works too: `setRenderer(litRender); setHtml(litHtml);`
+Core's `html` needs no `setHtml` — it already produces the shape `@verajs/renderer` accepts, so the
+one `wire` call above is the whole of the setup.
 
-**Order matters.** A component that defines itself before `setRenderer` renders through that
-default — content appears, but sigil bindings are dead until the real renderer is set. Static
+**Order matters.** A component that defines itself before `wire(renderer)` renders with nothing on
+the `'render'` chain — `render()` warns once in development and draws nothing. Static
 `import` declarations are **hoisted**, so this is wrong:
 
 ```js
-setHtml(html);
-import './components/app.js';        // WRONG — hoisted, runs before setHtml
+wire([renderer]);
+import './components/app.js';        // WRONG — hoisted, runs before wire()
 ```
 
 ```js
-setHtml(html);
+wire([renderer]);
 await import('./components/app.js'); // correct — dynamic import is not hoisted
 ```
 
@@ -127,15 +134,18 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `render` | `(template?, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. Ends the setup as well as drawing — **call it bare** (`render()`) when the component has no markup, and its effects still run. |
+| `render` | `(template, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. **Required** — it is exactly `useRender(template)` followed by `mount()`. |
+| `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
-| `html` | tagged template | Replaceable via `setHtml`. Core's built-in produces a lit-compatible object. |
+| `html` | tagged template | What you use. Replaceable via `setHtml` if you want a different tag — see *Swapping the template tag*. |
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
-| `setRenderer` | `(renderer) => void` | Swap what writes to the DOM. From `@verajs/core` (re-exported from inserts). |
+| `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
 | `setRenderScheduler` | `(scheduler) => void` | Defaults to `requestAnimationFrame`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
+| `renderToStringAsync` | `(url, options) => Promise<{html, styles, title}>` | `@verajs/ssr` — same options as `renderToString`, but awaits the component's `connectedCallback` and lets promises settle between frames. Needed for an `async connectedCallback`, and for a routed component to render its route. Async renders take a turn each. |
+| `setStaticStores` | `(on: boolean) => void` | Makes `createStore` return a non-reactive store. **Server-side only** — `@verajs/ssr`'s `renderToString(url, { static: true })` is what calls it. Leaving it on in a browser gives you a framework that does not update. A write to such a store throws. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
 
 ### Effects
@@ -168,7 +178,25 @@ state.n = 1; state.n = 2; state.n = 3;
 ```
 
 ⚠️ `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
-write or use `useEffect`.
+write or use `useEffect`. Development stops and names the recursion at depth 50.
+
+⚠️ `useEffect` and templates can loop too, and there it is ambiguous — the default scheduler is an
+animation frame, so an effect that writes what it reads runs once per frame, which is also how an
+animation is written. Development **warns without stopping it** after 50 consecutive self-feeding
+passes; production carries neither the counter nor the text.
+
+| Export | Signature | Notes |
+| --- | --- | --- |
+| `allowRenderLoop` | `(element) => void` | Marks a component's self-feeding loop as deliberate, silencing that warning for it. No-op in production. Throws in development if not given an element. |
+
+The count is per element **and** per hook, and resets on the first pass that does not feed itself —
+so a write scheduled from your own `requestAnimationFrame`, a timer or an event never trips it.
+
+```js
+init(this);
+allowRenderLoop(this);
+useEffect(() => { state.t = state.t + 1 });   // an animation, not a bug
+```
 
 ### SVG and MathML
 
@@ -208,15 +236,14 @@ and **end** of the batch.
 
 | Export | Signature |
 | --- | --- |
-| `insert` | `(name, callback, priority) => void` — **priority is required** |
+| `wire` | `(descriptor \| connector \| array) => void` — a descriptor is `{ on, fn, priority, name? }`, **priority is required** |
 | `inserts` | the registry `Map` |
-| `setRenderer` | `(renderer) => void` — registers on `'render'` at priority 50 |
-| `setAutoloader` | `(fn) => void` — registers on `'render'` at priority 75, so discovery runs after the render that produced the markup |
+| `connect` | optional on a descriptor — handed the registry before `fn` is registered, so a module that keeps none can be given core's |
 | `createHook` | `({ callback, priority, element? }) => void` — build your own hook type |
 
-`connectInserts` is **not** a core export. `@verajs/router` exports it, because a standalone
-`vera-router.min.js` inlines its own copy of the registry; you call it on core's `inserts` to point
-one at the other. See "CDN" below.
+There is no reconciliation step. A module that would otherwise carry its own registry is handed
+core's instead — `wire([router])` — which reads the same under a bundler and on a CDN page.
+`connectInserts`, which replayed one registry into another, was removed in 0.2.0.
 
 Insert points: `'render'`, `'init'` (an element was set up by `init()` — after its shadow root
 exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
@@ -224,7 +251,7 @@ exists, before its first render; this is how `@verajs/styles` attaches), `'proxy
 `undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
 suppress default propagation), `'error'` (a hook threw).
 
-⚠️ `insert('proxy-handler', () => count++, 30)` returns a number, so **every read of every store
+⚠️ `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` returns a number, so **every read of every store
 yields that number** instead of the value. Write observers with a block body — `() => { count++; }`.
 
 ---
@@ -233,9 +260,30 @@ yields that number** instead of the value. Write observers with a block body —
 
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
-import { initAutoloader } from '@verajs/autoloader';
-import { render, keyed } from '@verajs/renderer';
+import { autoloader } from '@verajs/autoloader';
+import { collections } from '@verajs/reactivity/collections';
+import { renderInto } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 ```
+
+### Collections (`@verajs/reactivity/collections`)
+
+Reactive `Map` and `Set` in stores. **Not in core since 0.2.0** — most stores hold plain objects
+and every app was paying 367 B for it. Wire once at your app entry:
+
+```js
+import { wire } from '@verajs/core';
+import { collections } from '@verajs/reactivity/collections';
+wire(collections);
+```
+
+Change detection is per method — `set` fires iff absent-or-different, `add` iff absent, `delete` iff
+it returned true, `clear` iff non-empty. `get`/`has` subscribe per key; `entries`/`keys`/`values`/
+`forEach`/`size` subscribe to every change, and so do `for…of` and spread. Reactivity is per entry,
+not deep. `WeakMap`/`WeakSet` work.
+
+Omit the wiring and core raises a development error naming the package the first time a collection
+is read from a store, and the call after it throws — collection methods cannot run on a proxy.
 
 ### Styles (`@verajs/styles`)
 
@@ -243,10 +291,14 @@ import { render, keyed } from '@verajs/renderer';
 paying for it. Wire once at your app entry:
 
 ```js
-import { insert } from '@verajs/core';
-import { adoptStyles } from '@verajs/styles';
-insert('init', adoptStyles, 50);
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { styles } from '@verajs/styles';
+wire([renderer, styles]);
 ```
+
+`styles` is the module; `adoptStyles` is the function it registers. `wire({ on: 'init', fn:
+adoptStyles, priority: 50 })` is the same registration written out, for a non-default priority.
 
 Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style vera-styles>` for plain
 strings); light DOM is hoisted to the document once per component class, wrapped in
@@ -270,6 +322,18 @@ static styles = css`p { color: var(--accent, blue); }`;
 render(() => html`<div style="--accent: ${state.accent}"><p>tinted</p></div>`);
 ```
 
+### Keyed lists (`@verajs/renderer/keyed`)
+
+```js
+import { keyed } from '@verajs/renderer/keyed';
+renderInto(html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`, host);
+```
+
+Its own entry since 0.2.0: reordering is what makes lists expensive, most apps never do it, and the
+algorithm is <!--size:keyed.gzip-->599 B<!--/size:keyed.gzip--> gzipped. Importing `keyed` is the entire installation — the marker stamps each
+result with the strategy that reconciles it, so there is nothing to `wire()` and a list always names
+its own reconciler. Additive like `/spread`: it imports nothing and works alongside `/hydrate`.
+
 ### Spread (`@verajs/renderer/spread`)
 
 Bindings whose names are not known when the template is parsed.
@@ -289,8 +353,8 @@ Keys carry the same sigils as written bindings, so a spread key and a written bi
 thing — including `&ref` for an element ref. A key that cannot be written into markup is **skipped**
 (whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
 those and markup cannot carry them, so both sides refuse them rather than disagreeing.
-`@verajs/renderer` costs 16 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->804 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+`@verajs/renderer` costs 5 B for the protocol whether or not you install this; the package
+is <!--size:spread.gzip-->869 B<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
@@ -316,14 +380,16 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.61 KB<!--/size:renderer.gzip--> gzipped. `setRenderer(render)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.83 KB<!--/size:renderer.gzip--> gzipped. `wire(renderer)` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
 ```js
-import { init, createStore, render as show, setRenderer, html } from '@verajs/core';
-import { render as domRender, keyed } from '@verajs/renderer';
-setRenderer(domRender);
+import { init, createStore, render as show, wire, html } from '@verajs/core';
+/** `renderer`, not `render`. The module is what `wire` takes; `render` is the function it registers. */
+import { renderer } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
+wire([renderer]);
 
 // keyed lists: no repeat() import — key all items or none
 show(() => html`<ul>${rows.map((r) => keyed(r.id, html`<li>${r.label}</li>`))}</ul>`);
@@ -351,7 +417,30 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   field the user has typed into keeps their text.
 - The renderer owns its container below the mount point — do not hand-append siblings into it, and
   never call `Node.normalize()` on rendered content (child anchors are text nodes).
-- Bindings inside comments and dynamic tag names are not supported (values consumed, ignored).
+- Bindings inside comments are not supported (values consumed, ignored).
+- **ARIA does not cross a shadow boundary.** `aria-labelledby`, `aria-describedby` and `<label for>`
+  all match by ID, and IDs are scoped to their tree — so a page-level label cannot name a control
+  inside `init(this, { mode: 'open' })`. No error, no warning, no accessible name. Three ways through:
+  keep the relationship inside one template; put a role and name on the **host** with
+  `ElementInternals` (`this.attachInternals()` before `init`, which does not clobber it); or use light
+  DOM (`init(this)` with no second argument), where `static styles` still applies, hoisted per class.
+  `delegatesFocus: true` forwards host focus to the first focusable child. All verified in Chromium,
+  Firefox and WebKit — `tests/browser/aria-shadow-boundary.test.js`.
+- `@event` accepts **both shapes `addEventListener` accepts** — a function (called with the element
+  as `this`), or an object with a `handleEvent` method. The listener is registered once, so swapping
+  the handler never churns the DOM. `undefined`, `null` and `false` mean no handler, so
+  `@click=${enabled && onClick}` is a legal conditional binding; anything else that cannot listen is
+  inert and named in development, because a listener is otherwise only validated when a user clicks.
+- **Exit animations** need no framework support. Fade on `?hidden` with
+  `.fade[hidden] { display: block; opacity: 0 }` — the `display: block` overrides the UA rule, and
+  do NOT use `transition-behavior: allow-discrete` on `display`, which Firefox reports as supported
+  and does not honour (measured). For a real removal, wrap the state change:
+  `document.startViewTransition(() => flushSync(() => { state.rows = next }))`, where `flushSync`
+  swaps the scheduler — `setRenderScheduler` returns the previous one for exactly this.
+- **A dynamic tag name** needs `@verajs/renderer/tag`: `const H1 = tag\`h1\`` then
+  `` html`<${H1} class="t">${x}</${H1}>` `` — note the `html` comes from that entry, not core. A
+  string can never become a tag, only another tag. In JSX the same value is a component:
+  `<H1 className="t">{x}</H1>`, with React's names mapped exactly as on a written element.
 - **Stable shapes beat conditional swaps.** Rendering the same element every pass and toggling
   `hidden` is faster than swapping one subtree for another — template identity holds, so the
   renderer updates values in place instead of tearing down and rebuilding. Both forms are
@@ -371,7 +460,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
     <p ?hidden=${!busy}>loading</p>
   </section>`
   ```
-- Hydration is a drop-in entry: SSR apps `import { render } from '@verajs/renderer/hydrate'`
+- Hydration is a drop-in entry: SSR apps `import { renderInto } from '@verajs/renderer/hydrate'`
   (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) and the
   first render ADOPTS server-rendered children — markerless (no framework comments in server
   HTML), node identity preserved, listeners attached, keyed updates move adopted nodes. Any
@@ -386,7 +475,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   template, which destroys and rebuilds the subtree while looking identical from the outside.
 
   ```js
-  import { render, profile, formatReport } from '@verajs/renderer/profiler';
+  import { renderInto, profile, formatReport } from '@verajs/renderer/profiler';
   /** `profile` awaits an async driver — driving an app means awaiting frames. */
   const { report } = await profile(async () => { /* click around, await frames */ });
   console.log(formatReport(report));
@@ -474,6 +563,12 @@ Semantics worth stating:
   decodes individually. A malformed escape yields the raw text rather than throwing.
 - Window listeners attach on the first `initRouter`, so importing the router is side-effect-free
   and Node-safe (SSR can import it; routing itself is browser-only).
+- **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
+  where there is no DOM throws `ReferenceError: document is not defined`. Same for
+  `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
+  `inserts`, `reactivity`, `reactivity/collections`, `renderer/keyed`, `renderer/spread`,
+  `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
+  renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow
   root are invisible to the click listener (event retargeting).
 - A `before-leave`/`before-route` handler returning `false` cancels navigation; a **throwing**
@@ -516,7 +611,7 @@ Semantics worth stating:
 ### Autoloader
 
 ```js
-setAutoloader(initAutoloader(import.meta.url, 'components', { extension: '.js' }));
+wire(autoloader(import.meta.url, 'components', { extension: '.js' }));
 ```
 
 Fetches `components/<tag-name><extension>` the first time an undefined element appears inside an
@@ -543,7 +638,7 @@ Semantics worth stating:
   second location is tried only if the first fails.
 - A failed load dispatches `vera:autoload-error` on the element (bubbles, composed,
   `detail: { tag, src, error, element }`) as well as logging, so an app can render a fallback.
-- `initAutoloader` returns ONE function with three shapes: `autoload()` scans the page for
+- `autoloader` returns ONE function with three shapes: `autoload()` scans the page for
   `[autoloader]` hosts, `autoload(element)` watches that component, `autoload(shadowRoot)` watches
   that root (no attribute — handing it over is the opt-in, and the only way into a component that
   never marked itself). Creating an autoloader has no side effects; `autoload()` is what makes
@@ -584,28 +679,52 @@ Semantics worth stating:
 
 ---
 
+## Swapping the template tag — optional
+
+**Skip this unless you specifically want it.** Core's `html` and `@verajs/renderer` are the default
+and need no configuration; this exists because the renderer is an insert like any other, so the
+template tag and the thing that writes to the DOM can both be replaced.
+
+It is here for two reasons: an app already written against lit-html can move to VeraJS without
+rewriting its templates, and it is the proof that core is not welded to one renderer. Neither is a
+reason to reach for it in new code — `@verajs/renderer` is smaller, and browser-confirmed faster than
+or equal to lit-html on all eight benchmark operations.
+
+```js
+import { setHtml, wire } from '@verajs/core';
+import { html, render as litRender } from 'lit-html';
+
+setHtml(html);                                        // the template tag
+wire({ on: 'render', fn: litRender, priority: 50 });  // what writes to the DOM
+```
+
+Both calls are needed and both must run before any component defines itself. A string renderer, a
+test double, or anything else implementing the same two contracts works the same way.
+
+---
+
 ## CDN / buildless
 
 ```html
 <script type="importmap">
   { "imports": {
-      "@verajs/core":   "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
-      "@verajs/router": "https://cdn.jsdelivr.net/npm/@verajs/router/dist/vera-router.min.js",
-      "lit-html":       "https://cdn.jsdelivr.net/npm/lit-html@3/lit-html.js" } }
+      "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js",
+      "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js",
+      "@verajs/router":   "https://cdn.jsdelivr.net/npm/@verajs/router/dist/vera-router.min.js" } }
 </script>
 ```
 
 ⚠️ **Standalone bundles each inline their own copy of the insert registry**, so loading two of them
-gives you two registries. Reconcile once at startup:
+would give you two registries if any module carried one. None do — hand the router core's:
 
 ```js
-import { inserts } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
-connectInserts(inserts);
+import { wire } from '@verajs/core';
+import { router } from '@verajs/router';
+wire([router]);
 ```
 
-Order does not matter — anything registered before the call is replayed into the new registry at its
-original priority.
+Identical under a bundler. Order does not matter, and without core at all the router takes what it
+needs directly (`setRouterRenderer`), with no registry involved.
 
 Unnecessary under a bundler, where everything resolves to one instance. This is deliberate — it is
 the price of the modules being genuinely independent of core.
@@ -617,23 +736,30 @@ the price of the modules being genuinely independent of core.
 For CodePen, a demo or a single-file app. Copy this shape; it works with no toolchain at all.
 
 ```html
-<!-- BOTH specifiers are required: the transform auto-injects `html` from @verajs/core and
-     `keyed` from @verajs/renderer, so a missing renderer entry fails at import time. -->
+<!-- All three entries are required, for two different reasons. The transform auto-injects
+     `import { html } from '@verajs/core'` into every block, and — only when you write `key={…}` on a
+     JSX element — `import { keyed } from '@verajs/renderer/keyed'`. Note the subpath: mapping
+     `@verajs/renderer` alone is not enough for `key={…}`, and the page fails at import time with
+     "Failed to resolve module specifier". The `@verajs/renderer` entry is needed for the
+     `import { renderer }` below, which you write yourself. An explicit `keyed(…)` call is not
+     auto-injected either — import it, as this block does. -->
 <script type="importmap">
 { "imports": {
-    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.1.1/dist/vera.min.js",
-    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.1/dist/vera-renderer.min.js"
+    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.2.1/dist/vera.min.js",
+    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.5/dist/vera-renderer.min.js",
+    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.5/dist/vera-renderer-keyed.min.js"
 } }
 </script>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.1.1/src/standalone.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.1.3/src/standalone.js"></script>
 
 <my-app></my-app>
 
 <script type="text/vera-jsx">
-  import { init, createStore, render, setRenderer } from '@verajs/core';
-  import { render as domRender, keyed } from '@verajs/renderer';
-  setRenderer(domRender);
+  import { init, createStore, render, wire } from '@verajs/core';
+  import { renderer } from '@verajs/renderer';   // the MODULE. `render` is the function it registers.
+  import { keyed } from '@verajs/renderer/keyed';
+  wire([renderer]);
 
   const state = createStore({ n: 0 });
 
@@ -662,9 +788,9 @@ blob. Bare specifiers inside resolve through the page's import map.
 **Rules that trip up generators, in order of how often they bite:**
 
 1. **Both import-map entries.** `@verajs/core` alone is not enough — any `key={}` emits `keyed()`
-   from `@verajs/renderer`.
-2. **One block is one module.** Static imports hoist, so `setRenderer(domRender)` at the top of the
-   block runs before any `customElements.define` below it. The "define before setRenderer" hazard
+   from `@verajs/renderer/keyed`.
+2. **One block is one module.** Static imports hoist, so `wire(renderer)` at the top of the
+   block runs before any `customElements.define` below it. The "define before wiring" hazard
    only applies across separate files.
 3. **Function components are not elements.** They compile to plain calls returning templates.
    Children arrive as `props.children`, an **array**. No hooks-in-function-components; state lives
@@ -682,6 +808,16 @@ blob. Bare specifiers inside resolve through the page's import map.
 9. **A custom element is written as itself** — `<my-comp foo={x}>…</my-comp>`, dashes and all. It is
    markup, not a function component, so it compiles into the template's statics rather than into a
    call. (Dashed tags did not parse before 0.2.0 and were emitted verbatim, which failed at load.)
+10. **Hand a custom element structured data with `.prop={…}`, never `prop={…}`.** All four renderer
+    sigils work in JSX and mean exactly what they mean in `html` — `.prop=`, `?bool=`, `@event=`,
+    `&ref=` — and a name written with one is passed through untouched rather than guessed at again.
+    Without the dot it is an *attribute*, and an attribute carries a string, so
+    `<x-rows rows={data}>` delivers `"1,2,3"` and `<x-rows .rows={data}>` delivers the array. This is
+    the only property binding besides `value` and `checked`, which are special-cased. (Before 0.2.0
+    `.rows={…}` was not an attribute name at all: the parser treated the file as "not JSX" and
+    emitted **the whole file** untransformed, so every other component in it stopped compiling too.)
+11. **A name the mapping does not know is written verbatim**, so spell HTML attributes the way HTML
+    does — `xlink:href`, not `xlinkHref`. Only `className`→`class` and `htmlFor`→`for` are renamed.
 
 **Testing one of these without a browser:** import `transformJsx` from `@verajs/jsx`, compile the
 block, and run it under jsdom with `pretendToBeVisual: true` (the default render scheduler is
@@ -696,12 +832,13 @@ Say so rather than inventing an API:
 
 - **JSX/TSX is opt-in, never a requirement.** `@verajs/jsx` compiles JSX into the same tagged
   templates (`onClick`→`@click`, `className`→`class`, `value`→`.value`, `key`→`keyed()`,
-  components become function calls, `{...props}` on elements needs `@verajs/renderer/spread`). Zero runtime
+  `.prop`/`?bool`/`@event`/`&ref` passed through as written, components become function calls,
+  `{...props}` on elements needs `@verajs/renderer/spread`). Zero runtime
   cost via the Vite plugin; buildless stays the baseline, and `onClick=${fn}` works in raw
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
   components. No decorators ever (they cannot run without a build step).
-- **`computed` is `@verajs/reactivity/computed`** (233 B), not core. `computed(() => a + b)` evaluates once
+- **`computed` is `@verajs/reactivity/computed`** (<!--size:computed.gzip-->241 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
     per change rather than once per read, and only when something it actually read moves. It is a
     store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**
@@ -718,7 +855,7 @@ Say so rather than inventing an API:
   trusted markup, write the sink yourself as a property binding:
 
   ```js
-  render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
+  renderInto(html`<div .innerHTML=${trustedMarkup}></div>`, host);
   ```
 
   The friction is the feature. That line is greppable, obviously yours, and reviewable as the
@@ -731,19 +868,21 @@ Say so rather than inventing an API:
 
 ## Common mistakes
 
-1. Defining a component before `setHtml`/`setRenderer` → renders via the escaped default:
-   content shows but `@event`/`.prop` bindings are dead.
+1. Defining a component before `setHtml` / `wire(renderer)` → with nothing on the `'render'`
+   chain, `render()` warns once in development and draws nothing. (`mount()` is unaffected — it
+   commits the setup and never reaches a renderer.)
 2. Static `import` for components in the entry file → hoisted, same failure.
-3. `insert(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
-   an **occupied** priority replaces that entry (this is how `setRenderer` swaps renderers).
+3. `wire(name, cb)` without a priority → ordering is undefined; always pass one. Registering at
+   an **occupied** priority replaces that entry (this is how a renderer is swapped), and the
+   replacement is named in a development warning.
 4. `createStore` for large lists → use `shallowRef`.
 5. Forgetting `init(this)` before `render` → nothing renders.
-5b. **Registering hooks and never calling `render()` → none of them ever run.** `render()` ends the
-   setup as well as drawing: it runs the first pass of every hook registered since `init()`. A
-   component whose whole job is a side effect has nothing to draw, so it calls `render()` **bare** —
-   no template. Development warns if neither happens.
-6. Hooks after `render()` → ignored with a console warning. Register hooks between `init()` and
-   `render()`, or pass the element explicitly.
+5b. **Registering hooks and never committing the setup → none of them ever run.** `init()` opens a
+   component's setup and one of two calls closes it: `render(template)` for a component with markup,
+   `mount()` for one whose whole job is a side effect. Both run the first pass of every hook
+   registered since `init()`. Development warns if neither happens, and names both.
+6. Hooks after the setup is committed → ignored with a console warning. Register hooks between
+   `init()` and the `render()` or `mount()` that closes it, or pass the element explicitly.
 7. Expecting `useEffect` to run per mutation → it is coalesced; use `useSyncEffect`.
 8. An autoloaded file that loads but never calls `customElements.define` for its tag → the
    autoloader waits forever, silently. The module must define the element it is named for.

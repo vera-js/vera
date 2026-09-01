@@ -1,10 +1,70 @@
-import { inserts } from '@verajs/inserts';
 import { MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
+/** Type-only: erased at build, so this package still imports nothing at runtime. */
+import type { Inserts } from '@verajs/inserts';
 
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
 import { stripTrailingSlash } from '@verajs/shared-utils';
 import { Renderer } from '@verajs/shared-types';
+
+/**
+ * How this package finds a renderer, and the reason it now imports nothing.
+ *
+ * Reading a shared registry meant carrying `@verajs/inserts`, and a production bundle inlines it —
+ * so a CDN page had one registry here and another in core, an app registered into whichever one it
+ * happened to import, and the mismatch was silent. `connectInserts` was the repair, and repairing
+ * it afterwards was the wrong shape: it was load-bearing on a CDN page and ceremonial everywhere
+ * else, so the failure it guarded only ever appeared in production.
+ *
+ * Nothing is imported now. Either the app hands this package the registry — `wire([renderer,
+ * router])` — or it hands `setRouterRenderer` a renderer directly, which is what lets the router
+ * run with no core at all. The hazard is gone by construction rather than reconciled.
+ */
+let registry: Inserts | null = null;
+let direct: Renderer[] = [];
+
+/** One warning per page for an unwired router — see `routeChange`. */
+let warnedAboutRenderer = false;
+
+/**
+ * The outlets this router has rendered into, so a stale level can be emptied without touching an
+ * element a component owns and happens to have marked `[view]`.
+ */
+const painted = new WeakSet<HTMLElement>();
+const renderers = () => (registry ? ((registry.get('render') as Renderer[] | undefined) ?? direct) : direct);
+
+/**
+ * A **connector**: `wire` hands it the registry rather than registering anything, which is how a
+ * package that keeps none of its own gets core's.
+ *
+ * Named for the thing rather than the act, because `wire` is already the verb — it sits in a list
+ * beside `renderer`, `collections` and `autoloader(…)`, and which of them is a descriptor and
+ * which is a connector is not something an app should have to know.
+ */
+export const router = (given: Inserts) => {
+  registry = given;
+};
+
+/** The no-core path: hand the router its renderer and it needs no registry at all. */
+export const setRouterRenderer = (renderer: Renderer) => {
+  /**
+   * **Silent and total.** The router renders every view through this, so a non-function means every
+   * route resolves, every guard runs, the URL changes — and the outlet stays empty. Nothing throws,
+   * because the value is only ever spread into the render chain and called from there.
+   *
+   * The cause is almost always an import that resolved to `undefined`. `@verajs/renderer`'s draw is
+   * `renderInto` as of 0.2.0, and an app still importing `render` from it passes exactly this.
+   *
+   * `__DEV__`-only: production carries neither the check nor the text.
+   */
+  if (__DEV__ && typeof renderer !== 'function')
+    throw new Error(
+      `setRouterRenderer: expected a function and received ${String(renderer)}. ` +
+        `\`@verajs/renderer\` exports it as \`renderInto\` — or pass the module to \`wire\` instead, ` +
+        `which is what \`wire([renderer, router])\` does.`
+    );
+  direct = [renderer];
+};
 
 /**
  * Aliases
@@ -18,6 +78,13 @@ export const page = 'page';
  * @param matchFunction Match function to use when analyzing routes
  */
 export const setMatchFunction = (matchFunction: <P extends ParamData>(routePattern: string) => MatchFunction<P>) => {
+  /** Throws at the next `addRoutes` otherwise — *"routerSettings.match is not a function"*, which
+   *  names an internal and not the call that broke it. `__DEV__`-only. */
+  if (__DEV__ && typeof matchFunction !== 'function')
+    throw new Error(
+      `setMatchFunction: expected a function and received ${String(matchFunction)}. It is called ` +
+        `once per route pattern and must return a matcher — this is the seam for path-to-regexp.`
+    );
   routerSettings.match = matchFunction;
 };
 
@@ -143,7 +210,8 @@ export const attachWindowListeners = () => {
      * The same line is what makes traversing back to `/docs#install` restore the fragment rather
      * than dropping it.
      */
-    navigate(window.location.pathname + window.location.hash, 'popstate');
+    /** `search` included for the same reason `init` includes it — a traversal restores a whole URL. */
+    navigate(window.location.pathname + window.location.search + window.location.hash, 'popstate');
   });
 
   window.addEventListener('hashchange', () => {
@@ -177,8 +245,109 @@ export const navigate = async (
   origin?: HTMLElement,
   redirectDepth = 0
 ): Promise<boolean> => {
+  /**
+   * `navigate(routes[i])` with a bad index, or a name that resolved to nothing, reached `target.name`
+   * on `undefined` and failed with `Cannot read properties of undefined (reading 'name')` — inside an
+   * async function, so it surfaced as an unhandled rejection with no mention of `navigate` at all.
+   * The two shapes it does accept are worth naming, since the object form is the less obvious one.
+   */
+  if (__DEV__ && (target === null || (typeof target !== 'string' && typeof target !== 'object')))
+    throw new TypeError(
+      `navigate: expected a path or a { name, params } object and received ${String(target)}.`
+    );
   /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
-  const path = typeof target === 'string' ? target : resolve(target.name, target.params);
+  let path = typeof target === 'string' ? target : resolve(target.name, target.params);
+
+  /**
+   * **A path that names an origin is checked against this one**, exactly as a routed link is.
+   *
+   * Clicking `<a route href="//evil.test/x">` has always been left to the browser, because
+   * `methods.ts` compares origins before hijacking it. The programmatic call had no such check, and
+   * `navigate(params.get('next'))` is the ordinary way an app honours a `?next=` redirect — so a
+   * protocol-relative path went straight to `pushState`, which the browser refuses with a
+   * `SecurityError` that nothing caught. An open-redirect payload therefore took the page down
+   * rather than being declined.
+   *
+   * **Every string is resolved, not only the ones that look absolute.** This condition used to be
+   * `path.startsWith('//') || /^scheme:/`, which meant `navigate()` and a routed link disagreed about
+   * every other shape a URL can take. `methods.ts` resolves a clicked `href` through this same
+   * `new URL(…)` and takes `.pathname`, so a click was always fully normalised while the programmatic
+   * call was not. Measured from a page at `/shop/items`:
+   *
+   * | input | as a link | via `navigate()`, before |
+   * | --- | --- | --- |
+   * | `edit`, `./edit` | `/shop/edit` | nothing |
+   * | `../a/b` | `/a/b` | nothing |
+   * | `/a/./b`, `/a/c/../b` | `/a/b` | nothing |
+   * | `#top`, `?q=1` | the current route | nothing |
+   *
+   * Seven of eight silently dead-ended, and the README's own motivating example —
+   * `navigate(params.get('next'))` for a `?next=` redirect — is a direct route to it.
+   *
+   * The cost is named rather than hidden: `navigate('login')` used to dead-end and warn, which
+   * surfaced a typo, and now resolves against the current page like any relative URL. A loud failure
+   * becomes a quiet redirection. That is the same trade `<a route href="login">` has always made, and
+   * relative resolution against the current document is the oldest rule on the web — a developer
+   * writing `navigate('login')` means the relative URL.
+   */
+  if (typeof path === 'string') {
+    /**
+     * **A base the URL parser rejects leaves the path alone.**
+     *
+     * `new URL('/never', 'about:blank')` throws `Invalid URL` — an opaque base has no origin to
+     * resolve against, and the same is true of a `srcdoc` iframe or a freshly-`window.open`ed blank
+     * window. Before this function resolved every string, an absolute path skipped the parser
+     * entirely and worked there; widening it turned that into a synchronous throw inside an `async`
+     * function, which surfaces as an unhandled rejection naming neither `navigate` nor the URL.
+     *
+     * Found by the gate rather than by reasoning — `tests/module-api.test.mjs` runs under a jsdom
+     * whose document is `about:blank`, and it failed in both builds the moment the condition widened.
+     *
+     * Falling back to the raw path restores exactly the old behaviour for the only case that can
+     * reach it: there is no base, so there is nothing to normalise against, and an absolute path is
+     * already the form the matcher wants.
+     */
+    let resolved;
+    try {
+      resolved = new URL(path, window.location.href);
+    } catch {
+      resolved = null;
+    }
+    /**
+     * **The fallback accepts any string, and the origin check is below it.**
+     *
+     * An opaque base makes the parser throw for every *relative* form — `/a`, `../x` and
+     * `//evil.test/x` alike — while an absolute URL parses fine and is checked normally. So the one
+     * shape that names another origin without being absolute is the one shape that skips the check.
+     *
+     * The justification written for the fallback is that "an absolute path is already the form the
+     * matcher wants", which is true of `/a` and not true of `//evil.test/x`: that is a *host*, and
+     * without a base there is nothing to resolve it against and no origin to compare. Passing it on
+     * lands it in `pushState`, which refuses it with the same uncaught `SecurityError` this whole
+     * block exists to prevent — so the open-redirect payload still takes the page down, in exactly
+     * the context the fallback carved out.
+     *
+     * `about:blank` and `about:srcdoc` are real: a sandboxed iframe, an embedded widget, a
+     * freshly-`window.open`ed window.
+     */
+    if (!resolved && path.startsWith('//')) {
+      if (__DEV__)
+        console.warn(
+          `[vera] navigate() refused "${path}" — it names an origin, and this document's base ` +
+            `(${window.location.href}) cannot resolve one. Use location.assign() to leave the site.`
+        );
+      return false;
+    }
+    if (resolved && resolved.origin !== window.location.origin) {
+      if (__DEV__)
+        console.warn(
+          `[vera] navigate() refused "${path}" — it resolves to ${resolved.origin}, and this ` +
+            `router only moves within ${window.location.origin}. Use location.assign() to leave the site.`
+        );
+      return false;
+    }
+    if (resolved) path = resolved.pathname + resolved.search + resolved.hash;
+  }
   if (path === state.currentPath) return true;
   const id = ++navigationId;
 
@@ -257,6 +426,25 @@ export const navigate = async (
     if (await routeChange(element, matchPath, trigger, shouldFocusView, query, hash, id, match)) routed = true;
     if (id !== navigationId) return false;
   }
+  /**
+   * **Nothing matched, and the click is already cancelled.** `addLinkListener` calls
+   * `preventDefault` before it gets here, so a `route` link pointing at a path no pattern covers
+   * swallows the click whole: no navigation, no URL change, no error — the same symptom as a
+   * broken listener, and the one thing the page cannot tell you is that it is the *path* that is
+   * wrong. The router already refuses to hijack a cross-origin link for exactly this reason;
+   * this is the same dead end one step further in.
+   *
+   * Only when **no router matched at all**. A guard that returns `false` also lands here, and that
+   * is a deliberate cancellation with nothing to report.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the check nor the text.
+   */
+  if (__DEV__ && matches.length === 0)
+    console.warn(
+      `[vera] router: nothing matched "${matchPath}", so the navigation did nothing. ` +
+        `A link with \`route\` has already had its click cancelled by then — add the route, or a ` +
+        `catch-all \`/*rest\`, which sorts last however it is declared.`
+    );
   if (!routed) return false;
 
   /**
@@ -360,7 +548,40 @@ const routeChange = async (
 
   for (const link of chain) {
     /** A guard belonging to this route alone, and the outer ones get to refuse first. */
-    if ((await link.beforeEnter?.(params, currentRoute, previousRoute)) === false) return false;
+    const verdict = await link.beforeEnter?.(params, currentRoute, previousRoute);
+    /**
+     * **Only `false` cancels**, which is the documented contract and is easy to write past. A guard
+     * returning a *path* is the Vue Router habit — `beforeEnter: () => '/login'` redirects there —
+     * and here it is truthy, so the route it was guarding renders anyway. Silently, and in an auth
+     * guard that is the whole point of the guard defeated.
+     *
+     * This router redirects with the `redirect` route option instead, so the mistake has a fix worth
+     * naming. Warned rather than obeyed: making a returned string redirect would be a second way to
+     * do the same thing, and the two would disagree the moment `redirect` was also set.
+     *
+     * **The two fixes are not interchangeable, and this message used to offer them as if they were.**
+     * Measured, from `/a`:
+     *
+     * | how | after `await navigate('/guarded')` |
+     * | --- | --- |
+     * | `redirect: '/b'` on the route | already at `/b` |
+     * | guard calls `navigate('/b')`, returns `false` | still at `/a` — lands on `/b` a task later |
+     *
+     * `redirect` is handled inside this navigation, so the promise `navigate()` returns covers it. A
+     * guard calling `navigate()` starts a **separate** navigation that this promise knows nothing
+     * about; awaiting it tells you only that the guarded route was cancelled. That distinction is
+     * load-bearing because the README makes awaiting the supported way to handle an outcome —
+     * "`navigate()` rejects, so a caller that awaits it can handle the failure itself".
+     */
+    if (__DEV__ && typeof verdict === 'string')
+      console.warn(
+        `[vera] router: \`beforeEnter\` on "${link.path ?? currentRoute?.path}" returned the string ` +
+          `"${verdict}", which is truthy, so the route was allowed. Only \`false\` cancels.\n` +
+          `To send someone elsewhere, either set \`redirect: "${verdict}"\` on the route — which settles ` +
+          `inside the promise \`navigate()\` returns — or call \`navigate("${verdict}")\` and return ` +
+          `\`false\`, which starts a separate navigation that promise does not cover.`
+      );
+    if (verdict === false) return false;
     if (id !== navigationId) return false;
   }
 
@@ -372,8 +593,21 @@ const routeChange = async (
   let view!: HTMLElement;
 
   for (const link of chain) {
-    /** Optional route specific view */
-    const rawView = link.view ?? elementData.view;
+    /**
+     * Optional route specific view.
+     *
+     * **A nested level does not inherit an element**, only a name. `elementData.view` is the
+     * router's root outlet, and `initRouter(el, { view })` accepts an element for it — but an
+     * element is a single node, so inheriting it made *every* level render into the same one and a
+     * child silently overwrote its parent. `children` — the feature the whole nesting design exists
+     * for — quietly behaved like a flat route, with no warning and correct-looking markup.
+     *
+     * A name inherits fine, because the search below narrows to the level above on each pass, so
+     * `[view="main"]` inside the parent's output is a different element from the one that held the
+     * parent. Only an element short-circuits that search, and only for a level that did not ask for
+     * it by name.
+     */
+    const rawView = link.view ?? (link.parent && elementData.view instanceof HTMLElement ? undefined : elementData.view);
 
     /** If the view is a function, get the result */
     const processedView = rawView instanceof Function ? rawView(params, currentRoute, previousRoute) : rawView;
@@ -390,7 +624,12 @@ const routeChange = async (
      * and a selector that parsed would have chosen an element the author never marked as an outlet.
      * Comparing strings has no grammar to escape into and costs 3 B.
      */
-    const wanted = String(processedView);
+    /**
+     * `undefined` means "the first outlet inside the level above", which is what a nested route
+     * with no `view` of its own gets when the router's own outlet is an element it cannot inherit.
+     * Matching it against a bare `<div view>` is the shape a parent template naturally writes.
+     */
+    const wanted = processedView === undefined ? '' : String(processedView);
     let levelView = processedView instanceof HTMLElement ? processedView : (null as unknown as HTMLElement);
     if (!levelView)
       for (const candidate of searchRoot.querySelectorAll('[view]'))
@@ -402,9 +641,15 @@ const routeChange = async (
     if (!levelView) {
       if (__DEV__ && link.parent)
         console.warn(
-          `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
-            `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
-            `parent's template has to render the outlet its children route into.`
+          processedView === undefined
+            ? `[vera] the route "${link.path}" is nested, and this router was given its root outlet as ` +
+              `an element — which is one node, so a child cannot inherit it without overwriting its ` +
+              `parent. Its view is looked for inside the one its parent rendered into, and no [view] ` +
+              `was found there. Give the child a \`view\` name and have the parent's template render ` +
+              `an outlet with it, or initialise the router with a name instead of an element.`
+            : `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
+              `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
+              `parent's template has to render the outlet its children route into.`
         );
       return false;
     }
@@ -416,13 +661,63 @@ const routeChange = async (
     const template = await link.component?.(params, currentRoute, previousRoute);
     /** The last checkpoint before anything is painted: a superseded pass renders nothing. */
     if (id !== navigationId) return false;
-    inserts.get('render')?.forEach((callback) => {
-      (callback as Renderer)?.(template, levelView);
+    const chain = renderers();
+    /**
+     * **A router with no renderer is silently inert**, and that is exactly what it looked like:
+     * every navigation matched, guards ran, the URL changed, and nothing was ever painted.
+     *
+     * The cause is one missing word — `wire([renderer])` instead of `wire([renderer, router])`. The
+     * `router` connector is what hands this package core's registry; without it the chain is empty
+     * and every render is a `forEach` over nothing. Core already warns for the same mistake at its
+     * own end (`render() did nothing — no component is being set up`), and this end had no
+     * equivalent. Found three separate times while writing probes for this framework, each time
+     * costing several minutes to a symptom that says nothing.
+     *
+     * Once per page rather than per navigation: the answer cannot change without another `wire`.
+     *
+     * `__DEV__`-only, so a production bundle carries neither the check nor the text.
+     */
+    if (__DEV__ && chain.length === 0 && !warnedAboutRenderer) {
+      warnedAboutRenderer = true;
+      console.warn(
+        `[vera] router: nothing is wired to render a route, so navigation changes the URL and ` +
+          `paints nothing. Wire the router itself alongside the renderer — \`wire([renderer, router])\` ` +
+          `— or hand it one directly with \`setRouterRenderer(render)\`.`
+      );
+    }
+    chain.forEach((callback) => {
+      callback?.(template, levelView);
     });
+    painted.add(levelView);
 
     /** The next level down looks inside what this one just rendered. */
     searchRoot = levelView;
     view = levelView;
+  }
+
+  /**
+   * **The level below the last one is emptied**, because nothing else will empty it.
+   *
+   * A parent's template holds its outlet, and template identity means re-rendering the parent
+   * *reuses* that element rather than rebuilding it — which is the renderer working correctly. The
+   * outlet's contents, though, were put there by this function on a previous navigation, not by the
+   * template, so they survive. Navigating from `/settings/profile` back to `/settings` re-rendered
+   * the parent and left the profile sitting inside it: the page showed a route that was no longer
+   * routed, and only a detour through an unrelated route cleared it, because that tore the whole
+   * subtree down.
+   *
+   * Only outlets this router has actually painted are cleared, so an element a component owns and
+   * happens to have marked `[view]` is left alone. Cleared through the render chain rather than by
+   * assigning `innerHTML`, so the renderer's own bookkeeping for that container stays consistent.
+   */
+  if (view) {
+    for (const candidate of view.querySelectorAll('[view]'))
+      if (painted.has(candidate as HTMLElement)) {
+        renderers().forEach((callback) => {
+          callback?.('', candidate as HTMLElement);
+        });
+        painted.delete(candidate as HTMLElement);
+      }
   }
 
   /** Route has changed so we updated currentRoute */

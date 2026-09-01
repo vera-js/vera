@@ -41,6 +41,14 @@ export type ComponentProperties = {
   /** Effect cleanups awaiting disconnect, kept here so removal can run them (see `init`). */
   _cleanups?: Set<HookCleanup>;
   /**
+   * Whether this element's cleanups have already been swept by a disconnect.
+   *
+   * Set *after* that sweep, so a cleanup registered from then on — an effect that called `remove()`
+   * on itself and has not returned yet — is run immediately rather than added to a set nothing will
+   * drain again. Cleared by `init()`, because a reconnection owes its cleanups a later removal.
+   */
+  _removed?: boolean;
+  /**
    * How many times this element has been `init()`ed. A hook captures the value it was created
    * under and does nothing when it no longer matches — see `createHook`.
    */

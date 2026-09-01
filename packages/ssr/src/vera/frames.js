@@ -54,3 +54,49 @@ export const flushFrames = (report) => {
   frames.length = 0;
 };
 
+
+/**
+ * The same drain, for a render that is allowed to wait.
+ *
+ * A frame callback that starts asynchronous work — `navigate()` is the one that matters, and it is
+ * why a routed component renders an empty outlet today — returns a promise the synchronous drain
+ * cannot see. Letting the microtask queue run between rounds is what allows that work to finish and
+ * whatever it schedules to be picked up by the next round.
+ *
+ * `await null` rather than a timer: it yields to the microtask queue, which is where a settled
+ * promise's continuation is waiting, without handing control to the event loop and letting an
+ * unrelated request interleave more than it already can.
+ */
+export const flushFramesAsync = async (report) => {
+  /**
+   * **An empty queue is not the end.** Work started inside a frame may still be in flight — a
+   * `navigate()` awaits its guards and its route module before it renders anything — so stopping at
+   * the first empty round ended the drain while the thing it was waiting for had not finished. It
+   * takes a few consecutive empty turns to conclude that nothing more is coming.
+   */
+  let idle = 0;
+  for (let round = 0; round < FRAME_ROUNDS; round++) {
+    /** Anything already queued runs first, then whatever it scheduled becomes the next round. */
+    await null;
+    if (!frames.length) {
+      if (++idle >= 3) break;
+      continue;
+    }
+    idle = 0;
+    const batch = frames.splice(0, frames.length);
+    for (const frame of batch) {
+      try {
+        /**
+         * **Awaited, unlike the synchronous drain.** A frame callback that returns a promise is
+         * doing work the markup depends on — the router's initial `navigate()` is exactly that — and
+         * ignoring it let the render finish while the route was still resolving. The callback ran,
+         * the route resolved a moment later, and the outlet went out empty.
+         */
+        await frame?.(performance.now());
+      } catch (error) {
+        report?.(error);
+      }
+    }
+  }
+  frames.length = 0;
+};

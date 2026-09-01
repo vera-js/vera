@@ -1,7 +1,7 @@
 import { expect } from '@esm-bundle/chai';
 import { SERVER_HTML } from './fixtures/hello-ssr.html.js';
-import { setRenderer } from '../../packages/core/dist/development/vera.js';
-import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { wire } from '../../packages/core/dist/development/vera.js';
+import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
 /**
  * The SSR → hydration handoff, end to end, for the first time.
@@ -15,7 +15,7 @@ import { render as hydratingRender } from '../../packages/renderer/dist/developm
  * `scripts/build-hydration-fixture.mjs`, not markup written to match.
  */
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 

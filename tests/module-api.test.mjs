@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 globalThis.document = dom.window.document;
@@ -24,26 +24,46 @@ globalThis.window = dom.window;
 globalThis.location = dom.window.location;
 globalThis.history = dom.window.history;
 
-// ── @verajs/inserts: setAutoloader ──────────────────────────────────────────
+// ── @verajs/inserts: a function that names an insert point is a descriptor ──
 
-test('setAutoloader registers into the render chain at priority 75', async () => {
+/**
+ * `wire` accepts a bare function as a *connector* (it is handed the registry), and an object as a
+ * descriptor. A module may be both: `@verajs/autoloader` returns a callable instance that also
+ * carries `on`/`fn`/`priority`, so configuring it and installing it are one call. That only works
+ * because the descriptor test runs first — read the other way round, such a module is called as a
+ * connector and silently never registers.
+ */
+test('wire treats a function carrying `on` as a descriptor, not a connector', async () => {
   const inserts = await load('inserts');
   const chain = () => inserts.inserts.get('render') ?? [];
   const before = chain().length;
 
   const seen = [];
-  inserts.setAutoloader((container) => seen.push(container));
-  assert.equal(chain().length, before + 1, 'one entry added');
+  const handedRegistry = [];
+  const both = Object.assign((registry) => handedRegistry.push(registry), {
+    on: 'render',
+    fn: (_, container) => seen.push(container),
+    priority: 75,
+  });
+  inserts.wire(both);
+
+  assert.equal(handedRegistry.length, 0, 'it was not called as a connector');
+  assert.equal(chain().length, before + 1, 'it registered as a descriptor');
 
   const host = document.createElement('div');
   chain().forEach((cb) => cb('<p>x</p>', host));
-  assert.deepEqual(seen, [host], 'the autoloader received the container');
+  assert.deepEqual(seen, [host], 'the handler received the container');
+});
 
-  /** 75 is below the renderer's 50, so it runs after rendering — it scans what was just written. */
+test('the autoloader registers at 75, so it runs after the renderer', async () => {
+  const inserts = await load('inserts');
+  const chain = () => inserts.inserts.get('render') ?? [];
   const order = [];
-  inserts.setRenderer(() => order.push('render@50'));
-  inserts.setAutoloader(() => order.push('autoload@75'));
-  chain().forEach((cb) => cb('<p>x</p>', host));
+
+  /** 75 is above the renderer's 50, so it runs after rendering — it scans what was just written. */
+  inserts.wire({ on: 'render', fn: () => order.push('render@50'), priority: 50 });
+  inserts.wire(Object.assign(() => {}, { on: 'render', fn: () => order.push('autoload@75'), priority: 75 }));
+  chain().forEach((cb) => cb('<p>x</p>', document.createElement('div')));
   assert.deepEqual(order, ['render@50', 'autoload@75'], 'autoloader runs after the renderer');
 });
 
@@ -68,7 +88,19 @@ test('setMatchFunction replaces the route matcher', async () => {
   r.addRoutes([{ path: '/never', component: () => '' }]);
   assert.ok(calls.includes('/never'), 'the custom matcher compiled the route pattern');
 
-  /** And the replacement decides matching: /never can never match under it. */
+  /**
+   * And the replacement decides matching: /never can never match under it.
+   *
+   * **This line also pins something it does not look like it pins.** This suite runs under a jsdom
+   * whose document is `about:blank`, so `window.location.href` is an opaque base and
+   * `new URL('/never', 'about:blank')` throws `Invalid URL`. When `navigate()` was widened to resolve
+   * every string rather than only the ones that look absolute, that throw escaped from inside an
+   * `async` function as an unhandled rejection naming neither `navigate` nor the URL — and this was
+   * the only test in the repo that caught it, in both builds.
+   *
+   * `services.ts` now falls back to the raw path when the base is unparseable. Do not "fix" this
+   * suite by giving the JSDOM a `url:`; the opaque base is what makes it load-bearing.
+   */
   await router.navigate('/never');
   assert.equal(view.textContent, '', 'the custom matcher refused the route');
 });
@@ -192,4 +224,98 @@ test('ParseState tracks expression position, which is what bounds a JSX region',
   assert.equal(s.atExpressionPosition(), false, 'after a closing paren, `<` is a comparison');
   s.lastChar = '=';
   assert.equal(s.atExpressionPosition(), true, 'after `=` it is an expression again');
+});
+
+// ── wiring the raw render function instead of the module ────────────────────
+
+/**
+ * `render` and `renderer` differ by two characters, and the wrong one used to be a *silent*
+ * mistake: a bare function has no `on`, so `wire` reads it as a connector, hands it the registry
+ * and registers nothing. Development turns that into a named error.
+ */
+test('wire refuses a raw function a package marked as not-the-module', async () => {
+  /**
+   * `wire` is taken from `@verajs/inserts` rather than from core, and the distinction is not
+   * cosmetic. Core's development bundle keeps this package **external**, so `import '@verajs/core'`
+   * resolves `@verajs/inserts` through its `exports` map — and without the `development` condition
+   * that lands on `dist/*.min.js`, where every `__DEV__` guard has already been folded away. Reached
+   * that way, core's `wire` is a production `wire` even in a development run. A bundler sets the
+   * condition, so an app sees the guard; a test that forgets to is quietly checking the wrong build.
+   */
+  const { wire } = await load('inserts');
+  const renderer = await load('renderer');
+  if (isProduction) {
+    /** The marker and the check are both behind `__DEV__`, so production carries neither. */
+    assert.equal(renderer.renderInto.$module, undefined, 'no marker in production');
+    return;
+  }
+  assert.equal(renderer.renderInto.$module, 'renderer', 'the raw function is marked');
+  assert.throws(
+    () => wire(renderer.renderInto),
+    /did you mean `renderer`/,
+    'it must name the export that was meant'
+  );
+  /** The module itself still wires. */
+  wire(renderer.renderer);
+});
+
+// ── @verajs/router: the origin check under an opaque base ───────────────────
+
+/**
+ * **The fallback for an unparseable base sits above the origin check, so one shape skips it.**
+ *
+ * `navigate()` resolves every string against `window.location.href` and refuses a foreign origin.
+ * When the parser throws it falls back to the raw path, justified as "an absolute path is already the
+ * form the matcher wants" — true of `/a`, and not true of `//evil.test/x`, which is a *host*.
+ *
+ * An opaque base makes the parser throw for every **relative** form while an absolute URL parses
+ * fine and is checked normally. So `//evil.test/x` — the one shape that names another origin without
+ * being absolute — was the one shape that reached `pushState` unchecked, where the browser refuses it
+ * with the uncaught `SecurityError` that block exists to prevent. The open-redirect payload still
+ * took the page down, in exactly the context the fallback carved out.
+ *
+ * This suite is the right home because its base really is opaque — see the note on `setMatchFunction`
+ * above, and do not give this JSDOM a `url:`.
+ */
+test('navigate refuses a protocol-relative target when the base cannot resolve one', async () => {
+  const router = await load('router');
+  const el = document.createElement('div');
+  const view = document.createElement('main');
+  el.appendChild(view);
+  document.body.appendChild(el);
+  const r = router.initRouter(el, { view, focusView: false, handleInitial: false });
+  r.addRoutes([{ path: '/ok', component: () => '' }]);
+
+  /** The premise: this base is opaque, which is what routes the call through the fallback. */
+  assert.throws(() => new URL('/ok', window.location.href), 'the base must be unparseable');
+  /**
+   * And the target names an origin *only* once there is a base to take a scheme from — which is
+   * precisely why it slips past: it is not absolute, so an opaque base sends it to the fallback,
+   * and it is not a path either, so the fallback's premise does not hold for it.
+   */
+  assert.throws(() => new URL('//evil.test/x'), 'it is not an absolute URL on its own');
+  assert.equal(new URL('//evil.test/x', 'https://a.test').origin, 'https://evil.test');
+
+  /**
+   * **The return value cannot tell refusal from a route that simply did not match** — both are
+   * `false`, which is why asserting it left this test green with the fix removed. The warning is the
+   * only observable that distinguishes them, so it is what gets asserted; it is folded away in
+   * production along with its branch, hence the skip.
+   */
+  const warnings = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    assert.equal(await router.navigate('//evil.test/x'), false, 'not navigated to');
+    assert.equal(await router.navigate('//evil.test'), false, 'with or without a path');
+  } finally {
+    console.warn = realWarn;
+  }
+
+  if (isProduction) return;
+  assert.equal(warnings.length, 2, 'each attempt is reported');
+  for (const warning of warnings) {
+    assert.match(warning, /navigate\(\) refused/, 'refused, rather than quietly failing to match');
+    assert.match(warning, /cannot resolve one/, 'and says why this base is the reason');
+  }
 });

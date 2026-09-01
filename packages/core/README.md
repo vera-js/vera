@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.75 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->3.00 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -13,17 +13,20 @@ npm i @verajs/core @verajs/renderer
 ```
 
 Core does not write to the DOM itself — a renderer does, and it is a separate install. That is the
-one piece of wiring VeraJS asks for, and it is what lets you swap in lit-html, a string renderer for
-tests, or your own.
+one piece of wiring VeraJS asks for: `wire([renderer])`, once, at your app entry.
+
+It is also what makes the renderer replaceable — a string renderer for tests, lit-html for an app
+already written against it, or your own — but that is a door, not a step. `@verajs/renderer` and
+core's `html` need nothing configured between them.
 
 ## A component, whole
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html, useEffect } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html, useEffect } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setRenderer(domRender);   // once, at your app entry, before any component defines itself
+wire([renderer]);   // once, at your app entry, before any component defines itself
 
 customElements.define(
   'click-counter',
@@ -58,8 +61,51 @@ they run, so a write to `state.count` schedules exactly the work that read it.
 | `deps(...values)` | touch values explicitly, to register them as dependencies |
 | `store._delete()` | sever every subscription for an object store at once |
 
-Reactive `Map`, `Set`, `WeakMap` and `WeakSet` are built in: put one in a store and mutating methods
-notify like any other write.
+Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/reactivity/collections`: put one in a
+store, wire that, and mutating methods notify like any other write. Without it core says so the first
+time one is read.
+
+### What "deep" reaches, and what it does not
+
+A store proxies **plain objects, arrays, class instances, `Object.create(null)` objects, and the four
+collections**. Everything else is handed back exactly as it was put in:
+
+`Date`, `RegExp`, `Promise`, `Error`, `URL`, `URLSearchParams`, typed arrays, `ArrayBuffer`,
+`DataView`, functions and DOM nodes.
+
+That is deliberate, and it is the same reason collection methods have to be re-bound: these types
+carry state in **internal slots** rather than in properties, so a proxy cannot see a change and in
+several cases cannot even be called on one. Reading `state.when` gives you the real `Date`, and
+`state.when.setHours(9)` changes it — but **nothing re-renders**, because no property was written.
+
+Replace them instead of mutating them, which is what makes the change visible:
+
+```js
+state.when = new Date(state.when.setHours(9));   // a write to `when`, so it renders
+state.pixels = new Uint8Array(next);             // not state.pixels[0] = …
+```
+
+There is no warning for this. A `Date` read to format it is far more common than a `Date` read to
+mutate it, so a warning would be noise on the ordinary case — which is why it is written down here
+instead.
+
+### A frozen source object stays frozen
+
+A store is a proxy, and a proxy has to respect its target's rules. `createStore(Object.freeze(…))`
+reads fine and **throws on any write**, because JavaScript says the object is not writable and no
+amount of proxying changes that. The same goes for a sealed object gaining a *new* key, an object
+under `Object.preventExtensions`, a property defined `writable: false`, and a getter with no setter —
+and it applies to a frozen object nested inside an ordinary store, which is the way it usually turns
+up: a constants table sitting in state.
+
+Everything that is *not* forbidden works, which is the larger half. Sealed objects take writes to
+existing keys, setters run with `this` bound through the proxy, class instances keep their prototype
+getters, `Object.create(null)` objects and symbol keys both round-trip.
+
+In development the error names the rule that refused — *"the object is frozen, so `n` cannot be
+changed"*. In production you get the engine's own `TypeError: 'set' on proxy: trap returned falsish`,
+which is a message about the proxy's internals; the development build exists to tell you what it
+actually means. It throws either way.
 
 **Adding and removing keys counts as a change.** A component that enumerates — `Object.keys`,
 `for…in`, `{ ...state.filters }`, `JSON.stringify`, or `key in state.form` — depends on the set of
@@ -100,7 +146,29 @@ state.n = 1; state.n = 2; state.n = 3;
 ```
 
 `useSyncEffect` **can infinite-loop** if it unconditionally writes state it also reads. Guard the
-write, or use `useEffect`.
+write, or use `useEffect`. In development the recursion is stopped and named at depth 50.
+
+`useEffect` and a template can loop too, and there the loop is real but not always a mistake: the
+default scheduler is an animation frame, so an effect that writes what it reads simply runs once per
+frame — which is also how you write an animation. So development **warns and does not stop it**,
+after 50 consecutive frames in which the pass fed itself:
+
+```
+[vera] useEffect has re-run for 50 consecutive frames because it writes state it also reads …
+```
+
+A write that lands *outside* the pass — from your own `requestAnimationFrame`, a timer, an event —
+never trips it at any threshold, because the count resets on the first pass that does not feed
+itself. Only a pass whose own body writes what it reads climbs. If that is deliberate, say so:
+
+```js
+init(this);
+allowRenderLoop(this);           // an animation: one store write per frame, on purpose
+useEffect(() => { state.t = state.t + 1 });
+```
+
+`allowRenderLoop(element)` silences the warning for that component, and is a no-op in production —
+where none of this exists.
 
 Every callback receives a signal describing the change: `signal.prop`, `signal.value`,
 `signal.prevValue`, and on coalesced runs `signal.changed` — a `Map` of every property in the batch,
@@ -110,18 +178,65 @@ holding its value at the start and at the end.
 
 | | |
 | --- | --- |
-| `init(element, shadowProps?)` | call first in `connectedCallback`. `{ mode: 'open' }` for shadow DOM |
+| `init(element, shadowProps?)` | call first in `connectedCallback`. `{ mode: 'open' }` for shadow DOM — see [ARIA and the shadow boundary](#aria-and-the-shadow-boundary) |
 | `render(template?, ...args)` | draw, and commit the setup. See below |
-| `html` | the template tag. Produces a lit-compatible result |
+| `html` | the template tag. `@verajs/renderer` takes what it produces with no configuration |
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `css` | for `static styles`, with `@verajs/styles` |
-| `setRenderer(fn)` | choose what writes to the DOM |
+| `mount()` | commit the setup for a component that draws nothing |
+| `wire(renderer)` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
 
-**`render()` ends the setup as well as drawing it.** Call it bare when a component has no markup of
-its own — its effects still run, and without that call the setup is never committed. In development,
-a component that finishes `connectedCallback` without reaching `render()` warns.
+**`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the
+first pass of every hook registered since `init()` and clears the instance. `render(template)` is
+exactly `useRender(template)` followed by that same commit — a compound over the base operation, not
+a second way to do the same thing, which is why a component only ever calls one of them.
+
+Use `mount()` when a component has no markup of its own. Hooks that are never committed never run:
+no error, no render, an effect that simply does not happen — so in development a component that
+finishes `connectedCallback` without reaching either call warns and names both.
+
+**Setup is one synchronous block, which matters for `async connectedCallback()`.** Only one component
+is being set up at a time, so a second component's `init()` takes the slot from the first — and an
+`await` between `init()` and `render()` hands it over. One component alone is fine; two on a page,
+each fetching, and whichever resumes second renders nothing. Await *before* `init()`:
+
+```js
+async connectedCallback() {
+  const data = await fetch(this.dataset.url).then((r) => r.json());   // await first
+  init(this, { mode: 'open' });                                       // then set up, synchronously
+  const state = createStore({ data });
+  render(() => html`<p>${state.data.title}</p>`);
+}
+```
+
+Server-side this is already handled for you: `renderToStringAsync` awaits `connectedCallback`.
+
+**Taking input from an attribute.** Attributes are half of how a web component receives anything, and
+the wiring is yours: write the new value into a store the template reads. The one sharp edge is the
+platform's ordering — `attributeChangedCallback` runs *before* `connectedCallback` for any attribute
+already in the markup, so the store does not exist yet on that first call. Guard it, and read the
+initial value in `connectedCallback`:
+
+```js
+static observedAttributes = ['label'];
+
+attributeChangedCallback(name, previous, value) {
+  if (!this.state) return;          // upgrade: setup has not run yet
+  this.state.label = value;
+}
+
+connectedCallback() {
+  init(this, { mode: 'open' });
+  this.state = createStore({ label: this.getAttribute('label') });   // the initial value
+  render(() => html`<p>${this.state.label}</p>`);
+}
+```
+
+Without the guard the component still renders, because a custom-element reaction that throws is
+*reported* rather than rethrown — so the cost is an uncaught `TypeError` in the console of every page
+using one, and nothing here can warn about it.
 
 `svg` and `mathml` are not stylistic. A namespace is decided when markup is parsed and cannot be
 fixed afterwards, so `html` alone produces an `HTMLUnknownElement` named `circle` — which parses
@@ -143,7 +258,7 @@ outside core, on the same public surface you have.
 
 | | |
 | --- | --- |
-| `insert(name, callback, priority)` | register on an extension point — **priority is required** |
+| `wire({ on: name, fn: callback, priority: priority })` | register on an extension point — **priority is required** |
 | `inserts` | the registry itself |
 | `createHook({ callback, priority, element? })` | build your own hook type |
 
@@ -154,6 +269,42 @@ write — return `false` to hold the default propagation back) and `'error'` (a 
 **Take `insert` from `@verajs/core`, not from `@verajs/inserts`.** A production bundle inlines the
 registry, so registering through a separately imported copy writes to a map core never reads — it
 works in development and silently does nothing in production.
+
+## ARIA and the shadow boundary
+
+**Every ID-based ARIA relationship resolves within a single tree, so a shadow root breaks it
+silently.** `aria-labelledby`, `aria-describedby` and `<label for>` all match by ID, and IDs do not
+cross a shadow boundary — there is no error and no warning, just an element with no accessible name.
+Verified in Chromium, Firefox and WebKit (`tests/browser/aria-shadow-boundary.test.js`); it is the
+platform's rule, not this framework's.
+
+```js
+// Broken: the label is in the page, the input is in the shadow root.
+<label for="email">Email</label>
+<my-field></my-field>            //  init(this, { mode: 'open' }); render(() => html`<input id="email">`)
+```
+
+Three ways through, in the order worth reaching for:
+
+1. **Keep the relationship inside one root.** Render the label and the control in the same template.
+   This is the common case and needs nothing special.
+2. **Put the ARIA on the host with `ElementInternals`.** The host lives in the outer tree, so a role
+   and an accessible name set there are visible to the page and need no ID at all:
+
+   ```js
+   connectedCallback() {
+     this._internals ??= this.attachInternals();
+     this._internals.role = 'button';
+     this._internals.ariaLabel = 'Save';
+     init(this, { mode: 'open' });
+   }
+   ```
+3. **Use light DOM** — omit the second argument to `init` — when a component's whole job is to
+   participate in relationships the page owns. Style isolation is what you give up; `static styles`
+   still works, hoisted once per class.
+
+`delegatesFocus: true` is the related shadow option: it makes the host focusable and forwards focus
+to the first focusable child, which is what a custom control usually wants.
 
 ## Two things that will bite you
 

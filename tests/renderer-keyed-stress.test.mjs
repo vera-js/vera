@@ -11,7 +11,7 @@
  * explicit that unseeded randomness turns a DOM-shape-dependent bug into an intermittent one whose
  * bisections contradict each other.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 
@@ -19,7 +19,8 @@ const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
 for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment'])
   globalThis[key] = dom.window[key];
 
-const { render, keyed } = await load('renderer');
+const { renderInto } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
 /** Mulberry32 — small, fast, and the same sequence every run, which is the point. */
@@ -31,7 +32,7 @@ const seeded = (seed) => () => {
 };
 
 const draw = (rows, container) =>
-  render(
+  renderInto(
     html`<ul>${rows.map((row) => keyed(row, html`<li data-id=${row}>${row}</li>`))}</ul>`,
     container
   );
@@ -123,7 +124,7 @@ const step = (label, container, before, next) => {
 {
   const container = dom.window.document.createElement('div');
   const draw2 = (groups) =>
-    render(
+    renderInto(
       html`<div>${groups.map((group) =>
         keyed(
           group.id,
@@ -154,6 +155,88 @@ const step = (label, container, before, next) => {
   const order = [...container.querySelectorAll('section')].map((s) => s.dataset.id);
   if (order.join(',') === 'g2,g1') pass++;
   else failures.push(`nested groups are in ${order.join(',')}`);
+}
+
+/**
+ * **A repeated key used to crash the render**, and then — once the crash was fixed — to lose a row.
+ *
+ * `keyed` documents duplicate keys as undefined behaviour, and they stay that way: which of two
+ * items keeps the existing node is not specified. Undefined has to mean *a list*, though, and it
+ * meant neither of these:
+ *
+ * 1. `TypeError: Cannot read properties of null (reading '_element')`, three frames inside a private
+ *    algorithm, naming nothing the caller wrote. The key→index map holds one index per key, so the
+ *    second occurrence of a key found the slot the first had already consumed and nulled.
+ * 2. With that fixed, a row silently **disappeared**. The map is built once, and the head/tail
+ *    branches consume items by moving the pointers without nulling anything — so an index that was
+ *    live when the map was built can now be outside the window, and a repeated key handed the same
+ *    item to two positions. The render then produced one row fewer than the list held. That is the
+ *    worse of the two: nothing throws and the page is simply wrong.
+ *
+ * Neither is reachable with unique keys, which is why the suite above never saw them. They need a
+ * duplicate **and** a reorder **and** a new key in the same step, and were found by fuzzing over a
+ * four-key alphabet so that duplicates were constant rather than occasional.
+ */
+{
+  const container = dom.window.document.createElement('div');
+  dom.window.document.body.appendChild(container);
+  /** Key and label differ here, so a dropped row is visible — above they are the same string. */
+  const paint = (rows) =>
+    renderInto(
+      html`<ul>${rows.map(([key, label]) => keyed(key, html`<li data-id=${key}>${label}</li>`))}</ul>`,
+      container
+    );
+  const labels = () => [...container.querySelectorAll('li')].map((li) => li.textContent).join('|');
+
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    /** The shrunk transition from the fuzz: a duplicate, a reorder and a new key at once. */
+    const before = [['a', '1'], ['b', '2'], ['c', '3']];
+    const after = [['b', '2'], ['b', '4'], ['a', '1'], ['c', '3'], ['d', '5']];
+    paint(before);
+    const startingLabels = labels();
+    paint(after);
+    if (startingLabels === '1|2|3') pass++;
+    else failures.push(`the setup for duplicate keys rendered ${startingLabels}`);
+    if (labels() === '2|4|1|3|5') pass++;
+    else failures.push(`a duplicate key rendered ${labels()} instead of 2|4|1|3|5`);
+
+    /**
+     * The second failure needs its own case: fixing only the null check left this rendering
+     * `a0|a2|a3|a4` for a five-row list, and every case above still passed. Found by searching small
+     * lists over a three-key alphabet against the half-fixed build, then shrunk.
+     */
+    paint([['b', 'b0'], ['a', 'b2']]);
+    paint([['c', 'a0'], ['b', 'a1'], ['b', 'a2'], ['a', 'a3'], ['c', 'a4']]);
+    if (labels() === 'a0|a1|a2|a3|a4') pass++;
+    else failures.push(`a repeated key dropped a row: rendered ${labels()} of five`);
+
+    /** And the general case: every row the list holds is rendered, whatever the keys repeat. */
+    const rounds = [
+      [['a', '1'], ['a', '2']],
+      [['a', '2'], ['a', '1'], ['b', '3']],
+      [['b', '3'], ['a', '1'], ['a', '2'], ['a', '9']],
+      [['a', '9'], ['b', '3']],
+      [['c', '7'], ['c', '8'], ['c', '9'], ['a', '1']],
+      [['a', '1'], ['c', '9'], ['c', '8'], ['c', '7'], ['d', '0']],
+    ];
+    for (const rows of rounds) {
+      paint(rows);
+      const want = rows.map(([, label]) => label).join('|');
+      if (labels() === want) pass++;
+      else failures.push(`duplicate keys rendered ${labels()} where the list held ${want}`);
+    }
+  } finally {
+    console.warn = warn;
+  }
+
+  /** Undefined behaviour is worth saying out loud, since it behaves correctly most of the time. */
+  if (!isProduction) {
+    if (said.some((line) => /^\[vera\] keyed: the key /.test(line))) pass++;
+    else failures.push('a duplicate key produced no warning in development');
+  }
 }
 
 if (failures.length) {

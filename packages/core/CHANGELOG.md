@@ -52,8 +52,8 @@
   
   ```js
   import { setRenderer } from '@verajs/core';
-  import { render as domRender } from '@verajs/renderer';
-  setRenderer(domRender);
+  import { render as renderer } from '@verajs/renderer';
+  setRenderer(renderer);
   ```
   
   `render()` with no renderer registered now warns once in development, naming those exact lines.

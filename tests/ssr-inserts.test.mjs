@@ -20,13 +20,13 @@ let observed;
 try {
   writeFileSync(
     `${dir}/probe.js`,
-    `import { init, render, html, createStore, insert } from '@verajs/core';
+    `import { init, render, html, createStore, wire } from '@verajs/core';
 export const observed = { reads: 0, writes: 0, inits: 0, order: [], errors: [] };
-insert('proxy-handler', () => { observed.reads++; }, 30);
-insert('set-handler', () => { observed.writes++; }, 30);
-insert('init', () => { observed.inits++; observed.order.push('init@30'); }, 30);
-insert('init', () => { observed.order.push('init@70'); }, 70);
-insert('error', (error) => { observed.errors.push(String(error.message)); }, 30);
+wire({ on: 'proxy-handler', fn: () => { observed.reads++; }, priority: 30 });
+wire({ on: 'set-handler', fn: () => { observed.writes++; }, priority: 30 });
+wire({ on: 'init', fn: () => { observed.inits++; observed.order.push('init@30'); }, priority: 30 });
+wire({ on: 'init', fn: () => { observed.order.push('init@70'); }, priority: 70 });
+wire({ on: 'error', fn: (error) => { observed.errors.push(String(error.message)); }, priority: 30 });
 customElements.define('insert-probe', class extends HTMLElement {
   connectedCallback() {
     init(this, { mode: 'open' });

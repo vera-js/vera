@@ -10,9 +10,9 @@
  * one is and the application never knows.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
 import {
-  render as profilingRender,
+  renderInto as profilingRender,
   profile,
   formatReport,
   startProfiling,
@@ -20,7 +20,7 @@ import {
   isProfiling,
 } from '../../packages/renderer/dist/development/vera-renderer-profiler.js';
 
-setRenderer(profilingRender);
+wire({ on: 'render', fn: profilingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** The shape the docs call fragile: two sibling parts swapping between a template and nothing. */

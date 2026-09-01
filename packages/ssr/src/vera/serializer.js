@@ -1,4 +1,4 @@
-import { escapeHtml } from './shim.js';
+import { escapeHtml, escapeRawText } from './shim.js';
 
 /**
  * The vera-native template serializer: flattens core's `html` template objects to markup with
@@ -59,7 +59,29 @@ const openTagName = (out) => {
  * hid the element on one side and printed `?hidden='true'` on the other. Visible difference on a
  * static page, guaranteed mismatch on a hydrated one.
  */
-const SIGIL_TAIL = /([.?@&])([a-zA-Z][\w:-]*)=(["']?)$/;
+/**
+ * `!name` is here alongside `.name` because a **live** property is still a property: the sigil only
+ * changes *when the client re-writes it*, and a server has nothing to re-write against. It is
+ * serialized exactly as `.name` is, so the first paint is right and the client takes over.
+ *
+ * A sigil the server does not know is not inert — it falls through to the plain-attribute path and
+ * emits `! checked="true"`, which is an attribute named `!` and a second one beside it. That is why
+ * every sigil has to be added here in the same pass it is added to the renderer.
+ */
+/**
+ * A sigil binding's tail, as it appears at the end of the static before the value.
+ *
+ * The name is **optional after `&`**, and only after `&`: `&=${ref}` is a legal element ref with no
+ * name at all — the renderer's scanner back-reads the name `&`, and `AttrPart` maps that to a ref.
+ * The client therefore drops it and renders nothing, while this pattern did not match it and left
+ * `&=` in the tag with the value stringified after it: `<p &=[object Object]>`, which is malformed
+ * markup that also prints the object.
+ *
+ * The name is optional for all five rather than only `&`, which costs nothing: a nameless `.=`,
+ * `?=`, `@=` or `!=` has no meaning either, and dropping such a binding is a better answer than
+ * writing it into the tag with its value stringified beside it.
+ */
+const SIGIL_TAIL = /([.?@&!])([a-zA-Z][\w:-]*)?=(["']?)$/;
 
 /** `onClick=${fn}` — the React-shaped event binding, quoted the same three ways. */
 const EVENT_TAIL = /on[A-Z][\w:-]*=(["']?)$/;
@@ -113,10 +135,41 @@ const closesTag = (text, inTag) => {
  * back — `class="a ` ends in a space and is still inside a value. So the state is carried, one
  * character at a time, and only at compile time: this runs once per template, ever.
  */
+/**
+ * The two **RAWTEXT** elements. A browser does not decode a character reference inside either, so
+ * escaping their content does not protect anything and does corrupt it — `<style>` gets `.a &#62; .b`
+ * for `.a > .b`, a selector that matches nothing, and a `<script>` gets broken source.
+ *
+ * `<title>` and `<textarea>` are **RCDATA**, not RAWTEXT: references *are* decoded there, so those
+ * two keep ordinary escaping, which is also what the client produces. They are deliberately not in
+ * this set.
+ */
+const RAWTEXT = new Set(['style', 'script']);
+
 const scanTag = (text, state) => {
-  let { inTag, inValue, quote } = state;
+  let { inTag, inValue, quote, rawTag, tagName, naming } = state;
   for (let i = 0; i < text.length; i++) {
     const character = text[i];
+    /**
+     * Inside `<style>` or `<script>` nothing is markup until that element's own end tag, so the
+     * attribute machinery below must not run — and a binding here is **raw text**, which the render
+     * pass has to know about.
+     */
+    if (rawTag) {
+      const close = '</' + rawTag;
+      if (
+        character === '<' &&
+        text.slice(i, i + close.length).toLowerCase() === close &&
+        (i + close.length >= text.length || /[\s/>]/.test(text[i + close.length]))
+      ) {
+        i += close.length - 1;
+        rawTag = '';
+        inTag = true;
+        tagName = '';
+        naming = false;
+      }
+      continue;
+    }
     if (inValue) {
       /** An unquoted value ends at whitespace or the tag's own `>`. */
       if (quote ? character === quote : /[\s>]/.test(character)) {
@@ -127,19 +180,37 @@ const scanTag = (text, state) => {
       continue;
     }
     if (!inTag) {
-      if (character === '<') inTag = true;
+      if (character === '<') {
+        inTag = true;
+        /** Collected as it is scanned, so a tag split across two statics keeps its name. */
+        tagName = '';
+        naming = true;
+      }
       continue;
     }
-    if (character === '>') inTag = false;
-    else if (character === '=') {
+    if (character === '>') {
+      inTag = false;
+      /** A self-closing tag has no content to be raw, and a closing tag opens nothing. */
+      if (text[i - 1] !== '/' && RAWTEXT.has(tagName)) rawTag = tagName;
+      tagName = '';
+      naming = false;
+    } else if (character === '=') {
+      naming = false;
       let next = i + 1;
       while (next < text.length && /\s/.test(text[next])) next++;
       quote = text[next] === '"' || text[next] === "'" ? text[next] : '';
       inValue = true;
       i = quote ? next : next - 1;
+    } else if (naming) {
+      /** The name runs until the first character that cannot be in one; `/` means a closing tag. */
+      if (/[a-zA-Z0-9-]/.test(character)) tagName += character.toLowerCase();
+      else {
+        naming = false;
+        if (character === '/' && tagName === '') tagName = '\u0000';
+      }
     }
   }
-  return { inTag, inValue, quote };
+  return { inTag, inValue, quote, rawTag, tagName, naming };
 };
 
 /** Attribute names written into the statics, so a duplicate can be spotted before a render. */
@@ -167,6 +238,10 @@ const compile = (strings) => {
    */
   const strip = [];
   const owners = [];
+  /** Which RAWTEXT element each binding sits inside, `''` when none. See `RAWTEXT`. */
+  const raws = [];
+  /** Per part: this binding sits inside a quoted attribute value, so the attribute rule applies. */
+  const attrValues = [];
   /**
    * Whether each slot is an **element position** — inside a tag but not inside an attribute value.
    *
@@ -185,7 +260,7 @@ const compile = (strings) => {
   let openQuote = '';
   let inTag = false;
   /** Carried across statics — see `scanTag`. */
-  let tagState = { inTag: false, inValue: false, quote: '' };
+  let tagState = { inTag: false, inValue: false, quote: '', rawTag: '', tagName: '', naming: false };
 
   for (let i = 0; i < strings.length - 1; i++) {
     let part = strings[i];
@@ -226,18 +301,22 @@ const compile = (strings) => {
       parts.push(before);
       openQuote = sigil[3];
       const kind = sigil[1];
+      /** Absent after a bare `&=`, which is an element ref with no name. */
+      const sigilName = sigil[2] ?? '';
       if (kind === '?') {
         kinds.push(BOOLEAN);
-      } else if (kind === '.' && FORM_ATTRIBUTES.includes(sigil[2])) {
+      } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigilName)) {
         kinds.push(FORM_PROP);
       } else {
         kinds.push(DROPPED);
       }
-      names.push(sigil[2]);
-      strip.push(dynamicTag || written.has(sigil[2].toLowerCase()));
+      names.push(sigilName);
+      strip.push(dynamicTag || written.has(sigilName.toLowerCase()));
       owners.push(owner);
+      raws.push(tagState.rawTag);
+      attrValues.push(false);
       elementPositions.push(false);
-      written.add(sigil[2].toLowerCase());
+      if (sigilName) written.add(sigilName.toLowerCase());
       continue;
     }
 
@@ -254,6 +333,8 @@ const compile = (strings) => {
       names.push('');
       strip.push(false);
       owners.push(owner);
+      raws.push(tagState.rawTag);
+      attrValues.push(false);
       elementPositions.push(false);
       continue;
     }
@@ -275,6 +356,8 @@ const compile = (strings) => {
       names.push(name);
       strip.push(dynamicTag || written.has(name.toLowerCase()));
       owners.push(owner);
+      raws.push(tagState.rawTag);
+      attrValues.push(false);
       elementPositions.push(false);
       written.add(name.toLowerCase());
       continue;
@@ -285,6 +368,15 @@ const compile = (strings) => {
     names.push('');
     strip.push(false);
     owners.push(owner);
+    raws.push(tagState.rawTag);
+    /**
+     * `<p title="a ${x} b">` reaches here as TEXT — the name is in the static, so there is no sigil
+     * and no `name=` tail to match — and it is emitted straight into the stream between the
+     * statics. That made it take the **child-position** rule while `title=${x}` took the attribute
+     * rule, so an array served `a 12 b` where the client, which builds the string and calls
+     * `setAttribute`, produced `a 1,2 b`.
+     */
+    attrValues.push(tagState.inTag && tagState.inValue);
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     elementPositions.push(elementPosition);
@@ -296,14 +388,14 @@ const compile = (strings) => {
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names, strip, owners, elementPositions };
+  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners, elementPositions } = plans.get(strings) ?? compile(strings);
+  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions } = plans.get(strings) ?? compile(strings);
   let out = '';
   /**
    * Content that belongs *after* the tag being built rather than inside it — a `<textarea>`'s
@@ -312,6 +404,11 @@ export const serializeTemplate = (template) => {
    * does on the client.
    */
   let pendingText = null;
+  /**
+   * Values bound to a `<select>`'s `.value`, resolved into `<option selected>` after the loop —
+   * the options are usually a nested template, so nothing can be decided until the string is whole.
+   */
+  const selectValues = [];
 
   for (let i = 0; i < kinds.length; i++) {
     if (pendingText === null) out += parts[i];
@@ -327,6 +424,7 @@ export const serializeTemplate = (template) => {
           const folded = foldSpread(out, value._$attrs$());
           out = folded.out;
           if (folded.text !== null) pendingText = folded.text;
+          if (folded.select !== null) out += ` ${SELECT_MARK}="${selectValues.push(folded.select) - 1}"`;
         }
         /**
          * An **element-position** expression that is not a spread is a ref — `<input ${myRef} />`,
@@ -337,7 +435,61 @@ export const serializeTemplate = (template) => {
          * `<input [object Object]>` — which the parser then read as two attributes named
          * `[object` and `object]`. A value in this position never has markup; only a spread does.
          */
-        else if (elementPositions[i]) break;
+        else if (elementPositions[i]) {
+          /**
+           * **A dynamic attribute *name* is refused rather than dropped.**
+           *
+           * `<b ${name}="x">` puts the slot at an element position with an `=` immediately after it,
+           * which is the one shape here that is not a ref. Dropping the value emitted `<b="x">` —
+           * not an attribute, not a tag, markup no browser would produce from that template. The
+           * client is no better off: it hands the template to the platform's parser and a marker is
+           * not a name. Since both halves are broken, saying so is more use than serving either
+           * one's version of broken.
+           */
+          if (/^=/.test(parts[i + 1] ?? ''))
+            throw new Error(
+              `ssr: an attribute name cannot be an expression — \`<b \${name}="x">\` is malformed ` +
+                `markup in the browser too, because the parser sees the marker before the value ` +
+                `exists. Use \`@verajs/renderer/spread\`, which is built for names that are not known ` +
+                `until runtime and which this serializer understands.`
+            );
+          /**
+           * The space that introduced the binding goes with it, exactly as a dropped sigil binding's
+           * does. Leaving it served `<p >r</p>` where the client renders `<p>r</p>` — harmless to a
+           * parser, and still a difference between the two halves for something neither of them
+           * renders at all.
+           */
+          out = out.replace(/ $/, '');
+          break;
+        }
+        /**
+         * **Raw text is written raw, and its own end tag is neutralised.**
+         *
+         * A browser does not decode a character reference inside `<style>` or `<script>`, so
+         * escaping there protects nothing and corrupts the content: `<style>${'.a > .b'}</style>`
+         * served `.a &#62; .b`, a selector that matches nothing, while the client — which sets text
+         * through the DOM and never re-parses — rendered `.a > .b`. Every interpolated stylesheet
+         * was broken server-side and correct client-side, which is also a hydration divergence.
+         *
+         * Not escaping means the element's end tag has to be taken out of the value instead, or it
+         * closes the element and everything after it parses as markup. `<\/style` is valid CSS and
+         * `<\/script` is the canonical form in JavaScript; both render identically and neither is
+         * seen by the tokenizer.
+         *
+         * `<title>` and `<textarea>` are RCDATA, not RAWTEXT — references *are* decoded there — so
+         * they keep ordinary escaping, which is what the client produces for them too.
+         */
+        else if (raws[i]) out += escapeRawText(serializeValue(value, true), raws[i]);
+        /**
+         * **Inside a quoted attribute value, the attribute rule applies** — the same rule
+         * `title=${x}` takes one case below, and for the same reason: the client builds the whole
+         * value as a string and hands it to `setAttribute`, which is ToString and nothing else. The
+         * child-position rule renders a value instead, so an array was iterated into `12` against
+         * the browser's `1,2`, a `Set` into `12` against `[object Set]`, and a function vanished
+         * where the client writes its source. The single-expression form was corrected for exactly
+         * this; the form with static text beside it was reached by a different branch and kept it.
+         */
+        else if (attrValues[i]) out += escapeHtml(serializeValue(value, true));
         else out += serializeValue(value);
         break;
       case BOOLEAN:
@@ -352,16 +504,51 @@ export const serializeTemplate = (template) => {
          * sets the property — showed the text. Held until the tag closes, because that is where the
          * content goes; see `pendingText` below.
          */
+        /**
+         * A `<select>`'s `value` is not an attribute — see `SELECT_MARK`. Marked here and resolved
+         * once the options exist; writing ` value="b"` on the tag, which is what this used to do,
+         * means nothing to a parser and left the control showing its first option.
+         */
+        if (owners[i] === 'select' && names[i] === 'value') {
+          if (strip[i]) out = removeAttribute(out, names[i]);
+          out += ` ${SELECT_MARK}="${selectValues.push(`${value}`) - 1}"`;
+          break;
+        }
         if (owners[i] === 'textarea' && names[i] === 'value') {
-          pendingText = value == null || value === false ? '' : escapeHtml(value === true ? '' : value);
+          /**
+           * `null` and `undefined` are **not** the same value here, and treating them as one is what
+           * this used to do. `value` carries `[LegacyNullToEmptyString]` in its IDL, so assigning
+           * `null` gives `''` while `undefined` goes through the ordinary ToString and gives the text
+           * `"undefined"` — measured in Chromium, Firefox and WebKit, since that is the platform's
+           * rule and not this package's to guess. A `== null` test collapses them.
+           *
+           * The booleans used to be emptied too, which disagreed with `<input>` **one branch below**
+           * — the same property, on the same rule, serialized by a different branch: `true` served an
+           * empty `<textarea>` against the browser's `true`.
+           */
+          pendingText = value === null ? '' : escapeHtml(value);
           break;
         }
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (BOOLEAN_FORM_PROPERTIES.has(names[i])) {
           if (value) out += ` ${names[i]}=""`;
-        } else if (value != null) {
-          /** A string property: `true` is `"true"`, exactly as assigning it to the element gives. */
-          out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
+        } else if (value !== null || owners[i] === 'option') {
+          /**
+           * A string property: `true` is `"true"`, exactly as assigning it to the element gives.
+           *
+           * Three rules, not one, and they were measured rather than assumed:
+           *
+           * - `<input>` and `<textarea>` carry `[LegacyNullToEmptyString]`, so `null` means the empty
+           *   string. Omitting the attribute is how markup says that — a parsed `<input>` with no
+           *   `value` answers `''`.
+           * - `<option>` does **not**. `option.value = null` is the text `"null"` in every engine, and
+           *   omitting the attribute is worse than wrong there: `option.value` then falls back to the
+           *   element's own text.
+           * - `undefined` is never the empty string on any of them. It is `"undefined"`, which looks
+           *   like a bug because it *is* one — but it is the client's bug too, and the two sides
+           *   disagreeing about it is a hydration mismatch on top of it.
+           */
+          out += ` ${names[i]}="${escapeHtml(value)}"`;
         }
         break;
       case ATTRIBUTE:
@@ -369,11 +556,12 @@ export const serializeTemplate = (template) => {
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         break;
-      /** DROPPED: '@' and '&' and non-form '.': nothing — client concerns. */
+      /** DROPPED: '@' and '&' and a non-form '.' or '!': nothing — client concerns. */
     }
   }
   const tail = parts[kinds.length];
-  return pendingText === null ? out + tail : out + insertContent(tail, pendingText);
+  const finished = pendingText === null ? out + tail : out + insertContent(tail, pendingText);
+  return selectValues.length ? resolveSelects(finished, selectValues) : finished;
 };
 
 /**
@@ -383,6 +571,92 @@ export const serializeTemplate = (template) => {
  * `<textarea .value=${x}>anything</textarea>` must serve `x`, because that is what the element
  * will hold on the client the moment the property is assigned.
  */
+/**
+ * A `<select>` has **no `value` content attribute**. Assigning the property *selects an option*, so
+ * the only way markup can express it is `<option selected>` on the matching one — which is what
+ * React's server renderer does, and what this does. Lit's SSR drops the binding entirely and serves
+ * a control showing the wrong option.
+ *
+ * The mark is an index into a per-render list rather than the value itself, so nothing has to be
+ * escaped on the way in and unescaped on the way out; it is removed again by `resolveSelects`, and
+ * removing it is what terminates that loop.
+ */
+const SELECT_MARK = 'data-vera-select';
+const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
+const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
+const OPTION_VALUE = /\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
+const SELECTED_ATTR = /(<option\b[^>]*?)\s+selected(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*))?/gi;
+const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+/**
+ * Enough of a decoder to compare an option against a value.
+ *
+ * Everything this serializer writes is escaped as a numeric reference, and the five named ones are
+ * what an author writes by hand. A full entity table would be several kilobytes to decide which
+ * `<option>` is selected, and anything it missed would simply fail to match — which is the same
+ * outcome as an option that genuinely does not match, and is already a documented divergence.
+ */
+const decodeRefs = (text) =>
+  text.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(amp|lt|gt|quot|apos));/g, (whole, dec, hex, name) =>
+    dec ? String.fromCodePoint(+dec) : hex ? String.fromCodePoint(parseInt(hex, 16)) : NAMED[name] ?? whole
+  );
+
+/**
+ * What an engine reports for `option.value`: the `value` attribute verbatim if there is one, and
+ * otherwise the option's text **stripped and collapsed**. Both halves measured in Chromium, Firefox
+ * and WebKit — `tests/browser/select-value.test.js` — because the fallback is easy to assume is the
+ * raw text, and it is not.
+ */
+const optionValue = (attributes, text) => {
+  const attribute = OPTION_VALUE.exec(attributes);
+  if (attribute) return decodeRefs(attribute[1] ?? attribute[2] ?? attribute[3]);
+  return decodeRefs(text).replace(/[\t\n\f\r ]+/g, ' ').trim();
+};
+
+/**
+ * Marks the first option matching `wanted`, and clears any `selected` the author wrote.
+ *
+ * Clearing is not tidiness: a property assignment overrides markup, so `<option selected>` beside a
+ * `.value` binding loses on the client and has to lose here too. **First match wins**, which is the
+ * engines' rule for duplicate values.
+ *
+ * When nothing matches, nothing is marked — and that is a divergence markup cannot close. The client
+ * leaves `selectedIndex` at `-1` with nothing showing; a parsed `<select>` with no selected option
+ * takes its **first**. See the SSR README.
+ */
+const markSelected = (content, wanted) => {
+  const cleared = content.replace(SELECTED_ATTR, '$1');
+  OPTION.lastIndex = 0;
+  for (let match = OPTION.exec(cleared); match; match = OPTION.exec(cleared)) {
+    if (optionValue(match[1], match[2]) !== wanted) continue;
+    const open = match[0].slice(0, match[0].indexOf('>'));
+    return (
+      cleared.slice(0, match.index) +
+      open.replace(/\s*\/?$/, '') +
+      ' selected>' +
+      match[0].slice(match[0].indexOf('>') + 1) +
+      cleared.slice(match.index + match[0].length)
+    );
+  }
+  return cleared;
+};
+
+/** Resolves every marked `<select>` once its options are in the string — see `SELECT_MARK`. */
+const resolveSelects = (markup, wanted) => {
+  for (let match = MARKED_SELECT.exec(markup); match; match = MARKED_SELECT.exec(markup)) {
+    const openTag = match[0].replace(new RegExp(`\\s*${SELECT_MARK}="\\d+"`, 'i'), '');
+    const contentStart = match.index + match[0].length;
+    const closeAt = markup.toLowerCase().indexOf('</select', contentStart);
+    const end = closeAt === -1 ? markup.length : closeAt;
+    markup =
+      markup.slice(0, match.index) +
+      openTag +
+      markSelected(markup.slice(contentStart, end), wanted[+match[1]]) +
+      markup.slice(end);
+  }
+  return markup;
+};
+
 const insertContent = (staticText, text) => {
   const close = staticText.indexOf('>');
   if (close === -1) return staticText;
@@ -490,6 +764,8 @@ const foldSpread = (out, entries) => {
   let added = '';
   /** A `<textarea>`'s value is its text content, so a `.value` key here is not an attribute. */
   let text = null;
+  /** A `<select>`'s value is not an attribute either; the caller marks the tag — see `SELECT_MARK`. */
+  let select = null;
 
   const owner = openTagName(out);
   const isFormElement = FORM_ELEMENTS.has(owner);
@@ -517,8 +793,13 @@ const foldSpread = (out, entries) => {
      * while the client, which sets the property, showed the text. The written form was fixed and
      * this one was not: a spread key means what the written binding means, always.
      */
+    if (kind === 'p' && owner === 'select' && name === 'value') {
+      /** A spread key means what the written binding means, always — see `SELECT_MARK`. */
+      select = `${value}`;
+      continue;
+    }
     if (kind === 'p' && owner === 'textarea' && name === 'value') {
-      text = value == null || value === false ? '' : escapeHtml(value === true ? '' : value);
+      text = value === null ? '' : escapeHtml(value);
       continue;
     }
 
@@ -534,11 +815,22 @@ const foldSpread = (out, entries) => {
      */
     if (kind === 'b' || (kind === 'p' && BOOLEAN_FORM_PROPERTIES.has(name))) {
       if (value) added += ` ${name}=""`;
+    } else if (kind === 'p') {
+      /**
+       * **A string form property and a plain attribute are no longer the same rule**, which is why
+       * this branch split. An attribute is removed by either nullish value — the renderer's own
+       * documented behaviour, matching lit, on both sides. A `value` property is not: its IDL carries
+       * `[LegacyNullToEmptyString]` on `<input>` and `<textarea>`, so `null` alone means the empty
+       * string, `undefined` is the text `"undefined"`, and `<option>` has neither rule and takes
+       * `"null"`. Written and spread must agree about all of it —
+       * `tests/ssr-spread-equivalence.test.mjs` is what caught this one, and it caught it the same
+       * afternoon the written form was corrected.
+       */
+      if (value !== null || owner === 'option') added += ` ${name}="${escapeHtml(value)}"`;
     } else if (value != null) {
       /**
-       * An attribute and a string form property behave identically: anything not nullish is
-       * `String(value)`. `false` is `"false"` and `true` is `"true"`, because that is what
-       * `setAttribute` and a property assignment both produce.
+       * A plain attribute takes anything not nullish and is removed by either nullish value.
+       * `false` is `"false"` and `true` is `"true"`, because that is what `setAttribute` produces.
        */
       added += ` ${name}="${escapeHtml(serializeValue(value, true))}"`;
     }
@@ -554,6 +846,7 @@ const foldSpread = (out, entries) => {
     out: out.slice(0, tagStart) + (added ? tag + added.slice(1) : tag.replace(/ $/, '')),
     /** Written into the next static, after the `>` that closes this tag — see `insertContent`. */
     text,
+    select,
   };
 };
 
@@ -583,7 +876,7 @@ export const serializeValue = (value, raw = false) => {
    * value** against `[object Object]`. Escaped, so not an injection — and still a completely
    * different page before and after hydration.
    */
-  if (raw) return String(value);
+  if (raw) return `${value}`;
   if (Array.isArray(value)) return value.map((entry) => serializeValue(entry)).join('');
   if (typeof value === 'function') return '';
   if (typeof value === 'object') {
@@ -630,5 +923,5 @@ export const serializeValue = (value, raw = false) => {
      * built one.
      */
   }
-  return raw ? String(value) : escapeHtml(value);
+  return raw ? `${value}` : escapeHtml(value);
 };

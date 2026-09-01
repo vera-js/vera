@@ -1,19 +1,24 @@
 /**
  * `@verajs/styles` — `static styles` support for VeraJS components.
  *
- * Wire it once, at your app entry, next to `setRenderer`:
+ * Wire it once, at your app entry, alongside the renderer:
  *
  * ```js
- * import { insert } from '@verajs/core';
- * import { adoptStyles } from '@verajs/styles';
- * insert('init', adoptStyles, 50);
+ * import { wire } from '@verajs/core';
+ * import { renderer } from '@verajs/renderer';
+ * import { styles } from '@verajs/styles';
+ * wire([renderer, styles]);
  * ```
  *
- * **Why this is three lines rather than a bare `import '@verajs/styles'`.** A production
+ * `styles` is the module; `adoptStyles` is the function it registers, and wiring that function
+ * yourself — `wire({ on: 'init', fn: adoptStyles, priority: 50 })` — is the same thing written out,
+ * and what to write when you want a different priority.
+ *
+ * **Why this is a `wire` call at all, rather than a bare `import '@verajs/styles'`.** A production
  * `.min.js` inlines `@verajs/inserts`, so every bundle carries its own registry. A module that
  * registered itself at import would write into *its* copy while core read *its own* — working
  * perfectly in development, where the dependency stays external and both resolve to one module,
- * and silently doing nothing in production. Taking `insert` from `@verajs/core` sidesteps the
+ * and silently doing nothing in production. Taking `wire` from `@verajs/core` sidesteps the
  * question entirely: it is core's own function, writing to the map core reads, in every build.
  *
  * `@verajs/ssr` wires its server renderer exactly the same way, for exactly this reason.
@@ -25,4 +30,4 @@
  * app paid 300 B gzipped for one unconditional call.
  */
 export type * from './types.js';
-export { adoptStyles, applyStyles } from './styles.js';
+export { adoptStyles, applyStyles, styles } from './styles.js';

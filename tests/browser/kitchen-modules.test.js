@@ -67,10 +67,10 @@ describe('the autoloader', () => {
   });
 
   it('reports a failed load as a DOM event, so an app can render around it', async () => {
-    const { initAutoloader } = await view.eval(
+    const { autoloader } = await view.eval(
       "import('/packages/autoloader/dist/development/vera-autoloader.js')"
     );
-    const autoload = initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
+    const autoload = autoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
 
     const host = frame.contentDocument.createElement('div');
     host.setAttribute('autoloader', '');
@@ -90,18 +90,18 @@ describe('the autoloader', () => {
   });
 
   it('url() answers what it would fetch, without fetching it', async () => {
-    const { initAutoloader } = await view.eval(
+    const { autoloader } = await view.eval(
       "import('/packages/autoloader/dist/development/vera-autoloader.js')"
     );
-    const autoload = initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
+    const autoload = autoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
     expect(autoload.url('sink-lazy')).to.contain('/examples/kitchen-sink/lazy/sink-lazy.js');
   });
 
   it('autoload-ignore excludes that element only', async () => {
-    const { initAutoloader } = await view.eval(
+    const { autoloader } = await view.eval(
       "import('/packages/autoloader/dist/development/vera-autoloader.js')"
     );
-    const autoload = initAutoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
+    const autoload = autoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
     const host = frame.contentDocument.createElement('div');
     host.setAttribute('autoloader', '');
     frame.contentDocument.body.appendChild(host);

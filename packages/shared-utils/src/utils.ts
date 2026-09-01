@@ -1,33 +1,3 @@
-import { GetResult, GetValueType } from '@verajs/shared-types';
-
-/**
- * Utility function for emulating .get chaining on Map prototypes for readability in the
- * signal handler function. This function checks for the existance of a key before getting it
- * and creates it if it doesn't exist.
- *
- * @param item The item to get the key for
- *
- * @returns An object with new get function to chain (g) or the items final value (v)
- */
-export const get = <T>(item: T) => ({
-  get: <K>(key: K, defaultValue: GetValueType<T>): GetResult<GetValueType<T>> => {
-    if (isInstanceOf(item, Array)) {
-      /** Compared against `undefined`, not truthiness — an existing `0`/`''`/`false` entry must
-       * not be clobbered with the default (the falsy-check defect class from map-support). */
-      if ((item as Array<GetValueType<T>>)[key as number] === undefined) {
-        (item as Array<GetValueType<T>>)[key as number] = defaultValue;
-      }
-      return get<GetValueType<T>>((item as Array<GetValueType<T>>)[key as number]);
-    } else if (isInstanceOf(item, Map) || isInstanceOf(item, WeakMap)) {
-      if (!(item as Map<K, GetValueType<T>>).has(key)) {
-        (item as Map<K, GetValueType<T>>).set(key, defaultValue);
-      }
-      return get<GetValueType<T>>((item as Map<K, GetValueType<T>>).get(key)!);
-    }
-    return throwError() as GetResult<GetValueType<T>>;
-  },
-  value: item,
-});
 
 /**
  * Get an object's type.
@@ -36,15 +6,6 @@ export const get = <T>(item: T) => ({
  * @return The type
  */
 export const getType = (obj: unknown) => Object.prototype.toString.call(obj).slice(8, -1).toLowerCase();
-
-/**
- * Check if an item is an instance of a class type.
- *
- * @param item Item to check
- * @param classType Class type to check
- */
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-const isInstanceOf = <I, C extends Function>(item: I, classType: C) => item instanceof classType;
 
 /**
  * Whether an item is a set or map
@@ -60,15 +21,6 @@ const KEYED_COLLECTIONS = ['map', 'set', 'weakmap', 'weakset'];
  */
 export const isWeakCollection = (item: unknown) => getType(item)[0] === 'w';
 export const isSetOrMap = <T>(item: T) => KEYED_COLLECTIONS.includes(getType(item));
-
-/**
- * Throws a minified error with an id number
- *
- * @param minifiedError Throws a minified error
- */
-export const throwError = (minifiedError?: number): never => {
-  throw new Error(minifiedError ? `Minified error: ${minifiedError}` : '');
-};
 
 /**
  * Remove a trailing slash from an url if its not root url (`/`).

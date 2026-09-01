@@ -26,10 +26,10 @@ const component = new URL('./components/hello-ssr.js', import.meta.url);
  * fresh, so the page looks right and the server work is thrown away.
  */
 const CLIENT = `
-import { setRenderer } from '/packages/core/dist/development/vera.js';
-import { render } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { wire } from '/packages/core/dist/development/vera.js';
+import { renderInto } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-setRenderer(render);
+wire({ on: 'render', fn: renderInto, priority: 50 });
 await import('/examples/ssr-node/components/hello-ssr.js');
 document.body.dataset.hydrated = 'true';
 `;

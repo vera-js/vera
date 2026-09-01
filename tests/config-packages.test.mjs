@@ -13,7 +13,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, symlinkSync, rmSync, readdirSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -89,19 +89,19 @@ test('eslint-config: a plain class is left alone', () => {
 });
 
 test('eslint-config: flags `insert` taken from @verajs/inserts', () => {
-  const out = lint("import { insert } from '@verajs/inserts';\ninsert('render', () => {}, 1);");
+  const out = lint("import { wire } from '@verajs/inserts';\nwire({ on: 'render', fn: () => {}, priority: 1 });");
   assert.match(out, /no-restricted-imports/);
   assert.match(out, /silently does nothing/, 'the message must name the production failure');
 });
 
 test('eslint-config: importing the registry itself is allowed', () => {
-  // `connectInserts(inserts)` is the documented CDN wiring and must not be caught.
+  // Reading the registry itself is legitimate — only `wire` is restricted.
   const out = lint("import { inserts } from '@verajs/inserts';\nconsole.log(inserts);");
   assert.doesNotMatch(out, /no-restricted-imports/);
 });
 
-test('eslint-config: `insert` from core is allowed', () => {
-  const out = lint("import { insert } from '@verajs/core';\ninsert('init', () => {}, 50);");
+test('eslint-config: `wire` from core is allowed', () => {
+  const out = lint("import { wire } from '@verajs/core';\nwire({ on: 'init', fn: () => {}, priority: 50 });");
   assert.doesNotMatch(out, /no-restricted-imports/);
 });
 
@@ -133,4 +133,40 @@ test('tsconfig: a field declaration emits nothing under it', () => {
   rmSync(dir, { recursive: true, force: true });
   assert.doesNotMatch(emitted, /\buser\b/,
     'a bare declaration must emit no field — that is the whole point of the package');
+});
+
+/**
+ * A changeset may only name a package that is actually published.
+ *
+ * `shared-types` and `shared-utils` are `private: true` and inlined into every build, and the
+ * changesets config sets `privatePackages.version: false` — so naming one produces no version bump
+ * and no changelog entry anywhere. The change still ships, inlined; it just goes undescribed.
+ *
+ * A `weak-collections` changeset named `@verajs/shared-utils` for exactly that reason, and the
+ * entry was inert. The right answer is to name the **published** packages the inlined change reaches.
+ */
+test('every changeset names a publishable package and a valid bump', () => {
+  const publishable = new Set();
+  for (const pkg of readdirSync('packages')) {
+    const manifest = `packages/${pkg}/package.json`;
+    if (!existsSync(manifest)) continue;
+    const parsed = JSON.parse(readFileSync(manifest, 'utf8'));
+    if (!parsed.private && parsed.name) publishable.add(parsed.name);
+  }
+  assert.ok(publishable.size > 5, `expected to find the packages, found ${publishable.size}`);
+
+  const problems = [];
+  for (const file of readdirSync('.changeset')) {
+    if (!file.endsWith('.md') || file === 'README.md') continue;
+    const frontmatter = readFileSync(`.changeset/${file}`, 'utf8').split('---')[1] ?? '';
+    for (const line of frontmatter.trim().split('\n')) {
+      const entry = /^'([^']+)':\s*(\w+)$/.exec(line.trim());
+      if (!entry) continue;
+      const [, name, bump] = entry;
+      if (!publishable.has(name)) problems.push(`${file}: names "${name}", which is not published`);
+      /** While 0.x, MINOR is the breaking boundary — `major` is never the right answer yet. */
+      if (!['patch', 'minor'].includes(bump)) problems.push(`${file}: bump "${bump}" — patch or minor`);
+    }
+  }
+  assert.deepEqual(problems, [], `\n  ${problems.join('\n  ')}`);
 });

@@ -1,6 +1,6 @@
 import { expect } from '@esm-bundle/chai';
-import { init, createStore, render, setRenderer, css, html, insert } from '../../packages/core/dist/development/vera.js';
-import { render as domRender } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { init, createStore, render, wire, css, html} from '../../packages/core/dist/development/vera.js';
+import { renderInto as renderer } from '../../packages/renderer/dist/development/vera-renderer.js';
 import { adoptStyles, applyStyles } from '../../packages/styles/dist/development/vera-styles.js';
 
 /**
@@ -12,8 +12,8 @@ import { adoptStyles, applyStyles } from '../../packages/styles/dist/development
  * runs for a user, tested for the first time.
  */
 
-setRenderer(domRender);
-insert('init', adoptStyles, 50);
+wire({ on: 'render', fn: renderer, priority: 50 });
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 let seq = 0;
 const define = (body, options) => {
@@ -101,6 +101,49 @@ it('@scope actually confines light-DOM styles to the component subtree', async f
   expect(getComputedStyle(outside).color, 'does NOT leak outside').to.not.equal('rgb(255, 0, 0)');
   el.remove();
   outside.remove();
+});
+
+/**
+ * **Two components, and neither one's rules reach the other.**
+ *
+ * The suite above proves a class's styles stay inside *its own* subtree and out of the page. That
+ * leaves the case a single component cannot show: whether the `@scope` block is keyed to the tag that
+ * hoisted it, or merely to *a* tag.
+ *
+ * A jsdom fuzz over 30 generated classes could not answer this — there is no `@scope` there at all,
+ * so the whole scoped branch falls through to the unscoped fallback and a mutation rewriting
+ * `@scope (${element.localName})` to `@scope (div)` survived it completely. This is where that
+ * mutation dies.
+ *
+ * Two colours rather than one, checked in both directions, because "A is red" and "B is not red" can
+ * both hold while B's rules are missing entirely.
+ */
+it('one component\'s light-DOM styles do not reach another component', async function () {
+  if (typeof CSSScopeRule !== 'function') this.skip();
+
+  const red = define({ shadow: false, template: () => html`<b>red side</b>` }, css`b { color: rgb(255, 0, 0); }`);
+  const blue = define({ shadow: false, template: () => html`<b>blue side</b>` }, css`b { color: rgb(0, 0, 255); }`);
+  await frame();
+
+  try {
+    expect(getComputedStyle(red.querySelector('b')).color, 'the first component lost its own styles').to.equal('rgb(255, 0, 0)');
+    expect(getComputedStyle(blue.querySelector('b')).color, 'the second component lost its own styles').to.equal('rgb(0, 0, 255)');
+
+    /** The direction a shared or mis-keyed scope would break: each must reject the other's rule. */
+    expect(getComputedStyle(red.querySelector('b')).color, "the first component picked up the second's colour").to.not.equal('rgb(0, 0, 255)');
+    expect(getComputedStyle(blue.querySelector('b')).color, "the second component picked up the first's colour").to.not.equal('rgb(255, 0, 0)');
+
+    /** And a plain `<b>` outside both stays untouched by either. */
+    const outsider = document.createElement('b');
+    document.body.appendChild(outsider);
+    const outsideColour = getComputedStyle(outsider).color;
+    expect(outsideColour, 'a rule escaped to the page').to.not.equal('rgb(255, 0, 0)');
+    expect(outsideColour, 'a rule escaped to the page').to.not.equal('rgb(0, 0, 255)');
+    outsider.remove();
+  } finally {
+    red.remove();
+    blue.remove();
+  }
 });
 
 it('applyStyles falls back to a <style> element for a plain string', () => {

@@ -12,7 +12,7 @@
  * (or bundler alias) at it instead of `@verajs/renderer` and nothing else changes:
  *
  * ```js
- * import { render, startProfiling, stopProfiling, formatReport } from '@verajs/renderer/profiler';
+ * import { renderInto, startProfiling, stopProfiling, formatReport } from '@verajs/renderer/profiler';
  * startProfiling();
  * // …drive the app…
  * console.log(formatReport(stopProfiling()));
@@ -26,6 +26,12 @@
  * Like `./hydrate.ts`, this bundle contains its own copy of the renderer. Import the app's renderer
  * *through* this entry; importing both side by side gives you two renderer modules with two
  * template caches, and the profiler would observe an instance nothing renders into.
+ *
+ * **A hydrating app therefore cannot be profiled**, and that is worth stating rather than leaving to
+ * be inferred: `/hydrate` is a drop-in replacement for the same public API, so an app can have this
+ * one or that one and not both. Measured — a hydrating app driven through three renders reports zero
+ * frames while rendering correctly. `formatReport` says so when it observed nothing, because a zero
+ * report is otherwise indistinguishable from an app with nothing to optimise.
  */
 import {
   _setProfileHook,
@@ -41,7 +47,7 @@ import type { OverlayOptions } from './overlay.js';
 
 export type { OverlayOptions } from './overlay.js';
 
-export { render, keyed, hold } from './renderer.js';
+export { renderInto, hold, renderer } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 /** One template identity replacing another at the same position, and how often. */
@@ -236,24 +242,68 @@ export function profile<T>(fn: () => T | Promise<T>) {
   return { result: result as T, report: stopProfiling() };
 }
 
+/** The panel currently mounted, so a second `showProfiler()` replaces it rather than stacking. */
+let mounted: (() => void) | null = null;
+
 /**
  * Mounts a live panel in the corner of the page and starts profiling. Returns a function that
  * removes it and stops. Plain DOM in a closed shadow root — it never renders itself through the
  * renderer, which would fold its own commits into the numbers it reports.
+ *
+ * **Calling it twice replaces the panel; it does not stack a second one.** Two panels are positioned
+ * in the same corner, so they overlap and neither is readable — and the failure went further than
+ * cosmetic. Each panel owns a `setInterval`, and each teardown calls `stopProfiling()`, which is
+ * global: closing the *second* panel stopped profiling for the *first*, which then repainted a
+ * frozen report on its own timer with nothing to say it had stopped. Worse, the natural way to reach
+ * this is a console — `showProfiler()`, look, `showProfiler()` again — where the first return value
+ * is gone, so that first interval could never be stopped at all.
+ *
+ * Replacing rather than returning the existing teardown, so a second call with different `options`
+ * takes effect instead of being silently ignored.
  */
 export const showProfiler = (options?: OverlayOptions): (() => void) => {
+  mounted?.();
   startProfiling();
   const unmount = mountOverlay(getReport, isProfiling, { start: startProfiling, stop: stopProfiling }, options);
-  return () => {
+  /**
+   * A **stale** teardown — the handle from a panel that has since been replaced — is harmless: its
+   * `unmount` removes a host already removed and clears a timer already cleared, and the
+   * `stopProfiling()` it also does is visible in the live panel's own toggle rather than silent.
+   *
+   * There is deliberately no `mounted = null` here. A version of this line existed, commented as
+   * stopping a late teardown from orphaning a newer panel; mutation testing showed **nothing** could
+   * observe it, and a 50-cycle `WeakRef` probe measured identical retention with and without it. A
+   * line whose comment claims a purpose it does not have is the defect this audit keeps finding, so
+   * it is not shipped as a precaution.
+   */
+  return (mounted = () => {
     unmount();
     stopProfiling();
-  };
+  });
 };
 
 /** Human-readable summary. The overlay renders the same data; this is for a console or a log. */
 export const formatReport = (report: ProfileReport): string => {
   const committed = report.updates + report.creates + report.rebuilds;
   const share = committed === 0 ? 0 : Math.round((report.rebuilds / committed) * 100);
+  /**
+   * **Nothing observed is the one result that cannot be read.** It is what a healthy idle app looks
+   * like, and it is also what profiling the *wrong renderer* looks like — and this entry, `/hydrate`
+   * and `@verajs/renderer` each carry their own copy with their own hook, so an app that renders
+   * through any of the others is invisible here no matter how busy it is. Measured: a hydrating app
+   * driven through three renders reports `0 frames` while rendering perfectly.
+   *
+   * A zero report is therefore where the explanation belongs. It costs a production build nothing —
+   * this entry is not built for production at all.
+   */
+  if (report.frames === 0)
+    return (
+      'No renders observed.\n' +
+      'If the app is rendering, it is rendering through a different copy of the renderer: this ' +
+      'entry, @verajs/renderer/hydrate and @verajs/renderer each bundle their own, with their own ' +
+      'hook.\nImport the app\'s renderer through this entry — and note that a hydrating app cannot ' +
+      'be profiled, because /hydrate is a drop-in replacement too and only one of them can be it.'
+    );
   const lines = [
     `${report.frames} frame(s), ${report.ms.toFixed(1)}ms total, slowest ${report.slowestFrameMs.toFixed(1)}ms`,
     `${report.updates} updated in place, ${report.creates} created, ${report.rebuilds} rebuilt (${share}% of commits)`,

@@ -10,7 +10,7 @@
  * against a bare Node global object. A component reaches it through `keyed` or `hold`.
  *
  * Measured: core, `@verajs/styles` and `@verajs/router` are all order-independent; only the
- * renderer is not. Core is still dynamically imported below, because `setRenderer` and `insert`
+ * renderer is not. Core is still dynamically imported below, because `setRenderer` and `wire`
  * have to come from the same instance the components will use.
  *
  * Client takeover is `@verajs/renderer/hydrate`, which adopts this markup in place — markerless,
@@ -26,6 +26,7 @@ import {
   setRenderingTag,
   beginHoisting,
   flushFrames,
+  flushFramesAsync,
   pendingInstances,
   INSTANCE_ATTRIBUTE,
   /**
@@ -39,20 +40,21 @@ import {
   RAW_TEXT_ELEMENTS as RAW_TEXT,
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
+import { randomUUID } from 'node:crypto';
 
 installShims();
-const { setRenderer, insert, inserts } = await import('@verajs/core');
+const { wire, inserts, setStaticStores } = await import('@verajs/core');
 /**
  * `static styles` moved out of core in 0.2.0 (`@verajs/styles`). Server rendering must still
  * serialize them — the markup a browser produces includes the component's styles — and nothing on
  * the server cares about the bytes, so SSR wires the adopter unconditionally rather than making
  * every caller remember to.
  *
- * `insert` comes from core, not from `@verajs/inserts`, so the registration lands in the map core
- * actually reads. Exactly why `setRenderer` above is taken from core too.
+ * `wire` comes from core, not from `@verajs/inserts`, so the registration lands in the map core
+ * actually reads. Exactly why the render insert above is registered through core's `wire` too.
  */
 const { adoptStyles } = await import('@verajs/styles');
-insert('init', adoptStyles, 50);
+wire({ on: 'init', fn: adoptStyles, priority: 50 });
 
 /**
  * Failures during a render are collected, not swallowed.
@@ -65,10 +67,23 @@ insert('init', adoptStyles, 50);
  * it" that the async-`connectedCallback` guard below refuses to allow.
  *
  * Registered at priority 10 rather than the default 50, so an app that installs its own error
- * reporter keeps it: at a taken priority `insert` replaces.
+ * reporter keeps it: at a taken priority `wire` replaces.
  */
 const renderErrors = [];
-insert('error', (error, element) => renderErrors.push({ error, tag: element?.localName }), 10);
+wire({ on: 'error', fn: (error, element) => renderErrors.push({ error, tag: element?.localName }), priority: 10 });
+
+/**
+ * What this renderer last wrote into a container, and what sat in front of it.
+ *
+ * **`render()` owns its own range and nothing else** — that is the client's contract, and it holds
+ * over time, not just on the first pass. Measured in a browser DOM: content already in the container
+ * stays *before* the rendered range, a node appended afterwards stays *after* it, and both survive
+ * every re-render. The server assigned `innerHTML` outright, so a component that called `render()`
+ * and also appended to its own root kept the appended node in the browser and lost it here.
+ *
+ * The string equivalent of a range is the text on either side of it, which is what this holds.
+ */
+const written = new WeakMap();
 
 /** The server renderer: template object in, markup into the (shadow) container shim. */
 const serverRenderer = (template, container) => {
@@ -82,7 +97,25 @@ const serverRenderer = (template, container) => {
    * moment any of that string comes from data. A number returned nothing at all here and `42`
    * there.
    */
-  container.innerHTML = template?.strings ? serializeTemplate(template) : serializeValue(template);
+  const ours = template?.strings ? serializeTemplate(template) : serializeValue(template);
+
+  /**
+   * Where our range sits. On a re-render the container should still open with the text we saw in
+   * front of us and continue with what we wrote, and whatever follows is somebody else's — a node a
+   * component appended to its own root, or the `children` a light-DOM component was handed.
+   *
+   * If the container no longer matches that shape someone replaced its contents wholesale, and the
+   * honest reading is that our old range is gone: start again at the end, which is where a first
+   * `render()` puts it in a browser.
+   */
+  const current = container.innerHTML;
+  const last = written.get(container);
+  const resumable = last !== undefined && current.startsWith(last.before + last.ours);
+  const before = resumable ? last.before : current;
+  const after = resumable ? current.slice(before.length + last.ours.length) : '';
+
+  container.innerHTML = before + ours + after;
+  written.set(container, { before, ours });
 };
 /**
  * `setRenderer` registers a **wrapper** — it resolves the element's root before calling through —
@@ -91,12 +124,12 @@ const serverRenderer = (template, container) => {
  * internals.
  */
 const chainBefore = new Set(inserts.get('render') ?? []);
-setRenderer(serverRenderer);
+wire({ on: 'render', fn: serverRenderer, priority: 50 });
 const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(entry));
 
 /**
  * `setRenderer` registers on `'render'` at priority 50, and registering at a taken priority
- * **replaces**. So an app entry doing the ordinary thing — `setRenderer(domRender)` — displaces this
+ * **replaces**. So an app entry doing the ordinary thing — `wire({ on: 'render', fn: renderer, priority: 50 })` — displaces this
  * one the moment that module is imported server-side, and every component then renders through a
  * renderer that writes to a real DOM which is not there. The result was
  * `<my-el><template shadowrootmode="open"></template></my-el>`: empty, for every component, with no
@@ -108,7 +141,7 @@ const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(
 const assertRendererIntact = () => {
   if (!ourEntry || inserts.get('render')?.includes(ourEntry)) return;
   throw new Error(
-    'ssr: the server renderer has been replaced — something called setRenderer() after ' +
+    'ssr: the server renderer has been replaced — something wired a renderer after ' +
       '@verajs/ssr was imported, and every component would render empty. Guard the client wiring ' +
       '(`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports.'
   );
@@ -159,7 +192,29 @@ const decodeEntities = (value) =>
     code ? String.fromCharCode(Number(code)) : (NAMED_ENTITIES[name] ?? match)
   );
 
-const MAX_DEPTH = 32;
+/**
+ * **How deep a component tree may nest before the server calls it a cycle.**
+ *
+ * A component that renders itself recurses without bound, and on a server that is a hung request
+ * rather than a hung tab, so a limit has to exist. It is a **divergence from the client**, which has
+ * no such limit — measured on both sides.
+ *
+ * **256, raised from 32.** A cycle recurses without bound, so 256 refuses it as surely as 32 did, a
+ * few microseconds later; 32 was low enough for a real tree to reach — router children inside
+ * design-system wrappers inside a card grid — and reaching it meant a 500 for a page that renders
+ * fine in a browser. The ceiling is set *below where the client breaks*: the client managed ~340
+ * levels before `RangeError`, so the server still fails first, and fails with a sentence rather than
+ * a stack overflow. That ~340 is engine- and frame-dependent and not a constant to design against,
+ * which is the argument for an explicit limit rather than waiting for our own stack to go.
+ *
+ * The client's own floor for a genuine cycle is the JavaScript stack — it built ~340 levels before
+ * `RangeError: Maximum call stack size exceeded`, reported through the `'error'` insert. That number
+ * is engine- and frame-dependent and cannot be relied on, which is the argument for the server
+ * having an explicit limit rather than waiting for its own stack to go.
+ *
+ * Documented in the README, because a hard limit nobody can find is a 500 nobody can explain.
+ */
+const MAX_DEPTH = 256;
 
 /** Tags rendered during the current `renderToString`, so only their styles reach the page shell. */
 const renderedTags = new Set();
@@ -178,8 +233,32 @@ const entryTags = new Map();
  * Renders every registered component tag found in `markup` to declarative shadow DOM, spliced in
  * as strings right after each opening tag. Recursion covers components rendered by components.
  */
-const renderComponentTags = (markup, depth) => {
-  if (depth > MAX_DEPTH) throw new Error(`ssr: component nesting exceeded ${MAX_DEPTH} (cycle?)`);
+/**
+ * **One scanner, two chains.** The synchronous render calls it with nothing and it behaves exactly
+ * as it always has; the asynchronous one hands it an `emit` that records a promise and returns a
+ * placeholder, substituting the real markup once everything has settled.
+ *
+ * This is what lets the two chains share the intricate half — comments, raw-text elements, nesting,
+ * attribute spans — rather than keeping two copies of a parser that must agree forever. Two paths
+ * drifting is the failure this package has spent a week deleting; a shared parser makes it
+ * impossible for the parsing half rather than merely tested-against.
+ *
+ * **It costs the synchronous path nothing measurable**: a call through a parameter instead of a
+ * direct one is ~6% of the scanning step, and the scanning step is a fraction of a percent of a
+ * render. The alternative considered — collecting segments into an array for a caller to assemble —
+ * was 1.85x on the same step and was rejected for it.
+ *
+ * @param {string} markup @param {number} depth
+ * @param {(name: string, attrs: string, depth: number) => string} [emit] renders one component tag
+ */
+const renderComponentTags = (markup, depth, emit) => {
+  if (depth > MAX_DEPTH)
+    throw new Error(
+      `ssr: component nesting exceeded ${MAX_DEPTH} levels. A component that renders itself ` +
+        `recurses without bound, and on a server that is a hung request — so this refuses rather ` +
+        `than waiting for the stack to go.\nIf the tree is genuinely this deep it renders fine in a ` +
+        `browser, which has no such limit; that difference is in the @verajs/ssr README.`
+    );
   /** No dash, no custom element — cheaper to ask than to walk the string and find nothing. */
   if (!markup.includes('-')) return markup;
 
@@ -208,7 +287,15 @@ const renderComponentTags = (markup, depth) => {
 
     const end = tagEnd(markup, open);
     const tagText = markup.slice(open, end);
-    const name = /^<([a-z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1];
+    /**
+     * **Folded, because a tag name in markup is case-insensitive and every decision below is not.**
+     * This required a lower-case first letter, so `<PROBE-KID>` matched nothing at all and the tag
+     * fell through as inert text — and with it every guard keyed on the name. A component inside an
+     * upper-case `<SCRIPT>` or `<TEXTAREA>` was rendered into its source rather than left as text,
+     * and `<TEMPLATE>` lost its skip, so components inside a template were rendered on the server
+     * that the client's parser would never upgrade.
+     */
+    const name = /^<([a-zA-Z][\w]*(?:-[\w-]*)?)/.exec(tagText)?.[1]?.toLowerCase();
 
     /**
      * A `<template>` is a blueprint, not live DOM: the parser builds its content into a fragment
@@ -257,14 +344,57 @@ const renderComponentTags = (markup, depth) => {
 
     if (name && registry.has(name)) {
       /** Rewritten, not kept — the component may have changed its own attributes. */
-      const rendered = renderComponent(name, tagText.slice(1 + name.length, -1), depth + 1);
-      out += rendered.open + rendered.inner;
+      const attrs = tagText.slice(1 + name.length, -1);
+      if (emit) out += emit(name, attrs, depth + 1);
+      else {
+        const rendered = renderComponent(name, attrs, depth + 1);
+        out += rendered.open + rendered.inner;
+      }
     } else {
       out += tagText;
     }
     at = end;
   }
   return out;
+};
+
+/**
+ * **The asynchronous chain.**
+ *
+ * Everything that decides *what* to emit is shared with the synchronous render — the scanner above,
+ * the serializer, the entry resolution. What differs is only *when* it may wait: this one awaits a
+ * component's `connectedCallback`, and lets promises settle between frame rounds, which is what a
+ * routed component's first navigation needs and what the synchronous render refuses.
+ *
+ * **The scan itself stays synchronous.** A component tag becomes a placeholder and its render a
+ * promise; once everything has settled the placeholders are substituted. Awaiting inside the scan
+ * would have meant a second copy of the parser — and measured, an async recursion costs 2.45x even
+ * when nothing suspends, which the synchronous path is not going to pay for a feature it never uses.
+ *
+ * The placeholder carries a per-process random name for the same reason `INSTANCE_ATTRIBUTE` does:
+ * it must be impossible for a component's own markup to contain one.
+ */
+const PLACEHOLDER = `vera-async-${randomUUID()}`;
+const PLACEHOLDER_PATTERN = new RegExp(`${PLACEHOLDER}(\\d+)_`, 'gu');
+
+/** @param {string} markup @param {number} depth @param {Array<Promise<string>>} pending */
+const scanAsync = (markup, depth, pending) =>
+  renderComponentTags(markup, depth, (name, attrs, at) => {
+    pending.push(renderComponentAsync(name, attrs, at));
+    return `${PLACEHOLDER}${pending.length - 1}_`;
+  });
+
+/** Substitutes what the scan deferred, once every component beneath it has settled. */
+const settle = async (scanned, pending) => {
+  if (!pending.length) return scanned;
+  const parts = await Promise.all(pending);
+  return scanned.replace(PLACEHOLDER_PATTERN, (_, index) => parts[Number(index)]);
+};
+
+/** @param {string} markup @param {number} depth */
+const renderComponentTagsAsync = async (markup, depth) => {
+  const pending = /** @type {Array<Promise<string>>} */ ([]);
+  return settle(scanAsync(markup, depth, pending), pending);
 };
 
 /**
@@ -289,7 +419,18 @@ const restoreLocation = (previous) => {
 };
 
 /** Instantiates a registered component and returns its declarative-shadow (or light) markup. */
-const renderComponent = (tag, attrString, depth, props, children) => {
+/**
+ * Which element a tag should be rendered as — shared by both chains, because deciding it has nothing
+ * to do with whether the render may wait.
+ *
+ * A component the *parent* built and appended is rendered as itself, carrying whatever the parent
+ * assigned to it. The fresh instance built here is discarded in that case; only its attributes were
+ * ever needed, and they came from the markup that instance wrote in the first place.
+ *
+ * **The tag has to match.** The marker's name is already unguessable, so this is the second lock on
+ * the same door: a marker can only ever produce the component it was written for.
+ */
+const buildInstance = (tag, attrString) => {
   const element = new (registry.get(tag))();
   element.localName = tag;
   if (attrString) {
@@ -297,22 +438,34 @@ const renderComponent = (tag, attrString, depth, props, children) => {
       element.setAttribute(name, decodeEntities(quoted ?? single ?? bare ?? ''));
     }
   }
-  /**
-   * A component the *parent* built and appended is rendered as itself, carrying whatever the parent
-   * assigned to it. The fresh instance above is discarded; only its attributes were ever needed,
-   * and they came from the markup this instance wrote in the first place.
-   */
   const pending = pendingInstances.get(element.getAttribute(INSTANCE_ATTRIBUTE));
-  /**
-   * The tag has to match. The marker's name is already unguessable, so this is the second lock on
-   * the same door: a marker can only ever produce the component it was written for.
-   */
-  if (pending && pending.localName === tag) return renderInstance(pending, tag, depth, props, children);
-  return renderInstance(element, tag, depth, props, children);
+  return pending && pending.localName === tag ? pending : element;
 };
 
-/** Runs the lifecycle on an element that is already built, and serializes it. */
-const renderInstance = (element, tag, depth, props, children) => {
+const renderComponent = (tag, attrString, depth, props, children) =>
+  renderInstance(buildInstance(tag, attrString), tag, depth, props, children);
+
+/**
+ * The asynchronous mirror of `renderComponent`. Identical in what it decides; different only in that
+ * it hands off to a lifecycle it is allowed to wait for.
+ */
+const renderComponentAsync = async (tag, attrString, depth, props, children) => {
+  const { open, inner } = await renderInstanceAsync(buildInstance(tag, attrString), tag, depth, props, children);
+  /**
+   * **Open tag and contents only** — the scanner emits the closing tag from the markup it is walking,
+   * exactly as it does for the synchronous chain. Returning a complete element here produced
+   * `</child-badge></child-badge>` on every nested component.
+   */
+  return `${open}${inner}`;
+};
+
+/**
+ * Everything an instance needs before its lifecycle runs — the marker bookkeeping, `props`, and the
+ * children. Shared by both chains: none of it depends on whether the render may wait.
+ *
+ * @param {any} element @param {string} tag @param {Record<string, unknown>} [props] @param {string} [children]
+ */
+const prepareInstance = (element, tag, props, children) => {
   element._rendered = true;
   /** Read before it is removed, or the map keeps the instance for the rest of the process. */
   pendingInstances.delete(element.getAttribute(INSTANCE_ATTRIBUTE));
@@ -326,7 +479,15 @@ const renderInstance = (element, tag, depth, props, children) => {
    */
   if (props) {
     try {
-      Object.assign(element, props);
+      /**
+       * **`__proto__` is skipped**, because `Object.assign` copies it with `[[Set]]` and that
+       * *replaces the element's prototype*. `props` exists to be handed structured data, and
+       * `props: await request.json()` is the obvious way to use it — `JSON.parse` makes `__proto__`
+       * an ordinary own key, so one request body ended the render with
+       * `element.upgrade is not a function` and, on the way there, gave the caller control of what
+       * the component inherited from. Nothing legitimate assigns a prototype through this option.
+       */
+      for (const [name, value] of Object.entries(props)) if (name !== '__proto__') element[name] = value;
     } catch (error) {
       /**
        * `Object.assign` onto a getter-only property throws `Cannot set property x of #<Class>` —
@@ -348,6 +509,12 @@ const renderInstance = (element, tag, depth, props, children) => {
   if (children) element.innerHTML = children;
 
 
+};
+
+/** Runs the lifecycle on an element that is already built, and serializes it. */
+const renderInstance = (element, tag, depth, props, children) => {
+  prepareInstance(element, tag, props, children);
+
   renderedTags.add(tag);
   const previousTag = setRenderingTag(tag) ?? tag;
   element.upgrade();
@@ -357,10 +524,22 @@ const renderInstance = (element, tag, depth, props, children) => {
   setRenderingTag(previousTag);
 
   /**
-   * Rendering is synchronous end to end — the recursion runs inside `String.replace`, which cannot
-   * await — so an `async connectedCallback` returns a promise nobody can wait for, and everything
-   * after its first `await` happens long after the markup was serialized. That produced an empty
-   * component and said nothing about it, which is the worst of the available outcomes.
+   * Rendering is synchronous end to end, so an `async connectedCallback` returns a promise nobody
+   * can wait for, and everything after its first `await` happens long after the markup was
+   * serialized. That produced an empty component and said nothing about it, which is the worst of
+   * the available outcomes.
+   *
+   * **The reason it is synchronous is not what this used to say.** It claimed the recursion runs
+   * inside `String.replace` and therefore cannot await; `renderComponentTags` is a plain `while`
+   * loop and there is no such callback anywhere in the chain. The real constraint is the one stated
+   * at `renderPage`: the per-render bookkeeping — `renderedTags`, `renderErrors`,
+   * `pendingInstances`, `instanceCount`, the hoisting state — is **module-level**, so two renders
+   * that interleaved would read each other's. Being synchronous end to end is what makes concurrent
+   * `renderToString` calls safe, which `tests/ssr-request-isolation.test.mjs` relies on.
+   *
+   * Making this async is therefore a matter of threading that state through rather than of the shape
+   * of the recursion — a real change with a real payoff (async lifecycles, and a routed component
+   * rendering its route), and one nobody should start from this comment alone.
    *
    * Load data before `renderToString` and pass it in through attributes.
    */
@@ -372,9 +551,17 @@ const renderInstance = (element, tag, depth, props, children) => {
   }
 
   const open = element.openTag();
-  if (element.shadowRoot) {
+  /**
+   * `_shadowRoot`, not `shadowRoot` — **a closed root is hidden from the page and still serialized.**
+   * `element.shadowRoot` is `null` for `mode: 'closed'`, exactly as it is in a browser, so reading it
+   * here dropped the whole template and the component rendered empty. Declarative shadow DOM
+   * expresses `closed` (`<template shadowrootmode="closed">`) and the client re-creates it just as
+   * hidden, so there is nothing to withhold — the mode governs who can reach in, not what is written.
+   */
+  const shadowRoot = element._shadowRoot;
+  if (shadowRoot) {
     /** Styles are prepended after the scan, never passed through it — see `styleTags`. */
-    const inner = renderComponentTags(element.shadowRoot.innerHTML, depth);
+    const inner = renderComponentTags(shadowRoot.innerHTML, depth);
     /**
      * The element's own light DOM follows the template. It used to be discarded for any shadow
      * component, so content a component put in its own light DOM — the thing its `<slot>` projects
@@ -383,11 +570,62 @@ const renderInstance = (element, tag, depth, props, children) => {
     const light = element.innerHTML ? renderComponentTags(element.innerHTML, depth) : '';
     return {
       open,
-      inner: `<template${element.shadowRoot.templateAttributes()}>${element.shadowRoot.styleTags()}${inner}</template>${light}`,
+      inner: `<template${shadowRoot.templateAttributes()}>${shadowRoot.styleTags()}${inner}</template>${light}`,
     };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */
   return { open, inner: renderComponentTags(element.innerHTML, depth) };
+};
+
+/**
+ * What an element serializes to, before anything inside it has been scanned — shared by both chains,
+ * because none of it depends on whether the render may wait. Each chain scans the two markup
+ * fragments with its own scanner and assembles the same way.
+ *
+ * @param {any} element
+ */
+const instancePieces = (element) => {
+  const shadowRoot = element._shadowRoot;
+  return {
+    open: element.openTag(),
+    shadowRoot,
+    /** The template's own markup, and the element's light DOM, each still to be scanned. */
+    shadowMarkup: shadowRoot ? shadowRoot.innerHTML : '',
+    lightMarkup: element.innerHTML,
+  };
+};
+
+/** Puts the scanned halves back together — the one shape both chains produce. */
+const assembleInstance = ({ open, shadowRoot }, scannedShadow, scannedLight) =>
+  shadowRoot
+    ? {
+        open,
+        inner: `<template${shadowRoot.templateAttributes()}>${shadowRoot.styleTags()}${scannedShadow}</template>${scannedLight}`,
+      }
+    : { open, inner: scannedLight };
+
+/**
+ * The asynchronous mirror of `renderInstance`. The lifecycle is awaited and the frame drain lets
+ * promises settle between rounds; everything else is the shared helpers the synchronous one uses.
+ */
+const renderInstanceAsync = async (element, tag, depth, props, children) => {
+  prepareInstance(element, tag, props, children);
+
+  renderedTags.add(tag);
+  const previousTag = setRenderingTag(tag) ?? tag;
+  element.upgrade();
+  /**
+   * **Awaited, which is the whole point of this chain.** The synchronous render refuses an
+   * `async connectedCallback` because its markup would be empty; here it is simply waited for.
+   */
+  await element.connectedCallback?.();
+  await flushFramesAsync((error) => renderErrors.push({ error, tag }));
+  setRenderingTag(previousTag);
+
+  const pieces = instancePieces(element);
+  const scannedShadow = pieces.shadowRoot ? await renderComponentTagsAsync(pieces.shadowMarkup, depth) : '';
+  const scannedLight = pieces.lightMarkup ? await renderComponentTagsAsync(pieces.lightMarkup, depth) : '';
+  return assembleInstance(pieces, scannedShadow, scannedLight);
 };
 
 /**
@@ -406,6 +644,10 @@ const renderInstance = (element, tag, depth, props, children) => {
  * page once, for a shell assembled from several islands
  * @param {string | URL} [options.base] A directory the module must resolve inside. Pass it whenever
  * any part of `url` came from a request
+ * @param {boolean} [options.static] Declare that this page will not be interactive, so its stores
+ * need not be reactive. Worth roughly 3x — the proxy behind `createStore` is the whole reactivity
+ * cost of a server render — and the markup is identical. A component that writes to a store during
+ * the render throws in development rather than silently rendering something that never updated.
  * @param {string | URL} [options.location] This request's URL, for any component that reads one.
  * Applied after every await and restored afterwards, so concurrent renders cannot see each other's
  * — assigning to `globalThis.location` yourself is not safe once two requests overlap
@@ -413,9 +655,10 @@ const renderInstance = (element, tag, depth, props, children) => {
  * shell, and `title` is `document.title` as this render left it, which the shell puts in `<title>`.
  * Both are returned rather than left on a global so concurrent renders cannot see each other's.
  */
-export const renderToString = async (
+const renderModule = async (
   url,
-  { tag, attributes = '', children = '', props, seen, base, location } = {}
+  { tag, attributes = '', children = '', props, seen, base, location, static: isStatic = false } = {},
+  isAsync = false
 ) => {
   /**
    * The options are checked because getting one wrong otherwise surfaced an internal: `children: 5`
@@ -442,6 +685,7 @@ export const renderToString = async (
   if (location !== undefined && typeof location !== 'string' && !(location instanceof URL)) {
     throw new TypeError('ssr: `location` must be a URL or a path string');
   }
+  if (typeof isStatic !== 'boolean') throw new TypeError('ssr: `static` must be true or false');
   /** A `tag` that is not a string cannot name a custom element, and saying so here names the option. */
   if (tag !== undefined && typeof tag !== 'string') {
     throw new TypeError(`ssr: \`tag\` must be a custom element name, and ${typeof tag} is not one`);
@@ -526,7 +770,30 @@ export const renderToString = async (
       ? attributes
       : Object.entries(attributes)
           .filter(([, value]) => value != null && value !== false)
-          .map(([name, value]) => ` ${name}="${escapeHtml(value === true ? '' : value)}"`)
+          .map(([name, value]) => {
+            /**
+             * **The name is checked, because escaping the value is only half of it.**
+             *
+             * The claim this form makes is that it cannot escape the tag it describes, and it could
+             * not — but it could add *more attributes inside* that tag, which is just as bad and
+             * less obvious: `{ 'a=1 onload': v }` wrote `a="1" onload="v"`, an event handler with a
+             * caller-controlled body, and `{ 'a x': v }` wrote two attributes from one entry. A
+             * server mapping request data onto attribute names is the case this option exists for.
+             *
+             * The rule is the HTML attribute-name production, and it is the same set the browser
+             * engines reject in `setAttribute` — space, quote, apostrophe, `>`, `/`, `=` and
+             * controls (see `tests/browser/spread-names.test.js`, which records that engines accept
+             * everything else). So this refuses exactly what the client would refuse, rather than
+             * inventing a stricter rule the two halves would then disagree about.
+             */
+            if (/[\0-\x20"'>/=\x7f]/.test(name) || name === '')
+              throw new TypeError(
+                `ssr: \`attributes\` cannot use ${JSON.stringify(name)} as a name — an attribute name may not ` +
+                  `contain whitespace, a quote, "/", "=" or ">". Written into a tag it would produce more ` +
+                  `attributes than the one entry describes, and setAttribute refuses it in the browser too.`
+              );
+            return ` ${name}="${escapeHtml(value === true ? '' : value)}"`;
+          })
           .join('');
 
   assertRendererIntact();
@@ -564,28 +831,89 @@ export const renderToString = async (
    * request after it, and a request that fails is followed by others exactly as one that succeeds
    * is. The leak this whole area exists to close, surviving on the error path.
    */
+  const restore = () => {
+    globalThis.document.title = previousTitle;
+    if (previousLocation !== undefined) restoreLocation(previousLocation);
+    /** Always, so a throw cannot leave the next render's stores inert. */
+    if (isStatic) setStaticStores(false);
+  };
+
+  /**
+   * **Awaited inside the `try`, not returned from it.** `try { return promise } finally` runs the
+   * restore when the promise is *created*, not when it settles — so the title and location would go
+   * back before the render that reads them had finished. The synchronous branch stays a plain
+   * return, so it pays nothing for a hazard it does not have.
+   */
+  if (isAsync) {
+    try {
+      return await renderPageAsync();
+    } finally {
+      restore();
+    }
+  }
   try {
     return renderPage();
   } finally {
-    globalThis.document.title = previousTitle;
-    if (previousLocation !== undefined) restoreLocation(previousLocation);
+    restore();
+  }
+
+  /**
+   * The bookkeeping every render starts from, shared so the two page renderers cannot drift on it.
+   * It is module-level state, which is why the synchronous render must stay synchronous end to end
+   * and why the asynchronous one takes a turn at a time — see `renderToStringAsync`.
+   */
+  function beginRender() {
+    renderedTags.clear();
+    renderErrors.length = 0;
+    /** Re-arms the once-per-class hoist rule, which keeps one request's CSS out of another's. */
+    beginHoisting();
+    /** Anything a previous render marked and never emitted must not be adopted by this one. */
+    pendingInstances.clear();
   }
 
   function renderPage() {
   /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
-  renderedTags.clear();
-  renderErrors.length = 0;
-  /** Re-arms the once-per-class hoist rule, which is what keeps one request's CSS out of another's. */
-  beginHoisting();
-  /** Anything a previous render marked and never emitted must not be adopted by this one. */
-  pendingInstances.clear();
+  beginRender();
   /**
    * `children` is what a `<slot>` in the component renders. Without it a component built around a
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
    * and nothing else.
    */
+  /**
+   * **`static: true` says this page will not be interactive**, so its stores need not be reactive.
+   * A server render is one shot — subscriptions built during it are never fired afterwards — and on
+   * a component rendering twenty rows the proxy behind `createStore` is the *entire* reactivity
+   * overhead: about 40 µs against a 15 µs baseline, where effects and the scheduler cost nothing
+   * measurable. Turning it off is worth roughly 3x.
+   *
+   * Set here rather than around the whole call so it covers exactly the component tree and not the
+   * module import, and restored in the `finally` below so a throw cannot leave a server rendering
+   * inert pages afterwards. A write to a store while it is on throws in development, naming the
+   * option, rather than silently changing nothing.
+   */
+  if (isStatic) setStaticStores(true);
   const entry = renderComponent(tag, attrString, 0, props, children);
-  let html = `${entry.open}${entry.inner}</${tag}>`;
+  return finishPage(`${entry.open}${entry.inner}</${tag}>`, /** @type {string} */ (tag), seen);
+  }
+
+  /** The asynchronous page render — the same bookkeeping, an entry component that may wait. */
+  async function renderPageAsync() {
+    beginRender();
+    if (isStatic) setStaticStores(true);
+    /** The entry's closing tag is added here; nested ones get theirs from the scanner. */
+    const entry = await renderComponentAsync(/** @type {string} */ (tag), attrString, 0, props, children);
+    return finishPage(`${entry}</${tag}>`, /** @type {string} */ (tag), seen);
+  }
+
+  /**
+   * Everything after the entry component has rendered: marker cleanup, the collected failures, and
+   * the styles this request is responsible for. Shared, because none of it depends on whether the
+   * render was allowed to wait.
+   *
+   * @param {string} rendered @param {string} tag @param {Set<string>} [seen]
+   */
+  function finishPage(rendered, tag, seen) {
+  let html = rendered;
   /**
    * A marker that was never consumed must not reach the page.
    *
@@ -638,4 +966,85 @@ export const renderToString = async (
   }
 };
 
-export { registry, hoistedStyles, serializeTemplate };
+/**
+ * `hoistedStyles` is **not** re-exported. It is the internal `Map` of light-DOM `@scope` blocks,
+ * keyed by the tag that hoisted them, and `renderToString` already returns the ones belonging to the
+ * page it built as `styles` — which is the whole reason it is keyed rather than flat. Exporting the
+ * raw map put a piece of this package's bookkeeping into its public surface, where nothing used it
+ * and nothing documented it.
+ */
+/**
+ * Render a component module to markup.
+ *
+ * @param url Module URL @param {object} [options] The same options `renderToStringAsync` takes
+ * @return `{ html, styles, title }`
+ */
+export const renderToString = (url, options) => takeTurn(() => renderModule(url, options, false));
+
+/**
+ * **One render at a time**, so no render can see another's bookkeeping.
+ *
+ * The per-render state this package keeps — `renderedTags`, `renderErrors`, `pendingInstances`,
+ * `instanceCount`, the hoisting state — is module-level, and being synchronous end to end is what
+ * makes two `renderToString` calls safe against *each other*. An asynchronous render pauses, so
+ * that protection does not hold for it.
+ *
+ * **The turn covers both entry points, and it did not always.** This queue once held only the
+ * asynchronous renders, on the reasoning that `renderToString` "is unaffected and still runs
+ * whenever it likes". It is not: a synchronous render fired *inside* an asynchronous one's
+ * suspension window runs to completion on the shared state, and the async render resumes into the
+ * wreckage. Measured, the async component came back as `<slow-a><template shadowrootmode="open">
+ * </template></slow-a>` — empty — while core reported `render() did nothing, no component is being
+ * set up`, because the setup it was closing had been replaced.
+ *
+ * A server that renders some routes synchronously and others asynchronously is the ordinary case,
+ * so "do not mix them" was never a restriction anyone could keep. `renderModule` is `async` and
+ * every caller already awaits, so taking a turn is invisible to them; when nothing is in flight it
+ * costs one microtask.
+ *
+ * Holding the state per render instead (Node's `AsyncLocalStorage` is the mechanism, measured at
+ * ~220 ns a render) would remove the queue altogether, and is a separate change with its own gate.
+ */
+let asyncTurn = Promise.resolve();
+
+/**
+ * Runs `work` once every render queued before it has settled, failed or not.
+ *
+ * Typed generically rather than left to inference: without the annotation the emitted `.d.ts` said
+ * `Promise<void>` for both entry points, because the wrapper hid `renderModule`'s return. Nothing
+ * about the runtime changed and the consumer typecheck (`tests/consumer/ssrcheck.ts`) is what said
+ * so — a published type is not exercised by any test that only imports.
+ *
+ * @template T
+ * @param {() => Promise<T>} work
+ * @returns {Promise<T>}
+ */
+const takeTurn = (work) => {
+  const mine = asyncTurn.then(work);
+  /** The queue must survive a failed render, or one throw stops every later one. */
+  asyncTurn = mine.then(
+    () => undefined,
+    () => undefined
+  );
+  return mine;
+};
+
+/**
+ * Render a component module to markup, **awaiting its lifecycle**.
+ *
+ * The difference from `renderToString` is only *when* a render may wait: this one awaits a
+ * component's `connectedCallback` and lets promises settle between frame rounds. That is what an
+ * `async connectedCallback` needs — the synchronous render refuses one, because its markup would be
+ * empty — and what a routed component's first navigation needs to reach the page.
+ *
+ * Everything that decides *what* to emit is shared with `renderToString`, and
+ * `tests/ssr-async-parity.test.mjs` renders every fixture through both and compares.
+ *
+ * Asynchronous renders take a turn each; see above.
+ *
+ * @param url Module URL @param {object} [options] The same options `renderToString` takes
+ * @return `{ html, styles, title }`
+ */
+export const renderToStringAsync = (url, options) => takeTurn(() => renderModule(url, options, true));
+
+export { registry, serializeTemplate };

@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr/vera';
 /** Resolved once, at load, exactly as every other contender's renderer is. */
 const { html } = await import('@verajs/core');
+import { cpus, loadavg } from 'node:os';
 import { createElement as h } from 'react';
 import { renderToString as reactRender } from 'react-dom/server';
 import { createSSRApp } from 'vue';
@@ -117,6 +118,23 @@ const CONTENDERS = {
   },
 };
 
+/**
+ * **Astro renders server-side by definition**, so it belongs here — but it is the only contender that
+ * needs its source compiled before anything can run. All of that is done at load in
+ * `fixtures/astro-build.mjs`, because a contender that compiles, imports or resolves inside the timed
+ * function measures the benchmark rather than the framework, which this file has been caught doing
+ * once already.
+ *
+ * Skipped rather than fatal when Astro is not installed: `bench/` is not a workspace member, so a
+ * tree that has not run `cd bench && npm install` should still get every other row.
+ */
+try {
+  const { buildAstro } = await import('./fixtures/astro-build.mjs');
+  CONTENDERS['astro 7'] = await buildAstro(rows);
+} catch (error) {
+  console.log(`\n  (astro row skipped: ${String(error.message).split('\n')[0].slice(0, 80)})`);
+}
+
 const results = {};
 for (const size of ['small', 'large']) {
   const iterations = size === 'small' ? SMALL_N : LARGE_N;
@@ -159,16 +177,54 @@ try {
 }
 
 const fmt = (ms) => (ms * 1000).toFixed(1).padStart(8);
+
+/**
+ * **The spread is printed, and it is the first thing to read.**
+ *
+ * A fastest-of-N hides how noisy the machine was, and this benchmark was quietly reporting swings of
+ * 1.8x on identical code while eight test workers from an unrelated project saturated the CPU — long
+ * enough to produce a "regression" that was nothing but contention, and to have that believed. A
+ * number with no spread beside it cannot be argued with, which is exactly the problem.
+ *
+ * Spread alone turned out to be a poor alarm, and two attempts at thresholding it both cried wolf:
+ * a sub-microsecond row spreads 3x from timer quantisation, React's JIT warmup skews its small row
+ * past 4x on a completely idle machine, and Astro's container spreads 2x on its own. Those are
+ * properties of the contender, not of the machine, and an alarm that fires every run gets ignored.
+ *
+ * So the machine is measured directly instead. Load average against core count is the thing that
+ * actually went wrong — eight test workers from an unrelated project, load average 30 on 8 cores,
+ * while a fastest-of-7 reported swings of 1.8x on identical code as if they were signal. Per-row
+ * spread is still printed, because it is the right thing to read *within* a run.
+ */
+const NOISE_FLOOR_US = 10;
+let worst = 1;
 for (const size of ['small', 'large']) {
-  console.log(`\n  ${size === 'small' ? 'small component' : '100-row table'} — µs/render, fastest of ${ROUNDS} rounds (median in parens)`);
+  console.log(`\n  ${size === 'small' ? 'small component' : '100-row table'} — µs/render, fastest of ${ROUNDS} rounds (median, spread)`);
   const entries = Object.entries(results[size])
     .map(([name, times]) => {
       const sorted = [...times].sort((a, b) => a - b);
-      return { name, best: sorted[0], median: sorted[Math.floor(sorted.length / 2)] };
+      return {
+        name,
+        best: sorted[0],
+        median: sorted[Math.floor(sorted.length / 2)],
+        spread: sorted[sorted.length - 1] / sorted[0],
+      };
     })
     .sort((a, b) => a.best - b.best);
   const fastest = entries[0].best;
-  for (const { name, best, median } of entries) {
-    console.log(`  ${name.padEnd(13)} ${fmt(best)}  (${fmt(median).trim()})   ${(best / fastest).toFixed(2)}x`);
+  for (const { name, best, median, spread } of entries) {
+    if (best * 1000 >= NOISE_FLOOR_US) worst = Math.max(worst, spread);
+    console.log(
+      `  ${name.padEnd(13)} ${fmt(best)}  (${fmt(median).trim()}, ${spread.toFixed(2)}x)   ${(best / fastest).toFixed(2)}x`
+    );
   }
 }
+const cores = cpus().length;
+const load = loadavg()[0];
+console.log(
+  load > cores / 2
+    ? `\n  ⚠ load average ${load.toFixed(1)} on ${cores} cores — something else was running, so these numbers are\n` +
+        `    not comparable to anything. Widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs. Re-run on a quiet machine.`
+    : `\n  load average ${load.toFixed(1)} on ${cores} cores — quiet enough to compare.` +
+        ` Widest spread ${worst.toFixed(2)}x on rows above ${NOISE_FLOOR_US} µs.`
+);

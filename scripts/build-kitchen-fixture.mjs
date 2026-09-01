@@ -46,8 +46,8 @@ ${script}
 
 const boot = (renderer, mode) => `    <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import { render } from '/packages/renderer/dist/development/${renderer}';
-      await start(render);
+      import { renderInto } from '/packages/renderer/dist/development/${renderer}';
+      await start(renderInto);
       document.documentElement.dataset.sinkMode = '${mode}';
     </script>`;
 

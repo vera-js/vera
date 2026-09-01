@@ -81,8 +81,8 @@ globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
 
-const { render: hydrateRender } = await load('renderer/hydrate');
-const { render } = await load('renderer');
+const { renderInto: hydrateRender } = await load('renderer/hydrate');
+const { renderInto } = await load('renderer');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
 const build = (stateSource) =>
@@ -110,7 +110,7 @@ for (const name of Object.keys(CASES)) {
   hydrateRender(withB[name](), hydrated);
 
   const direct = dom.window.document.createElement('div');
-  render(withB[name](), direct);
+  renderInto(withB[name](), direct);
 
   const updated = canonical(hydrated);
   const fresh = canonical(direct);

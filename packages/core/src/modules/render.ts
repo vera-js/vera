@@ -1,33 +1,67 @@
-import { currentInstance } from '../store/store.js';
 import { useRender } from '../hooks/useRender.js';
+import { commit, setupTarget } from './mount.js';
 
 /**
- * When a change is detected, useRender renders the provided template into the element later than
- * useLayoutEffect but earlier than useEffect.
+ * Declares a component's template and ends its setup. The closing half of the pair `init()` opens,
+ * for a component that has markup.
  *
- * @param template Template to render. Should be a function that can be called with the result passed to the renderer
- * @param args Any additional args that should be passed to the renderer
+ * ```js
+ * connectedCallback() {
+ *   init(this, { mode: 'open' });
+ *   const state = createStore({ count: 0 });
+ *   render(() => html`<button @click=${() => state.count++}>${state.count}</button>`);
+ * }
+ * ```
+ *
+ * Exactly `useRender(template)` followed by {@link mount} — a compound over the base operation, not
+ * a second way to do the same thing. A component with no markup calls `mount()` instead.
+ *
+ * The template is **required**. It used to be optional, and omitting it was how a side-effect-only
+ * component committed its setup: a bare `render()` that rendered nothing, which is a contradiction
+ * the docs had to keep apologising for and which nobody guessed was legal. `mount()` says the same
+ * thing in a way that can be found. Passing `undefined` explicitly still commits — refusing would
+ * turn a spelling preference into effects that silently never run — but it warns in development.
+ *
+ * @param template A function returning a template, or a template result. Re-run on every change to
+ *   a store it reads.
+ * @param args Any additional arguments to pass through to the renderer
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const render = (template?: unknown, ...args: any[]) => {
-  const element = currentInstance.element?.deref();
+export const render = (template: unknown, ...args: any[]) => {
+  const element = setupTarget('render');
   if (!element) return;
 
-  /**
-   * No template means there is nothing to draw — only the setup to commit.
-   *
-   * `render()` has always ended a component's setup as well as declaring its markup: it runs the
-   * first pass of every hook registered since `init()`, then clears the current instance. A
-   * component whose whole job is a side effect has nothing to draw and used to write
-   * `render(() => html``)` to get its effects to run at all, which is ceremony that pretends to
-   * draw. Calling it bare says the true thing instead, and keeps one concept rather than adding a
-   * second function to choose between.
-   *
-   * Existing light DOM is left alone, since nothing renders into it.
-   */
-  if (template !== undefined) useRender(template, element, ...args);
+  if (template === undefined) {
+    /**
+     * Reached only from JavaScript — TypeScript rejects the missing argument outright. Buildless is
+     * a first-class mode here and has no compiler, so this is the only signal those callers get.
+     *
+     * It commits anyway. Refusing would convert a naming preference into a component whose effects
+     * never run, which is the exact failure `mount()` exists to prevent; and every other guard in
+     * this framework warns and then does the understandable thing rather than throwing on input it
+     * can read perfectly well.
+     *
+     * `__DEV__`-only, so production carries neither the check nor the message.
+     */
+    /**
+     * **The message has to agree with the paragraph above it.** It used to read "render() needs a
+     * template … call mount() instead — it commits the setup and runs the hooks, which is what a
+     * bare render() used to do", which says two things that are not true of this function: it does
+     * not need a template, and it still commits exactly as it always did. A reader debugging a
+     * component would take it as "your hooks are not running" and go looking for a fault that is not
+     * there — from a diagnostic, at runtime, which is the worst place to be told something false.
+     */
+    if (__DEV__)
+      console.warn(
+        `[vera] render() was called with no template. That works — the setup is committed and the ` +
+          `hooks run, exactly as with a template — but mount() is the name for it, and says so at ` +
+          `the call site.\n\n` +
+          `  import { mount } from '@verajs/core';\n` +
+          `  mount();\n`
+      );
+  } else {
+    useRender(template, element, ...args);
+  }
 
-  element.runHooks?.();
-
-  currentInstance.element = null;
+  commit(element);
 };

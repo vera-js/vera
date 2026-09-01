@@ -24,8 +24,7 @@ const core = await load('core');
 const {
   init, createStore, render, useEffect, useSyncEffect, useLayoutEffect, useRender,
   ref, shallowRef, untrack, deps, html, css, setHtml, setCss,
-  setRenderScheduler, microtask, setRenderer,
-} = core;
+  setRenderScheduler, microtask, wire, setStaticStores} = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -139,7 +138,7 @@ test('deps() subscribes an effect to state it does not otherwise read', async ()
 
 test('setHtml swaps the template tag core hands to the renderer', async () => {
   const seen = [];
-  setRenderer((result) => seen.push(result));
+  wire({ on: 'render', fn: (result) => seen.push(result), priority: 50 });
   const marker = Symbol('custom-tag');
   setHtml((strings, ...values) => ({ marker, strings, values }));
   try {
@@ -166,12 +165,12 @@ test('setCss swaps the css tag', () => {
 // ── setRenderScheduler / microtask ──────────────────────────────────────────
 
 test('setRenderScheduler(microtask) renders before the next animation frame', async () => {
-  setRenderer(() => {});
+  wire({ on: 'render', fn: () => {}, priority: 50 });
   const order = [];
-  setRenderScheduler(microtask);
+  const previous = setRenderScheduler(microtask);
   try {
     const state = createStore({ n: 0 });
-    setRenderer(() => order.push('render'));
+    wire({ on: 'render', fn: () => order.push('render'), priority: 50 });
     mount(() => { render(() => html`<i>${state.n}</i>`); });
     await settle();
 
@@ -182,15 +181,66 @@ test('setRenderScheduler(microtask) renders before the next animation frame', as
     await Promise.resolve();
     assert.deepEqual(order, ['render'], 'the render already ran on the microtask queue');
   } finally {
-    setRenderScheduler((run) => requestAnimationFrame(run));
+    setRenderScheduler(previous);
   }
+});
+
+/**
+ * The return value is the whole point: without it there is no way to read the current scheduler, so
+ * anything swapping temporarily can only *guess* what to put back — and would silently undo an
+ * app's own `microtask` choice.
+ */
+test('setRenderScheduler returns the scheduler it replaced', () => {
+  const first = (run) => run();
+  const second = (run) => run();
+  const original = setRenderScheduler(first);
+  try {
+    assert.equal(typeof original, 'function', 'the default scheduler came back');
+    assert.equal(setRenderScheduler(second), first, 'and then the one just installed');
+    assert.equal(setRenderScheduler(original), second);
+  } finally {
+    setRenderScheduler(original);
+  }
+});
+
+/**
+ * What the return value buys: a synchronous render. The View Transitions API snapshots the DOM
+ * around a callback, so a render deferred to the next frame lands *after* the snapshot and the
+ * transition captures nothing — `document.startViewTransition(() => flushSync(…))` is the recipe,
+ * and this is the four lines it rests on.
+ */
+test('a userland flushSync renders synchronously and restores the scheduler', async () => {
+  const order = [];
+  wire({ on: 'render', fn: () => order.push('render'), priority: 50 });
+  const state = createStore({ n: 0 });
+  mount(() => { render(() => html`<i>${state.n}</i>`); });
+  await settle();
+
+  const flushSync = (fn) => {
+    const previous = setRenderScheduler((run) => run());
+    try { fn(); } finally { setRenderScheduler(previous); }
+  };
+
+  order.length = 0;
+  state.n = 1;
+  assert.deepEqual(order, [], 'the default scheduler defers past the write');
+  await settle();
+
+  order.length = 0;
+  flushSync(() => { state.n = 2; });
+  assert.deepEqual(order, ['render'], 'inside flushSync the render already happened');
+
+  order.length = 0;
+  state.n = 3;
+  assert.deepEqual(order, [], 'and the deferring scheduler is back afterwards');
+  await settle();
 });
 
 // ── useLayoutEffect / useRender ─────────────────────────────────────────────
 
 test('useLayoutEffect runs, and before useEffect', async () => {
   const order = [];
-  setRenderer(() => {});
+  wire({ on: 'render', fn: () => {}, priority: 50 });
   const state = createStore({ n: 0 });
   mount(() => {
     useLayoutEffect(() => { void state.n; order.push('layout'); });
@@ -205,7 +255,7 @@ test('useLayoutEffect runs, and before useEffect', async () => {
 
 test('useRender renders into an element given explicitly', async () => {
   const seen = [];
-  setRenderer((result, element) => seen.push({ result, element }));
+  wire({ on: 'render', fn: (result, element) => seen.push({ result, element }), priority: 50 });
   const el = document.createElement('div');
   host.appendChild(el);
   init(el, { mode: 'open' });
@@ -213,14 +263,72 @@ test('useRender renders into an element given explicitly', async () => {
   el.runHooks();
   await settle();
   /**
-   * `setRenderer` hands the renderer `element.shadowRoot ?? element`, so a component with a shadow
+   * The render insert is handed `element.shadowRoot ?? element`, so a component with a shadow
    * root renders INTO the shadow root, not the host. That indirection is the whole reason
    * components do not have to unwrap it themselves — asserted here because nothing else does.
    *
-   * `setRenderer` is also global and earlier components in this file are still live, so filter for
+   * The registry is also global and earlier components in this file are still live, so filter for
    * the target rather than assuming the last entry.
    */
   const mine = seen.filter((s) => s.element === el.shadowRoot);
   assert.equal(mine.length > 0, true, 'useRender drove the renderer into the element it was given');
   assert.equal(seen.some((s) => s.element === el), false, 'the host itself is never the target');
+});
+
+/**
+ * **`setStaticStores` — the export `@verajs/ssr` calls for `renderToString(url, { static: true })`.**
+ *
+ * A server render is one shot, so the subscriptions a reactive store builds during it are never
+ * fired afterwards and tracking every read to create them is pure cost. With this on, `createStore`
+ * hands back the object it was given.
+ *
+ * It was reached only *through* the SSR option, so gutting it here would have failed nothing in this
+ * package — which is the exact gap this file was created to close, reopened by a new export. Found
+ * by walking every public export and asking which are never named in a test.
+ */
+test('setStaticStores makes a store plain, and a write to one is refused', () => {
+  const initial = { n: 1, nested: { deep: true } };
+
+  setStaticStores(true);
+  try {
+    const plain = createStore(initial);
+    assert.equal(plain.n, 1, 'reads work');
+    assert.equal(plain.nested.deep, true, 'including nested ones');
+
+    /**
+     * The guard is deliberately not development-only: a server runs the production build, which is
+     * the only place a page declared static that writes to a store would silently ship wrong.
+     */
+    assert.throws(() => {
+      plain.n = 2;
+    }, TypeError, 'a write must be refused rather than silently changing nothing');
+    assert.equal(initial.n, 1, 'and must not have happened');
+  } finally {
+    setStaticStores(false);
+  }
+
+  /** Off again, the same object is reactive: a write reaches a render. */
+  const reactive = createStore({ n: 1 });
+  reactive.n = 2;
+  assert.equal(reactive.n, 2, 'a reactive store still takes a write');
+});
+
+test('setStaticStores only affects stores created while it is on', () => {
+  const before = createStore({ n: 1 });
+  setStaticStores(true);
+  let during;
+  try {
+    during = createStore({ n: 1 });
+    /** The one made earlier is unaffected — it was already a reactive proxy. */
+    before.n = 2;
+    assert.equal(before.n, 2, 'a store created before is still reactive');
+    assert.throws(() => {
+      during.n = 2;
+    }, TypeError);
+  } finally {
+    setStaticStores(false);
+  }
+  const after = createStore({ n: 1 });
+  after.n = 2;
+  assert.equal(after.n, 2, 'and one created afterwards is reactive again');
 });

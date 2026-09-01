@@ -23,12 +23,15 @@ import { findRoots } from './parser.js';
  *   {...spread} on an element     -> `${spread(props)}` via @verajs/renderer/spread
  */
 
-const BOOLEAN_ATTRIBUTES = new Set([
+export const BOOLEAN_ATTRIBUTES = new Set([
   'disabled', 'hidden', 'readonly', 'required', 'open', 'selected', 'multiple',
   'autofocus', 'autoplay', 'controls', 'loop', 'muted', 'playsinline', 'inert', 'reversed',
 ]);
 
-const NAME_MAP = { className: 'class', htmlFor: 'for' };
+export const NAME_MAP = { className: 'class', htmlFor: 'for' };
+
+/** The renderer's binding sigils. An attribute name that opens with one is the author's own choice. */
+const SIGILS = new Set(['.', '?', '@', '&']);
 
 class JsxError extends Error {
   constructor(message, code, fileName, offset) {
@@ -62,7 +65,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
    * here keeps the two in step by construction.
    */
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
-  const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer'];
+  const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
 
   const state = { usedHtml: false, usedKeyed: false };
@@ -172,6 +175,19 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
       throw new JsxError('style expects a STRING in Vera JSX (e.g. style={`color:${c}`}), not an object', code, fileName, attribute.start);
     }
 
+    /**
+     * A sigil the author wrote is passed through untouched — they have asked for a specific binding,
+     * and every rule below (`on*` → `@`, the boolean table, `value` → `.value`) exists to *guess* one
+     * for names that carry no sigil. Guessing on top of an explicit answer is how `?hidden` would
+     * become `??hidden`.
+     */
+    if (SIGILS.has(name[0])) {
+      if (attribute.kind === 'none')
+        throw new JsxError(`${name} needs a value — write ${name}={…}`, code, fileName, attribute.start);
+      tpl.static(` ${name}=`);
+      tpl.expr(bound ? expression : JSON.stringify(literal));
+      return;
+    }
     name = NAME_MAP[name] ?? name;
     if (/^on[A-Z]/.test(name)) {
       tpl.static(` @${name.slice(2).toLowerCase()}=`);
@@ -235,7 +251,22 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     return `${node.tag}({ ${props.join(', ')} })`;
   };
 
-  const roots = findRoots(code);
+  const { roots, mismatch } = findRoots(code);
+  /**
+   * **Reported, not shrugged at.** Everything else the parser cannot make sense of it hands back
+   * untouched, because `<` is ambiguous and `a < b` has to survive — but the cost of that is that a
+   * genuine typo is emitted verbatim and surfaces as `Unexpected token '<'` from whatever runs the
+   * output next, pointing at JSX the reader believes was compiled. A closing tag that names a
+   * different element is the one failure that cannot be a comparison, so it gets the same treatment
+   * as every other JSX mistake here: file, line, column, and what was wrong.
+   */
+  if (mismatch !== null)
+    throw new JsxError(
+      `<${mismatch.expected}> is closed by </${mismatch.found}>`,
+      code,
+      fileName,
+      mismatch.at
+    );
   if (roots.length === 0) return code;
 
   let out = code;

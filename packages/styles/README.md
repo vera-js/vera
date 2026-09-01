@@ -1,22 +1,27 @@
 # @verajs/styles
 
-`static styles` for VeraJS components (<!--size:styles.gzip-->597 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
+`static styles` for VeraJS components (<!--size:styles.gzip-->674 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
 roots, and `@scope`-wrapped hoisting for light DOM.
 
 <!-- recipe -->
 ```js
-import { insert } from '@verajs/core';
-import { adoptStyles } from '@verajs/styles';
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { styles } from '@verajs/styles';
 
-insert('init', adoptStyles, 50);
+wire([renderer, styles]);
 ```
 
-Once, at your app entry, next to `setRenderer`. Every component `init()` adopts its `static styles`
+Once, at your app entry, alongside the renderer. Every component `init()` adopts its `static styles`
 from that point on.
 
-`insert` comes from **`@verajs/core`**, not from `@verajs/inserts`. A production `.min.js` inlines
+`styles` is the **module**; `adoptStyles` is the function it registers. Wiring that function directly
+— `wire({ on: 'init', fn: adoptStyles, priority: 50 })` — is the same registration written out, and
+is what to write when you want a priority other than the default 50.
+
+`wire` comes from **`@verajs/core`**, not from `@verajs/inserts`. A production `.min.js` inlines
 the registry into every bundle, so registering through your own copy would write to a map core never
-reads — working in development and silently doing nothing in production. Taking core's own `insert`
+reads — working in development and silently doing nothing in production. Taking core's own `wire`
 removes the question. Forget the wiring and core says so, once, in development.
 
 **Shadow DOM** — constructed sheets go to `shadowRoot.adoptedStyleSheets`; plain strings become a
@@ -26,6 +31,12 @@ removes the question. Forget the wiring and core says so, once, in development.
 `@scope (tag-name) { … }` so they apply only inside that component's subtree: scoping without a
 shadow root, done by the platform. Hoisting also survives renders, since a `<style>` inside the
 element would be wiped by the first render pass.
+
+**On an engine with no `@scope`** — Safari before 17.4, Firefox before 128 — the block is hoisted
+**unscoped** rather than dropped, because a dropped block leaves the component unstyled while an
+unscoped one still styles it. Every rule then applies page-wide on that engine and only inside the
+tag everywhere else, so development says so once, by name. Attach a shadow root to scope them on
+every engine, or write selectors that carry the tag.
 
 ## Dynamic styles
 
@@ -50,12 +61,11 @@ shadow boundary:
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, css, html, insert } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
-import { adoptStyles } from '@verajs/styles';
+import { init, createStore, render, css, html, wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { styles } from '@verajs/styles';
 
-setRenderer(domRender);
-insert('init', adoptStyles, 50);
+wire([renderer, styles]);
 
 customElements.define(
   'x-tinted',

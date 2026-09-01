@@ -138,3 +138,44 @@ test('a stylesheet keeps the characters CSS needs', async () => {
     assert.match(css, /\.c\[x="y"\]/, `${tag}: an attribute selector survives`);
   }
 });
+
+/**
+ * **Escaping the value is only half of `attributes`.** The name was written through untouched, so
+ * `{ 'a=1 onload': v }` produced `a="1" onload="v"` — an event handler whose body is the caller's
+ * string — and `{ 'a x': v }` produced two attributes from one entry. The option could not escape
+ * the tag it describes, which is what its documentation claimed, and could add as many attributes
+ * *inside* that tag as it liked, which is the same hole one level down.
+ *
+ * The refused set is the HTML attribute-name production, which is also what the browser engines
+ * reject in `setAttribute` (`tests/browser/spread-names.test.js` records their exact rule). Refusing
+ * the same set means the server refuses what the client would refuse, rather than the two halves
+ * disagreeing about a name.
+ */
+test('the object form of `attributes` cannot invent a second attribute', async () => {
+  const url = new URL('./fixtures/ssr/xss-ssr.js', import.meta.url);
+  for (const name of ['a x', 'a=1 onload', 'a>x', 'a"x', "a'x", 'a/x', '><script>alert(1)</script>', '']) {
+    await assert.rejects(
+      () => renderToString(url, { attributes: { [name]: 'v' } }),
+      (error) => error instanceof TypeError && error.message.includes('as a name'),
+      `${JSON.stringify(name)} was accepted as an attribute name`
+    );
+  }
+  /** And an ordinary name still works, including the ones that only look unusual. */
+  const { html } = await renderToString(url, { attributes: { 'data-x': '1', 'xml:lang': 'en', '@click': 'no' } });
+  assert.match(html, /data-x="1"/);
+  assert.match(html, /xml:lang="en"/);
+});
+
+/**
+ * **`props` is for structured data, so `props: await request.json()` is the obvious way to use it**
+ * — and `JSON.parse` makes `__proto__` an ordinary own key. `Object.assign` copies that key with
+ * `[[Set]]`, which *replaces the element's prototype*: the render died with
+ * `element.upgrade is not a function`, and on the way there the request body decided what the
+ * component inherited from.
+ */
+test('`props` cannot replace the component prototype', async () => {
+  const url = new URL('./fixtures/ssr/xss-ssr.js', import.meta.url);
+  const { html } = await renderToString(url, { props: JSON.parse('{"__proto__":{"pwned":1},"ok":2}') });
+  assert.ok(html, 'the render survived a __proto__ key');
+  assert.equal(/** @type {Record<string, unknown>} */ ({}).pwned, undefined, 'Object.prototype was not touched');
+});

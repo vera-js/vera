@@ -11,7 +11,7 @@
  * silently not, and nothing had checked it.
  */
 import { expect } from '@esm-bundle/chai';
-import { initAutoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
+import { autoloader } from '../../packages/autoloader/dist/development/vera-autoloader.js';
 
 const until = async (predicate, what, timeout = 8000) => {
   const started = performance.now();
@@ -47,7 +47,7 @@ describe('a server-rendered page finds its lazy components', () => {
       'the undefined element is not in the shadow root'
     ).to.exist;
 
-    const autoload = initAutoloader(BASE, 'components');
+    const autoload = autoloader(BASE, 'components');
     /** No argument: scan the page for marked hosts, which is what a server-rendered page needs. */
     autoload();
 
@@ -70,7 +70,7 @@ describe('a server-rendered page finds its lazy components', () => {
     /** The event is composed, so it crosses the shadow boundary to a listener on the host. */
     host.addEventListener('vera:autoload-error', (event) => failures.push(event.detail.tag));
 
-    const autoload = initAutoloader(BASE, 'components');
+    const autoload = autoloader(BASE, 'components');
     autoload();
 
     const tag = await until(() => failures[0], 'the failure to be reported across the boundary');
@@ -86,7 +86,7 @@ describe('a server-rendered page finds its lazy components', () => {
     document.body.appendChild(host);
     const marked = host.firstElementChild;
 
-    const autoload = initAutoloader(BASE, 'components');
+    const autoload = autoloader(BASE, 'components');
     autoload();
     /** Nothing should have happened yet — the host is not marked. */
     expect(customElements.get('late-widget'), 'an unmarked host was scanned').to.equal(undefined);

@@ -4,6 +4,12 @@
  *
  *   npm run build && node bench/renderer-vs-lit.mjs
  *
+ * **It takes minutes, and prints nothing until it is completely finished.** Eight operations on
+ * 1 000-row tables (10 000 for one), 53 timed reps each, twice over — once per framework — under
+ * jsdom. Nothing is written until every number exists, so silence is the normal state and not a
+ * hang. Reach for it to compare the two renderers; do **not** reach for it to measure a small change
+ * to one path, which it cannot resolve and will charge you several minutes to not resolve.
+ *
  * Runs under jsdom, so the numbers are directional (DOM ops only, no layout or paint). The absolute
  * values are ~50x a real browser's; the RATIOS are the signal. Fastest of 7 with 2 warmups
  * discarded, because noise here is one-sided.
@@ -16,7 +22,8 @@ const require = createRequire(import.meta.url);
 const esbuild = require(process.cwd() + '/node_modules/esbuild/lib/main.js');
 
 const ENTRY = `
-import { render as vera, keyed } from '@verajs/renderer';
+import { renderInto as vera } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 import { html as litHtml, render as lit, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 const h = (strings, ...values) => ({ _$litType$: 1, strings, values });

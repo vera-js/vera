@@ -4,7 +4,7 @@
  * takes responsibility for propagation; the default is suppressed until we flush.
  *
  *   import { batch, batching } from './inserts/batch.js';
- *   insert('set-handler', batching, 50);
+ *   wire({ on: 'set-handler', fn: batching, priority: 50 });
  *
  *   batch(() => {
  *     state.a = 1;
@@ -19,7 +19,7 @@
 /** Writes held during a batch: obj -> prop -> { value, prevValue, runCallbacks }. */
 let held = null;
 
-/** The insert. Registered once: insert('set-handler', batching, 50). */
+/** The insert. Registered once: `wire({ on: 'set-handler', fn: batching, priority: 50 })`. */
 export const batching = (obj, prop, value, prevValue, runCallbacks) => {
   if (!held) return; // not batching — leave default propagation alone
   let props = held.get(obj);

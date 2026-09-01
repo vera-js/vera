@@ -3,13 +3,14 @@
 Operational conventions and project parameters. Records decisions that are **not** derivable from the
 code, so they are not re-litigated.
 
-- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (nine principles, equally weighted)
+- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (ten principles, equally weighted)
 - **Findings, audits, todos:** `internal/docs/` — the private portal (see *Repositories*)
 - **AI-facing API spec:** `llms.txt` at the root (convention puts it there, like `robots.txt`).
   Hand-maintained, so it drifts — the generated `packages/*/dist/development/*.d.ts` is the source
   of truth. Update it in the same pass as any API change. It carries the complete **buildless JSX
   recipe** (import map + `@verajs/jsx/standalone`), which is the fastest path to a working
-  single-file demo.
+  single-file demo — and which `tests/llms-recipes.test.mjs` now compiles and runs, because
+  `docs-recipes` globs the READMEs and had never read this file at all.
 - **Writing templates:** prefer a stable shape with `?hidden=${…}` over swapping subtrees
   conditionally — template identity holds, so values update in place instead of the subtree being
   torn down and rebuilt. (This was also a correctness issue before 0.1.2; see
@@ -18,6 +19,82 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
+- **A probe needs `requestAnimationFrame` on `globalThis`, or the scheduler runs synchronously.**
+  `animationFrame` falls back to `run()` when the global is missing, so every write flushes
+  immediately and **coalescing cannot happen** — a probe missing it reports `useEffect` running 100
+  times for 100 writes and looks like a broken batch. The full list a probe needs is
+  `window document HTMLElement customElements CSSStyleSheet Node Element DocumentFragment
+  requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent` for anything
+  dispatching, and `location`/`history` for the router.
+- **jsdom is stricter than a browser about `setAttribute`, and that difference has already produced
+  one false finding.** jsdom implements the XML Name production and throws on `a(b)`, `a|b`, `a?b`
+  and about fifty other shapes; **every real engine accepts them**, rejecting exactly `a b`, `a>b`,
+  `a=b` and `a/b`. `tests/browser/spread-names.test.js` records the engines' rule on purpose — read
+  it before changing anything about attribute-name validation, because a jsdom probe will tell you
+  the denylist is broken when it is exactly right. More generally: **jsdom is the regression net,
+  never the oracle** for anything the platform decides.
+- **The SSR shim is a DOM implementation, so audit it by differential test, never by reading it.**
+  Run the same operation against the shim and against jsdom and compare the answers — a twenty-line
+  script over `setAttribute`/`getAttribute`/`localName`/`className` found three real divergences in
+  one pass, all of them invisible to a code read because the shim's code is individually reasonable
+  and only *collectively* wrong. The class of bug it finds is the worst one this package has: the
+  server and the client disagree about something neither of them renders, so nothing fails until a
+  hydration mismatch shows up somewhere else entirely. Where the two legitimately differ (this DOM
+  declines markup it cannot reproduce exactly, so those queries answer emptily) that is in the README's
+  out-of-scope list — check there before calling a difference a defect. **The most productive
+  question is not "is this member present" but "does it refuse what the platform refuses"** — a
+  member that exists and is too permissive looks exactly like one that is correct, and being lenient
+  server-side only moves the failure to the client with the context stripped off.
+- **A retention probe needs two controls, and `const x = …` in the loop is not one of them.**
+  Measuring whether the framework leaks means measuring against something, or the number means
+  nothing in either direction: a **retained** control that must stay alive (or the run is collecting
+  things it should not, and everything looks clean) and a **dropped** plain object that must die (or
+  `gc()` is not running, and everything looks leaked).
+  The specific trap, measured with **no framework and no DOM at all**: 30 plain objects each bound to
+  a `const` and then `WeakRef`'d leave the **last one alive**; the same 30 created inline inside the
+  `WeakRef()` call leave **none**. So `for (…) { const el = make(); …; refs.push(new WeakRef(el)) }`
+  always reports one survivor — the loop's final binding, not a leak — and it survives arbitrary
+  further churn, which makes it look like a bounded framework hold rather than an artefact. That
+  reading cost a bisect across six component shapes before a plain-object control settled it.
+  **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
+  `--expose-gc` made the old behaviour look correct); keep gc measurement in `.probe/`.
+- **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
+  cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
+  number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
+  the measurement had silently reused the previous experiment's bundle. Print the baseline after
+  restoring, every time. The same applies to timings: `bench/reactivity.mjs` read 163 ns/op straight
+  after the browser suite and 132 on a quiet machine, so take three runs before believing a
+  regression.
+- **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
+  `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
+  `@verajs/reactivity`, `@verajs/reactivity/collections`, anything built on core's public API — resolves core
+  through `exports.default`, which is `dist/*.min.js`. The probe then holds **two cores**: writes go
+  to one store registry and subscriptions live in the other, so reactivity looks completely dead and
+  every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard
+  never fires" findings on separate occasions.
+- **Two template literals are two templates, even with identical text.** Template identity is the
+  `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
+  probe produces a rebuild, not an update, and every conclusion drawn about update behaviour is
+  then wrong in the same direction. Render through **one** `draw()` function called twice. This has
+  produced confident false findings about `keyed`, `hold` and `!live` on separate occasions; when a
+  result says the DOM was rebuilt or a value was lost, suspect the probe before the renderer.
+- **A probe that measures nothing reports perfect behaviour**, so assert the control produced a
+  non-zero result *before* concluding anything from a silence. This is the generalisation of the
+  retention-probe rule above and it has cost four separate passes: hooks registered after `render()`
+  are ignored, so a recovery probe read `0` before and `0` after and looked like "nothing recovered"
+  when it meant **nothing ran**; plain `<div>`s never fire `disconnectedCallback`, so a teardown probe
+  reported every cleanup balanced while running none; `watch()` returns early on an element with no
+  `autoloader` attribute, so an idempotence check counted `observe()` at 0 twice and called it
+  idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
+  no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
+  perfectly by an entry that never ran at all.
+- **Grep for the API, not the word**, or the search invents findings. `inserts.get('mount')` appeared
+  to be an insert point no package registers and no doc mentions; the pattern had matched inside
+  **`setupTarget('mount')`** and there is no such insert point. `!live` appeared to be a public
+  feature with two test files while `hold` had sixteen; `!live` is a **test-title word** and the API
+  is `!checked`/`!value`, covered in five places including a browser suite. Both were one step from
+  being written up. Anchor on the call — `inserts\.get\(` — and re-run the search before believing a
+  count.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 
@@ -45,6 +122,21 @@ rest of this file.
   invalidates the current approach gets surfaced immediately, not at the end.
 - **Never assume abandoned code is dead.** See `docs/CODE-PRINCIPLES.md` #3. Audit, report what it was
   for, and let Brian decide.
+- **Every `console.warn`/`console.error` the framework prints starts `[vera]`**, so a user can find
+  all of them with one filter. A thrown `Error` may name its function instead — a stack already names
+  the source — but a message the framework also prints carries the prefix.
+  `tests/diagnostics-convention.test.mjs` asserts it across every source file rather than trusting it.
+- **Removing an API means adding its name to `tests/docs-removed-apis.test.mjs`.** One line, at the
+  moment the knowledge exists. That list is what turns "we remembered to grep the docs" into
+  something the gate refuses to let through — `setRenderer` survived its own deletion in 23 places
+  across `llms.txt`, four READMEs and `docs/ARCHITECTURE.md`, with every suite green. Prose is where
+  API names live, and it is the half no recipe or import check can reach.
+- **"Worth documenting" means document it, now.** If a finding is worth a sentence in conversation,
+  it is worth the same sentence in the file where someone will hit it — the README, the doc comment,
+  `llms.txt`, `internal/docs/`. Saying it and not writing it down produces exactly the drift these
+  docs exist to prevent, and the moment it is understood is the only moment it is cheap. The same
+  goes for "worth checking" and "worth flagging": do it in the same pass or say plainly that it is
+  outstanding.
 - Collaboration is the point. Prefer a short check-in over an impressive unilateral result.
 
 ---
@@ -58,9 +150,12 @@ The shape of the product:
 
 - **`@verajs/core`** covers most of what people actually need.
 - **A module system** lets people use the prebuilt modules — `autoloader`, `jsx`, `renderer`,
-  `router`, `ssr`, `styles` — or write their own. (`map-support` was retired: reactive `Map`/`Set`
-  moved into core. `styles` went the other way in 0.2.0 — `static styles` adoption left core,
-  recovering 300 B gzipped for every app that does not use it.)
+  `router`, `ssr`, `styles` — or write their own. (`map-support` was retired into core and then
+  moved back out as `collections` in 0.2.0, on a **type-keyed** `'collection'` insert point rather
+  than the `'proxy-handler'` chain that made the first attempt costly — 292 B recovered for every
+  app without a `Map` in a store, 24 B added for those with one. `styles` went the same way in
+  0.2.0 — `static styles` adoption left core, recovering 300 B gzipped for every app that does not
+  use it.)
 - At minimum you need **a renderer**. Everything else is opt-in.
 
 **History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head
@@ -95,8 +190,11 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 > `acorn-import-attributes`, a vendored `jsx-loader.js` and `linkedom`, are gone; nothing installs
 > them and nothing needs them. `tests/ssr-native.test.mjs` covers declarative shadow DOM, nesting,
 > escaping, sigil stripping, `static styles` and determinism, and the server→client handoff is
-> exercised for real: `scripts/build-hydration-fixture.mjs` renders through the actual pipeline and
-> the browser suite hydrates that output, with `--check` in CI so the snapshot cannot drift.
+> exercised for real: `scripts/build-hydration-fixture.mjs` and `scripts/build-kitchen-fixture.mjs`
+> render through the actual pipeline and the browser suite hydrates that output. **Both carry
+> `--check` in `npm run gate`** — the kitchen one did not until 2026-08-26, and had silently drifted,
+> so the browser suite was comparing against markup no server emitted. Any generated artifact that is
+> committed needs its `--check` in the gate on the same day it is written.
 
 ## Modules are independent — by design
 
@@ -105,21 +203,19 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
 
 - Production `.min.js` bundles **inline everything**, including `@verajs/inserts`. Loading
   `vera.min.js` *and* `vera-router.min.js` therefore yields **two separate `inserts` Maps**.
-- That is exactly why **`connectInserts(inserts)`** exists, and why the CDN entry point must call it.
-  This is not a bug. Do not "fix" it by making bundles share state.
-- **Corrected 2026-08-22.** This previously said the npm/bundler path resolves to one
-  `@verajs/inserts` instance, making `connectInserts` a harmless no-op. **That is true only under
-  the `development` condition.** A production bundler build resolves `exports.default` —
-  `dist/*.min.js` — which inlines the registry, so core and router each get their own. Measured:
-  bundling `@verajs/core` + a second package yields **1** registry with `--conditions development`
-  and **2** without. `examples/npm-ts` calling `connectInserts` is therefore necessary, not
-  ceremonial.
-- **Rule for anything that registers an insert: take `insert` from `@verajs/core`, never from
+- That is why **no module carries a registry of its own**. The router is handed core's — `wire([renderer,
+  router])` — and every other module registers through core's `wire`. This is not a bug to "fix" by
+  making bundles share state; it is why the hazard is removed by construction instead.
+- The reconciliation step that preceded this was removed in 0.2.0: it was load-bearing on a CDN page
+  and ceremonial under a bundler, so the failure it guarded appeared in production only. Worth
+  keeping the measurement it rested on: bundling `@verajs/core` + a second package yields **1**
+  registry with `--conditions development` and **2** without.
+- **Rule for anything that registers an insert: take `wire` from `@verajs/core`, never from
   `@verajs/inserts`.** Core's own function writes to the map core reads, in every build. Registering
   through your own copy works in development and silently does nothing in production — it does not
   throw, the callback simply lands where core never looks. `@verajs/styles` was written the wrong
   way first and passed every development test. `tests/cdn-cross-bundle.test.mjs` guards this now.
-- `@verajs/ssr` self-wires correctly by taking `setRenderer` and `insert` from core. (Core used to
+- `@verajs/ssr` self-wires correctly by taking `wire` from core. (Core used to
   self-register a default renderer at module scope, which was safe only because it lived *inside*
   core's bundle with no boundary to cross; it was removed in 0.2.0.)
 
@@ -134,6 +230,11 @@ decorators, and any TypeScript-only runtime syntax outright. See `docs/CODE-PRIN
   `.ts` to consumers. It is still type-checked — `checkJs` plus JSDoc types and explicit casts, in
   `npm run gate` alongside every other package — so the intent of the rule is met without the
   toolchain. Nothing else gets this exemption.
+  **It does emit `.d.ts` now** (`packages/ssr/types/`, gitignored, generated from that same JSDoc).
+  Without them a TypeScript consumer got `TS7016` and was told to write their own
+  `declare module` — npm+TypeScript and SSR are both first-class modes and their intersection did
+  not work. This does not weaken the exemption: nothing is transpiled, `src` is still what ships,
+  and the declarations cannot drift from the JSDoc they are generated from.
 - **A component never exists as both `.ts` and `.js`.** Twins drift silently in both directions. When
   a richer `.js` version exists it is **ported forward into `.ts`** — never the reverse.
   (`goodbye-component.js` was 220 lines against a 43-line `.ts` stub; assuming the `.ts` was newer
@@ -207,16 +308,23 @@ collaborator — the public ones in this repo, the private ones in `vera-js/inte
 
 Two layers, both installed and both in CI.
 
-**Fast layer:** `node --test` + jsdom in `tests/*.test.mjs` — 143 checks against built artifacts.
+**Fast layer:** `node --test` + jsdom in `tests/*.test.mjs`, against built artifacts. A few dozen
+tests skip under production, where the diagnostics they assert have been folded away.
+
+> **No count is stated here, deliberately.** Four separate places in this repo carried a test count
+> that had stopped being true, and the only numbers that never drifted are the size claims, which
+> have `sync-size-claims.mjs --check` behind them. A number nothing generates will be wrong, and a
+> number that moves with every commit would put a doc edit in the way of adding a test. `npm test`
+> prints it.
 **Every suite runs twice**, against `dist/development/*.js` and against `dist/*.min.js` —
 `npm test`, `npm run test:prod`, or `npm run test:all`. They are different programs: production
 mangles properties, folds `__DEV__` to `false` and deletes the branches, drops `console.log`, and
 inlines workspace dependencies (9 checks are development-only and skip accordingly).
 `tests/dist.mjs` resolves the artifact; a suite never hard-codes a path.
-`tests/cdn-cross-bundle.test.mjs` covers the two-registry `connectInserts` condition, which **only
-exists in the production build** — verified to fail if `_p` is ever mangled.
+`tests/cdn-cross-bundle.test.mjs` covers the two-registry condition, which **only exists in the
+production build** — verified to fail if `_p` is ever mangled.
 
-**Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js` — 29 checks on
+**Browser-truth layer:** `@web/test-runner` + Playwright, `tests/browser/*.test.js`, on
 **Chromium, Firefox and WebKit** (`npm run test:browser`, `npm run test:browser:all`, or
 `VERA_BROWSERS=webkit npm run test:browser`; the `--browsers` CLI flag is unusable because the
 config defines its own launchers). Shadow DOM, custom element upgrade timing, `adoptedStyleSheets`
@@ -227,8 +335,8 @@ suites are the release gate.
 **Documented code is executed, not just written.** `tests/docs-recipes.test.mjs` runs the root
 README's quick-starts and every block marked `<!-- recipe -->` in any README, each in its own
 process. Isolation is per-process rather than per-import because under the `development` condition
-workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe missing
-`setRenderer` otherwise passes on a renderer an earlier recipe registered.
+workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe that
+never wired a renderer otherwise passes on one an earlier recipe registered.
 
 ## Versioning
 

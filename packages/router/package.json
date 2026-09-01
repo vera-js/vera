@@ -109,8 +109,5 @@
     "web-components",
     "buildless"
   ],
-  "dependencies": {
-    "@verajs/inserts": "^0.1.3"
-  },
   "sideEffects": false
 }

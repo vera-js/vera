@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render, keyed } = await load('renderer');
+const { renderInto } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
 const dir = mkdtempSync(join(tmpdir(), 'vera-jsx-'));
@@ -60,7 +61,7 @@ const container = dom.window.document.getElementById('root');
 let clicks = 0;
 const state = { bump: () => clicks++, n: 1, flag: false,
   items: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] };
-render(mod.app(state), container);
+renderInto(mod.app(state), container);
 container.querySelector('button').dispatchEvent(new dom.window.Event('click'));
 assert.equal(clicks, 1, 'onClick wired through @click');
 assert.equal(container.querySelector('em'), null, 'false conditional renders nothing');
@@ -68,18 +69,18 @@ assert.equal(container.querySelector('em'), null, 'false conditional renders not
 const liB = container.querySelectorAll('li')[1];
 state.items = [state.items[1], state.items[0]];
 state.flag = true;
-render(mod.app(state), container);
+renderInto(mod.app(state), container);
 assert.equal(container.querySelectorAll('li')[0], liB, 'key -> keyed(): reorder MOVED the node');
 assert.equal(container.querySelector('em').textContent, 'on', 'conditional toggled in');
 const before = container.querySelector('section');
-render(mod.app(state), container);
+renderInto(mod.app(state), container);
 assert.equal(container.querySelector('section'), before, 'template identity stable across calls');
 
 // ── 3. components: call convention, spread, children ──
 const comp = await compile(PRELUDE + `
 const Chip = ({ tone, children }) => <b class={'chip ' + tone}>{children}</b>;
 export const page = (s) => <div><Chip tone="warm" {...s.extra}>hi {s.who}</Chip></div>;`);
-render(comp.page({ who: 'you', extra: {} }), container);
+renderInto(comp.page({ who: 'you', extra: {} }), container);
 assert.equal(container.querySelector('b').textContent, 'hi you', 'component call + children flatten');
 assert.ok(container.querySelector('b').className.includes('warm'), 'props pass through');
 
@@ -88,7 +89,7 @@ const frag = await compile(PRELUDE + `export const t = (s) => <>
   <i>one</i>
   <i>{'\`'}{s.x} costs \${9}</i>
 </>;`);
-render(frag.t({ x: 'tick' }), container);
+renderInto(frag.t({ x: 'tick' }), container);
 const italics = container.querySelectorAll('i');
 assert.equal(italics.length, 2, 'fragment renders multi-root');
 assert.equal(italics[1].textContent, '`tick costs $9', 'backticks and dollar-brace survive');
@@ -99,7 +100,7 @@ assert.throws(() => transformJsx('const a = <div style={{ color: c }} />;', 'e.j
 
 // ── 6. auto-imports ──
 const injected = transformJsx('export const v = () => <p>{x.map((i) => <b key={i}>{i}</b>)}</p>;', 'i.jsx');
-assert.ok(injected.startsWith("import { html } from '@verajs/core';\nimport { keyed } from '@verajs/renderer';"),
+assert.ok(injected.startsWith("import { html } from '@verajs/core';\nimport { keyed } from '@verajs/renderer/keyed';"),
   'auto-imports injected when missing');
 const notDoubled = transformJsx("import { html } from '@verajs/core';\nexport const v = () => <p>x</p>;", 'i2.jsx');
 assert.equal((notDoubled.match(/@verajs\/core/g) ?? []).length, 1, 'existing import not doubled');
@@ -147,7 +148,7 @@ assert.ok(T(`const v = <a title="it's fine">t</a>;`).includes(`title="it's fine"
 
   assert.ok(injections("      import { init, html } from '@verajs/core';\n      const a = <p>{1}</p>;", 'html') === 0, 'an indented import of html suppresses the injection');
   assert.ok(injections("import {\n  init,\n  html,\n} from '@verajs/core';\nconst a = <p>{1}</p>;", 'html') === 0, 'an import spread across lines does too');
-  assert.ok(injections("    import { keyed } from '@verajs/renderer';\n    const a = <p key={1}>{1}</p>;", 'keyed') === 0, 'an indented import of keyed suppresses its injection');
+  assert.ok(injections("    import { keyed } from '@verajs/renderer/keyed';\n    const a = <p key={1}>{1}</p>;", 'keyed') === 0, 'an indented import of keyed suppresses its injection');
   assert.ok(injections("import { html as h } from '@verajs/core';\nconst a = <p>{1}</p>;", 'html') === 1, 'a renamed import does not suppress it, because the emitted name is still unbound');
   assert.ok(injections('const a = <p>{1}</p>;', 'html') === 1, 'and a source with no import of its own still gets one');
 }

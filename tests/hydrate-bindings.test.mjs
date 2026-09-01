@@ -86,7 +86,7 @@ const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
-const { render } = await load('renderer/hydrate');
+const { renderInto } = await load('renderer/hydrate');
 const html = (strings, ...values) => ({ strings, values });
 const state = { text: 'hello & <world>', count: 3, rows: ['a', 'b'] };
 
@@ -130,7 +130,7 @@ for (const [name, markup] of Object.entries(serverMarkup)) {
   const probe = container.querySelector('#probe');
   assert.ok(probe, `${name}: the server markup has no probe element — ${markup}`);
 
-  render(clientTemplates[name](), container);
+  renderInto(clientTemplates[name](), container);
 
   if (container.querySelector('#probe') !== probe) {
     failures.push(`${name}\n      server: ${markup}\n      client: ${container.innerHTML.replace(/<!--[^>]*-->/g, '')}`);

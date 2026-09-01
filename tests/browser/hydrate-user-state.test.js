@@ -13,10 +13,10 @@
  * Each case does the thing a person would do, then hydrates, then asks what survived.
  */
 import { expect } from '@esm-bundle/chai';
-import { setRenderer, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
-import { render as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { wire, init, render, html, createStore } from '../../packages/core/dist/development/vera.js';
+import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-setRenderer(hydratingRender);
+wire({ on: 'render', fn: hydratingRender, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** Exactly what `@verajs/ssr` emits for the component below, with the server's values in place. */
@@ -162,4 +162,67 @@ it('and a reader’s edit survives while the default does not move', async () =>
   const area = shadow.querySelector('#area');
   expect(area.value, 'the reader’s text').to.equal('typed by hand');
   expect(area.defaultValue, 'the server’s, untouched').to.equal('server text');
+});
+
+/* ── a live binding still yields to what the reader did ──────────────────────────────────────── */
+/**
+ * `!name` is authoritative *after* hydration — that is the point of it. During adoption it is not.
+ *
+ * The click that checked a radio happened before any handler existed to tell the store about it, so
+ * re-asserting the server's choice here would throw the interaction away and nothing would ever put
+ * it back. Adoption records the value without writing, exactly as it does for `.value`/`.checked`,
+ * and the first state-driven render after that applies live semantics normally.
+ */
+describe('a live binding during hydration', () => {
+  const SERVER_RADIOS = `<template shadowrootmode="open"><form>
+        <input id="one" type="radio" name="pick" checked />
+        <input id="two" type="radio" name="pick" />
+      </form></template>`;
+
+  let radioSeq = 0;
+  const mountRadios = async (touch) => {
+    const tag = `live-probe-${radioSeq++}`;
+    const host = document.createElement('div');
+    host.setHTMLUnsafe(`<${tag}>${SERVER_RADIOS}</${tag}>`);
+    document.body.appendChild(host);
+    const element = host.firstElementChild;
+    const shadow = element.shadowRoot;
+    touch(shadow);
+
+    customElements.define(
+      tag,
+      class extends HTMLElement {
+        connectedCallback() {
+          init(this, { mode: 'open' });
+          const state = createStore({ picked: 'one' });
+          this.state = state;
+          render(
+            () => html`<form>
+        <input id="one" type="radio" name="pick" !checked=${state.picked === 'one'} />
+        <input id="two" type="radio" name="pick" !checked=${state.picked === 'two'} />
+      </form>`
+          );
+        }
+      }
+    );
+    await frame();
+    await frame();
+    return { element, shadow };
+  };
+
+  it('leaves a radio the reader clicked before the bundle landed', async () => {
+    const { shadow } = await mountRadios((root) => (root.querySelector('#two').checked = true));
+    expect(shadow.querySelector('#two').checked, 'the reader’s click was undone').to.equal(true);
+    expect(shadow.querySelector('#one').checked).to.equal(false);
+  });
+
+  it('and is authoritative from the next state-driven render on', async () => {
+    const { element, shadow } = await mountRadios((root) => (root.querySelector('#two').checked = true));
+    element.state.picked = 'two';
+    await frame();
+    element.state.picked = 'one';
+    await frame();
+    expect(shadow.querySelector('#one').checked, 'live reasserted once the model spoke').to.equal(true);
+    expect(shadow.querySelector('#two').checked).to.equal(false);
+  });
 });

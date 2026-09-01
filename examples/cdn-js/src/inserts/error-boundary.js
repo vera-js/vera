@@ -4,7 +4,7 @@
  * `console.error`; registering here is what turns isolation into an actual boundary.
  *
  *   import { errorBoundary } from './inserts/error-boundary.js';
- *   insert('error', errorBoundary, 50);
+ *   wire({ on: 'error', fn: errorBoundary, priority: 50 });
  *
  * This example renders a fallback into the failing component (its shadow root when it has one)
  * and keeps the error visible in the console. A real app might report to a tracker instead —

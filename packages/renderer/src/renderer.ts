@@ -67,18 +67,6 @@ export type TemplateResult = {
   key?: unknown;
 };
 
-/**
- * Marks a template result with a stable key so list reconciliation moves it instead of rewriting
- * it. Key all items in a list or none — mixing is undefined behaviour, as are duplicate keys.
- *
- * ```js
- * rows.map((r) => keyed(r.id, html`<tr>...</tr>`))
- * ```
- */
-export const keyed = <T>(key: unknown, result: T): T => {
-  (result as TemplateResult).key = key;
-  return result;
-};
 
 /**
  * Preserves the DOM of templates a child position toggles away from, instead of destroying it —
@@ -128,7 +116,24 @@ const markerWalker = doc.createTreeWalker(doc, 129 /* ELEMENT | COMMENT */);
  */
 const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
 
-const RAW_TEXT_TAGS = /^(?:script|style|textarea|title)$/i;
+/**
+ * Elements whose children a parser reads as **text**, so a marker written inside one arrives as
+ * characters rather than a comment and the binding never becomes a part.
+ *
+ * `iframe` and `noscript` were missing, and both were measured broken in a browser rather than
+ * reasoned about: `html\`<iframe>${v}</iframe>\`` painted the literal marker — `<?$v8hpsho$>` — onto
+ * the page in **all three engines** and never updated.
+ *
+ * **`noscript` is the one worth the comment, because the engines disagree.** A template's contents
+ * are parsed with the scripting flag *disabled*, which is what decides whether `noscript` is raw
+ * text — and Chromium and WebKit parse it as markup there while Firefox parses it as text. So
+ * `html\`<noscript>${v}</noscript>\`` worked in two engines and painted the marker in the third: an
+ * app developed in Chrome shipping the framework's internals onto the page for Firefox users.
+ *
+ * Listing it here is safe in both parses. Where the marker became a comment the raw-text branch does
+ * not trigger, because it looks for the marker in `textContent` and finds none.
+ */
+const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
 const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 
 /** What an expression position turned out to be. */
@@ -297,6 +302,48 @@ const scan = (strings: TemplateStringsArray) => {
          * Element-position expression — an element REF, not a no-op. Marked exactly like a bound
          * attribute ('&' cannot begin a real attribute binding), so no new machinery exists for it.
          */
+        if (__DEV__ && (markup.endsWith('<') || markup.endsWith('</'))) {
+          /**
+           * Except in **tag position**, where it is a mistake with no useful reading. `<${name}>`
+           * lands here because the tag has no name yet, and what the parser then makes of a ref on
+           * a nameless element is escaped punctuation. Naming the entry that does support it is
+           * more use than an element ref nobody asked for.
+           */
+          console.error(
+            `[vera] an expression in tag position (\`<\${…}>\`) is not a dynamic tag name — the ` +
+              `template has no element there and the markup around it is rendered as text.\n` +
+              `Runtime tag names live in @verajs/renderer/tag:\n\n` +
+              `  import { html, tag } from '@verajs/renderer/tag';\n` +
+              `  const heading = tag\`h1\`;\n` +
+              `  html\`<\${heading}>…</\${heading}>\`\n`
+          );
+        }
+        /**
+         * **And in attribute-*name* position, which is the same mistake one step along.**
+         *
+         * `<b ${name}="x">`, `<b data-${name}="1">` and `<b a${name}b="1">` all land here: the
+         * marker is not preceded by `=`, so it reads as an element ref, and the `="x"` after it
+         * stays literal markup. The browser's parser then makes `<b ="x"="">` of it — attributes
+         * nobody wrote, silently.
+         *
+         * **The server already refuses this**, and said so in its README while the client shipped
+         * the garbage. A developer rendering only in a browser saw malformed output with no clue,
+         * and adding SSR later turned it into a throw with no obvious connection.
+         *
+         * Told apart from a real element ref by what follows it: a ref is always followed by
+         * whitespace, `>` or `/`. Anything else means the marker landed inside a name.
+         */
+        const after = strings[i + 1] ?? '';
+        if (__DEV__ && after !== '' && !/^[\s>/]/.test(after)) {
+          console.error(
+            `[vera] an expression in attribute-name position (\`<b \${…}="x">\`) is not a dynamic ` +
+              `attribute name — a marker is not a name, and the parser makes attributes nobody ` +
+              `wrote out of what follows it.\n` +
+              `Runtime-named bindings live in @verajs/renderer/spread:\n\n` +
+              `  import { spread } from '@verajs/renderer/spread';\n` +
+              `  html\`<b \${spread({ [name]: 'x' })}>…</b>\`\n`
+          );
+        }
         markup += ` ${specs.length}${MARKER}="${MARKER}"`;
         specs.push({ _type: ATTRIBUTE, _name: '&' });
       }
@@ -434,7 +481,6 @@ const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 const UNSET = {};
 
 /** Removal target: nodes moved here are dropped when it is emptied. */
-const SCRATCH = doc.createDocumentFragment();
 
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
 const createMarkeredPart = (parent: Node, ref: Node | null) => {
@@ -445,14 +491,53 @@ const createMarkeredPart = (parent: Node, ref: Node | null) => {
   return new ChildPart(start, end);
 };
 
-const toText = (value: unknown) => (value == null ? '' : String(value));
+/**
+ * Text for an attribute built from several expressions.
+ *
+ * `` `${value}` `` rather than `String(value)`, and the difference is exactly one case. Both are
+ * ToString with hint `'string'` for everything else; `String` alone special-cases a **symbol** and
+ * returns its description instead of throwing. Every single-expression binding assigns straight to
+ * the DOM and gets WebIDL's `DOMString` conversion, which throws on one — so `title=${symbol}` threw
+ * and `title="a ${symbol} b"` quietly rendered `a Symbol(s) b`. The same sigil on the same attribute,
+ * disagreeing with itself depending on whether static text sat beside it.
+ */
+const toText = (value: unknown) => (value == null ? '' : `${value}`);
 
 /** Binding kinds, resolved once from the attribute name's first character. */
 const ATTR = 0; // plain attribute
 const PROPERTY = 1; // .name
 const BOOLEAN = 2; // ?name
-const EVENT = 3; // @name
-const REF = 4; // element-position expression
+/**
+ * `!name` — a property written from the *live* DOM rather than from what this binding last wrote.
+ *
+ * Numbered below `EVENT` deliberately: `kind >= EVENT` is what decides a value is passed raw rather
+ * than joined from the statics, and a live binding is a property, so `!title="a${x}b"` has to join
+ * like every other one.
+ */
+const LIVE = 3;
+const EVENT = 4; // @name
+/**
+ * Calls an element ref, and survives one that throws.
+ *
+ * A ref runs in the middle of committing a template's parts, so an unguarded throw left the commit
+ * half applied and unwound the render that triggered it — the component's shadow root ended up
+ * **empty and stayed that way**, and every later update threw at the same line. The error was
+ * reported, so the only symptom was a component that had silently stopped existing.
+ *
+ * The same judgement `handleEvent` makes a few lines up: a mistake in code the template was handed
+ * is named, not raised from inside the framework at a point where the value's origin is long gone.
+ * The prefix goes on our own sentence and the error is passed alongside, so it stays filterable
+ * without misattributing someone else's `Error`.
+ */
+const applyRef = (callback: (el: Element | null) => void, element: Element | null) => {
+  try {
+    callback(element);
+  } catch (error) {
+    console.error('[vera] an element ref threw; the render continued without it.', error);
+  }
+};
+
+const REF = 5; // element-position expression
 
 class AttrPart implements Part {
   _element: Element;
@@ -463,10 +548,23 @@ class AttrPart implements Part {
   _isFullValue: boolean; // exactly one expression with no static text around it
   _committed: unknown = UNSET;
   _handler: EventListener | null = null;
+  /** `<select>.value`, which cannot be applied where it is written — see `pendingSelects`. */
+  _select = false;
 
   constructor(element: Element, name: string, statics: string[]) {
     const first = name[0];
-    let kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : first === '&' ? REF : ATTR;
+    let kind =
+      first === '.'
+        ? PROPERTY
+        : first === '?'
+          ? BOOLEAN
+          : first === '@'
+            ? EVENT
+            : first === '&'
+              ? REF
+              : first === '!'
+                ? LIVE
+                : ATTR;
     let realName = kind ? name.slice(1) : name;
     /**
      * React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a capital —
@@ -488,11 +586,73 @@ class AttrPart implements Part {
     this._statics = statics;
     this._slots = statics.length - 1;
     this._isFullValue = this._slots === 1 && statics[0] === '' && statics[1] === '';
+    /** Resolved once, here, so the commit path costs one boolean rather than two comparisons. */
+    this._select = kind === PROPERTY && realName === 'value' && element.localName === 'select';
   }
 
-  /** Stable listener registered once; swapping the handler never touches the DOM. */
+  /**
+   * Releases an element ref, because the element it named is going away.
+   *
+   * A ref was told about attachment and never about detachment, so it kept a detached node alive and
+   * a component reading `myRef.value` after a subtree was replaced got the old element back. Lit
+   * passes `undefined` for the same reason.
+   *
+   * `null` rather than `undefined`, because `.value` is a store property and `null` reads as
+   * "deliberately nothing" where `undefined` reads as "never set".
+   *
+   * **Reached when a subtree is rendered away, and deliberately not when a component is removed
+   * from the document.** The two are the same event to a reader and not to this renderer: a
+   * disconnect here is not a destruction, since moving a node between parents fires one and the
+   * component renders again on reconnect. Releasing there would blank every ref for the frame a
+   * move takes, and `_committed = UNSET` below means the re-apply could only happen on the next
+   * pass. Measured in `tests/renderer-ref-lifetime.test.mjs`, which asserts both halves so the
+   * asymmetry is a decision rather than something nobody looked at.
+   *
+   * A **self-applying** value is
+   * skipped: `_$apply$` receives the part and owns its own lifecycle, so telling it about detachment
+   * here would be a second protocol contradicting the first.
+   */
+  _release() {
+    const value = this._committed;
+    if (typeof value === 'function') applyRef(value as (el: Element | null) => void, null);
+    else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
+      (value as { value: unknown }).value = null;
+    this._committed = UNSET;
+  }
+
+  /**
+   * Stable listener; swapping one function for another never touches the DOM.
+   *
+   * **It is not registered exactly once, and the difference is load-bearing.** A handler set back to
+   * `undefined` or `false` nulls `_handler` *without removing the listener* — inert, because
+   * `handleEvent` finds nothing callable — so the next non-null value sees `_handler === null` and
+   * calls `addEventListener` again. Measured: `function -> undefined -> function` registers twice.
+   *
+   * That is harmless only because the listener passed is **`this`, the part object itself**. The
+   * platform ignores a repeated `(type, listener, capture)` triple, verified with no framework
+   * involved — the same listener object added three times fires once. Pass a fresh closure here
+   * instead and dedup stops applying: every toggle through null adds another live listener, silently,
+   * and only in components that turn a handler off and on again.
+   *
+   * `tests/event-binding-fuzz.test.mjs` holds that as an invariant — it counts *fires*, not
+   * `addEventListener` calls, and making this listener a closure fails it.
+   *
+   * **Two shapes, because `addEventListener` takes two.** A function is called with the element as
+   * `this`; an object with a `handleEvent` method is invoked through it — the platform's own
+   * `EventListenerObject` protocol, which every engine accepts and lit supports. This used to call
+   * `.call()` unconditionally, so passing the platform's own listener shape bound successfully and
+   * then threw `this._handler.call is not a function` on **every** dispatch.
+   *
+   * Anything else is inert rather than throwing. A truthy non-function is a mistake, and
+   * development names it at the binding (see the `EVENT` branch in `_commit`) — where the mistake
+   * still is. Throwing here instead would raise from inside the framework on every user click, at a
+   * point where the value's origin is long gone.
+   */
   handleEvent(event: Event) {
-    if (this._handler) this._handler.call(this._element as never, event);
+    const handler = this._handler as EventListener | EventListenerObject | null;
+    if (typeof handler === 'function') handler.call(this._element as never, event);
+    else if (typeof (handler as EventListenerObject)?.handleEvent === 'function')
+      (handler as EventListenerObject).handleEvent(event);
   }
 
   /**
@@ -509,6 +669,56 @@ class AttrPart implements Part {
       let joined = statics[0];
       for (let i = 0; i < this._slots; i++) joined += toText(values[index + i]) + statics[i + 1];
       value = joined;
+    }
+    /**
+     * **A live property asks the element, not its own memory.**
+     *
+     * Every other kind skips a write when the value matches what it last wrote. That is what keeps
+     * a field someone has typed into — and it is wrong for a control whose DOM state changes as a
+     * *side effect of interacting with a sibling*. Clicking one radio unchecks the others with no
+     * event on them, so their bindings still say `true`, still match `_committed`, and never write
+     * again: the model and the page diverge and no amount of re-rendering reconciles them. A
+     * `<select>`'s options are the same shape.
+     *
+     * Deliberately narrow. This is not for text inputs — bind those with `.value` and let a
+     * person's typing stand. `?hidden` and plain attributes are not offered either: nothing changes
+     * them behind the renderer's back, so there is nothing to re-read.
+     */
+    if (kind === LIVE) {
+      this._committed = value;
+      /**
+       * **Except while adopting.** Hydration reaches a DOM a person may already have used, and the
+       * click that checked a radio happened before any handler existed to tell the store about it —
+       * so re-asserting the server's choice here would throw the interaction away and nothing would
+       * ever put it back. Recorded, not written, exactly as the other form properties are; the
+       * first state-driven render after that applies live semantics normally.
+       */
+      if (!adopting) {
+        const liveTarget = this._element as unknown as Record<string, unknown>;
+        if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
+      }
+      return index + this._slots;
+    }
+    /**
+     * **A `<select>`'s value cannot be applied where it is written.**
+     *
+     * Assigning it selects an option, and at the moment this part commits the options may not exist:
+     * parts commit in document order, so a nested `${items.map(…)}` has not run, and an `<option
+     * value=${id}>` has not been given its value either. The assignment then matches nothing, and the
+     * select falls back to its first option — silently showing the wrong one. Measured: a nested list
+     * selected index 0 instead of 1, and dynamic option values selected nothing at all.
+     * **lit-html has the same defect, byte for byte** — it was measured there too. React solves it by
+     * special-casing `<select value>` and applying it after children mount, which is what this is.
+     *
+     * Queued rather than dirty-checked, and that is deliberate: the value can be unchanged while the
+     * *options* are replaced, which drops the selection just as thoroughly. Re-asserting once per
+     * render pass is what keeps it right, and a select carries one binding, so it is one push.
+     */
+    if (this._select) {
+      this._committed = value;
+      /** Adoption never re-asserts a form value — the person may have changed it. See below. */
+      if (!adopting) (pendingSelects ??= []).push(this._element as HTMLSelectElement, value);
+      return index + this._slots;
     }
     if (value !== this._committed) {
       this._committed = value;
@@ -580,7 +790,7 @@ class AttrPart implements Part {
                */
               if (target[name] !== value)
                 console.warn(
-                  `@verajs/renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
+                  `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
                     `while the element upgraded. A class field is the usual cause: at ES2022 ` +
                     `\`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites ` +
                     `whatever was set beforehand — write it \`declare ${name}?: …\` instead, which ` +
@@ -595,6 +805,24 @@ class AttrPart implements Part {
         /** Unconditional for the same reason: `<b hidden ?hidden=${false}>` must end up not hidden. */
         this._element.toggleAttribute(this._name, !!value);
       } else if (kind === EVENT) {
+        /**
+         * A listener is the most deferred call a template makes — it is validated when a *user*
+         * clicks, which in development may be never. So it is checked where it is written, the same
+         * rule the setters took on: the stack at dispatch no longer contains the binding.
+         *
+         * `false` is deliberately allowed and silent. `@click=${enabled && onClick}` is the ordinary
+         * way to bind conditionally and produces exactly that, and it already behaves correctly —
+         * `handleEvent` finds nothing callable and does nothing. `true` is not produced by any
+         * idiom, so it is named along with strings, numbers and objects that cannot listen.
+         */
+        if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&
+            typeof (value as EventListenerObject)?.handleEvent !== 'function')
+          console.warn(
+            `[vera] @${this._name} on <${this._element.localName}> was given ${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
+              `which cannot listen — the event will do nothing.\n` +
+              `Pass a function, or an object with a handleEvent method. A missing handler is ` +
+              `\`undefined\` or \`false\`, both of which are fine; this is neither.`
+          );
         if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
         this._handler = (value as EventListener) ?? null;
       } else if (value != null) {
@@ -603,7 +831,8 @@ class AttrPart implements Part {
          * the element assigned to `.value` — which makes core's own `ref()` double as an element
          * ref, reactively. Runs once per distinct value, not once per render.
          */
-        if (typeof value === 'function') (value as (el: Element) => void)(this._element);
+        notifyOnRemoval = true;
+        if (typeof value === 'function') applyRef(value as (el: Element | null) => void, this._element);
         else if (typeof value === 'object') {
           /**
            * A self-applying value: anything that knows what to do with an element applies itself.
@@ -633,8 +862,49 @@ class AttrPart implements Part {
  * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
  * pay on create.
  */
+/**
+ * `<select>.value` assignments held until the whole pass has committed — see the note in `_commit`.
+ * Flat pairs rather than tuples: one array, no per-entry allocation.
+ */
+let pendingSelects: unknown[] | null = null;
+
+const flushSelects = () => {
+  const queued = pendingSelects;
+  if (queued === null) return;
+  /** Cleared first: an assignment can run a `change` handler that renders again. */
+  pendingSelects = null;
+  for (let i = 0; i < queued.length; i += 2)
+    (queued[i] as HTMLSelectElement).value = queued[i + 1] as string;
+};
+
+const SCRATCH = doc.createDocumentFragment();
+
+/** A row is either an element-mode instance or a markered part; both can hold directives. */
+const detachItem = (item: Item) => {
+  item._instance?._teardown();
+  item._part?._detach();
+};
+
+/**
+ * A value that names the strategy able to reconcile a list of its kind. `keyed()` in
+ * `@verajs/renderer/keyed` is the only producer today; the shape is deliberately open so a
+ * virtualizer or an async list can ship as its own module without this file learning about it.
+ *
+ * `$r` and the three members it calls are exempt from property mangling — they are the only names
+ * that cross a bundle boundary, and they are two characters so crossing costs nothing.
+ */
+export type ListStrategy = (
+  part: ChildPart,
+  values: unknown[],
+  items: Item[],
+  parent: Node,
+  end: Node | null
+) => Item[];
+
+export type KeyedResult = TemplateResult & { $r?: ListStrategy };
+
 type Item = {
-  _key: unknown;
+  $k: unknown;
   _element: Element | null;
   _instance: Instance | null;
   _shape: TemplateStringsArray | null;
@@ -644,7 +914,6 @@ type Item = {
 class Instance {
   _parts: Part[] = [];
   _fragment: DocumentFragment;
-
   constructor(template: Template) {
     /** cloneNode over importNode: same document, and it measures slightly cheaper. */
     this._fragment = template._element.content.cloneNode(true) as DocumentFragment;
@@ -668,6 +937,39 @@ class Instance {
           ? new TextPart(node as Text)
           : new AttrPart(node as Element, templatePart._name!, templatePart._statics!)
       );
+    }
+  }
+
+  /**
+   * Notifies every child directive in this instance's subtree that it is going away.
+   *
+   * Reached only when some directive somewhere declared teardown — see `anyDetachable`. This is the
+   * per-node walk the bulk removal exists to skip, which is why it is behind a gate rather than in
+   * the path: an app that renders no detachable directive never runs it.
+   */
+  /**
+   * One walk, both jobs: release the element refs in this instance and tell any child directive
+   * under it that it is going away.
+   *
+   * They were two walks over the same array — `_release` for refs, `_detach` for directives — which
+   * is the same tree traversed twice for two answers that arrive at the same moment. Merged, the
+   * per-part cost is one `_kind` compare and one `_upgraded` read.
+   *
+   * Reached only when this instance's template holds a ref, or some directive somewhere declared
+   * teardown. An app with neither never runs it: this is the per-node work the bulk removal exists
+   * to skip, and the gate is what keeps it out of the path.
+   *
+   * Through `_upgraded`, not just `_parts`. A child position is instantiated as a `TextPart` and
+   * **upgrades** to a `ChildPart` the first time it takes an object — so the part holding a
+   * directive is almost never the one in this array, it is the one that array's entry points at.
+   * Walking `_parts` alone found nothing at all.
+   */
+  _teardown() {
+    const parts = this._parts;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
+      (part as TextPart)._upgraded?._detach();
     }
   }
 
@@ -734,7 +1036,86 @@ class TextPart implements Part {
   }
 }
 
+/**
+ * A value at a child position that applies itself — see `ChildPart._set`.
+ *
+ * `previous` is whatever this directive returned at this part on the last render, which is where a
+ * directive keeps its continuity. Returning nothing is fine for one that has none.
+ */
+export type ChildDirective = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
+  /**
+   * Optional teardown, hung on the **applier** rather than on the value.
+   *
+   * The applier is already required to be hoisted — a fresh function per render breaks continuity —
+   * so it is the one stable object in the protocol and the natural place for a second half. It
+   * receives whatever the directive last returned, which is where its state lives.
+   */
+  _$detach$?: (previous: unknown) => void;
+};
+
+/**
+ * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
+ *
+ * A handler will also be handed the **operations** it needs to do its job — the shape
+ * `'proxy-handler'` uses, where core passes `addCallback` and `runCallbacks` rather than exposing
+ * them as members. That object is deliberately *not* here yet: an earlier draft guessed nine
+ * methods, nothing used them, they cost 90 B of anticipation, and porting the list algorithm then
+ * showed it needs closer to fourteen — including item accessors the guess had no idea about. It
+ * gets built in the step that has a caller to shape it.
+ *
+ * This is how a value *kind* becomes a package rather than a branch: lists, an async value, a
+ * portal, a virtualizer. The built-ins below register through it too, so a third party's kind is
+ * not second-class to one that shipped in the box.
+ */
+export type ValueHandler = (part: object, value: unknown) => boolean | void;
+
+/**
+ * The registry this renderer reads `'value'` handlers from, handed over by {@link renderer}.
+ *
+ * Not imported. The renderer carries no registry of its own for the same reason the router does
+ * not: a production bundle inlines `@verajs/inserts`, so importing it would give this package one
+ * registry and core another, and an app would register into whichever it happened to import — the
+ * failure `connectInserts` used to repair.
+ */
+let registry: { get(name: 'value'): ValueHandler[] | undefined } | null = null;
+const noHandlers: ValueHandler[] = [];
+const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : noHandlers);
+
+/**
+ * Kinds this package still ships. They read from a local list rather than the registry because the
+ * renderer cannot register into one it was merely handed — that needs `wire`, which it does not
+ * import. The list empties when they move to packages; until then a wired handler is checked first,
+ * so a module can pre-empt a built-in exactly as the priority order promises.
+ */
+const builtIns: ValueHandler[] = [];
+
 /** What a ChildPart currently contains. */
+/**
+ * Whether anything in this process has asked to be told when a subtree is removed — an element ref
+ * to release, or a child directive that declared `_$detach$`.
+ *
+ * **One flag for both, and it is process-wide.** Teardown cannot be discovered from the template the
+ * way a ref can — a ref is a `&` part the scan sees, while a directive arrives as a *value* and no
+ * template shape predicts it — so the coarser gate is the only one that serves both.
+ *
+ * The finer, per-template gate for refs was measured and dropped: it saved 34 B less than nothing,
+ * because the walk it avoided is not the expensive part. With one unrelated ref on the page, a
+ * 1 000-row clear walks 1 000 instances and measures 3.98 ms against 4.03 ms with no ref at all —
+ * the DOM removal dominates completely. What matters is that an app asking for neither walks
+ * **zero**, and that still holds.
+ */
+let notifyOnRemoval = false;
+
+/**
+ * Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it.
+ *
+ * `@__PURE__` is load-bearing. Every read sits behind `__DEV__`, but a bare `new WeakMap()` at module
+ * scope is a constructor call terser must assume has side effects, so production kept the allocation
+ * with its binding dropped — a literal `new WeakMap;` statement building an object nothing could ever
+ * reach. The annotation is what lets the dead branch take it along.
+ */
+const _directiveSwaps = /* @__PURE__ */ new WeakMap<object, number>();
+
 const EMPTY = 0;
 const TEXT = 1;
 const TEMPLATE = 2;
@@ -776,6 +1157,10 @@ class ChildPart implements Part {
   _keyedList = false;
   /** Held instances by template identity; survives clears so state outlives interim content. */
   _held: Map<TemplateStringsArray, Instance> | null = null;
+  /** Whatever the last `_$child$` at this part returned — its continuity across renders. */
+  _directive: unknown = undefined;
+  /** Which directive that state belongs to, so two of them at one part cannot read each other's. */
+  _directiveFn: unknown = undefined;
 
   constructor(start: Comment, end: Node | null) {
     this._start = start;
@@ -791,7 +1176,34 @@ class ChildPart implements Part {
     this._start.parentNode!.insertBefore(node, this._end);
   }
 
+  /**
+   * Tells every child directive under this part that it is going away.
+   *
+   * Reached only when some directive somewhere declared teardown — see `anyDetachable` — because
+   * this is the per-node walk the bulk removal exists to skip. **Every** removal path calls it, not
+   * just `_clear`: a keyed row is dropped by moving its nodes to a scratch fragment and an index-mode
+   * list shrinks by removing nodes directly, so a version that only hooked `_clear` notified a
+   * directive when its container was replaced and stayed silent when its row was deleted — told
+   * sometimes, which is a worse contract than never.
+   */
+  _detach() {
+    if (this._directiveFn !== undefined) (this._directiveFn as ChildDirective)._$detach$?.(this._directive);
+    this._instance?._teardown();
+    const items = this._items;
+    if (items != null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
+  }
+
   _clear() {
+    /**
+     * One boolean read for a template with no ref in it, which is nearly all of them. The walk is
+     * precisely what the bulk removal below exists to avoid, so it runs only where it can matter.
+     */
+    /**
+     * One gate, two jobs. A template that holds an element ref must release it; a subtree holding a
+     * directive that declared teardown must be told. Both are found by the same walk, and an app
+     * with neither reads two booleans and walks nothing.
+     */
+    if (notifyOnRemoval) this._detach();
     const parent = this._start.parentNode!;
     const end = this._end;
     /**
@@ -829,6 +1241,28 @@ class ChildPart implements Part {
     this._instance = null;
     this._items = null;
     this._shape = null;
+    this._directive = undefined;
+    this._directiveFn = undefined;
+  }
+
+  /**
+   * How a child-position directive renders. Named to survive property mangling — `/^_[a-z]/` is the
+   * pattern, and `_$…$` does not match it — because this is the half of the protocol that third
+   * parties call.
+   */
+  _$commit$(value: unknown) {
+    /**
+     * The directive's own state survives its own rendering. Committing different content usually
+     * runs `_clear`, which drops the state so a part that was emptied by *anything else* cannot
+     * hand a directive continuity it no longer has — but a directive rendering its own next value
+     * has not gone away, and losing continuity there made `until()` fall back to its placeholder on
+     * the render after it resolved.
+     */
+    const directive = this._directive;
+    const directiveFn = this._directiveFn;
+    this._set(value);
+    this._directive = directive;
+    this._directiveFn = directiveFn;
   }
 
   _set(value: unknown) {
@@ -885,6 +1319,66 @@ class ChildPart implements Part {
       this._mode = TEMPLATE;
       return;
     }
+    const handlers = valueHandlers();
+    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
+    for (let i = 0; i < builtIns.length; i++) if (builtIns[i](this, value)) return;
+
+    /**
+     * **A child-position value that applies itself.** The same idea as `_$apply$` at element
+     * position — which is how `@verajs/renderer/spread` ships as a separate package the renderer
+     * knows nothing about — at the one other position worth extending.
+     *
+     * `_$child$(part, previous)` is handed the part and whatever it returned last time at this
+     * part, and calls `part._$commit$(value)` to render content. Keeping continuity in the return
+     * value rather than in a directive *instance* is what keeps this a protocol rather than a
+     * framework: there is no base class, no factory and no lifecycle to learn, and a directive is
+     * an object literal.
+     *
+     * Placed **after** the template check on purpose. A template is overwhelmingly the common
+     * object at a child position, and it returns above without ever reading this property — so the
+     * check costs the hot path nothing and only arrays, nodes and directives pay for it. Measured:
+     * +22 B gzipped, and no runtime difference distinguishable from noise.
+     *
+     * There is deliberately no teardown hook. `_clear` bulk-removes DOM and, when the part owns its
+     * parent, does `parent.textContent = ''` — the thing that makes clearing a 1 000-row table ~5 ms
+     * against lit-html's ~22 ms. Calling teardown on a nested directive would mean walking the part
+     * tree on every removal, which is precisely the per-node work that fast path exists to skip. So
+     * a directive here can render, and cannot yet be told it has gone away.
+     */
+    const applyChild = (value as { _$child$?: ChildDirective })._$child$;
+    if (applyChild !== undefined) {
+      /** `previous` belongs to *this* directive; a different one at the same part starts fresh. */
+      const previous = this._directiveFn === applyChild ? this._directive : undefined;
+      /**
+       * The un-hoisted applier, named. Writing `_$child$` as an object-literal method makes a new
+       * function per render, so the part never recognises it and `previous` is `undefined` forever —
+       * the directive silently restarts on every pass. It is the first rule in the README and it
+       * fails without a symptom, so development counts the swaps: a genuine directive change at one
+       * part happens once or twice, not on every render.
+       *
+       * The counter is a module-scope `WeakMap` rather than a field, so production carries neither
+       * it nor a per-part slot to hold it — but only because it is marked `@__PURE__` at its
+       * declaration. Without that it said the same thing and was untrue.
+       */
+      if (__DEV__ && this._directiveFn !== undefined && this._directiveFn !== applyChild) {
+        const swaps = (_directiveSwaps.get(this) ?? 0) + 1;
+        _directiveSwaps.set(this, swaps);
+        if (swaps === 3) {
+          console.warn(
+            `[vera] a child directive changed identity ${swaps} times at one part, so \`previous\` ` +
+              `is always undefined and it restarts every render.\n` +
+              `Hoist the applier — written as an object-literal method it is a new function per ` +
+              `call:\n\n` +
+              `  function applyThing(part, previous) { … }            // once, at module scope\n` +
+              `  const thing = (x) => ({ _$child$: applyThing, x });  // state on the object\n`
+          );
+        }
+      }
+      this._directiveFn = applyChild;
+      if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
+      this._directive = applyChild.call(value, this, previous);
+      return;
+    }
     if ((value as Node).nodeType !== undefined) {
       /**
        * A DOM node renders as itself — a canvas a charting library owns, a `<template>`'s content,
@@ -897,14 +1391,6 @@ class ChildPart implements Part {
         this._value = value;
         this._mode = NODE;
       }
-      return;
-    }
-    if (Array.isArray(value)) {
-      this._commitList(value);
-      return;
-    }
-    if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
-      this._commitList([...(value as Iterable<unknown>)]);
       return;
     }
     // any other object: render as text
@@ -943,7 +1429,7 @@ class ChildPart implements Part {
    * Creates one list item. A single-root template instance becomes an element-mode item with no
    * markers at all; anything else gets its own start/end marker pair so moves can never dangle.
    */
-  _createItem(value: unknown, parent: Node, ref: Node | null): Item {
+  $c(value: unknown, parent: Node, ref: Node | null): Item {
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       const template = getTemplate(result);
@@ -953,7 +1439,7 @@ class ChildPart implements Part {
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
         parent.insertBefore(rootNode, ref);
         return {
-          _key: result.key,
+          $k: result.key,
           _element: rootNode as Element,
           _instance: instance,
           _shape: result.strings,
@@ -966,15 +1452,15 @@ class ChildPart implements Part {
       part._shape = result.strings;
       part._mode = TEMPLATE;
       part._start.parentNode!.insertBefore(instance._fragment, part._end);
-      return { _key: result.key, _element: null, _instance: null, _shape: null, _part: part };
+      return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }
     const part = createMarkeredPart(parent, ref);
     part._set(value);
-    return { _key: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
+    return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
   }
 
   /** Commits a new value into an existing item, demoting element mode if the shape changed. */
-  _updateItem(item: Item, value: unknown) {
+  $u(item: Item, value: unknown) {
     if (item._element !== null) {
       if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._shape) {
         item._instance!._update((value as TemplateResult).values);
@@ -993,11 +1479,16 @@ class ChildPart implements Part {
   }
 
   /** The item's first node — its move/removal handle and the insertion reference before it. */
-  _firstNode(item: Item): Node {
+  $f(item: Item): Node {
     return item._element ?? item._part!._start;
   }
 
-  _moveItem(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
+  /**
+   * Moving and removing an item read `_element` and `_part`, which are mangled — so they stay here
+   * rather than travelling with the algorithm that calls them. `$m` and `$d` are the price: two
+   * cold methods, exempt from mangling, two characters each.
+   */
+  $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
     if (item._element !== null) {
       parent.insertBefore(item._element, ref);
       return;
@@ -1012,10 +1503,13 @@ class ChildPart implements Part {
   }
 
   /** Removal is a move into a scratch fragment that is immediately emptied. */
-  _dropItem(item: Item) {
-    this._moveItem(item, null, SCRATCH);
+  $d(item: Item) {
+    if (notifyOnRemoval) detachItem(item);
+    this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
+
+
 
   _commitList(newValues: unknown[]) {
     if (this._mode !== LIST) {
@@ -1033,7 +1527,7 @@ class ChildPart implements Part {
       }
       return;
     }
-    const isKeyed = newValues[0] != null && (newValues[0] as TemplateResult).key !== undefined;
+    const isKeyed = newValues[0] != null && (newValues[0] as KeyedResult).$r !== undefined;
     if (isKeyed !== this._keyedList && this._items!.length) {
       this._clear();
       this._items = [];
@@ -1046,7 +1540,7 @@ class ChildPart implements Part {
     if (items.length === 0) {
       /** Initial fill builds off-document and lands in one insert. */
       const fragment = doc.createDocumentFragment();
-      for (let i = 0; i < count; i++) items.push(this._createItem(newValues[i], fragment, null));
+      for (let i = 0; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
       this._insert(fragment);
       return;
     }
@@ -1054,14 +1548,15 @@ class ChildPart implements Part {
     if (!isKeyed) {
       // index mode: update in place, grow at the end, shrink from the end
       const shared = items.length < count ? items.length : count;
-      for (let i = 0; i < shared; i++) this._updateItem(items[i], newValues[i]);
+      for (let i = 0; i < shared; i++) this.$u(items[i], newValues[i]);
       if (count > items.length) {
         const fragment = doc.createDocumentFragment();
-        for (let i = items.length; i < count; i++) items.push(this._createItem(newValues[i], fragment, null));
+        for (let i = items.length; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
         this._insert(fragment);
       } else if (count < items.length) {
+        if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
         const last = items[items.length - 1];
-        let node: Node | null = this._firstNode(items[count]);
+        let node: Node | null = this.$f(items[count]);
         const stop = last._element !== null ? last._element.nextSibling : last._part!._end!.nextSibling;
         while (node !== stop) {
           const next: Node | null = node!.nextSibling;
@@ -1074,117 +1569,53 @@ class ChildPart implements Part {
     }
 
     /**
-     * Zero-allocation fast path for the dominant case: same length, same key order — a pure
-     * in-place update (a selection change, a field edit). No key array, no output array, no null
-     * checks. Falls through to the full algorithm on the first mismatch; the items already updated
-     * re-verify there as cheap no-op compares.
+     * Keyed reconciliation is not here. It lives in `@verajs/renderer/keyed`, and it arrives on
+     * the values themselves — `keyed()` stamps each result with the strategy that understands it,
+     * so importing the marker is what loads the algorithm. Nothing registers, nothing is wired, and
+     * two strategies cannot disagree about a list because the list names its own.
+     *
+     * The protocol is three cold members (`$c`, `$u`, `$f`) plus a returned array. Everything a
+     * strategy would otherwise have to reach for — the mode switch, the empty case, the initial
+     * fill — is already done above and passed in.
      */
-    if (items.length === count) {
-      let i = 0;
-      while (i < count && items[i]._key === (newValues[i] as TemplateResult).key) {
-        this._updateItem(items[i], newValues[i]);
-        i++;
-      }
-      if (i === count) return;
-    }
-
-    /**
-     * Keyed reconciliation — the standard head/tail algorithm (as in lit's `repeat` and Vue):
-     * skip matching prefixes and suffixes, detect the two swap shapes directly, and fall back to
-     * key maps for arbitrary moves, removals and insertions.
-     */
-    const oldItems: (Item | null)[] = items;
-    const newKeys: unknown[] = new Array(count);
-    for (let i = 0; i < count; i++) newKeys[i] = (newValues[i] as TemplateResult).key;
-    const newItems: Item[] = new Array(count);
-    let oldHead = 0;
-    let oldTail = oldItems.length - 1;
-    let newHead = 0;
-    let newTail = count - 1;
-    let newKeyToIndex: Map<unknown, number> | undefined;
-    let oldKeyToIndex: Map<unknown, number> | undefined;
-    const refAt = (i: number): Node | null =>
-      i < count && newItems[i] !== undefined ? this._firstNode(newItems[i]) : this._end;
-
-    while (oldHead <= oldTail && newHead <= newTail) {
-      if (oldItems[oldHead] === null) oldHead++;
-      else if (oldItems[oldTail] === null) oldTail--;
-      else if (oldItems[oldHead]!._key === newKeys[newHead]) {
-        this._updateItem((newItems[newHead] = oldItems[oldHead]!), newValues[newHead]);
-        oldHead++;
-        newHead++;
-      } else if (oldItems[oldTail]!._key === newKeys[newTail]) {
-        this._updateItem((newItems[newTail] = oldItems[oldTail]!), newValues[newTail]);
-        oldTail--;
-        newTail--;
-      } else if (oldItems[oldHead]!._key === newKeys[newTail]) {
-        const item = oldItems[oldHead]!;
-        this._moveItem(item, refAt(newTail + 1));
-        this._updateItem(item, newValues[newTail]);
-        newItems[newTail] = item;
-        oldHead++;
-        newTail--;
-      } else if (oldItems[oldTail]!._key === newKeys[newHead]) {
-        const item = oldItems[oldTail]!;
-        this._moveItem(item, this._firstNode(oldItems[oldHead]!));
-        this._updateItem(item, newValues[newHead]);
-        newItems[newHead] = item;
-        oldTail--;
-        newHead++;
-      } else {
-        if (newKeyToIndex === undefined) {
-          newKeyToIndex = new Map();
-          for (let i = newHead; i <= newTail; i++) newKeyToIndex.set(newKeys[i], i);
-          oldKeyToIndex = new Map();
-          for (let i = oldHead; i <= oldTail; i++) {
-            if (oldItems[i] !== null) oldKeyToIndex.set(oldItems[i]!._key, i);
-          }
-        }
-        if (!newKeyToIndex.has(oldItems[oldHead]!._key)) {
-          this._dropItem(oldItems[oldHead]!);
-          oldHead++;
-        } else if (!newKeyToIndex.has(oldItems[oldTail]!._key)) {
-          this._dropItem(oldItems[oldTail]!);
-          oldTail--;
-        } else {
-          const oldIndex = oldKeyToIndex!.get(newKeys[newHead]);
-          if (oldIndex === undefined) {
-            newItems[newHead] = this._createItem(newValues[newHead], parent, this._firstNode(oldItems[oldHead]!));
-          } else {
-            const item = oldItems[oldIndex]!;
-            this._moveItem(item, this._firstNode(oldItems[oldHead]!));
-            this._updateItem(item, newValues[newHead]);
-            newItems[newHead] = item;
-            oldItems[oldIndex] = null;
-          }
-          newHead++;
-        }
-      }
-    }
-    while (newHead <= newTail) {
-      newItems[newHead] = this._createItem(newValues[newHead], parent, refAt(newTail + 1));
-      newHead++;
-    }
-    while (oldHead <= oldTail) {
-      const item = oldItems[oldHead++];
-      if (item !== null) this._dropItem(item);
-    }
-    this._items = newItems;
+    this._items = (newValues[0] as KeyedResult).$r!(this, newValues, items, parent, this._end);
   }
 }
 
 const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
- * Renders a template result into a container. Slots into Vera via `setRenderer(render)`; core's
- * built-in `html` tag already produces the accepted shape, so no `setHtml` call is required —
- * though lit-html's `html` also works, its results being structurally identical.
+ * Writes a template result into a container. The renderer's imperative draw: no reactivity, no
+ * lifecycle, no knowledge of components. Slots into Vera via `wire([renderer])`; core's built-in
+ * `html` tag already produces the accepted shape, so no `setHtml` call is required — though
+ * lit-html's `html` also works, its results being structurally identical.
  *
- * HYDRATION lives in `@verajs/renderer/hydrate` — a drop-in superset entry whose `render` adopts
+ * **It owns its own range and nothing else.** The first call appends a marker and anchors a root
+ * part there; later calls with the same container reuse that part and walk only the value slots, so
+ * nodes are updated in place rather than rebuilt. Content that was already in the container stays.
+ *
+ * **Named for the relationship, not the act.** It was `render` until 0.2.0, which collided with
+ * core's `render` — a different function, with a different arity, that declares a *reactive*
+ * template and commits a component's setup. Both were public and both were documented, so a reader
+ * who knew one misread the other. `renderElement` and `renderDom` were considered and rejected: this
+ * renders *into* a container, and the container is a `Node` — a shadow root and a fragment are both
+ * valid, so "element" would be a lie in the type. Argument order is lit-html's on purpose.
+ *
+ * HYDRATION lives in `@verajs/renderer/hydrate` — a drop-in superset entry whose `renderInto` adopts
  * existing server-rendered children on first render. SSR apps import from there instead of here;
  * this entry carries zero hydration code.
  */
-export const render = (result: unknown, container: Node) => {
+export const renderInto = (result: unknown, container: Node) => {
+  /**
+   * The container is the argument people forget, and forgetting it failed with
+   * `Cannot read properties of undefined (reading 'appendChild')` — a message about the internals of
+   * a function the caller never named. Everything after this line assumes a node.
+   */
+  if (__DEV__ && (!container || typeof (container as Node).appendChild !== 'function'))
+    throw new TypeError(
+      `renderInto: expected a container node as the second argument and received ${String(container)}. ` +
+        `It renders *into* something — \`renderInto(html\`…\`, document.body)\`.`
+    );
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) {
@@ -1192,7 +1623,21 @@ export const render = (result: unknown, container: Node) => {
     container.appendChild(marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
-  part._set(result);
+  /**
+   * **The flush is in a `finally`, and that is not tidiness.** A render that throws after a
+   * `<select>.value` has been queued but before the flush left the queue holding the element — which
+   * retains it in module state, and, worse, hands the stranded value to the *next* `renderInto` call.
+   * An unrelated component's render then silently changed a select it has nothing to do with.
+   * Measured: a failed update left the value to be applied by the following render.
+   *
+   * Flushing on the way out applies it with its own pass, where it belongs, and leaves nothing
+   * behind either way. The error still propagates.
+   */
+  try {
+    part._set(result);
+  } finally {
+    flushSelects();
+  }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };
 
@@ -1203,6 +1648,7 @@ export const render = (result: unknown, container: Node) => {
 
 /** @internal */
 export {
+  flushSelects,
   getTemplate,
   Template,
   Instance,
@@ -1229,3 +1675,60 @@ export {
 };
 /** @internal */
 export type { Part, Item, TemplatePart };
+
+
+/**
+ * Lists, as a registered kind rather than a branch — the built-in going through the same door a
+ * package will. Moving it to `@verajs/renderer/lists` is step 5; nothing else has to change when
+ * it does, which is what this shape is for.
+ */
+builtIns.push((part, value) => {
+  if (Array.isArray(value)) {
+    (part as ChildPart)._commitList(value);
+    return true;
+  }
+  if (value !== null && typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
+    (part as ChildPart)._commitList([...(value as Iterable<unknown>)]);
+    return true;
+  }
+  return false;
+});
+
+/**
+ * Everything this renderer needs, in one entry: `wire([renderer])`.
+ *
+ * It registers on the `'render'` chain *and* takes the registry, because a package that both
+ * provides a capability and reads one should not cost an app two lines. This replaced
+ * `setRenderer`, which existed only because there was no general way to say "this app has a
+ * renderer" — and which resolved the shadow root at registration, so a renderer wired any other
+ * way silently rendered into the light DOM. That resolution lives in core's dispatch now.
+ */
+/**
+ * A `__DEV__`-only hint for `wire`, so the module and the raw function beside it can share a package
+ * without wiring the wrong one being silent.
+ *
+ * A bare function has no `on`, so `wire` reads it as a connector and hands it the registry. Nothing
+ * registers, nothing throws, and the page renders nothing. The marker lets `wire` name the export
+ * that was meant. This mattered most when the function was called `render` and the mistake was two
+ * characters wide; `renderInto` is harder to confuse, and the guard costs nothing in production.
+ *
+ * `$module` is deliberately generic — any package exporting a raw function next to a module of a
+ * similar name can set it. Production carries neither the property nor the check that reads it.
+ */
+if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
+
+export const renderer = {
+  name: '@verajs/renderer',
+  on: 'render' as const,
+  fn: renderInto as never,
+  priority: 50,
+  /**
+   * Typed against the registry `wire` actually hands over, not a narrower shape that happens to
+   * describe the one lookup this makes. A structural `{ get(name: 'value'): … }` is **not**
+   * assignable from `Inserts`, so `wire([renderer])` failed to compile in a consumer's project while
+   * this repo's own typecheck — which reads sources, not the shipped `.d.ts` — saw nothing.
+   */
+  connect: (given: { get(name: never): unknown }) => {
+    registry = given as { get(name: 'value'): ValueHandler[] | undefined };
+  },
+};

@@ -15,7 +15,7 @@ const { errorBoundary } = await import(new URL('../examples/cdn-js/src/inserts/e
 let pass = 0, fail = 0;
 const check = (n, c) => { c ? pass++ : (fail++, console.log('FAIL:', n)); };
 
-core.insert('set-handler', batching, 50);
+core.wire({ on: 'set-handler', fn: batching, priority: 50 });
 const state = core.createStore({ a: 0, b: 0 });
 let syncRuns = 0, lastA = -1;
 core.createHook({ element: host, priority: 60, callback: () => { syncRuns++; lastA = state.a; state.b; } });
@@ -31,7 +31,7 @@ check('outside batch: default propagation intact', syncRuns === r0 + 3);
 batch(() => { batch(() => { state.a = 5; }); state.b = 9; });
 check('nested batches join, one flush', syncRuns === r0 + 5 && lastA === 5);
 
-core.insert('error', errorBoundary, 50);
+core.wire({ on: 'error', fn: errorBoundary, priority: 50 });
 const el = dom.window.document.createElement('div');
 dom.window.document.body.appendChild(el);
 const oe = console.error; console.error = () => {};

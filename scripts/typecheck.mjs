@@ -20,11 +20,23 @@
 import { globSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const configs = [...globSync('packages/*/tsconfig.json').sort(), 'tsconfig.json'];
+/**
+ * `tests/consumer` is last and is **not** a duplicate of the root pass. The root config aliases every
+ * bare specifier to that package's `src` through `paths`, which is what makes it a cross-boundary
+ * check and also what makes it blind to the `.d.ts` files a consumer installs. That config has no
+ * `paths`, so imports resolve through `exports` -> `types` exactly as npm resolves them — and it
+ * requires a build, because there is nothing to resolve to otherwise.
+ */
+const configs = [...globSync('packages/*/tsconfig.json').sort(), 'tsconfig.json', 'tests/consumer/tsconfig.json'];
 let failed = 0;
 
 for (const config of configs) {
-  const pkg = config === 'tsconfig.json' ? 'root (examples + tests/types)' : config.split('/')[1];
+  const pkg =
+    config === 'tsconfig.json'
+      ? 'root (examples + tests/types)'
+      : config === 'tests/consumer/tsconfig.json'
+        ? 'consumer (shipped .d.ts)'
+        : config.split('/')[1];
   try {
     execFileSync('npx', ['tsc', '--noEmit', '-p', config], { encoding: 'utf8', stdio: 'pipe' });
     console.log(`  ✓ ${pkg}`);

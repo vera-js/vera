@@ -26,6 +26,28 @@ type _refIsNotAUnion = Expect<Equal<ReturnType<typeof ref<number>>, { value: num
 type _refCarriesItsType = Expect<Equal<ReturnType<typeof ref<string>>['value'], string>>;
 type _shallowRefShape = Expect<Equal<ReturnType<typeof shallowRef<number>>, { value: number; _ignore: boolean }>>;
 
+/**
+ * **An element ref is created empty**, which is how the renderer's README, `llms.txt` and every
+ * example write it — `<input ${myRef}>` assigns the element to `.value`. The signature required an
+ * initial value, so following that documentation in TypeScript did not compile: `ref<HTMLInputElement>()`
+ * was *"Expected 1 arguments, but got 0"*, and the workaround nobody would arrive at from the docs
+ * is `ref<HTMLInputElement | undefined>(undefined)`.
+ *
+ * Found by installing the packed tarballs into an empty project and writing the documented app —
+ * the type layer had never been exercised from outside the workspace with an element ref.
+ */
+const box = ref<HTMLInputElement>();
+type _emptyRefIsOptional = Expect<Equal<typeof box, { value: HTMLInputElement | undefined }>>;
+box.value = document.createElement('input');
+box.value = undefined;
+
+const _emptyShallow = shallowRef<string>();
+type _emptyShallowRef = Expect<Equal<typeof _emptyShallow, { value: string | undefined; _ignore: boolean }>>;
+
+/** And the valued form keeps its narrow type, which is the whole reason there are two signatures. */
+const _narrow = ref(0);
+type _valuedRefStaysNarrow = Expect<Equal<typeof _narrow, { value: number }>>;
+
 const count = ref(0);
 count.value++;
 count.value += 1;
@@ -52,7 +74,15 @@ untrack(() => store.name);
 deps(() => [store.name]);
 
 /** Keeps `noUnusedLocals` quiet without weakening the assertions above. */
-export type { _refIsNotAUnion, _refCarriesItsType, _shallowRefShape, _storeKeepsPropertyTypes };
+export type {
+  _refIsNotAUnion,
+  _refCarriesItsType,
+  _shallowRefShape,
+  _emptyRefIsOptional,
+  _emptyShallowRef,
+  _valuedRefStaysNarrow,
+  _storeKeepsPropertyTypes,
+};
 export type { _storeKeepsNestedTypes, _deleteIsOptional, _untrackPreservesReturn };
 
 /* ── typed route params ──────────────────────────────────────────────────────────────────────────

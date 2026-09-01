@@ -22,14 +22,39 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   if (!element) throw new Error('init: element required');
   const shadowRoot = element.shadowRoot ?? element._root;
 
+  /**
+   * **A second `init()` in the same setup discards the hooks registered since the first, silently.**
+   *
+   * Dropping them is correct and load-bearing on a *reconnect* — `connectedCallback` runs again
+   * every time an element is re-added, and a fresh generation is what stops effects doubling, as the
+   * comment below says. Called twice in one setup it is a mistake instead, and the hooks between the
+   * two calls simply never run: no error, no warning, an effect that looks registered and is not.
+   *
+   * Told apart from a reconnect by the same signal the deferred check below uses, read *before* this
+   * call overwrites it: if this element is already the current instance, a setup is open, and a
+   * second `init()` is closing nothing and starting over. On a reconnect the pointer has been
+   * cleared by the `render()` or `mount()` that committed the last setup.
+   *
+   * `__DEV__`-only; production carries neither the check nor the message.
+   */
+  if (__DEV__ && currentInstance.element?.deref() === element && element._hooks?.length) {
+    console.warn(
+      `[vera] <${element.localName}> called init() twice in one setup, so the ${element._hooks.length} ` +
+        `hook(s) registered since the first call were discarded and will never run.\n` +
+        `init() starts a fresh generation of hooks — which is what makes it safe when a component ` +
+        `reconnects — so anything registered before a second call is dropped. Call init() once, then ` +
+        `register hooks, then render() or mount().`
+    );
+  }
+
   currentInstance.element = new WeakRef(element);
 
   /**
-   * Setup has to be committed by `render()`, which runs the first pass of every hook registered
-   * since `init()` and then clears the current instance. Without it the hooks exist and nobody ever
-   * runs them — silent, and easy to write, because a component whose whole job is a side effect has
-   * no obvious reason to call something named `render`. Calling it with no template is exactly that
-   * case: commit the setup, draw nothing.
+   * Setup has to be committed by `mount()` — or by `render()`, which is `useRender` plus the same
+   * commit. Either runs the first pass of every hook registered since `init()` and then clears the
+   * current instance. Without one the hooks exist and nobody ever runs them: silent, and easy to
+   * write, because a component whose whole job is a side effect has no reason to call something
+   * named `render`. That case is exactly what `mount()` is for.
    *
    * Detected without carrying any state: if this element is still the current instance once the
    * synchronous `connectedCallback` has finished, neither was called. A component mounting after
@@ -42,10 +67,11 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
     queueMicrotask(() => {
       if (currentInstance.element?.deref() === element && element._hooks?.length) {
         console.warn(
-          `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but never ` +
-            `called render(), so none of them will ever run.\n` +
-            `render() ends the setup as well as drawing. If there is nothing to draw, call it bare:\n\n` +
-            `  render();\n`
+          `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but its setup ` +
+            `was never committed, so none of them will ever run.\n` +
+            `init() opens the setup and one of these closes it:\n\n` +
+            `  render(() => html\`…\`);   // a component with markup\n` +
+            `  mount();                  // a component with none\n`
         );
       }
     });
@@ -55,7 +81,7 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
    * A new generation of hooks starts here, and the previous one stops.
    *
    * `connectedCallback` runs again every time an element is re-added — a router navigating back,
-   * a list reordering, a conditional subtree returning — so `init()` and `render()` build a fresh
+   * a list reordering, a conditional subtree returning — so `init()` and its closing call build a fresh
    * set of hooks. The old ones were dropped from `_hooks` below and left registered in the store,
    * which holds them **weakly**: correct in the end, but only once a garbage collection happens,
    * and until then the element had two live subscriptions and ran everything twice. A second
@@ -94,6 +120,8 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   }
 
   element._cleanups = new Set();
+  /** A fresh connection: cleanups registered from here are owed a later removal again. */
+  element._removed = false;
 
   const initInserts = inserts.get('init');
   initInserts?.forEach((callback) => (callback as InitInsert)(element));
@@ -112,9 +140,9 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
       console.warn(
         `[vera] <${element.localName}> declares \`static styles\`, but nothing is adopting them.\n` +
           `Style adoption moved out of core. Wire it once at your app entry:\n\n` +
-          `  import { insert } from '@verajs/core';\n` +
-          `  import { adoptStyles } from '@verajs/styles';\n` +
-          `  insert('init', adoptStyles, 50);\n`
+          `  import { wire } from '@verajs/core';\n` +
+          `  import { styles } from '@verajs/styles';\n` +
+          `  wire([styles]);\n`
       );
     }
   }
@@ -146,6 +174,12 @@ if (typeof customElements !== 'undefined') {
         }
       });
       this._cleanups?.clear();
+      /**
+       * Marked *after* the sweep, so a cleanup registered from here on — an effect that called
+       * `remove()` on itself and has not returned yet — is run immediately rather than added to a
+       * set nothing will drain again. See `swapCleanup`.
+       */
+      this._removed = true;
     };
     return nativeDefine(name, Class, options);
   };

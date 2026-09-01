@@ -34,11 +34,11 @@ import {
   isTemplateResult,
   instanceWalker,
   rootParts,
-  render as baseRender,
+  renderInto as baseRender,
 } from './renderer.js';
-import type { Template, Part, Item, TemplateResult } from './renderer.js';
+import type { Template, Part, Item, TemplateResult, KeyedResult } from './renderer.js';
 
-export { keyed, hold } from './renderer.js';
+export { hold, renderer } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 // The server serializer (@verajs/ssr/vera) emits the SAME static strings this module parses into
@@ -52,6 +52,25 @@ export type { TemplateResult } from './renderer.js';
 /** Internal bail signal — never escapes `tryAdopt`. */
 const MISMATCH = {};
 
+/**
+ * Why the last adoption gave up, for the development warning below. Written at every `throw
+ * MISMATCH` inside an `if (__DEV__)`, so a production bundle carries neither the strings nor the
+ * assignments — the branches fold away with `__DEV__` and the helper goes with them.
+ */
+let why = '';
+
+/** A live node as a person would name it, for that message. */
+const describe = (node: Node | null) =>
+  node === null
+    ? 'nothing'
+    : node.nodeType === 1
+      ? `<${(node as Element).localName}>`
+      : node.nodeType === 3
+        ? `the text ${JSON.stringify((node as Text).data.slice(0, 30))}`
+        : node.nodeType === 8
+          ? 'a comment'
+          : `a ${node.nodeName} node`;
+
 type Cursor = { parent: Node; node: Node | null; offset: number };
 
 /** Splits mid-text cursors onto a node boundary and returns the node now at the cursor. */
@@ -63,12 +82,43 @@ const cursorSplit = (cursor: Cursor): Node | null => {
   return cursor.node;
 };
 
+/**
+ * **A comment carries no rendered content, so hydration neither matches nor requires one.**
+ *
+ * `instanceWalker` is `ELEMENT | TEXT`, and the part indices in `_parts` are numbered by that same
+ * walker — so a comment in a template's statics is structurally invisible to this walk, and cannot
+ * be made visible without renumbering every part the client renderer relies on. The live DOM,
+ * however, still has it: `html`<p>a<!-- note -->b</p>`` adopts as text/comment/text where the walk
+ * wanted one run of text, and `<p>lead<!-- tail --></p>` leaves a child the walk never asked for.
+ * Both read as a disagreement, so **every template containing an HTML comment lost hydration** —
+ * the server's markup discarded and re-rendered, for markup the client had itself produced. Nothing
+ * failed, because the page is correct either way; that is what the fallback is for, and why this
+ * went unnoticed. What it cost was the first paint the server render was paid for.
+ *
+ * Stepping over them is sound rather than merely convenient: the invisibility is symmetric, so a
+ * comment can differ in either direction and neither direction can change what a reader sees. This
+ * is only safe because hydration is markerless — the adopted markup carries no framework comments,
+ * so there is nothing here whose position is load-bearing.
+ *
+ * Not folded into `cursorSplit`, which also answers "where do I insert?" — moving an insertion point
+ * past a comment would put a slot's content on the wrong side of it.
+ */
+const passComments = (cursor: Cursor) => {
+  while (cursor.offset === 0 && cursor.node !== null && cursor.node.nodeType === 8) {
+    cursor.node = cursor.node.nextSibling;
+  }
+};
+
 /** Consumes exactly `text` from the live cursor; anything else is a mismatch. */
 const expectText = (cursor: Cursor, text: string) => {
   let need = text;
   while (need.length > 0) {
+    passComments(cursor);
     const node = cursor.node;
-    if (node === null || node.nodeType !== 3) throw MISMATCH;
+    if (node === null || node.nodeType !== 3) {
+      if (__DEV__) why = `expected the text ${JSON.stringify(text)} and found ${describe(node)}`;
+      throw MISMATCH;
+    }
     const data = (node as Text).data;
     const available = data.length - cursor.offset;
     if (available === 0) {
@@ -77,7 +127,11 @@ const expectText = (cursor: Cursor, text: string) => {
       continue;
     }
     const take = available < need.length ? available : need.length;
-    if (data.slice(cursor.offset, cursor.offset + take) !== need.slice(0, take)) throw MISMATCH;
+    if (data.slice(cursor.offset, cursor.offset + take) !== need.slice(0, take)) {
+      if (__DEV__)
+        why = `expected the text ${JSON.stringify(need.slice(0, take))} and found ${JSON.stringify(data.slice(cursor.offset, cursor.offset + take))}`;
+      throw MISMATCH;
+    }
     need = need.slice(take);
     cursor.offset += take;
     if (cursor.offset === data.length) {
@@ -96,10 +150,16 @@ const claimValueText = (cursor: Cursor, text: string): Text => {
     cursor.parent.insertBefore(primed, at);
     return primed;
   }
-  if (at === null || at.nodeType !== 3) throw MISMATCH;
+  if (at === null || at.nodeType !== 3) {
+    if (__DEV__) why = `expected a text node holding an interpolated value and found ${describe(at)}`;
+    throw MISMATCH;
+  }
   const node = at as Text;
   if (node.data.length > text.length) node.splitText(text.length);
-  if (node.data !== text) throw MISMATCH;
+  if (node.data !== text) {
+    if (__DEV__) why = `an interpolated value reads ${JSON.stringify(text)} here and the markup says ${JSON.stringify(node.data)}`;
+    throw MISMATCH;
+  }
   cursor.node = node.nextSibling;
   cursor.offset = 0;
   return node;
@@ -150,9 +210,17 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
   }
 
   /** Element: same tag, commit its attribute parts live, then descend children in lockstep. */
+  passComments(cursor);
   const live = cursorSplit(cursor);
-  if (live === null || live.nodeType !== 1) throw MISMATCH;
-  if ((live as Element).localName !== (canonical as Element).localName) throw MISMATCH;
+  if (live === null || live.nodeType !== 1) {
+    if (__DEV__) why = `expected <${(canonical as Element).localName}> and found ${describe(live)}`;
+    throw MISMATCH;
+  }
+  if ((live as Element).localName !== (canonical as Element).localName) {
+    if (__DEV__)
+      why = `expected <${(canonical as Element).localName}> and found <${(live as Element).localName}>`;
+    throw MISMATCH;
+  }
 
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
@@ -183,8 +251,25 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
    * holding the value: adoption deliberately does not write `.value` (see `AttrPart._commit`), so
    * clearing the content would empty the field it just adopted. A person who typed here before the
    * bundle landed has made the field dirty, and a dirty textarea ignores its content anyway — so
-   * their text survives either way, and the server's stays as what `form.reset()` restores. The one
-   * respect in which a hydrated DOM is not byte-identical to a client-rendered one, deliberately.
+   * their text survives either way, and the server's stays as what `form.reset()` restores.
+   *
+   * **One of four respects in which a hydrated DOM is not byte-identical to a client-rendered one**,
+   * and all four have the same cause: `@verajs/ssr` mirrors `.value`, `.checked` and `.selected` on
+   * form elements into markup, because markup is the only way form state reaches the client at all.
+   * The client sets those as properties and writes nothing, exactly as a browser does — so the
+   * server's copy stays behind after adoption:
+   *
+   * | binding | hydrated | client-rendered |
+   * | --- | --- | --- |
+   * | `<input .value=${x}>` | `<input value="x">` | `<input>` |
+   * | `<input .checked=${true}>` | `<input checked="">` | `<input>` |
+   * | `<option .selected=${true}>` | `<option selected="">` | `<option>` |
+   * | `<textarea .value=${x}>` | `<textarea>x</textarea>` | `<textarea></textarea>` |
+   *
+   * They are defaults rather than state — what `form.reset()` restores — so the *rendered* result is
+   * the same and only a reset tells them apart. `tests/hydrate-parity.test.mjs` records the list,
+   * because "the one respect" was written here when there was one, and a reader comparing a hydrated
+   * DOM against a client-rendered one needs to know which differences are meant.
    */
   if (
     inner.node !== null &&
@@ -197,8 +282,12 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
   }
 
   /** Leftover live children the template does not account for = not our markup. */
-  if (inner.node !== null && !(inner.node.nodeType === 3 && (inner.node as Text).data === '' && inner.node.nextSibling === null))
+  passComments(inner);
+  if (inner.node !== null && !(inner.node.nodeType === 3 && (inner.node as Text).data === '' && inner.node.nextSibling === null)) {
+    if (__DEV__)
+      why = `<${(live as Element).localName}> contains ${describe(inner.node)}, which the template does not describe`;
     throw MISMATCH;
+  }
 
   cursor.node = live.nextSibling;
   cursor.offset = 0;
@@ -270,7 +359,12 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
     const items: Item[] = [];
     for (const entry of list) items.push(adoptItem(cursor, entry));
     part._items = items;
-    part._keyedList = list.length > 0 && (list[0] as TemplateResult)?.key !== undefined;
+    /**
+     * The same predicate `_commitList` uses — the presence of a strategy, not of a `key`. Two
+     * spellings of "is this list keyed" would drift, and disagreeing about one list destroys it:
+     * a mode change is what tells the renderer to throw the adopted DOM away and start over.
+     */
+    part._keyedList = list.length > 0 && (list[0] as KeyedResult)?.$r !== undefined;
     part._mode = LIST;
   }
 
@@ -291,7 +385,7 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
       const liveRoot = cursorSplit(cursor);
       const instance = adoptInstance(template, result.values, cursor);
       return {
-        _key: result.key,
+        $k: result.key,
         _element: liveRoot as Element,
         _instance: instance,
         _shape: result.strings,
@@ -307,12 +401,12 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
     part._instance = instance;
     part._shape = result.strings;
     part._mode = TEMPLATE;
-    return { _key: result.key, _element: null, _instance: null, _shape: null, _part: part };
+    return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
   }
   /** Non-template item: markered part adopting its content like a nested slot. */
   const out: Part[] = [];
   adoptSlot(cursor, value, out);
-  return { _key: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: out[0] as ChildPart };
+  return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: out[0] as ChildPart };
 };
 
 /** Builds an Instance whose parts are bound to LIVE nodes, consuming them from the cursor. */
@@ -338,7 +432,10 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     child = child.nextSibling;
   }
   drainIgnored(state);
-  if (state._partIndex !== template._parts.length) throw MISMATCH;
+  if (state._partIndex !== template._parts.length) {
+    if (__DEV__) why = 'the markup ran out before the template did';
+    throw MISMATCH;
+  }
   return instance;
 };
 
@@ -354,12 +451,17 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
   while (first !== null && first.nodeType === 1 && (first as Element).hasAttribute('vera-styles')) {
     first = first.nextSibling;
   }
+  if (__DEV__) why = '';
   const start = comment();
   container.insertBefore(start, first);
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(getTemplate(result), result.values, cursor);
-    if (cursor.node !== null) throw MISMATCH;
+    passComments(cursor);
+    if (cursor.node !== null) {
+      if (__DEV__) why = `${describe(cursor.node)} follows everything the template describes`;
+      throw MISMATCH;
+    }
     const part = new ChildPart(start, null);
     part._instance = instance;
     part._shape = result.strings;
@@ -390,7 +492,7 @@ const clearPreservingStyles = (container: Node) => {
  * already has children adopts them; any mismatch clears (keeping `<style vera-styles>`) and falls
  * through to a clean base render. After the first render, this IS the base render.
  */
-export const render = (result: unknown, container: Node) => {
+export const renderInto = (result: unknown, container: Node) => {
   if (
     !rootParts.has(container) &&
     container.firstChild !== null &&
@@ -403,6 +505,40 @@ export const render = (result: unknown, container: Node) => {
       rootParts.set(container, part);
       return;
     }
+    /**
+     * **Falling back has to say so.** The page is correct either way — that is what the fallback is
+     * for — but the server's markup has just been thrown away, which means every byte the server
+     * spent rendering it was wasted and the one thing server rendering exists to deliver did not
+     * happen. Nothing observable changes, so without this the only symptom is a slower first paint
+     * that nobody attributes to anything.
+     *
+     * The `<textarea>` case a few screens up is the proof: adoption was abandoned *for the whole
+     * page* by one element whose content the template did not describe, and the markup still looked
+     * right afterwards. It was found by reading the code. React and lit both report a mismatch;
+     * this said nothing at all.
+     *
+     * `__DEV__`-only, and the reason comes from the check that failed, so it names the first place
+     * the two renders disagreed rather than announcing that they did.
+     *
+     * **Scoped to this container, because that is what happened.** This function runs once per
+     * container, and a mismatch clears exactly one — measured: three containers, one carrying markup
+     * the template does not describe, and the other two adopt their server nodes unchanged while one
+     * warning prints. The message used to say "nothing the server rendered was used", which reads as
+     * a page-wide failure and sends the reader looking for a page-wide cause: a bad doctype, a broken
+     * handoff, state that differs everywhere. The truth is narrower and the message already names the
+     * element, so the advice can be local.
+     *
+     * It also said the markup was discarded, full stop; `clearPreservingStyles` keeps
+     * `<style vera-styles>`, which is the whole reason that function exists.
+     */
+    if (__DEV__)
+      console.warn(
+        `[vera] hydration fell back to a client render: ${why}. This container's server markup was ` +
+          `discarded and rebuilt (its SSR <style> is kept), so the page is correct but the server's ` +
+          `work on this part of it was wasted. Other containers on the page hydrate independently ` +
+          `and are unaffected. The two renders have to agree exactly — check for markup the template ` +
+          `does not describe, or state settled after the server render.`
+      );
     clearPreservingStyles(container);
   }
   baseRender(result, container);

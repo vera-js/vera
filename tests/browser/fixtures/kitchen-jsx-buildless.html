@@ -10,13 +10,14 @@
       the result as a module blob; bare specifiers inside resolve through this import map.
 
       Both entries are required even though the block imports only core: any `key={}` emits
-      `keyed()` from `@verajs/renderer`, so a missing renderer entry fails at import time.
+      `keyed()` from `@verajs/renderer/keyed`, so a missing renderer entry fails at import time.
     -->
     <script type="importmap">
       {
         "imports": {
           "@verajs/core": "/packages/core/dist/vera.min.js",
-          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js"
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js"
         }
       }
     </script>
@@ -26,10 +27,11 @@
     <jsx-app></jsx-app>
 
     <script type="text/vera-jsx">
-      import { init, createStore, render, setRenderer, html } from '@verajs/core';
-      import { render as domRender, keyed } from '@verajs/renderer';
+      import { init, createStore, render, wire, html } from '@verajs/core';
+      import { renderInto as renderer } from '@verajs/renderer';
+      import { keyed } from '@verajs/renderer/keyed';
 
-      setRenderer(domRender);
+      wire({ on: 'render', fn: renderer, priority: 50 });
 
       /** A function component is a template factory, not a custom element: children arrive as an array. */
       const Row = ({ label, onPick }) => <li onClick={onPick} data-id={label}>{label}</li>;

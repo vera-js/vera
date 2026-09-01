@@ -13,11 +13,18 @@
   "type": "module",
   "main": "./src/vera/index.js",
   "exports": {
-    ".": "./src/vera/index.js",
-    "./vera": "./src/vera/index.js"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/vera/index.js"
+    },
+    "./vera": {
+      "types": "./types/index.d.ts",
+      "default": "./src/vera/index.js"
+    }
   },
   "files": [
-    "src"
+    "src",
+    "types"
   ],
   "keywords": [
     "ssr",
@@ -29,5 +36,24 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "types": "./types/index.d.ts",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "command": "npx tsc -p tsconfig.json --noEmit false --declaration --emitDeclarationOnly --rootDir src/vera --outDir types",
+      "clean": "if-file-deleted",
+      "files": [
+        "src/**/*.js",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "../tsconfig/base.json"
+      ],
+      "output": [
+        "types/**/*.d.ts"
+      ]
+    }
   }
 }

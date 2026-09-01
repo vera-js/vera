@@ -16,7 +16,7 @@ globalThis.document = dom.window.document;
 const app = dom.window.document.getElementById('app');
 
 const core = await load('core');
-const { inserts, setRenderer, insert } = core;
+const { inserts, wire} = core;
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', name)); };
@@ -24,19 +24,19 @@ const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', na
 // 1. The invariant that replaced the default renderer: core registers nothing.
 check('core ships no renderer', !inserts.get('render')?.length);
 
-// 2. setRenderer lands at priority 50 and is replaceable.
+// 2. a renderer lands at priority 50 and is replaceable.
 let called = 0;
-setRenderer(() => called++);
-check('setRenderer registers one', inserts.get('render').length === 1);
-setRenderer(() => (called += 10));
-check('setRenderer at 50 replaces, not appends', inserts.get('render').length === 1);
+wire({ on: 'render', fn: () => called++, priority: 50 });
+check('a wired renderer registers one', inserts.get('render').length === 1);
+wire({ on: 'render', fn: () => (called += 10), priority: 50 });
+check('a second at 50 replaces, not appends', inserts.get('render').length === 1);
 inserts.get('render').forEach((cb) => cb('', app));
 check('the replacement is what runs', called === 10);
 
 // 3. Priority ordering around the renderer slot.
 const seen = [];
-insert('render', () => seen.push(10), 10);
-insert('render', () => seen.push(75), 75);
+wire({ on: 'render', fn: () => seen.push(10), priority: 10 });
+wire({ on: 'render', fn: () => seen.push(75), priority: 75 });
 inserts.get('render').forEach((cb) => cb('', app));
 check('ordering 10 < 50 < 75', seen[0] === 10 && seen[1] === 75 && inserts.get('render').length === 3);
 
@@ -46,16 +46,22 @@ const A = await import(REG + '?copy=a');
 const B = await import(REG + '?copy=b');
 check('standalone registry ships no renderer', !A.inserts.get('render'));
 
-// 5-6. Cross-copy behaviour after connectInserts: replacement and ordering both hold.
-A.setRenderer(() => {});
-B.connectInserts(A.inserts);
-B.setRenderer(() => {});
-check('cross-copy replace at 50', A.inserts.get('render').length === 1);
-const order = [];
-B.insert('render', () => order.push(75), 75);
-A.insert('render', () => order.push(10), 10);
-A.inserts.get('render').forEach((cb) => cb('', app));
-check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.inserts.get('render').length === 3);
+/**
+ * Two copies of this module hold two registries, and there is no longer anything that reconciles
+ * them — which is precisely why no module carries one. Asserting the separation keeps the hazard
+ * visible after the repair function was deleted.
+ */
+A.wire({ on: 'init', fn: () => {}, priority: 50 });
+check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get('init'));
+
+/**
+ * There is no cross-copy reconciliation to test any more. `connectInserts` — which replayed one
+ * registry's chains into another — was removed once every module took the registry it writes to
+ * rather than carrying its own: `router` hands the router core's, `@verajs/reactivity/collections` and
+ * `@verajs/styles` are wired through core's `wire`. Two copies of this module in one page is now a
+ * mistake with no repair function, rather than a supported arrangement, and
+ * `tests/cdn-cross-bundle.test.mjs` guards the shape that replaced it.
+ */
 
 /* ── a priority has to be a number ───────────────────────────────────────────────────────────── */
 /**
@@ -74,7 +80,7 @@ check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.in
     let threw = 0;
     for (const priority of bad) {
       try {
-        insert('render', () => {}, priority);
+        wire({ on: 'render', fn: () => {}, priority: priority });
       } catch {
         threw++;
       }
@@ -86,6 +92,48 @@ check('cross-copy ordering 10<50<75', order[0] === 10 && order[1] === 75 && A.in
   }
 }
 
+
+/**
+ * **Wiring the same module twice is not two things claiming a priority.**
+ *
+ * The duplicate-priority warning exists for a real failure: two *different* modules both taking the
+ * default 50, where the first silently never runs. It also fired when the identical callback was
+ * wired again — an app whose entry points share a wiring module does exactly that — and told the
+ * author the second had replaced the first, of a function identical to the one already there.
+ *
+ * The advice was wrong for that case too: giving `styles` a second priority would run it twice.
+ *
+ * It fired in this repo's own kitchen-sink example, which is the reference application. A warning
+ * the reference app trips on is one people learn to scroll past — and the real one goes past with
+ * it. That is the whole cost, and it is the reason to fix a false positive in a diagnostic.
+ */
+{
+  const said = [];
+  const originalWarn = console.warn;
+  const collect = (label, run) => {
+    said.length = 0;
+    console.warn = (...args) => said.push(args.join(' '));
+    try { run(); } finally { console.warn = originalWarn; }
+    return said.filter((line) => /two things were wired/.test(line)).length;
+  };
+
+  const same = () => {};
+  const descriptor = { name: 'twice-test', on: 'value', fn: same, priority: 41 };
+
+  check('wiring a module once is quiet', collect('first', () => wire(descriptor)) === 0);
+  check('wiring the identical module again is quiet', collect('again', () => wire(descriptor)) === 0);
+  check(
+    'wiring an equivalent descriptor with the same function is quiet',
+    collect('equivalent', () => wire({ name: 'twice-test', on: 'value', fn: same, priority: 41 })) === 0
+  );
+  /** And the failure it exists for still warns: a different function at the same priority.
+   * The `wire` call is made unconditionally — putting it behind `isProduction ||` short-circuited
+   * the *side effect* along with the assertion, so the replacement below never happened. */
+  const warnings = collect('different', () => wire({ name: 'other-test', on: 'value', fn: () => {}, priority: 41 }));
+  check('a different module at the same priority still warns', isProduction ? true : warnings === 1);
+  /** The replacement itself must still have happened. */
+  check('and the second one is what runs', inserts.get('value').filter((fn) => fn === same).length === 0);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

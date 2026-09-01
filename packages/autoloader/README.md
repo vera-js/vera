@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1 009 B<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1.32 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -17,12 +17,13 @@ npm i @verajs/autoloader
 
 ## Quick start
 
+<!-- recipe -->
 ```js
-import { setAutoloader } from '@verajs/core';
-import { initAutoloader } from '@verajs/autoloader';
+import { wire } from '@verajs/core';
+import { autoloader } from '@verajs/autoloader';
 
-const autoload = initAutoloader(import.meta.url, 'components');
-setAutoloader(autoload);   // watch every component as it renders
+const autoload = autoloader(import.meta.url, 'components');
+wire(autoload);            // watch every component as it renders
 autoload();                // and scan whatever is already on the page
 ```
 
@@ -35,18 +36,23 @@ autoload();                // and scan whatever is already on the page
 `rootDir` is almost always `import.meta.url` — every component URL is resolved relative to it, and
 omitting `componentsDir` puts components beside the entry file.
 
-`initAutoloader` returns **one function with three shapes**, plus two helpers:
+`autoloader` returns **one function with three shapes**, plus two helpers:
 
 | | |
 | --- | --- |
 | `autoload()` | scan the page for `[autoloader]` hosts and watch them |
 | `autoload(element)` | watch that component |
 | `autoload(shadowRoot)` | watch that root — no attribute needed, handing it over is the opt-in |
-| `autoload.url(tag)` | the absolute URL it would fetch |
+| `autoload.url(tag)` | the absolute URL it would fetch — **throws** if it would resolve outside `rootDir` |
 | `autoload.retry(element)` | forget that this element's tag failed, and try again |
 
+The instance is **also its own `wire` descriptor** — it carries `on: 'render'` at priority 75, so
+`wire([renderer, autoload])` configures and installs in one call, and the scan runs after the
+render that produced the markup. It replaced `setAutoloader`, a bespoke registrar that lived in
+`@verajs/inserts`; every module now hands `wire` a descriptor, and this one is no exception.
+
 Watching is idempotent: calling it twice on the same root does nothing the second time, which is why
-`setAutoloader` can hand it every component on every render.
+it can be handed every component on every render.
 
 Creating an autoloader does nothing on its own — no scanning, no listeners. `autoload()` is how a
 hand-written page works with no framework involved at all, and you can call it again whenever new
@@ -54,8 +60,8 @@ markup lands:
 
 ```html
 <script type="module">
-  import { initAutoloader } from '@verajs/autoloader';
-  initAutoloader(import.meta.url, 'components')();
+  import { autoloader } from '@verajs/autoloader';
+  autoloader(import.meta.url, 'components')();
 </script>
 
 <div autoloader>
@@ -88,7 +94,7 @@ is not a thing that happens.
 ## Options
 
 ```js
-initAutoloader(import.meta.url, 'components', { extension: '.ts' });
+autoloader(import.meta.url, 'components', { extension: '.ts' });
 ```
 
 **`extension`** defaults to `.js`, with or without the leading dot. Set `.ts` so a TypeScript dev
@@ -97,7 +103,7 @@ server can autoload sources directly — it will not serve `foo.js` when only `f
 **`resolve(tag, dir)`** replaces URL building entirely, for a layout `dir/tag.ext` cannot express:
 
 ```js
-initAutoloader(import.meta.url, 'components', {
+autoloader(import.meta.url, 'components', {
   resolve: (tag, dir) => `${dir}/${tag}/${tag}.js`,   // components/user-card/user-card.js
 });
 ```
@@ -117,10 +123,29 @@ module URL is exactly the thing that needs bounding.
 <x-y autoload-dir="https://example.com/x"></x-y>   <!-- refused: absolute -->
 <x-y autoload-dir="//example.com/x"></x-y>         <!-- refused: protocol-relative -->
 <x-y autoload-dir="../../../"></x-y>               <!-- refused: escapes upward -->
+<x-y autoload-dir="components?v=2"></x-y>          <!-- refused: ? ends the path -->
+```
+
+**A directory cannot contain `?` or `#`.** Both end the path, so the tag name would land in the
+query or the fragment: `autoload-dir="components?v=2"` requests `components` with `x-y.js` inside
+the query string, and the component file is never asked for. That is a *wrong* module rather than a
+missing one, so it is refused rather than left to 404 — and note that containment does not catch it,
+because such a URL is genuinely inside the entry's directory.
+
+To cache-bust, use `resolve`, which owns URL building and can put the query where it belongs:
+
+```js
+autoloader(import.meta.url, 'components', { resolve: (tag, dir) => `${dir}/${tag}.js?v=2` });
 ```
 
 A custom `resolve` is checked the same way. `rootDir` is your own code and is trusted; everything
 derived from the DOM is not.
+
+The check lives in `url()`, which is the one place a URL is built — so it holds for the loader and
+for **you**. `autoload.url(tag, element)` throws rather than returning something the loader would
+refuse: it is documented for preloading, and a `<link rel="modulepreload">` pointed at another
+origin is the exact fetch this module declines to make. Discovery catches the throw, reports it once
+and moves on, so a hostile attribute costs a console line rather than a broken page.
 
 ## One attempt per URL, one module per tag
 

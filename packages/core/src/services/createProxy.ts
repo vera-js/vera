@@ -1,12 +1,74 @@
 import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
 import { getType, isSetOrMap, isWeakCollection, prioritySlot } from '@verajs/shared-utils';
-import { inserts, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
+import { inserts, revision, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
-import { collectionMethod, GLOBAL } from './collections.js';
-import { Signal } from '../types.js';
+import type { CollectionInsert } from '@verajs/inserts';
+import type { Signal } from '../types.js';
 
 /**
- * Depth of writes currently inside the `set` trap, which the `defineProperty` trap reads.
+ * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
+ * mutation, and a plain object gaining or losing a key. Tracked here from `ownKeys` and from a
+ * `size` read; notified by `@verajs/reactivity/collections`, which declares the same literal rather than
+ * importing this one — a production bundle inlines its dependencies, so an import would subscribe
+ * to one string and notify another.
+ */
+const GLOBAL = '_global';
+
+/**
+ * Resolved once, on the first `Map`/`Set` method read in the process, and only ever reached behind
+ * the `isSetOrMap` gate core already computes — so a plain-object read never touches it. That is
+ * what makes reactive collections affordable outside core: the `'proxy-handler'` chain they used
+ * to ride ran on every read of every store.
+ */
+let collectionInsert: CollectionInsert | undefined;
+
+/**
+ * Dev-only, and once per page. The unguarded version fired on every read, so a list of a thousand
+ * rows produced a thousand identical errors per render and buried whatever came before it.
+ */
+let warnedNoCollections = false;
+
+/**
+ * Names the missing package for a collection in a store, once. Reached from both the `size`
+ * accessor and the method path: `size` alone is enough to render a count, and going quiet there
+ * left the one case that never calls a method with no diagnosis at all.
+ */
+const warnNoCollections = (obj: object) => {
+  if (warnedNoCollections) return;
+  warnedNoCollections = true;
+  const kind = getType(obj).replace('weak', 'Weak').replace(/map$/, 'Map').replace(/set$/, 'Set');
+  console.error(
+    `[vera] a ${kind} in a store needs @verajs/reactivity/collections — ` +
+      `\`import { collections } from '@verajs/reactivity/collections'\` and add it to your \`wire([…])\` call. ` +
+      `Without it its methods are not reactive and calling one throws.`
+  );
+};
+
+/**
+ * The `'proxy-handler'` chain, cached against the registry's revision.
+ *
+ * It runs on every property read of every store, so a `Map.get` with a string key is paid per
+ * property access. Measured on `bench/reactivity.mjs`, the lookup was worth **13%** of a tracked
+ * flat read and 9% at two hops — too much to spend re-answering a question that changes once per
+ * app. The write chain is deliberately *not* cached: **a write costs several times a tracked read**,
+ * so the same lookup is noise there and the cache would cost bytes for nothing measurable.
+ *
+ * The ratio is quoted rather than the ns/op figures this comment used to carry (150 → 131, and 865
+ * for a write). Those were true of one machine and drifted to 59 and 389 with nothing to catch it,
+ * while the read-to-write ratio was 6.6x when written and 6.6x when re-measured — the absolutes
+ * belong to the machine and the ratio belongs to the design. `tests/perf-claims.test.mjs` asserts
+ * the ratios, because a number with no generator behind it is a number that will be wrong.
+ *
+ * `revision` is a live binding that every registration bumps, so a chain wired after the first read
+ * is picked up on the next one. Caching the array itself is safe because a chain is mutated in
+ * place; only creating one changes the identity, and that bumps the revision.
+ */
+let chainRevision = -1;
+let proxyHandlers: ProxyHandlerInsert[] | undefined;
+
+/**
+ * The exact property currently being written by the `set` trap, which the `defineProperty` trap
+ * reads to recognise its own re-entry.
  *
  * `Reflect.set(obj, prop, value, receiver)` does **not** write to `obj` when `receiver` is a
  * different object — and the receiver here is always the proxy. The spec routes the write through
@@ -15,16 +77,80 @@ import { Signal } from '../types.js';
  * receiver is deliberate and load-bearing: it is what makes a **setter** run with `this` bound to
  * the proxy, so writes inside one are tracked like any other.
  *
- * A counter rather than a flag, because a setter may assign in turn, and `finally` because a
+ * The pair, rather than the depth counter this replaced. A counter says only "some write is in
+ * flight", so a **setter** that defines a property — on another key, or on another store entirely —
+ * had that definition swallowed: `Object.defineProperty` inside a setter notified nobody, and the
+ * further the two were apart the less anything connected them. Matching on identity suppresses the
+ * one re-entry that is genuinely a duplicate and nothing else.
+ *
+ * Cleared rather than saved and restored, and nesting cannot defeat that. The re-entry happens only
+ * for a **data** property, where no user code runs between arming the slot and the trap firing; a
+ * property with a **setter** takes the other path and produces no re-entry at all, so a write made
+ * inside a setter can clear the slot without stranding an outer one. In a `finally` because a
  * throwing setter must not leave writes suppressed for the rest of the page.
  */
-let writing = 0;
+/**
+ * Explains a write or delete the *language* refused, for a store's source object.
+ *
+ * A proxy must report a refused write by returning `false`, and the engine turns that into
+ * `TypeError: 'set' on proxy: trap returned falsish for property 'n'` — a message about the **trap**,
+ * which is framework internals the reader never wrote and cannot act on. The same assignment to an
+ * unproxied frozen object says `Cannot assign to read only property 'n'`, which at least names the
+ * cause. Putting a store in front of an object made the diagnosis *worse*, and
+ * `createStore(Object.freeze(defaults))` is an ordinary thing to write.
+ *
+ * Every case measured here is one of the language's own invariants and not a framework decision —
+ * frozen, sealed with a new key, `preventExtensions`, a non-writable property, a getter with no
+ * setter — so this reports rather than repairs, and derives the reason from the target instead of
+ * guessing at it.
+ *
+ * `__DEV__`-only, which is exactly where a **message** belongs: it throws either way, so the two
+ * builds still agree on what the program *does*. The one behavioural difference runs in the safe
+ * direction — in sloppy mode a refused write is silent rather than throwing, and this makes it loud.
+ *
+ * @param obj The store's source object
+ * @param prop The property the write or delete was refused for
+ * @param verb What was attempted, for the sentence
+ * @return The error to throw
+ */
+const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted') => {
+  const key = `\`${String(prop)}\``;
+  const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+  const state = Object.isFrozen(obj) ? 'frozen' : Object.isSealed(obj) ? 'sealed' : null;
+  const why = !own
+    ? `the object is ${state ?? 'not extensible'}, so ${key} cannot be added`
+    : own.get && !own.set
+      ? `${key} has a getter and no setter`
+      : state
+        ? `the object is ${state}, so ${key} cannot be ${verb}`
+        : `${key} is not ${verb === 'deleted' ? 'configurable' : 'writable'}`;
+  return new TypeError(
+    `[vera] createStore: this store's source object refused the ${verb === 'deleted' ? 'delete' : 'write'} — ${why}. A store proxies the ` +
+      `object it was given and cannot override what JavaScript declines. Pass a mutable object to ` +
+      `createStore, or keep this one outside the store and read it directly.`
+  );
+};
+
+let writingObj: object | null = null;
+let writingProp: PropertyKey | null = null;
 
 /**
- * Priorities parallel to each element's callback array, keeping those arrays dense. `runCallbacks`
- * walks them on every write.
+ * The priorities that used to live here — a `WeakMap` keyed by the slots array — now travel with the
+ * slots as `PropSubscriptions`; see `store.ts`. The comment here also claimed `runCallbacks` walked
+ * them, which it never did: it walks the slots by index and the order is read only when inserting.
  */
-const callbackPriorities = new WeakMap<Set<WeakRef<never>>[], number[]>();
+
+/**
+ * Hoisted, because it is handed to `prioritySlot` on **every tracked read** and called only on the
+ * first one. Written inline it allocated a closure per read — including the steady-state reads the
+ * comment in `addCallback` calls allocation-free, which they were not. `prioritySlot` takes a
+ * factory rather than a value so the slot is built only when it is missing; that is worth keeping,
+ * and it costs nothing once the factory itself stops being rebuilt.
+ *
+ * Measured on the SSR component render, fastest of nine rounds over 20 000 renders, twice: 6.14 and
+ * 6.37 us against 6.73 and 6.79 inline. 7 B gzipped on `@verajs/core`.
+ */
+const newSet = () => new Set();
 
 /**
  * Adds a callback to the proxyCallbacks WeakMap for an obj/prop combo using the element, callback,
@@ -39,7 +165,8 @@ const addCallback = <T>(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>)
   if (!hook) return;
 
   const { element: elementWeakRef, callback: callbackWeakRef, priority } = hook;
-  if (!elementWeakRef || !callbackWeakRef || !priority) return;
+  /** `priority` is compared, never tested for truth — `0` is a legal priority and the earliest one. */
+  if (!elementWeakRef || !callbackWeakRef || priority == null) return;
 
   /**
    * Walked by hand with lazy creation, the way Vue's `track()` does.
@@ -74,13 +201,10 @@ const addCallback = <T>(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>)
   let elements = props.get(prop);
   if (elements === undefined) props.set(prop, (elements = new Map()));
 
-  let byPriority = elements.get(elementWeakRef);
-  if (byPriority === undefined) elements.set(elementWeakRef, (byPriority = []));
+  let subscriptions = elements.get(elementWeakRef);
+  if (subscriptions === undefined) elements.set(elementWeakRef, (subscriptions = { slots: [], order: [] }));
 
-  let order = callbackPriorities.get(byPriority as never);
-  if (order === undefined) callbackPriorities.set(byPriority as never, (order = []));
-
-  prioritySlot(byPriority, order, priority, () => new Set()).add(callbackWeakRef);
+  prioritySlot(subscriptions.slots, subscriptions.order, priority, newSet).add(callbackWeakRef);
 };
 
 /**
@@ -99,18 +223,18 @@ const runCallbacks = <T extends object>(
 ) => {
   const propCallbacks = proxyCallbacks.get(obj)?.get(prop);
   if (!propCallbacks) return;
-  for (const [elementWeakRef, priorityArray] of propCallbacks) {
+  for (const [elementWeakRef, subscriptions] of propCallbacks) {
     const element = elementWeakRef.deref();
     if (element?.isConnected === false) continue;
     if (!element) {
       propCallbacks.delete(elementWeakRef);
       continue;
     }
-    priorityArray.forEach((callbacks, index) => {
+    subscriptions.slots.forEach((callbacks, index) => {
       for (const callbackWeakRef of callbacks) {
         const callback = callbackWeakRef.deref();
         if (!callback) {
-          propCallbacks.get(elementWeakRef)?.[index].delete(callbackWeakRef);
+          propCallbacks.get(elementWeakRef)?.slots[index].delete(callbackWeakRef);
         } else {
           callback({ prop, value, prevValue } as Signal<T[keyof T]>);
         }
@@ -143,6 +267,22 @@ const createHandler = <T extends object>(
   data: T,
   proxyCache: WeakMap<object, object | null>
 ): ProxyHandler<T | { value: T }> => {
+  /**
+   * Whether this handler's target may have a nested value substituted for a proxy at all.
+   *
+   * A **non-writable, non-configurable** data property is one the `get` trap must return verbatim —
+   * the proxy invariant, enforced by the engine with a `TypeError`, not a silent fallback. Every
+   * property of a frozen object is exactly that, so reading any nested object out of
+   * `createStore(Object.freeze(config))` threw. Reactivity is not lost by choice here: the language
+   * forbids the substitution, and Vue's `reactive()` has the same limit.
+   *
+   * Resolved once per target rather than per read. A handler instance belongs to exactly one proxy,
+   * so `obj` never varies, and the exact per-property check costs a descriptor **allocation** per
+   * read — measured at +38% on a two-hop read, which is not a price worth paying for a case decided
+   * by whether the object was frozen before it arrived. The per-property case that an extensible
+   * object can still produce is caught on the cache-miss path below, where it is free.
+   */
+  let extensible: boolean | undefined;
   return {
     get(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>, receiver) {
       /** The handler will always return true for _isSignal */
@@ -150,22 +290,28 @@ const createHandler = <T extends object>(
       /**
        * `size` is an accessor and must be read off the raw target — but the read still
        * subscribes, under the `'_global'` channel that every Map/Set mutation notifies (see
-       * `collections.ts`). Returning without tracking meant `${state.map.size}` in a template
+       * `@verajs/reactivity/collections`). Returning without tracking meant `${state.map.size}` in a template
        * never updated.
        */
       if (prop === 'size' && isSetOrMap(obj)) {
+        if (__DEV__ && inserts.get('collection') === undefined) warnNoCollections(obj);
         addCallback(obj, GLOBAL as Extract<keyof T, string>);
         return obj[prop];
       }
       let propValue = Reflect.get(obj, prop, receiver) as ProxyObject<T>;
 
-      /** Map/Set methods: re-bound and tracked — see `collections.ts` for the full contract. */
+      /**
+       * Map/Set methods: re-bound and tracked by `@verajs/reactivity/collections`. Native collection methods
+       * throw (`called on incompatible receiver`) when invoked on the proxy — their internal slots
+       * live on the raw target — so without the package a collection in a store is inert rather
+       * than reactive, and the error below says so the first time one is read.
+       */
       if (typeof propValue === 'function' && isSetOrMap(obj)) {
-        return collectionMethod(obj, prop, propValue, addCallback as never, runCallbacks as never) as ProxyObject<T>;
+        collectionInsert ??= inserts.get('collection')?.[0] as CollectionInsert | undefined;
+        if (collectionInsert)
+          return collectionInsert(obj, prop, propValue, addCallback as never, runCallbacks as never) as ProxyObject<T>;
+        if (__DEV__) warnNoCollections(obj);
       }
-
-      /** Ignored properties won't set up proxy listeners any deeper */
-      if (!data) return propValue;
 
       /**
        * Only objects can be proxied or carry the marker props, so primitives skip all of this.
@@ -180,9 +326,14 @@ const createHandler = <T extends object>(
          * what comes back is the raw value rather than a proxy. This is what `shallowRef` is for and
          * it previously did nothing, because only the returned value was checked and never the owner.
          *
-         * The cost of getting this wrong is large. Holding a 1 000-row list in a deep store made a
-         * single render pass over it 2.6 ms against 0.041 ms for a plain array — 63x, paid on every
-         * render, for objects that never mutate.
+         * The cost of getting this wrong is large, and larger than this comment used to claim: a
+         * single pass over a 1 000-row list held in a deep store measures **~300x** a plain array or
+         * a `shallowRef`, paid on every render, for objects that never mutate. The comment said 63x,
+         * from an older machine and with nothing regenerating it.
+         *
+         * `tests/perf-claims.test.mjs` asserts the ratio at 20x — far below what is measured, and far
+         * enough above 1x to fail loudly if `_ignore` stops being honoured, which is exactly what
+         * happened the first time.
          */
         if ((obj as StoreProxyKeys)._ignore === true) {
           addCallback(obj, prop);
@@ -195,27 +346,38 @@ const createHandler = <T extends object>(
          * holding three closures, and `state.a === state.a` was false, which silently broke any
          * identity comparison in consumer code.
          */
-        let cached = proxyCache.get(propValue);
-        if (cached === undefined) {
-          cached =
-            !(propValue as StoreProxyKeys)._isSignal && isProxyable(propValue)
-              ? new Proxy(propValue, createHandler(data, proxyCache))
-              : null;
-          proxyCache.set(propValue, cached);
+        if (extensible === undefined) extensible = Object.isExtensible(obj);
+        if (extensible) {
+          let cached = proxyCache.get(propValue);
+          if (cached === undefined) {
+            /**
+             * The descriptor read happens here and nowhere else — once per distinct nested value
+             * rather than once per read — so an extensible object carrying an explicitly readonly
+             * slot is caught without the hot path ever allocating a descriptor.
+             */
+            const own = Reflect.getOwnPropertyDescriptor(obj, prop);
+            cached =
+              !(propValue as StoreProxyKeys)._isSignal &&
+              isProxyable(propValue) &&
+              (own === undefined || own.writable === true || own.configurable === true)
+                ? new Proxy(propValue, createHandler(data, proxyCache))
+                : null;
+            proxyCache.set(propValue, cached);
+          }
+          if (cached !== null) propValue = cached as ProxyObject<T>;
         }
-        if (cached !== null) propValue = cached as ProxyObject<T>;
       }
 
-      inserts.get('proxy-handler')?.forEach((insertCallback) => {
-        propValue =
-          (insertCallback as ProxyHandlerInsert)?.(obj, prop, propValue, addCallback, runCallbacks) ?? propValue;
+      if (chainRevision !== revision) {
+        chainRevision = revision;
+        proxyHandlers = inserts.get('proxy-handler') as ProxyHandlerInsert[] | undefined;
+      }
+      proxyHandlers?.forEach((insertCallback) => {
+        propValue = insertCallback?.(obj, prop, propValue, addCallback, runCallbacks) ?? propValue;
       });
 
       addCallback(obj, prop);
 
-      // if (prop === 'value' && propValue && typeof propValue === 'object' && 'value' in propValue) {
-      //   return (propValue as { value: unknown }).value;
-      // }
 
       return propValue;
     },
@@ -248,6 +410,28 @@ const createHandler = <T extends object>(
     set(obj: T, prop: Extract<keyof T, string>, value: T[Extract<keyof T, string>], receiver) {
       const prevValue = Reflect.get(obj, prop, receiver);
       if (prevValue === value) return true;
+      /**
+       * **The same nested object, read back and assigned, is not a change either.**
+       *
+       * `Reflect.get` on the raw target answers the raw object, while the *getter* hands out that
+       * object's proxy — so `state.o = state.o` arrives here as proxy-against-raw, compares
+       * unequal, and notified every subscriber that nothing had happened. It also wrote the proxy
+       * *into the target*: code still holding the original object saw its own property stop being
+       * the object it had passed in. (`state.o === original` is false either way — reads are
+       * wrapped — so the difference is only visible from the object the store was built from,
+       * which is exactly where it is hardest to notice.)
+       *
+       * The line above already says a write of the same value is not a change; this is that same
+       * rule for the half of the store where reads are wrapped. It matters because the idiom it
+       * breaks is the common one — `state.items = update(state.items)`, where `update` returns its
+       * input untouched when there is nothing to do, is exactly how "no change" is normally
+       * written, and it cost a render pass every time.
+       *
+       * `value` is checked for objecthood rather than `prevValue`, so that a cache entry of `null`
+       * (which marks a value this store does not proxy) cannot match a `null` being assigned.
+       */
+      if (value !== null && typeof value === 'object' && proxyCache.get(prevValue as object) === value)
+        return true;
       /** Whether this write changes the key set, and so whether enumerators have to hear about it. */
       const added = !Object.prototype.hasOwnProperty.call(obj, prop);
       /**
@@ -259,19 +443,47 @@ const createHandler = <T extends object>(
        * Captured before the write, since the length is what changes.
        */
       const grew = Array.isArray(obj) && +prop >= (obj as unknown[]).length;
-      writing++;
+      writingObj = obj;
+      writingProp = prop;
       let result;
       try {
         result = Reflect.set(obj, prop, value, receiver);
       } finally {
-        writing--;
+        writingObj = null;
       }
+
+      /**
+       * **When the language refuses the write, say which language rule refused it.**
+       *
+       * A proxy has to report a refused write by returning `false`, and the engine turns that into
+       * `TypeError: 'set' on proxy: trap returned falsish for property 'n'` — a message about the
+       * *trap*, which is framework internals the reader never wrote and cannot act on. The same
+       * assignment to an unproxied frozen object says `Cannot assign to read only property 'n'`,
+       * which at least names the cause. Putting a store in front of the object makes the diagnosis
+       * worse, and `createStore(Object.freeze(defaults))` is an ordinary thing to write.
+       *
+       * Every measured case is the language's own invariant and not a framework decision — frozen,
+       * sealed-plus-new-key, `preventExtensions`, a non-writable property, a getter with no setter —
+       * so this reports rather than repairs, and the reason is derived from the target instead of
+       * guessed at.
+       *
+       * `__DEV__`-only, which pass 49 says is exactly right for a **message**: it throws either way,
+       * so the two builds still agree on what the program *does*. In sloppy mode a refused write is
+       * silent rather than throwing, and this makes it loud — development being stricter, which is
+       * the safe direction.
+       */
+      if (__DEV__ && !result) throw refusedWrite(obj, prop, 'changed');
 
       if (result) {
         /**
          * Extension point for anything that wants to take over propagation — batching,
          * transactions, undo/redo, persistence, time-travel devtools. Returning `false` from a
          * handler means it has taken responsibility and the default below is skipped.
+         */
+        /**
+         * Not cached, unlike the read chain. A write costs several times a tracked read — 6.6x when
+         * this was written and 6.6x when re-measured, on machines whose absolutes differ by 2.2x — so
+         * the same `Map.get` is noise here and the cache would cost bytes for nothing measurable.
          */
         let deferred = false;
         inserts.get('set-handler')?.forEach((insertCallback) => {
@@ -301,8 +513,8 @@ const createHandler = <T extends object>(
      * descriptor does not carry one.
      */
     defineProperty(obj: T & StoreProxyKeys, prop: Extract<keyof T, string>, descriptor: PropertyDescriptor) {
-      /** An ordinary assignment landing here — see `writing`. The `set` trap reports it. */
-      if (writing) return Reflect.defineProperty(obj, prop, descriptor);
+      /** This exact assignment re-entering from the `set` trap, which reports it. See `writingObj`. */
+      if (obj === writingObj && prop === writingProp) return Reflect.defineProperty(obj, prop, descriptor);
 
       type Value = T[Extract<keyof T, string>];
       /**
@@ -332,6 +544,8 @@ const createHandler = <T extends object>(
       const had = prop in obj;
       const prevValue = (had ? Reflect.get(obj, prop) : undefined) as Value;
       const success = Reflect.deleteProperty(obj, prop);
+      /** Same reasoning as the `set` trap above — see `refusedWrite`. */
+      if (__DEV__ && !success && had) throw refusedWrite(obj, prop, 'deleted');
       if (success && had) {
         runCallbacks(obj, prop, undefined as Value, prevValue);
         runCallbacks(obj, GLOBAL as Extract<keyof T, string>, undefined as Value, prevValue);
@@ -347,9 +561,24 @@ const createHandler = <T extends object>(
  * @param  data - The data object
  * @return The new proxy
  */
+/**
+ * Raw object -> its store proxy, so proxying the same object twice hands back the same proxy.
+ *
+ * Without it `createStore(config) === createStore(config)` was false: two proxies over one target,
+ * each with its own nested cache, so `a.user !== b.user` for the very same object. Subscriptions
+ * were shared — those key off the raw target — which made the divergence identity-only and
+ * therefore quiet, of the kind that surfaces as a list re-keying or a memo missing. Vue's
+ * `reactive()` keeps the same map for the same reason.
+ */
+const stores = new WeakMap<object, object>();
+
 export const createProxy = <T extends object>(data: T) => {
   /** Same four-way test as the get trap, so it reuses `isProxyable` rather than repeating it. */
   const proxyData = isProxyable(data) ? data : ({ value: data } as unknown as T);
-  /** One cache per store, threaded through every nested handler so identity is stable throughout. */
-  return new Proxy(proxyData, createHandler(proxyData, new WeakMap<object, object | null>()));
+  let proxy = stores.get(proxyData);
+  if (proxy === undefined) {
+    /** One cache per store, threaded through every nested handler so identity is stable throughout. */
+    stores.set(proxyData, (proxy = new Proxy(proxyData, createHandler(proxyData, new WeakMap()))));
+  }
+  return proxy as T;
 };

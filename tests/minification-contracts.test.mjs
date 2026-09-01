@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
@@ -23,6 +23,29 @@ const PROD = {
   inserts: 'packages/inserts/dist/vera-inserts.min.js',
   styles: 'packages/styles/dist/vera-styles.min.js',
   autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
+  collections: 'packages/reactivity/dist/vera-reactivity-collections.min.js',
+  keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
+  spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
+  tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
+};
+
+/**
+ * The deliberate exception, and the only one: `@verajs/reactivity` builds **on** core's public API
+ * rather than implementing an extension point, so it must import core in every mode instead of
+ * inlining it.
+ *
+ * This is not a preference. `createStore` and `createHook` reach module-level state inside core —
+ * `hooksQueue`, `proxyCallbacks` — so a bundle carrying its own copy would push onto a *different*
+ * hook queue and register into a *different* callback map. Every computed would evaluate once and
+ * then never invalidate again: no error, no warning, and only in a production build. That is the
+ * exact failure `@verajs/styles` shipped once already.
+ *
+ * `alwaysExternal` in `packages/reactivity/rollup.config.js` is what holds it, and until this test
+ * existed nothing checked that it was still there.
+ */
+const EXTERNAL_CORE = {
+  reactivity: 'packages/reactivity/dist/vera-reactivity.min.js',
+  computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',
 };
 
 // ── cross-bundle contracts ──────────────────────────────────────────────────
@@ -41,13 +64,31 @@ test('the lit template contract survives minification', () => {
   }
 });
 
+/**
+ * The two halves of the child-position protocol. A third party writes `_$child$` on a value and
+ * calls `part._$commit$`, so both names cross a bundle boundary the same way `_$apply$` does — and
+ * the renderer mangles `/^_[a-z]/`, which `_$…$` deliberately does not match.
+ */
+test('the child-position directive protocol survives minification', () => {
+  for (const name of ['renderer', 'hydrate']) {
+    const src = read(PROD[name]);
+    for (const contract of ['_$child$', '_$commit$', '_$apply$']) {
+      assert.ok(src.includes(contract), `${name}: ${contract} must not be mangled`);
+    }
+  }
+});
+
 test('the insert chain priority contract `_p` survives everywhere it is inlined', () => {
   /**
    * `_p` carries the priority order on an insert chain and is read by every inlined copy of
    * `@verajs/inserts`. Mangling it in one bundle and not another makes priorities silently ignored
    * and same-priority registration duplicate instead of replace.
    */
-  for (const name of ['inserts', 'core', 'router']) {
+  /**
+   * The router is deliberately absent: it carries no registry, so there is no `_p` in its bundle to
+   * mangle. That is the point of it importing nothing — the contract stopped being cross-bundle.
+   */
+  for (const name of ['inserts', 'core']) {
     assert.ok(read(PROD[name]).includes('_p'), `${name}: _p must not be mangled`);
   }
 });
@@ -102,8 +143,53 @@ test('production bundles are standalone — no bare workspace imports', () => {
   }
 });
 
+test('@verajs/reactivity imports core in production rather than inlining it', () => {
+  for (const [name, path] of Object.entries(EXTERNAL_CORE)) {
+    assert.match(
+      read(path),
+      /from\s*["']@verajs\/core["']/,
+      `${name}: must import core — a second copy means a second hooksQueue, and computeds that ` +
+        `evaluate once and never invalidate, silently and in production only`
+    );
+  }
+});
+
+/**
+ * Everything that is not that exception is standalone, and the two lists have to stay exhaustive or
+ * a new package quietly inherits neither rule — which is how a build-config mistake would ship.
+ *
+ * Private packages are skipped: `shared-utils` and `shared-types` are inlined into every build and
+ * never published, so what their own bundle imports is nobody's contract.
+ */
+test('every published bundle is covered by one rule or the other', () => {
+  const covered = new Set([...Object.values(PROD), ...Object.values(EXTERNAL_CORE)]);
+  const missing = [];
+  for (const pkg of readdirSync('packages')) {
+    const dir = `packages/${pkg}/dist`;
+    if (!existsSync(dir)) continue;
+    if (JSON.parse(readFileSync(`packages/${pkg}/package.json`, 'utf8')).private) continue;
+    for (const file of readdirSync(dir))
+      if (file.endsWith('.min.js') && !covered.has(`${dir}/${file}`)) missing.push(`${dir}/${file}`);
+  }
+  assert.deepEqual(missing, [], `production bundles checked by neither rule:\n  ${missing.join('\n  ')}`);
+});
+
 test('development bundles keep workspace deps external', () => {
   /** The mirror of the above: dev keeps them external so the consumer's bundler dedupes. */
   const dev = read('packages/core/dist/development/vera.js');
   assert.match(dev, /from\s*['"]@verajs\/inserts['"]/, 'core imports inserts rather than inlining it');
+});
+
+/**
+ * `_$veraStyles$` marks a component class whose light-DOM styles are already hoisted. Two copies of
+ * `@verajs/styles` on one page have separate module state, so the mark has to live on the class —
+ * the one object both are looking at — and both copies must spell it identically. A mangled copy
+ * would hoist the same rules a second time, silently and only in production.
+ */
+test('the style-hoist marker survives minification', () => {
+  assert.match(
+    read('packages/styles/dist/vera-styles.min.js'),
+    /_\$veraStyles\$/,
+    'the mark crosses a bundle boundary and must not be mangled'
+  );
 });

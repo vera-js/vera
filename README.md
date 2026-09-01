@@ -8,22 +8,25 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 6.54 KB | **2.75 KB** |
-| `@verajs/renderer` | 9.18 KB | 3.61 KB |
-| `@verajs/router` | 8.10 KB | 3.52 KB |
-| `@verajs/autoloader` | 1.87 KB | 1 009 B |
-| `@verajs/styles` | 1.11 KB | 597 B |
-| `@verajs/spread` | 1.46 KB | 804 B |
-| `@verajs/computed` | 298 B | 241 B |
-| `@verajs/inserts` | 532 B | 363 B |
+| `@verajs/core` | 6.90 KB | **3.00 KB** |
+| `@verajs/renderer` | 9.64 KB | 3.83 KB |
+| `@verajs/router` | 8.40 KB | 3.57 KB |
+| `@verajs/autoloader` | 2.67 KB | 1.32 KB |
+| `@verajs/styles` | 1.22 KB | 674 B |
+| `@verajs/renderer/spread` | 1.60 KB | 869 B |
+| `@verajs/renderer/tag` | 2.78 KB | 1.43 KB |
+| `@verajs/reactivity/computed` | 298 B | 241 B |
+| `@verajs/reactivity/collections` | 1.07 KB | 576 B |
+| `@verajs/renderer/keyed` | 1.16 KB | 599 B |
+| `@verajs/inserts` | 486 B | 357 B |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->5.8 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.1 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->5.8 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->6.1 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
@@ -80,11 +83,11 @@ used on their own or with another framework entirely.
 </script>
 
 <script type="module">
-  import { init, createStore, render, setRenderer, html } from '@verajs/core';
-  import { render as domRender } from '@verajs/renderer';
+  import { init, createStore, render, wire, html } from '@verajs/core';
+  import { renderer } from '@verajs/renderer';
 
   /** Core ships no renderer. Wire one once, here, and nothing else needs to know. */
-  setRenderer(domRender);
+  wire([renderer]);
 
   customElements.define(
     'click-counter',
@@ -104,9 +107,12 @@ used on their own or with another framework entirely.
 <click-counter></click-counter>
 ```
 
-`html` comes from core and needs no `setHtml` — `@verajs/renderer` accepts the shape it produces.
-To use lit-html instead, swap the renderer and tell core about its tag:
-`setRenderer(litRender); setHtml(litHtml);`
+`html` comes from core and needs no `setHtml` — `@verajs/renderer` accepts the shape it produces, so
+those two lines are the whole setup.
+
+*(Optional: the renderer is an insert, so it can be swapped. An app already written against lit-html
+can keep its templates with `wire({ on: 'render', fn: litRender, priority: 50 }); setHtml(litHtml);`
+— unnecessary for new code, where `@verajs/renderer` is smaller and measurably faster.)*
 
 ### npm + TypeScript
 
@@ -115,10 +121,10 @@ npm install @verajs/core @verajs/renderer
 ```
 
 ```ts
-import { init, createStore, render, useEffect, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, useEffect, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setRenderer(domRender);
+wire([renderer]);
 
 class ClickCounter extends HTMLElement {
   connectedCallback() {
@@ -145,21 +151,21 @@ re-runs when it changes. There is no dependency array to maintain.
 
 ## Using more than one module from a CDN
 
-Standalone bundles inline their dependencies, so loading two of them produces two separate internal
-registries. Reconcile them with `connectInserts` — this is expected, and it is the price of the
-modules being genuinely independent:
+Standalone bundles inline their dependencies, so a module that carried its own registry would get a
+second one. None of them do: each takes the registry it writes to, and `wire` hands it over.
 
 ```js
-import { inserts, setRenderer, setAutoloader } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
-import { initAutoloader } from '@verajs/autoloader';
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { router } from '@verajs/router';
+import { autoloader } from '@verajs/autoloader';
 
-connectInserts(inserts); // point the router at core's registry
-
-setAutoloader(initAutoloader(import.meta.url, 'components'));
+wire([renderer, router, autoloader(import.meta.url, 'components')]);
 ```
 
-This is unnecessary when using a bundler, where every module resolves to a single shared instance.
+Identical under a bundler, where everything already resolves to one instance. This replaced
+`connectInserts`, a reconciliation step that was load-bearing on a CDN page and ceremonial
+everywhere else.
 
 ---
 

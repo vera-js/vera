@@ -39,8 +39,8 @@ try {
   const renderIn = (folder) => {
     const script = `
 import { renderToString } from '@verajs/ssr/vera';
-import { wire } from '${new URL('./examples/kitchen-sink/wiring.js', root).href}';
-wire(null);
+import { wireApp } from '${new URL('./examples/kitchen-sink/wiring.js', root).href}';
+wireApp(null);
 const out = {};
 for (const name of ${JSON.stringify(twins.map((n) => n.replace(/\.jsx$/, '.js')))}) {
   const url = new URL(name, '${folder}');

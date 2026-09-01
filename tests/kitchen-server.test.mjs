@@ -47,6 +47,17 @@ const reach = async (url) => {
   throw new Error(`the server never came up:\n${serverOutput}`);
 };
 
+/**
+ * Waits for a condition in the page, up to a generous budget, and answers whether it happened rather
+ * than throwing — the surrounding `check` is what reports, and a timeout here is a failed check and
+ * not a crashed suite.
+ */
+const waitUntil = (page, predicate, argument) =>
+  page.waitForFunction(predicate, argument, { timeout: 10000, polling: 25 }).then(
+    () => true,
+    () => false
+  );
+
 let browser;
 const failures = [];
 let pass = 0;
@@ -109,13 +120,35 @@ try {
 
     const before = await counter();
     await bump();
-    await page.waitForTimeout(300);
-    check(`${mode}: clicking a button re-renders`, (await counter()) !== before, `stayed at ${before}`);
+    /**
+     * **Polled, not slept.** This was `waitForTimeout(300)`, which is a flake generator in a real
+     * browser: a click has to reach a store write, a scheduled render and the DOM, and 300 ms is
+     * ample on an idle machine and not always ample when the rest of the suite is running beside it.
+     * It failed the gate twice in a row and passed standalone every time, which is the signature.
+     *
+     * A poll is strictly better in both directions — it returns the moment the counter moves rather
+     * than always waiting the full budget, and it survives a loaded machine. The assertion is
+     * unchanged: the counter still has to move.
+     */
+    /** The predicate runs in the page, so it closes over nothing here — `before` is passed in. */
+    const bumped = await waitUntil(
+      page,
+      (previous) =>
+        document
+          .querySelector('sink-shell')
+          ?.shadowRoot?.querySelector('sink-effects')
+          ?.shadowRoot?.querySelector('#n')?.textContent !== previous,
+      before
+    );
+    check(`${mode}: clicking a button re-renders`, bumped, `stayed at ${before}`);
 
     await page.evaluate(() =>
       document.querySelector('sink-shell').shadowRoot.querySelector('#nav a[href="/user/7"]').click()
     );
-    await page.waitForTimeout(400);
+    await waitUntil(
+      page,
+      () => document.querySelector('sink-shell')?.shadowRoot?.querySelector('[view="main"]')?.textContent?.includes('user 7')
+    );
     const outlet = await page.evaluate(
       () => document.querySelector('sink-shell').shadowRoot.querySelector('[view="main"]').textContent
     );

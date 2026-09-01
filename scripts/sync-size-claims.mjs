@@ -37,7 +37,10 @@ const MODULES = [
   { pkg: 'autoloader', dist: 'packages/autoloader/dist/vera-autoloader.min.js', what: 'lazy component discovery' },
   { pkg: 'styles', dist: 'packages/styles/dist/vera-styles.min.js', what: '`static styles` adoption, shadow and light DOM' },
   { pkg: 'spread', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-spread.min.js', what: '`${spread(props)}` — runtime-named bindings' },
+  { pkg: 'tag', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-tag.min.js', what: '`<${tag}>` — runtime tag names, in templates and JSX' },
   { pkg: 'computed', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-computed.min.js', what: 'memoised derived values' },
+  { pkg: 'collections', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
+  { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
 ];
 
@@ -109,9 +112,15 @@ const blocks = {
   'table.modules': [
     '| Module | Standalone | gzipped |',
     '| --- | ---: | ---: |',
+    /**
+     * `dir` is what makes a subpath entry render as one. Without it the table previously printed
+     * `@verajs/computed`, `@verajs/collections`, `@verajs/keyed`, `@verajs/spread` and
+     * `@verajs/tag` — five package names that do not exist and cannot be installed, in the table a
+     * reader is most likely to copy from.
+     */
     ...MODULES.map(
       (m) =>
-        `| \`@verajs/${m.pkg}\` | ${size(modules[m.pkg].raw)} | ${
+        `| \`@verajs/${m.dir ? `${m.dir}/${m.pkg}` : m.pkg}\` | ${size(modules[m.pkg].raw)} | ${
           m.pkg === 'core' ? `**${size(modules[m.pkg].gzip)}**` : size(modules[m.pkg].gzip)
         } |`
     ),
@@ -120,7 +129,9 @@ const blocks = {
   'table.permodule': [
     '| Module | gzip | |',
     '| --- | ---: | --- |',
-    ...MODULES.map((m) => `| \`@verajs/${m.pkg}\` | ${bytes(modules[m.pkg].gzip)} | ${m.what} |`),
+    ...MODULES.map(
+      (m) => `| \`@verajs/${m.dir ? `${m.dir}/${m.pkg}` : m.pkg}\` | ${bytes(modules[m.pkg].gzip)} | ${m.what} |`
+    ),
   ].join('\n'),
 };
 
@@ -136,6 +147,44 @@ if (snapshot && !snapshotStale) {
   values['react.kb'] = kb(react.gzip, 0);
   values['app.rank'] = ordinal(apps.indexOf(own) + 1);
   values['app.count'] = String(apps.length);
+
+  /**
+   * **The same framework with no reactive state**, which is what a bundler ships for a page that
+   * renders once. Deliberately not a row in the comparative table: it is not the same app as the
+   * entries there — it updates nothing, where every one of those renders reactive state — and
+   * listing it beside them would both compare a page to an application and push this project's own
+   * entry down a rank by competing with itself.
+   *
+   * It is claimed because the headline number measures the *full* entry and understates what most
+   * pages load: `createProxy` is 37% of core's minified bytes and tree-shaking drops it with
+   * nothing asked of the author.
+   */
+  const staticApp = snapshot.variants?.find((a) => a.name.includes('no reactive state'));
+  if (staticApp) {
+    const lit = apps.find((a) => a.name === 'Lit');
+    values['app.static.bytes'] = bytes(staticApp.gzip);
+    values['app.static.kb'] = kb(staticApp.gzip, 1);
+    values['app.static.underlit'] = bytes(lit.gzip - staticApp.gzip);
+  }
+
+  /**
+   * The keyed-list shape. A counter is the measurement that flatters a directive-first design —
+   * everything a list needs sits behind an import a counter never makes — so the claim quotes both
+   * or it quotes the comparison at its least representative point.
+   */
+  if (snapshot.lists?.length) {
+    const listOwn = snapshot.lists.find((a) => a.name.includes('own renderer'));
+    const listLit = snapshot.lists.find((a) => a.name === 'Lit');
+    if (listOwn) {
+      values['list.bytes'] = bytes(listOwn.gzip);
+      values['list.kb'] = kb(listOwn.gzip, 1);
+    }
+    if (listLit) {
+      values['list.lit.bytes'] = bytes(listLit.gzip);
+      values['list.lit.kb'] = kb(listLit.gzip, 1);
+    }
+    if (listOwn && listLit) values['list.vs-lit.bytes'] = bytes(listLit.gzip - listOwn.gzip);
+  }
 
   /** Every contender addressable by slug, so prose can cite any of them and stay in sync. */
   for (const a of apps) {

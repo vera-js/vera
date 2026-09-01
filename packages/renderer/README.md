@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.61 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.83 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -13,15 +13,15 @@ npm i @verajs/core @verajs/renderer
 
 ## Quick start
 
-`setRenderer` is the only wiring. Core's `html` tag already produces the shape this accepts, so
+`wire(renderer)` is the only wiring. Core's `html` tag already produces the shape this accepts, so
 there is no second call to make.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 
-setRenderer(domRender);
+wire([renderer]);
 
 customElements.define(
   'click-counter',
@@ -37,8 +37,31 @@ customElements.define(
 document.body.append(document.createElement('click-counter'));
 ```
 
-Without `setRenderer`, core has no renderer at all: `render()` warns once in development and puts
+Without it, core has no renderer at all: `render()` warns once in development and puts
 nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things to go missing.
+
+### `renderInto(result, container)`
+
+The same write, called directly — no reactivity, no lifecycle, no custom element. `wire([renderer])`
+registers exactly this function, so a component's `render()` ends up here; calling it yourself is how
+you draw into a plain node, which is the incremental-adoption path and the way to test a template
+without spinning up an element.
+
+```js
+import { renderInto } from '@verajs/renderer';
+import { html } from '@verajs/core';
+
+renderInto(html`<p>${count}</p>`, document.querySelector('#app'));
+```
+
+It **owns its own range and nothing else**: the first call anchors a root part at a marker it
+appends, later calls with the same container reuse that part and walk only the value slots, and
+whatever was already in the container stays. It is not reactive — call it again to update, or use a
+component and let a store do it.
+
+It was named `render` until 0.2.0, which collided with core's `render` — a different function, with
+a different arity, that declares a *reactive* template and commits a component's setup. Both are
+public and both are documented, so a reader who knew one misread the other.
 
 ## Bindings
 
@@ -49,7 +72,8 @@ nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things
 | `<p class="a ${b} ${c}">` | attribute built from several expressions and the static text between them |
 | `<x-item .item=${value}>` | property assignment, uncoerced — objects, arrays, functions |
 | `<p ?hidden=${value}>` | boolean attribute, present when truthy |
-| `<button @click=${fn}>` | event listener |
+| `<input !checked=${value}>` | property written from the **live DOM** rather than from what the binding last wrote — see below |
+| `<button @click=${fn}>` | event listener. An object with a `handleEvent` method works too — `addEventListener` takes both |
 | `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — `onclick` stays a plain attribute |
 | `<input ${fn}>` | element ref: a function is called with the element |
 | `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
@@ -57,8 +81,55 @@ nothing on the page. `@event`, `.prop` and `?bool` bindings are the first things
 
 A ref runs once per **distinct value**, not once per render.
 
-Bindings inside comments, and dynamic tag names, are not supported — the value is consumed and
-ignored.
+**A ref is released when its subtree is rendered away, and not when its component is removed from
+the document.** Toggling `${show ? html`<i ${box}>` : 'gone'}` sets `box.value` back to `null` (and
+calls a function ref with `null`); removing the whole component leaves `box.value` pointing at the
+element, now detached. That is deliberate rather than an oversight: here a disconnect is not a
+destruction — moving a node between parents fires one, and the component re-renders on reconnect —
+so releasing would blank every ref for the frame it takes a move to complete. Guard with
+`box.value?.isConnected` if you need to know, and note that a ref created inside the component (the
+way every example writes it) becomes garbage along with it either way.
+
+An event handler is called with the element as `this`, and the listener is registered once — swapping
+the handler across renders never touches the DOM, so there is no add/remove churn and no way to end
+up with two. `undefined`, `null` and `false` all mean *no handler*, so `@click=${enabled && onClick}`
+binds conditionally without a ternary. Anything else that cannot listen — a string, a number, an
+object with no `handleEvent` — is inert, and **development names it at the binding**: a listener is
+only ever called when a user clicks, so left unchecked the mistake surfaces at a point where nothing
+on the stack says where the value came from.
+
+### `!name` — a live property
+
+Every other binding skips a write when the value matches what it last wrote. That is what keeps a
+field someone has typed into, and it is exactly wrong for a control whose DOM state changes as a
+**side effect of interacting with a sibling**:
+
+```js
+html`<input type="radio" name="pick" !checked=${state.picked === 'one'} />
+     <input type="radio" name="pick" !checked=${state.picked === 'two'} />`
+```
+
+Clicking the second radio unchecks the first *in the DOM*, with no event on it. With `.checked` the
+first binding still says `true`, still matches what it committed, and never writes again — the model
+and the page diverge and no amount of re-rendering reconciles them. A `<select>`'s options are the
+same shape.
+
+It is deliberately narrow, and it is a **property** binding only:
+
+- **Not for text inputs.** Bind those with `.value` and let a person's typing stand. `!value` exists
+  and is authoritative, which is precisely why it is not the default.
+- **Not offered for attributes or booleans.** Nothing changes those behind the renderer's back, so
+  there is nothing to re-read.
+- **It yields during hydration.** A click that happened before the bundle landed had no handler to
+  report it, so adoption records the value without writing; live semantics resume on the first
+  state-driven render.
+
+`spread({ '!checked': … })` means the same thing, and `@verajs/ssr` serializes it exactly as
+`.checked` — a server has nothing to re-read.
+
+Bindings inside comments are not supported — the value is consumed and ignored. A **dynamic tag
+name** is a binding a template cannot express either, and has its own entry:
+[`/tag`](#verajsrenderertag).
 
 ## Values
 
@@ -83,20 +154,41 @@ A DOM node renders as itself, which is how a template holds something another li
 const chart = document.createElement('canvas');
 new Chart(chart, config);
 
-render(html`<figure>${chart}<figcaption>${title}</figcaption></figure>`, host);
+renderInto(html`<figure>${chart}<figcaption>${title}</figcaption></figure>`, host);
 ```
 
 ## Lists — `keyed()`
 
 ```js
-import { render, keyed } from '@verajs/renderer';
+import { renderInto } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 
-render(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>`))}</ul>`, host);
+renderInto(html`<ul>${rows.map((row) => keyed(row.id, html`<li>${row.label}</li>`))}</ul>`, host);
 ```
 
 `keyed(key, result)` tags a result with its identity, so a reorder **moves** the existing elements
 instead of rebuilding them — focus, scroll position, form state and running animations all survive.
-There is no `repeat()` to import.
+It is its own entry because most apps never reorder a list, and the algorithm that makes reordering
+cheap is <!--size:keyed.gzip-->599 B<!--/size:keyed.gzip--> gzipped they would otherwise carry. Importing `keyed` is the whole installation:
+nothing registers, and there is no `wire()` call — the marker stamps each result with the strategy
+that understands it, so a list always names its own reconciler and two strategies cannot disagree
+about one. Lit splits `repeat` out for the same reason; the difference is that this one arrives on
+the values rather than through a directive protocol.
+
+**Keep it on the same version as `@verajs/renderer`.** It reaches the renderer through a handful of
+two-character members that are exempt from property mangling, and nothing checks that both sides
+agree about them — a `keyed` bundle paired with a different renderer release fails at runtime rather
+than at install. Both ship from this package and bump together, so a single version range covers it;
+the trap is pinning one and floating the other. `@verajs/renderer/spread` carries the same rule for
+the same reason.
+
+**It is additive, not a substitute.** Unlike `/hydrate` and `/profiler`, this entry imports nothing
+at all — it reaches whatever renderer is present through a handful of mangling-exempt members — so
+it is safe alongside any of them, `/hydrate` included.
+
+**A list is keyed because `keyed()` marked it, not because its results have a `key` property.**
+Setting `.key` by hand no longer makes a list keyed — the marker is what carries the algorithm, so
+it is what the renderer looks for, on the client and when adopting server markup alike.
 
 **Key every item in a list, or none of them.** A list is keyed when its first item is, and an
 unkeyed item in a keyed list has no identity to match on.
@@ -107,18 +199,33 @@ whose order never changes.
 ## Preserving DOM — `hold()`
 
 ```js
-render(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, host);
+renderInto(html`<div>${hold(editing ? editor(state) : viewer(state))}</div>`, host);
 ```
 
 `hold(result)` parks the DOM it replaces instead of destroying it, keyed by template identity, and
 brings it back when that template returns. lit calls this `cache`. What survives is everything no
-attribute records: what the user typed, which element had focus, a scroll offset, a `<details>` left
-open, a media element's playback position.
+attribute records: what the user typed, a checkbox or radio the user set, a `<select>`'s chosen
+option, a `<details>` left open, a media element's playback position — and the nodes themselves, so
+the element that had focus is the same element when it comes back.
+
+**A scroll offset does not survive, and cannot.** Every engine resets `scrollTop` to zero the moment
+an element leaves the document — measured on Chromium, Firefox and WebKit, which report `0` while
+parked, `0` on return, and `0` even for a node moved directly between two attached parents. Nothing a
+directive does with the nodes can hold it, and lit's `cache()` cannot either. If a scroll position
+matters, read it before the toggle and restore it after.
 
 Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write.
 
 It only re-adopts a template it has seen at **that same call site** — two `hold()` calls in
 different templates are two different templates, and neither adopts the other's DOM.
+
+**It keeps every shape it has parked, for as long as the part lives.** That is the point — a tab
+strip of twelve panels holds twelve, and each comes back exactly as it was left — but it is a cache
+with no eviction, so `hold` over an unbounded set of templates retains an unbounded amount of DOM.
+Verified: fifty distinct shapes cycled through one `hold` and the first still re-adopted its own
+nodes. lit's `cache()` behaves the same way, and for the same reason — evicting would silently throw
+away the state the directive exists to preserve, which is worse than holding it. Use `hold` for a
+set you can name, and let an unbounded one rebuild.
 
 ## Write stable shapes
 
@@ -150,6 +257,7 @@ committed in place against templates that replaced a different template.
 | --- | --- | --- |
 | `@verajs/renderer` | the renderer | yes |
 | `@verajs/renderer/hydrate` | a superset whose first render adopts server-rendered DOM | yes |
+| `@verajs/renderer/keyed` | `keyed(key, result)` — keyed list reconciliation | yes |
 | `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
@@ -157,10 +265,17 @@ committed in place against templates that replaced a different template.
 the base import. **Never mix two of them in one app** — that loads two renderers with two template
 caches.
 
+**Which means an app can have one of them, not both — so a hydrating app cannot be profiled.** They
+each bundle their own renderer with its own instrumentation hook, so profiling while rendering
+through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
+frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
+zero report is otherwise indistinguishable from an app with nothing to optimise.
+
 ## `@verajs/renderer/hydrate`
 
+<!-- recipe -->
 ```js
-import { render } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
+import { renderInto } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
 ```
 
 The first render into a container that already has children **adopts** them as server output of the
@@ -173,8 +288,45 @@ and renders fresh, so correctness never depends on the server output being right
 child position is the one thing the server cannot have rendered; it is inserted without giving up
 adoption of everything around it.
 
+**A fallback warns in development, naming the first place the two renders disagreed** — *"expected
+`<p>` and found `<div>`"*, *"`<ul>` contains `<li>`, which the template does not describe"*. The page
+is correct either way, which is the point of the fallback and also why it needs saying: that
+container's markup was just thrown away, and with nothing observable to notice, the only symptom is
+a first paint that is slower than the one you paid a server render for. An attribute that disagrees
+is simply re-set during adoption and is not a fallback at all.
+
+**A fallback costs one container, not the page.** Adoption is decided per container, so components
+hydrating into their own roots are independent: one that disagrees rebuilds and warns, and every
+other one keeps the server's nodes. Measured in `tests/hydrate-mismatch.test.mjs` — three containers,
+one mismatch, one warning, two adoptions. Worth stating because the warning used to imply otherwise
+and sent the reader hunting for a page-wide cause.
+
+**Comments are outside the comparison, in both directions** — a comment in your template is not
+required in the server markup, and one in the server markup that your template does not have is not
+a disagreement. A comment renders nothing, so neither direction changes what a reader sees; matching
+on them would only cost every commented template its adoption.
+
 On a CDN page, point the import map's `@verajs/renderer` at `vera-renderer-hydrate.min.js` and
 nothing else changes. Apps that never hydrate download none of this.
+
+### Importing this in Node
+
+**`@verajs/renderer` needs a DOM to be imported at all**, not merely to render. It captures
+`document` at module scope and builds two shared `TreeWalker`s there, which is what saves an
+allocation per instance — so `import '@verajs/renderer'` on a server throws
+`ReferenceError: document is not defined` before any of your code runs. The same is true of
+`/hydrate` and `/profiler`, and of `@verajs/jsx/standalone`, which contains a renderer.
+
+This is worth stating because [`@verajs/router`](../router#node-and-ssr) documents the opposite
+about itself, and the asymmetry is easy to read the wrong way. The rest of the family is Node-safe:
+`@verajs/core`, `@verajs/inserts`, `@verajs/reactivity` and `/collections`, `@verajs/router`,
+`@verajs/styles`, `@verajs/autoloader`, `@verajs/jsx` (the transform), `@verajs/ssr` — **and
+`@verajs/renderer/keyed`, `/spread` and `/tag`**, which hold no DOM of their own even though their
+parent entry does.
+
+In a universal app, hand the renderer in rather than importing it in shared code — which is what
+`examples/kitchen-sink/wiring.js` does, taking it as a parameter so the server can pass `null`.
+`tests/node-import-safety.test.mjs` holds both halves of that list.
 
 ## `@verajs/renderer/spread`
 
@@ -182,11 +334,11 @@ Spread a props object onto an element, with names resolved at runtime.
 
 <!-- recipe -->
 ```js
-import { init, createStore, render, setRenderer, html } from '@verajs/core';
-import { render as domRender } from '@verajs/renderer';
+import { init, createStore, render, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
 import { spread } from '@verajs/renderer/spread';
 
-setRenderer(domRender);
+wire([renderer]);
 
 customElements.define(
   'x-field',
@@ -231,8 +383,8 @@ runtime.
 A key that disappears between renders **restores what the element held before the binding existed**.
 
 ```js
-render(html`<input type="text" ${spread({ type: 'number' })} />`, host);  // type="number"
-render(html`<input type="text" ${spread({})} />`, host);                  // type="text" again
+renderInto(html`<input type="text" ${spread({ type: 'number' })} />`, host);  // type="number"
+renderInto(html`<input type="text" ${spread({})} />`, host);                  // type="text" again
 ```
 
 Not removed — *restored*. The usual framing, "what value means absent", has no answer for a
@@ -247,7 +399,7 @@ attribute in server markup exactly as it overwrites one on the client. The origi
 construction, so bind `null` when you mean removal:
 
 ```js
-render(html`<input ${spread({ id: null })} />`, host);   // removes, on either path
+renderInto(html`<input ${spread({ id: null })} />`, host);   // removes, on either path
 ```
 
 One residue worth knowing: `.value`, `.checked` and `.selected` are mirrored to attributes
@@ -259,8 +411,13 @@ written `@event` bindings behave too.
 
 ### What it costs, and why it is a separate entry
 
-`@verajs/renderer` grows **16 B** gzipped for the protocol this uses, whether or not you import it.
-The entry itself is **<!--size:spread.gzip-->804 B<!--/size:spread.gzip-->** gzipped, and only apps
+`@verajs/renderer` grows **5 B** gzipped for the protocol this uses, whether or not you import it —
+measured 2026-08-27 by deleting the `_$apply$` branch and rebuilding, as a **difference** rather than
+a pair of totals — the totals move with every change to this package and the difference does not,
+which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
+for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
+dated; re-measure the same way if it matters.
+The entry itself is **<!--size:spread.gzip-->869 B<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -276,8 +433,9 @@ it loads alongside any renderer that honours the protocol, including your own.
 
 ## `@verajs/renderer/profiler`
 
+<!-- recipe -->
 ```js
-import { render, profile, formatReport } from '@verajs/renderer/profiler';
+import { renderInto, profile, formatReport } from '@verajs/renderer/profiler';
 
 /** `profile` awaits an async driver — driving an app means awaiting frames, and the render
     scheduler is `requestAnimationFrame`, so nothing commits inside one synchronous turn. */
@@ -293,6 +451,12 @@ console.log(formatReport(report));
 `showProfiler()` puts the same numbers in a live panel in the corner of the page and returns a
 function that removes it. The panel is plain DOM in a shadow root — it never renders itself through
 the renderer, so it does not appear in its own measurements.
+
+**Calling it again replaces the panel rather than adding one**, and a second call's `options` take
+effect. That matters because the natural way to use this is a console — `showProfiler()`, look,
+`showProfiler()` again — where the first return value is already gone: two panels would sit on top of
+each other in the same corner, and the second one's teardown would stop profiling for the first,
+which kept repainting a frozen report.
 
 Full API: `startProfiling()`, `stopProfiling()`, `getReport()`, `isProfiling()`, `profile(fn)`,
 `formatReport(report)`, `showProfiler(options?)`.
@@ -310,12 +474,200 @@ blessed in tutorials and in review.
 Trusted markup goes through a property binding, so you write the sink yourself:
 
 ```js
-render(html`<div .innerHTML=${trustedMarkup}></div>`, host);
+renderInto(html`<div .innerHTML=${trustedMarkup}></div>`, host);
 ```
 
 Greppable, obviously yours, reviewable as the security decision it is. Sanitize first
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
+
+## `@verajs/renderer/tag`
+
+An element whose **tag name** is decided at runtime — a heading whose level comes from data, a
+component that renders `<a>` or `<button>`.
+
+```js
+import { html, tag } from '@verajs/renderer/tag';
+
+const HEADING = { 1: tag`h1`, 2: tag`h2`, 3: tag`h3` };
+
+const H = HEADING[state.level];
+renderInto(html`<${H} class="title">${state.text}</${H}>`, host);
+```
+
+A template renderer bakes tag names into its statics — that is what template identity *is*, and
+what every fast path here depends on. So a runtime tag cannot be a binding: it is spliced into the
+statics before the renderer sees the template. Downstream nothing changes. The renderer,
+`@verajs/ssr` and hydration all receive an ordinary template and are unaware this entry exists.
+
+Note the `html` import: in a template containing a tag, use the one from here rather than core's.
+
+### In JSX
+
+**A tag is also a component.** A capitalized JSX tag compiles to `H({…})`, and a tag *is* that
+function, so the same value works in both notations with no compiler change and no new syntax —
+`<{expr}>` is not valid JSX or TSX, and inventing it would break `tsc`, Prettier and every editor.
+
+```jsx
+const H = HEADING[state.level];
+return <H className="title" hidden={state.muted}>{state.text}</H>;
+```
+
+React's names are mapped here exactly as the compiler maps them on a written element, so `<H
+className="t" hidden={false}>` and `<h1 className="t" hidden={false}>` mean the same thing. That is
+a correctness matter, not an ergonomic one: passed through raw, `hidden={false}` becomes the
+attribute `hidden="false"` and any value at all applies it.
+
+### What to know
+
+- **A string can never become a tag.** Only another tag may be interpolated, so the set of tags an
+  app can produce is fixed by its source. That is what keeps a tag out of reach of a request — the
+  same reasoning as there being no `unsafeHTML` — and it is what bounds the cache below.
+- **Each tag is its own template.** Switching tags rebuilds the subtree, which is correct: the
+  element genuinely changed. Within a tag it updates in place like anything else.
+- **The cache is per call site.** Spliced statics hang off the call site's own `strings` array, so
+  two template literals in the source are two entries however identical they look. Right for real
+  code, where a template lives at one place in a render function — and the thing that catches people
+  writing tests for it.
+- HTML only. There is no `svg`/`mathml` equivalent yet.
+
+<!--size:tag.gzip-->1.43 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
+entries: it inlines no renderer internals, so it is safe alongside any of them.
+
+This entry also exports `jsxName` and `BOOLEAN_ATTRIBUTES`, **which are not API for applications.**
+They are the table this entry uses to map React's names, and `@verajs/jsx` carries its own copy
+deliberately — the two are build-time and runtime, and a shared package would be a dependency where
+a test does the job. `tests/jsx-name-mapping.test.mjs` asserts the two agree on every key, and it can
+only do that against the built artifact, which is why they are exported at all. Read them if you are
+writing something that has to agree with both; do not build on them.
+
+## Extending it — `_$apply$` and `_$child$`
+
+The renderer holds no directive system. It holds a **protocol**, at the two positions worth
+extending, and everything built on it is an ordinary package the renderer knows nothing about —
+`@verajs/renderer/spread` is the proof, at 5 B of protocol in this bundle and its own weight only
+for apps that import it.
+
+| position | brand | called as |
+| --- | --- | --- |
+| element — `<div ${value}>` | `_$apply$` | `value._$apply$(element, part)` |
+| child — `<div>${value}</div>` | `_$child$` | `value._$child$(part, previous)` |
+
+A child-position value carrying `_$child$` applies itself. It is handed the part and whatever it
+returned last time **at that part**, and calls `part._$commit$(value)` to render content. That is
+the whole surface: `until()` is nine lines against it.
+
+```js
+/** Hoisted — the applier's identity is the directive's identity. */
+function applyUntil(part, previous) {
+  if (previous && previous.promise === this.promise) return previous;
+  if (previous) previous.live = false;
+  const state = { promise: this.promise, live: true };
+  part._$commit$(this.placeholder);
+  this.promise.then((value) => { if (state.live) part._$commit$(value); });
+  return state;
+}
+const until = (promise, placeholder) => ({ _$child$: applyUntil, promise, placeholder });
+
+renderInto(html`<p>${until(fetchUser(), html`<em>loading…</em>`)}</p>`, host);
+```
+
+Three rules, each of which is a real trap:
+
+- **Hoist the applier.** Written as an object-literal method it is a new function per call, so the
+  part can never recognise it and `previous` is always `undefined`. Its identity is what keeps two
+  directives at one part from reading each other's state.
+- **Continuity lives in the return value**, not in a directive instance. That is what makes this a
+  protocol rather than a framework — no base class, no `directive()` factory, no lifecycle.
+- **Teardown is opt-in, on the applier.** `applyThing._$detach$ = (previous) => …` is called with
+  whatever the directive last returned, when the subtree holding it is removed — replaced, dropped
+  from a keyed list, or shrunk out of an unkeyed one. Declaring it is what arms the walk; a directive
+  that does not declare it costs nothing, and neither does an app with no such directive anywhere.
+
+  It **notifies, it does not defer**. The nodes are already going. To hold content on screen while it
+  animates out, do not remove it: a directive owns what it commits, so it can simply not commit the
+  removal until it is ready — see *Deferring a removal* below.
+- **The older note said there was no teardown at all.** `_clear`
+  bulk-removes DOM and, when the part owns its parent, does `parent.textContent = ''` — the thing
+  that makes clearing a 1 000-row table ~5 ms against lit-html's ~22 ms. Calling teardown on a
+  nested directive would mean walking the part tree on every removal, which is exactly the per-node
+  work that fast path exists to skip. If you need to unsubscribe, do it from the component.
+
+### Deferring a removal
+
+A directive owns the content it commits, so an exit animation needs nothing from the renderer — it
+just does not commit the removal until the animation has finished:
+
+```js
+function applyTransition(part, previous) {
+  const next = this.value;
+  const state = previous ?? { shown: undefined, timer: null };
+  if (next != null) { part._$commit$(next); state.shown = next; return state; }
+  if (state.shown != null && state.timer === null)
+    state.timer = setTimeout(() => { state.timer = null; part._$commit$(null); }, 300);
+  return state;
+}
+const transition = (value) => ({ _$child$: applyTransition, value });
+```
+
+This works for a child position and for a whole list committed as one value. It does **not** work for
+one row inside a keyed list: that row's removal is decided by the reconciler, and nothing inside it
+is asked.
+
+Both names survive minification by construction: the renderer mangles `/^_[a-z]/`, and `_$…$` does
+not match it. `tests/minification-contracts.test.mjs` holds that.
+
+The check costs the hot path nothing: it sits after the template branch, and a template — the
+common object at a child position — returns before ever reading it, so only arrays, nodes and
+directives pay a property read. Measured with no runtime difference distinguishable from noise.
+
+The whole protocol is **116 B gzipped** — the check, the two fields holding a directive's state and
+whose it is, the save/restore in `_$commit$` that stops a directive's own rendering from destroying
+its continuity, and the `_$detach$` call. It was 94 B before teardown existed.
+
+## Animating things in and out
+
+There is no transition component, and none is needed — but the shapes are worth knowing, because
+one of the obvious ones does not work in every engine.
+
+**Fading on `?hidden`.** The framework's own advice is to prefer a stable shape with `?hidden=${…}`
+over swapping subtrees, and that is also what makes an exit transition possible: the element is
+still there to animate.
+
+```css
+.fade          { opacity: 1; transition: opacity 200ms; }
+.fade[hidden]  { display: block; opacity: 0; pointer-events: none; }
+```
+
+The `display: block` is load-bearing — it overrides the user agent's `[hidden] { display: none }`,
+which would otherwise remove the element from rendering instantly with nothing to fade.
+
+**Do not reach for `transition-behavior: allow-discrete` on `display` for this.** Measured
+2026-08-24 across all three engines, transitioning `display` with `allow-discrete`: Chromium and
+WebKit fade correctly, **Firefox jumps straight to `display: none`** and no transition runs. All
+three report `CSS.supports('transition-behavior', 'allow-discrete')` as `true`, so the feature test
+does not tell you. The opacity-only shape above behaves identically in all three.
+
+**Animating a removal**, where the element really does leave the render, is the browser's job:
+
+```js
+const flushSync = (fn) => {
+  const previous = setRenderScheduler((run) => run());
+  try { fn(); } finally { setRenderScheduler(previous); }
+};
+
+document.startViewTransition(() => flushSync(() => { state.rows = next; }));
+```
+
+The View Transitions API snapshots the DOM around the callback and cross-fades, so a row that
+disappears fades out and the rows below animate up. `startViewTransition` is present in Chromium,
+Firefox and WebKit. Two things it needs: the state change must happen **inside** the callback —
+which is what `flushSync` is for, since a render deferred to the next frame lands after the snapshot
+— and each row needs its own `view-transition-name`, or the whole page cross-fades as one image.
+
+**Or keep it in state.** Mark the row `leaving`, animate, then drop it. Vue's `<Transition>` is
+sugar over exactly this, and it is the only one of the three that gives you a completion callback.
 
 ## Absent on purpose
 
@@ -331,6 +683,9 @@ Directives other renderers ship, and what replaces them here.
 | `guard()` | reactivity already skips unchanged work |
 | `until()`, `asyncReplace()` | render a loading state and re-render from an effect |
 | `unsafeHTML()` | `.innerHTML=${trusted}`, above |
+| `literal()` / `static-html` | [`/tag`](#verajsrenderertag) — and a tag doubles as a JSX component |
+| `live()` | [`!name`](#name--a-live-property) — a sigil, for the case that needs it |
+| `until()`, `asyncReplace()` — as directives | writable against [`_$child$`](#extending-it--apply-and-child) |
 | `live()` | not available. A property bound to a value it already holds is not re-applied, so a field the user has typed into keeps their text |
 
 ## Types

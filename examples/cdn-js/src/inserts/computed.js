@@ -11,7 +11,7 @@
  * doing all of it already.
  *
  *   import { computed, computedValues } from './inserts/computed.js';
- *   insert('proxy-handler', computedValues, 40);
+ *   wire({ on: 'proxy-handler', fn: computedValues, priority: 40 });
  *
  *   const state = createStore({
  *     count: 0,

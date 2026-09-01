@@ -41,13 +41,19 @@ export const resetIds = () => { nextId = 1; };
 
 /* ── VeraJS ─────────────────────────────────────────────────────────────────── */
 
-import { init, ref, shallowRef, render as veraRender, setHtml, setRenderer } from '@verajs/core';
+/**
+ * `wire`, not `setRenderer` — that export was **removed** from core when `wire()` took over
+ * registration, and this file kept importing it, so the browser benchmark had not built since. A
+ * renderer is an insert at priority 50, and registering at a taken priority replaces, which is
+ * exactly what the old call did.
+ */
+import { init, ref, shallowRef, render as veraRender, setHtml, wire } from '@verajs/core';
 import { html as litHtml, render as litRender, nothing } from 'lit-html';
 import { repeat } from 'lit-html/directives/repeat.js';
 
 const veraImpl = (mount) => {
   setHtml(litHtml);
-  setRenderer(litRender);
+  wire({ on: 'render', fn: litRender, priority: 50 });
 
   const host = document.createElement('div');
   mount.appendChild(host);
@@ -259,7 +265,8 @@ const reactImpl = (mount) => {
 
 /* ── VeraJS + its own renderer ──────────────────────────────────────────────── */
 
-import { render as veraDomRender, keyed } from '@verajs/renderer';
+import { renderInto as veraDomRender } from '@verajs/renderer';
+import { keyed } from '@verajs/renderer/keyed';
 
 /**
  * The configuration the project advertises: core plus `@verajs/renderer`, no lit-html.
@@ -273,7 +280,7 @@ const rawHtml = (strings, ...values) => ({ _$litType$: 1, strings, values });
 
 const veraOwnImpl = (mount) => {
   setHtml(rawHtml);
-  setRenderer(veraDomRender);
+  wire({ on: 'render', fn: veraDomRender, priority: 50 });
 
   const host = document.createElement('div');
   mount.appendChild(host);

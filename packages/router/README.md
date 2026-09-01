@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.52 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.57 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -16,12 +16,13 @@ npm i @verajs/router @verajs/renderer
 
 ## A router, whole
 
+<!-- recipe -->
 ```js
-import { initRouter, setRenderer } from '@verajs/router';
-import { render } from '@verajs/renderer';
+import { initRouter, setRouterRenderer } from '@verajs/router';
+import { renderInto } from '@verajs/renderer';
 import { html } from '@verajs/core';
 
-setRenderer(render);
+setRouterRenderer(renderInto);
 
 customElements.define(
   'app-shell',
@@ -100,6 +101,12 @@ whole segment — `/fellow/john:id` matches `/fellow/johnXYZ`. Everything else i
 Longer patterns outrank shorter ones. React Router ranks the same way, and for the same reason:
 where a route went in the list should not decide whether it is reachable.
 
+**A path that matches nothing does nothing, and development says so.** `navigate` returns `false`,
+and a `route` link has already had its click cancelled by the time anyone finds out — so the page
+sits there looking like the listener is broken, when the path is what is wrong. The warning names
+the path. A guard returning `false` reaches the same place and stays quiet: that is a deliberate
+cancellation, not a missing route.
+
 ### Nested routes
 
 `children` renders the whole chain, outermost first, each level into an outlet the level above it
@@ -125,8 +132,33 @@ name — as above — and nothing outer claims it first. A child may name its ow
 instead. If the parent's template renders no matching outlet the route does not apply, and says so
 in development.
 
+**Give `initRouter` a view *name* if you use `children`.** It also accepts an element, which is fine
+for a flat app and is the router's root outlet either way — but an element is one node, so a nested
+level cannot inherit it. Those levels fall back to searching inside the level above for a bare
+`<div view>`, and a child that finds nothing says so in development.
+
+Leaving a level means leaving it: navigating from `/settings/profile` back to `/settings` empties the
+outlet the profile was in. The parent's template is *reused* rather than rebuilt — that is template
+identity doing its job — so the outlet element survives, and the router clears what it put inside.
+An element the router never rendered into is left alone, even if it carries a `view` attribute.
+
 `beforeEnter` and `action` run down the same chain, so a parent can refuse before a child does any
 work.
+
+**Only `false` cancels.** Returning a *path* is the Vue Router habit and does not redirect here — a
+string is truthy, so the guarded route renders anyway, which in an auth guard defeats the guard
+entirely. Development warns when a guard returns a string.
+
+There are two ways to send someone elsewhere, and **they settle differently**:
+
+| | after `await navigate('/guarded')` |
+| --- | --- |
+| `redirect: '/b'` on the route | already at `/b` |
+| guard calls `navigate('/b')` and returns `false` | still where you were — `/b` a task later |
+
+`redirect` is handled inside that navigation, so the promise `navigate()` returns covers it. A guard
+calling `navigate()` starts a **separate** navigation the promise knows nothing about; awaiting it
+tells you only that the guarded route was cancelled. Prefer `redirect` when the caller awaits.
 
 ## Navigating
 
@@ -137,6 +169,33 @@ navigate('/users/5');                          // pushes a history entry
 navigate('/login', 'replace');                 // swaps the current entry — for guards and redirects
 navigate({ name: 'user', params: { id: 5 } }); // by name
 
+navigate('https://this-site/users/5');         // same origin, normalised to the path
+navigate('//elsewhere.test/x');                // refused — returns false, warns in development
+
+navigate('edit');                              // relative to the current page, like an href
+navigate('../a/b');                            // dot-segments resolve, like an href
+navigate('?q=1');                              // same route, new query
+```
+
+**`navigate()` resolves a path exactly as a routed link does.** Both put it through
+`new URL(path, location.href)`, so relative paths, `.` and `..` segments, and a bare `?query` all mean
+what they mean in an `href`. They did not always agree: `navigate()` used to resolve only paths that
+*looked* absolute, so seven of eight of the shapes above silently matched nothing while the same
+value in an `<a route href>` worked.
+
+The trade is worth naming. `navigate('login')` from `/shop/items` now goes to `/shop/login` rather
+than dead-ending with a warning, so a typo becomes a wrong page instead of a visible failure — the
+same trade `<a route href="login">` has always made, and relative resolution against the current
+document is the oldest rule on the web.
+
+**A path that names an origin is checked against this one**, exactly as a routed link is: the router
+moves within one site, and anything else belongs to the browser. That matters because
+`navigate(params.get('next'))` is the ordinary way to honour a `?next=` redirect — an unchecked
+protocol-relative path reached `pushState`, which the browser refuses with a `SecurityError` nothing
+catches, so the payload took the page down instead of being declined. Use `location.assign()` to
+leave the site deliberately.
+
+```js
 back();                                        // history, by the usual names
 forward();
 go(-2);
@@ -314,28 +373,52 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 
 | | |
 | --- | --- |
-| `setRenderer(fn)` | what draws a route's template into its outlet |
+| `setRouterRenderer(fn)` | what draws a route's template into its outlet |
 | `resolve(name, params)` | build a named route's path |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
-| `connectInserts(inserts)` | CDN only — see below |
+| `router` | hand this router core's insert registry — pass it to `wire` |
 
 **Specificity is scored from the pattern text**, using the token syntax above, so replacing the
 matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It
 still orders sensibly — static text outranks tokens either way — but if your patterns mean something
 different, register them in the order you want them tried.
 
-On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own extension registry, so
-they start out as two. `connectInserts` points one at the other:
+On a CDN page, `vera.min.js` and `vera-router.min.js` each inline their own bundle. This package
+keeps **no registry of its own**, so there is no second one to reconcile — hand it core's:
 
+<!-- recipe -->
 ```js
-import { inserts } from '@verajs/core';
-import { connectInserts } from '@verajs/router';
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { router } from '@verajs/router';
 
-connectInserts(inserts);
+wire([renderer, router]);
 ```
 
-Order does not matter — anything already registered is replayed at its original priority. Under a
-bundler both resolve to one registry and the call does nothing.
+Identical under a bundler and on a CDN page, which is the point: `connectInserts`, the replay
+function this replaced, was load-bearing in one mode and ceremonial in the other. Without core at
+all, skip the registry entirely — `initRouter(el, …)` plus `setRouterRenderer(renderer)` is the
+whole wiring.
+
+## When a route fails
+
+A guard or a component that throws leaves the view exactly as it was. What happens next depends on
+who asked for the navigation:
+
+- **`navigate()` rejects**, so a caller that awaits it can handle the failure itself.
+- **A link click has nobody to reject to**, so the router reports it: a console line naming the path,
+  and a `vera:route-error` event that bubbles and crosses shadow boundaries.
+
+```js
+addEventListener('vera:route-error', ({ detail: { path, error } }) => {
+  toast(`Could not open ${path}`);
+  report(error);
+});
+```
+
+The event exists for the same reason `@verajs/autoloader` has `vera:autoload-error`: a route that
+fails to render is something an app may want to render *around*, and an unhandled promise rejection
+cannot be caught where that decision is made.
 
 ## Node and SSR
 

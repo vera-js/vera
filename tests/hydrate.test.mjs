@@ -33,7 +33,8 @@ assert.ok(serverHtml.includes('hello ssr') && !serverHtml.includes('<!--'), 'ser
 const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
-const { render, keyed } = await load('renderer/hydrate');
+const { renderInto } = await load('renderer/hydrate');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ strings, values });
 
 const container = dom.window.document.getElementById('root');
@@ -59,7 +60,7 @@ const serverInput = container.querySelector('input');
 const serverLi2 = container.querySelectorAll('li')[1];
 serverInput.dataset.probe = 'survived';
 
-render(template(state), container);
+renderInto(template(state), container);
 
 // 1. adoption preserved the server DOM
 assert.equal(container.querySelector('h1'), serverH1, 'h1 identity preserved');
@@ -76,7 +77,7 @@ assert.equal(inputs, 1, 'listener attached to the adopted input');
 state.title = 'updated';
 state.count = 0;
 state.rows = [ { id: 2, label: 'beta <x>' }, { id: 1, label: 'ALPHA' } ];
-render(template(state), container);
+renderInto(template(state), container);
 assert.equal(container.querySelector('h1'), serverH1, 'h1 still the same node after update');
 assert.equal(serverH1.textContent, 'updated', 'adopted text updated in place');
 assert.ok(container.querySelector('output').hasAttribute('hidden'), '?bool toggles on adopted element');
@@ -85,17 +86,17 @@ assert.equal(container.querySelectorAll('li')[0], serverLi2, 'keyed reorder MOVE
 // 4. mismatched server markup falls back to a clean render
 const bad = dom.window.document.createElement('div');
 bad.innerHTML = '<p>stale unrelated markup</p>';
-render(html`<span>${'fresh'}</span>`, bad);
+renderInto(html`<span>${'fresh'}</span>`, bad);
 assert.equal(bad.textContent, 'fresh', 'mismatch fell back to clean render');
 assert.equal(bad.querySelectorAll('p').length, 0, 'stale markup cleared');
 
-// 5. a value the server cannot have rendered mismatches — it never throws out of render()
+// 5. a value the server cannot have rendered mismatches — it never throws out of renderInto()
 //    Adoption used to spread whatever reached this branch, so a plain object raised
 //    `TypeError: value is not iterable` and escaped the MISMATCH guard, taking the page down where
 //    every other disagreement with the server degrades quietly.
 const opaque = dom.window.document.createElement('div');
 opaque.innerHTML = '<p>server</p>';
-render(html`<p>${{ a: 1 }}</p>`, opaque);
+renderInto(html`<p>${{ a: 1 }}</p>`, opaque);
 assert.equal(opaque.textContent, '[object Object]', 'an opaque object fell back instead of throwing');
 
 // 6. a client-only DOM node adopts WITHOUT giving up hydration
@@ -106,9 +107,53 @@ withNode.innerHTML = '<p>server</p>';
 const serverP = withNode.querySelector('p');
 const clientOnly = dom.window.document.createElement('span');
 clientOnly.textContent = 'client';
-render(html`<p>server${clientOnly}</p>`, withNode);
+renderInto(html`<p>server${clientOnly}</p>`, withNode);
 assert.equal(withNode.querySelector('p'), serverP, 'server <p> still adopted alongside a client node');
 assert.equal(withNode.querySelector('span'), clientOnly, 'the client node was inserted');
 assert.equal(withNode.textContent, 'serverclient');
 
 console.log('hydrate ok — markerless adoption, identity preserved, fallback safe');
+
+/* ── a comment in the template must not cost hydration ─────────────────────────────────────────
+ * `html`<p>a<!-- note -->b</p>`` compiles with the comment in its statics and the server emits it,
+ * so the adopted DOM is text / comment / text where the walk wanted one run of text. Bailing on that
+ * meant **every template containing an HTML comment lost hydration**: the server's markup thrown
+ * away and re-rendered, for markup the client had itself produced.
+ *
+ * Nothing failed, because the page stays correct either way — that is the point of the fallback and
+ * also why this went unnoticed. The cost was the first paint the server render was paid for.
+ *
+ * Found by hydrating the markup shapes this package emits, rather than the shapes the suite already
+ * had fixtures for.
+ */
+{
+  const complaints = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => complaints.push(args.join(' '));
+  try {
+    const shapes = [
+      ['a comment between text', '<p>a<!-- note -->b</p>', html`<p>a<!-- note -->b</p>`],
+      ['a comment before text', '<p><!-- lead -->tail</p>', html`<p><!-- lead -->tail</p>`],
+      ['a comment after text', '<p>lead<!-- tail --></p>', html`<p>lead<!-- tail --></p>`],
+      ['two comments', '<p>a<!--x-->b<!--y-->c</p>', html`<p>a<!--x-->b<!--y-->c</p>`],
+      ['a comment before an element', '<p><!--x--><b>y</b></p>', html`<p><!--x--><b>y</b></p>`],
+      ['a comment between elements', '<p><b>y</b><!--x--><i>z</i></p>', html`<p><b>y</b><!--x--><i>z</i></p>`],
+    ];
+    for (const [label, markup, result] of shapes) {
+      complaints.length = 0;
+      const host = dom.window.document.createElement('div');
+      host.innerHTML = markup;
+      const adopted = host.querySelector('p');
+      renderInto(result, host);
+      assert.deepEqual(
+        complaints.filter((line) => /fell back/.test(line)),
+        [],
+        `${label}: hydration fell back for markup the client itself produces`
+      );
+      assert.equal(host.querySelector('p'), adopted, `${label}: the server's element was not adopted`);
+      assert.equal(host.textContent, adopted.textContent, `${label}: the text changed`);
+    }
+  } finally {
+    console.warn = originalWarn;
+  }
+}

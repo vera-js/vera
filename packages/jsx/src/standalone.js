@@ -15,7 +15,7 @@
  *   } } </script>
  *   <script type="module" src=".../standalone.js"></script>
  *   <script type="text/vera-jsx">
- *     import { init, createStore, render, setRenderer } from '@verajs/core';
+ *     import { init, createStore, render, wire } from '@verajs/core';
  *     ... React-style components ...
  *   </script>
  */
@@ -30,7 +30,7 @@ const runBlock = async (script) => {
     const js = transformJsx(source, name);
     await import(URL.createObjectURL(new Blob([js], { type: 'text/javascript' })));
   } catch (error) {
-    console.error(`[vera-jsx] ${name}:`, error);
+    console.error(`[vera] jsx: ${name}:`, error);
   }
 };
 

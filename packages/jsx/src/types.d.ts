@@ -20,7 +20,7 @@ export interface VeraJsxOptions {
   inject?: boolean;
   /** [importedName, moduleSpecifier] for the template tag. Default ['html', '@verajs/core']. */
   html?: [string, string];
-  /** [importedName, moduleSpecifier] for keyed(). Default ['keyed', '@verajs/renderer']. */
+  /** [importedName, moduleSpecifier] for keyed(). Default ['keyed', '@verajs/renderer/keyed']. */
   keyed?: [string, string];
 }
 

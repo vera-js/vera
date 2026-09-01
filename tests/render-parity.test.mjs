@@ -281,6 +281,13 @@ const CASES = {
   'a data attribute with mixed case': 'html`<b data-fooBar=${"v"}>x</b>`',
   'an enumerated boolean via the sigil': 'html`<b ?contenteditable=${true}>x</b>`',
   'a spread with an uppercase key': 'html`<b ${spread({ TITLE: "v" })}>x</b>`',
+  'a live property, true': 'html`<input type="checkbox" !checked=${true} />`',
+  'a live property, false': 'html`<input type="checkbox" !checked=${false} />`',
+  'a live value property': 'html`<input !value=${state.text} />`',
+  'a live selected option': 'html`<select><option !selected=${true}>a</option><option>b</option></select>`',
+  'a live property on a non-form element': 'html`<b !someProp=${state.text}>x</b>`',
+  'a live property beside a static': 'html`<input id="i" !value=${state.text} lang="en" />`',
+  'a spread live property': 'html`<input type="checkbox" ${spread({ "!checked": true })} />`',
   'a binding inside a style element': "html`<style>.a{color:${'red'}}</style>`",
   'a binding inside a title element': "html`<title>${'hi'}</title>`",
   'a binding inside a script element': "html`<script>var a = ${1}</script>`",
@@ -329,7 +336,8 @@ const serverScript = `
 import { serializeTemplate } from '@verajs/ssr/vera';
 const { html, svg, mathml } = await import('@verajs/core');
 const { spread } = await import('@verajs/renderer/spread');
-const { keyed, hold } = await import('@verajs/renderer');
+const { hold } = await import('@verajs/renderer');
+const { keyed } = await import('@verajs/renderer/keyed');
 const state = ${STATE};
 const out = {};
 ${Object.entries(ALL).map(([name, tpl]) => `out[${JSON.stringify(name)}] = serializeTemplate(${tpl});`).join('\n')}
@@ -347,9 +355,10 @@ const dom = new JSDOM('<div id="root"></div>');
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
 globalThis.HTMLElement = dom.window.HTMLElement;
-const { render } = await load('renderer');
+const { renderInto } = await load('renderer');
 const { spread } = await load('renderer/spread');
-const { keyed, hold } = await load('renderer');
+const { hold } = await load('renderer');
+const { keyed } = await load('renderer/keyed');
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 /** SVG and MathML need their own namespace on the client; on the server they are the same shape. */
 const svg = (strings, ...values) => ({ _$litType$: 2, strings, values });
@@ -376,7 +385,7 @@ let pass = 0;
 const failures = [];
 for (const name of Object.keys(ALL)) {
   const container = dom.window.document.createElement('div');
-  render(clientTemplates[name](), container);
+  renderInto(clientTemplates[name](), container);
 
   const fromClient = canonical(container);
   const fromServer = parse(server[name]);

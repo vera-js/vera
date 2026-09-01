@@ -1,5 +1,5 @@
 ---
-'@verajs/router': minor
+'@verajs/router': patch
 ---
 
 Four features, one hot-loop rewrite, and the generic collection helper dropped.

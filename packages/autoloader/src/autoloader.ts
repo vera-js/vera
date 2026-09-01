@@ -28,13 +28,28 @@ import { AutoloaderInstance, AutoloaderOptions } from './types.js';
  * component, or with a shadow root to watch that root. Safe to call repeatedly; a root is attached
  * once. Carries `url(tag)` and `retry(element)`.
  */
-export const initAutoloader = (
+export const autoloader = (
   rootDir: string,
   componentsDir?: string,
   options?: AutoloaderOptions
 ): AutoloaderInstance => {
   /** A configuration error fails at the misconfiguration, not once per element per render. */
   if (!rootDir) throw new Error('autoloader: rootDir is required (usually import.meta.url)');
+
+  /**
+   * An option this autoloader does not have does nothing, and did so in silence — `extensions` or
+   * `resolver` reads exactly like the real thing at a glance, and the symptom is the *default*
+   * behaviour, which looks like the option was never needed rather than never seen.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the list nor the text.
+   */
+  if (__DEV__ && options)
+    for (const key of Object.keys(options))
+      if (key !== 'extension' && key !== 'resolve')
+        console.warn(
+          `[vera] autoloader: \`${key}\` is not an option, so it was ignored. ` +
+            `The options are extension and resolve.`
+        );
 
   /** Normalized so callers may pass either `ts` or `.ts` */
   const extension = `.${(options?.extension ?? '.js').replace(/^\./, '')}`;
@@ -124,12 +139,69 @@ export const initAutoloader = (
      * own directory, which is the only place a bounded URL can be anyway.
      *
      * The default used to be `/`, which built `//tag.js`: a **protocol-relative** URL, so
-     * `new URL` read `tag.js` as a *host*. `initAutoloader(import.meta.url)` — the documented call
+     * `new URL` read `tag.js` as a *host*. `autoloader(import.meta.url)` — the documented call
      * for components sitting beside the entry, since `componentsDir` is optional — therefore
      * refused every component it was asked for. `autoload-dir="/"` did the same.
      */
     const dir = (element?.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
-    return new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
+    const href = new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
+    /**
+     * **`?` and `#` end the path, so a directory cannot contain either.**
+     *
+     * The default layout builds `${dir}/${tag}${extension}` as text, and URL syntax then reads the
+     * result rather than the intent. `autoload-dir="components?v=2"` — an ordinary cache-buster, and
+     * the reason this is a mistake someone makes rather than an attack — resolves to
+     * `site/components?v=2/my-widget.js`, so the request goes to `site/components` with the **tag
+     * name inside the query string**. The component file is never asked for. `#` is worse: the
+     * fragment never reaches the network, so `site/components` is fetched outright.
+     *
+     * That is a wrong module, not a missing one, which is why it is refused rather than left to
+     * 404. Containment does not catch it — the URL is genuinely inside the entry's directory, and
+     * `autoload-dir="?"` resolves to the entry file itself, re-importing the whole application under
+     * a URL distinct enough to evaluate a second time.
+     *
+     * Only the default path is checked. `resolve` replaces URL building entirely and is documented
+     * that way, so a query it adds is the caller's own — `components/tag.js?v=2` is exactly the
+     * cache-buster the attribute cannot express, and it keeps working.
+     */
+    if (!resolve && /[?#]/.test(dir)) {
+      const url = new URL(href);
+      const refusal = new Error(
+        `[vera] autoloader: refused ${href} for <${tag}> — autoload-dir "${dir}" contains ? or #, ` +
+          `which ends the path, so <${tag}> lands in the query or fragment and ` +
+          `${url.origin}${url.pathname} would be fetched instead. Use \`resolve\` to add a query.`
+      );
+      (refusal as Error & { href: string }).href = href;
+      throw refusal;
+    }
+    /**
+     * **Containment belongs here, not only at the fetch.**
+     *
+     * `autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
+     * elsewhere — a CMS, a sanitizer that keeps attributes, a template someone else fills — it is
+     * an input. `autoload-dir="//evil.test"` resolves to a different **origin** entirely, and
+     * `..` walks out of the app.
+     *
+     * `load` always checked. This function is public and documented for preloading — warming a URL
+     * with `<link rel="modulepreload">` is its whole reason to exist — so returning a URL the loader
+     * would refuse handed the caller the fetch this module declines to make. One check, at the one
+     * place URLs are built, also covers a custom `resolve` returning something unbounded.
+     *
+     * `base` is `new URL('.', rootDir)`, which always ends in `/`, so the prefix test cannot be
+     * satisfied by a sibling directory whose name merely starts the same way.
+     */
+    if (!href.startsWith(base)) {
+      /**
+       * The refused URL rides on the error, so discovery can dedupe on it exactly as it dedupes a
+       * fetch. Keying the refusal on the *tag* instead would be wrong: `autoload-dir` is watched
+       * precisely so it can be pointed somewhere else after a first attempt failed, and a tag
+       * marked spent never looks again.
+       */
+      const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — resolves outside ${base}`);
+      (refusal as Error & { href: string }).href = href;
+      throw refusal;
+    }
+    return href;
   };
 
   /**
@@ -140,19 +212,53 @@ export const initAutoloader = (
    */
   const load = async (element: Element, tag: string): Promise<void> => {
     if (requested.has(tag)) return;
-    const src = url(tag, element);
-    if (attempted.has(src)) return;
-    attempted.add(src);
-
-    if (!src.startsWith(base)) {
-      console.error(`autoloader: refused ${src} for <${tag}> — resolves outside ${base}`);
+    let src;
+    try {
+      src = url(tag, element);
+    } catch (error) {
+      /**
+       * Deduped on the refused URL, so it is reported once rather than on every scan — and so
+       * pointing `autoload-dir` at a valid directory afterwards is a different URL and tries.
+       */
+      const href = (error as Error & { href?: string }).href;
+      if (href !== undefined) {
+        if (attempted.has(href)) return;
+        attempted.add(href);
+      }
+      console.error((error as Error).message);
       return;
     }
+    if (attempted.has(src)) return;
+    attempted.add(src);
     requested.add(tag);
     failed.set(tag, src);
 
     try {
       await import(/* @vite-ignore */ src);
+      /**
+       * **A module can import cleanly and still not define the tag**, and that used to be silent
+       * forever: `whenDefined` never settles, so the `catch` below never runs, no event is
+       * dispatched, no line is logged, and the element sits unupgraded for the life of the page.
+       * The everyday cause is a typo — markup says `<my-widget>`, the file defines `my-wdiget` — and
+       * the everyday symptom is a blank space with a clean console.
+       *
+       * A dynamic `import()` resolves only after the module has fully evaluated, top-level `await`
+       * included, so by here every `customElements.define` the module was going to run has run.
+       * Two microtask turns are drained first anyway, which covers a define deferred by a resolved
+       * promise; anything later than that is a floating promise the module never awaited.
+       *
+       * The wait is *not* abandoned — `whenDefined` is still awaited afterwards, so a definition
+       * that does arrive late still upgrades and still gets watched. The error is a report, not a
+       * refusal.
+       */
+      await Promise.resolve();
+      await Promise.resolve();
+      if (!customElements.get(tag)) {
+        throw new Error(
+          `imported ${src} but nothing defined <${tag}>. Check the tag name in that file matches ` +
+            `the one in the markup, and that its \`customElements.define\` actually runs.`
+        );
+      }
       await customElements.whenDefined(tag);
       failed.delete(tag);
       watch(element);
@@ -172,7 +278,7 @@ export const initAutoloader = (
           detail: { tag, src, error, element },
         })
       );
-      console.error(`Failed to load custom element ${tag} from ${src}:`, error);
+      console.error(`[vera] autoloader: failed to load <${tag}> from ${src}:`, error);
     }
   };
 
@@ -200,7 +306,7 @@ export const initAutoloader = (
   /**
    * Created on first use, not at construction.
    *
-   * `new MutationObserver(...)` in the constructor made `initAutoloader` throw in Node —
+   * `new MutationObserver(...)` in the constructor made `autoloader` throw in Node —
    * `MutationObserver is not defined` — so an app entry that wires the autoloader could not be
    * imported server-side at all. `@verajs/router` attaches its window listeners lazily for exactly
    * this reason and says so; the observed-discovery rewrite reintroduced the problem here.
@@ -252,7 +358,7 @@ export const initAutoloader = (
      * said nothing about it; and two autoloaders on a page each adopted every marked host and raced
      * to load the same tags from their own directories, which needed an option to switch off. As a
      * shape of a function that already exists it costs almost nothing, can be called again whenever
-     * new markup lands, and leaves `initAutoloader` free of side effects.
+     * new markup lands, and leaves `autoloader` free of side effects.
      *
      * A document is recognised by `nodeType`, not by having a `body`. `document.body` is null until
      * the parser reaches it, so an `autoload()` from a classic or `async` module script in `<head>`
@@ -307,5 +413,33 @@ export const initAutoloader = (
     load(element, tag);
   };
 
-  return Object.assign(watch, { url, retry });
+  /**
+   * The instance is also its own `wire` descriptor, so configuring the autoloader and installing it
+   * are one call:
+   *
+   * ```js
+   * wire([renderer, router, autoloader(import.meta.url, 'components')]);
+   * ```
+   *
+   * This replaced `setAutoloader`, a bespoke registrar that lived in `@verajs/inserts` — the
+   * registry package knowing about one specific consumer, which is the coupling `wire` exists to
+   * remove. Every other module hands `wire` a descriptor; this one now does too.
+   *
+   * Priority 75 runs it *after* the renderer at 50, because it scans what the render just produced.
+   */
+  /**
+   * `name` goes through `defineProperty` because a function's own `name` is non-writable, so
+   * `Object.assign` throws in strict mode — and the descriptor's `name` is what the duplicate-
+   * priority warning quotes, so leaving it as `"watch"` would name the wrong thing.
+   */
+  Object.defineProperty(watch, 'name', { value: '@verajs/autoloader', configurable: true });
+  return Object.assign(watch, {
+    url,
+    retry,
+    on: 'render' as const,
+    fn: ((_: unknown, container: Element | ShadowRoot | Document) => {
+      watch(container);
+    }) as never,
+    priority: 75,
+  });
 };

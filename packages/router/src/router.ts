@@ -22,6 +22,30 @@ export const initRouter = (
    */
   if (!element || !view) throw new Error('Set an element and view');
 
+  /**
+   * **An option this router does not have is a mistake, and silence about it is the bug.**
+   *
+   * `routes` is the one that matters: `createRouter({ routes })` is how Vue Router is initialised
+   * and it is the first thing anyone tries here. Ignored quietly, the router comes up with no routes
+   * at all, every navigation matches nothing, and the page renders an empty outlet with no
+   * diagnostic anywhere — the failure looks like a broken router rather than a misplaced option.
+   * A TypeScript caller is told by the compiler; the buildless caller this framework treats as
+   * first-class is told by nobody.
+   *
+   * `__DEV__`-only, so a production bundle carries neither the list nor the text.
+   */
+  if (__DEV__) {
+    const known = ['view', 'focusView', 'handleInitial', 'hashChangeFunction', 'pushHash', 'scrollBehavior'];
+    for (const option of Object.keys(routerOptions))
+      if (!known.includes(option))
+        console.warn(
+          `[vera] router: \`${option}\` is not an initRouter option, so it was ignored.` +
+            (option === 'routes'
+              ? ' Routes are registered separately: `const { addRoutes } = initRouter(el, { view }); addRoutes(routes)`.'
+              : ` The options are ${known.join(', ')}.`)
+        );
+  }
+
   /** Deferred to first init so importing the router stays side-effect-free (and Node-safe). */
   attachWindowListeners();
 
@@ -41,14 +65,27 @@ export const initRouter = (
   if (routerOptions.scrollBehavior !== undefined) routerSettings.scrollBehavior = routerOptions.scrollBehavior;
 
   if (handleInitial)
-    requestAnimationFrame(() => {
+    /**
+     * **The promise is returned, not dropped.** `navigate` is async, and a frame callback that
+     * discards its result gives nobody anything to wait for — which is why a server-rendered routed
+     * component shipped an empty outlet: the render finished while this navigation was still
+     * resolving. `@verajs/ssr`'s asynchronous render awaits what a frame callback returns, so
+     * handing it back is what puts the first view in the first response.
+     */
+    requestAnimationFrame(() =>
       /**
        * `navigate` routes every connected router and dedupes on `currentPath`, so with several
        * routers the first rAF handles the whole page and the rest return immediately. No history
        * entry is written for `'init'` — the landing entry already exists.
+       *
+       * **`search` is part of the URL the page was opened with.** Leaving it out meant a route
+       * landed on directly — a deep link, a refresh, a URL someone shared — saw an empty `query` on
+       * its snapshot, while *clicking a link* to the very same URL saw the real one, because link
+       * handling passes `pathname + search + hash`. `?page=2`, `?q=…` and every filter in a
+       * bookmarked URL were invisible on exactly the load that had them.
        */
-      navigate(window.location.pathname + window.location.hash, 'init');
-    });
+      navigate(window.location.pathname + window.location.search + window.location.hash, 'init')
+    );
 
   return {
     /**
