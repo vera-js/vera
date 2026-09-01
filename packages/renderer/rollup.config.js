@@ -41,7 +41,7 @@ const isProduction = process.env.MODE === 'prod';
 
 export default [
   defaultRollupConfig(pkg.filename, [], /^_[a-z]/),
-  defaultRollupConfig(`${pkg.filename}-hydrate`, [], /^_[a-z]/, { input: 'src/hydrate.ts' }),
+  defaultRollupConfig(`${pkg.filename}-hydrate`, [], /^_[a-z]/, { input: 'src/hydrate.ts', hydrating: true }),
   /**
    * **Additive**, the first of three. It imports nothing at all and talks to whatever renderer is
    * present through the `_$apply$` protocol, so it is safe alongside any of them.

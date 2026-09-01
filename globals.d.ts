@@ -7,3 +7,9 @@
  * package's tsconfig overrides `include`, but inherits `files` from the root.
  */
 declare const __DEV__: boolean;
+
+/**
+ * True only in `@verajs/renderer`'s hydrate entry. The base entry never adopts, so the build
+ * folds the adoption branches out of it — see `defineDev` in `defaultRollupConfig.js`.
+ */
+declare const __HYDRATING__: boolean;

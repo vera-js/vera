@@ -531,7 +531,9 @@ const applyRef = (callback: (el: Element | null) => void, element: Element | nul
   try {
     callback(element);
   } catch (error) {
-    console.error('[vera] an element ref threw; the render continued without it.', error);
+    /** The sentence is development's; production keeps the prefix and the error carries the rest. */
+    if (__DEV__) console.error('[vera] an element ref threw; the render continued without it.', error);
+    else console.error('[vera] ref threw', error);
   }
 };
 
@@ -691,7 +693,7 @@ class AttrPart implements Part {
        * ever put it back. Recorded, not written, exactly as the other form properties are; the
        * first state-driven render after that applies live semantics normally.
        */
-      if (!adopting) {
+      if (!(__HYDRATING__ && adopting)) {
         const liveTarget = this._element as unknown as Record<string, unknown>;
         if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
       }
@@ -715,7 +717,7 @@ class AttrPart implements Part {
     if (this._select) {
       this._committed = value;
       /** Adoption never re-asserts a form value — the person may have changed it. See below. */
-      if (!adopting) (pendingSelects ??= []).push(this._element as HTMLSelectElement, value);
+      if (!(__HYDRATING__ && adopting)) (pendingSelects ??= []).push(this._element as HTMLSelectElement, value);
       return index + this._slots;
     }
     if (value !== this._committed) {
@@ -749,7 +751,7 @@ class AttrPart implements Part {
          * Only these three, and only while adopting. A property the server cannot express — any
          * other `.prop` — is not in the DOM yet and must be written.
          */
-        if (adopting && (name === 'value' || name === 'checked' || name === 'selected'))
+        if (__HYDRATING__ && adopting && (name === 'value' || name === 'checked' || name === 'selected'))
           return index + this._slots;
         target[name] = value;
         /**

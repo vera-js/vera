@@ -137,8 +137,8 @@ const tag =
     };
 
 export let html = tag(HTML_RESULT, 'html');
-export const svg = tag(SVG_RESULT, 'svg');
-export const mathml = tag(MATHML_RESULT, 'mathml');
+export const svg = /* @__PURE__ */ tag(SVG_RESULT, 'svg');
+export const mathml = /* @__PURE__ */ tag(MATHML_RESULT, 'mathml');
 
 /**
  * A template literal function that creates a CSSStyleSheet from the given CSS string.

@@ -57,7 +57,17 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
        */
       renderChunk(code) {
         const replacement = (isProduction ? 'false' : 'true').padEnd('__DEV__'.length);
-        return { code: code.replace(/\b__DEV__\b/g, replacement), map: null };
+        /**
+         * `__HYDRATING__` folds per entry, not per mode: the renderer's base and hydrate bundles
+         * compile the same source, and the three adoption branches in `AttrPart._commit` are
+         * reachable only from the hydrate entry — folding the flag lets terser delete them from
+         * the base bundle instead of shipping dead branches to every non-SSR app (−31 B gzipped).
+         */
+        const hydrating = (options.hydrating ? 'true' : 'false').padEnd('__HYDRATING__'.length);
+        return {
+          code: code.replace(/\b__DEV__\b/g, replacement).replace(/\b__HYDRATING__\b/g, hydrating),
+          map: null,
+        };
       },
     };
   };
@@ -139,6 +149,15 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
         terser({
           output: {
             comments: false,
+            /**
+             * `@__PURE__` marks survive into the min bundle so a consumer's bundler (and
+             * `bench/size.mjs`, which measures the way a consumer bundles) can tree-shake a
+             * module-scope call the mark declares side-effect-free — core's `svg`/`mathml` tags
+             * are built by calls, and without the mark every app carried both whether it used
+             * them or not. Terser itself already honours the marks; this keeps them for the next
+             * tool in the chain.
+             */
+            preserve_annotations: true,
           },
           mangle: manglePropsRegex ? { properties: { regex: manglePropsRegex } } : {},
           compress: {
@@ -150,6 +169,17 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
             drop_console: ['log'],
             drop_debugger: true,
             passes: 3,
+            /**
+             * The output is an ES module targeting modern engines, and saying so is worth bytes:
+             * `module` enables toplevel tightening, `ecma: 2020` lets compress use modern forms it
+             * otherwise avoids, and `pure_getters` lets it drop unused property reads — safe here
+             * because no framework code relies on a bare unused read for a proxy-trap side effect
+             * (subscription reads are always arguments or assignments). Measured together with the
+             * annotation line above and core's property mangling: −42 B gzipped on the counter app.
+             */
+            ecma: 2020,
+            module: true,
+            pure_getters: true,
           },
         }),
       removeEslintComments(),

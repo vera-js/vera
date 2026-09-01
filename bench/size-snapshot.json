@@ -3,16 +3,16 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 7042,
-      "gzip": 3058
+      "raw": 6951,
+      "gzip": 3056
     },
     "renderer": {
-      "raw": 9875,
-      "gzip": 3920
+      "raw": 9732,
+      "gzip": 3845
     },
     "router": {
-      "raw": 8602,
-      "gzip": 3659
+      "raw": 8592,
+      "gzip": 3655
     },
     "autoloader": {
       "raw": 2734,
@@ -75,8 +75,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12650,
-      "gzip": 5440,
+      "raw": 12529,
+      "gzip": 5415,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -113,8 +113,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 15005,
-      "gzip": 6197,
+      "raw": 14744,
+      "gzip": 6101,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -193,8 +193,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 16155,
-      "gzip": 6672
+      "raw": 15894,
+      "gzip": 6573
     },
     {
       "name": "Lit",
@@ -207,8 +207,8 @@
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 12216,
-      "gzip": 5118
+      "raw": 11966,
+      "gzip": 5027
     }
   ]
 }
