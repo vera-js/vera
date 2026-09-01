@@ -22,6 +22,10 @@
       "default": "./src/vera/index.js"
     }
   },
+  "peerDependencies": {
+    "@verajs/core": "^0.2.1",
+    "@verajs/styles": "^0.1.0"
+  },
   "files": [
     "src",
     "types"
