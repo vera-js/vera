@@ -862,6 +862,7 @@ export const OUT_OF_SCOPE = {
     "GPUTextureUsage": "a WebGPU constant namespace; there is no adapter, no device and no canvas on a server",
     "InstallTrigger": "engine-specific or superseded, and absent from at least one of the three engines",
     "KeyEvent": "engine-specific or superseded, and absent from at least one of the three engines",
+    "PublicKeyCredential": "a device or platform capability a server has no access to — WebAuthn needs an authenticator, and a render has neither a security key nor a person",
     "SVGUnitTypes": "engine-specific or superseded, and absent from at least one of the three engines",
     "Temporal": "a JavaScript proposal that arrives with the runtime, not something a DOM provides",
     "caches": "per-user state a server must not invent; guard with typeof",
