@@ -314,31 +314,31 @@ export const autoloader = (
   let observer;
   const observing = () =>
     (observer ??= new MutationObserver((records) => {
-    for (const record of records) {
-      /**
-       * The three attributes are as much a part of discovery as insertion is. `autoloader` can be
-       * put on a component that only becomes a lazy host once some state flips; `autoload-dir` can
-       * be pointed somewhere else after a first attempt failed; `autoload-ignore` can be lifted.
-       * Without watching them, all three needed the element to be inserted again before anything
-       * noticed, which is not a thing that happens.
-       */
-      if (record.type === 'attributes') {
-        const target = record.target as Element;
-        if (record.attributeName === 'autoloader') watch(target);
-        else consider(target);
-        continue;
-      }
+      for (const record of records) {
+        /**
+         * The three attributes are as much a part of discovery as insertion is. `autoloader` can be
+         * put on a component that only becomes a lazy host once some state flips; `autoload-dir` can
+         * be pointed somewhere else after a first attempt failed; `autoload-ignore` can be lifted.
+         * Without watching them, all three needed the element to be inserted again before anything
+         * noticed, which is not a thing that happens.
+         */
+        if (record.type === 'attributes') {
+          const target = record.target as Element;
+          if (record.attributeName === 'autoloader') watch(target);
+          else consider(target);
+          continue;
+        }
 
-      const added = record.addedNodes;
-      for (let i = 0; i < added.length; i++) {
-        const node = added[i];
-        if (node.nodeType !== 1) continue;
-        const element = node as Element;
-        if (!customElements.get(element.localName) && element.localName.includes('-')) consider(element);
-        scan(element);
+        const added = record.addedNodes;
+        for (let i = 0; i < added.length; i++) {
+          const node = added[i];
+          if (node.nodeType !== 1) continue;
+          const element = node as Element;
+          if (!customElements.get(element.localName) && element.localName.includes('-')) consider(element);
+          scan(element);
+        }
       }
-    }
-    }));
+  }));
 
   /**
    * Starts watching a component, and takes stock of what is already inside it.
@@ -392,11 +392,6 @@ export const autoloader = (
     scan(root);
   };
 
-  /**
-   * Markup that was in the HTML file all along belongs to nobody's render, so nothing would ever
-   * have offered it up. Swept once, as soon as there is a document to sweep — which is the whole
-   * point of a buildless framework working from a pasted HTML file.
-   */
   /**
    * Forgets that this element's tag failed, and tries it again.
    *

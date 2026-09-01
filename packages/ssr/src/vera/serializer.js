@@ -923,5 +923,6 @@ export const serializeValue = (value, raw = false) => {
      * built one.
      */
   }
-  return raw ? `${value}` : escapeHtml(value);
+  /** `raw` cannot be true here — it returned at the top of the function. */
+  return escapeHtml(value);
 };

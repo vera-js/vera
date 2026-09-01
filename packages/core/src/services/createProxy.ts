@@ -67,29 +67,6 @@ let chainRevision = -1;
 let proxyHandlers: ProxyHandlerInsert[] | undefined;
 
 /**
- * The exact property currently being written by the `set` trap, which the `defineProperty` trap
- * reads to recognise its own re-entry.
- *
- * `Reflect.set(obj, prop, value, receiver)` does **not** write to `obj` when `receiver` is a
- * different object — and the receiver here is always the proxy. The spec routes the write through
- * `receiver.[[DefineOwnProperty]]`, so every ordinary assignment re-enters the `defineProperty`
- * trap, which would then notify a second time for a write `set` has already reported. Passing the
- * receiver is deliberate and load-bearing: it is what makes a **setter** run with `this` bound to
- * the proxy, so writes inside one are tracked like any other.
- *
- * The pair, rather than the depth counter this replaced. A counter says only "some write is in
- * flight", so a **setter** that defines a property — on another key, or on another store entirely —
- * had that definition swallowed: `Object.defineProperty` inside a setter notified nobody, and the
- * further the two were apart the less anything connected them. Matching on identity suppresses the
- * one re-entry that is genuinely a duplicate and nothing else.
- *
- * Cleared rather than saved and restored, and nesting cannot defeat that. The re-entry happens only
- * for a **data** property, where no user code runs between arming the slot and the trap firing; a
- * property with a **setter** takes the other path and produces no re-entry at all, so a write made
- * inside a setter can clear the slot without stranding an outer one. In a `finally` because a
- * throwing setter must not leave writes suppressed for the rest of the page.
- */
-/**
  * Explains a write or delete the *language* refused, for a store's source object.
  *
  * A proxy must report a refused write by returning `false`, and the engine turns that into
@@ -131,14 +108,31 @@ const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted
   );
 };
 
+/**
+ * The exact property currently being written by the `set` trap, which the `defineProperty` trap
+ * reads to recognise its own re-entry.
+ *
+ * `Reflect.set(obj, prop, value, receiver)` does **not** write to `obj` when `receiver` is a
+ * different object — and the receiver here is always the proxy. The spec routes the write through
+ * `receiver.[[DefineOwnProperty]]`, so every ordinary assignment re-enters the `defineProperty`
+ * trap, which would then notify a second time for a write `set` has already reported. Passing the
+ * receiver is deliberate and load-bearing: it is what makes a **setter** run with `this` bound to
+ * the proxy, so writes inside one are tracked like any other.
+ *
+ * The pair, rather than the depth counter this replaced. A counter says only "some write is in
+ * flight", so a **setter** that defines a property — on another key, or on another store entirely —
+ * had that definition swallowed: `Object.defineProperty` inside a setter notified nobody, and the
+ * further the two were apart the less anything connected them. Matching on identity suppresses the
+ * one re-entry that is genuinely a duplicate and nothing else.
+ *
+ * Cleared rather than saved and restored, and nesting cannot defeat that. The re-entry happens only
+ * for a **data** property, where no user code runs between arming the slot and the trap firing; a
+ * property with a **setter** takes the other path and produces no re-entry at all, so a write made
+ * inside a setter can clear the slot without stranding an outer one. In a `finally` because a
+ * throwing setter must not leave writes suppressed for the rest of the page.
+ */
 let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
-
-/**
- * The priorities that used to live here — a `WeakMap` keyed by the slots array — now travel with the
- * slots as `PropSubscriptions`; see `store.ts`. The comment here also claimed `runCallbacks` walked
- * them, which it never did: it walks the slots by index and the order is read only when inserting.
- */
 
 /**
  * Hoisted, because it is handed to `prioritySlot` on **every tracked read** and called only on the
@@ -230,11 +224,12 @@ const runCallbacks = <T extends object>(
       propCallbacks.delete(elementWeakRef);
       continue;
     }
-    subscriptions.slots.forEach((callbacks, index) => {
+    subscriptions.slots.forEach((callbacks) => {
       for (const callbackWeakRef of callbacks) {
         const callback = callbackWeakRef.deref();
         if (!callback) {
-          propCallbacks.get(elementWeakRef)?.slots[index].delete(callbackWeakRef);
+          /** `callbacks` IS `subscriptions.slots[index]`; deleting during `for…of` over a Set is defined. */
+          callbacks.delete(callbackWeakRef);
         } else {
           callback({ prop, value, prevValue } as Signal<T[keyof T]>);
         }
@@ -378,7 +373,6 @@ const createHandler = <T extends object>(
 
       addCallback(obj, prop);
 
-
       return propValue;
     },
 
@@ -449,29 +443,11 @@ const createHandler = <T extends object>(
       try {
         result = Reflect.set(obj, prop, value, receiver);
       } finally {
+        /** `writingProp` can stay stale: the pair is only ever compared together, and a null `writingObj` disarms it. */
         writingObj = null;
       }
 
-      /**
-       * **When the language refuses the write, say which language rule refused it.**
-       *
-       * A proxy has to report a refused write by returning `false`, and the engine turns that into
-       * `TypeError: 'set' on proxy: trap returned falsish for property 'n'` — a message about the
-       * *trap*, which is framework internals the reader never wrote and cannot act on. The same
-       * assignment to an unproxied frozen object says `Cannot assign to read only property 'n'`,
-       * which at least names the cause. Putting a store in front of the object makes the diagnosis
-       * worse, and `createStore(Object.freeze(defaults))` is an ordinary thing to write.
-       *
-       * Every measured case is the language's own invariant and not a framework decision — frozen,
-       * sealed-plus-new-key, `preventExtensions`, a non-writable property, a getter with no setter —
-       * so this reports rather than repairs, and the reason is derived from the target instead of
-       * guessed at.
-       *
-       * `__DEV__`-only, which pass 49 says is exactly right for a **message**: it throws either way,
-       * so the two builds still agree on what the program *does*. In sloppy mode a refused write is
-       * silent rather than throwing, and this makes it loud — development being stricter, which is
-       * the safe direction.
-       */
+      /** When the language refuses the write, name the language rule — see `refusedWrite`. */
       if (__DEV__ && !result) throw refusedWrite(obj, prop, 'changed');
 
       if (result) {

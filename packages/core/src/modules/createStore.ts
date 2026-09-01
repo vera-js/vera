@@ -31,7 +31,7 @@ export const setStaticStores = (on: boolean) => {
 /**
  * Create a reactive store
  *
- * @param arg defaultStore is used to create structure and types for store
+ * @param initialStore Defines the store's structure and types; the store proxies this object
  */
 export const createStore = <T extends object>(initialStore: T) => {
   if (!initialStore) throw new Error('createStore: object required');

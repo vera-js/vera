@@ -13,6 +13,9 @@ import type { CSSResultGroup, StyledElement } from './types.js';
  */
 const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1');
 
+/** One warning per page for the `@scope` fallback below — the engine's answer cannot change. */
+let warnedAboutScope = false;
+
 /**
  * Component classes whose light-DOM styles are already hoisted — one sheet per class, ever.
  *
@@ -25,9 +28,6 @@ const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1
  * `_$veraStyles$` is exempt from property mangling — `/^_[a-z]/` is the pattern and `_$…$` does not
  * match it — so both copies spell it identically, exactly as `_$apply$` and `$r` do.
  */
-/** One warning per page for the `@scope` fallback below — the engine's answer cannot change. */
-let warnedAboutScope = false;
-
 const HOISTED = '_$veraStyles$';
 
 /**

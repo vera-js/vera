@@ -99,7 +99,7 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
     element._hooks?.forEach((hooks) => {
       for (const hook of hooks) {
         if (!hook) continue;
-        hook?.({}, true);
+        hook({}, true);
       }
     });
   };

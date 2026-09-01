@@ -10,8 +10,8 @@
  * against a bare Node global object. A component reaches it through `keyed` or `hold`.
  *
  * Measured: core, `@verajs/styles` and `@verajs/router` are all order-independent; only the
- * renderer is not. Core is still dynamically imported below, because `setRenderer` and `wire`
- * have to come from the same instance the components will use.
+ * renderer is not. Core is still dynamically imported below, because `wire` has to come from the
+ * same instance the components will use.
  *
  * Client takeover is `@verajs/renderer/hydrate`, which adopts this markup in place — markerless,
  * so nothing here carries framework comments. (This comment used to say the renderer had no
@@ -117,37 +117,30 @@ const serverRenderer = (template, container) => {
   container.innerHTML = before + ours + after;
   written.set(container, { before, ours });
 };
-/**
- * `setRenderer` registers a **wrapper** — it resolves the element's root before calling through —
- * so the chain never contains `serverRenderer` itself. Diffing the chain around the call is how to
- * get a handle on the entry that was actually added, without reaching into the registry's
- * internals.
- */
-const chainBefore = new Set(inserts.get('render') ?? []);
 wire({ on: 'render', fn: serverRenderer, priority: 50 });
-const ourEntry = (inserts.get('render') ?? []).find((entry) => !chainBefore.has(entry));
 
 /**
- * `setRenderer` registers on `'render'` at priority 50, and registering at a taken priority
- * **replaces**. So an app entry doing the ordinary thing — `wire({ on: 'render', fn: renderer, priority: 50 })` — displaces this
- * one the moment that module is imported server-side, and every component then renders through a
- * renderer that writes to a real DOM which is not there. The result was
+ * Registering at a taken priority **replaces**. So an app entry doing the ordinary thing —
+ * `wire({ on: 'render', fn: renderInto, priority: 50 })` — displaces this renderer the moment that
+ * module is imported server-side, and every component then renders through a renderer that writes
+ * to a real DOM which is not there. The result was
  * `<my-el><template shadowrootmode="open"></template></my-el>`: empty, for every component, with no
  * error and nothing in the output to suggest why.
  *
  * Checked per render rather than once, because the displacement happens whenever the app's module
- * graph is evaluated, which is after this file has run.
+ * graph is evaluated, which is after this file has run. The chain is asked for `serverRenderer`
+ * itself — `wire` registers the function it is handed, so identity is the whole check. (A Set-diff
+ * around the `wire` call used to recover "the entry that was added", a leftover from `setRenderer`,
+ * which registered a wrapper; nothing wraps any more.)
  */
 const assertRendererIntact = () => {
-  if (!ourEntry || inserts.get('render')?.includes(ourEntry)) return;
+  if (inserts.get('render')?.includes(serverRenderer)) return;
   throw new Error(
     'ssr: the server renderer has been replaced — something wired a renderer after ' +
       '@verajs/ssr was imported, and every component would render empty. Guard the client wiring ' +
       '(`if (!globalThis.__veraSsrShimmed)`) or keep it out of the module the server imports.'
   );
 };
-
-
 
 /**
  * The index just past the `>` that closes the tag starting at `start`, respecting quoted attribute
@@ -179,7 +172,7 @@ const tagEnd = (markup, start) => {
 const ATTRIBUTE = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
 
 /** Numeric and the five named references — everything `escapeHtml` can emit, plus what authors write. */
-const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'" };
+const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
 /**
  * Attribute values arrive **escaped**, because they were read back out of markup this module just
@@ -507,8 +500,6 @@ const prepareInstance = (element, tag, props, children) => {
    * therefore sees them, and one that overwrites its own light DOM wins — same order, same result.
    */
   if (children) element.innerHTML = children;
-
-
 };
 
 /** Runs the lifecycle on an element that is already built, and serializes it. */
@@ -872,14 +863,14 @@ const renderModule = async (
   }
 
   function renderPage() {
-  /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
-  beginRender();
-  /**
+    /** Synchronous from here, so the per-render bookkeeping below cannot interleave with another. */
+    beginRender();
+    /**
    * `children` is what a `<slot>` in the component renders. Without it a component built around a
    * slot could be server-rendered only empty — the entry tag's contents were the shadow template
    * and nothing else.
    */
-  /**
+    /**
    * **`static: true` says this page will not be interactive**, so its stores need not be reactive.
    * A server render is one shot — subscriptions built during it are never fired afterwards — and on
    * a component rendering twenty rows the proxy behind `createStore` is the *entire* reactivity
@@ -891,9 +882,9 @@ const renderModule = async (
    * inert pages afterwards. A write to a store while it is on throws in development, naming the
    * option, rather than silently changing nothing.
    */
-  if (isStatic) setStaticStores(true);
-  const entry = renderComponent(tag, attrString, 0, props, children);
-  return finishPage(`${entry.open}${entry.inner}</${tag}>`, /** @type {string} */ (tag), seen);
+    if (isStatic) setStaticStores(true);
+    const entry = renderComponent(tag, attrString, 0, props, children);
+    return finishPage(`${entry.open}${entry.inner}</${tag}>`, /** @type {string} */ (tag), seen);
   }
 
   /** The asynchronous page render — the same bookkeeping, an entry component that may wait. */
@@ -913,17 +904,17 @@ const renderModule = async (
    * @param {string} rendered @param {string} tag @param {Set<string>} [seen]
    */
   function finishPage(rendered, tag, seen) {
-  let html = rendered;
-  /**
+    let html = rendered;
+    /**
    * A marker that was never consumed must not reach the page.
    *
    * Everything the scan renders has its marker removed as it renders. Markup the scan does not
    * read — inside a `<template>` a component wrote itself, or a raw-text element — is never
    * rendered and so keeps its marker, which would ship an internal attribute to the browser.
    */
-  if (pendingInstances.size) html = html.replaceAll(new RegExp(` ${INSTANCE_ATTRIBUTE}="\\d+"`, 'g'), '');
+    if (pendingInstances.size) html = html.replaceAll(new RegExp(` ${INSTANCE_ATTRIBUTE}="\\d+"`, 'g'), '');
 
-  /**
+    /**
    * Thrown once the walk is over rather than at the point of failure, so the message can name
    * every component that failed instead of only the first — and so core's own isolation still
    * holds while the render runs.
@@ -931,7 +922,7 @@ const renderModule = async (
    * Catch it to fall back to a client-rendered shell, which is what `renderToString` throwing
    * means in React and Vue too. It is never right to ship the empty markup this replaces.
    */
-  if (renderErrors.length) {
+    if (renderErrors.length) {
     const [first] = renderErrors;
     const others = renderErrors.length > 1 ? ` (and ${renderErrors.length - 1} more)` : '';
     throw new Error(
@@ -939,14 +930,14 @@ const renderModule = async (
         `${String(first.error?.message ?? first.error)}`,
       { cause: first.error }
     );
-  }
-  /**
+    }
+    /**
    * Escaped on the way out. The caller places this string themselves — typically into a `<style>`
    * in their page shell — which makes that their render boundary, and handing them CSS that can
    * close the element is handing them an XSS. The escape is transparent to the CSS parser, so
    * there is no reason to make it their problem.
    */
-  /**
+    /**
    * `seen` makes a page of several islands work.
    *
    * Each render correctly returns the styles of what *it* rendered, so two islands sharing a
@@ -954,15 +945,15 @@ const renderModule = async (
    * `Set` across the calls emits each component's styles into the page once, and leaves a single
    * render — the common case — behaving exactly as before.
    */
-  const title = globalThis.document.title;
+    const title = globalThis.document.title;
 
-  const styles = [];
-  for (const rendered of renderedTags) {
+    const styles = [];
+    for (const rendered of renderedTags) {
     if (seen?.has(rendered)) continue;
     seen?.add(rendered);
     for (const css of hoistedStyles.get(rendered) ?? []) styles.push(css);
-  }
-  return { html, styles: styles.map(escapeStyleText).join('\n'), title };
+    }
+    return { html, styles: styles.map(escapeStyleText).join('\n'), title };
   }
 };
 

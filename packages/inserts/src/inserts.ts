@@ -15,16 +15,7 @@ export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof 
 type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
 
 /**
- * Registers a callback into a named insert chain, ordered by priority (lower runs first).
- * Registering at a priority that is already taken replaces it.
- *
- * Entries are stored in a **dense, priority-sorted array** rather than at `array[priority]`.
- * Indexing by priority left holes — registering the renderer at 50 produced a 51-element array
- * with 50 holes — and every chain is walked on the hot path, so iterating those holes cost
- * roughly 238 ns per store read, more than doubling it.
- */
-/**
- * Everything an app can hand to {@link registerAll}: a **descriptor** naming the chain it belongs
+ * Everything an app can hand to {@link wire}: a **descriptor** naming the chain it belongs
  * in, or a **connector** — a function handed the registry, which is how a package that imports
  * nothing gets wired to it.
  */
@@ -44,18 +35,6 @@ export type InsertDescriptor = {
 export type Connector = (registry: Inserts) => void;
 export type Registerable = InsertDescriptor | Connector;
 
-/**
- * One call listing everything an app wires, in one place, from data rather than side effects.
- *
- * ```js
- * insert([renderer, router, styles, myOwnThing]);
- * ```
- *
- * A **connector** is a function: it receives the registry and decides what to do with it, which is
- * how `@verajs/router` reaches the `'render'` chain while importing nothing. A **descriptor** is an
- * object naming its chain. Packages export one or the other and never register themselves, so there
- * is no second registry to land in by mistake.
- */
 /**
  * Wires modules into the framework: one call, from data rather than side effects.
  *
@@ -175,6 +154,15 @@ let replacing = '';
  */
 export let revision = 0;
 
+/**
+ * Registers a callback into a named insert chain, ordered by priority (lower runs first).
+ * Registering at a priority that is already taken replaces it.
+ *
+ * Entries are stored in a **dense, priority-sorted array** rather than at `array[priority]`.
+ * Indexing by priority left holes — registering the renderer at 50 produced a 51-element array
+ * with 50 holes — and every chain is walked on the hot path, so iterating those holes cost
+ * roughly 238 ns per store read, more than doubling it.
+ */
 const register = <K extends keyof InsertFunctionMap>(
   insertName: K,
   callback: InsertFunctionMap[K],
@@ -250,5 +238,3 @@ const register = <K extends keyof InsertFunctionMap>(
   order.splice(slot, 0, priority);
   revision++;
 };
-
-

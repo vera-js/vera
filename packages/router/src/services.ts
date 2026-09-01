@@ -502,12 +502,6 @@ const getRoute = (element: HTMLElement, path: string) => {
  * owns both). Returns false when this router has no matching route or an event handler cancelled;
  * true once the route has been applied. `after-route` is emitted for cleanup but cannot cancel —
  * the navigation has already happened.
- */
-/**
- * Routes a single router element to a path (no hash fragment, no history writes — `navigate`
- * owns both). Returns false when this router has no matching route or an event handler cancelled;
- * true once the route has been applied. `after-route` is emitted for cleanup but cannot cancel —
- * the navigation has already happened.
  *
  * A **nested** route renders its ancestors too, outermost first, each into a view found inside the
  * one above it. That is what `children` means now: `/settings/profile` renders the `/settings`

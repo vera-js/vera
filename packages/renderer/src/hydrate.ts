@@ -41,14 +41,6 @@ import type { Template, Part, Item, TemplateResult, KeyedResult } from './render
 export { hold, renderer } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
-// The server serializer (@verajs/ssr/vera) emits the SAME static strings this module parses into
-// its canonical template, so server DOM and canonical fragment diverge only at value slots — and
-// at adoption time the values are known. Adoption walks both trees in lockstep: statics must
-// match byte-for-byte (else bail), and at each slot the live text is split so the renderer's own
-// anchors (primed texts, marker comments) are installed into the adopted DOM. Server HTML stays
-// free of framework comments; the client repairs its anchors in. Any mismatch abandons adoption
-// and falls back to a clean first render — correctness never depends on the server markup.
-
 /** Internal bail signal — never escapes `tryAdopt`. */
 const MISMATCH = {};
 

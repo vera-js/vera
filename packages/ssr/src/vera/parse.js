@@ -255,7 +255,6 @@ export const parseFragment = (markup, create) => {
      */
     if (FOREIGN.has(name)) {
       let depth = 1;
-      let cursorAt = index;
       let closeAt = -1;
       const opener = new RegExp(`<(/?)${name}\\b`, 'giu');
       opener.lastIndex = index;
@@ -265,9 +264,7 @@ export const parseFragment = (markup, create) => {
           closeAt = found.index;
           break;
         }
-        cursorAt = opener.lastIndex;
       }
-      void cursorAt;
       if (closeAt === -1) return null;
       const closeEnd = markup.indexOf('>', closeAt);
       if (closeEnd === -1) return null;

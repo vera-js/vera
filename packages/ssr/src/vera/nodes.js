@@ -876,7 +876,6 @@ export class ContainerShim extends EventTarget {
   get previousElementSibling() {
     return this._siblingAt(-1, elementsOf);
   }
-  /** @param {number} step */
   /** @param {number} step @param {(container: any) => Array<any>} view */
   _siblingAt(step, view = nodesOf) {
     if (!this._parent) return null;

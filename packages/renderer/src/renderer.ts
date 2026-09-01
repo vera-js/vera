@@ -480,8 +480,6 @@ const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 /** Never equal to any user value, so the first commit always runs. */
 const UNSET = {};
 
-/** Removal target: nodes moved here are dropped when it is emptied. */
-
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
 const createMarkeredPart = (parent: Node, ref: Node | null) => {
   const start = comment();
@@ -856,13 +854,6 @@ class AttrPart implements Part {
 }
 
 /**
- * A list item is either ELEMENT-MODE — a single-root template instance whose one element IS the
- * item's boundary (`_element`/`_instance`/`_shape` set, `_part` null) — or a general markered
- * ChildPart. Rows are single-root in virtually every real list, and element mode drops both marker
- * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
- * pay on create.
- */
-/**
  * `<select>.value` assignments held until the whole pass has committed — see the note in `_commit`.
  * Flat pairs rather than tuples: one array, no per-entry allocation.
  */
@@ -903,6 +894,13 @@ export type ListStrategy = (
 
 export type KeyedResult = TemplateResult & { $r?: ListStrategy };
 
+/**
+ * A list item is either ELEMENT-MODE — a single-root template instance whose one element IS the
+ * item's boundary (`_element`/`_instance`/`_shape` set, `_part` null) — or a general markered
+ * ChildPart. Rows are single-root in virtually every real list, and element mode drops both marker
+ * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
+ * pay on create.
+ */
 type Item = {
   $k: unknown;
   _element: Element | null;
@@ -940,13 +938,6 @@ class Instance {
     }
   }
 
-  /**
-   * Notifies every child directive in this instance's subtree that it is going away.
-   *
-   * Reached only when some directive somewhere declared teardown — see `anyDetachable`. This is the
-   * per-node walk the bulk removal exists to skip, which is why it is behind a gate rather than in
-   * the path: an app that renders no detachable directive never runs it.
-   */
   /**
    * One walk, both jobs: release the element refs in this instance and tell any child directive
    * under it that it is going away.
@@ -1089,7 +1080,6 @@ const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : 
  */
 const builtIns: ValueHandler[] = [];
 
-/** What a ChildPart currently contains. */
 /**
  * Whether anything in this process has asked to be told when a subtree is removed — an element ref
  * to release, or a child directive that declared `_$detach$`.
@@ -1116,6 +1106,7 @@ let notifyOnRemoval = false;
  */
 const _directiveSwaps = /* @__PURE__ */ new WeakMap<object, number>();
 
+/** What a ChildPart currently contains. */
 const EMPTY = 0;
 const TEXT = 1;
 const TEMPLATE = 2;
@@ -1179,7 +1170,7 @@ class ChildPart implements Part {
   /**
    * Tells every child directive under this part that it is going away.
    *
-   * Reached only when some directive somewhere declared teardown — see `anyDetachable` — because
+   * Reached only when some directive somewhere declared teardown — see `notifyOnRemoval` — because
    * this is the per-node walk the bulk removal exists to skip. **Every** removal path calls it, not
    * just `_clear`: a keyed row is dropped by moving its nodes to a scratch fragment and an index-mode
    * list shrinks by removing nodes directly, so a version that only hooked `_clear` notified a
@@ -1194,10 +1185,6 @@ class ChildPart implements Part {
   }
 
   _clear() {
-    /**
-     * One boolean read for a template with no ref in it, which is nearly all of them. The walk is
-     * precisely what the bulk removal below exists to avoid, so it runs only where it can matter.
-     */
     /**
      * One gate, two jobs. A template that holds an element ref must release it; a subtree holding a
      * directive that declared teardown must be told. Both are found by the same walk, and an app
@@ -1508,8 +1495,6 @@ class ChildPart implements Part {
     this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
-
-
 
   _commitList(newValues: unknown[]) {
     if (this._mode !== LIST) {

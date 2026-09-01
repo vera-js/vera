@@ -1,6 +1,3 @@
-/** Autoload function to be run by autoloader each time a component with the "autoloader" attribute
- * is rerendered
- */
 /**
  * What the `'render'` insert calls after a component renders: hand it the element, and it decides
  * whether anything inside needs loading.

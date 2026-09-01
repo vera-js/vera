@@ -68,7 +68,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
 
-  const state = { usedHtml: false, usedKeyed: false };
+  const state = { usedHtml: false, usedKeyed: false, usedSpread: false };
 
   /** An expression slice with any JSX roots inside it transformed (bottom-up, offsets stable). */
   const emitExpression = (text, roots, base) => {
