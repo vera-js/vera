@@ -12,6 +12,12 @@
  * per tag by `@verajs/styles`. Slots in light DOM are inert wrappers that display their fallback,
  * so the template is identical in both.
  *
+ * The accessible name is resolved from the host's `aria-label`, else from an associated
+ * `<label for>` through `ElementInternals.labels` — reflected onto the trigger, because the
+ * boundary means a label outside cannot reference a node inside. wp-omni's select accepted an
+ * aria-label and dropped it for a year; the test for this is the regression test that lesson
+ * demands.
+ *
  * Per-instance state lives in a module WeakMap rather than class fields: the shared lint rule
  * bans instance fields on custom elements (a field initializer runs at upgrade and clobbers any
  * property assigned before it), and `declare` cannot carry the values these need.
@@ -25,8 +31,15 @@ type Internal = {
   /** Values assigned after upgrade but before connect wait here for the controller. */
   pending: { options: SelectOption[]; value: SelectOption[] };
   internals: ElementInternals | undefined;
-  /** Attribute reads in the template subscribe through this; attributeChangedCallback bumps it. */
-  host: { tick: number };
+  /**
+   * Observed attributes mirrored into a store as real values the template reads. The first cut
+   * was a `tick` counter read as `void host.tick` — which the production minifier deleted as a
+   * useless expression, so attribute changes re-rendered in development and silently never in
+   * production. A value the output genuinely uses cannot be eliminated.
+   */
+  host: { attrs: Record<string, string | null> };
+  /** The debounce timer for the `filter` event. */
+  timer: ReturnType<typeof setTimeout> | undefined;
 };
 
 const INTERNAL = new WeakMap<VeraSelect, Internal>();
@@ -41,7 +54,13 @@ const internal = (element: VeraSelect): Internal => {
     } catch {
       /* no form association on this engine — the component still works, forms just cannot see it */
     }
-    entry = { select: null, pending: { options: [], value: [] }, internals, host: createStore({ tick: 0 }) };
+    entry = {
+      select: null,
+      pending: { options: [], value: [] },
+      internals,
+      host: createStore({ attrs: {} as Record<string, string | null> }),
+      timer: undefined,
+    };
     INTERNAL.set(element, entry);
   }
   return entry;
@@ -68,12 +87,40 @@ const reflectForm = (element: VeraSelect, value: SelectOption[]) => {
   } else {
     internals.setFormValue(value[0]?.value ?? null);
   }
+  if (internals.setValidity) {
+    if (element.hasAttribute('required') && value.length === 0)
+      internals.setValidity({ valueMissing: true }, 'Please select an option.');
+    else internals.setValidity({});
+  }
+};
+
+/**
+ * The accessible name: the host's own `aria-label` wins; else the text of an associated
+ * `<label for>` (reachable only through internals — the boundary blocks aria-labelledby).
+ */
+const labelOf = (element: VeraSelect): string | null => {
+  const own = internal(element).host.attrs['aria-label'];
+  if (own) return own;
+  const label = internal(element).internals?.labels?.[0];
+  return label?.textContent?.trim() || null;
 };
 
 export class VeraSelect extends HTMLElement {
   static styles = SELECT_STYLES;
   static formAssociated = true;
-  static observedAttributes = ['multi', 'placeholder'];
+  static observedAttributes = [
+    'multi',
+    'placeholder',
+    'searchable',
+    'creatable',
+    'remote',
+    'loading',
+    'required',
+    'search-placeholder',
+    'empty-message',
+    'overflow-message',
+    'aria-label',
+  ];
 
   get options(): SelectOption[] {
     const { select, pending } = internal(this);
@@ -102,8 +149,9 @@ export class VeraSelect extends HTMLElement {
     reflectForm(this, value);
   }
 
-  attributeChangedCallback() {
-    internal(this).host.tick++;
+  attributeChangedCallback(name: string, _old: string | null, value: string | null) {
+    const { host } = internal(this);
+    host.attrs = { ...host.attrs, [name]: value };
   }
 
   formResetCallback() {
@@ -116,34 +164,66 @@ export class VeraSelect extends HTMLElement {
     const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
     const entry = internal(this);
 
+    const attrs = () => entry.host.attrs;
+    /** The search line exists for explicit searchers; `creatable` and `remote` both need it. */
+    const searchable = () => attrs()['searchable'] != null || attrs()['creatable'] != null || attrs()['remote'] != null;
+
     const select = (entry.select ??= useSelect(this, {
       multi: () => this.hasAttribute('multi'),
+      creatable: () => this.hasAttribute('creatable'),
+      remote: () => this.hasAttribute('remote'),
       onChange: (value) => {
         reflectForm(this, value);
         this.dispatchEvent(new CustomEvent('change', { detail: { value }, bubbles: true, composed: true }));
       },
+      onCreate: (label) => {
+        const detail = { label, option: { label, value: label } as SelectOption };
+        /** Cancelable: a host may claim creation (async ids, dedup). Uncanceled, the option joins. */
+        if (!this.dispatchEvent(new CustomEvent('create', { detail, bubbles: true, composed: true, cancelable: true })))
+          return;
+        select.state.options = [...select.state.options, detail.option];
+        select.state.search = '';
+        select.pick(detail.option);
+      },
+      onSearch: (query) => {
+        /** The remote seam: a debounced `filter` event — the host fetches and sets `.options`. */
+        clearTimeout(entry.timer);
+        const wait = Number(this.getAttribute('debounce') ?? (this.hasAttribute('remote') ? 250 : 0));
+        entry.timer = setTimeout(() => {
+          this.dispatchEvent(new CustomEvent('filter', { detail: { query }, bubbles: true, composed: true }));
+        }, wait);
+      },
     }));
     select.state.options = entry.pending.options;
     select.state.value = entry.pending.value;
+    reflectForm(this, select.state.value);
     const { state, handlers } = select;
 
-    /** Slotted nodes go to the controller; re-read whenever an assignment changes. */
+    /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land. */
     const refresh = () => {
       const assignedTo = (name: string) =>
         (root.querySelector?.(`slot[name="${name}"]`) as HTMLSlotElement | null)?.assignedElements()[0];
-      select.attach({ trigger: assignedTo('trigger'), value: assignedTo('value') });
+      select.attach({
+        trigger: assignedTo('trigger'),
+        value: assignedTo('value'),
+        fallbackTrigger: root.querySelector?.('[part="trigger"]') ?? undefined,
+      });
     };
 
     /** The search line takes focus when the menu opens. Registered before render(), like every hook. */
     useEffect(() => {
-      if (state.open) (root.querySelector?.('[part="search"]') as HTMLInputElement | null)?.focus();
+      if (state.open && searchable()) (root.querySelector?.('[part="search"]') as HTMLInputElement | null)?.focus();
     }, this);
 
     render(() => {
-      void entry.host.tick; // subscribe to observed-attribute changes
       const rows = select.matches();
-      const active = Math.min(state.active, Math.max(rows.length - 1, 0));
+      const creating = select.createLabel();
+      const count = rows.length + (creating ? 1 : 0);
+      const active = Math.min(state.active, Math.max(count - 1, 0));
+      const activeId = count === 0 ? null : active === rows.length ? 'opt-create' : `opt-${active}`;
       const labels = state.value.map((option) => option.label).join(', ');
+      const loading = attrs()['loading'] != null;
+      const overflow = attrs()['overflow-message'] ?? null;
       return html`
         <slot name="trigger" @slotchange=${refresh}>
           <button
@@ -151,13 +231,16 @@ export class VeraSelect extends HTMLElement {
             type="button"
             role="combobox"
             aria-haspopup="listbox"
+            aria-controls="listbox"
+            aria-label=${labelOf(this)}
             aria-expanded=${String(state.open)}
+            aria-activedescendant=${state.open ? activeId : null}
             data-state=${state.open ? 'open' : 'closed'}
             @click=${handlers.onTriggerClick}
             @keydown=${handlers.onTriggerKeydown}
           >
             <slot name="value" @slotchange=${refresh}>
-              <span part="value" data-placeholder=${this.getAttribute('placeholder') ?? 'Select…'}>${labels}</span>
+              <span part="value" data-placeholder=${attrs()['placeholder'] ?? 'Select…'}>${labels}</span>
             </slot>
           </button>
         </slot>
@@ -165,20 +248,27 @@ export class VeraSelect extends HTMLElement {
           <input
             part="search"
             type="text"
-            aria-label="Filter options"
+            ?hidden=${!searchable()}
+            placeholder=${attrs()['search-placeholder'] ?? 'Search…'}
+            aria-label=${attrs()['search-placeholder'] ?? 'Search…'}
+            aria-controls="listbox"
+            aria-activedescendant=${state.open ? activeId : null}
+            autocomplete="off"
             .value=${state.search}
             @input=${handlers.onSearchInput}
           />
           <ul
+            id="listbox"
             part="list"
             role="listbox"
-            aria-multiselectable=${String(this.hasAttribute('multi'))}
+            aria-multiselectable=${String(attrs()['multi'] != null)}
             @click=${handlers.onListClick}
             @pointerover=${handlers.onListHover}
           >
             ${rows.map(
               (option, index) => html`
                 <li
+                  id=${`opt-${index}`}
                   part="option"
                   role="option"
                   data-index=${index}
@@ -190,8 +280,26 @@ export class VeraSelect extends HTMLElement {
                 </li>
               `
             )}
+            ${creating
+              ? html`
+                  <li
+                    id="opt-create"
+                    part="option"
+                    role="option"
+                    data-index=${rows.length}
+                    data-create
+                    ?data-active=${active === rows.length}
+                    aria-selected="false"
+                  >
+                    Create “${creating}”
+                  </li>
+                `
+              : null}
           </ul>
-          <p part="empty" data-state=${rows.length ? 'hidden' : 'visible'}>No options</p>
+          <p part="empty" data-state=${count > 0 ? 'hidden' : 'visible'}>
+            ${loading ? 'Loading…' : (attrs()['empty-message'] ?? 'No options')}
+          </p>
+          <p part="overflow" data-state=${overflow ? 'visible' : 'hidden'}>${overflow ?? ''}</p>
         </div>
       `;
     });

@@ -150,6 +150,57 @@ it('slotted markup is the page’s: page CSS and page classes style it, and it d
   element.remove();
 });
 
+it('the selected checkmark is one ::part pseudo rule away from replaced or gone', async () => {
+  const element = await mount();
+  element.value = [OPTIONS[0]];
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  const selected = element.shadowRoot.querySelector('[part="option"][aria-selected="true"]');
+  expect(getComputedStyle(selected, '::before').content).to.equal('"✓"', 'the default mark');
+
+  await withStyle('vera-select::part(option)::before { content: "→"; }', async () => {
+    expect(getComputedStyle(selected, '::before').content).to.equal('"→"', 'replaced from the page');
+  });
+  await withStyle('vera-select::part(option)::before { content: none; }', async () => {
+    expect(getComputedStyle(selected, '::before').content).to.equal('none', 'or removed entirely');
+  });
+  element.remove();
+});
+
+it('a page <label for> names the trigger through ElementInternals — no boundary crossing needed', async () => {
+  const form = document.createElement('form');
+  const label = document.createElement('label');
+  label.htmlFor = 'flavor-select';
+  label.textContent = 'Favorite flavor';
+  const element = document.createElement('vera-select');
+  element.id = 'flavor-select';
+  form.append(label, element);
+  document.body.appendChild(form);
+  element.options = OPTIONS;
+  await frame();
+  expect(element.shadowRoot.querySelector('[part="trigger"]').getAttribute('aria-label')).to.equal('Favorite flavor');
+  form.remove();
+});
+
+it('required means valueMissing until a pick, and the form refuses to validate an empty one', async () => {
+  const form = document.createElement('form');
+  const element = document.createElement('vera-select');
+  element.setAttribute('name', 'flavor');
+  element.setAttribute('required', '');
+  form.appendChild(element);
+  document.body.appendChild(form);
+  element.options = OPTIONS;
+  await frame();
+
+  expect(form.checkValidity()).to.equal(false, 'empty + required is invalid');
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  element.shadowRoot.querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  expect(form.checkValidity()).to.equal(true, 'a pick satisfies the constraint');
+  form.remove();
+});
+
 it('form association is real: the select submits like a control and resets with the form', async () => {
   const form = document.createElement('form');
   const element = document.createElement('vera-select');

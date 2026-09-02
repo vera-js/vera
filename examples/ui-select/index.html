@@ -123,9 +123,27 @@
 
       <section>
         <h2>Multi + search</h2>
-        <p><code>multi</code> keeps the menu open and toggles; typing filters; disabled rows are skipped.</p>
-        <vera-select id="multi" multi placeholder="Pick several…"></vera-select>
+        <p><code>multi searchable</code> — the menu stays open and toggles; typing filters; disabled rows are
+           skipped. Search is opt-in: a plain select has no search line.</p>
+        <vera-select id="multi" multi searchable search-placeholder="Filter flavors…" placeholder="Pick several…"></vera-select>
         <output id="multi-out"></output>
+      </section>
+
+      <section>
+        <h2>Creatable</h2>
+        <p><code>creatable</code> — a search matching nothing offers a create row; the cancelable
+           <code>create</code> event lets the page mint its own ids.</p>
+        <vera-select id="creatable" creatable placeholder="Pick or invent…"></vera-select>
+        <output id="creatable-out"></output>
+      </section>
+
+      <section>
+        <h2>Remote (async typeahead)</h2>
+        <p><code>remote</code> — no client filtering; the debounced <code>filter</code> event asks the page,
+           which fetches (fake 400ms here), sets <code>.options</code>, and clears <code>loading</code>.</p>
+        <vera-select id="remote" remote debounce="200" placeholder="Server-backed…"
+          search-placeholder="Search the server…" empty-message="The server found nothing"></vera-select>
+        <output id="remote-out"></output>
       </section>
 
       <section>
@@ -161,9 +179,11 @@
 
       <section>
         <h2>Form-associated</h2>
-        <p>A real form control via ElementInternals: submits, resets, appears in FormData.</p>
+        <p>A real form control via ElementInternals: named by the <code>&lt;label for&gt;</code>, required,
+           submits, resets, appears in FormData.</p>
         <form id="form">
-          <vera-select name="flavor" id="formed" placeholder="Required-ish…"></vera-select>
+          <label for="formed" style="display:block; margin-bottom:0.4rem">Flavor (required)</label>
+          <vera-select name="flavor" id="formed" required placeholder="Pick one to submit…"></vera-select>
           <p style="display:flex; gap:0.5rem; margin:0.75rem 0 0">
             <button type="submit">Read FormData</button>
             <button type="reset">Reset</button>
@@ -200,15 +220,40 @@
 
       show('basic', 'basic-out');
       show('multi', 'multi-out');
+      show('creatable', 'creatable-out');
       show('tokened');
       show('parted');
       show('light');
       show('slotted', 'slotted-out');
       show('formed');
 
+      /** The remote seam: the page owns filtering — fetch on `filter`, set .options, drop loading. */
+      const remote = document.getElementById('remote');
+      remote.options = FLAVORS;
+      remote.addEventListener('change', (event) => {
+        document.getElementById('remote-out').textContent = JSON.stringify(event.detail.value.map((o) => o.value));
+      });
+      remote.addEventListener('filter', (event) => {
+        remote.setAttribute('loading', '');
+        remote.options = [];
+        setTimeout(() => {
+          const query = event.detail.query.trim().toLowerCase();
+          const hits = FLAVORS.filter((flavor) => flavor.label.toLowerCase().includes(query));
+          remote.options = hits.slice(0, 3);
+          remote.setAttribute('overflow-message', hits.length > 3 ? `${hits.length - 3} more on the "server"` : '');
+          if (!(hits.length > 3)) remote.removeAttribute('overflow-message');
+          remote.removeAttribute('loading');
+        }, 400);
+      });
+
       document.getElementById('form').addEventListener('submit', (event) => {
         event.preventDefault();
-        const data = new FormData(event.target);
+        const form = event.target;
+        if (!form.checkValidity()) {
+          document.getElementById('form-out').textContent = 'invalid: the required select is empty';
+          return;
+        }
+        const data = new FormData(form);
         document.getElementById('form-out').textContent = `FormData: flavor=${JSON.stringify(data.get('flavor'))}`;
       });
       document.getElementById('form').addEventListener('reset', () => {

@@ -33,5 +33,13 @@ import { VeraSelect } from '@verajs/ui/elements';  // classes only — you contr
 - **State is styleable**: open/closed and the active row are `data-state`/`data-active`
   attributes, for `data-[state=open]:` -style variants.
 
+## The select's surface (see `custom-elements.json` for the full contract)
+
+`multi`, `searchable`, `creatable` (cancelable `create` event), `remote` (debounced `filter`
+event + `loading`/`overflow-message` — the async-typeahead seam), `required` (real constraint
+validation), `placeholder`, `search-placeholder`, `empty-message`, `debounce`, `light`, `name`,
+`aria-label` (reflected onto the trigger; an associated `<label for>` also names it, through
+ElementInternals). Properties `options`/`value`; events `change`/`create`/`filter`.
+
 Two library versions on one page warn instead of silently forking — and `@verajs/ui/elements`
 exists for the page that must control registration itself.

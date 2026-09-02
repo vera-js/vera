@@ -31,9 +31,22 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const multi = () => config.multi?.() === true;
 
   const matches = (): SelectOption[] => {
+    /** Remote mode: the host narrowed `options` itself; filtering again would double-filter. */
+    if (config.remote?.() === true) return [...state.options];
     const needle = state.search.trim().toLowerCase();
     return needle ? state.options.filter((option) => option.label.toLowerCase().includes(needle)) : [...state.options];
   };
+
+  /** The create row's label — non-empty only when creatable, searched, and not an existing label. */
+  const createLabel = (): string => {
+    if (config.creatable?.() !== true) return '';
+    const label = state.search.trim();
+    if (!label) return '';
+    return state.options.some((option) => option.label.toLowerCase() === label.toLowerCase()) ? '' : label;
+  };
+
+  /** The keyboard walks matches plus, when offered, the create row at the end. */
+  const rowCount = () => matches().length + (createLabel() ? 1 : 0);
 
   const chosen = (option: SelectOption) => state.value.some((entry) => entry.value === option.value);
 
@@ -44,7 +57,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     state.active = 0;
     dismiss.deactivate();
     syncAssigned();
-    if (refocus) (assigned.trigger as HTMLElement | undefined)?.focus?.();
+    if (refocus) ((assigned.trigger ?? assigned.fallbackTrigger) as HTMLElement | undefined)?.focus?.();
   };
 
   const open = () => {
@@ -75,16 +88,25 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     }
   };
 
-  /** Step the active row, skipping disabled options; wraps in both directions. */
+  /** Step the active row, skipping disabled options; wraps in both directions. The create row
+   *  (index `matches().length`) is walkable and never disabled. */
   const step = (delta: number) => {
+    const count = rowCount();
+    if (count === 0) return;
     const rows = matches();
-    if (rows.length === 0) return;
     let next = state.active;
-    for (let i = 0; i < rows.length; i++) {
-      next = (next + delta + rows.length) % rows.length;
-      if (!rows[next]?.disabled) break;
+    for (let i = 0; i < count; i++) {
+      next = (next + delta + count) % count;
+      if (next >= rows.length || !rows[next]?.disabled) break;
     }
     state.active = next;
+  };
+
+  /** Activate row `index`: a real row picks; the create row hands the label to the host. */
+  const activate = (index: number) => {
+    const rows = matches();
+    if (index === rows.length && createLabel()) config.onCreate?.(createLabel());
+    else pick(rows[index]);
   };
 
   // ── the handlers — bound by the host template on its own nodes, attached here on assigned ones ─
@@ -92,6 +114,11 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const onTriggerClick = () => (state.open ? close() : open());
 
   const onTriggerKeydown = (event: KeyboardEvent) => {
+    if (state.open) {
+      /** No search line means focus stays on the trigger — it must drive the open menu too. */
+      onMenuKeydown(event);
+      return;
+    }
     if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
       event.preventDefault();
       open();
@@ -103,9 +130,12 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       step(event.key === 'ArrowDown' ? 1 : -1);
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      state.active = event.key === 'Home' ? 0 : Math.max(rowCount() - 1, 0);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      pick(matches()[state.active]);
+      activate(state.active);
     } else if (event.key === 'Tab') {
       close(false);
     }
@@ -114,12 +144,13 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const onSearchInput = (event: Event) => {
     state.search = (event.target as HTMLInputElement).value;
     state.active = 0;
+    config.onSearch?.(state.search);
   };
 
   /** Delegated: one listener on the list, rows addressed by `data-index` — never per-row handlers. */
   const onListClick = (event: Event) => {
     const row = (event.target as Element).closest?.('[data-index]');
-    if (row) pick(matches()[Number((row as HTMLElement).dataset['index'])]);
+    if (row) activate(Number((row as HTMLElement).dataset['index']));
   };
 
   const onListHover = (event: Event) => {
@@ -170,10 +201,13 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   return {
     state,
     matches,
+    createLabel,
+    rowCount,
     chosen,
     open,
     close,
     pick,
+    activate,
     step,
     attach,
     /** For hosts that write `state` directly (a value property setter): restamp assigned nodes. */

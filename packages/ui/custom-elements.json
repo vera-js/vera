@@ -11,7 +11,7 @@
           "customElement": true,
           "tagName": "vera-select",
           "name": "VeraSelect",
-          "description": "A single/multi select. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated.",
+          "description": "A single/multi select. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated, searchable, creatable, remote-filterable.",
           "attributes": [
             {
               "name": "multi",
@@ -28,6 +28,46 @@
             {
               "name": "name",
               "description": "The form field name — submitted via ElementInternals where supported."
+            },
+            {
+              "name": "required",
+              "description": "An empty selection reports valueMissing to the owning form."
+            },
+            {
+              "name": "searchable",
+              "description": "Show the filter line above the options."
+            },
+            {
+              "name": "creatable",
+              "description": "A search matching no option offers a create row; implies the search line. See the create event."
+            },
+            {
+              "name": "remote",
+              "description": "The host owns filtering: options render unfiltered, the search line shows, and edits emit the filter event (debounced 250ms by default)."
+            },
+            {
+              "name": "loading",
+              "description": "Announce an in-flight remote fetch in the empty area."
+            },
+            {
+              "name": "debounce",
+              "description": "Milliseconds between the last keystroke and the filter event."
+            },
+            {
+              "name": "search-placeholder",
+              "description": "Placeholder and accessible name of the search line. Default \"Search…\"."
+            },
+            {
+              "name": "empty-message",
+              "description": "Shown when no option matches. Default \"No options\"."
+            },
+            {
+              "name": "overflow-message",
+              "description": "A footer line under the list — \"1,250 more results\", consumer-worded."
+            },
+            {
+              "name": "aria-label",
+              "description": "The accessible name, reflected onto the trigger (a page label cannot reach through the boundary). A <label for> associated via the form also works, through ElementInternals."
             }
           ],
           "members": [
@@ -55,6 +95,20 @@
                 "text": "CustomEvent<{ value: SelectOption[] }>"
               },
               "description": "After every committed change. Bubbles and crosses the shadow boundary."
+            },
+            {
+              "name": "create",
+              "type": {
+                "text": "CustomEvent<{ label: string, option: SelectOption }>"
+              },
+              "description": "The create row was activated. Cancelable: preventDefault() to claim creation (async ids, dedup); uncanceled, `option` joins the options and is picked. Mutate `detail.option` to shape it."
+            },
+            {
+              "name": "filter",
+              "type": {
+                "text": "CustomEvent<{ query: string }>"
+              },
+              "description": "A debounced search edit — the remote seam. Fetch, then set `.options`."
             }
           ],
           "slots": [
@@ -82,19 +136,23 @@
             },
             {
               "name": "search",
-              "description": "The filter input."
+              "description": "The filter input. Present only when searchable/creatable/remote."
             },
             {
               "name": "list",
-              "description": "The listbox."
+              "description": "The listbox. Scroll is contained; ::part(list){overscroll-behavior:auto} opts out."
             },
             {
               "name": "option",
-              "description": "One row. Carries data-active and aria-selected."
+              "description": "One row. Carries data-active, data-create on the create row, and aria-selected."
             },
             {
               "name": "empty",
-              "description": "The no-matches message."
+              "description": "The no-matches message; reads \"Loading…\" while the loading attribute is set."
+            },
+            {
+              "name": "overflow",
+              "description": "The footer line, shown while overflow-message is set."
             }
           ],
           "cssProperties": [
@@ -142,6 +200,29 @@
               "attribute": "data-active",
               "values": [
                 "(present while the row is the keyboard-active one)"
+              ]
+            },
+            {
+              "on": "option",
+              "attribute": "data-create",
+              "values": [
+                "(present on the create row)"
+              ]
+            },
+            {
+              "on": "empty",
+              "attribute": "data-state",
+              "values": [
+                "visible",
+                "hidden"
+              ]
+            },
+            {
+              "on": "overflow",
+              "attribute": "data-state",
+              "values": [
+                "visible",
+                "hidden"
               ]
             }
           ]

@@ -170,6 +170,144 @@ test('a slotted trigger is wired like our own: role, state stamps, and the same 
   element.remove();
 });
 
+test('the accessible name lands on the trigger — the wp-omni year-long regression, pinned', async () => {
+  const element = await mount((el) => el.setAttribute('aria-label', 'Flavor'));
+  assert.equal(part(element, 'trigger').getAttribute('aria-label'), 'Flavor', 'reflected through the boundary');
+  element.setAttribute('aria-label', 'Taste');
+  await frame();
+  assert.equal(part(element, 'trigger').getAttribute('aria-label'), 'Taste', 'and it stays live');
+  element.remove();
+
+  const unnamed = await mount();
+  const label = part(unnamed, 'trigger').getAttribute('aria-label');
+  assert.ok(label === null || label === '', `no name means no attribute — got ${JSON.stringify(label)}`);
+  unnamed.remove();
+});
+
+test('search is opt-in: hidden by default, shown by searchable, implied by creatable and remote', async () => {
+  const plain = await mount();
+  assert.equal(part(plain, 'search').hidden, true, 'a plain select has no search line');
+  plain.remove();
+  for (const attribute of ['searchable', 'creatable', 'remote']) {
+    const element = await mount((el) => el.setAttribute(attribute, ''));
+    assert.equal(part(element, 'search').hidden, false, `${attribute} shows the search line`);
+    element.remove();
+  }
+});
+
+test('search-placeholder and empty-message are the consumer’s words', async () => {
+  const element = await mount((el) => {
+    el.setAttribute('searchable', '');
+    el.setAttribute('search-placeholder', 'Find a flavor…');
+    el.setAttribute('empty-message', 'Nothing scooped');
+  });
+  assert.equal(part(element, 'search').getAttribute('placeholder'), 'Find a flavor…');
+  assert.equal(part(element, 'search').getAttribute('aria-label'), 'Find a flavor…');
+  part(element, 'trigger').click();
+  await frame();
+  const search = part(element, 'search');
+  search.value = 'zzz';
+  search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await frame();
+  assert.match(part(element, 'empty').textContent, /Nothing scooped/);
+  element.remove();
+});
+
+test('creatable offers exactly the missing label; the create event is cancelable and shapes the option', async () => {
+  const element = await mount((el) => el.setAttribute('creatable', ''));
+  part(element, 'trigger').click();
+  await frame();
+  const search = part(element, 'search');
+  const type = async (text) => {
+    search.value = text;
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await frame();
+  };
+
+  await type('Alpha');
+  assert.equal(root(element).querySelector('[data-create]'), null, 'an existing label offers no create row');
+  await type('Mint');
+  const row = root(element).querySelector('[data-create]');
+  assert.match(row.textContent, /Create “Mint”/);
+
+  const created = [];
+  element.addEventListener('create', (event) => {
+    created.push(event.detail.label);
+    event.detail.option.value = 'mint-id'; // the host shapes the option
+  });
+  row.click();
+  await frame();
+  assert.deepEqual(created, ['Mint']);
+  assert.deepEqual(element.value.map((o) => o.value), ['mint-id'], 'the shaped option was picked');
+  assert.ok(element.options.some((o) => o.value === 'mint-id'), 'and joined the options');
+
+  /** A canceled create leaves everything untouched. */
+  part(element, 'trigger').click();
+  await frame();
+  await type('Fig');
+  element.addEventListener('create', (event) => event.preventDefault(), { once: true });
+  root(element).querySelector('[data-create]').click();
+  await frame();
+  assert.ok(!element.options.some((o) => o.label === 'Fig'), 'preventDefault claimed the creation');
+  element.remove();
+});
+
+test('remote mode: no client filtering, a debounced filter event, loading and overflow surfaces', async () => {
+  const element = await mount((el) => {
+    el.setAttribute('remote', '');
+    el.setAttribute('debounce', '10');
+    el.setAttribute('overflow-message', '40 more on the server');
+  });
+  const queries = [];
+  element.addEventListener('filter', (event) => queries.push(event.detail.query));
+
+  part(element, 'trigger').click();
+  await frame();
+  const search = part(element, 'search');
+  const type = (text) => {
+    search.value = text;
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  };
+  type('z');
+  type('zz');
+  type('zzz'); // three edits inside one debounce window
+  assert.equal(queries.length, 0, 'not yet — debounced');
+  await frame();
+  assert.equal(root(element).querySelectorAll('[part="option"]').length, 3, 'remote mode never client-filters');
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.deepEqual(queries, ['zzz'], 'three edits, one event, the last query');
+
+  assert.match(part(element, 'overflow').textContent, /40 more on the server/);
+  assert.equal(part(element, 'overflow').getAttribute('data-state'), 'visible');
+
+  element.options = [];
+  element.setAttribute('loading', '');
+  await frame();
+  assert.match(part(element, 'empty').textContent, /Loading…/);
+  element.remove();
+});
+
+test('without a search line the trigger drives the open menu: arrows, Home/End, Enter, activedescendant', async () => {
+  const element = await mount();
+  const trigger = part(element, 'trigger');
+  const key = (name) => {
+    trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: name, bubbles: true }));
+    return frame();
+  };
+  await key('ArrowDown'); // opens
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0');
+  await key('End');
+  /** Gamma (index 2) is last but disabled rows are only skipped by stepping; End is positional. */
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-2');
+  await key('Home');
+  await key('ArrowDown');
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1');
+  await key('Enter');
+  assert.deepEqual(element.value.map((o) => o.value), ['b']);
+  assert.equal(trigger.getAttribute('aria-activedescendant'), null, 'closed means no active descendant');
+  element.remove();
+});
+
 test('form reset empties the selection; the change event carries a copy, not the store', async () => {
   const element = await mount();
   element.value = [OPTIONS[0]];

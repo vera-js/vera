@@ -133,6 +133,9 @@ export const SELECT_STYLES = /* css */ `
     padding: 3px;
     list-style: none;
     overflow-y: auto;
+    /** Scroll stays inside the menu instead of chaining to the page — wp-omni's bounce-free
+     *  default. The opt-out is one rule: ::part(list) { overscroll-behavior: auto }. */
+    overscroll-behavior: contain;
   }
   :where([part='option']) {
     display: flex;
@@ -154,12 +157,25 @@ export const SELECT_STYLES = /* css */ `
     inline-size: 14px;
     color: var(--vera-accent, #7c3aed);
   }
+  :where([part='option'][data-create]) {
+    color: var(--vera-accent, #7c3aed);
+  }
   :where([part='empty']) {
     margin: 0;
     padding: 8px 10px;
     color: var(--vera-fg-muted, #71717a);
   }
   :where([part='empty'][data-state='hidden']) {
+    display: none;
+  }
+  :where([part='overflow']) {
+    margin: 0;
+    padding: 6px 10px;
+    border-block-start: 1px solid var(--vera-border, #d4d4d8);
+    color: var(--vera-fg-muted, #71717a);
+    font-size: 0.85em;
+  }
+  :where([part='overflow'][data-state='hidden']) {
     display: none;
   }
 `;
