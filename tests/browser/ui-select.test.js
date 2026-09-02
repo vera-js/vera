@@ -69,6 +69,17 @@ it('a --vera token themes through the boundary without touching a selector', asy
   element.remove();
 });
 
+it('an extreme radius token makes a pill trigger, never a lens menu — the cap holds', async () => {
+  const element = await mount();
+  await withStyle('vera-select { --vera-radius: 999px; }', async () => {
+    const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+    const menu = element.shadowRoot.querySelector('[part="menu"]');
+    expect(getComputedStyle(trigger).borderTopLeftRadius).to.equal('999px', 'the trigger honors the pill');
+    expect(getComputedStyle(menu).borderTopLeftRadius).to.equal('14px', 'the menu caps what it borrows');
+  });
+  element.remove();
+});
+
 it('light mode hoists a scoped sheet: styled inside the tag, inert outside it', async () => {
   const element = await mount((el) => el.setAttribute('light', ''));
   const trigger = element.querySelector('[part="trigger"]');

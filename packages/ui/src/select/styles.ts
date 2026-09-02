@@ -75,7 +75,12 @@ export const SELECT_STYLES = /* css */ `
     flex-direction: column;
     max-block-size: 260px;
     border: 1px solid var(--vera-border, #d4d4d8);
-    border-radius: var(--vera-radius, 6px);
+    /**
+     * Capped, deliberately, while the trigger takes the raw token: --vera-radius: 999px is a
+     * legitimate pill trigger, but on a box this tall the same value plus overflow:hidden turns
+     * the menu into a lens that clips its own rows. Found by the first demo page.
+     */
+    border-radius: min(var(--vera-radius, 6px), 14px);
     background: var(--vera-surface, #fff);
     box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
     overflow: hidden;
@@ -103,7 +108,7 @@ export const SELECT_STYLES = /* css */ `
     align-items: center;
     gap: 7px;
     padding: 6px 8px;
-    border-radius: calc(var(--vera-radius, 6px) - 2px);
+    border-radius: min(calc(var(--vera-radius, 6px) - 2px), 8px);
     cursor: pointer;
   }
   :where([part='option'][data-active]) {
