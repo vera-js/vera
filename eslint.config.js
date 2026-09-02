@@ -143,6 +143,8 @@ export default [
       '*.js',
       '*.mjs',
       'scripts/**/*.{js,mjs}',
+      // Per-package tooling (the ui manifest generator) — Node programs like the root scripts.
+      'packages/*/scripts/**/*.{js,mjs}',
       'bench/**/*.{js,mjs}',
       'tests/**/*.{js,mjs}',
       'packages/*/rollup.config.js',

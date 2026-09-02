@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/development/vera-ui.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "customElement": true,
+          "tagName": "vera-select",
+          "name": "VeraSelect",
+          "description": "A single/multi select. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated.",
+          "attributes": [
+            {
+              "name": "multi",
+              "description": "Picking toggles membership and the menu stays open."
+            },
+            {
+              "name": "placeholder",
+              "description": "Shown in the value area while nothing is selected."
+            },
+            {
+              "name": "light",
+              "description": "Render into the light DOM instead of a shadow root. Read at connect."
+            },
+            {
+              "name": "name",
+              "description": "The form field name — submitted via ElementInternals where supported."
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "options",
+              "type": {
+                "text": "SelectOption[]"
+              },
+              "description": "The choosable rows. `value` is identity."
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "type": {
+                "text": "SelectOption[]"
+              },
+              "description": "The selection — always an array, in both modes."
+            }
+          ],
+          "events": [
+            {
+              "name": "change",
+              "type": {
+                "text": "CustomEvent<{ value: SelectOption[] }>"
+              },
+              "description": "After every committed change. Bubbles and crosses the shadow boundary."
+            }
+          ],
+          "slots": [
+            {
+              "name": "trigger",
+              "description": "Replace the whole control. Wired with role, aria, data-state and handlers."
+            },
+            {
+              "name": "value",
+              "description": "Replace only the value area inside the default trigger; label text is kept in sync."
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "trigger",
+              "description": "The control button."
+            },
+            {
+              "name": "value",
+              "description": "The value area inside the trigger."
+            },
+            {
+              "name": "menu",
+              "description": "The dropdown container. Carries data-state."
+            },
+            {
+              "name": "search",
+              "description": "The filter input."
+            },
+            {
+              "name": "list",
+              "description": "The listbox."
+            },
+            {
+              "name": "option",
+              "description": "One row. Carries data-active and aria-selected."
+            },
+            {
+              "name": "empty",
+              "description": "The no-matches message."
+            }
+          ],
+          "cssProperties": [
+            {
+              "name": "--vera-surface"
+            },
+            {
+              "name": "--vera-border"
+            },
+            {
+              "name": "--vera-fg"
+            },
+            {
+              "name": "--vera-fg-muted"
+            },
+            {
+              "name": "--vera-accent"
+            },
+            {
+              "name": "--vera-radius"
+            },
+            {
+              "name": "--vera-focus"
+            }
+          ],
+          "vera-states": [
+            {
+              "on": "menu",
+              "attribute": "data-state",
+              "values": [
+                "open",
+                "closed"
+              ]
+            },
+            {
+              "on": "trigger",
+              "attribute": "data-state",
+              "values": [
+                "open",
+                "closed"
+              ]
+            },
+            {
+              "on": "option",
+              "attribute": "data-active",
+              "values": [
+                "(present while the row is the keyboard-active one)"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

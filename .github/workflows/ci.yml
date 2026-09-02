@@ -57,6 +57,9 @@ jobs:
       # was missing until 2026-08-26 and the fixture had drifted: 35 browser files were asserting
       # against markup no server emitted, green the whole time.
       - run: node scripts/build-kitchen-fixture.mjs --check
+      # @verajs/ui's surface contract: custom-elements.json must match the declared surfaces, so a
+      # component API change without its manifest diff refuses here rather than reaching a user.
+      - run: node packages/ui/scripts/generate-manifest.mjs --check
       # Twice, against different programs. dist/development keeps workspace deps external and
       # keeps __DEV__ code; dist/*.min.js mangles properties, drops console.log, eliminates dead
       # branches and inlines workspace deps. A pass against one says nothing about the other.

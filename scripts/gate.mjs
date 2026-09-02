@@ -48,6 +48,13 @@ const steps = [
    * prevent.
    */
   ['kitchen fixture', 'node', ['scripts/build-kitchen-fixture.mjs', '--check']],
+  /**
+   * @verajs/ui's surface contract: custom-elements.json must match the declared surfaces
+   * (`src/x/surface.ts`) — a component API change without its manifest diff refuses here, which
+   * is what makes the manifest a gate rather than a promise. The runtime half (rendered DOM
+   * matches the declaration) lives in tests/ui-surface.test.mjs.
+   */
+  ['ui manifest', 'node', ['packages/ui/scripts/generate-manifest.mjs', '--check']],
   ['node (development)', 'npm', ['test']],
   ['node (production)', 'npm', ['run', 'test:prod']],
   /**

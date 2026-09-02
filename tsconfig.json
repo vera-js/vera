@@ -42,6 +42,15 @@
       "@verajs/motion": [
         "./packages/motion/src/index.ts"
       ],
+      "@verajs/hooks": [
+        "./packages/hooks/src/index.ts"
+      ],
+      "@verajs/ui": [
+        "./packages/ui/src/index.ts"
+      ],
+      "@verajs/ui/elements": [
+        "./packages/ui/src/elements.ts"
+      ],
       "@verajs/renderer": [
         "./packages/renderer/src/index.ts"
       ],

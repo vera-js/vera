@@ -43,6 +43,10 @@ const PACKAGES = {
   /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
   '@verajs/jsx': 'jsx',
   /** Unpublished (`private: true`) like motion below, and held to the same bar for the same reason. */
+  /** Unpublished (`private: true`) like cms and motion, and held to the same bar. */
+  '@verajs/hooks': 'hooks',
+  '@verajs/ui': 'ui',
+  '@verajs/ui/elements': 'ui/elements',
   '@verajs/cms/content': 'cms/content',
   '@verajs/cms/publish': 'cms/publish',
   /**
