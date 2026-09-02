@@ -1,0 +1,22 @@
+<!--
+  Input for the migration check in `check-examples.js`. Old attributes only —
+  it is deliberately not a `data-vera-motion` page, so the fixture sweeps that
+  read `spikes/`, the demo and the lab never see it.
+
+  Covers what the emitter has to get right: a start/end pair with a unit, a
+  midpoint with its own percentage, a negative position, a band suffix, a
+  per-category setting, and a plain setting.
+-->
+<div data-oxyani-animate
+     data-oxyani-animate-transform-translate-y-start="0"
+     data-oxyani-animate-transform-translate-y-mid1="20"
+     data-oxyani-animate-transform-translate-y-mid1-per="0.4"
+     data-oxyani-animate-transform-translate-y-end="40"
+     data-oxyani-animate-transform-translate-y-unit="px"
+     data-oxyani-animate-transform-rotate-start="0"
+     data-oxyani-animate-transform-rotate-end="90"
+     data-oxyani-animate-transform-rotate-unit="deg"
+     data-oxyani-animate-filter-opacity-start="0"
+     data-oxyani-animate-filter-opacity-end="1"
+     data-oxyani-animate-transform-speed="0.2"
+     data-oxyani-animate-run-once="true"></div>

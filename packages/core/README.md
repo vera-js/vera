@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->2.98 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->2.99 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -185,7 +185,7 @@ holding its value at the start and at the end.
 | `css` | for `static styles`, with `@verajs/styles` |
 | `mount()` | commit the setup for a component that draws nothing |
 | `useRender(template, element, ...args)` | the lower-level half of `render`, for driving a render outside the setup window |
-| `wire(renderer)` | choose what writes to the DOM |
+| `wire([renderer])` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
 

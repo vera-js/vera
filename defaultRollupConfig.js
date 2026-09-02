@@ -159,7 +159,14 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
              */
             preserve_annotations: true,
           },
-          mangle: manglePropsRegex ? { properties: { regex: manglePropsRegex } } : {},
+          /**
+           * `keep_quoted` because a quoted access and a dynamic write can name the same
+           * property: motion's `settings['when']` is read with a literal string while
+           * parse *writes* the key from a table (`settings[key] = …`), which no minifier
+           * can rename. Leaving quoted names alone keeps the two spellings agreeing;
+           * an underscore-prefixed contract name is never quoted, so core loses nothing.
+           */
+          mangle: manglePropsRegex ? { properties: { regex: manglePropsRegex, keep_quoted: true } } : {},
           compress: {
             /**
              * Only `log`. `console.error`/`warn` are how the library reports real failures to a

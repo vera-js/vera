@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false,
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "@verajs/motion": ["../../dist/development/vera-motion.d.ts"],
+      "@verajs/motion/scroll-to": ["../../dist/development/vera-motion-scroll-to.d.ts"],
+      "@verajs/motion/paint": ["../../dist/development/vera-motion-paint.d.ts"],
+      "@verajs/motion/easings": ["../../dist/development/vera-motion-easings.d.ts"],
+      "@verajs/motion/sequence": ["../../dist/development/vera-motion-sequence.d.ts"],
+      "@verajs/motion/split": ["../../dist/development/vera-motion-split.d.ts"]
+    }
+  },
+  "include": ["consumer.ts"]
+}

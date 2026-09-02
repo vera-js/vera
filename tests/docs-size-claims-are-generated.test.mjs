@@ -21,8 +21,17 @@ import { readFileSync, globSync } from 'node:fs';
 
 const root = new URL('..', import.meta.url).pathname;
 
-/** What this repo publishes, and therefore what a reader will act on. */
-const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { cwd: root }), ...globSync('packages/*/README.md', { cwd: root })];
+/**
+ * What this repo publishes, and therefore what a reader will act on.
+ *
+ * `packages/motion/README.md` is excluded because its figures answer to a *different generator with
+ * the same guarantee*: motion's audit rule 7 checks every KB figure in that README against the
+ * gzipped built artifact and fails `npm run check -w @verajs/motion` (in the gate and CI) on any
+ * drift. Folding its claims into `sync-size-claims` instead is on the publish-conformance
+ * checklist; until then the exclusion trades one checked mechanism for another, not for prose.
+ */
+const PUBLISHED = ['README.md', 'llms.txt', ...globSync('docs/features/*.md', { cwd: root }), ...globSync('packages/*/README.md', { cwd: root })]
+  .filter((file) => file !== 'packages/motion/README.md');
 
 /**
  * Figures that are **deltas**, not module sizes, so no bundle can generate them. Each is the cost of

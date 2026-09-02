@@ -1,0 +1,280 @@
+<!doctype html>
+<!--
+  check-examples: expect-rejected
+
+  This page demonstrates two things by doing them, and both look like defects to
+  a static check.
+
+  1. `#broken` carries a misspelt attribute, a colour the engine refuses, a band
+     name nothing registered and a `stagger` with no animated descendants — and
+     prints what `instance.rejected` says about them. The refusals are the
+     subject.
+  2. `hue` and `tracking` are invented at runtime through `wireMotion`, so they
+     are not in any static registry and cannot be.
+
+  What the page claims is therefore checked by running it:
+  `spikes/preview-page.mjs`, in three engines.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>@verajs/motion — what's new</title>
+<style>
+  :root {
+    --ink: #12131a; --dim: #6a6d80; --line: #e4e5ec; --bg: #fbfbfd; --accent: #3b4cca;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #eceef6; --dim: #9a9db2; --line: #2a2c38; --bg: #0e0f14; --accent: #8b96ff; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { max-width: 62rem; margin: 0 auto; padding: 5rem 1.5rem 2rem; }
+  h1 { font-size: clamp(1.9rem, 4vw, 2.8rem); margin: 0 0 .5rem; letter-spacing: -0.02em; }
+  header p { color: var(--dim); max-width: 42rem; margin: 0; }
+  .hint { margin-top: 1.5rem; font-size: .85rem; color: var(--dim); }
+  section { max-width: 62rem; margin: 0 auto; padding: 5rem 1.5rem; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.15rem; margin: 0 0 .4rem; letter-spacing: -0.01em; }
+  h2 code { font-size: .95em; }
+  .lede { color: var(--dim); margin: 0 0 2rem; max-width: 46rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
+  pre {
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: .85rem 1rem; overflow-x: auto; margin: 1.5rem 0 0; font-size: .82rem;
+  }
+  .stage { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; min-height: 190px; }
+  .tile {
+    width: 130px; height: 130px; border-radius: 14px;
+    background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 40%, #f0f));
+    display: grid; place-items: center; color: #fff; font-size: .72rem; font-weight: 600;
+    letter-spacing: .04em;
+  }
+  .label { color: var(--dim); font-size: .72rem; margin-top: .5rem; letter-spacing: .04em; }
+  .swatch { width: 150px; height: 150px; border-radius: 16px; border: 1px solid var(--line); }
+  .card {
+    width: 210px; padding: 1.1rem; border-radius: 14px; border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+  }
+  .card h3 { margin: 0 0 .3rem; font-size: .95rem; }
+  .card p { margin: 0; color: var(--dim); font-size: .82rem; }
+  .tail { height: 22vh; }
+  footer { max-width: 62rem; margin: 0 auto; padding: 3rem 1.5rem 8rem; color: var(--dim); font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>What's new</h1>
+  <p>
+    Everything below is driven by <code>data-vera-motion-*</code> attributes and scroll position.
+    Nothing on this page interpolates a colour in JavaScript — the paint module writes a value at each
+    keyframe and CSS transitions carry it.
+  </p>
+  <p class="hint">Scroll.</p>
+</header>
+
+<!-- ─────────────────────────────────────────────── scale axes ── -->
+<section>
+  <h2><code>scale-x</code> and <code>scale-y</code></h2>
+  <p class="lede">
+    <code>scale</code> was the only transform without axis variants, so scaling one axis was
+    impossible. Two schema rows, 18 bytes.
+  </p>
+  <div class="stage">
+    <div>
+      <div class="tile" data-vera-motion data-vera-motion-scale-x="0% 0.15, 100% 1">scale-x</div>
+      <div class="label">wipes open horizontally</div>
+    </div>
+    <div>
+      <div class="tile" data-vera-motion data-vera-motion-scale-y="0% 0.15, 100% 1">scale-y</div>
+      <div class="label">grows vertically</div>
+    </div>
+    <div>
+      <div class="tile" data-vera-motion data-vera-motion-scale="0% 0.4, 100% 1"
+           data-vera-motion-scale-x="0% 1, 100% 1.35">both</div>
+      <div class="label">composes in schema order</div>
+    </div>
+  </div>
+<pre>&lt;div data-vera-motion data-vera-motion-scale-x="0% 0.15, 100% 1"&gt;&lt;/div&gt;</pre>
+</section>
+
+<!-- ──────────────────────────────────────────── radius shorthand ── -->
+<section>
+  <h2><code>radius</code>, and one corner overriding it</h2>
+  <p class="lede">
+    Animating all four corners used to mean four identical attributes. <code>radius</code> is
+    declared before the individual corners, so a specific corner wins — the way round CSS itself
+    works.
+  </p>
+  <div class="stage">
+    <div>
+      <div class="tile" data-vera-motion data-vera-motion-radius="0% 65px, 100% 8px">radius</div>
+      <div class="label">all four at once</div>
+    </div>
+    <div>
+      <div class="tile" data-vera-motion
+           data-vera-motion-radius="0% 65px, 100% 8px"
+           data-vera-motion-radius-top-left="0% 65px, 100% 65px">override</div>
+      <div class="label">top-left holds, the rest tighten</div>
+    </div>
+  </div>
+<pre>&lt;div data-vera-motion
+     data-vera-motion-radius="0% 65px, 100% 8px"
+     data-vera-motion-radius-top-left="0% 65px, 100% 65px"&gt;&lt;/div&gt;</pre>
+</section>
+
+<!-- ──────────────────────────────────────────────── paint module ── -->
+<section>
+  <h2><code>@verajs/motion/paint</code> — 621 bytes, opt-in</h2>
+  <p class="lede">
+    A property module carrying its own validator and its own write path. The runtime never learns what
+    a colour is. Values are not interpolated: each one gets a slot, the curve steps between slots,
+    and the CSS transition <code>inertia</code> already builds does the animating.
+  </p>
+  <div class="stage">
+    <div>
+      <div class="swatch" data-vera-motion data-vera-motion-inertia="0.5"
+           data-vera-motion-background="0% linear-gradient(140deg, #ff5f6d, #ffc371), 60% #4facfe, 100% #43e97b"></div>
+      <div class="label">gradient → colour → colour</div>
+    </div>
+    <div>
+      <div class="swatch" style="background: #fff" data-vera-motion data-vera-motion-inertia="0.5"
+           data-vera-motion-shadow="0% 0 0 0 rgb(0 0 0 / 0), 100% 0 22px 45px rgb(0 0 0 / 0.35)"></div>
+      <div class="label">box-shadow lifting</div>
+    </div>
+    <div class="card" data-vera-motion data-vera-motion-inertia="0.5"
+         data-vera-motion-color="0% #b9bcd0, 100% #12131a"
+         data-vera-motion-border-color="0% #e4e5ec, 100% #3b4cca">
+      <h3>colour + border-colour</h3>
+      <p>Two packed properties on one element, both stepping under a transition.</p>
+    </div>
+  </div>
+<pre>import { createMotion, wireMotion } from '@verajs/motion';
+import { paint } from '@verajs/motion/paint';
+
+wireMotion(paint);
+
+&lt;div data-vera-motion data-vera-motion-inertia="0.5"
+     data-vera-motion-background="0% linear-gradient(140deg, #ff5f6d, #ffc371), 100% #43e97b"&gt;&lt;/div&gt;</pre>
+</section>
+
+<!-- ────────────────────────────────────────── third-party module ── -->
+<section>
+  <h2><code>wireMotion()</code> — a property nobody shipped</h2>
+  <p class="lede">
+    Defined in this page's own script, not in the library. A module is a plain object; the apply path
+    was already generic over <code>cssFunction</code> and <code>cssProperty</code>, so a wired
+    property needs no changes anywhere.
+  </p>
+  <div class="stage">
+    <div>
+      <div class="tile" data-vera-motion data-vera-motion-hue="0% 0deg, 100% 300deg">hue</div>
+      <div class="label">a filter function, wired at runtime</div>
+    </div>
+    <div>
+      <div class="card" data-vera-motion data-vera-motion-tracking="0% 0px, 100% 6px">
+        <h3>letter&nbsp;spacing</h3>
+        <p>A plain cssProperty, wired the same way.</p>
+      </div>
+      <div class="label">composes with bands and keyframes like any built-in</div>
+    </div>
+  </div>
+<pre>wireMotion([
+  { attribute: 'hue', category: 'filter', cssFunction: 'hue-rotate',
+    defaultUnit: 'deg', units: ['deg'], initial: 0 },
+  { attribute: 'tracking', category: 'text', cssProperty: 'letter-spacing',
+    defaultUnit: 'px', units: ['px','rem','em'], initial: 0 },
+]);</pre>
+</section>
+
+<!-- ─────────────────────────────────────────────── grammar ── -->
+<section>
+  <h2>The grammar holds a CSS value now</h2>
+  <p class="lede">
+    Keyframes split on commas at paren depth zero, and position splits from value at the
+    <em>first</em> whitespace. Before that, any value containing a space or a comma was refused
+    before a parser saw it — which is every gradient and every shadow.
+  </p>
+  <div class="stage">
+    <div>
+      <div class="swatch" style="background:#fff" data-vera-motion data-vera-motion-inertia="0.45"
+           data-vera-motion-shadow="0% 0 1px 2px rgb(0 0 0 / 0.08), 50% 0 12px 24px rgb(59 76 202 / 0.35), 100% 0 3px 6px rgb(0 0 0 / 0.15)"></div>
+      <div class="label">three keyframes, each with spaces and commas inside</div>
+    </div>
+  </div>
+<pre>data-vera-motion-shadow="0% 0 1px 2px rgb(0 0 0 / 0.08),
+                         50% 0 12px 24px rgb(59 76 202 / 0.35),
+                         100% 0 3px 6px rgb(0 0 0 / 0.15)"</pre>
+</section>
+
+<!-- ─────────────────────────────────────────── diagnostics ── -->
+<section>
+  <h2>Diagnostics</h2>
+  <p class="lede">
+    A misspelled attribute, an unknown breakpoint alias, a <code>stagger</code> on the wrong element,
+    and a value the engine refuses are all reported now — they used to vanish silently. Read live
+    from <code>instance.rejected</code>:
+  </p>
+  <div id="broken" data-vera-motion
+       data-vera-motion-opactiy="0% 0, 100% 1"
+       data-vera-motion-background="0% notacolour, 100% red"
+       data-vera-motion-translate-y-phone="0% 0px, 100% 10px"
+       data-vera-motion-stagger="10%"
+       data-vera-motion-opacity="0% 0.35, 100% 1"
+       style="display:none"></div>
+  <pre id="report">reading…</pre>
+</section>
+
+<footer>
+  Every number quoted here was measured, not estimated. <code>npm run build</code> prints the sizes;
+  <code>spikes/feature-cost.mjs</code> prints the per-feature weights.
+</footer>
+
+<div class="tail"></div>
+
+<script type="module">
+  import { createMotion, wireMotion } from '/src/index.ts';
+  import { paint } from '/src/paint.ts';
+  import { easings } from '/src/easings.ts';
+
+  /** A first-party module, and two properties this page invented. */
+  wireMotion([paint, easings]);
+  wireMotion([
+    { attribute: 'hue', category: 'filter', cssFunction: 'hue-rotate',
+      defaultUnit: 'deg', units: ['deg'], initial: 0 },
+    { attribute: 'tracking', category: 'text', cssProperty: 'letter-spacing',
+      defaultUnit: 'px', units: ['px', 'rem', 'em'], initial: 0 },
+  ]);
+
+  /**
+   * `ease` is deliberately wrong, so the report below shows a *configuration*
+   * refusal alongside the attribute ones. It falls back to the default, which
+   * is the whole point: the page still animates.
+   */
+  const motion = createMotion({ respectReducedMotion: true, inertia: 0.12, ease: 'not-an-easing' });
+  motion.init();
+
+  /** The diagnostics channel, shown rather than described. */
+  const report = document.getElementById('report');
+  /**
+   * `entry.node` is null for a problem with the *configuration* rather than
+   * with an element. This page read `entry.node.id` and would have thrown on
+   * the first refused option — it is the repository's own consumer of the
+   * shape, and the first one the widening broke.
+   */
+  const where = (node) => (node ? node.id || node.tagName.toLowerCase() : 'options');
+  const lines = motion.rejected.flatMap((entry) =>
+    entry.rejected.map((why) => `${where(entry.node)}  ${why}`)
+  );
+  report.textContent = lines.length
+    ? `instance.rejected — ${lines.length} refused\n\n${lines.join('\n')}`
+    : 'instance.rejected — nothing refused';
+
+  window.motion = motion;
+</script>
+</body>
+</html>

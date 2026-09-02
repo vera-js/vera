@@ -62,6 +62,11 @@ jobs:
       # branches and inlines workspace deps. A pass against one says nothing about the other.
       - run: npm test
       - run: npm run test:prod
+      # @verajs/motion carries its own gate (audit rules, generated-reference drift, a consumer
+      # compiled against built declarations, the built-artifact wiring check, doc examples through
+      # the real parser, and its suite under node --test + happy-dom). Its spike-fixture half
+      # skips itself visibly here: the harnesses live in the private portal.
+      - run: npm run check -w @verajs/motion
       # The browser-truth layer. jsdom has no adoptedStyleSheets, no CSSScopeRule, does not parse
       # declarative shadow DOM and runs no layout engine — so @verajs/styles and hydration had
       # never executed their real paths anywhere. These suites are the only place they do.

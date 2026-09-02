@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    /* `test/` is .js and included so the tests typecheck against the real source;
+       `checkJs` off is what keeps that from being noise. */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Stricter than the shared base, kept from the pre-migration config on purpose: these flags
+       found real dead code — `noUnusedLocals` removed a 48-line deferred-observe leftover the
+       mutation runner had been reporting as untested behaviour, a parameter `parseSettings` took
+       and ignored, and three unread imports. New packages do not have to adopt them; this one
+       already paid for them. */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true
+  },
+  "include": ["src", "test"],
+  /* The demo bootstrap (`demo.ts`, `lab.ts`) imports @verajs/core, which would pull core's whole
+     source into this project and hold it to the stricter flags above — flags core was never
+     written under. The root sweep typechecks both files with the shared settings instead. */
+
+  /* `test/types` is a *consumer* fixture: it imports "@verajs/motion" by its public name and is
+     checked against the built declarations by `npm run check:types`, with its own tsconfig. */
+  "exclude": ["node_modules", "dist", "test/types", "src/demo.ts", "src/lab.ts"]
+}

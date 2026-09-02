@@ -1,0 +1,256 @@
+/* Demo page only — not part of the library. */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --bg: #0c0c0f;
+  --panel: #16161b;
+  --line: #26262f;
+  --ink: #f4f4f6;
+  --dim: #8b8b98;
+  --accent: #7fd6a3;
+  --accent2: #6ea8fe;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html { scroll-behavior: auto; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- nav -- */
+
+header.nav {
+  position: fixed; inset: 0 auto auto 0; z-index: 900;
+  display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 18px;
+  /* Solid enough that section text never bleeds through the links mid-scroll. */
+  background: rgba(12,12,15,.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(38,38,47,.6);
+  width: 100%;
+}
+/* One scrollable row on a phone — four wrapped rows of fixed nav is a wall. */
+@media (max-width: 700px) {
+  header.nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  header.nav::-webkit-scrollbar { display: none; }
+  header.nav a { flex: 0 0 auto; }
+}
+header.nav a {
+  color: var(--dim); text-decoration: none;
+  font: 12px/1 var(--mono); letter-spacing: .04em;
+  padding: 7px 11px; border-radius: 6px; transition: color .2s, background .2s;
+}
+header.nav a:hover { color: var(--ink); }
+header.nav a.active { color: var(--accent); background: rgba(127,214,163,.1); }
+
+/* -------------------------------------------------------------- layout -- */
+
+section { padding: 0 24px; max-width: 960px; margin: 0 auto; }
+.hero { min-height: 100vh; display: grid; place-content: center; text-align: center; }
+.hero h1 { font-size: clamp(40px, 8vw, 88px); line-height: 1.05; margin: 0 0 18px; letter-spacing: -.03em; }
+.hero p { color: var(--dim); font-size: 19px; max-width: 46ch; margin: 0 auto; }
+.hero .cue { margin-top: 48px; color: var(--dim); font: 12px/1 var(--mono); letter-spacing: .18em; }
+
+.band { min-height: 68vh; padding-top: 15vh; padding-bottom: 9vh; }
+.band > h2 { font-size: clamp(26px, 3.6vw, 40px); margin: 0 0 8px; letter-spacing: -.02em; }
+.band > .lede { color: var(--dim); max-width: 62ch; margin: 0 0 44px; }
+
+code, .attr {
+  font: 12.5px/1.7 var(--mono); color: var(--accent);
+  background: rgba(127,214,163,.08); padding: 2px 6px; border-radius: 4px;
+}
+pre.attr {
+  display: block; padding: 14px 16px; margin: 0; white-space: pre-wrap;
+  background: #101015; border: 1px solid var(--line); border-radius: 8px; color: var(--dim);
+}
+pre.attr b { color: var(--accent); font-weight: 400; }
+
+/* --------------------------------------------------------------- cards -- */
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 26px 22px; min-height: 165px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.card .name { font: 12px/1 var(--mono); color: var(--accent); margin-bottom: 8px; }
+.card .desc { color: var(--dim); font-size: 14px; }
+
+.showcase {
+  display: grid; grid-template-columns: 340px 1fr; gap: 56px; align-items: center;
+}
+.showcase.reverse { grid-template-columns: 1fr 340px; }
+@media (max-width: 860px) {
+  .showcase, .showcase.reverse { grid-template-columns: 1fr; }
+}
+
+/* Capped so a mid-flight translate stays inside its column instead of
+   colliding with the copy beside it. */
+.plate {
+  aspect-ratio: 4 / 5; max-width: 330px; width: 100%;
+  border-radius: 14px; overflow: hidden;
+  background: #1a1a20; border: 1px solid var(--line);
+}
+.showcase > .plate { justify-self: center; }
+.plate img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Deliberately unsized images — see the "late layout" section. Giving these
+   dimensions would defeat the point, so the runtime's re-measure is what keeps
+   them correct. */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 26px; }
+.tiles .tile { height: 150px; border-radius: 14px; background: linear-gradient(160deg, var(--accent), #1b1b1f); }
+@media (max-width: 760px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+h3.sub { font: 13px/1.4 var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 14px; }
+.reflow-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+@media (max-width: 760px) { .reflow-grid { grid-template-columns: 1fr; } }
+.loose { border-radius: 12px; overflow: hidden; background: #1a1a20; border: 1px solid var(--line); }
+.loose img { width: 100%; display: block; }
+
+/* -------------------------------------------------------------- when -- */
+
+.trigger-stage { margin-top: 8px }
+.trigger-btn {
+  font: 13px/1 var(--mono); padding: 10px 18px; border-radius: 8px; cursor: pointer;
+  border: 1px solid #3a3a46; background: #22222a; color: var(--ink); margin-bottom: 20px;
+}
+.trigger-btn:hover { background: #2c2c36 }
+.trigger-btn code { background: none; padding: 0 }
+.trigger-panel {
+  max-width: 620px; padding: 28px 30px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+}
+.trigger-panel strong { color: var(--ink); display: block; margin-bottom: 6px }
+
+/* ------------------------------------------------------------ sequence -- */
+
+.sequence {
+  display: block; width: 100%; max-width: 480px; height: auto;
+  border-radius: 12px; border: 1px solid var(--line); background: #14141a;
+}
+
+/* ---------------------------------------------------------------- path -- */
+
+/* The SVG is drawn at exactly its viewBox size, not scaled to the container.
+   offset-path consumes raw path coordinates as CSS pixels, so a scaled SVG
+   would draw one curve while the element travelled along a differently-sized
+   one. Match them, or scale the path data to suit. */
+.path-stage { position: relative; margin-top: 8px; width: 600px; height: 260px; max-width: 100%; }
+.path-guide { width: 600px; height: 260px; display: block; overflow: visible; }
+.path-guide path { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 5 7; }
+/* offset-path positions from the element's containing block, so the traveller
+   is absolutely placed over the same box the svg occupies. */
+.traveller {
+  position: absolute; inset: 0 auto auto 0;
+  width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  border-radius: 7px; background: var(--accent);
+  box-shadow: 0 0 22px rgba(127,214,163,.45);
+}
+
+/* ----------------------------------------------------------------- pin -- */
+
+.pin-track { min-height: 210vh; position: relative; }
+/* grows downward from the pin point rather than expanding past it */
+.pin-card {
+  transform-origin: center top;
+  height: 62vh; border-radius: 16px; overflow: hidden;
+  background: #1a1a20; border: 1px solid var(--line);
+  display: grid; place-content: center; text-align: center;
+}
+.pin-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .5; }
+.pin-card .label { position: relative; font: 13px/1.6 var(--mono); color: var(--ink); }
+
+/*
+  The trailing space is load-bearing, not decoration. An animation reaches its
+  last keyframe only when the element has travelled that far through the scroll
+  window, so the last elements on a page need room after them or they stop part
+  way — which the library reports in `rejected`, and which this page shipped
+  for the card in the Vera component below.
+*/
+footer {
+  padding: 12vh 24px 8vh; text-align: center; color: var(--dim);
+  font: 12px/1.8 var(--mono); border-top: 1px solid var(--line); margin-top: 34vh;
+}
+
+/* ---------------------------------------------------------------- ease -- */
+
+.ease-lanes { display: grid; gap: 18px; }
+.ease-lane {
+  position: relative; height: 74px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.ease-lane .tag {
+  /* Top corner, out of the dot's lane — the overshoot bezier deliberately
+     travels past 100% and was landing on its own label. */
+  position: absolute; top: 8px; right: 12px;
+  font: 11px/1 var(--mono); color: var(--dim);
+}
+.ease-dot {
+  position: absolute; top: 50%; left: 18px; margin-top: -17px;
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--accent2); box-shadow: 0 0 18px rgba(110,168,254,.35);
+}
+.ease-lane.green .ease-dot { background: var(--accent); box-shadow: 0 0 18px rgba(127,214,163,.35); }
+
+/* --------------------------------------------------------------- split -- */
+
+.split-display {
+  font-size: clamp(30px, 4.6vw, 54px); line-height: 1.18; letter-spacing: -.02em;
+  font-weight: 700; max-width: 21ch; margin: 0 0 30px;
+}
+
+/* --------------------------------------------------------------- paint -- */
+
+.paint-card {
+  max-width: 620px; padding: 40px 36px; border-radius: 16px;
+  border: 1px solid var(--line);
+  font-size: 18px; line-height: 1.6;
+}
+.paint-card strong { display: block; font-size: 24px; margin-bottom: 8px; letter-spacing: -.02em; }
+
+/**
+ * The morph card's three animated numbers. Registered so they are *typed*:
+ * an unregistered custom property transitions discretely (a flip at the
+ * midpoint), and the inertia transition the runtime sets would fight every
+ * frame's write. Typed, the engine interpolates them exactly as it does a
+ * transform — the damped follow works on a hue.
+ */
+@property --gradient-h { syntax: '<number>'; inherits: false; initial-value: 155; }
+@property --gradient-x { syntax: '<percentage>'; inherits: false; initial-value: 25%; }
+@property --gradient-y { syntax: '<percentage>'; inherits: false; initial-value: 30%; }
+
+.morph-card {
+  max-width: 620px; padding: 40px 36px; border-radius: 16px;
+  border: 1px solid var(--line);
+  font-size: 18px; line-height: 1.6;
+  /** One declaration; the runtime only ever writes the three numbers it reads. */
+  background:
+    radial-gradient(circle at var(--gradient-x) var(--gradient-y),
+      oklch(0.42 0.075 var(--gradient-h)),
+      oklch(0.22 0.03 var(--gradient-h)) 78%);
+}
+.morph-card strong { display: block; font-size: 24px; margin-bottom: 8px; letter-spacing: -.02em; }
+
+/**
+ * The class-toggle card. Everything here transitions, so the module only has
+ * to add and remove `is-lit` — the smoothing is the page's, which is the whole
+ * argument for driving a class rather than a value.
+ */
+.lit-card {
+  max-width: 620px; padding: 40px 36px; border-radius: 16px;
+  border: 1px solid var(--line);
+  font-size: 18px; line-height: 1.6;
+  background: #17171b; color: #9a9aa4;
+  transition: background .45s ease, color .45s ease, border-color .45s ease,
+              box-shadow .45s ease, transform .45s ease;
+}
+.lit-card strong { display: block; font-size: 24px; margin-bottom: 8px; letter-spacing: -.02em; }
+.lit-card.is-lit {
+  background: #10231a; color: #dff3e6; border-color: #2f6b4a;
+  box-shadow: 0 18px 48px rgba(64, 180, 120, .18);
+  transform: translateY(-4px);
+}

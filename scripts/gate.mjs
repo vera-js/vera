@@ -50,6 +50,13 @@ const steps = [
   ['kitchen fixture', 'node', ['scripts/build-kitchen-fixture.mjs', '--check']],
   ['node (development)', 'npm', ['test']],
   ['node (production)', 'npm', ['run', 'test:prod']],
+  /**
+   * @verajs/motion's own gate — audit rules, reference drift, built-declaration consumer, the
+   * built-artifact wiring check, doc examples through the real parser, and its suite under
+   * node --test. The package migrated in with its gate intact (2026-09-01); running it here
+   * is what makes the migration's "nothing weakened" claim a checked one.
+   */
+  ['motion check', 'npm', ['run', 'check', '-w', '@verajs/motion']],
   ['browser × 3', 'npm', ['run', 'test:browser:all']],
 ];
 

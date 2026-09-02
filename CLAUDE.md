@@ -141,6 +141,16 @@ rest of this file.
   invalidates the current approach gets surfaced immediately, not at the end.
 - **Never assume abandoned code is dead.** See `docs/CODE-PRINCIPLES.md` #3. Audit, report what it was
   for, and let Brian decide.
+- **The API verb grammar, decided 2026-09-01 — new APIs follow it rather than reopening it.**
+  `init(element, …)` binds setup to an element's lifecycle (core's `init`, router's `initRouter`);
+  `create*(options)` is a standalone factory returning an instance the caller owns (`createStore`,
+  motion's `createMotion`/`createScrollTo`); `wire(…)` registers modules into a registry —
+  qualified when the registry is not core's (`wireMotion`), and that parallel is deliberate:
+  the same idea carries the same verb. Recipes and prose write the array form, `wire([renderer])`,
+  even for one module — `wire` accepts a bare descriptor too, but the docs teach one shape.
+- **`vera.min.js` is the one bundle not named after its package** (`vera-core.min.js` would be
+  symmetric) — deliberate: core is the framework's namesake and that filename is the product's
+  front door on a CDN page. Every other package's `filename` matches `vera-<name>`.
 - **Every `console.warn`/`console.error` the framework prints starts `[vera]`**, so a user can find
   all of them with one filter. A thrown `Error` may name its function instead — a stack already names
   the source — but a message the framework also prints carries the prefix.
@@ -302,6 +312,7 @@ became primary. Read-only, never cloned into this tree, never pushed to again.
 ```
 packages/          published framework modules; each independent
   ssr/             Node-only, plain ESM, NOT run through defaultRollupConfig
+  motion/          scroll animation as attributes; private until its audits land — see below
 examples/          hand-run playgrounds, one per consumption mode
 tests/             self-running; never requires a human to look at a page
 bench/             performance harness; `--compare` gives before/after numbers
@@ -314,6 +325,41 @@ internal/          private portal — strategy, todos, audits, archive. Gitignor
 
 **examples vs tests:** examples are for experimenting by hand. Tests run themselves. Neither
 substitutes for the other.
+
+### `packages/motion`
+
+Migrated 2026-09-01 as a **snapshot** (deliberately no history — the pre-fix audits, security
+findings included, are baked through the source repo's history). Its operational lore, audits,
+roadmap and design docs live in the private portal, and the migration record — source repo, exact
+commit, what went where, open decisions — is the place to start reading before touching anything
+here. **`private: true` is load-bearing twice**: release CI publishes whatever master has that npm
+does not, and a first publish cannot use Trusted Publishing; it stays private until the pending
+audits and the publish-conformance checklist (portal TODO) are done.
+
+What is different about this package, all deliberate:
+
+- **It keeps its own gate** — `npm run check -w @verajs/motion`: a many-rule audit script,
+  generated-reference drift, a strict consumer against built declarations, doc examples through the
+  real parser, a built-artifact wiring check, and its suite. Root `gate`/CI run it; root `npm test`
+  does not include it.
+- **Tests run against `src` under `node --test` + happy-dom** (not jsdom, not dist — the suite
+  reaches package internals and was written against happy-dom's answers; `test/setup.mjs` aliases
+  `@verajs/motion` to `src/lib.ts`, or a test would hold two copies of the rejections registry).
+  Assertions and test doubles come from `test/expect.mjs` / `test/harness.mjs` — one reviewed
+  implementation instead of thousands of transcribed call sites, ported off Vitest at migration.
+- **Mutation testing is its suite-of-the-suite** — `npm run mutate -- --group <concern>` plants
+  deliberate bugs in a throwaway monorepo worktree and fails on any the suite misses. Run the group
+  your change touches. Never run the whole table casually; it is hours.
+- **`@verajs/motion` stays external in every module bundle** (`paint`, `sequence`, `split`,
+  `vera`) — same reason reactivity keeps core external: the rejections registry is module-level
+  state, and a bundled copy is a private one nobody reads. `scripts/check-wiring.js` is the only
+  check that can see this; it runs the built artifacts.
+- **The measurement harnesses (`spikes/`) live in the private portal** and reach this tree through
+  a gitignored symlink — they are the audits' instruments, one is a security probe. Public checks
+  that read them skip visibly when the portal is not cloned.
+- **The demo (`src/index.ts`, `index.html`) is built with Vera itself** — it is the integration
+  test for animation inside shadow roots and across re-renders, and it is excluded from the
+  library build and from motion's own tsconfig (it may import core; the library must not).
 
 **The repo root is for configuration only** — no source, no bundles, no experiments. `CLAUDE.md` sits
 at the root because Claude Code auto-discovers it there; that is a technical requirement, not a

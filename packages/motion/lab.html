@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>inertia lab</title>
+    <style>
+      *,*::before,*::after { box-sizing:border-box }
+      body { margin:0; background:#0c0c0f; color:#f4f4f6;
+             font:14px/1.5 system-ui,-apple-system,sans-serif }
+
+      #panel {
+        position:fixed; top:0; left:0; right:0; z-index:999;
+        display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+        padding:11px 18px; background:rgba(14,14,18,.96);
+        border-bottom:1px solid #26262f; backdrop-filter:blur(8px);
+        font:12px/1 ui-monospace,Menlo,monospace;
+      }
+      #panel button, #panel select {
+        font:inherit; padding:7px 13px; border-radius:6px; cursor:pointer;
+        border:1px solid #4a4a55; background:#2a2a32; color:#f4f4f6;
+      }
+      #panel button:hover { background:#35353f }
+      #panel button.on { background:#2f6b45; border-color:#3f8a5a }
+      #panel .sp { color:#8b8b98 }
+      #panel input[type=range] { width:140px; vertical-align:middle }
+
+      /* The stage stays put while the page scrolls, so the markers travel
+         across it rather than up it. */
+      .stage { position:sticky; top:46px; z-index:2;
+               padding:26px 0 30px; background:#0c0c0f;
+               border-bottom:1px solid #1e1e26 }
+
+      /* Every track is absolutely positioned at the same top and separated
+         with a transform. That used to make the separation paint-only, so all
+         the markers shared one timeline; it no longer does — the runtime
+         measures an element where it is *drawn*, so the transform moves the
+         timeline with it. The offset is cancelled in each row's keyframe
+         positions instead; see `src/lab.ts`. Stacking them normally staggered
+         the timelines by ~330px and that stagger looked exactly like damping,
+         which is the confound both arrangements exist to avoid. */
+      #tracks { position:relative; height:410px }
+      .track { position:absolute; inset:0 0 auto 0; height:78px }
+      .track .label {
+        position:absolute; left:14px; top:50%; transform:translateY(-50%);
+        font:11px/1.35 ui-monospace,Menlo,monospace; color:#6d6d7a;
+        width:74px; text-align:right; z-index:3
+      }
+      .track .label b { display:block; font-size:17px; color:#7fd6a3 }
+      .rail { position:absolute; left:104px; right:26px; top:0; bottom:0 }
+      .rail::before { content:''; position:absolute; left:0; right:0; top:50%;
+                      height:1px; background:#1c1c24 }
+
+      .marker {
+        position:absolute; left:0; top:50%; width:46px; height:46px;
+        margin:-23px 0 0 -23px;
+        border-radius:11px;
+        background:linear-gradient(135deg,#7fd6a3,#2d8f6b);
+        box-shadow:0 0 26px rgba(127,214,163,.30);
+        display:grid; place-content:center;
+        font:10px/1 ui-monospace,Menlo,monospace; color:#08210f; font-weight:700;
+      }
+      .marker.zero { background:linear-gradient(135deg,#6ea8fe,#2d5f9f);
+                     box-shadow:0 0 26px rgba(110,168,254,.30); color:#04142b }
+
+      .note { max-width:900px; margin:0 auto; padding:26px 22px 0;
+              color:#8b8b98; font:13px/1.7 system-ui,sans-serif }
+      .note code { font:12px ui-monospace,Menlo,monospace; color:#7fd6a3;
+                   background:rgba(127,214,163,.08); padding:2px 6px; border-radius:4px }
+      .runway { height:520vh }
+    </style>
+  </head>
+  <body>
+    <div id="panel">
+      <strong>inertia lab</strong>
+      <button id="drive">▶ drive scroll</button>
+      <label class="sp">rate
+        <input id="vel" type="range" min="100" max="3000" step="50" value="900" />
+        <span id="velv">900</span> px/s
+      </label>
+      <label class="sp">direction
+        <select id="dir"><option value="1">down</option><option value="-1">up</option></select>
+      </label>
+      <button id="top">⇱ reset</button>
+      <span class="sp">— scroll is driven programmatically, so trackpad momentum is out of it</span>
+    </div>
+
+    <div class="stage">
+      <div id="tracks"></div>
+    </div>
+
+    <div class="note">
+      <p>
+        Every marker runs the identical animation — <code>translate-x</code> right across the rail
+        with <code>rotate</code> through a full turn — and the tracks differ only in
+        <code>data-vera-motion-inertia</code>. The <b>blue</b> one is <code>0</code>: exact tracking, no
+        damping at all.
+      </p>
+      <p>
+        The horizontal gap between the blue marker and each green one <em>is</em> the inertia. Start
+        the drive, then stop it: watch how long each takes to settle. That is the question — does
+        <code>0</code> read as abrupt, or just accurate?
+      </p>
+    </div>
+
+    <div class="runway"></div>
+    <script type="module" src="./src/lab.ts"></script>
+  </body>
+</html>

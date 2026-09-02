@@ -39,6 +39,9 @@
       "@verajs/inserts": [
         "./packages/inserts/src/index.ts"
       ],
+      "@verajs/motion": [
+        "./packages/motion/src/index.ts"
+      ],
       "@verajs/renderer": [
         "./packages/renderer/src/index.ts"
       ],

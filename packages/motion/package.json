@@ -1,0 +1,167 @@
+{
+  "name": "@verajs/motion",
+  "version": "0.1.0",
+  "description": "Scroll motion as HTML attributes. No build step, no dependencies.",
+  "license": "MIT",
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/motion"
+  },
+  "bugs": {
+    "url": "https://github.com/vera-js/vera/issues"
+  },
+  "keywords": [
+    "verajs",
+    "vera",
+    "motion",
+    "animation",
+    "scroll",
+    "scroll-animation",
+    "web-components",
+    "buildless",
+    "wordpress"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "private": true,
+  "main": "./dist/vera-motion.min.js",
+  "module": "./dist/development/vera-motion.js",
+  "types": "./dist/development/vera-motion.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-motion.d.ts",
+      "development": "./dist/development/vera-motion.js",
+      "default": "./dist/vera-motion.min.js"
+    },
+    "./scroll-to": {
+      "types": "./dist/development/vera-motion-scroll-to.d.ts",
+      "development": "./dist/development/vera-motion-scroll-to.js",
+      "default": "./dist/vera-motion-scroll-to.min.js"
+    },
+    "./paint": {
+      "types": "./dist/development/vera-motion-paint.d.ts",
+      "development": "./dist/development/vera-motion-paint.js",
+      "default": "./dist/vera-motion-paint.min.js"
+    },
+    "./path": {
+      "types": "./dist/development/vera-motion-path.d.ts",
+      "development": "./dist/development/vera-motion-path.js",
+      "default": "./dist/vera-motion-path.min.js"
+    },
+    "./easings": {
+      "types": "./dist/development/vera-motion-easings.d.ts",
+      "development": "./dist/development/vera-motion-easings.js",
+      "default": "./dist/vera-motion-easings.min.js"
+    },
+    "./sequence": {
+      "types": "./dist/development/vera-motion-sequence.d.ts",
+      "development": "./dist/development/vera-motion-sequence.js",
+      "default": "./dist/vera-motion-sequence.min.js"
+    },
+    "./split": {
+      "types": "./dist/development/vera-motion-split.d.ts",
+      "development": "./dist/development/vera-motion-split.js",
+      "default": "./dist/vera-motion-split.min.js"
+    },
+    "./vera": {
+      "types": "./dist/development/vera-motion-vera.d.ts",
+      "development": "./dist/development/vera-motion-vera.js",
+      "default": "./dist/vera-motion-vera.min.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs/ATTRIBUTE-REFERENCE.md",
+    "docs/KEYFRAME-SYNTAX.md",
+    "docs/modules",
+    "docs/VIDEO-SCRUBBING.md"
+  ],
+  "scripts": {
+    "build": "wireit",
+    "test": "node --import ./test/setup.mjs --test \"test/*.test.js\"",
+    "dev": "vite",
+    "preview": "vite preview",
+    "size": "node --import ./scripts/ts-resolve.mjs scripts/size.js",
+    "build:demo": "vite build --config vite.demo.config.ts",
+    "preview:demo": "vite preview --config vite.demo.config.ts --port 5180",
+    "reference": "node --import ./scripts/ts-resolve.mjs scripts/generate-reference.js",
+    "check:reference": "node --import ./scripts/ts-resolve.mjs scripts/generate-reference.js --check",
+    "check:imports": "node scripts/check-imports.js",
+    "check:types": "node scripts/check-types.js",
+    "check:wiring": "node scripts/check-wiring.js",
+    "check:examples": "node --import ./scripts/ts-resolve.mjs scripts/check-examples.js",
+    "check": "npm run typecheck && npm run audit && npm run check:imports && npm run check:reference && npm run check:types && npm run check:wiring && npm run check:examples && npm test",
+    "typecheck": "tsc --noEmit",
+    "audit": "node scripts/audit.js",
+    "mutate": "sh scripts/mutate-isolated.sh",
+    "mutate:here": "node scripts/mutate.js --here",
+    "mutate:list": "node scripts/mutate.js --list",
+    "mutate:clean": "sh scripts/mutate-clean.sh"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-motion"
+}

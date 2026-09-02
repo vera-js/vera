@@ -53,3 +53,8 @@ packages/ssr/types/
 
 # The browser benchmark's bundle, written by `node bench/dom/build.mjs`.
 bench/dom/bundle.js
+
+# @verajs/motion's measurement harnesses live in the private portal (they are the audit's
+# instruments; one is a security probe). A local symlink here keeps the dev server serving
+# them and the fixture checks reading them — same arrangement as `internal/` itself.
+packages/motion/spikes

@@ -19,10 +19,33 @@ import { relative } from 'node:path';
 import { walkFiles, readIfPresent } from './walk.mjs';
 
 const root = new URL('../packages', import.meta.url).pathname;
+
+/**
+ * `@verajs/motion` (migrated 2026-09-01) needs three carve-outs, each for what the files *are*:
+ *
+ * - `motion/scripts` and `motion/test` are the package's own gate tooling — CLI programs whose
+ *   stdout/stderr IS their interface, the same standing as this repo's root `scripts/`, which this
+ *   walk has never covered. A user never sees them in a browser console.
+ * - `motion/spikes` is a gitignored symlink into the private portal; walking through it would
+ *   sweep files that are not in this repository.
+ * - `motion/src` IS swept, but against its own documented prefix — see `PREFIX_OF` below.
+ */
+const MOTION_TOOLING = /packages\/motion\/(scripts|test|spikes)\//;
 const sources = [];
 sources.push(
-  ...walkFiles(root, /\.(ts|js)$/, { ignore: ['node_modules', 'dist'] }).filter((file) => !file.endsWith('.d.ts'))
+  ...walkFiles(root, /\.(ts|js)$/, { ignore: ['node_modules', 'dist'] })
+    .filter((file) => !file.endsWith('.d.ts'))
+    .filter((file) => !MOTION_TOOLING.test(file))
 );
+
+/**
+ * The prefix a file's diagnostics must carry. One string per filter a user needs: `[vera]` for the
+ * framework, and `@verajs/motion:` for the motion runtime — which arrived with that convention on
+ * all of its warns and a mutation-validated suite asserting the exact messages. Converging motion
+ * onto `[vera]` is on its publish-conformance checklist (the message strings and their tests move
+ * in lockstep); until then this asserts motion's own prefix so it cannot rot either.
+ */
+const PREFIX_OF = (file) => (file.includes('packages/motion/') ? '@verajs/motion' : '[vera]');
 
 /**
  * The call and its first template literal, which is where a prefix would be. Multi-line calls are
@@ -82,7 +105,7 @@ test('every console.warn and console.error is prefixed [vera]', () => {
        */
       if (message === '' && /console\.error\(error\)/.test(match[0] + text.slice(match.index, match.index + 24)))
         continue;
-      if (!message.startsWith('[vera]'))
+      if (!message.startsWith(PREFIX_OF(file)))
         problems.push(`${relative(root, file)}: ${JSON.stringify(message.slice(0, 60))}`);
     }
   }
