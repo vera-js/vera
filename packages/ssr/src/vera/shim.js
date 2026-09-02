@@ -2,7 +2,7 @@
  * Installs the server environment: the globals a component finds when it runs outside a browser.
  *
  * Import this **before anything that imports `@verajs/core`** — core evaluates against these, and
- * `@verajs/ssr/vera` does it for you. What each global is, and why it answers the way it does, lives
+ * `@verajs/ssr` does it for you. What each global is, and why it answers the way it does, lives
  * with the thing it is made of: the nodes in `./nodes.js`, escaping in `./escaping.js`, the frame
  * queue in `./frames.js`, stylesheets in `./stylesheets.js`, the registry in `./registry.js`.
  *
@@ -181,6 +181,16 @@ const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
 
 const documentRoots = () =>
   /** @type {Array<any>} */ ([globalThis.document.documentElement, globalThis.document.body]);
+
+/**
+ * Which parts of a URL `location` carries — the one place that knows.
+ *
+ * `index.js` kept its own copy for `applyLocation`/`restoreLocation` to walk. They agreed, and
+ * nothing made them: a part added to one list would be installed and never restored, or restored
+ * from a property the install never wrote. Same single fact, same reasoning as `RAW_TEXT_ELEMENTS`
+ * below it — CODE-PRINCIPLES #5.
+ */
+export const LOCATION_PARTS = ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'];
 
 export const installShims = () => {
   if (globalThis.__veraSsrShimmed) return registry;
@@ -540,8 +550,14 @@ export const installShims = () => {
    * `self` is the other name for the global, and UMD bundles feature-detect on it. `window` is
    * already defined here, so those bundles have taken the browser branch regardless — leaving `self`
    * undefined only made the two disagree.
+   *
+   * **`??=`, because a Web Worker already has one and it is read-only.** Assigning threw
+   * `Cannot set property self of #<WorkerGlobalScope> which has only a getter`, which is where this
+   * shim stopped when it was first run off the main thread. Nothing is lost by skipping it there:
+   * in a worker `self` already *is* the global, which is exactly what this line wanted. Node
+   * defines no `self` on the main thread or inside `worker_threads`, so the server still assigns.
    */
-  globalThis.self = /** @type {any} */ (globalThis);
+  globalThis.self ??= /** @type {any} */ (globalThis);
   /**
    * Every part, built from a real `URL`, so the default is as complete as the one `renderToString`'s
    * `location` option installs. It used to carry four properties — `pathname`, `search`, `hash`,
@@ -549,17 +565,31 @@ export const installShims = () => {
    * render supplied a URL, and then started working. Two different shapes for the same object
    * depending on when you looked at it.
    */
-  globalThis.location ??= /** @type {any} */ (
-    (() => {
-      const url = new URL('http://localhost/');
-      return Object.fromEntries(
-        ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'].map((part) => [
-          part,
-          url[part],
-        ])
-      );
-    })()
-  );
+  /**
+   * **Installed as an own, writable property rather than assigned, because `applyLocation` mutates
+   * it and not every environment's `location` can be mutated.** `renderToString`'s `location` option
+   * writes each part in place, which a plain object takes and a Web Worker's real `WorkerLocation`
+   * refuses — every property is a getter, so a per-request URL threw
+   * `Cannot set property href of [object WorkerLocation]`. `??=` could not see that: a worker *has*
+   * a location, so it short-circuited and left the read-only one in place. Rendering one route per
+   * URL is the whole point of the option, so this is the difference between the option working and
+   * not.
+   *
+   * Seeded from whatever the environment describes, so a worker keeps its real URL as the default
+   * instead of being told it is localhost. Node has no `location` at all, on the main thread or in
+   * `worker_threads`, so the server gets the identical localhost object it got before — a writable,
+   * configurable own property is what a plain assignment already produced.
+   */
+  Object.defineProperty(globalThis, 'location', {
+    value: /** @type {any} */ (
+      (() => {
+        const url = new URL(globalThis.location?.href ?? 'http://localhost/');
+        return Object.fromEntries(LOCATION_PARTS.map((part) => [part, url[part]]));
+      })()
+    ),
+    writable: true,
+    configurable: true,
+  });
   globalThis.history = /** @type {any} */ ({
     scrollRestoration: 'auto',
     pushState: () => {},
@@ -610,9 +640,24 @@ export const installShims = () => {
    */
   for (const name of [
     'alert', 'print', 'blur', 'focus', 'close', 'stop', 'scroll', 'scrollBy', 'scrollTo',
-    'moveBy', 'moveTo', 'resizeBy', 'resizeTo', 'postMessage', 'captureEvents', 'releaseEvents',
+    'moveBy', 'moveTo', 'resizeBy', 'resizeTo', 'captureEvents', 'releaseEvents',
   ])
     globalThis[name] = () => {};
+  /**
+   * **`postMessage` is `??=` and the rest are not, because in a Web Worker it is the only channel
+   * back to the page.** Replacing it with a no-op does not throw and does not stop the render — it
+   * silently severs the host's reporting, so a worker that rendered perfectly looks exactly like one
+   * that crashed. That cost two debugging rounds the first time this shim ran off the main thread.
+   *
+   * **`close` deliberately stays unconditional**, which is the same reasoning arriving at the
+   * opposite answer: in a worker `close()` *terminates* it, so a component calling `window.close()`
+   * during setup would kill the render. A no-op is both what a browser does for a page it did not
+   * open and what protects the render; a host still terminates its worker from the outside.
+   *
+   * Node defines neither name — on the main thread or inside `worker_threads` — so the server
+   * assigns both exactly as before.
+   */
+  globalThis.postMessage ??= /** @type {any} */ (() => {});
   globalThis.confirm = () => false;
   globalThis.prompt = () => null;
   globalThis.find = () => false;

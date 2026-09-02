@@ -38,9 +38,10 @@ import {
    * CODE-PRINCIPLES #5 is about.
    */
   RAW_TEXT_ELEMENTS as RAW_TEXT,
+  /** The parts a `location` carries, from the shim that installs it. Same rule as `RAW_TEXT`. */
+  LOCATION_PARTS,
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
-import { randomUUID } from 'node:crypto';
 
 installShims();
 const { wire, inserts, setStaticStores } = await import('@verajs/core');
@@ -367,7 +368,7 @@ const renderComponentTags = (markup, depth, emit) => {
  * The placeholder carries a per-process random name for the same reason `INSTANCE_ATTRIBUTE` does:
  * it must be impossible for a component's own markup to contain one.
  */
-const PLACEHOLDER = `vera-async-${randomUUID()}`;
+const PLACEHOLDER = `vera-async-${crypto.randomUUID()}`;
 const PLACEHOLDER_PATTERN = new RegExp(`${PLACEHOLDER}(\\d+)_`, 'gu');
 
 /** @param {string} markup @param {number} depth @param {Array<Promise<string>>} pending */
@@ -396,8 +397,6 @@ const renderComponentTagsAsync = async (markup, depth) => {
  * A path is resolved against whatever `location` already describes, so `'/users/2?page=3#top'`
  * works without a caller having to invent an origin.
  */
-const LOCATION_PARTS = ['href', 'protocol', 'host', 'hostname', 'port', 'pathname', 'search', 'hash', 'origin'];
-
 const applyLocation = (location) => {
   const current = globalThis.location;
   const previous = Object.fromEntries(LOCATION_PARTS.map((part) => [part, current?.[part]]));

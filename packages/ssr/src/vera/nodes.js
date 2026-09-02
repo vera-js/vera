@@ -8,7 +8,6 @@
  * that runs on this DOM is *user* code, and for years every missing member was found by someone
  * tripping over it.
  */
-import { randomUUID } from 'node:crypto';
 import { interfaceFor } from './reflections.js';
 import { escapeHtml, escapeStyleText, RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 import { parseFragment } from './parse.js';
@@ -2205,7 +2204,7 @@ export const pendingInstances = new Map();
  * Import-time rather than per-render: an attacker cannot read either, and the output never contains
  * the marker, so nothing observable depends on it.
  */
-export const INSTANCE_ATTRIBUTE = `vera-ssr-${randomUUID()}`;
+export const INSTANCE_ATTRIBUTE = `vera-ssr-${crypto.randomUUID()}`;
 
 let instanceCount = 0;
 
