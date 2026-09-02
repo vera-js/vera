@@ -3,11 +3,11 @@
 The bar every change in **VeraJS** must clear. These ten principles are the definition of "good"
 for this codebase — reviews, audits, and new work are measured against all of them.
 
-**All nine are equally important. None outranks another.** Do not trade one away to maximize
+**All ten are equally important. None outranks another.** Do not trade one away to maximize
 another. When two genuinely pull against each other on a specific change, **do not silently pick a
 winner**: implement the option you believe is best *and surface the trade-off* to the developer — the
 concrete benefit (*why*), where it lives (*where*: file / function / boundary), and the mechanism
-(*how*) — so they decide. A change "passes" only when it satisfies all eight, or every deviation is
+(*how*) — so they decide. A change "passes" only when it satisfies all ten, or every deviation is
 explicitly agreed with the developer.
 
 This document expands each principle into the concrete, project-specific rules that make it real here.
