@@ -6,6 +6,9 @@
   },
   "description": "Reactivity primitives VeraJS core does not ship: memoised derived values, and more to come. Each reachable on its own subpath so a buildless page loads only what it uses.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

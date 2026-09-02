@@ -6,6 +6,9 @@
   },
   "description": "A super tiny but very powerful router which works great with VeraJS and web components but can be used without.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

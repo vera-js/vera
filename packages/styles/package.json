@@ -6,6 +6,9 @@
   },
   "description": "Adopts a component's `static styles` for VeraJS: constructed stylesheets into shadow roots, and `@scope`-wrapped hoisting for light DOM.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

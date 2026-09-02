@@ -6,6 +6,9 @@
   },
   "description": "JSX/TSX for VeraJS as a build plugin: compiles JSX into the renderer\u2019s tagged templates. Zero runtime cost, zero dependencies.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

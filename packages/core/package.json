@@ -6,6 +6,9 @@
   },
   "description": "A user-friendly JavaScript framework for effortless reactive state and rendering using web components.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

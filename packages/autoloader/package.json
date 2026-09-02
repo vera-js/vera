@@ -6,6 +6,9 @@
   },
   "description": "A super small but powerful autoloader for web components that works great with VeraJs but can be used without.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

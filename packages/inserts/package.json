@@ -6,6 +6,9 @@
   },
   "description": "Enables inserts system for injecting functionality in VeraJS.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

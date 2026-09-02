@@ -6,6 +6,9 @@
   },
   "description": "TypeScript base config for VeraJS components. Turns off useDefineForClassFields so a field declaration cannot silently destroy a property set before the element upgrades.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

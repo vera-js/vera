@@ -6,6 +6,9 @@
   },
   "description": "Shareable ESLint flat config for VeraJS: catches the two mistakes that fail silently — class fields on custom elements, and registering an insert through @verajs/inserts.",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",

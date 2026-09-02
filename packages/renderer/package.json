@@ -6,6 +6,9 @@
   },
   "description": "Reef JS renderer repurposed as lightweight renderer option for use with VeraJS",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",
