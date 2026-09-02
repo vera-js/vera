@@ -10,4 +10,4 @@ import pkg from './package.json' with { type: 'json' };
  * core-internal (`_hookPriorities`, `_cleanups`, `_gen`, `_removed`; `_hooks` stays — the prod suite reads it, and tests are a boundary) and ships as one
  * mangled character. `tests/cdn-cross-bundle.test.mjs` fails if `_p` is ever mangled.
  */
-export default defaultRollupConfig(pkg.filename, ['@verajs/inserts'], /^_(?!p$|isSignal$|ignore$|delete$|root$|hooks$|\$)[a-z]/);
+export default defaultRollupConfig(pkg.filename, ['@verajs/inserts'], /^_(?!p$|isSignal$|ignore$|delete$|root$|hooks$|cleanups$|\$)[a-z]/);
