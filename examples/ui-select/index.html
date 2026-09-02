@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>vera-select</title>
+    <!--
+      The CDN shape, exactly: production bundles through an importmap, no build. @verajs/ui and
+      @verajs/hooks keep core (and each other) external in every build — the map is what resolves
+      them, and it is why one page holds exactly one core, one store registry, one renderer.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
+          "@verajs/hooks": "/packages/hooks/dist/vera-hooks.min.js",
+          "@verajs/ui": "/packages/ui/dist/vera-ui.min.js"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page-bg: #fafafa;
+        --page-card: #ffffff;
+        --page-border: #e4e4e7;
+        --page-fg: #18181b;
+        --page-muted: #71717a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page-bg: #101012;
+          --page-card: #18181b;
+          --page-border: #2a2a2e;
+          --page-fg: #fafafa;
+          --page-muted: #a1a1aa;
+        }
+      }
+      body {
+        margin: 0 auto;
+        max-width: 60rem;
+        padding: 2.5rem 1.5rem 5rem;
+        background: var(--page-bg);
+        color: var(--page-fg);
+        font: 14px/1.5 system-ui, sans-serif;
+      }
+      h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+      .sub { color: var(--page-muted); margin: 0 0 2rem; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; }
+      section {
+        padding: 1.25rem;
+        background: var(--page-card);
+        border: 1px solid var(--page-border);
+        border-radius: 10px;
+      }
+      section h2 { margin: 0 0 0.25rem; font-size: 0.95rem; }
+      section p { margin: 0 0 0.9rem; color: var(--page-muted); font-size: 0.8rem; }
+      output {
+        display: block;
+        margin-top: 0.75rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.75rem;
+        color: var(--page-muted);
+        min-height: 1.2em;
+      }
+      code { font-size: 0.78em; }
+
+      /* ── the theming demos, in page CSS on purpose — this is the consumer's side ─────────── */
+
+      /* Dark pages retheme by token; the component follows with no selector at all. */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --vera-surface: #1f1f23;
+          --vera-border: #3f3f46;
+          --vera-fg: #fafafa;
+          --vera-fg-muted: #a1a1aa;
+        }
+      }
+
+      /* Section 3: retheme one instance by tokens. */
+      .tokened { --vera-accent: #0d9488; --vera-radius: 999px; }
+
+      /* Section 4: reach an internal part from the page. Works because ::part crosses the boundary. */
+      .parted::part(trigger) { border-style: dashed; border-width: 2px; }
+      .parted::part(option) { text-transform: uppercase; letter-spacing: 0.04em; }
+
+      /* Section 6: the slotted trigger is OUR markup on the page — plain page CSS styles it. */
+      .fancy-trigger {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 0;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #7c3aed, #db2777);
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      .fancy-trigger[data-state='open'] { outline: 3px solid #db277755; }
+
+      /* Section 5 (light mode): plain selectors reach the parts — no shadow in the way. */
+      .light-styled [part='trigger'] { border-color: #0d9488; }
+    </style>
+  </head>
+  <body>
+    <h1>&lt;vera-select&gt;</h1>
+    <p class="sub">
+      @verajs/ui's first component, served as production bundles through an importmap — the CDN shape, no build.
+      Open DevTools and poke; every internal node is a named <code>part</code>.
+    </p>
+
+    <div class="grid">
+      <section>
+        <h2>Default</h2>
+        <p>Shadow DOM, built-in markup, zero configuration. Keyboard: focus, <code>↓</code>, arrows, Enter, Escape.</p>
+        <vera-select id="basic" placeholder="Pick a flavor…"></vera-select>
+        <output id="basic-out"></output>
+      </section>
+
+      <section>
+        <h2>Multi + search</h2>
+        <p><code>multi</code> keeps the menu open and toggles; typing filters; disabled rows are skipped.</p>
+        <vera-select id="multi" multi placeholder="Pick several…"></vera-select>
+        <output id="multi-out"></output>
+      </section>
+
+      <section>
+        <h2>Themed by token</h2>
+        <p>Page CSS: <code>.tokened { --vera-accent: teal; --vera-radius: 999px }</code> — no selectors into the component.</p>
+        <vera-select id="tokened" class="tokened" placeholder="Same component…"></vera-select>
+      </section>
+
+      <section>
+        <h2>Styled by ::part()</h2>
+        <p><code>.parted::part(trigger)</code> and <code>::part(option)</code> — the page reaches through the shadow boundary.</p>
+        <vera-select id="parted" class="parted" placeholder="Dashed on purpose…"></vera-select>
+      </section>
+
+      <section class="light-styled">
+        <h2>Light DOM</h2>
+        <p>Same component, <code>light</code> attribute: no shadow root, parts addressable as plain
+           <code>[part='trigger']</code> selectors.</p>
+        <vera-select id="light" light placeholder="No shadow here…"></vera-select>
+      </section>
+
+      <section>
+        <h2>Your markup, slotted</h2>
+        <p>The trigger below is page markup with a page class — the component wires behavior and
+           <code>data-state</code> onto it.</p>
+        <vera-select id="slotted">
+          <button class="fancy-trigger" slot="trigger">
+            <span slot="value">Pick loudly…</span>
+          </button>
+        </vera-select>
+        <output id="slotted-out"></output>
+      </section>
+
+      <section>
+        <h2>Form-associated</h2>
+        <p>A real form control via ElementInternals: submits, resets, appears in FormData.</p>
+        <form id="form">
+          <vera-select name="flavor" id="formed" placeholder="Required-ish…"></vera-select>
+          <p style="display:flex; gap:0.5rem; margin:0.75rem 0 0">
+            <button type="submit">Read FormData</button>
+            <button type="reset">Reset</button>
+          </p>
+        </form>
+        <output id="form-out"></output>
+      </section>
+    </div>
+
+    <script type="module">
+      import { wire } from '@verajs/core';
+      import { renderer } from '@verajs/renderer';
+      import { styles } from '@verajs/styles';
+      wire([renderer, styles]);
+      await import('@verajs/ui');
+
+      const FLAVORS = [
+        { label: 'Vanilla', value: 'vanilla' },
+        { label: 'Strawberry', value: 'strawberry' },
+        { label: 'Chocolate', value: 'chocolate' },
+        { label: 'Pistachio', value: 'pistachio' },
+        { label: 'Durian (sold out)', value: 'durian', disabled: true },
+        { label: 'Matcha', value: 'matcha' },
+      ];
+
+      const show = (id, out) => {
+        const element = document.getElementById(id);
+        element.options = FLAVORS;
+        if (out)
+          element.addEventListener('change', (event) => {
+            document.getElementById(out).textContent = JSON.stringify(event.detail.value.map((o) => o.value));
+          });
+      };
+
+      show('basic', 'basic-out');
+      show('multi', 'multi-out');
+      show('tokened');
+      show('parted');
+      show('light');
+      show('slotted', 'slotted-out');
+      show('formed');
+
+      document.getElementById('form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = new FormData(event.target);
+        document.getElementById('form-out').textContent = `FormData: flavor=${JSON.stringify(data.get('flavor'))}`;
+      });
+      document.getElementById('form').addEventListener('reset', () => {
+        setTimeout(() => (document.getElementById('form-out').textContent = 'FormData: (reset)'), 0);
+      });
+    </script>
+  </body>
+</html>
