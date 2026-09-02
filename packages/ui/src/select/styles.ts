@@ -61,6 +61,9 @@ export const SELECT_STYLES = /* css */ `
     transform: translateY(-70%) rotate(45deg);
     pointer-events: none;
   }
+  :where([part='trigger'][data-state='open'])::after {
+    transform: translateY(-30%) rotate(225deg);
+  }
   :where([part='value']:empty)::before {
     content: attr(data-placeholder);
     color: var(--vera-fg-muted, #71717a);
@@ -85,8 +88,30 @@ export const SELECT_STYLES = /* css */ `
     box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
     overflow: hidden;
   }
+  /**
+   * Open/close animates the way the renderer README's recipe prescribes: display stays constant
+   * (Firefox ignores allow-discrete on display while reporting support — pinned in
+   * tests/browser/animation-recipes.test.js), and the closed state rides opacity + translate,
+   * with visibility carrying the interaction/a11y removal — it flips discretely at the
+   * transition's end, so the menu is untabbable and unread the moment it finishes leaving.
+   * position:absolute means the always-rendered box costs no layout.
+   */
   :where([part='menu'][data-state='closed']) {
-    display: none;
+    opacity: 0;
+    translate: 0 -6px;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :where([part='menu']) {
+      transition:
+        opacity 140ms ease,
+        translate 140ms ease,
+        visibility 140ms;
+    }
+    :where([part='trigger'])::after {
+      transition: transform 140ms ease;
+    }
   }
   :where([part='search']) {
     padding: 7px 9px;

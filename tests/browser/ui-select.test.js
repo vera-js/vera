@@ -69,6 +69,33 @@ it('a --vera token themes through the boundary without touching a selector', asy
   element.remove();
 });
 
+it('the menu fades and slides rather than jumping, and the arrow flips — polled, never sampled', async () => {
+  const element = await mount();
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  const closedArrow = getComputedStyle(trigger, '::after').transform;
+
+  expect(getComputedStyle(menu).visibility).to.equal('hidden', 'closed means untabbable and unread');
+  trigger.click();
+  /**
+   * Polled, per the animation-recipes lesson: a fixed-instant sample lies on a loaded machine.
+   * Any opacity strictly between the endpoints proves it fades rather than jumps.
+   */
+  let mid = null;
+  for (let i = 0; i < 120 && mid === null; i++) {
+    const value = Number(getComputedStyle(menu).opacity);
+    if (value > 0 && value < 1) mid = value;
+    else await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  expect(mid, 'opacity never took a value between 0 and 1 — it jumped').to.be.a('number');
+
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  expect(Number(getComputedStyle(menu).opacity)).to.equal(1);
+  expect(getComputedStyle(menu).visibility).to.equal('visible');
+  expect(getComputedStyle(trigger, '::after').transform).to.not.equal(closedArrow, 'the arrow flipped');
+  element.remove();
+});
+
 it('an extreme radius token makes a pill trigger, never a lens menu — the cap holds', async () => {
   const element = await mount();
   await withStyle('vera-select { --vera-radius: 999px; }', async () => {
