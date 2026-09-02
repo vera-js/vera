@@ -58,11 +58,17 @@ export const SELECT_STYLES = /* css */ `
     block-size: 7px;
     border-inline-end: 1.5px solid var(--vera-fg-muted, #71717a);
     border-block-end: 1.5px solid var(--vera-fg-muted, #71717a);
-    transform: translateY(-70%) rotate(45deg);
+    /**
+     * Both states spell the full function list so the transition interpolates per function:
+     * scaleY runs 1 -> -1 (the chevron flattens through zero and inverts — a mirror flip, not a
+     * rotation) while the rotate stays constant. Mismatched lists would fall back to matrix
+     * decomposition and animate something else entirely.
+     */
+    transform: translateY(-70%) scaleY(1) rotate(45deg);
     pointer-events: none;
   }
   :where([part='trigger'][data-state='open'])::after {
-    transform: translateY(-30%) rotate(225deg);
+    transform: translateY(-30%) scaleY(-1) rotate(45deg);
   }
   :where([part='value']:empty)::before {
     content: attr(data-placeholder);
