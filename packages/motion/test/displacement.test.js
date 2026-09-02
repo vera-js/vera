@@ -99,7 +99,7 @@ describe('the correction reaches the element', () => {
     vi.stubGlobal('cancelAnimationFrame', () => {});
     Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     Object.defineProperty(node, 'offsetTop', { value: 1500, configurable: true });
     Object.defineProperty(node, 'offsetHeight', { value: 200, configurable: true });
@@ -120,7 +120,7 @@ describe('the correction reaches the element', () => {
     vi.stubGlobal('cancelAnimationFrame', () => {});
     Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     Object.defineProperty(node, 'offsetTop', { value: 1500, configurable: true });
     Object.defineProperty(node, 'offsetHeight', { value: 200, configurable: true });

@@ -22,7 +22,7 @@ const build = (html, options) => {
   m.init();
   return { node, m };
 };
-const TY = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 60px"></div>';
+const TY = '<div data-vm data-vm-translate-y="0% 0px, 100% 60px"></div>';
 
 beforeEach(() => { document.body.innerHTML = ''; vi.unstubAllGlobals(); });
 
@@ -37,8 +37,8 @@ describe('every documented option does what it says', () => {
    */
   it('scrollDirection — horizontal measures and pins along the horizontal axis', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-pin="20px" ' +
-      'data-vera-motion-translate-x="0% 0px, 100% 60px"></div>';
+      '<div data-vm data-vm-pin="20px" ' +
+      'data-vm-translate-x="0% 0px, 100% 60px"></div>';
     const node = document.body.firstElementChild;
     for (const [k, v] of [['offsetLeft', 500], ['offsetTop', 500], ['offsetWidth', 200], ['offsetHeight', 200]]) {
       Object.defineProperty(node, k, { value: v, configurable: true });
@@ -61,8 +61,8 @@ describe('every documented option does what it says', () => {
 
   it('scrollElement — the timeline follows that container, not the window', () => {
     document.body.innerHTML =
-      '<div id="pane"><div data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 60px"></div></div>';
+      '<div id="pane"><div data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 60px"></div></div>';
     const pane = document.getElementById('pane');
     const node = pane.firstElementChild;
     /**
@@ -146,7 +146,7 @@ describe('every documented option does what it says', () => {
 
   it('breakpoints — names become usable attribute suffixes', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 60px" data-vera-motion-translate-y-phone="0% 0px, 100% 5px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 60px" data-vm-translate-y-phone="0% 0px, 100% 5px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, breakpoints: { phone: [0, 5000] } });
@@ -161,7 +161,7 @@ describe('every documented option does what it says', () => {
     const m = createMotion({ respectReducedMotion: false, observeMutations: false });
     m.init();
     document.getElementById('host').innerHTML = TY;
-    place(document.querySelector('[data-vera-motion]'));
+    place(document.querySelector('[data-vm]'));
     await new Promise((r) => setTimeout(r, 30));
     expect(m.elements).toHaveLength(0);
     m.destroy();
@@ -169,11 +169,11 @@ describe('every documented option does what it says', () => {
 
   it('root — only elements inside it are animated', () => {
     document.body.innerHTML = `<div id="outside">${TY}</div><div id="scope">${TY}</div>`;
-    document.querySelectorAll('[data-vera-motion]').forEach((n) => place(n));
+    document.querySelectorAll('[data-vm]').forEach((n) => place(n));
     const m = createMotion({ respectReducedMotion: false, root: document.getElementById('scope') });
     m.init();
     expect(m.elements).toHaveLength(1);
-    expect(document.querySelector('#outside [data-vera-motion]').style.transform).toBe('');
+    expect(document.querySelector('#outside [data-vm]').style.transform).toBe('');
     m.destroy();
   });
 
@@ -247,7 +247,7 @@ describe('an option that does not exist', () => {
   /** And the instance still runs: an unknown key is a diagnostic, not a failure. */
   it('and does not stop the instance', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const m = createMotion({ nonsense: true, respectReducedMotion: false });
     m.init();
     expect(m.elements).toHaveLength(1);
@@ -356,7 +356,7 @@ describe('a boolean option that is not a boolean', () => {
    */
   it('and the fallback really takes effect', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const node = document.body.firstElementChild;
     const m = createMotion({ respectReducedMotion: false, willChange: 'yes' });
     m.init();
@@ -414,7 +414,7 @@ describe('an option given as undefined', () => {
 
   it('and takes the default for a number', () => {
     const { node, m } = build(
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>',
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>',
       { inertia: undefined }
     );
     expect(node.style.transition).toContain('0.1s');

@@ -14,13 +14,13 @@ import { createMotion } from '../src/index.ts';
  * right in devtools.
  *
  * Marking a shape inside an `<svg>` is an ordinary thing to try, and
- * `data-vera-motion-path-selector` already takes an SVG path as its input, so
+ * `data-vm-path-selector` already takes an SVG path as its input, so
  * the namespace is plainly in an author's mind when they reach for this.
  *
  * Refused rather than supported: measuring these means `getBoundingClientRect`
  * on a separate code path, and adding a feature is not what a refusal is for.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 500], ['offsetHeight', 200]]) {

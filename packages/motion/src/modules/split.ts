@@ -13,7 +13,7 @@
  *
  * **The pieces do the animating; the parent does the staggering.** Splitting
  * copies the element's animation attributes onto each piece and takes them off
- * the parent, so a cascade is `data-vera-motion-stagger` on that same parent — the
+ * the parent, so a cascade is `data-vm-stagger` on that same parent — the
  * feature that already exists, with no machinery added here. That is the whole
  * reason this module is small.
  *

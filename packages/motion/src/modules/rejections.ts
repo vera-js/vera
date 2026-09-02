@@ -26,7 +26,7 @@ const REJECTIONS = new WeakMap<Element, Set<string>>();
  * The instance builds `rejected` from the elements it adopted plus the ones it
  * dropped — and a module refuses things about neither. `split` is keyed by the
  * **container**, whose bare marker is optional, so a paragraph written
- * `data-vera-motion-split="words"` with no `data-vera-motion` is in no list the
+ * `data-vm-split="words"` with no `data-vm` is in no list the
  * instance keeps: every refusal about it — nested markup, an unknown mode, the
  * piece cap — was recorded here and read by nobody, while the README told
  * people that is where to look.

@@ -42,7 +42,7 @@ const build = (markup, top = 3000, height = 200) => {
   return { m, node };
 };
 
-const MARKUP = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+const MARKUP = '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
 
 /**
  * Three things ask for a re-measure: the `load` listener, a `ResizeObserver` on
@@ -100,7 +100,7 @@ describe('an element whose own box changes', () => {
   it('watches an element adopted after init', () => {
     const { m } = build(MARKUP);
     document.body.insertAdjacentHTML('beforeend',
-      '<div id="late" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>');
+      '<div id="late" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>');
     const late = document.getElementById('late');
     geometry(late, 6000, 200);
     m.collect();

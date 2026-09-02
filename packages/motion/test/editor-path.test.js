@@ -14,15 +14,15 @@ const place = (n, top = 500) => {
  * toggle, and does it work at all for an element added after init?
  */
 const CASES = [
-  ['transform',        'data-vera-motion-translate-y="0% 0px, 100% 40px"',        (n) => n.style.transform],
-  ['filter',           'data-vera-motion-opacity="0% 0.2, 100% 1"',               (n) => n.style.filter],
-  ['radius',           'data-vera-motion-radius-top-left="0% 60px, 100% 4px"',    (n) => n.style.borderTopLeftRadius],
-  ['pin',              'data-vera-motion-pin="30px" data-vera-motion-opacity="0% 0, 100% 1"', (n) => `${n.style.position}/${n.style.top}`],
-  ['will-change',      'data-vera-motion-will-change data-vera-motion-opacity="0% 0, 100% 1"', (n) => n.style.willChange],
-  ['transform-origin', 'data-vera-motion-transform-origin="top left" data-vera-motion-scale="0% 1, 100% 2"', (n) => n.style.transformOrigin],
-  ['band',             'data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-opacity-[0-3000]="0% 0.5, 100% 1"', (n) => n.style.filter],
+  ['transform',        'data-vm-translate-y="0% 0px, 100% 40px"',        (n) => n.style.transform],
+  ['filter',           'data-vm-opacity="0% 0.2, 100% 1"',               (n) => n.style.filter],
+  ['radius',           'data-vm-radius-top-left="0% 60px, 100% 4px"',    (n) => n.style.borderTopLeftRadius],
+  ['pin',              'data-vm-pin="30px" data-vm-opacity="0% 0, 100% 1"', (n) => `${n.style.position}/${n.style.top}`],
+  ['will-change',      'data-vm-will-change data-vm-opacity="0% 0, 100% 1"', (n) => n.style.willChange],
+  ['transform-origin', 'data-vm-transform-origin="top left" data-vm-scale="0% 1, 100% 2"', (n) => n.style.transformOrigin],
+  ['band',             'data-vm-opacity="0% 0, 100% 1" data-vm-opacity-[0-3000]="0% 0.5, 100% 1"', (n) => n.style.filter],
   ['preset',           '',                                                       (n) => n.style.transform, 'fade-up'],
-  ['when',             'data-vera-motion-when=".on" data-vera-motion-opacity="0% 0, 100% 1"', (n) => n.style.filter],
+  ['when',             'data-vm-when=".on" data-vm-opacity="0% 0, 100% 1"', (n) => n.style.filter],
 ];
 
 beforeEach(() => { document.body.innerHTML = ''; });
@@ -32,7 +32,7 @@ describe('every feature through the editor path', () => {
     const broken = [];
     const inert = [];
     for (const [name, attrs, read, marker = ''] of CASES) {
-      document.body.innerHTML = `<div class="on" data-vera-motion="${marker}" ${attrs}></div>`;
+      document.body.innerHTML = `<div class="on" data-vm="${marker}" ${attrs}></div>`;
       const node = document.body.firstElementChild;
       place(node);
       const m = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -62,14 +62,14 @@ describe('every feature through the editor path', () => {
       m.init();
 
       const host = document.getElementById('host');
-      host.innerHTML = `<div class="on" data-vera-motion="${marker}" ${attrs}></div>`;
+      host.innerHTML = `<div class="on" data-vm="${marker}" ${attrs}></div>`;
       const late = host.firstElementChild;
       place(late);
       await settle();
       const lateValue = read(late);
 
       /** Control: the same markup present at init. */
-      document.body.innerHTML = `<div class="on" data-vera-motion="${marker}" ${attrs}></div>`;
+      document.body.innerHTML = `<div class="on" data-vm="${marker}" ${attrs}></div>`;
       const early = document.body.firstElementChild;
       place(early);
       const m2 = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -109,7 +109,7 @@ describe('editing while disabled', () => {
   it('writes nothing back onto an element it has released', async () => {
     const dirty = [];
     for (const [name, attrs, , marker = ''] of CASES) {
-      document.body.innerHTML = `<div class="on" data-vera-motion="${marker}" ${attrs}></div>`;
+      document.body.innerHTML = `<div class="on" data-vm="${marker}" ${attrs}></div>`;
       const node = document.body.firstElementChild;
       place(node);
       const m = createMotion({ respectReducedMotion: false, inertia: 0.3 });
@@ -118,7 +118,7 @@ describe('editing while disabled', () => {
       /** The premise: disable() really did clear it. */
       if (styled(node).length) dirty.push(`${name}: disable() left ${JSON.stringify(styled(node))}`);
 
-      node.setAttribute('data-vera-motion-rotate', '0% 0deg, 100% 45deg');
+      node.setAttribute('data-vm-rotate', '0% 0deg, 100% 45deg');
       await settle();
 
       if (styled(node).length) dirty.push(`${name}: an edit put back ${JSON.stringify(styled(node))}`);
@@ -140,7 +140,7 @@ describe('editing while disabled', () => {
     const host = document.getElementById('host');
     const root = host.attachShadow({ mode: 'closed' });
     root.innerHTML =
-      '<div data-vera-motion data-vera-motion-will-change data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-will-change data-vm-opacity="0% 0, 100% 1"></div>';
     place(root.firstElementChild);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
@@ -158,13 +158,13 @@ describe('editing while disabled', () => {
   /** And puts them back the moment it is enabled again. */
   it('and restores them on enable()', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-will-change data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-will-change data-vm-opacity="0% 0, 100% 1"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     m.disable();
-    node.setAttribute('data-vera-motion-opacity', '0% 0.2, 100% 1');
+    node.setAttribute('data-vm-opacity', '0% 0.2, 100% 1');
     m.collect();
     expect(node.style.willChange).toBe('');
 

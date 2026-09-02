@@ -612,7 +612,7 @@ const markUnfinishable = (element: RuntimeElement, win: WindowSize): void => {
  * documentation tells an author the thing does nothing and the library lets
  * them write it anyway.
  *
- * **Ancestors, and erring towards silence.** `data-vera-motion-perspective`
+ * **Ancestors, and erring towards silence.** `data-vm-perspective`
  * writes the `perspective()` transform function on the element itself, but CSS
  * `perspective` on an ancestor is the other, older way to set one up, and a
  * page using it is not making a mistake. Any ancestor carrying one ends the
@@ -748,7 +748,7 @@ const resolveCurveEasing = (node: Element, value: string, declared: boolean): Ea
    * How to name the value in a diagnostic.
    *
    * `ease` reaches here from the attribute *or* from the instance default, and
-   * the first version of this reported both as `data-vera-motion-ease="…"` —
+   * the first version of this reported both as `data-vm-ease="…"` —
    * so a page that set `createMotion({ ease: 'ease-out' })` without wiring the
    * module got that message on every element, naming an attribute not one of
    * them carried. A GUI would highlight markup that does not exist.

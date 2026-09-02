@@ -14,7 +14,7 @@ import { createMotion } from '../src/index.ts';
  * on the channel the README sends people to.
  */
 const run = (value, options = {}) => {
-  document.body.innerHTML = `<div data-vera-motion data-vera-motion-translate-y="${value}"></div>`;
+  document.body.innerHTML = `<div data-vm data-vm-translate-y="${value}"></div>`;
   const node = document.body.firstElementChild;
   Object.defineProperty(node, 'offsetTop', { value: 3000, configurable: true });
   Object.defineProperty(node, 'offsetHeight', { value: 100, configurable: true });

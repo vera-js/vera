@@ -41,14 +41,14 @@ const reasons = (m) => m.rejected.map((r) => r.rejected).flat();
 describe('a value longer than the length cap', () => {
   it('is refused, so one attribute cannot fill the table by itself', () => {
     const long = `rgb(${'0'.repeat(400)},0,0)`;
-    const m = start(`<div data-vera-motion data-vera-motion-background="0% red, 100% ${long}"></div>`);
+    const m = start(`<div data-vm data-vm-background="0% red, 100% ${long}"></div>`);
     expect(reasons(m).some((r) => r.includes('background'))).toBe(true);
     m.destroy();
   });
 
   it('and the keyframe that was fine still is', () => {
     const long = `rgb(${'0'.repeat(400)},0,0)`;
-    const m = start(`<div data-vera-motion data-vera-motion-background="0% red, 100% ${long}"></div>`);
+    const m = start(`<div data-vm data-vm-background="0% red, 100% ${long}"></div>`);
     expect(reasons(m)).toHaveLength(1);
     m.destroy();
   });
@@ -60,7 +60,7 @@ describe('more distinct values than the table holds', () => {
     const many = [];
     for (let i = 0; i < 1200; i++) {
       many.push(
-        `<div data-vera-motion data-vera-motion-background="0% rgb(${i % 256}, ${(i >> 8) % 256}, ${i % 7}), 100% rgb(1,2,${i % 251})"></div>`
+        `<div data-vm data-vm-background="0% rgb(${i % 256}, ${(i >> 8) % 256}, ${i % 7}), 100% rgb(1,2,${i % 251})"></div>`
       );
     }
     return start(many.join(''));
@@ -107,7 +107,7 @@ describe('more distinct values than the table holds', () => {
      * while something is still animating.
      */
     const flooder = flood();
-    const m = start('<div data-vera-motion data-vera-motion-background="0% rgb(0, 0, 0), 100% rgb(1,2,3)"></div>');
+    const m = start('<div data-vm data-vm-background="0% rgb(0, 0, 0), 100% rgb(1,2,3)"></div>');
     /**
      * **The element**, not the page. While the table is full that is a fact
      * about the page, so every live instance reports it — which is what
@@ -129,7 +129,7 @@ describe('more distinct values than the table holds', () => {
    */
   it('is emptied once no instance is left animating the page', () => {
     flood().destroy();
-    const m = start('<div data-vera-motion data-vera-motion-background="0% rgb(9, 9, 9), 100% rgb(8,8,8)"></div>');
+    const m = start('<div data-vm data-vm-background="0% rgb(9, 9, 9), 100% rgb(8,8,8)"></div>');
     expect(reasons(m)).toEqual([]);
     m.destroy();
   });

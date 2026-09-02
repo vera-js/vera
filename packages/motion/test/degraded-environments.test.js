@@ -9,7 +9,7 @@ const place = (n, top = 500) => {
   Object.defineProperty(n, 'offsetParent', { value: null, configurable: true });
 };
 const MARKUP =
-  '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+  '<div data-vm data-vm-translate-y="0% 0px, 100% 40px" data-vm-opacity="0% 0, 100% 1"></div>';
 
 const saved = {};
 const remove = (name) => { saved[name] = globalThis[name]; delete globalThis[name]; };

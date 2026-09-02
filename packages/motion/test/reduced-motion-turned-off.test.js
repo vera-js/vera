@@ -6,8 +6,8 @@ import { split } from '../src/split.ts';
 wireMotion(split);
 
 const MARKUP =
-  '<p data-vera-motion-split="words" ' +
-  'data-vera-motion-translate-y="0% 10px, 100% 0px">one two three</p>';
+  '<p data-vm-split="words" ' +
+  'data-vm-translate-y="0% 10px, 100% 0px">one two three</p>';
 
 /**
  * Both preferences are live toggles on macOS and Windows, so the library
@@ -102,7 +102,7 @@ describe('reduced motion turned off while the page is open', () => {
   it('was never a problem for an element no module builds', () => {
     const fire = watching(/reduced/);
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const m = createMotion({ respectReducedMotion: true, inertia: 0 });
     m.init();
     expect(m.elements).toHaveLength(1);

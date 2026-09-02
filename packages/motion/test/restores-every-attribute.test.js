@@ -24,7 +24,7 @@ wireMotion([paint, easings]);
  * property must have written a style in the first place — a generated case
  * that animates nothing would pass the restore check by doing nothing at all.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (n) => {
   for (const [k, v] of [['offsetLeft', 100], ['offsetTop', 500], ['offsetWidth', 200], ['offsetHeight', 200]]) {

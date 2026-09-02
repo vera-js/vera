@@ -42,10 +42,10 @@ describe('the built production artifact honours the published contract', () => {
     const { createMotion } = await import(DIST.href);
 
     const node = document.createElement('div');
-    node.setAttribute('data-vera-motion', '');
-    node.setAttribute('data-vera-motion-translate-y', '0% 0, 100% 40px');
+    node.setAttribute('data-vm', '');
+    node.setAttribute('data-vm-translate-y', '0% 0, 100% 40px');
     /** An unknown attribute, so `rejected` has something to answer with. */
-    node.setAttribute('data-vera-motion-bogus', '1');
+    node.setAttribute('data-vm-bogus', '1');
     place(node);
     document.body.appendChild(node);
 
@@ -65,7 +65,7 @@ describe('the built production artifact honours the published contract', () => {
     const entry = m.rejected.find((r) => r.node === node);
     expect(entry).toBeTruthy();
     expect(entry.rejected.length).toBeGreaterThan(0);
-    expect(entry.rejected[0]).toContain('data-vera-motion-bogus');
+    expect(entry.rejected[0]).toContain('data-vm-bogus');
 
     m.destroy();
     expect(node.style.transform).toBe('');

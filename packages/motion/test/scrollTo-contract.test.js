@@ -402,8 +402,8 @@ describe('scroll-to option and method contract', () => {
   it('destroy — removes the target markers it injected', () => {
     const s = createScrollTo();
     s.init();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]').length).toBe(2);
+    expect(document.querySelectorAll('[data-vm-scroll-target]').length).toBe(2);
     s.destroy();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]').length).toBe(0);
+    expect(document.querySelectorAll('[data-vm-scroll-target]').length).toBe(0);
   });
 });

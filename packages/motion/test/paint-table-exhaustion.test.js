@@ -20,7 +20,7 @@ import { paint } from '../src/paint.ts';
 
 const mount = () => {
   document.body.innerHTML =
-    '<div id="a" data-vera-motion data-vera-motion-background="0% #000000, 100% #ffffff"></div>';
+    '<div id="a" data-vm data-vm-background="0% #000000, 100% #ffffff"></div>';
   const node = document.getElementById('a');
   for (const [key, value] of [
     ['offsetTop', 900], ['offsetHeight', 200], ['offsetWidth', 200], ['offsetParent', null],
@@ -51,14 +51,14 @@ describe('the paint slot table under a long editing session', () => {
     m.init();
 
     /** The control: an ordinary edit applies, or nothing below is evidence. */
-    node.setAttribute('data-vera-motion-background', '0% #112233, 100% #ffffff');
+    node.setAttribute('data-vm-background', '0% #112233, 100% #ffffff');
     m.collect();
     expect(node.style.background).toBe('#112233');
     expect(m.rejected.flatMap((entry) => entry.rejected)).toEqual([]);
 
     /** A picker dragged: one distinct colour per step, re-parsed each time. */
     for (let i = 1; i <= 1200; i++) {
-      node.setAttribute('data-vera-motion-background', `0% ${hex(i)}, 100% #ffffff`);
+      node.setAttribute('data-vm-background', `0% ${hex(i)}, 100% #ffffff`);
       m.collect();
     }
 
@@ -66,7 +66,7 @@ describe('the paint slot table under a long editing session', () => {
     expect(said.some((reason) => /distinct paint values/.test(reason))).toBe(true);
 
     /** Past the bound the newest colour does not reach the element. */
-    node.setAttribute('data-vera-motion-background', '0% #123456, 100% #ffffff');
+    node.setAttribute('data-vm-background', '0% #123456, 100% #ffffff');
     m.collect();
     expect(node.style.background).not.toBe('#123456');
 
@@ -86,7 +86,7 @@ describe('the paint slot table under a long editing session', () => {
     fresh.init();
     const replacement = mount();
     fresh.collect();
-    replacement.setAttribute('data-vera-motion-background', '0% #654321, 100% #ffffff');
+    replacement.setAttribute('data-vm-background', '0% #654321, 100% #ffffff');
     fresh.collect();
     expect(replacement.style.background).toBe('#654321');
     /**
@@ -114,8 +114,8 @@ describe('the paint slot table under a long editing session', () => {
      * way tests the unsupported configuration instead of the guard.
      */
     document.body.innerHTML =
-      '<section id="one"><div id="a" data-vera-motion data-vera-motion-background="0% #abcdef, 100% #ffffff"></div></section>' +
-      '<section id="two"><div id="b" data-vera-motion data-vera-motion-background="0% #fedcba, 100% #ffffff"></div></section>';
+      '<section id="one"><div id="a" data-vm data-vm-background="0% #abcdef, 100% #ffffff"></div></section>' +
+      '<section id="two"><div id="b" data-vm data-vm-background="0% #fedcba, 100% #ffffff"></div></section>';
     const place = (node) => {
       for (const [key, value] of [
         ['offsetTop', 900], ['offsetHeight', 200], ['offsetWidth', 200], ['offsetParent', null],

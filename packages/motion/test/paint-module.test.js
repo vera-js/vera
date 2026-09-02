@@ -26,8 +26,8 @@ beforeEach(() => { wireMotion(paint); document.body.innerHTML = ''; });
 describe('the paint module', () => {
   it('steps background from one authored value to the next', () => {
     const { node, m } = run(
-      '<div data-vera-motion data-vera-motion-inertia="0.4"' +
-      ' data-vera-motion-background="0% linear-gradient(red, blue), 100% #0a0"></div>');
+      '<div data-vm data-vm-inertia="0.4"' +
+      ' data-vm-background="0% linear-gradient(red, blue), 100% #0a0"></div>');
     expect(node.style.background).toContain('gradient');
 
     Object.defineProperty(window, 'scrollY', { value: 9000, configurable: true });
@@ -42,11 +42,11 @@ describe('the paint module', () => {
 
   it('covers colour, border-colour and both shadows', () => {
     const { node, m } = run(
-      '<div data-vera-motion' +
-      ' data-vera-motion-color="0% #111, 100% #eee"' +
-      ' data-vera-motion-border-color="0% red, 100% blue"' +
-      ' data-vera-motion-shadow="0% 0 0 0 rgb(0 0 0 / 0), 100% 0 2px 8px rgb(0 0 0 / 0.3)"' +
-      ' data-vera-motion-text-shadow="0% none, 100% 1px 1px 2px black"></div>');
+      '<div data-vm' +
+      ' data-vm-color="0% #111, 100% #eee"' +
+      ' data-vm-border-color="0% red, 100% blue"' +
+      ' data-vm-shadow="0% 0 0 0 rgb(0 0 0 / 0), 100% 0 2px 8px rgb(0 0 0 / 0.3)"' +
+      ' data-vm-text-shadow="0% none, 100% 1px 1px 2px black"></div>');
     expect(m.rejected.flatMap((r) => r.rejected)).toEqual([]);
     expect(node.style.color).toBeTruthy();
     expect(node.style.borderColor).toBeTruthy();
@@ -56,7 +56,7 @@ describe('the paint module', () => {
 
   it('refuses url(), so an attribute cannot reach past the origin policy', () => {
     const { m } = run(
-      '<div data-vera-motion data-vera-motion-background="0% url(https://evil.test/x.png), 100% red"></div>');
+      '<div data-vm data-vm-background="0% url(https://evil.test/x.png), 100% red"></div>');
     expect(m.rejected.flatMap((r) => r.rejected).some((r) => r.includes('url('))).toBe(true);
     m.destroy();
     vi.unstubAllGlobals();
@@ -78,7 +78,7 @@ describe('the paint module', () => {
       'element(#other)',
     ]) {
       const { m } = run(
-        `<div data-vera-motion data-vera-motion-background="0% ${payload}, 100% red"></div>`);
+        `<div data-vm data-vm-background="0% ${payload}, 100% red"></div>`);
       const reasons = m.rejected.flatMap((r) => r.rejected);
       expect(reasons.length > 0).toBe(true);
       m.destroy();
@@ -88,10 +88,10 @@ describe('the paint module', () => {
 
   it('shares one slot between elements using the same value', () => {
     const { m } = run(
-      '<div data-vera-motion data-vera-motion-background="0% red, 100% blue"></div>');
+      '<div data-vm data-vm-background="0% red, 100% blue"></div>');
     const first = [...m.elements[0].plan.all[0].curve.values];
     m.destroy();
-    const again = run('<div data-vera-motion data-vera-motion-background="0% red, 100% blue"></div>');
+    const again = run('<div data-vm data-vm-background="0% red, 100% blue"></div>');
     expect([...again.m.elements[0].plan.all[0].curve.values]).toEqual(first);
     again.m.destroy();
     vi.unstubAllGlobals();

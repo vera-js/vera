@@ -10,7 +10,7 @@ const place = (n) => {
 };
 const run = (attrs) => {
   document.body.innerHTML =
-    `<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 100px" ${attrs}></div>`;
+    `<div data-vm data-vm-translate-y="0% 0px, 100% 100px" ${attrs}></div>`;
   const node = document.body.firstElementChild;
   place(node);
   Object.defineProperty(window, 'scrollY', { value: 400, configurable: true });
@@ -37,7 +37,7 @@ describe('the easings module', () => {
 
   it('shapes the curve once wired', () => {
     wireMotion(easings);
-    const eased = run('data-vera-motion-ease="ease-in"');
+    const eased = run('data-vm-ease="ease-in"');
     const shaped = eased.node.style.transform;
     eased.m.destroy();
 

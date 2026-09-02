@@ -18,7 +18,7 @@ beforeEach(() => { document.body.innerHTML = ''; vi.restoreAllMocks(); });
 describe('accessibility beyond text splitting', () => {
   it('animating adds no aria attributes or roles to ordinary elements', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px" data-vera-motion-pin="20px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px" data-vm-pin="20px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0.2 });
@@ -44,7 +44,7 @@ describe('accessibility beyond text splitting', () => {
       removeEventListener: () => {},
     }));
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: true, inertia: 0.3 });
@@ -82,7 +82,7 @@ describe('accessibility beyond text splitting', () => {
 
   it('split text stays visible, and readable through the hidden copy', async () => {
     document.body.innerHTML =
-      '<p data-vera-motion data-vera-motion-split="chars" data-vera-motion-opacity="0% 0, 100% 1">find me</p>';
+      '<p data-vm data-vm-split="chars" data-vm-opacity="0% 0, 100% 1">find me</p>';
     const node = document.body.firstElementChild;
     const m = createMotion({ respectReducedMotion: false });
     m.init();

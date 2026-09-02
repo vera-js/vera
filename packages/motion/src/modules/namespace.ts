@@ -27,24 +27,32 @@
  */
 
 /**
- * Brand-qualified on purpose. The exposed surface is the bare marker
- * attribute — `querySelectorAll` finds every animated element by it — and a
- * single generic word there is a plausible collision on a WordPress page
- * sharing a DOM with plugins nobody controls. `vera-` is not.
+ * `vm`, renamed from `vera-motion` (Brian, 2026-09-02) while the package has
+ * zero users — the one moment a rename is free. The product is hand-authored
+ * attributes, so the prefix is typed on every element of every page anyone
+ * builds with this: `data-vm-translate-y` against `data-vm-translate-y`
+ * is eight characters of authoring feel, times everything, forever. The scroll
+ * animation genre already speaks terse (`data-aos`, `data-sal`, `data-rellax-*`),
+ * and a search found no library claiming `data-vm-*`.
  *
- * Measured against the alternative it was chosen over — `data-motion`, the
- * generic word — because a cost is only a cost against something. Re-measured
- * 2026-08-30 on the demo, which now carries **127** of these attributes:
- * **11 bytes gzipped on the page** and **4 in the library**, against 635 raw
- * bytes that are not real, because gzip dedupes a string repeating 127 times
- * almost perfectly.
+ * This refines the earlier decision rather than reversing it. The old comment
+ * argued a "single generic word is a plausible collision on a WordPress page"
+ * — an argument against `data-motion`, the generic English word, which stands.
+ * `vm` is not a generic word; its collision surface is `data-aos`-shaped, not
+ * `data-motion`-shaped. What is knowingly traded away is view-source
+ * provenance: `data-vm` said whose attribute it was, `data-vm-` only
+ * greps uniquely. Wire cost was never the axis — measured 2026-08-30, the long
+ * name cost 29 bytes gzipped over this one on a 127-attribute page, because
+ * gzip dedupes a repeating string almost perfectly.
  *
- * It said "12 bytes across a page with 82 attributes" and did not say what it
- * was 12 bytes dearer *than* — which is enough to price the wrong thing: a
- * first re-measurement compared against `data-vm`, a name nobody proposed, and
- * got 29.
+ * The token also mints the event names (`vm:active`, `vm:idle`,
+ * `vm:complete`): one namespace, one story, and a colon-qualified event name
+ * collides with nothing. Bundle filenames (`vera-motion.min.js`) are NOT this
+ * namespace and did not move — artifacts are addressed by package, attributes
+ * by prefix. If a sibling package ever needs element attributes, the pattern
+ * leaves it room (`data-v?-*`).
  */
-export const NAMESPACE = 'vera-motion';
+export const NAMESPACE = 'vm';
 
 /** Every attribute this library reads starts with this. */
 export const ATTRIBUTE_PREFIX = `data-${NAMESPACE}`;

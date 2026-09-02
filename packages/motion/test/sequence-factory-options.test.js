@@ -12,7 +12,7 @@ import { sequence } from '../src/sequence.ts';
  * on the option that governs this module's **security boundary**, where the
  * page going down is not the worst reading of the mistake.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

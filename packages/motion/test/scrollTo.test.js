@@ -53,7 +53,7 @@ describe('collect', () => {
     page();
     const s = createScrollTo();
     s.init();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(3);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(3);
     s.destroy();
   });
 
@@ -61,7 +61,7 @@ describe('collect', () => {
     document.body.innerHTML = '<nav><a href="#nope">x</a></nav>';
     const s = createScrollTo();
     s.init();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(0);
     s.destroy();
   });
 
@@ -69,7 +69,7 @@ describe('collect', () => {
     document.body.innerHTML = `<nav><a href="${href}">x</a></nav><section id="one"></section>`;
     const s = createScrollTo();
     s.init();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(0);
     s.destroy();
   });
 
@@ -77,7 +77,7 @@ describe('collect', () => {
     document.body.innerHTML = '<nav><a href="#one">a</a><a href="#one">b</a></nav><section id="one"></section>';
     const s = createScrollTo();
     s.init();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(1);
     s.destroy();
   });
 });
@@ -236,7 +236,7 @@ describe('a malformed selector option', () => {
     const s = createScrollTo({ selector: 'a[href' });
     expect(() => s.init()).not.toThrow();
     expect(warn).toHaveBeenCalled();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(0);
     s.destroy();
     warn.mockRestore();
   });
@@ -273,7 +273,7 @@ describe('lifecycle', () => {
 
     s.destroy();
     expect(document.querySelectorAll('nav a.active')).toHaveLength(0);
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(0);
   });
 
   it('cancels an in-flight tween on destroy', () => {
@@ -306,7 +306,7 @@ describe('shadow DOM', () => {
     const root = shadowPage();
     const s = createScrollTo({ root });
     s.init();
-    expect(root.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(1);
+    expect(root.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(1);
     s.destroy();
   });
 
@@ -314,7 +314,7 @@ describe('shadow DOM', () => {
     shadowPage();
     const s = createScrollTo();
     s.init();
-    expect(document.querySelectorAll('[data-vera-motion-scroll-target]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-vm-scroll-target]')).toHaveLength(0);
     s.destroy();
   });
 

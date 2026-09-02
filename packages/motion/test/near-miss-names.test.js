@@ -46,24 +46,24 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('a name that is almost right', () => {
   /** The control: a correct attribute is refused nothing at all. */
   it('says nothing about a name that is right', () => {
-    expect(reasons('<div data-vera-motion data-vera-motion-translate-y="40px"></div>')).toBe('');
+    expect(reasons('<div data-vm data-vm-translate-y="40px"></div>')).toBe('');
   });
 
   it('suggests the real name for a camelCase or underscored one', () => {
     /** The DOM lowercases attribute names, so `translateY` arrives flattened. */
-    expect(reasons('<div data-vera-motion data-vera-motion-translateY="40px"></div>'))
-      .toMatch(/did you mean data-vera-motion-translate-y\?/);
-    expect(reasons('<div data-vera-motion data-vera-motion-translate_y="40px"></div>'))
-      .toMatch(/did you mean data-vera-motion-translate-y\?/);
+    expect(reasons('<div data-vm data-vm-translateY="40px"></div>'))
+      .toMatch(/did you mean data-vm-translate-y\?/);
+    expect(reasons('<div data-vm data-vm-translate_y="40px"></div>'))
+      .toMatch(/did you mean data-vm-translate-y\?/);
   });
 
   it('suggests the real preset for a run-together one', () => {
-    expect(reasons('<div data-vera-motion="fadeup"></div>')).toMatch(/did you mean "fade-up"\?/);
+    expect(reasons('<div data-vm="fadeup"></div>')).toMatch(/did you mean "fade-up"\?/);
   });
 
   /** A mistyped letter is not guessed at — no threshold, no confident wrong answer. */
   it('does not invent a suggestion for a mistyped letter', () => {
-    const said = reasons('<div data-vera-motion data-vera-motion-opacty="0"></div>');
+    const said = reasons('<div data-vm data-vm-opacty="0"></div>');
     expect(said).toMatch(/no such attribute/);
     expect(said).not.toMatch(/did you mean/);
   });
@@ -75,8 +75,8 @@ describe('a name that is almost right', () => {
    */
   it('points at the wiring for an attribute whose module is not wired', () => {
     for (const markup of [
-      '<div data-vera-motion data-vera-motion-background="0% red, 100% blue"></div>',
-      '<div data-vera-motion data-vera-motion-split="chars"></div>',
+      '<div data-vm data-vm-background="0% red, 100% blue"></div>',
+      '<div data-vm data-vm-split="chars"></div>',
     ]) {
       const said = reasons(markup);
       expect(said).toMatch(/wire the module that provides it/);

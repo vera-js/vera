@@ -10,7 +10,7 @@ const place = (node) => {
 
 const build = (markup) => {
   document.body.innerHTML = markup;
-  for (const node of document.querySelectorAll('[data-vera-motion]')) place(node);
+  for (const node of document.querySelectorAll('[data-vm]')) place(node);
   const m = createMotion({ respectReducedMotion: false, inertia: 0 });
   m.init();
   return m;
@@ -36,8 +36,8 @@ afterEach(() => vi.unstubAllGlobals());
 describe('inline styles the page wrote first', () => {
   it('gives back a transform it took over', () => {
     const m = build(
-      '<div style="transform: translateX(-50%)" data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div style="transform: translateX(-50%)" data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     const node = document.body.firstElementChild;
     /** Taken over while animating, which is the documented half. */
@@ -48,8 +48,8 @@ describe('inline styles the page wrote first', () => {
 
   it('gives back a filter', () => {
     const m = build(
-      '<div style="filter: grayscale(1)" data-vera-motion ' +
-      'data-vera-motion-opacity="0% 0.2, 100% 1"></div>'
+      '<div style="filter: grayscale(1)" data-vm ' +
+      'data-vm-opacity="0% 0.2, 100% 1"></div>'
     );
     const node = document.body.firstElementChild;
     m.destroy();
@@ -58,8 +58,8 @@ describe('inline styles the page wrote first', () => {
 
   it('gives back a plain property a module or the schema names', () => {
     const m = build(
-      '<div style="border-top-left-radius: 12px" data-vera-motion ' +
-      'data-vera-motion-radius-top-left="0% 0px, 100% 20px"></div>'
+      '<div style="border-top-left-radius: 12px" data-vm ' +
+      'data-vm-radius-top-left="0% 0px, 100% 20px"></div>'
     );
     const node = document.body.firstElementChild;
     m.destroy();
@@ -73,8 +73,8 @@ describe('inline styles the page wrote first', () => {
    */
   it('leaves alone what it never wrote', () => {
     const m = build(
-      '<div style="background: red" data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div style="background: red" data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     const node = document.body.firstElementChild;
     node.style.setProperty('color', 'blue');
@@ -86,7 +86,7 @@ describe('inline styles the page wrote first', () => {
   /** And an element with nothing inline does not acquire an empty attribute. */
   it('adds nothing to an element that had nothing', () => {
     const m = build(
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     const node = document.body.firstElementChild;
     m.destroy();
@@ -99,8 +99,8 @@ describe('inline styles the page wrote first', () => {
    */
   it('gives them back on disable, which is what natural state means', () => {
     const m = build(
-      '<div style="transform: translateX(-50%)" data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div style="transform: translateX(-50%)" data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     const node = document.body.firstElementChild;
     m.disable();
@@ -117,8 +117,8 @@ describe('inline styles the page wrote first', () => {
    */
   it('records only the properties that had a value', () => {
     const m = build(
-      '<div style="transform: translateX(-50%)" data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div style="transform: translateX(-50%)" data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     expect([...m.elements[0].restore]).toEqual(['transform', 'translateX(-50%)']);
     m.destroy();
@@ -126,7 +126,7 @@ describe('inline styles the page wrote first', () => {
 
   it('records nothing at all for an element with no inline style', () => {
     const m = build(
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     expect([...m.elements[0].restore]).toEqual([]);
     m.destroy();
@@ -141,8 +141,8 @@ describe('inline styles the page wrote first', () => {
    */
   it('records nothing for an element another instance is already animating', () => {
     document.body.innerHTML =
-      '<div style="transform: translateX(-50%)" data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 400px"></div>';
+      '<div style="transform: translateX(-50%)" data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 400px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const first = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -164,8 +164,8 @@ describe('inline styles the page wrote first', () => {
     document.head.insertAdjacentHTML('beforeend',
       '<style id="sheet">.sheeted { transform: rotate(9deg) }</style>');
     const m = build(
-      '<div class="sheeted" data-vera-motion ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>'
+      '<div class="sheeted" data-vm ' +
+      'data-vm-translate-y="0% 0px, 100% 40px"></div>'
     );
     const node = document.body.firstElementChild;
     m.destroy();

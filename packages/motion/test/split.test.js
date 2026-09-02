@@ -12,7 +12,7 @@ const el = (html) => {
   document.body.innerHTML = html;
   return document.body.firstElementChild;
 };
-const pieces = (node) => [...node.querySelectorAll('[data-vera-motion]')];
+const pieces = (node) => [...node.querySelectorAll('[data-vm]')];
 /** The visually-hidden copy that carries the readable sentence — real text, not aria-label. */
 const copyOf = (node) => node.querySelector(':scope > span:not([aria-hidden])');
 /** What a sighted reader sees: everything except the hidden copy. */
@@ -23,7 +23,7 @@ beforeEach(() => { document.body.innerHTML = ''; });
 
 describe('createSplit', () => {
   it('splits into characters, keeping spaces as plain text', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0% 0, 100% 1">ab cd</p>');
+    const node = el('<p data-vm data-vm-opacity="0% 0, 100% 1">ab cd</p>');
     createSplit(node, 'chars');
     expect(pieces(node).map((p) => p.textContent)).toEqual(['a', 'b', 'c', 'd']);
     /** The space survives as a text node, so wrapping behaves as before. */
@@ -32,14 +32,14 @@ describe('createSplit', () => {
   });
 
   it('splits into words', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0% 0, 100% 1">the quick fox</p>');
+    const node = el('<p data-vm data-vm-opacity="0% 0, 100% 1">the quick fox</p>');
     createSplit(node, 'words');
     expect(pieces(node).map((p) => p.textContent)).toEqual(['the', 'quick', 'fox']);
     expect(visible(node)).toBe('the quick fox');
   });
 
   it('preserves runs of whitespace rather than collapsing them', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">a   b</p>');
+    const node = el('<p data-vm data-vm-opacity="0">a   b</p>');
     createSplit(node, 'words');
     expect(visible(node)).toBe('a   b');
   });
@@ -53,20 +53,20 @@ describe('text the bidi algorithm would reorder', () => {
    * the fix in the sentence, exactly as nested markup is.
    */
   it('refuses a Hebrew run inside an LTR paragraph', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">before שלום עולם after</p>');
+    const node = el('<p data-vm data-vm-opacity="0">before שלום עולם after</p>');
     expect(createSplit(node, 'words')).toBeNull();
     expect(node.querySelectorAll('span')).toHaveLength(0);
   });
 
   it('refuses a Latin run inside an RTL paragraph', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">שלום hello עולם</p>');
+    const node = el('<p data-vm data-vm-opacity="0">שלום hello עולם</p>');
     vi.spyOn(window, 'getComputedStyle').mockReturnValue({ direction: 'rtl' });
     expect(createSplit(node, 'words')).toBeNull();
     vi.restoreAllMocks();
   });
 
   it('splits an RTL paragraph of its own script — source order is reading order there', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">שלום עולם</p>');
+    const node = el('<p data-vm data-vm-opacity="0">שלום עולם</p>');
     vi.spyOn(window, 'getComputedStyle').mockReturnValue({ direction: 'rtl' });
     const made = createSplit(node, 'words');
     expect(made).not.toBeNull();
@@ -85,36 +85,36 @@ describe('what moves to the pieces and what stays', () => {
    * failure is the *absence* of a cascade.
    */
   it('leaves stagger and split on the container', () => {
-    const node = el(`<p data-vera-motion data-vera-motion-split="chars" data-vera-motion-stagger="3"
-      data-vera-motion-opacity="0% 0, 100% 1">ab</p>`);
+    const node = el(`<p data-vm data-vm-split="chars" data-vm-stagger="3"
+      data-vm-opacity="0% 0, 100% 1">ab</p>`);
     createSplit(node, 'chars');
-    expect(node.getAttribute('data-vera-motion-stagger')).toBe('3');
-    expect(node.getAttribute('data-vera-motion-split')).toBe('chars');
-    expect(pieces(node).some((p) => p.hasAttribute('data-vera-motion-stagger'))).toBe(false);
+    expect(node.getAttribute('data-vm-stagger')).toBe('3');
+    expect(node.getAttribute('data-vm-split')).toBe('chars');
+    expect(pieces(node).some((p) => p.hasAttribute('data-vm-stagger'))).toBe(false);
   });
 
   it('moves the animation attributes off the parent and onto every piece', () => {
-    const node = el(`<p data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"
-      data-vera-motion-translate-y="0% 20px, 100% 0px">ab</p>`);
+    const node = el(`<p data-vm data-vm-opacity="0% 0, 100% 1"
+      data-vm-translate-y="0% 20px, 100% 0px">ab</p>`);
     createSplit(node, 'chars');
-    expect(node.hasAttribute('data-vera-motion-opacity')).toBe(false);
-    expect(node.hasAttribute('data-vera-motion-translate-y')).toBe(false);
+    expect(node.hasAttribute('data-vm-opacity')).toBe(false);
+    expect(node.hasAttribute('data-vm-translate-y')).toBe(false);
     for (const p of pieces(node)) {
-      expect(p.getAttribute('data-vera-motion-opacity')).toBe('0% 0, 100% 1');
-      expect(p.getAttribute('data-vera-motion-translate-y')).toBe('0% 20px, 100% 0px');
+      expect(p.getAttribute('data-vm-opacity')).toBe('0% 0, 100% 1');
+      expect(p.getAttribute('data-vm-translate-y')).toBe('0% 20px, 100% 0px');
     }
   });
 
   it('moves per-element settings, which configure how a piece animates', () => {
-    const node = el(`<p data-vera-motion data-vera-motion-opacity="0" data-vera-motion-inertia="0.4"
-      data-vera-motion-ease="ease-in">ab</p>`);
+    const node = el(`<p data-vm data-vm-opacity="0" data-vm-inertia="0.4"
+      data-vm-ease="ease-in">ab</p>`);
     createSplit(node, 'chars');
-    expect(pieces(node)[0].getAttribute('data-vera-motion-inertia')).toBe('0.4');
-    expect(pieces(node)[0].getAttribute('data-vera-motion-ease')).toBe('ease-in');
+    expect(pieces(node)[0].getAttribute('data-vm-inertia')).toBe('0.4');
+    expect(pieces(node)[0].getAttribute('data-vm-ease')).toBe('ease-in');
   });
 
   it('produces pieces the parser accepts', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0% 0, 100% 1">ab</p>');
+    const node = el('<p data-vm data-vm-opacity="0% 0, 100% 1">ab</p>');
     createSplit(node, 'chars');
     const parsed = parseElement(pieces(node)[0], { origin: 'https://example.com/' });
     expect(parsed).not.toBeNull();
@@ -124,7 +124,7 @@ describe('what moves to the pieces and what stays', () => {
 
 describe('accessibility', () => {
   it('keeps the original text readable — as a hidden copy, not aria-label', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">Hello there</p>');
+    const node = el('<p data-vm data-vm-opacity="0">Hello there</p>');
     createSplit(node, 'chars');
     /**
      * ARIA 1.2 prohibits naming on generic/paragraph roles, so the label
@@ -139,7 +139,7 @@ describe('accessibility', () => {
   });
 
   it('hides every piece from assistive technology', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">Hello</p>');
+    const node = el('<p data-vm data-vm-opacity="0">Hello</p>');
     createSplit(node, 'chars');
     expect(pieces(node).every((p) => p.getAttribute('aria-hidden') === 'true')).toBe(true);
   });
@@ -152,7 +152,7 @@ describe('refusals', () => {
    */
   it('refuses a text long enough to make an absurd number of pieces', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const node = el(`<p data-vera-motion data-vera-motion-opacity="0">${'word '.repeat(600)}</p>`);
+    const node = el(`<p data-vm data-vm-opacity="0">${'word '.repeat(600)}</p>`);
     expect(createSplit(node, 'words')).toBeNull();
     expect(node.children.length).toBe(0);
     expect(warn).toHaveBeenCalled();
@@ -160,30 +160,30 @@ describe('refusals', () => {
   });
 
   it('still splits an ordinary heading', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">Hello there</p>');
+    const node = el('<p data-vm data-vm-opacity="0">Hello there</p>');
     expect(createSplit(node, 'chars')).not.toBeNull();
     expect(pieces(node)).toHaveLength(10);
   });
 
   it('refuses nested markup rather than dropping it', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">Some <strong>bold</strong> text</p>');
+    const node = el('<p data-vm data-vm-opacity="0">Some <strong>bold</strong> text</p>');
     expect(createSplit(node, 'words')).toBeNull();
     /** Untouched: the markup and the attribute are both still there. */
     expect(node.querySelector('strong')).not.toBeNull();
-    expect(node.hasAttribute('data-vera-motion-opacity')).toBe(true);
+    expect(node.hasAttribute('data-vm-opacity')).toBe(true);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
 
   it('refuses an element with no text', () => {
-    expect(createSplit(el('<p data-vera-motion data-vera-motion-opacity="0">   </p>'), 'chars')).toBeNull();
+    expect(createSplit(el('<p data-vm data-vm-opacity="0">   </p>'), 'chars')).toBeNull();
   });
 });
 
 describe('destroy', () => {
   it('restores the text, the attributes and the markup exactly', () => {
-    const html = '<p data-vera-motion data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-stagger="3">the quick fox</p>';
+    const html = '<p data-vm data-vm-opacity="0% 0, 100% 1" data-vm-stagger="3">the quick fox</p>';
     const node = el(html);
     const split = createSplit(node, 'words');
     expect(node.children.length).toBeGreaterThan(0);
@@ -191,13 +191,13 @@ describe('destroy', () => {
     split.destroy();
     expect(node.children.length).toBe(0);
     expect(node.textContent).toBe('the quick fox');
-    expect(node.getAttribute('data-vera-motion-opacity')).toBe('0% 0, 100% 1');
-    expect(node.getAttribute('data-vera-motion-stagger')).toBe('3');
+    expect(node.getAttribute('data-vm-opacity')).toBe('0% 0, 100% 1');
+    expect(node.getAttribute('data-vm-stagger')).toBe('3');
     expect(node.hasAttribute('aria-label')).toBe(false);
   });
 
   it('is safe to call after a refresh', () => {
-    const node = el('<p data-vera-motion data-vera-motion-opacity="0">ab cd</p>');
+    const node = el('<p data-vm data-vm-opacity="0">ab cd</p>');
     const split = createSplit(node, 'words');
     split.refresh();
     split.destroy();
@@ -216,7 +216,7 @@ describe('teardown races the chunk', () => {
    */
   it('does not split after destroy()', async () => {
     document.body.innerHTML =
-      '<p id="t" data-vera-motion data-vera-motion-split="chars" data-vera-motion-opacity="0% 0, 100% 1">hello</p>';
+      '<p id="t" data-vm data-vm-split="chars" data-vm-opacity="0% 0, 100% 1">hello</p>';
     const animation = createMotion({ respectReducedMotion: false });
     animation.init();
     animation.destroy();
@@ -238,7 +238,7 @@ describe('teardown races the font load', () => {
     const ready = new Promise((r) => { release = r; });
     Object.defineProperty(document, 'fonts', { value: { ready }, configurable: true });
 
-    document.body.innerHTML = '<p id="t" data-vera-motion data-vera-motion-opacity="0">hello there</p>';
+    document.body.innerHTML = '<p id="t" data-vm data-vm-opacity="0">hello there</p>';
     const node = document.getElementById('t');
     const split = createSplit(node, 'lines');
     split.destroy();
@@ -278,13 +278,13 @@ describe('an unknown split mode is reported exactly once', () => {
   };
 
   it('once on a marked container, from the schema', () => {
-    const said = reasons('<p data-vera-motion data-vera-motion-split="sentences" data-vera-motion-opacity="0">Hi</p>');
+    const said = reasons('<p data-vm data-vm-split="sentences" data-vm-opacity="0">Hi</p>');
     expect(said).toHaveLength(1);
     expect(said[0]).toMatch(/must be one of/);
   });
 
   it('and once on an unmarked one, from the module — the case core cannot see', () => {
-    const said = reasons('<p data-vera-motion-split="sentences">Hi there</p>');
+    const said = reasons('<p data-vm-split="sentences">Hi there</p>');
     expect(said).toHaveLength(1);
     expect(said[0]).toMatch(/is not one of/);
   });

@@ -66,7 +66,7 @@ export type {
  * `rejections.js` gets a private `WeakMap` nobody reads — which is exactly what
  * every built module was doing. `dist/split.js` opened with its own
  * `new WeakMap`, and a page that wired the *built* `@verajs/motion/split` and
- * misspelled `split="sentences"` got `["data-vera-motion-split"]` in
+ * misspelled `split="sentences"` got `["data-vm-split"]` in
  * `instance.rejected` and the sentence explaining it in the console, which the
  * GUI editor cannot read. Against `src/` the two resolved to one module and
  * the nineteen tests in the two files named for this all passed.

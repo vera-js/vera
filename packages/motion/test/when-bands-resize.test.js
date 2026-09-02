@@ -16,7 +16,7 @@ import { createMotion } from '../src/index.ts';
  * selector's answer has not changed. The element is still matched and still at
  * its end; what changed is the curve underneath it.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 500], ['offsetHeight', 200], ['offsetWidth', 200], ['offsetLeft', 0]]) {

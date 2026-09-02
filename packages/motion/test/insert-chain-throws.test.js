@@ -33,9 +33,9 @@ beforeEach(() => {
   warnings = [];
   vi.spyOn(console, 'warn').mockImplementation((...args) => warnings.push(String(args[0])));
   document.body.innerHTML =
-    '<p id="p" data-vera-motion data-vera-motion-split="words" ' +
-    'data-vera-motion-opacity="0% 0, 100% 1">alpha beta gamma</p>' +
-    '<div id="d" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    '<p id="p" data-vm data-vm-split="words" ' +
+    'data-vm-opacity="0% 0, 100% 1">alpha beta gamma</p>' +
+    '<div id="d" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
 });
 afterEach(() => vi.restoreAllMocks());
 

@@ -24,7 +24,7 @@ import { createMotion } from '../src/index.ts';
  *
  * The claim goes to the **latest** adopter, and the second block below is why.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const page = () => {
   document.body.innerHTML = `<div ${P} ${P}-opacity="0% 0, 100% 1"></div>`;

@@ -107,20 +107,20 @@ describe('runtime edge cases', () => {
   };
 
   it('a zero-height element still has a scroll window', () => {
-    const e = build('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>', 0);
+    const e = build('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>', 0);
     updateElement(e, win(1000), S);
     expect(Number.isFinite(e.timelinePosition)).toBe(true);
   });
 
   it('an element taller than the viewport animates across its own height', () => {
-    const e = build('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>', 5000);
+    const e = build('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>', 5000);
     updateElement(e, win(1000), S);
     expect(Number.isFinite(e.timelinePosition)).toBe(true);
     expect(e.node.style.filter).toMatch(/opacity/);
   });
 
   it('a band boundary is inclusive at both ends', () => {
-    const html = '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1; [500-700]: 100% 0.5"></div>';
+    const html = '<div data-vm data-vm-opacity="0% 0, 100% 1; [500-700]: 100% 0.5"></div>';
     const inside = build(html);
     resetElement(inside, S, win(0, 500));
     expect(inside.plan.all[0].curve.values.at(-1)).toBe(0.5);
@@ -132,16 +132,16 @@ describe('runtime edge cases', () => {
 
   it('a stagger of zero changes nothing', () => {
     document.body.innerHTML =
-      '<div data-vera-motion-stagger="0"><div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></div>';
-    const nodes = [...document.querySelectorAll('[data-vera-motion]')];
+      '<div data-vm-stagger="0"><div data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div></div>';
+    const nodes = [...document.querySelectorAll('[data-vm]')];
     const parsed = nodes.map((n) => parseElement(n, { origin: 'https://x.test/' }));
     expect(parsed[1].stagger?.position ?? 0).toBe(0);
   });
 
   it('run-once latches on an element whose keyframes are all in a band', () => {
-    const e = build(`<div data-vera-motion data-vera-motion-run-once
-      data-vera-motion-opacity="[0-2000]: 0% 0, 100% 1"></div>`);
+    const e = build(`<div data-vm data-vm-run-once
+      data-vm-opacity="[0-2000]: 0% 0, 100% 1"></div>`);
     updateElement(e, win(4000), S);
     expect(e.runOnceRan).toBe(true);
   });

@@ -4,7 +4,7 @@ import { createMotion } from '../src/index.ts';
 import { EVENTS } from '../src/modules/events.ts';
 
 /**
- * `run-once` means once **ever**, and `vera-motion:complete` is documented as
+ * `run-once` means once **ever**, and `vm:complete` is documented as
  * firing "once, ever". `resetElement` says so in as many words and refuses to
  * clear the latch on a re-measure.
  *
@@ -19,7 +19,7 @@ import { EVENTS } from '../src/modules/events.ts';
  * state-driven element painting its *first* keyframe for ever: the same revert
  * by a longer road.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const settle = async () => {
   await Promise.resolve();

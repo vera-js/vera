@@ -21,15 +21,15 @@ const opacity = (e) => /opacity\(([\d.]+)\)/.exec(e.node.style.filter)?.[1] ?? n
 
 beforeEach(() => { document.body.innerHTML = ''; });
 
-describe('data-vera-motion-when — the driver', () => {
+describe('data-vm-when — the driver', () => {
   it('sits at the start while the selector does not match', () => {
-    const e = build('<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>');
     updateStateElement(e, true);
     expect(opacity(e)).toBe('0');
   });
 
   it('moves to the end when it matches', () => {
-    const e = build('<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>');
     updateStateElement(e, true);
     e.node.classList.add('open');
     updateStateElement(e);
@@ -37,7 +37,7 @@ describe('data-vera-motion-when — the driver', () => {
   });
 
   it('goes back to the start when it stops matching', () => {
-    const e = build('<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>');
     e.node.classList.add('open');
     updateStateElement(e, true);
     expect(opacity(e)).toBe('1');
@@ -48,7 +48,7 @@ describe('data-vera-motion-when — the driver', () => {
   });
 
   it('does nothing when the match has not changed', () => {
-    const e = build('<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>');
     updateStateElement(e, true);
     expect(updateStateElement(e)).toBe(false);
   });
@@ -60,7 +60,7 @@ describe('data-vera-motion-when — the driver', () => {
     ['an attribute', '[aria-expanded="true"]', (n) => n.setAttribute('aria-expanded', 'true')],
     ['a compound', '.a.b', (n) => n.classList.add('a', 'b')],
   ])('matches on %s', (_label, selector, apply) => {
-    const e = build(`<div data-vera-motion data-vera-motion-when='${selector}' data-vera-motion-opacity="0% 0, 100% 1"></div>`);
+    const e = build(`<div data-vm data-vm-when='${selector}' data-vm-opacity="0% 0, 100% 1"></div>`);
     updateStateElement(e, true);
     expect(opacity(e)).toBe('0');
     apply(e.node);
@@ -69,8 +69,8 @@ describe('data-vera-motion-when — the driver', () => {
   });
 
   it('honours every keyframe between the ends', () => {
-    const e = build(`<div data-vera-motion data-vera-motion-when=".open"
-      data-vera-motion-translate-y="0% 40px, 50% 10px, 100% 0px"
+    const e = build(`<div data-vm data-vm-when=".open"
+      data-vm-translate-y="0% 40px, 50% 10px, 100% 0px"
 ></div>`);
     updateStateElement(e, true);
     expect(e.node.style.transform).toBe('translateY(40px)');
@@ -80,31 +80,31 @@ describe('data-vera-motion-when — the driver', () => {
   });
 
   it('gets the damping transition, so it eases rather than snaps', () => {
-    const e = build('<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>');
     expect(e.transition).toContain('filter');
   });
 });
 
-describe('data-vera-motion-when — replaces the scroll driver', () => {
+describe('data-vm-when — replaces the scroll driver', () => {
   it('ignores scroll entirely', () => {
-    const e = build('<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>');
     updateStateElement(e, true);
     updateElement(e, win(4000), S);   // would be past the end if scroll-driven
     expect(opacity(e)).toBe('0');
   });
 
   it('a scroll-driven element is unaffected by the state path', () => {
-    const e = build('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>');
     expect(updateStateElement(e, true)).toBe(false);
     expect(e.when).toBeNull();
   });
 });
 
 /** run-once has to mean the same thing on both drivers. */
-describe('data-vera-motion-when + run-once', () => {
+describe('data-vm-when + run-once', () => {
   it('latches on the first match and does not go back', () => {
-    const e = build(`<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-run-once
-      data-vera-motion-opacity="0% 0, 100% 1"></div>`);
+    const e = build(`<div data-vm data-vm-when=".open" data-vm-run-once
+      data-vm-opacity="0% 0, 100% 1"></div>`);
     updateStateElement(e, true);
     e.node.classList.add('open');
     updateStateElement(e);
@@ -117,8 +117,8 @@ describe('data-vera-motion-when + run-once', () => {
   });
 
   it('without run-once it toggles both ways', () => {
-    const e = build(`<div data-vera-motion data-vera-motion-when=".open"
-      data-vera-motion-opacity="0% 0, 100% 1"></div>`);
+    const e = build(`<div data-vm data-vm-when=".open"
+      data-vm-opacity="0% 0, 100% 1"></div>`);
     e.node.classList.add('open');
     updateStateElement(e, true);
     e.node.classList.remove('open');
@@ -130,7 +130,7 @@ describe('data-vera-motion-when + run-once', () => {
 
 describe('end to end', () => {
   it('paints the resting state at init', () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     expect(a.elements[0].node.style.filter).toContain('opacity(0)');
@@ -138,7 +138,7 @@ describe('end to end', () => {
   });
 
   it('starts at the end when the selector already matches', () => {
-    document.body.innerHTML = '<div class="open" data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div class="open" data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     expect(a.elements[0].node.style.filter).toContain('opacity(1)');
@@ -148,7 +148,7 @@ describe('end to end', () => {
   /** enable() used to call update(), which skips state-driven elements by design. */
   it('repaints state-driven elements after a disable/enable cycle', () => {
     document.body.innerHTML =
-      '<div class="open" data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div class="open" data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     const node = a.elements[0].node;
@@ -172,7 +172,7 @@ describe('end to end', () => {
    * about `querySelector` returning the first match of any.
    */
   it('accepts a selector list, which means either', () => {
-    document.body.innerHTML = `<div class="panel" data-vera-motion data-vera-motion-when=".menu-open, .panel" data-vera-motion-opacity="0"></div>`;
+    document.body.innerHTML = `<div class="panel" data-vm data-vm-when=".menu-open, .panel" data-vm-opacity="0"></div>`;
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     expect(a.elements[0].when).toBe('.menu-open, .panel');
@@ -182,18 +182,18 @@ describe('end to end', () => {
 
   /** What refusal is actually for: a selector the engine cannot parse. */
   it.each(['div >', '.', '.open!', '   '])('refuses %s, which no parser accepts', (bad) => {
-    document.body.innerHTML = `<div data-vera-motion data-vera-motion-when="${bad}" data-vera-motion-opacity="0"></div>`;
+    document.body.innerHTML = `<div data-vm data-vm-when="${bad}" data-vm-opacity="0"></div>`;
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     expect(a.elements[0].when).toBeNull();
     expect(a.elements[0].parsed.rejected.join(' | '))
-      .toContain('data-vera-motion-when: is not a selector this library will use');
+      .toContain('data-vm-when: is not a selector this library will use');
     a.destroy();
   });
 
   /** And `:has()`, which is refused for cost rather than for safety. */
   it('refuses :has(), which can be expensive on every mutation', () => {
-    document.body.innerHTML = `<div data-vera-motion data-vera-motion-when=":has(.x)" data-vera-motion-opacity="0"></div>`;
+    document.body.innerHTML = `<div data-vm data-vm-when=":has(.x)" data-vm-opacity="0"></div>`;
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     expect(a.elements[0].when).toBeNull();
@@ -211,7 +211,7 @@ describe('a class toggle does not rebuild the element', () => {
 
   it('keeps the same element object across a toggle', async () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
 
@@ -227,7 +227,7 @@ describe('a class toggle does not rebuild the element', () => {
 
   it('does not discard an attached sequence on a toggle', async () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
 
@@ -242,15 +242,15 @@ describe('a class toggle does not rebuild the element', () => {
     a.destroy();
   });
 
-  /** A data-vera-motion-* change is different: it changes what the element animates. */
+  /** A data-vm-* change is different: it changes what the element animates. */
   it('does rebuild when one of its own attributes changes', async () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-when=".open" data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
 
     const before = a.elements[0];
-    before.node.setAttribute('data-vera-motion-opacity', '0.5');
+    before.node.setAttribute('data-vm-opacity', '0.5');
     await settle();
 
     expect(a.elements[0]).not.toBe(before);   // re-parsed, as it must be
@@ -275,7 +275,7 @@ describe('a class toggle does not rebuild the element', () => {
  * perspective had.
  */
 describe('a `when` selector made of state the observer cannot see', () => {
-  const PREFIX = 'data-vera-motion';
+  const PREFIX = 'data-vm';
   const build = (selector) => {
     document.body.innerHTML =
       `<div class="on" ${PREFIX} ${PREFIX}-when="${selector}" ` +

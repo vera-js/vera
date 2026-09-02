@@ -3,7 +3,7 @@ import { expect } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
-const ITEM = (id) => `<div id="${id}" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>`;
+const ITEM = (id) => `<div id="${id}" data-vm data-vm-opacity="0% 0, 100% 1"></div>`;
 
 /**
  * The instance keeps three views of the same set: the `elements` array, a
@@ -19,7 +19,7 @@ const check = (a, label) => {
     expect(e.node.isConnected, `${label}: ${e.node.id} registered but detached`).toBe(true);
     expect(e.plan, `${label}: ${e.node.id} has no plan`).toBeTruthy();
   }
-  const inDom = [...document.querySelectorAll('[data-vera-motion]')].filter((n) => n.hasAttribute('data-vera-motion-opacity'));
+  const inDom = [...document.querySelectorAll('[data-vm]')].filter((n) => n.hasAttribute('data-vm-opacity'));
   expect(elements.length, `${label}: registered ${elements.length}, DOM has ${inDom.length}`).toBe(inDom.length);
 };
 
@@ -56,7 +56,7 @@ describe('bookkeeping invariants', () => {
     a.init();
     const node = document.getElementById('a');
     for (const value of ['0% 0, 50% 1', '0% 0.2, 100% 1', '0% 0, 100% 1']) {
-      node.setAttribute('data-vera-motion-opacity', value);
+      node.setAttribute('data-vm-opacity', value);
       await settle();
       check(a, `after rewriting to ${value}`);
     }

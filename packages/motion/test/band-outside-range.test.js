@@ -10,7 +10,7 @@ import { createMotion } from '../src/index.ts';
  * existed. The element animated nothing, at any width, and `rejected` was
  * empty.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (n) => {
   Object.defineProperty(n, 'offsetTop', { value: 500, configurable: true });

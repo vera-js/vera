@@ -75,12 +75,12 @@ describe('the element arena', () => {
    * attribute would be abandoned immediately — the buffer-membership check
    * below is what holds `planFor` to sizing for the fill instead.
    */
-  const MARKUP = `<div data-vera-motion
-    data-vera-motion-translate-y="0% 0px, 100% 100px"
-    data-vera-motion-scale="0% 1, 50% 1.5, 100% 2"
-    data-vera-motion-blur="0% 0px, 100% 4px"
-    data-vera-motion-opacity="0"
-    data-vera-motion-radius-top-left="0% 0px, 100% 8px"></div>`;
+  const MARKUP = `<div data-vm
+    data-vm-translate-y="0% 0px, 100% 100px"
+    data-vm-scale="0% 1, 50% 1.5, 100% 2"
+    data-vm-blur="0% 0px, 100% 4px"
+    data-vm-opacity="0"
+    data-vm-radius-top-left="0% 0px, 100% 8px"></div>`;
 
   /** Every view of the plan, named for the failure report. */
   const views = (plan) => {
@@ -150,31 +150,31 @@ describe('the element arena', () => {
    */
   it('keeps its arena slice unless a band adds a keyframe position', () => {
     const inArena = (attributes) => {
-      const e = build(`<div data-vera-motion ${attributes}></div>`);
+      const e = build(`<div data-vm ${attributes}></div>`);
       /** The control: the shape produced a curve at all. */
       expect(e.plan.all.length > 0).toBe(true);
       const arena = e.plan.transformValues.buffer;
       return e.plan.all.every((a) => a.curve.positions.buffer === arena);
     };
 
-    expect(inArena('data-vera-motion-translate-y="0% 0px, 100% 40px"')).toBe(true);
-    expect(inArena('data-vera-motion-opacity="0"')).toBe(true);
-    expect(inArena('data-vera-motion-translate-y="0% 0px, 50% 10px, 50% 90px, 100% 40px"')).toBe(true);
+    expect(inArena('data-vm-translate-y="0% 0px, 100% 40px"')).toBe(true);
+    expect(inArena('data-vm-opacity="0"')).toBe(true);
+    expect(inArena('data-vm-translate-y="0% 0px, 50% 10px, 50% 90px, 100% 40px"')).toBe(true);
     expect(inArena(
-      'data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-opacity-tablet="100% 0.5"')).toBe(true);
+      'data-vm-opacity="0% 0, 100% 1" data-vm-opacity-tablet="100% 0.5"')).toBe(true);
 
     /** The one that gives it up, and the reason this test is not a formality. */
     expect(inArena(
-      'data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-opacity-tablet="50% 0.5"')).toBe(false);
+      'data-vm-opacity="0% 0, 100% 1" data-vm-opacity-tablet="50% 0.5"')).toBe(false);
   });
 
   it('a band edge rebuilds one curve standalone and leaves the rest in the arena', () => {
     /** happy-dom's 1024px viewport is outside the mobile band, so the extra
      * keyframe only exists after the resize below crosses into it. */
-    const e = build(`<div data-vera-motion
-      data-vera-motion-translate-y="0% 0px, 100% 100px"
-      data-vera-motion-opacity="0% 0, 100% 1"
-      data-vera-motion-opacity-mobile="50% 0.5"></div>`);
+    const e = build(`<div data-vm
+      data-vm-translate-y="0% 0px, 100% 100px"
+      data-vm-opacity="0% 0, 100% 1"
+      data-vm-opacity-mobile="50% 0.5"></div>`);
     const buffer = e.plan.transformValues.buffer;
     const opacity = () => e.plan.all.find((a) => a.property.attribute === 'opacity');
     expect(opacity().curve.positions).toHaveLength(2);

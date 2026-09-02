@@ -17,7 +17,7 @@ wireMotion(split);
  * an element whose attribute was a typo at `init()` and has since been
  * corrected animated perfectly while `rejected` went on reporting the mistake.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 1000], ['offsetLeft', 0], ['offsetWidth', 200], ['offsetHeight', 200]]) {
@@ -183,14 +183,14 @@ describe('collect() clears what it is about to re-read', () => {
      *
      * Removing the marker is *the* documented gesture for "stop animating
      * this", so this element is exactly where its author put it. It is also an
-     * element carrying `data-vera-motion-opacity` and no marker, which is the
+     * element carrying `data-vm-opacity` and no marker, which is the
      * commonest hand-authoring mistake and silent without this. The library
      * cannot tell the two apart, and what it reports is true of both: the
      * element has motion attributes and is not animated. `rejected` already
      * carries advisories of that kind — a page too short to finish an
      * animation, a `pin` that cannot hold — rather than refusals only.
      */
-    expect(reasons(m).join(' ')).toContain('needs data-vera-motion');
+    expect(reasons(m).join(' ')).toContain('needs data-vm');
     m.destroy();
   });
 

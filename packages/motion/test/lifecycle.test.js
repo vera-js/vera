@@ -9,7 +9,7 @@ import { createScrollTo } from '../src/modules/createScrollTo.ts';
 wireMotion([split, sequence]);
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
-const MARKUP = '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-translate-y="0% 10px, 100% 0px"></div>';
+const MARKUP = '<div data-vm data-vm-opacity="0% 0, 100% 1" data-vm-translate-y="0% 10px, 100% 0px"></div>';
 
 describe('deferred frames are cancelled by teardown', () => {
   /**
@@ -88,12 +88,12 @@ describe('deferred frames are cancelled by teardown', () => {
     m.init();
     /** Land the init write, so what is measured next is the batch's own. */
     runFrom(0);
-    const node = document.querySelector('[data-vera-motion]');
+    const node = document.querySelector('[data-vm]');
     expect(node.style.transition, 'the transition must land before it can be written back').not.toBe('');
     node.style.transition = '';
     const mark = cap.frames.length;
 
-    node.setAttribute('data-vera-motion-translate-y', '0% 0px, 100% 80px');
+    node.setAttribute('data-vm-translate-y', '0% 0px, 100% 80px');
     await settle();
     expect(cap.pendingSince(mark), 'the batch queued a write').toBeGreaterThan(0);
 
@@ -170,7 +170,7 @@ describe('lifecycle churn', () => {
   it('destroy during an in-flight sequence load does not draw', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     document.body.innerHTML =
-      '<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"></canvas>';
+      '<canvas data-vm data-vm-frame="0% 0, 100% 9" data-vm-frame-url="/s/" data-vm-frame-count="10"></canvas>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     a.destroy();
@@ -190,7 +190,7 @@ describe('lifecycle churn', () => {
    */
   it('leaves a disabled instance holding no live splits', async () => {
     document.body.innerHTML =
-      '<p data-vera-motion data-vera-motion-split="words" data-vera-motion-opacity="0% 0, 100% 1">the quick fox</p>';
+      '<p data-vm data-vm-split="words" data-vm-opacity="0% 0, 100% 1">the quick fox</p>';
     const node = document.querySelector('p');
     const a = createMotion({ respectReducedMotion: false });
     a.init();

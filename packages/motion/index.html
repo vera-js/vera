@@ -26,12 +26,12 @@
     <vera-panel></vera-panel>
 
     <section class="hero">
-      <div data-vera-motion data-vera-motion-translate-y="0% 30px, 40% 0px"
-           data-vera-motion-opacity="0% 0, 40% 1">
+      <div data-vm data-vm-translate-y="0% 30px, 40% 0px"
+           data-vm-opacity="0% 0, 40% 1">
         <h1>Animation<br />as attributes</h1>
         <p>
           A scroll runtime with no build step and no dependencies. Everything on this page is
-          driven by <code>data-vera-motion-*</code> attributes — no animation code was written for it.
+          driven by <code>data-vm-*</code> attributes — no animation code was written for it.
         </p>
         <div class="cue">SCROLL</div>
       </div>
@@ -47,25 +47,25 @@
       </p>
 
       <div class="grid">
-        <div class="card" data-vera-motion="fade-up">
+        <div class="card" data-vm="fade-up">
           <div class="name">fade-up</div>
           <div class="desc">Rises 40px while fading in.</div>
         </div>
-        <div class="card" data-vera-motion="fade-left">
+        <div class="card" data-vm="fade-left">
           <div class="name">fade-left</div>
           <div class="desc">Drifts in from the right.</div>
         </div>
-        <div class="card" data-vera-motion="zoom-in">
+        <div class="card" data-vm="zoom-in">
           <div class="name">zoom-in</div>
           <div class="desc">Scales up from 0.8.</div>
         </div>
-        <div class="card" data-vera-motion="blur-in">
+        <div class="card" data-vm="blur-in">
           <div class="name">blur-in</div>
           <div class="desc">Resolves from 12px of blur.</div>
         </div>
       </div>
 
-      <pre class="attr" style="margin-top:34px">&lt;div <b>data-vera-motion="fade-up"</b>&gt;</pre>
+      <pre class="attr" style="margin-top:34px">&lt;div <b>data-vm="fade-up"</b>&gt;</pre>
     </section>
 
     <!-- ---------------------------------------------------- keyframes -- -->
@@ -79,17 +79,17 @@
 
       <div class="showcase">
         <div class="plate"
-             data-vera-motion
-             data-vera-motion-translate-x="0% -90px, 35% 45px, 65% -22px, 100% 0px"
-             data-vera-motion-rotate="0% -8deg, 100% 0deg"
-             data-vera-motion-opacity="0% 0, 30% 1">
+             data-vm
+             data-vm-translate-x="0% -90px, 35% 45px, 65% -22px, 100% 0px"
+             data-vm-rotate="0% -8deg, 100% 0deg"
+             data-vm-opacity="0% 0, 30% 1">
           <img src="https://picsum.photos/575/745?random=1" width="575" height="745" alt="" />
         </div>
         <div>
-          <pre class="attr">&lt;div data-vera-motion
-  <b>data-vera-motion-translate-x="0% -90px, 35% 45px, 65% -22px, 100% 0px"</b>
-  data-vera-motion-rotate="0% -8deg, 100% 0deg"
-  data-vera-motion-opacity="0% 0, 30% 1"&gt;</pre>
+          <pre class="attr">&lt;div data-vm
+  <b>data-vm-translate-x="0% -90px, 35% 45px, 65% -22px, 100% 0px"</b>
+  data-vm-rotate="0% -8deg, 100% 0deg"
+  data-vm-opacity="0% 0, 30% 1"&gt;</pre>
           <p class="lede" style="margin-top:22px">
             The old design capped out at two midpoints and spent a whole attribute on each one.
             A property is now a single attribute, and a keyframe is a position and a value.
@@ -109,27 +109,27 @@
 
       <div class="showcase reverse">
         <div>
-          <pre class="attr">&lt;div data-vera-motion
-  data-vera-motion-translate-y="0% 70px, 100% 0px"
-  data-vera-motion-scale="0% 0.86, 100% 1"
-  data-vera-motion-rotate="0% -5deg, 100% 0deg"
-  data-vera-motion-blur="0% 14px, 100% 0px"
-  data-vera-motion-opacity="0% 0, 45% 1"
-  data-vera-motion-radius-top-left="0% 90px, 100% 14px"&gt;</pre>
+          <pre class="attr">&lt;div data-vm
+  data-vm-translate-y="0% 70px, 100% 0px"
+  data-vm-scale="0% 0.86, 100% 1"
+  data-vm-rotate="0% -5deg, 100% 0deg"
+  data-vm-blur="0% 14px, 100% 0px"
+  data-vm-opacity="0% 0, 45% 1"
+  data-vm-radius-top-left="0% 90px, 100% 14px"&gt;</pre>
           <p class="lede" style="margin-top:22px">
             A bare value is the end of the timeline, so the whole of a fade-in is
-            <code>data-vera-motion-opacity="0"</code>.
+            <code>data-vm-opacity="0"</code>.
           </p>
         </div>
         <div class="plate"
-             data-vera-motion
-             data-vera-motion-translate-y="0% 70px, 100% 0px"
-             data-vera-motion-scale="0% 0.86, 100% 1"
-             data-vera-motion-rotate="0% -5deg, 100% 0deg"
-             data-vera-motion-blur="0% 14px, 100% 0px"
-             data-vera-motion-opacity="0% 0, 45% 1"
-             data-vera-motion-radius-top-left="0% 90px, 100% 14px"
-             data-vera-motion-radius-bottom-right="0% 90px, 100% 14px">
+             data-vm
+             data-vm-translate-y="0% 70px, 100% 0px"
+             data-vm-scale="0% 0.86, 100% 1"
+             data-vm-rotate="0% -5deg, 100% 0deg"
+             data-vm-blur="0% 14px, 100% 0px"
+             data-vm-opacity="0% 0, 45% 1"
+             data-vm-radius-top-left="0% 90px, 100% 14px"
+             data-vm-radius-bottom-right="0% 90px, 100% 14px">
           <img src="https://picsum.photos/575/745?random=2" width="575" height="745" alt="" />
         </div>
       </div>
@@ -140,7 +140,7 @@
     <section class="band" id="ease">
       <h2>Shaping the curve</h2>
       <p class="lede">
-        <code>data-vera-motion-ease</code> reshapes how value relates to scroll position — the CSS
+        <code>data-vm-ease</code> reshapes how value relates to scroll position — the CSS
         timing vocabulary, evaluated per segment the way <code>@keyframes</code> does. It is a
         wired module (<code>@verajs/motion/easings</code>), because <code>linear</code> is the
         default and most pages never leave it. All three lanes below travel the same distance over
@@ -149,26 +149,26 @@
 
       <div class="ease-lanes">
         <div class="ease-lane">
-          <div class="ease-dot" data-vera-motion
-               data-vera-motion-translate-x="0% 0vw, 100% 55vw"></div>
+          <div class="ease-dot" data-vm
+               data-vm-translate-x="0% 0vw, 100% 55vw"></div>
           <span class="tag">linear — the default</span>
         </div>
         <div class="ease-lane green">
-          <div class="ease-dot" data-vera-motion
-               data-vera-motion-ease="ease-in-out"
-               data-vera-motion-translate-x="0% 0vw, 100% 55vw"></div>
+          <div class="ease-dot" data-vm
+               data-vm-ease="ease-in-out"
+               data-vm-translate-x="0% 0vw, 100% 55vw"></div>
           <span class="tag">ease-in-out</span>
         </div>
         <div class="ease-lane green">
-          <div class="ease-dot" data-vera-motion
-               data-vera-motion-ease="cubic-bezier(0.34, 1.56, 0.64, 1)"
-               data-vera-motion-translate-x="0% 0vw, 100% 55vw"></div>
+          <div class="ease-dot" data-vm
+               data-vm-ease="cubic-bezier(0.34, 1.56, 0.64, 1)"
+               data-vm-translate-x="0% 0vw, 100% 55vw"></div>
           <span class="tag">cubic-bezier(0.34, 1.56, 0.64, 1) — overshoots</span>
         </div>
       </div>
 
-      <pre class="attr" style="margin-top:30px">&lt;div data-vera-motion <b>data-vera-motion-ease="cubic-bezier(0.34, 1.56, 0.64, 1)"</b>
-  data-vera-motion-translate-x="0% 0vw, 100% 55vw"&gt;</pre>
+      <pre class="attr" style="margin-top:30px">&lt;div data-vm <b>data-vm-ease="cubic-bezier(0.34, 1.56, 0.64, 1)"</b>
+  data-vm-translate-x="0% 0vw, 100% 55vw"&gt;</pre>
     </section>
 
     <!-- ------------------------------------------------------ stagger -- -->
@@ -181,45 +181,45 @@
 
       <h3 class="sub">By hand — shift every keyframe on every child</h3>
       <div class="tiles">
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="0% 70px, 60% 0px"
-               data-vera-motion-opacity="0% 0, 60% 1"></div>
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="12% 70px, 72% 0px"
-               data-vera-motion-opacity="12% 0, 72% 1"></div>
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="24% 70px, 84% 0px"
-               data-vera-motion-opacity="24% 0, 84% 1"></div>
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="36% 70px, 96% 0px"
-               data-vera-motion-opacity="36% 0, 96% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="0% 70px, 60% 0px"
+               data-vm-opacity="0% 0, 60% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="12% 70px, 72% 0px"
+               data-vm-opacity="12% 0, 72% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="24% 70px, 84% 0px"
+               data-vm-opacity="24% 0, 84% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="36% 70px, 96% 0px"
+               data-vm-opacity="36% 0, 96% 1"></div>
       </div>
       <pre class="attr">&lt;div class="tiles"&gt;
-  &lt;div data-vera-motion <b>data-vera-motion-translate-y="0% 70px, 60% 0px"</b>&gt;
-  &lt;div data-vera-motion <b>data-vera-motion-translate-y="12% 70px, 72% 0px"</b>&gt;
-  &lt;div data-vera-motion <b>data-vera-motion-translate-y="24% 70px, 84% 0px"</b>&gt;
-  &lt;div data-vera-motion <b>data-vera-motion-translate-y="36% 70px, 96% 0px"</b>&gt;</pre>
+  &lt;div data-vm <b>data-vm-translate-y="0% 70px, 60% 0px"</b>&gt;
+  &lt;div data-vm <b>data-vm-translate-y="12% 70px, 72% 0px"</b>&gt;
+  &lt;div data-vm <b>data-vm-translate-y="24% 70px, 84% 0px"</b>&gt;
+  &lt;div data-vm <b>data-vm-translate-y="36% 70px, 96% 0px"</b>&gt;</pre>
 
-      <h3 class="sub">With <code>data-vera-motion-stagger</code> — one attribute on the parent</h3>
-      <div class="tiles" data-vera-motion-stagger="12">
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="0% 70px, 60% 0px"
-               data-vera-motion-opacity="0% 0, 60% 1"></div>
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="0% 70px, 60% 0px"
-               data-vera-motion-opacity="0% 0, 60% 1"></div>
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="0% 70px, 60% 0px"
-               data-vera-motion-opacity="0% 0, 60% 1"></div>
-          <div class="tile" data-vera-motion
-               data-vera-motion-translate-y="0% 70px, 60% 0px"
-               data-vera-motion-opacity="0% 0, 60% 1"></div>
+      <h3 class="sub">With <code>data-vm-stagger</code> — one attribute on the parent</h3>
+      <div class="tiles" data-vm-stagger="12">
+          <div class="tile" data-vm
+               data-vm-translate-y="0% 70px, 60% 0px"
+               data-vm-opacity="0% 0, 60% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="0% 70px, 60% 0px"
+               data-vm-opacity="0% 0, 60% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="0% 70px, 60% 0px"
+               data-vm-opacity="0% 0, 60% 1"></div>
+          <div class="tile" data-vm
+               data-vm-translate-y="0% 70px, 60% 0px"
+               data-vm-opacity="0% 0, 60% 1"></div>
       </div>
-      <pre class="attr">&lt;div class="tiles" <b>data-vera-motion-stagger="12"</b>&gt;
-  &lt;div data-vera-motion data-vera-motion-translate-y="0% 70px, 60% 0px"&gt;
-  &lt;div data-vera-motion data-vera-motion-translate-y="0% 70px, 60% 0px"&gt;
-  &lt;div data-vera-motion data-vera-motion-translate-y="0% 70px, 60% 0px"&gt;
-  &lt;div data-vera-motion data-vera-motion-translate-y="0% 70px, 60% 0px"&gt;</pre>
+      <pre class="attr">&lt;div class="tiles" <b>data-vm-stagger="12"</b>&gt;
+  &lt;div data-vm data-vm-translate-y="0% 70px, 60% 0px"&gt;
+  &lt;div data-vm data-vm-translate-y="0% 70px, 60% 0px"&gt;
+  &lt;div data-vm data-vm-translate-y="0% 70px, 60% 0px"&gt;
+  &lt;div data-vm data-vm-translate-y="0% 70px, 60% 0px"&gt;</pre>
 
       <p class="lede" style="margin-top:22px">
         Identical motion. Every child is now the same markup, so the row can be generated from a
@@ -233,21 +233,21 @@
     <section class="band" id="split">
       <h2>Splitting text</h2>
       <p class="lede">
-        <code>data-vera-motion-split</code> breaks a block of plain text into pieces — words,
+        <code>data-vm-split</code> breaks a block of plain text into pieces — words,
         characters or layout-measured lines — and moves the animation attributes onto each piece.
         The container keeps <code>stagger</code>, so a cascade is the feature that already exists.
         A screen reader sees the original sentence, not the pieces.
       </p>
 
       <div class="split-display"
-           data-vera-motion-split="words"
-           data-vera-motion-stagger="3"
-           data-vera-motion-translate-y="0% 30px, 55% 0px"
-           data-vera-motion-opacity="0% 0, 55% 1">Every word in this sentence arrives on its own scroll window.</div>
+           data-vm-split="words"
+           data-vm-stagger="3"
+           data-vm-translate-y="0% 30px, 55% 0px"
+           data-vm-opacity="0% 0, 55% 1">Every word in this sentence arrives on its own scroll window.</div>
 
-      <pre class="attr">&lt;div <b>data-vera-motion-split="words"</b> <b>data-vera-motion-stagger="3"</b>
-  data-vera-motion-translate-y="0% 30px, 55% 0px"
-  data-vera-motion-opacity="0% 0, 55% 1"&gt;Every word in this sentence…&lt;/div&gt;</pre>
+      <pre class="attr">&lt;div <b>data-vm-split="words"</b> <b>data-vm-stagger="3"</b>
+  data-vm-translate-y="0% 30px, 55% 0px"
+  data-vm-opacity="0% 0, 55% 1"&gt;Every word in this sentence…&lt;/div&gt;</pre>
 
       <p class="lede" style="margin-top:22px">
         Wired from <code>@verajs/motion/split</code>. Lines re-group themselves when the text
@@ -265,19 +265,19 @@
         space, which no hand-written parser should try to match.
       </p>
 
-      <div class="paint-card" data-vera-motion
-           data-vera-motion-background="0% #16161b, 45% #1c3a2c, 100% #1b2a4a"
-           data-vera-motion-color="0% #8b8b98, 45% #d9f2e4, 100% #dbe7ff"
-           data-vera-motion-shadow="0% 0 0 0 rgba(0,0,0,0), 100% 0 24px 64px rgba(110,168,254,0.25)">
+      <div class="paint-card" data-vm
+           data-vm-background="0% #16161b, 45% #1c3a2c, 100% #1b2a4a"
+           data-vm-color="0% #8b8b98, 45% #d9f2e4, 100% #dbe7ff"
+           data-vm-shadow="0% 0 0 0 rgba(0,0,0,0), 100% 0 24px 64px rgba(110,168,254,0.25)">
         <strong>This card is repainting as you scroll.</strong>
         Background, text colour and box-shadow are three attributes. Each keyframe is any value
         the engine accepts — <code>CSS.supports()</code> is the parser.
       </div>
 
-      <pre class="attr" style="margin-top:30px">&lt;div data-vera-motion
-  <b>data-vera-motion-background="0% #16161b, 45% #1c3a2c, 100% #1b2a4a"</b>
-  <b>data-vera-motion-color="0% #8b8b98, 100% #dbe7ff"</b>
-  data-vera-motion-shadow="0% 0 0 0 rgba(0,0,0,0), 100% 0 24px 64px rgba(110,168,254,0.25)"&gt;</pre>
+      <pre class="attr" style="margin-top:30px">&lt;div data-vm
+  <b>data-vm-background="0% #16161b, 45% #1c3a2c, 100% #1b2a4a"</b>
+  <b>data-vm-color="0% #8b8b98, 100% #dbe7ff"</b>
+  data-vm-shadow="0% 0 0 0 rgba(0,0,0,0), 100% 0 24px 64px rgba(110,168,254,0.25)"&gt;</pre>
 
       <p class="lede" style="margin-top:48px">
         And when a value should <em>morph</em> rather than step, put its parameters on the number
@@ -288,10 +288,10 @@
         parser anywhere.
       </p>
 
-      <div class="morph-card" data-vera-motion
-           data-vera-motion-gradient-hue="0% 155, 100% 310"
-           data-vera-motion-gradient-x="0% 25%, 100% 72%"
-           data-vera-motion-gradient-y="0% 30%, 100% 68%">
+      <div class="morph-card" data-vm
+           data-vm-gradient-hue="0% 155, 100% 310"
+           data-vm-gradient-x="0% 25%, 100% 72%"
+           data-vm-gradient-y="0% 30%, 100% 68%">
         <strong>This gradient is morphing as you scroll.</strong>
         Green to purple through every hue between, the engine doing the colour math in
         <code>oklch</code> — the runtime only ever wrote three numbers.
@@ -304,7 +304,7 @@
         the effect you want is already written in your stylesheet.
       </p>
 
-      <div class="lit-card" data-vera-motion data-vera-motion-lit="0% 0, 55% 1">
+      <div class="lit-card" data-vm data-vm-lit="0% 0, 55% 1">
         <strong>This card is switched on by a class.</strong>
         No inline style does this: at 55% of the timeline the module adds <code>is-lit</code>, and
         every property that class changes transitions in CSS. Scroll back and it switches off again.
@@ -318,7 +318,7 @@
   <b>{ on: 'teardown', fn: (owns) =&gt; { /* remove it from every element this instance owns */ } }</b>,
 ];
 
-&lt;div data-vera-motion <b>data-vera-motion-lit="0% 0, 55% 1"</b>&gt;</pre>
+&lt;div data-vm <b>data-vm-lit="0% 0, 55% 1"</b>&gt;</pre>
 
       <p class="lede">
         The two lifecycle entries are the part worth copying. Core owns the inline styles it
@@ -334,10 +334,10 @@
 ];
 wireMotion([gradient]);
 
-&lt;div data-vera-motion
-  <b>data-vera-motion-gradient-hue="0% 155, 100% 310"</b>
-  <b>data-vera-motion-gradient-x="0% 25%, 100% 72%"</b>
-  <b>data-vera-motion-gradient-y="0% 30%, 100% 68%"</b>&gt;</pre>
+&lt;div data-vm
+  <b>data-vm-gradient-hue="0% 155, 100% 310"</b>
+  <b>data-vm-gradient-x="0% 25%, 100% 72%"</b>
+  <b>data-vm-gradient-y="0% 30%, 100% 68%"</b>&gt;</pre>
     </section>
 
     <!-- ------------------------------------------------------- reflow -- -->
@@ -356,22 +356,22 @@ wireMotion([gradient]);
       </p>
 
       <div class="reflow-grid">
-        <div class="loose" data-vera-motion
-             data-vera-motion-translate-y="0% 60px, 100% 0px"
-             data-vera-motion-opacity="0% 0, 55% 1"
-             data-vera-motion-scale="0% 0.92, 100% 1">
+        <div class="loose" data-vm
+             data-vm-translate-y="0% 60px, 100% 0px"
+             data-vm-opacity="0% 0, 55% 1"
+             data-vm-scale="0% 0.92, 100% 1">
           <img src="https://picsum.photos/1600/900?random=4" alt="" />
         </div>
-        <div class="loose" data-vera-motion
-             data-vera-motion-translate-y="0% 100px, 100% 0px"
-             data-vera-motion-opacity="0% 0, 60% 1"
-             data-vera-motion-scale="0% 0.92, 100% 1">
+        <div class="loose" data-vm
+             data-vm-translate-y="0% 100px, 100% 0px"
+             data-vm-opacity="0% 0, 60% 1"
+             data-vm-scale="0% 0.92, 100% 1">
           <img src="https://picsum.photos/1600/900?random=5" alt="" />
         </div>
-        <div class="loose" data-vera-motion
-             data-vera-motion-translate-y="0% 140px, 100% 0px"
-             data-vera-motion-opacity="0% 0, 65% 1"
-             data-vera-motion-scale="0% 0.92, 100% 1">
+        <div class="loose" data-vm
+             data-vm-translate-y="0% 140px, 100% 0px"
+             data-vm-opacity="0% 0, 65% 1"
+             data-vm-scale="0% 0.92, 100% 1">
           <img src="https://picsum.photos/1600/900?random=6" alt="" />
         </div>
       </div>
@@ -384,7 +384,7 @@ wireMotion([gradient]);
     <section class="band" id="when">
       <h2>Triggering on state, not scroll</h2>
       <p class="lede">
-        <code>data-vera-motion-when</code> takes a selector. While the element matches it, the animation
+        <code>data-vm-when</code> takes a selector. While the element matches it, the animation
         sits at its end; while it does not, at its start. It replaces the scroll driver rather than
         adding to it — everything else is identical, including the damping, which is what makes it
         ease rather than snap.
@@ -399,29 +399,29 @@ wireMotion([gradient]);
       <div class="trigger-stage">
         <button class="trigger-btn" id="trigger">toggle <code>.is-open</code></button>
         <!-- Rests faint rather than invisible: a gap where a demo should be reads as broken. -->
-        <div class="trigger-panel" data-vera-motion
-             data-vera-motion-when=".is-open"
-             data-vera-motion-translate-y="0% -14px, 100% 0px"
-             data-vera-motion-scale="0% 0.96, 100% 1"
-             data-vera-motion-opacity="0% 0.25, 100% 1"
-             data-vera-motion-radius-top-left="0% 40px, 100% 12px">
+        <div class="trigger-panel" data-vm
+             data-vm-when=".is-open"
+             data-vm-translate-y="0% -14px, 100% 0px"
+             data-vm-scale="0% 0.96, 100% 1"
+             data-vm-opacity="0% 0.25, 100% 1"
+             data-vm-radius-top-left="0% 40px, 100% 12px">
           <strong>No scroll involved.</strong>
           The class is toggled by the button; the runtime notices and moves the animation
           to its other end.
         </div>
       </div>
 
-      <pre class="attr" style="margin-top:30px">&lt;div data-vera-motion <b>data-vera-motion-when=".is-open"</b>
-  data-vera-motion-translate-y="0% -14px, 100% 0px"
-  data-vera-motion-scale="0% 0.96, 100% 1"
-  data-vera-motion-opacity="0% 0.25, 100% 1"&gt;</pre>
+      <pre class="attr" style="margin-top:30px">&lt;div data-vm <b>data-vm-when=".is-open"</b>
+  data-vm-translate-y="0% -14px, 100% 0px"
+  data-vm-scale="0% 0.96, 100% 1"
+  data-vm-opacity="0% 0.25, 100% 1"&gt;</pre>
     </section>
 
     <!-- ---------------------------------------------------------- pin -- -->
     <section class="band" id="pin">
       <h2>Pinning</h2>
       <p class="lede">
-        <code>data-vera-motion-pin</code> holds an element against the viewport while its animation runs,
+        <code>data-vm-pin</code> holds an element against the viewport while its animation runs,
         then releases it back into the flow. It is <code>position: sticky</code> underneath, so the
         element never leaves layout — nothing jumps when it attaches and nothing collapses when it
         lets go.
@@ -429,19 +429,19 @@ wireMotion([gradient]);
 
       <div class="pin-track">
         <div class="pin-card"
-             data-vera-motion
-             data-vera-motion-pin="15vh"
-             data-vera-motion-scale="0% 0.72, 40% 0.84, 95% 1.1"
-             data-vera-motion-radius-top-left="0% 140px, 95% 16px"
-             data-vera-motion-radius-bottom-right="0% 140px, 95% 16px"
-             data-vera-motion-opacity="0% 0.2, 40% 1">
+             data-vm
+             data-vm-pin="15vh"
+             data-vm-scale="0% 0.72, 40% 0.84, 95% 1.1"
+             data-vm-radius-top-left="0% 140px, 95% 16px"
+             data-vm-radius-bottom-right="0% 140px, 95% 16px"
+             data-vm-opacity="0% 0.2, 40% 1">
           <img src="https://picsum.photos/575/745?random=3" width="575" height="745" alt="" />
           <div class="label">pinned at 15vh · growing · then released</div>
         </div>
       </div>
 
-      <pre class="attr">&lt;div data-vera-motion <b>data-vera-motion-pin="15vh"</b>
-  data-vera-motion-scale="0% 0.82, 70% 1.06"&gt;</pre>
+      <pre class="attr">&lt;div data-vm <b>data-vm-pin="15vh"</b>
+  data-vm-scale="0% 0.82, 70% 1.06"&gt;</pre>
     </section>
 
 
@@ -467,17 +467,17 @@ wireMotion([gradient]);
           <path id="route" d="M 20 210 C 140 20 260 260 380 90 S 540 40 580 150" />
         </svg>
         <div class="traveller"
-             data-vera-motion
-             data-vera-motion-path-selector="#route"
-             data-vera-motion-path="0% 0, 100% 100"
-             data-vera-motion-rotate="0% 0deg, 100% 360deg"></div>
+             data-vm
+             data-vm-path-selector="#route"
+             data-vm-path="0% 0, 100% 100"
+             data-vm-rotate="0% 0deg, 100% 360deg"></div>
       </div>
 
       <pre class="attr" style="margin-top:30px">&lt;path <b>id="route"</b> d="M 20 210 C 140 20 …"/&gt;
 
-&lt;div data-vera-motion
-  <b>data-vera-motion-path-selector="#route"</b>
-  <b>data-vera-motion-path="0% 0, 100% 100"</b>&gt;</pre>
+&lt;div data-vm
+  <b>data-vm-path-selector="#route"</b>
+  <b>data-vm-path="0% 0, 100% 100"</b>&gt;</pre>
     </section>
 
 
@@ -498,17 +498,17 @@ wireMotion([gradient]);
       </p>
 
       <canvas class="sequence" width="480" height="320"
-              data-vera-motion
-              data-vera-motion-frame="0% 0, 100% 47"
-              data-vera-motion-frame-url="./img/seq/"
-              data-vera-motion-frame-ext="png"
-              data-vera-motion-frame-count="48"
-              data-vera-motion-inertia="0"></canvas>
+              data-vm
+              data-vm-frame="0% 0, 100% 47"
+              data-vm-frame-url="./img/seq/"
+              data-vm-frame-ext="png"
+              data-vm-frame-count="48"
+              data-vm-inertia="0"></canvas>
 
-      <pre class="attr" style="margin-top:30px">&lt;canvas data-vera-motion
-  <b>data-vera-motion-frame="0% 0, 100% 47"</b>
-  <b>data-vera-motion-frame-url="./img/seq/"</b> <b>data-vera-motion-frame-count="48"</b>
-  data-vera-motion-inertia="0"&gt;   &lt;!-- exact tracking, no inertia --&gt;</pre>
+      <pre class="attr" style="margin-top:30px">&lt;canvas data-vm
+  <b>data-vm-frame="0% 0, 100% 47"</b>
+  <b>data-vm-frame-url="./img/seq/"</b> <b>data-vm-frame-count="48"</b>
+  data-vm-inertia="0"&gt;   &lt;!-- exact tracking, no inertia --&gt;</pre>
     </section>
 
     <!-- ------------------------------------------------------- shadow -- -->

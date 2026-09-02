@@ -33,7 +33,7 @@ wireMotion([easings, paint, path, split, sequence]);
  * have gone quiet (`inertia-ease`, `transform-inertia`, `filter-inertia` beside
  * `when`) are confirmed to work rather than assumed to.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 1000], ['offsetHeight', 200], ['offsetWidth', 200]]) {

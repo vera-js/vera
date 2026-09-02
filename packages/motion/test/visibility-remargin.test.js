@@ -55,7 +55,7 @@ describe('the root margin after a resize', () => {
   const build = () => {
     setViewport(700);
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     place(document.body.firstElementChild, 3000, 200);
     const m = createMotion({ respectReducedMotion: false });
     m.init();
@@ -127,15 +127,15 @@ describe('the root margin after an element is added', () => {
 
   const add = async (positions) => {
     const node = document.createElement('div');
-    node.setAttribute('data-vera-motion', '');
-    node.setAttribute('data-vera-motion-translate-y', positions);
+    node.setAttribute('data-vm', '');
+    node.setAttribute('data-vm-translate-y', positions);
     document.body.appendChild(node);
     place(node, 5000, 200);
     await Promise.resolve();
     await new Promise((r) => setTimeout(r, 0));
   };
 
-  const PLAIN = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+  const PLAIN = '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
 
   it('grows to cover it', async () => {
     const m = build(PLAIN);
@@ -172,7 +172,7 @@ describe('the root margin after an element is added', () => {
    */
   it('and ahead of one that reaches no further behind', async () => {
     const m = build(
-      '<div data-vera-motion data-vera-motion-translate-y="-100% 0px, 100% 40px"></div>'
+      '<div data-vm data-vm-translate-y="-100% 0px, 100% 40px"></div>'
     );
     expect(instances.at(-1).options.rootMargin).toBe('350px 0px 1250px 0px');
 

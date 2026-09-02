@@ -5,7 +5,7 @@ import { paint } from '../src/paint.ts';
 
 wireMotion(paint);
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const place = (n) => {
   for (const [k, v] of [['offsetTop', 500], ['offsetHeight', 200]]) {
     Object.defineProperty(n, k, { value: v, configurable: true });

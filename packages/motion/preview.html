@@ -70,7 +70,7 @@
 <header>
   <h1>What's new</h1>
   <p>
-    Everything below is driven by <code>data-vera-motion-*</code> attributes and scroll position.
+    Everything below is driven by <code>data-vm-*</code> attributes and scroll position.
     Nothing on this page interpolates a colour in JavaScript — the paint module writes a value at each
     keyframe and CSS transitions carry it.
   </p>
@@ -86,20 +86,20 @@
   </p>
   <div class="stage">
     <div>
-      <div class="tile" data-vera-motion data-vera-motion-scale-x="0% 0.15, 100% 1">scale-x</div>
+      <div class="tile" data-vm data-vm-scale-x="0% 0.15, 100% 1">scale-x</div>
       <div class="label">wipes open horizontally</div>
     </div>
     <div>
-      <div class="tile" data-vera-motion data-vera-motion-scale-y="0% 0.15, 100% 1">scale-y</div>
+      <div class="tile" data-vm data-vm-scale-y="0% 0.15, 100% 1">scale-y</div>
       <div class="label">grows vertically</div>
     </div>
     <div>
-      <div class="tile" data-vera-motion data-vera-motion-scale="0% 0.4, 100% 1"
-           data-vera-motion-scale-x="0% 1, 100% 1.35">both</div>
+      <div class="tile" data-vm data-vm-scale="0% 0.4, 100% 1"
+           data-vm-scale-x="0% 1, 100% 1.35">both</div>
       <div class="label">composes in schema order</div>
     </div>
   </div>
-<pre>&lt;div data-vera-motion data-vera-motion-scale-x="0% 0.15, 100% 1"&gt;&lt;/div&gt;</pre>
+<pre>&lt;div data-vm data-vm-scale-x="0% 0.15, 100% 1"&gt;&lt;/div&gt;</pre>
 </section>
 
 <!-- ──────────────────────────────────────────── radius shorthand ── -->
@@ -112,19 +112,19 @@
   </p>
   <div class="stage">
     <div>
-      <div class="tile" data-vera-motion data-vera-motion-radius="0% 65px, 100% 8px">radius</div>
+      <div class="tile" data-vm data-vm-radius="0% 65px, 100% 8px">radius</div>
       <div class="label">all four at once</div>
     </div>
     <div>
-      <div class="tile" data-vera-motion
-           data-vera-motion-radius="0% 65px, 100% 8px"
-           data-vera-motion-radius-top-left="0% 65px, 100% 65px">override</div>
+      <div class="tile" data-vm
+           data-vm-radius="0% 65px, 100% 8px"
+           data-vm-radius-top-left="0% 65px, 100% 65px">override</div>
       <div class="label">top-left holds, the rest tighten</div>
     </div>
   </div>
-<pre>&lt;div data-vera-motion
-     data-vera-motion-radius="0% 65px, 100% 8px"
-     data-vera-motion-radius-top-left="0% 65px, 100% 65px"&gt;&lt;/div&gt;</pre>
+<pre>&lt;div data-vm
+     data-vm-radius="0% 65px, 100% 8px"
+     data-vm-radius-top-left="0% 65px, 100% 65px"&gt;&lt;/div&gt;</pre>
 </section>
 
 <!-- ──────────────────────────────────────────────── paint module ── -->
@@ -137,18 +137,18 @@
   </p>
   <div class="stage">
     <div>
-      <div class="swatch" data-vera-motion data-vera-motion-inertia="0.5"
-           data-vera-motion-background="0% linear-gradient(140deg, #ff5f6d, #ffc371), 60% #4facfe, 100% #43e97b"></div>
+      <div class="swatch" data-vm data-vm-inertia="0.5"
+           data-vm-background="0% linear-gradient(140deg, #ff5f6d, #ffc371), 60% #4facfe, 100% #43e97b"></div>
       <div class="label">gradient → colour → colour</div>
     </div>
     <div>
-      <div class="swatch" style="background: #fff" data-vera-motion data-vera-motion-inertia="0.5"
-           data-vera-motion-shadow="0% 0 0 0 rgb(0 0 0 / 0), 100% 0 22px 45px rgb(0 0 0 / 0.35)"></div>
+      <div class="swatch" style="background: #fff" data-vm data-vm-inertia="0.5"
+           data-vm-shadow="0% 0 0 0 rgb(0 0 0 / 0), 100% 0 22px 45px rgb(0 0 0 / 0.35)"></div>
       <div class="label">box-shadow lifting</div>
     </div>
-    <div class="card" data-vera-motion data-vera-motion-inertia="0.5"
-         data-vera-motion-color="0% #b9bcd0, 100% #12131a"
-         data-vera-motion-border-color="0% #e4e5ec, 100% #3b4cca">
+    <div class="card" data-vm data-vm-inertia="0.5"
+         data-vm-color="0% #b9bcd0, 100% #12131a"
+         data-vm-border-color="0% #e4e5ec, 100% #3b4cca">
       <h3>colour + border-colour</h3>
       <p>Two packed properties on one element, both stepping under a transition.</p>
     </div>
@@ -158,8 +158,8 @@ import { paint } from '@verajs/motion/paint';
 
 wireMotion(paint);
 
-&lt;div data-vera-motion data-vera-motion-inertia="0.5"
-     data-vera-motion-background="0% linear-gradient(140deg, #ff5f6d, #ffc371), 100% #43e97b"&gt;&lt;/div&gt;</pre>
+&lt;div data-vm data-vm-inertia="0.5"
+     data-vm-background="0% linear-gradient(140deg, #ff5f6d, #ffc371), 100% #43e97b"&gt;&lt;/div&gt;</pre>
 </section>
 
 <!-- ────────────────────────────────────────── third-party module ── -->
@@ -172,11 +172,11 @@ wireMotion(paint);
   </p>
   <div class="stage">
     <div>
-      <div class="tile" data-vera-motion data-vera-motion-hue="0% 0deg, 100% 300deg">hue</div>
+      <div class="tile" data-vm data-vm-hue="0% 0deg, 100% 300deg">hue</div>
       <div class="label">a filter function, wired at runtime</div>
     </div>
     <div>
-      <div class="card" data-vera-motion data-vera-motion-tracking="0% 0px, 100% 6px">
+      <div class="card" data-vm data-vm-tracking="0% 0px, 100% 6px">
         <h3>letter&nbsp;spacing</h3>
         <p>A plain cssProperty, wired the same way.</p>
       </div>
@@ -201,12 +201,12 @@ wireMotion(paint);
   </p>
   <div class="stage">
     <div>
-      <div class="swatch" style="background:#fff" data-vera-motion data-vera-motion-inertia="0.45"
-           data-vera-motion-shadow="0% 0 1px 2px rgb(0 0 0 / 0.08), 50% 0 12px 24px rgb(59 76 202 / 0.35), 100% 0 3px 6px rgb(0 0 0 / 0.15)"></div>
+      <div class="swatch" style="background:#fff" data-vm data-vm-inertia="0.45"
+           data-vm-shadow="0% 0 1px 2px rgb(0 0 0 / 0.08), 50% 0 12px 24px rgb(59 76 202 / 0.35), 100% 0 3px 6px rgb(0 0 0 / 0.15)"></div>
       <div class="label">three keyframes, each with spaces and commas inside</div>
     </div>
   </div>
-<pre>data-vera-motion-shadow="0% 0 1px 2px rgb(0 0 0 / 0.08),
+<pre>data-vm-shadow="0% 0 1px 2px rgb(0 0 0 / 0.08),
                          50% 0 12px 24px rgb(59 76 202 / 0.35),
                          100% 0 3px 6px rgb(0 0 0 / 0.15)"</pre>
 </section>
@@ -219,12 +219,12 @@ wireMotion(paint);
     and a value the engine refuses are all reported now — they used to vanish silently. Read live
     from <code>instance.rejected</code>:
   </p>
-  <div id="broken" data-vera-motion
-       data-vera-motion-opactiy="0% 0, 100% 1"
-       data-vera-motion-background="0% notacolour, 100% red"
-       data-vera-motion-translate-y-phone="0% 0px, 100% 10px"
-       data-vera-motion-stagger="10%"
-       data-vera-motion-opacity="0% 0.35, 100% 1"
+  <div id="broken" data-vm
+       data-vm-opactiy="0% 0, 100% 1"
+       data-vm-background="0% notacolour, 100% red"
+       data-vm-translate-y-phone="0% 0px, 100% 10px"
+       data-vm-stagger="10%"
+       data-vm-opacity="0% 0.35, 100% 1"
        style="display:none"></div>
   <pre id="report">reading…</pre>
 </section>

@@ -20,7 +20,7 @@ import { createMotion } from '../src/index.ts';
  * Both calls record it, or `disable(); enable(); init()` would come up
  * disabled, which is the opposite mistake.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const build = () => {
   document.body.innerHTML = `<div ${P} ${P}-translate-y="0% 0px, 100% 40px"></div>`;

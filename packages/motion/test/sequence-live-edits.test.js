@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from './harness.mjs';
 import { expect, vi } from './expect.mjs';
 import { sequence } from '../src/sequence.ts';
 
-const A = 'data-vera-motion';
+const A = 'data-vm';
 
 /**
  * These exercise the module's own wiring — `apply`, `prepare` and `release` —

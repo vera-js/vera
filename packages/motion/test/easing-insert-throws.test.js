@@ -18,9 +18,9 @@ beforeEach(() => {
   warnings = [];
   vi.spyOn(console, 'warn').mockImplementation((...args) => warnings.push(String(args[0])));
   document.body.innerHTML =
-    '<div id="a" data-vera-motion data-vera-motion-ease="ease-in" ' +
-    'data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-    '<div id="b" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    '<div id="a" data-vm data-vm-ease="ease-in" ' +
+    'data-vm-opacity="0% 0, 100% 1"></div>' +
+    '<div id="b" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -68,7 +68,7 @@ describe('an easing insert that answers with something that is not a function', 
   it('is refused like a throw, and the element animates linear', () => {
     wireMotion([{ on: 'easing', fn: () => 42 }]);
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-ease="ease-in" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-ease="ease-in" data-vm-opacity="0% 0, 100% 1"></div>';
     const node = document.body.firstElementChild;
     for (const [k, v] of [['offsetTop', 500], ['offsetHeight', 100], ['offsetParent', null]]) {
       Object.defineProperty(node, k, { value: v, configurable: true });

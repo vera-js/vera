@@ -4,7 +4,7 @@ import { createMotion, wireMotion } from '../src/index.ts';
 import { easings } from '../src/easings.ts';
 import { properties, settings as allSettings } from '../src/modules/schema.ts';
 wireMotion([easings]);
-const P = 'data-vera-motion';
+const P = 'data-vm';
 beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); vi.stubGlobal('requestAnimationFrame', (fn) => { fn(0); return 1; }); vi.stubGlobal('cancelAnimationFrame', () => {}); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 

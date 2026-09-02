@@ -21,7 +21,7 @@ import { createMotion } from '../src/index.ts';
  * mid-life is a behaviour change on a rare path, and making it self-heal is a
  * decision rather than a repair.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const pane = (childId, scrollTop) => {
   document.body.insertAdjacentHTML(

@@ -49,7 +49,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('an element measured while it had no box', () => {
   const build = () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div id="a" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.getElementById('a');
     /** Hidden: what a browser reports for `display: none`. */
     geometry(node, 0, 0);
@@ -98,7 +98,7 @@ describe('an element measured while it had no box', () => {
    */
   it('leaves an element that was measured properly alone', () => {
     document.body.innerHTML =
-      '<div id="b" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div id="b" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.getElementById('b');
     geometry(node, 3000, 200);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });

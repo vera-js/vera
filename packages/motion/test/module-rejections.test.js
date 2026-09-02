@@ -37,8 +37,8 @@ const reasonsFor = (m, id) =>
 describe('a sequence refusal reaches instance.rejected', () => {
   it('reports frame on an element that is not a canvas', () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"></div>';
+      '<div id="a" data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="/s/" data-vm-frame-count="10"></div>';
     const m = start();
     expect(reasonsFor(m, 'a')).toEqual([expect.stringContaining('needs a <canvas>')]);
     m.destroy();
@@ -46,8 +46,8 @@ describe('a sequence refusal reaches instance.rejected', () => {
 
   it('reports a frame-url the origin policy refused', () => {
     document.body.innerHTML =
-      '<canvas id="b" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-count="10"></canvas>';
+      '<canvas id="b" data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-count="10"></canvas>';
     const m = start();
     expect(reasonsFor(m, 'b')).toEqual([expect.stringContaining('frame-url is missing or not permitted')]);
     m.destroy();
@@ -65,8 +65,8 @@ describe('a sequence refusal reaches instance.rejected', () => {
    */
   it('reports a frame-count that is not a positive number', () => {
     document.body.innerHTML =
-      '<canvas id="g" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="0"></canvas>';
+      '<canvas id="g" data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="/s/" data-vm-frame-count="0"></canvas>';
     const m = start();
     /**
      * Two reasons, not one, and that is correct: the schema's bounds refuse it
@@ -89,8 +89,8 @@ describe('a sequence refusal reaches instance.rejected', () => {
    */
   it('reports a canvas it cannot get a 2D context from', () => {
     document.body.innerHTML =
-      '<canvas id="h" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"></canvas>';
+      '<canvas id="h" data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="/s/" data-vm-frame-count="10"></canvas>';
     const m = start();
     expect(reasonsFor(m, 'h')).toEqual([expect.stringContaining('no 2D context')]);
     expect(warnings.some((w) => w.includes('no 2D context'))).toBe(true);
@@ -99,8 +99,8 @@ describe('a sequence refusal reaches instance.rejected', () => {
 
   it('reports it once however many frames pass', () => {
     document.body.innerHTML =
-      '<div id="c" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"></div>';
+      '<div id="c" data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="/s/" data-vm-frame-count="10"></div>';
     const m = start();
     for (let i = 0; i < 5; i++) m.refresh();
     expect(reasonsFor(m, 'c')).toHaveLength(1);
@@ -112,8 +112,8 @@ describe('a sequence refusal reaches instance.rejected', () => {
 describe('a split refusal reaches instance.rejected', () => {
   it('reports text it will not split', () => {
     document.body.innerHTML =
-      '<p id="d" data-vera-motion data-vera-motion-split="words" ' +
-      'data-vera-motion-opacity="0% 0, 100% 1">hello <em>there</em></p>';
+      '<p id="d" data-vm data-vm-split="words" ' +
+      'data-vm-opacity="0% 0, 100% 1">hello <em>there</em></p>';
     const m = start();
     expect(reasonsFor(m, 'd')).toEqual([expect.stringContaining('plain text, not nested markup')]);
     m.destroy();
@@ -133,10 +133,10 @@ describe('a split refusal reaches instance.rejected', () => {
 describe('a module that is not wired at all', () => {
   it('reports every element whose ease it could not shape', () => {
     document.body.innerHTML =
-      '<div id="e1" data-vera-motion data-vera-motion-ease="ease-in" ' +
-      'data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-      '<div id="e2" data-vera-motion data-vera-motion-ease="ease-out" ' +
-      'data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="e1" data-vm data-vm-ease="ease-in" ' +
+      'data-vm-opacity="0% 0, 100% 1"></div>' +
+      '<div id="e2" data-vm data-vm-ease="ease-out" ' +
+      'data-vm-opacity="0% 0, 100% 1"></div>';
     const m = start();
 
     /** Per element — a GUI highlights the element, not the page. */
@@ -150,8 +150,8 @@ describe('a module that is not wired at all', () => {
 
   it('says nothing about a linear element, which needs no module', () => {
     document.body.innerHTML =
-      '<div id="e3" data-vera-motion data-vera-motion-ease="linear" ' +
-      'data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="e3" data-vm data-vm-ease="linear" ' +
+      'data-vm-opacity="0% 0, 100% 1"></div>';
     const m = start();
     expect(reasonsFor(m, 'e3')).toEqual([]);
     m.destroy();
@@ -161,9 +161,9 @@ describe('a module that is not wired at all', () => {
 describe('the two kinds of refusal compose', () => {
   it('lists a parse-time reason and a module reason on the same element', () => {
     document.body.innerHTML =
-      '<div id="e" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10" ' +
-      'data-vera-motion-grayscale="0% 0%, 100% 100%"></div>';
+      '<div id="e" data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="/s/" data-vm-frame-count="10" ' +
+      'data-vm-grayscale="0% 0%, 100% 100%"></div>';
     const m = start();
     const reasons = reasonsFor(m, 'e');
     expect(reasons.some((r) => r.includes('grayscale'))).toBe(true);
@@ -178,9 +178,9 @@ describe('the two kinds of refusal compose', () => {
    */
   it('keeps reasons from two different modules on one element', () => {
     document.body.innerHTML =
-      '<div id="g" data-vera-motion data-vera-motion-split="words" ' +
-      'data-vera-motion-frame="0% 0, 100% 9" data-vera-motion-frame-url="/s/" ' +
-      'data-vera-motion-frame-count="10">hello <em>there</em></div>';
+      '<div id="g" data-vm data-vm-split="words" ' +
+      'data-vm-frame="0% 0, 100% 9" data-vm-frame-url="/s/" ' +
+      'data-vm-frame-count="10">hello <em>there</em></div>';
     const m = start();
     for (let i = 0; i < 3; i++) m.refresh();
     const reasons = reasonsFor(m, 'g');
@@ -191,7 +191,7 @@ describe('the two kinds of refusal compose', () => {
 
   it('says nothing about an element nothing refused', () => {
     document.body.innerHTML =
-      '<div id="f" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="f" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const m = start();
     expect(reasonsFor(m, 'f')).toEqual([]);
     m.destroy();
@@ -203,7 +203,7 @@ describe('the two kinds of refusal compose', () => {
  *
  * `ease` reaches the runtime from the attribute *or* from the instance
  * default. The first version of this reporting named both as
- * `data-vera-motion-ease="…"`, so a page setting `createMotion({ ease:
+ * `data-vm-ease="…"`, so a page setting `createMotion({ ease:
  * 'ease-out' })` without the module got that on every element — naming an
  * attribute not one of them carried, which sends a GUI to markup that does not
  * exist.
@@ -211,25 +211,25 @@ describe('the two kinds of refusal compose', () => {
 describe('the ease reported is the ease that was written', () => {
   it('names the attribute when the element declared one', () => {
     document.body.innerHTML =
-      '<div id="d1" data-vera-motion data-vera-motion-ease="ease-in" ' +
-      'data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="d1" data-vm data-vm-ease="ease-in" ' +
+      'data-vm-opacity="0% 0, 100% 1"></div>';
     const m = start();
     expect(reasonsFor(m, 'd1')).toEqual([
-      expect.stringContaining('data-vera-motion-ease="ease-in"'),
+      expect.stringContaining('data-vm-ease="ease-in"'),
     ]);
     m.destroy();
   });
 
   it('and says it was an option when the element declared none', () => {
     document.body.innerHTML =
-      '<div id="d2" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="d2" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const m = createMotion({ respectReducedMotion: false, inertia: 0, ease: 'ease-out' });
     m.init();
     const reasons = reasonsFor(m, 'd2');
     expect(reasons).toEqual([expect.stringContaining('an option, not an attribute')]);
     /** The part that matters: it must not claim an attribute the element does not have. */
-    expect(reasons[0]).not.toContain('data-vera-motion-ease=');
-    expect(document.getElementById('d2').hasAttribute('data-vera-motion-ease')).toBe(false);
+    expect(reasons[0]).not.toContain('data-vm-ease=');
+    expect(document.getElementById('d2').hasAttribute('data-vm-ease')).toBe(false);
     m.destroy();
   });
 });

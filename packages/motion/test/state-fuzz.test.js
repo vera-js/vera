@@ -37,16 +37,16 @@ describe('interleaved operations', () => {
       ['add plain', () => {
         const n = document.createElement('div');
         n.id = `n${counter++}`;
-        n.setAttribute('data-vera-motion', '');
-        n.setAttribute('data-vera-motion-translate-y', '0% 0px, 100% 40px');
+        n.setAttribute('data-vm', '');
+        n.setAttribute('data-vm-translate-y', '0% 0px, 100% 40px');
         host.append(n); place(n, 300 + counter * 10);
       }],
       ['add split', () => {
         const n = document.createElement('p');
         n.id = `n${counter++}`;
-        n.setAttribute('data-vera-motion', '');
-        n.setAttribute('data-vera-motion-split', 'words');
-        n.setAttribute('data-vera-motion-opacity', '0% 0, 100% 1');
+        n.setAttribute('data-vm', '');
+        n.setAttribute('data-vm-split', 'words');
+        n.setAttribute('data-vm-opacity', '0% 0, 100% 1');
         n.textContent = 'alpha beta gamma';
         host.append(n); place(n, 300 + counter * 10);
       }],
@@ -58,8 +58,8 @@ describe('interleaved operations', () => {
       ['toggle class', () => { host.firstElementChild?.classList.toggle('on'); }],
       ['edit value', () => {
         const n = host.firstElementChild;
-        if (n && n.hasAttribute('data-vera-motion-translate-y')) {
-          n.setAttribute('data-vera-motion-translate-y', `0% 0px, 100% ${Math.floor(rnd() * 200)}px`);
+        if (n && n.hasAttribute('data-vm-translate-y')) {
+          n.setAttribute('data-vm-translate-y', `0% 0px, 100% ${Math.floor(rnd() * 200)}px`);
         }
       }],
     ];
@@ -90,8 +90,8 @@ describe('interleaved operations', () => {
      * itself — its pieces are. Counting it as unregistered is the probe being
      * wrong, not the runtime.
      */
-    const unregistered = [...host.querySelectorAll('[data-vera-motion]')]
-      .filter((n) => !n.hasAttribute('data-vera-motion-split'))
+    const unregistered = [...host.querySelectorAll('[data-vm]')]
+      .filter((n) => !n.hasAttribute('data-vm-split'))
       .filter((n) => !m.elements.some((e) => e.node === n));
     expect(errors).toEqual([]);
     expect(duplicates).toBe(0);

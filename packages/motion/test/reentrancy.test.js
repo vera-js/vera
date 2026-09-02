@@ -18,9 +18,9 @@ import { createMotion } from '../src/index.ts';
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   document.body.innerHTML =
-    '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-    '<div id="b" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>' +
-    '<div id="c" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 90px"></div>';
+    '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
+    '<div id="b" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>' +
+    '<div id="c" data-vm data-vm-translate-y="0% 0px, 100% 90px"></div>';
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -109,9 +109,9 @@ describe('destroy() from onProgress while a mutation batch is painting', () => {
     armed = true;
 
     document.getElementById('host').innerHTML =
-      '<div id="x" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-      '<div id="y" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>' +
-      '<div id="z" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 90px"></div>';
+      '<div id="x" data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
+      '<div id="y" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>' +
+      '<div id="z" data-vm data-vm-translate-y="0% 0px, 100% 90px"></div>';
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     const left = ['x', 'y', 'z']

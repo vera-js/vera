@@ -19,9 +19,9 @@ describe('hostile input on surface added during the audit', () => {
     const accepted = [];
     for (const ext of hostile) {
       document.body.innerHTML =
-        `<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ` +
-        `data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10" ` +
-        `data-vera-motion-frame-ext="${ext.replace(/"/g, '&quot;')}"></canvas>`;
+        `<canvas data-vm data-vm-frame="0% 0, 100% 9" ` +
+        `data-vm-frame-url="/s/" data-vm-frame-count="10" ` +
+        `data-vm-frame-ext="${ext.replace(/"/g, '&quot;')}"></canvas>`;
       const m = createMotion({ respectReducedMotion: false });
       m.init();
       const value = m.elements[0]?.parsed.settings['frame-ext'];
@@ -56,8 +56,8 @@ describe('hostile input on surface added during the audit', () => {
     const huge = 'z'.repeat(400_000);
     document.body.innerHTML = '';
     const node = document.createElement('div');
-    node.setAttribute('data-vera-motion', '');
-    node.setAttribute('data-vera-motion-opacity', huge);
+    node.setAttribute('data-vm', '');
+    node.setAttribute('data-vm-opacity', huge);
     document.body.append(node);
     const m = createMotion({ respectReducedMotion: false });
     const started = Date.now();
@@ -72,8 +72,8 @@ describe('hostile input on surface added during the audit', () => {
 
   it('a flood of unknown attributes is bounded by the element itself', () => {
     const node = document.createElement('div');
-    node.setAttribute('data-vera-motion', '');
-    for (let i = 0; i < 500; i++) node.setAttribute(`data-vera-motion-junk${i}`, 'x'.repeat(200));
+    node.setAttribute('data-vm', '');
+    for (let i = 0; i < 500; i++) node.setAttribute(`data-vm-junk${i}`, 'x'.repeat(200));
     document.body.innerHTML = '';
     document.body.append(node);
     const m = createMotion({ respectReducedMotion: false });

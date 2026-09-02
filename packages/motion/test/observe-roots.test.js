@@ -5,7 +5,7 @@ import { split } from '../src/split.ts';
 
 wireMotion(split);
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const place = (n) => {
   Object.defineProperty(n, 'offsetTop', { value: 500, configurable: true });
   Object.defineProperty(n, 'offsetHeight', { value: 200, configurable: true });

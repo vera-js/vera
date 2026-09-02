@@ -20,7 +20,7 @@ wireMotion([paint, easings]);
  * reading — "the easing is being dropped somewhere" — would send the next
  * reader into `evaluate`'s `hold` branch to add it.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 1000], ['offsetLeft', 0], ['offsetWidth', 200], ['offsetHeight', 200]]) {

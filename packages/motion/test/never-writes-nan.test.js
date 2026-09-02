@@ -25,7 +25,7 @@ import { easings } from '../src/easings.ts';
  * What is being tested is arithmetic on the numbers the runtime is given,
  * including the ones a real engine would also give it: `0`, and absent.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 wireMotion([paint, easings]);
 

@@ -9,7 +9,7 @@ import { describe, it, beforeEach, afterEach } from './harness.mjs';
 import { expect, vi } from './expect.mjs';
 import { createScrollTo } from '../src/modules/createScrollTo.ts';
 
-const ATTR = 'data-vera-motion-scroll-target';
+const ATTR = 'data-vm-scroll-target';
 
 const place = (node, top) => {
   Object.defineProperty(node, 'offsetTop', { value: top, configurable: true });

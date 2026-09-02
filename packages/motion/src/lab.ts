@@ -42,7 +42,7 @@ INERTIAS.forEach((inertia, row) => {
   const marker = document.createElement('div');
   marker.className = `marker${inertia === 0 ? ' zero' : ''}`;
   marker.textContent = String(inertia);
-  marker.setAttribute('data-vera-motion', '');
+  marker.setAttribute('data-vm', '');
   /**
    * Viewport units for the *values*: a percentage translate resolves against
    * the element's own width, so `100%` moved these 46px rather than across the
@@ -89,11 +89,11 @@ INERTIAS.forEach((inertia, row) => {
   const shift = row * 82;
   const span = 5 * window.innerHeight;
   marker.setAttribute(
-    'data-vera-motion-translate-x',
+    'data-vm-translate-x',
     `${-shift}px 2vw, ${span - shift}px 84vw`
   );
   marker.setAttribute(
-    'data-vera-motion-rotate',
+    'data-vm-rotate',
     `${-shift}px 0deg, ${span - shift}px 720deg`
   );
   rail.appendChild(marker);

@@ -34,10 +34,10 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe('a property whose values are slots, not quantities', () => {
   it('never paints a value the element did not author', () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-inertia="0" ' +
-      'data-vera-motion-background="0% red, 100% blue"></div>' +
-      '<div id="b" data-vera-motion data-vera-motion-inertia="0" ' +
-      'data-vera-motion-background="0% red, 100% green"></div>';
+      '<div id="a" data-vm data-vm-inertia="0" ' +
+      'data-vm-background="0% red, 100% blue"></div>' +
+      '<div id="b" data-vm data-vm-inertia="0" ' +
+      'data-vm-background="0% red, 100% green"></div>';
     const a = document.getElementById('a');
     const b = document.getElementById('b');
     place(a);
@@ -73,10 +73,10 @@ describe('a property whose values are slots, not quantities', () => {
    */
   it('fills a lone keyframe from the element itself, not from slot 0', () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-inertia="0" ' +
-      'data-vera-motion-background="0% papayawhip, 100% teal"></div>' +
-      '<div id="b" data-vera-motion data-vera-motion-inertia="0" ' +
-      'data-vera-motion-color="0% crimson"></div>';
+      '<div id="a" data-vm data-vm-inertia="0" ' +
+      'data-vm-background="0% papayawhip, 100% teal"></div>' +
+      '<div id="b" data-vm data-vm-inertia="0" ' +
+      'data-vm-color="0% crimson"></div>';
     const a = document.getElementById('a');
     const b = document.getElementById('b');
     place(a);
@@ -104,10 +104,10 @@ describe('a property whose values are slots, not quantities', () => {
    */
   it('rests on the element own value when no band matches', () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-inertia="0" ' +
-      'data-vera-motion-background="0% papayawhip, 100% teal"></div>' +
-      '<div id="c" data-vera-motion data-vera-motion-inertia="0" ' +
-      'data-vera-motion-color="[0-700]: 0% olive, 100% navy"></div>';
+      '<div id="a" data-vm data-vm-inertia="0" ' +
+      'data-vm-background="0% papayawhip, 100% teal"></div>' +
+      '<div id="c" data-vm data-vm-inertia="0" ' +
+      'data-vm-color="[0-700]: 0% olive, 100% navy"></div>';
     const a = document.getElementById('a');
     const c = document.getElementById('c');
     place(a);

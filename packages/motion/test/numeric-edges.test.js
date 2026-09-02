@@ -25,15 +25,15 @@ beforeEach(() => {
 
 describe('numeric edges never reach the DOM as NaN', () => {
   const CASES = [
-    ['zero-height element',   '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>', { height: 0 }],
-    ['keyframes outside 0-100', '<div data-vera-motion data-vera-motion-translate-y="-200% 0px, 300% 40px"></div>', {}],
-    ['identical positions',   '<div data-vera-motion data-vera-motion-translate-y="50% 0px, 50% 40px"></div>', {}],
-    ['single keyframe',       '<div data-vera-motion data-vera-motion-opacity="0.5"></div>', {}],
-    ['huge value',            '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 99999px"></div>', {}],
-    ['negative value',        '<div data-vera-motion data-vera-motion-translate-y="0% -5000px, 100% 5000px"></div>', {}],
-    ['element above viewport','<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>', { top: 0 }],
-    ['tiny range',            '<div data-vera-motion data-vera-motion-translate-y="49.999% 0px, 50.001% 40px"></div>', {}],
-    ['many keyframes',        `<div data-vera-motion data-vera-motion-opacity="${Array.from({length:60},(_,i)=>`${i*1.6}% ${(i%2)}`).join(', ')}"></div>`, {}],
+    ['zero-height element',   '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>', { height: 0 }],
+    ['keyframes outside 0-100', '<div data-vm data-vm-translate-y="-200% 0px, 300% 40px"></div>', {}],
+    ['identical positions',   '<div data-vm data-vm-translate-y="50% 0px, 50% 40px"></div>', {}],
+    ['single keyframe',       '<div data-vm data-vm-opacity="0.5"></div>', {}],
+    ['huge value',            '<div data-vm data-vm-translate-y="0% 0px, 100% 99999px"></div>', {}],
+    ['negative value',        '<div data-vm data-vm-translate-y="0% -5000px, 100% 5000px"></div>', {}],
+    ['element above viewport','<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>', { top: 0 }],
+    ['tiny range',            '<div data-vm data-vm-translate-y="49.999% 0px, 50.001% 40px"></div>', {}],
+    ['many keyframes',        `<div data-vm data-vm-opacity="${Array.from({length:60},(_,i)=>`${i*1.6}% ${(i%2)}`).join(', ')}"></div>`, {}],
   ];
 
   it('never produces a non-finite value at any scroll position', () => {
@@ -77,7 +77,7 @@ describe('the float64 cliff is refused at parse, with a reason', () => {
   for (const [name, keyframes] of CLIFF) {
     it(`refuses ${name}`, () => {
       const { node, m } = setup(
-        `<div data-vera-motion data-vera-motion-translate-y="${keyframes}"></div>`);
+        `<div data-vm data-vm-translate-y="${keyframes}"></div>`);
       expect(m.rejected.flatMap((r) => r.rejected).length > 0).toBe(true);
       for (const y of [0, 250, 700]) {
         Object.defineProperty(window, 'scrollY', { value: y, configurable: true });

@@ -6,7 +6,7 @@ import { createMotion } from '../src/index.ts';
 
 wireMotion([split]);
 
-const MARKUP = '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-opacity-mobile="0% 0.5, 100% 1"></div>';
+const MARKUP = '<div data-vm data-vm-opacity="0% 0, 100% 1" data-vm-opacity-mobile="0% 0.5, 100% 1"></div>';
 
 describe('breakpoints edge values', () => {
   it('an empty object registers no names, and a suffix then reports as unknown', () => {
@@ -52,7 +52,7 @@ describe('stagger in the wrong place', () => {
    */
   it('reports a stagger on an element with no animated descendants', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-stagger="10%" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-stagger="10%" data-vm-opacity="0% 0, 100% 1"></div>';
     place(document.body.firstElementChild);
     const m = createMotion({ respectReducedMotion: false });
     m.init();
@@ -62,10 +62,10 @@ describe('stagger in the wrong place', () => {
 
   it('says nothing when it is on the parent, where it belongs', () => {
     document.body.innerHTML =
-      '<div data-vera-motion-stagger="10%">' +
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></div>';
-    document.querySelectorAll('[data-vera-motion]').forEach(place);
+      '<div data-vm-stagger="10%">' +
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div></div>';
+    document.querySelectorAll('[data-vm]').forEach(place);
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     expect(m.rejected.flatMap((r) => r.rejected)).toEqual([]);
@@ -78,8 +78,8 @@ describe('stagger in the wrong place', () => {
    */
   it('exempts an element that is also being split', async () => {
     document.body.innerHTML =
-      '<h1 data-vera-motion data-vera-motion-split="chars" data-vera-motion-stagger="3"' +
-      ' data-vera-motion-opacity="0% 0, 100% 1">Hello there</h1>';
+      '<h1 data-vm data-vm-split="chars" data-vm-stagger="3"' +
+      ' data-vm-opacity="0% 0, 100% 1">Hello there</h1>';
     place(document.body.firstElementChild);
     const m = createMotion({ respectReducedMotion: false });
     m.init();

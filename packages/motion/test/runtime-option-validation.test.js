@@ -28,7 +28,7 @@ const place = (node) => {
 
 const build = (options) => {
   document.body.innerHTML =
-    '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
   const node = document.body.firstElementChild;
   place(node);
   const m = createMotion({ respectReducedMotion: false, inertia: 0.3, ...options });

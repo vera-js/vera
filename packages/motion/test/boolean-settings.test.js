@@ -15,8 +15,8 @@ import { createMotion } from '../src/index.ts';
  */
 const parse = (value) => {
   document.body.innerHTML =
-    `<div data-vera-motion ${value === null ? 'data-vera-motion-run-once' : `data-vera-motion-run-once="${value}"`} ` +
-    'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    `<div data-vm ${value === null ? 'data-vm-run-once' : `data-vm-run-once="${value}"`} ` +
+    'data-vm-translate-y="0% 0px, 100% 40px"></div>';
   const node = document.body.firstElementChild;
   Object.defineProperty(node, 'offsetTop', { value: 3000, configurable: true });
   Object.defineProperty(node, 'offsetHeight', { value: 200, configurable: true });

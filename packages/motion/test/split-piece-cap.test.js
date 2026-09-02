@@ -30,8 +30,8 @@ afterEach(() => vi.restoreAllMocks());
 
 const start = (text, mode = 'chars') => {
   document.body.innerHTML =
-    `<p id="p" data-vera-motion data-vera-motion-split="${mode}" ` +
-    `data-vera-motion-opacity="0% 0, 100% 1">${text}</p>`;
+    `<p id="p" data-vm data-vm-split="${mode}" ` +
+    `data-vm-opacity="0% 0, 100% 1">${text}</p>`;
   const m = createMotion({ respectReducedMotion: false });
   m.init();
   return m;

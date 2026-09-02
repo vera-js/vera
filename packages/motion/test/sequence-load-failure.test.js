@@ -3,7 +3,7 @@ import { expect, vi } from './expect.mjs';
 import { sequence } from '../src/sequence.ts';
 import { createSequence } from '../src/modules/sequence.ts';
 
-const A = 'data-vera-motion';
+const A = 'data-vm';
 
 /**
  * A frame that does not load is the failure this module is most likely to

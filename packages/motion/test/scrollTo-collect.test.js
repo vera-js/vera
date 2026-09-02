@@ -9,7 +9,7 @@ import { describe, it, beforeEach, afterEach } from './harness.mjs';
 import { expect, vi } from './expect.mjs';
 import { createScrollTo } from '../src/modules/createScrollTo.ts';
 
-const ATTR = 'data-vera-motion-scroll-target';
+const ATTR = 'data-vm-scroll-target';
 
 const place = (node, top) => {
   Object.defineProperty(node, 'offsetTop', { value: top, configurable: true });
@@ -37,7 +37,7 @@ describe('a target that stops being one', () => {
 
   /**
    * The marker is an outward contract — a page can style
-   * `[data-vera-motion-scroll-target]` — so leaving it on an element that is no
+   * `[data-vm-scroll-target]` — so leaving it on an element that is no
    * longer a target styles the wrong thing. CLAUDE.md counts an injected
    * attribute as something needing a matching teardown.
    */

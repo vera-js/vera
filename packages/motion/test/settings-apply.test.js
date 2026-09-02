@@ -20,14 +20,14 @@ const run = (html) => {
 
 describe('every setting reaches the DOM', () => {
   it('will-change', () => {
-    const { node, m } = run('<div data-vera-motion data-vera-motion-will-change data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const { node, m } = run('<div data-vm data-vm-will-change data-vm-opacity="0% 0, 100% 1"></div>');
     /** `opacity` is a filter function here, so `filter` is the whole hint. */
     expect(node.style.willChange).toBe('filter');
     m.destroy();
   });
 
   it('will-change explicitly false overrides an instance default', () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-will-change="false" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-will-change="false" data-vm-opacity="0% 0, 100% 1"></div>';
     const m = createMotion({ respectReducedMotion: false, willChange: true });
     m.init();
     const node = document.body.firstElementChild;
@@ -36,13 +36,13 @@ describe('every setting reaches the DOM', () => {
   });
 
   it('transform-origin', () => {
-    const { node, m } = run('<div data-vera-motion data-vera-motion-transform-origin="top left" data-vera-motion-scale="0% 1, 100% 2"></div>');
+    const { node, m } = run('<div data-vm data-vm-transform-origin="top left" data-vm-scale="0% 1, 100% 2"></div>');
     expect(node.style.transformOrigin).toBe('top left');
     m.destroy();
   });
 
   it('pin', () => {
-    const { node, m } = run('<div data-vera-motion data-vera-motion-pin="120px" data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const { node, m } = run('<div data-vm data-vm-pin="120px" data-vm-opacity="0% 0, 100% 1"></div>');
     expect(node.style.position).toBe('sticky');
     expect(node.style.top).toBe('120px');
     m.destroy();
@@ -51,8 +51,8 @@ describe('every setting reaches the DOM', () => {
   it('path-selector and path-rotate', () => {
     document.body.innerHTML =
       '<svg><path id="p" d="M0,0 L100,100"></path></svg>' +
-      '<div id="t" data-vera-motion data-vera-motion-path-selector="#p" ' +
-      'data-vera-motion-path-rotate="auto" data-vera-motion-path="0% 0, 100% 100"></div>';
+      '<div id="t" data-vm data-vm-path-selector="#p" ' +
+      'data-vm-path-rotate="auto" data-vm-path="0% 0, 100% 100"></div>';
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     const node = document.getElementById('t');
@@ -62,7 +62,7 @@ describe('every setting reaches the DOM', () => {
   });
 
   it('perspective', () => {
-    const { node, m } = run('<div data-vera-motion data-vera-motion-perspective="800" data-vera-motion-translate-z="0% 0px, 100% 50px"></div>');
+    const { node, m } = run('<div data-vm data-vm-perspective="800" data-vm-translate-z="0% 0px, 100% 50px"></div>');
     expect(node.style.transform).toContain('perspective(800px)');
     m.destroy();
   });

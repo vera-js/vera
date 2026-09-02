@@ -54,11 +54,11 @@ describe('the demo page end to end', () => {
   });
 
   it('composes transform functions in schema order, not attribute order', () => {
-    document.body.innerHTML = `<div data-vera-motion
-      data-vera-motion-scale="2" data-vera-motion-rotate="45deg" data-vera-motion-translate-y="10px"></div>`;
+    document.body.innerHTML = `<div data-vm
+      data-vm-scale="2" data-vm-rotate="45deg" data-vm-translate-y="10px"></div>`;
     const animation = createMotion({ respectReducedMotion: false });
     animation.init();
-    const style = document.querySelector('[data-vera-motion]').style.transform;
+    const style = document.querySelector('[data-vm]').style.transform;
     expect(style.indexOf('translateY')).toBeLessThan(style.indexOf('rotate'));
     expect(style.indexOf('rotate')).toBeLessThan(style.indexOf('scale'));
     animation.destroy();
@@ -112,7 +112,7 @@ describe('the demo page end to end', () => {
     const animation = createMotion({ respectReducedMotion: false });
     animation.init();
     animation.destroy();
-    for (const node of document.querySelectorAll('[data-vera-motion]')) {
+    for (const node of document.querySelectorAll('[data-vm]')) {
       expect(node.style.transform).toBe('');
       expect(node.style.filter).toBe('');
     }
@@ -125,7 +125,7 @@ describe('the demo page end to end', () => {
 
     expect(animation.reducedMotion).toBe(true);
     expect(animation.enabled).toBe(false);
-    for (const node of document.querySelectorAll('[data-vera-motion]')) {
+    for (const node of document.querySelectorAll('[data-vm]')) {
       expect(node.style.transform).toBe('');
     }
     animation.destroy();
@@ -186,8 +186,8 @@ describe('mutations cost the mutation, not the page', () => {
     const before = animation.elements.length;
 
     const node = document.createElement('div');
-    node.setAttribute('data-vera-motion', '');
-    node.setAttribute('data-vera-motion-opacity', '0% 0, 100% 1');
+    node.setAttribute('data-vm', '');
+    node.setAttribute('data-vm-opacity', '0% 0, 100% 1');
     document.body.appendChild(node);
     await settle();
 
@@ -205,7 +205,7 @@ describe('mutations cost the mutation, not the page', () => {
     const others = animation.elements.slice(1);
     const snapshot = others.map((e) => e.lastTransform);
     /** Its own attributes changed, so this one is re-parsed and re-adopted. */
-    animation.elements[0].node.setAttribute('data-vera-motion-opacity', '0% 0, 50% 1');
+    animation.elements[0].node.setAttribute('data-vm-opacity', '0% 0, 50% 1');
     await settle();
 
     for (let i = 0; i < others.length; i++) {
@@ -220,9 +220,9 @@ describe('mutations cost the mutation, not the page', () => {
     const node = animation.elements[0].node;
     const before = animation.elements.length;
 
-    node.setAttribute('data-vera-motion-opacity', '0% 0, 50% 1');
+    node.setAttribute('data-vm-opacity', '0% 0, 50% 1');
     await settle();
-    node.setAttribute('data-vera-motion-opacity', '0% 0, 60% 1');
+    node.setAttribute('data-vm-opacity', '0% 0, 60% 1');
     await settle();
 
     expect(animation.elements.length).toBe(before);
@@ -286,7 +286,7 @@ describe('disableOnTouch', () => {
     flush();
     expect(a.touchDisabled).toBe(true);
     expect(a.enabled).toBe(false);
-    for (const node of document.querySelectorAll('[data-vera-motion]')) {
+    for (const node of document.querySelectorAll('[data-vm]')) {
       expect(node.style.transform).toBe('');
     }
     /** Still parsed, so enable() can override without re-parsing. */
@@ -470,7 +470,7 @@ describe('shadow DOM', () => {
     document.body.innerHTML = '<my-widget></my-widget>';
     const host = document.querySelector('my-widget');
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<p data-vera-motion="fade-up">hello</p>';
+    shadow.innerHTML = '<p data-vm="fade-up">hello</p>';
 
     const animation = createMotion({ respectReducedMotion: false, root: shadow });
     animation.init();
@@ -481,13 +481,13 @@ describe('shadow DOM', () => {
   });
 
   it('observe() adopts a shadow root discovered after init', async () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-opacity="0"></div><my-widget></my-widget>';
+    document.body.innerHTML = '<div data-vm data-vm-opacity="0"></div><my-widget></my-widget>';
     const animation = createMotion({ respectReducedMotion: false });
     animation.init();
     expect(animation.elements).toHaveLength(1);
 
     const shadow = document.querySelector('my-widget').attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<p data-vera-motion="fade">late</p>';
+    shadow.innerHTML = '<p data-vm="fade">late</p>';
     animation.observe(shadow);
     await flush();
 
@@ -498,7 +498,7 @@ describe('shadow DOM', () => {
   it('unobserve() removes a root and resets its elements', () => {
     document.body.innerHTML = '<my-widget></my-widget>';
     const shadow = document.querySelector('my-widget').attachShadow({ mode: 'open' });
-    shadow.innerHTML = '<p data-vera-motion="fade">bye</p>';
+    shadow.innerHTML = '<p data-vm="fade">bye</p>';
 
     const animation = createMotion({ respectReducedMotion: false, root: shadow });
     animation.init();

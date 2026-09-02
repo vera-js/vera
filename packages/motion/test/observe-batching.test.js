@@ -20,7 +20,7 @@ import { createMotion } from '../src/index.ts';
  * microtask rather than a frame so nothing is ever visible un-animated —
  * `spikes/roots-cost.mjs` holds the numbers.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const closedRoot = (n) => {

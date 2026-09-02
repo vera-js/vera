@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from './harness.mjs';
 import { expect, vi } from './expect.mjs';
 import { createMotion, EVENTS } from '../src/index.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const place = (node, top = 500) => {
   Object.defineProperty(node, 'offsetTop', { value: top, configurable: true });
   Object.defineProperty(node, 'offsetHeight', { value: 300, configurable: true });
@@ -100,7 +100,7 @@ describe('the public methods tolerate any order', () => {
   it('registers an element under two overlapping roots once', () => {
     document.body.innerHTML =
       '<div id="outer"><div id="inner">' +
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
       '</div></div>';
     const m = createMotion({ respectReducedMotion: false, root: document.getElementById('outer') });
     m.init();

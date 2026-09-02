@@ -21,7 +21,7 @@ beforeEach(() => {
   warnings = [];
   vi.spyOn(console, 'warn').mockImplementation((...args) => warnings.push(String(args[0])));
   document.body.innerHTML =
-    '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -78,8 +78,8 @@ describe('an option the runtime refused', () => {
 describe('the shape of the list', () => {
   it('carries at most one entry with no node, and it sorts first', () => {
     document.body.innerHTML =
-      '<div id="bad" data-vera-motion data-vera-motion-nonsense="1" ' +
-      'data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="bad" data-vm data-vm-nonsense="1" ' +
+      'data-vm-opacity="0% 0, 100% 1"></div>';
     const m = createMotion({ respectReducedMotion: false, ease: 'not-an-easing', inertia: Number.NaN });
     m.init();
     const nulls = m.rejected.filter((entry) => entry.node === null);

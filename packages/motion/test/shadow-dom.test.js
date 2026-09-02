@@ -13,7 +13,7 @@ const withShadow = (mode = 'open') => {
   document.body.innerHTML = '<div id="host"></div>';
   const host = document.getElementById('host');
   const root = host.attachShadow({ mode });
-  root.innerHTML = '<div id="inner" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+  root.innerHTML = '<div id="inner" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
   place(root.getElementById('inner'));
   return { host, root, inner: root.getElementById('inner') };
 };
@@ -47,8 +47,8 @@ describe('shadow DOM roots', () => {
     m.observe(root);
 
     const late = document.createElement('div');
-    late.setAttribute('data-vera-motion', '');
-    late.setAttribute('data-vera-motion-opacity', '0% 0, 100% 1');
+    late.setAttribute('data-vm', '');
+    late.setAttribute('data-vm-opacity', '0% 0, 100% 1');
     root.append(late);
     place(late, 600);
     await settle();

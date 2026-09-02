@@ -6,7 +6,7 @@ import { easings } from '../src/easings.ts';
 import { properties, settings as allSettings } from '../src/modules/schema.ts';
 
 wireMotion([paint, easings]);
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (n) => {
   for (const [k, v] of [['offsetLeft', 100], ['offsetTop', 500], ['offsetWidth', 200], ['offsetHeight', 200]]) {

@@ -27,8 +27,8 @@ afterEach(() => vi.restoreAllMocks());
 const withAllowlist = (allowedOrigins) => {
   wireMotion(sequence({ allowedOrigins }));
   document.body.innerHTML =
-    '<canvas id="c" data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-    'data-vera-motion-frame-url="https://cdn.test/seq/" data-vera-motion-frame-count="10"></canvas>';
+    '<canvas id="c" data-vm data-vm-frame="0% 0, 100% 9" ' +
+    'data-vm-frame-url="https://cdn.test/seq/" data-vm-frame-count="10"></canvas>';
   const m = createMotion({ respectReducedMotion: false });
   m.init();
   const url = m.elements[0]?.parsed.settings['frame-url'];

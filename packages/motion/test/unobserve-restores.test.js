@@ -9,10 +9,10 @@ wireMotion(split);
  * `unobserve` means "this root is no longer mine", so it has to hand the root
  * back the way `destroy()` hands the page back.
  *
- * It released every node carrying the bare `data-vera-motion` marker, and a
+ * It released every node carrying the bare `data-vm` marker, and a
  * module's own bookkeeping is not attribute-shaped. `split` is keyed by the
  * **container**, whose marker is optional — splitting keys off
- * `data-vera-motion-split`, and the animation attributes move to the pieces —
+ * `data-vm-split`, and the animation attributes move to the pieces —
  * so a container written without it was missed. Having been dropped from
  * `roots` it was then missed by `destroy()` too, and the paragraph stayed in
  * three pieces for the life of the page with no instance left that could
@@ -26,10 +26,10 @@ const scoped = (markup) => {
   return { m, scope };
 };
 
-const MARKED = '<p data-vera-motion data-vera-motion-split="words" ' +
-  'data-vera-motion-opacity="0% 0, 100% 1">one two three</p>';
-const BARE = '<p data-vera-motion-split="words" ' +
-  'data-vera-motion-opacity="0% 0, 100% 1">one two three</p>';
+const MARKED = '<p data-vm data-vm-split="words" ' +
+  'data-vm-opacity="0% 0, 100% 1">one two three</p>';
+const BARE = '<p data-vm-split="words" ' +
+  'data-vm-opacity="0% 0, 100% 1">one two three</p>';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -143,7 +143,7 @@ describe('a module that registers only release', () => {
     return { m, scope };
   };
 
-  const ANIMATED = '<p data-vera-motion data-vera-motion-nudge="0% 0px, 100% 10px">one</p>';
+  const ANIMATED = '<p data-vm data-vm-nudge="0% 0px, 100% 10px">one</p>';
 
   it('still hears about a root being handed back', () => {
     const { m, scope } = scopedNudge('scope', ANIMATED);
@@ -160,7 +160,7 @@ describe('a module that registers only release', () => {
    * of both paths.
    */
   it('and hears about the same nodes on unobserve as on destroy', () => {
-    const markup = '<p id="idle" data-vera-motion>nothing animated here</p>' + ANIMATED;
+    const markup = '<p id="idle" data-vm>nothing animated here</p>' + ANIMATED;
 
     document.body.innerHTML = `<div id="one">${markup}</div>`;
     const one = document.getElementById('one');

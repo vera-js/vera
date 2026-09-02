@@ -23,7 +23,7 @@ const build = (html, settings = S) => {
 beforeEach(() => { document.body.innerHTML = ''; });
 
 describe('event names', () => {
-  /** Derived, never written out, so `data-vera-motion-*` and `vera-motion:*` cannot drift. */
+  /** Derived, never written out, so `data-vm-*` and `vm:*` cannot drift. */
   it('are built from the same namespace as the attributes', () => {
     expect(EVENTS.active).toBe(`${NAMESPACE}:active`);
     expect(EVENTS.idle).toBe(`${NAMESPACE}:idle`);
@@ -42,10 +42,10 @@ describe('event names', () => {
   });
 });
 
-describe('vera-motion:complete', () => {
+describe('vm:complete', () => {
   it('fires once when a run-once element latches', () => {
-    const e = build(`<div data-vera-motion data-vera-motion-run-once
-      data-vera-motion-opacity="0% 0, 100% 1"></div>`);
+    const e = build(`<div data-vm data-vm-run-once
+      data-vm-opacity="0% 0, 100% 1"></div>`);
     const seen = vi.fn();
     e.node.addEventListener(EVENTS.complete, seen);
 
@@ -60,7 +60,7 @@ describe('vera-motion:complete', () => {
   });
 
   it('carries the timeline position it fired at', () => {
-    const e = build('<div data-vera-motion data-vera-motion-run-once data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-run-once data-vm-opacity="0% 0, 100% 1"></div>');
     let detail = null;
     e.node.addEventListener(EVENTS.complete, (event) => { detail = event.detail; });
     updateElement(e, win(2000), S);
@@ -68,7 +68,7 @@ describe('vera-motion:complete', () => {
   });
 
   it('does not fire for an element that is not run-once', () => {
-    const e = build('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>');
     const seen = vi.fn();
     e.node.addEventListener(EVENTS.complete, seen);
     updateElement(e, win(2000), S);
@@ -77,8 +77,8 @@ describe('vera-motion:complete', () => {
   });
 
   it('fires for a state-driven run-once element too', () => {
-    const e = build(`<div data-vera-motion data-vera-motion-when=".open" data-vera-motion-run-once
-      data-vera-motion-opacity="0% 0, 100% 1"></div>`);
+    const e = build(`<div data-vm data-vm-when=".open" data-vm-run-once
+      data-vm-opacity="0% 0, 100% 1"></div>`);
     const seen = vi.fn();
     e.node.addEventListener(EVENTS.complete, seen);
 
@@ -91,7 +91,7 @@ describe('vera-motion:complete', () => {
   });
 
   it('bubbles, so a page can delegate from the document', () => {
-    const e = build('<div data-vera-motion data-vera-motion-run-once data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-run-once data-vm-opacity="0% 0, 100% 1"></div>');
     const seen = vi.fn();
     document.addEventListener(EVENTS.complete, seen);
     updateElement(e, win(2000), S);
@@ -104,7 +104,7 @@ describe('vera-motion:complete', () => {
 describe('onProgress', () => {
   it('is called with the node and its timeline position each update', () => {
     const onProgress = vi.fn();
-    const e = build('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>', { ...S, onProgress });
+    const e = build('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>', { ...S, onProgress });
 
     updateElement(e, win(1000), { ...S, onProgress });
     expect(onProgress).toHaveBeenCalledTimes(1);
@@ -117,7 +117,7 @@ describe('onProgress', () => {
   it('reports positions outside 0..1 rather than clamping them', () => {
     const onProgress = vi.fn();
     const settings = { ...S, onProgress };
-    const e = build('<div data-vera-motion data-vera-motion-opacity="-50% 0, 150% 1"></div>', settings);
+    const e = build('<div data-vm data-vm-opacity="-50% 0, 150% 1"></div>', settings);
     updateElement(e, win(0), settings);
     expect(onProgress.mock.calls[0][1]).toBeLessThan(0);
   });
@@ -125,14 +125,14 @@ describe('onProgress', () => {
   it('is called for state-driven elements as well as scroll-driven ones', () => {
     const onProgress = vi.fn();
     const settings = { ...S, onProgress };
-    const e = build(`<div data-vera-motion data-vera-motion-when=".open"
-      data-vera-motion-opacity="0% 0, 100% 1"></div>`, settings);
+    const e = build(`<div data-vm data-vm-when=".open"
+      data-vm-opacity="0% 0, 100% 1"></div>`, settings);
     updateStateElement(e, true, settings);
     expect(onProgress).toHaveBeenCalledWith(e.node, expect.any(Number));
   });
 
   it('costs nothing when unset', () => {
-    const e = build('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const e = build('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>');
     expect(() => updateElement(e, win(1000), S)).not.toThrow();
   });
 });
@@ -150,11 +150,11 @@ describe('the instance dispatches both edges', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   const page = () => {
-    document.body.innerHTML = '<div id="s" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div id="s" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     return document.getElementById('s');
   };
 
-  it('fires vera-motion:idle when an element leaves, and vera-motion:active when it returns', () => {
+  it('fires vm:idle when an element leaves, and vm:active when it returns', () => {
     const node = page();
     const animation = createMotion({ respectReducedMotion: false });
     animation.init();

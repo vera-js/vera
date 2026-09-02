@@ -8,7 +8,7 @@
  * copy — and `reject(node, reason)` wrote into a map nothing would ever read.
  *
  * A page that wired the built `@verajs/motion/split` and misspelled
- * `split="sentences"` got `["data-vera-motion-split"]` and no reason. The
+ * `split="sentences"` got `["data-vm-split"]` and no reason. The
  * sentence explaining it went to the console, which is the one channel
  * `CLAUDE.md` says is not a channel: a GUI editor renders
  * `instance.rejected` and cannot read a console. The nineteen tests in
@@ -82,7 +82,7 @@ const cases = [
      * marker is optional, nothing parses the attribute, and only the module
      * can say anything. Which is exactly the crossing this check exists for.
      */
-    markup: '<p data-vera-motion-split="sentences">one two</p>',
+    markup: '<p data-vm-split="sentences">one two</p>',
     expect: 'is not one of chars, words, lines',
   },
   {
@@ -95,7 +95,7 @@ const cases = [
     markup: Array.from(
       { length: 513 },
       (_, i) =>
-        `<div data-vera-motion data-vera-motion-background=` +
+        `<div data-vm data-vm-background=` +
         `"0% rgb(${i % 256}, ${i >> 8}, 0), 100% rgb(${i % 256}, ${i >> 8}, 1)"></div>`
     ).join(''),
     expect: 'distinct paint values on this page',
@@ -103,9 +103,9 @@ const cases = [
   {
     what: 'sequence, through the apply return',
     markup:
-      '<div data-vera-motion data-vera-motion-frame="0% 0, 100% 10" ' +
-      'data-vera-motion-frame-url="https://wiring.test/f-#.jpg" ' +
-      'data-vera-motion-frame-count="10"></div>',
+      '<div data-vm data-vm-frame="0% 0, 100% 10" ' +
+      'data-vm-frame-url="https://wiring.test/f-#.jpg" ' +
+      'data-vm-frame-count="10"></div>',
     expect: 'needs a <canvas> element',
   },
 ];

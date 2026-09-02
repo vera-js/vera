@@ -19,7 +19,7 @@ import { SCROLL_TARGET_ATTRIBUTE } from '../src/modules/namespace.ts';
  * sticky fixture gained a nav, and the check said the page was refusing
  * something it had not declared.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -18,7 +18,7 @@ export interface ObserverHandlers {
   /**
    * Some *other* attribute changed on an animated element — `class`, `id`,
    * `aria-*`. Reported separately because it cannot alter what the element
-   * animates, only whether a `data-vera-motion-when` selector still matches it. Handling
+   * animates, only whether a `data-vm-when` selector still matches it. Handling
    * it as a full re-parse would tear the element down and rebuild it on every
    * class toggle, and take any attached image sequence with it.
    */
@@ -82,7 +82,7 @@ export const createMutationObserver = (handlers: ObserverHandlers): MutationObse
       if (!marker && !isAnimated(mutation.target)) {
         /**
          * Not ours, and not on an animated element — but a
-         * `data-vera-motion-when` selector is an ordinary CSS selector and may
+         * `data-vm-when` selector is an ordinary CSS selector and may
          * perfectly well name an ancestor: `.is-open .panel` is how anyone
          * would write "while my section is open". Skipping these outright
          * meant the element itself had to be the one that changed, so the
@@ -150,7 +150,7 @@ export const createMutationObserver = (handlers: ObserverHandlers): MutationObse
  * **There is deliberately no `attributeFilter`**, and an earlier version of
  * this comment claimed there was. A filter takes exact names, and neither half
  * of what this observer is for can be expressed as one: our own attributes are
- * a large generated set, and `data-vera-motion-when` selectors can key off any
+ * a large generated set, and `data-vm-when` selectors can key off any
  * attribute at all — `class`, `id`, `aria-expanded`, whatever the author wrote.
  *
  * The cost is a MutationRecord for every attribute change in the subtree.

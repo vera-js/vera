@@ -408,7 +408,7 @@ export const createScrollTo = (options: ScrollToOptions = {}): ScrollToInstance 
    *
    * Nothing here reads it. It is an outward hook so a page can style or find
    * its sections without repeating the nav's selector — `scroll-margin-top` on
-   * `[data-vera-motion-scroll-target]` being the obvious one, which covers the
+   * `[data-vm-scroll-target]` being the obvious one, which covers the
    * jumps this library never sees: a modified click, a page opened straight at
    * a hash. `offset` cannot, because it only applies to scrolling done here.
    *

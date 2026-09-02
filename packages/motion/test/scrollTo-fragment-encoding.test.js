@@ -53,7 +53,7 @@ describe('fragment decoding', () => {
     page('<a id="l" href="#both%41">go</a><h2 id="both%41">raw</h2><h2 id="bothA">decoded</h2>');
     const s = start();
     expect(s.rejected).toEqual([]);
-    expect(document.querySelector('[data-vera-motion-scroll-target]')?.id).toBe('both%41');
+    expect(document.querySelector('[data-vm-scroll-target]')?.id).toBe('both%41');
     s.destroy();
   });
 

@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from './harness.mjs';
 import { expect, vi } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 /** happy-dom has no layout, so the observer is stubbed to capture its options. */
 let instances = [];

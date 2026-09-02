@@ -14,7 +14,7 @@ import { createMotion } from '../src/index.ts';
  * so one bad call poisoned the instance — every later `collect()` and the
  * `destroy()` threw on the same value.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const JUNK = [['null', null], ['a string', 'body'], ['a number', 7], ['a plain object', {}]];
 
 beforeEach(() => {

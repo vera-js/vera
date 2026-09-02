@@ -7,10 +7,10 @@
  *
  * Attribute grammar:
  *
- *   data-vera-motion                                marker, or a preset name
- *   data-vera-motion-<property>="<value>"           end value (sugar)
- *   data-vera-motion-<property>="<pos> <value>, …"  keyframes
- *   data-vera-motion-<property>-<breakpoint>="…"    tablet / mobile override
+ *   data-vm                                marker, or a preset name
+ *   data-vm-<property>="<value>"           end value (sugar)
+ *   data-vm-<property>="<pos> <value>, …"  keyframes
+ *   data-vm-<property>-<breakpoint>="…"    tablet / mobile override
  *
  * A position always carries a unit; a value may or may not. That one rule is
  * what keeps a lone number unambiguously a value, so the sugar and the list
@@ -230,7 +230,7 @@ export const isProperty = (name: string): name is PropertyName =>
 
 /**
  * Element-level settings. Kept in a namespace disjoint from property names so
- * `data-vera-motion-<name>` resolves unambiguously; a test enforces that.
+ * `data-vm-<name>` resolves unambiguously; a test enforces that.
  */
 export interface SettingDef {
   /**
@@ -306,7 +306,7 @@ export const SETTINGS = [
    * Pin the element to the viewport while its animation runs, then release it.
    *
    * The value is the distance from the leading edge of the scrollport to hold
-   * it at: `data-vera-motion-pin="120px"`. Which edge follows
+   * it at: `data-vm-pin="120px"`. Which edge follows
    * `scrollDirection` — `top` for a vertical instance, `inset-inline-start` for a horizontal
    * one, since pinning against an edge nothing is moving past does nothing.
    * Implemented as `position: sticky`, which is correct by construction — the
@@ -367,7 +367,7 @@ export const SETTINGS = [
    * Drive this element from a selector match instead of from scroll.
    *
    * While the element matches, the animation sits at its end; while it does
-   * not, at its start. `data-vera-motion-when=".is-open"` — any selector, so classes,
+   * not, at its start. `data-vm-when=".is-open"` — any selector, so classes,
    * ids, attributes and combinations all work.
    *
    * It replaces the driver rather than adding to it: an element is scroll-driven
@@ -434,7 +434,7 @@ export interface ParsedAttribute {
  * site registers, and it resolves to a range right here — so nothing
  * downstream ever sees a name.
  *
- * @param name e.g. `data-vera-motion-translate-y` or `data-vera-motion-translate-y-mobile`
+ * @param name e.g. `data-vm-translate-y` or `data-vm-translate-y-mobile`
  * @param breakpoints the registered aliases, if any
  */
 export const parseAttributeName = (
@@ -862,7 +862,7 @@ export interface KeyframeList {
  * Parses a keyframe position — a number with a mandatory unit.
  *
  * The unit is mandatory, and that single rule is what lets a bare number stay
- * unambiguously a *value*, so `data-vera-motion-opacity="0"` can keep meaning
+ * unambiguously a *value*, so `data-vm-opacity="0"` can keep meaning
  * "animate to 0" alongside the list form.
  */
 export const parsePosition = (
@@ -889,7 +889,7 @@ export const parsePosition = (
  * The unit is optional here and mandatory on a keyframe position, and the
  * difference is deliberate: a keyframe entry has to stay unambiguous against a
  * bare *value* sharing the same attribute, and a stagger has nothing to be
- * ambiguous with. `data-vera-motion-stagger="8"` is what someone writes first, and it
+ * ambiguous with. `data-vm-stagger="8"` is what someone writes first, and it
  * means what they expect.
  *
  * @returns the canonical string with its unit, or null

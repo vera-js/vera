@@ -9,10 +9,10 @@ const place = (n, top) => {
 };
 
 const MARKUP = `
-  <div id="a" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 90px" data-vera-motion-rotate="0% 0deg, 100% 45deg"></div>
-  <div id="b" data-vera-motion="fade-up"></div>
-  <div id="c" data-vera-motion data-vera-motion-opacity="0% 0, 50% 1, 100% 0.3" data-vera-motion-blur="0% 8px, 100% 0px"></div>
-  <div id="d" data-vera-motion data-vera-motion-translate-x="0% 0px, 100% 60px; [0-900]: 100% 20px"></div>`;
+  <div id="a" data-vm data-vm-translate-y="0% 0px, 100% 90px" data-vm-rotate="0% 0deg, 100% 45deg"></div>
+  <div id="b" data-vm="fade-up"></div>
+  <div id="c" data-vm data-vm-opacity="0% 0, 50% 1, 100% 0.3" data-vm-blur="0% 8px, 100% 0px"></div>
+  <div id="d" data-vm data-vm-translate-x="0% 0px, 100% 60px; [0-900]: 100% 20px"></div>`;
 
 const snapshot = () => {
   document.body.innerHTML = MARKUP;

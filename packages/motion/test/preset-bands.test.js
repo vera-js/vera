@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from './harness.mjs';
 import { expect } from './expect.mjs';
 import { parseElement } from '../src/modules/parse.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const ctx = { origin: 'https://x.test/', breakpoints: new Map([['mobile', { min: 0, max: 700 }]]) };
 
 const opacityOf = (id) => {

@@ -22,7 +22,7 @@ import { paint } from '../src/paint.ts';
  * separate question, and `spikes/steps-validity.mjs`, `origin-validity.mjs` and
  * `path-validity.mjs` are what ask it.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 wireMotion(paint);
 

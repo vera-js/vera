@@ -3,7 +3,7 @@ import { expect } from './expect.mjs';
 import { parseElement } from '../src/modules/parse.ts';
 
 const ctx = { origin: 'https://x.test/' };
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const FADE = `${P} ${P}-opacity="0% 0, 100% 1"`;
 const at = (id) => parseElement(document.getElementById(id), ctx)?.stagger ?? null;
 

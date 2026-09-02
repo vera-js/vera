@@ -5,7 +5,7 @@ import { path } from '../src/path.ts';
 
 wireMotion(path);
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const place = (n) => {
   Object.defineProperty(n, 'offsetTop', { value: 500, configurable: true });
   Object.defineProperty(n, 'offsetHeight', { value: 200, configurable: true });
@@ -109,7 +109,7 @@ describe('path following says when it cannot work', () => {
  * at `:has()`, which was not the problem and would not have fixed it.
  */
 describe('a path-selector written as a list', () => {
-  const PRE = 'data-vera-motion';
+  const PRE = 'data-vm';
   it('is refused for being a list, not for `:has()`', () => {
     document.body.innerHTML =
       '<svg><path id="p" d="M0 0 L10 10"/></svg>' +
@@ -143,7 +143,7 @@ describe('a path-selector written as a list', () => {
  * this is what checks the runtime does something with them.
  */
 describe('a path the engine refuses', () => {
-  const PRE = 'data-vera-motion';
+  const PRE = 'data-vm';
 
   it('is reported rather than written', () => {
     vi.stubGlobal('CSS', { supports: () => false });

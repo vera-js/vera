@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from './harness.mjs';
 import { expect } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const settle = async () => {
   await new Promise((r) => setTimeout(r, 25));
   await new Promise((r) => setTimeout(r, 25));

@@ -13,14 +13,14 @@ beforeEach(() => { document.body.innerHTML = ''; });
 
 describe('live attribute edits', () => {
   it('re-animates when a keyframe value is changed', async () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     const before = node.style.transform;
 
-    node.setAttribute('data-vera-motion-translate-y', '0% 0px, 100% 400px');
+    node.setAttribute('data-vm-translate-y', '0% 0px, 100% 400px');
     await settle();
     const after = node.style.transform;
     expect(after).not.toBe(before);
@@ -28,28 +28,28 @@ describe('live attribute edits', () => {
   });
 
   it('drops the animation when the attribute is removed', async () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     expect(node.style.transform).not.toBe('');
 
-    node.removeAttribute('data-vera-motion-translate-y');
+    node.removeAttribute('data-vm-translate-y');
     await settle();
     expect(node.style.transform).toBe('');
     m.destroy();
   });
 
   it('picks up a setting added live', async () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     expect(node.style.willChange).toBe('');
 
-    node.setAttribute('data-vera-motion-will-change', '');
+    node.setAttribute('data-vm-will-change', '');
     await settle();
     /** `opacity` is a filter function here, so `filter` is the whole hint. */
     expect(node.style.willChange).toBe('filter');
@@ -57,14 +57,14 @@ describe('live attribute edits', () => {
   });
 
   it('un-marks an element when the marker attribute is removed', async () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     expect(m.elements).toHaveLength(1);
 
-    node.removeAttribute('data-vera-motion');
+    node.removeAttribute('data-vm');
     await settle();
     expect(m.elements).toHaveLength(0);
     expect(node.style.transform).toBe('');
@@ -72,14 +72,14 @@ describe('live attribute edits', () => {
   });
 
   it('starts animating when the marker attribute is added', async () => {
-    document.body.innerHTML = '<div data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    document.body.innerHTML = '<div data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     expect(m.elements).toHaveLength(0);
 
-    node.setAttribute('data-vera-motion', '');
+    node.setAttribute('data-vm', '');
     await settle();
     expect(m.elements).toHaveLength(1);
     expect(node.style.transform).not.toBe('');
@@ -118,9 +118,9 @@ describe('an element that becomes animated', () => {
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
 
-    node.setAttribute('data-vera-motion', '');
+    node.setAttribute('data-vm', '');
     await settle();
-    node.setAttribute('data-vera-motion-opacity', '0% 0, 100% 1');
+    node.setAttribute('data-vm-opacity', '0% 0, 100% 1');
     await settle();
 
     expect(m.elements).toHaveLength(1);
@@ -138,7 +138,7 @@ describe('an element that becomes animated', () => {
 describe('inert content', () => {
   it('does not adopt elements inside a <template>', async () => {
     document.body.innerHTML =
-      '<template><div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></template>';
+      '<template><div data-vm data-vm-opacity="0% 0, 100% 1"></div></template>';
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
     expect(m.elements).toHaveLength(0);
@@ -151,7 +151,7 @@ describe('inert content', () => {
     m.init();
 
     document.getElementById('host').innerHTML =
-      '<template><div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></template>';
+      '<template><div data-vm data-vm-opacity="0% 0, 100% 1"></div></template>';
     await settle();
 
     expect(m.elements).toHaveLength(0);
@@ -162,7 +162,7 @@ describe('inert content', () => {
   it('but does adopt the clone once it is in the document', async () => {
     document.body.innerHTML =
       '<div id="host"></div>' +
-      '<template id="t"><div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></template>';
+      '<template id="t"><div data-vm data-vm-opacity="0% 0, 100% 1"></div></template>';
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();
 

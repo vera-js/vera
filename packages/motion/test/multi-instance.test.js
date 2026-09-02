@@ -14,8 +14,8 @@ beforeEach(() => { document.body.innerHTML = ''; });
 describe('several instances and scoped roots', () => {
   it('a root-scoped instance ignores everything outside it', () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>' +
-      '<div id="scope"><div id="b" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div></div>';
+      '<div id="a" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>' +
+      '<div id="scope"><div id="b" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div></div>';
     place(document.getElementById('a'));
     place(document.getElementById('b'), 600);
 
@@ -43,7 +43,7 @@ describe('several instances and scoped roots', () => {
    * mean permanently disfigured.
    */
   it('a surviving instance recovers on the next changed value, not before', () => {
-    document.body.innerHTML = '<div id="a" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 400px"></div>';
+    document.body.innerHTML = '<div id="a" data-vm data-vm-translate-y="0% 0px, 100% 400px"></div>';
     const node = document.getElementById('a');
     place(node);
 
@@ -76,8 +76,8 @@ describe('several instances and scoped roots', () => {
     one.init(); two.init();
 
     document.getElementById('host').innerHTML =
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
-    place(document.querySelector('[data-vera-motion]'));
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
+    place(document.querySelector('[data-vm]'));
     await settle();
     expect(one.elements).toHaveLength(1);
     expect(two.elements).toHaveLength(1);

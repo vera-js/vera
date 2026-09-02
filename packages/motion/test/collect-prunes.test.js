@@ -17,7 +17,7 @@ wireMotion(split);
  * detached node and its whole subtree, updated every frame, and counted in
  * `elements.length`.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

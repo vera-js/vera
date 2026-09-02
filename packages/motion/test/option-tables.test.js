@@ -20,7 +20,7 @@ import { createScrollTo } from '../src/scroll-to.ts';
  *     other guard: a `NaN` offset makes every destination `NaN`, and a `NaN`
  *     threshold makes no link the active one.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

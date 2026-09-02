@@ -3,7 +3,7 @@
 Scroll animation as HTML attributes. No build step, no dependencies, **13.2 KB** gzipped.
 
 ```html
-<div data-vera-motion="fade-up">I rise into view as you scroll.</div>
+<div data-vm="fade-up">I rise into view as you scroll.</div>
 ```
 
 That is the whole API surface for most uses. Everything below is for when you want more control.
@@ -39,7 +39,7 @@ attributes, and nothing else.
 
 ### In a VeraJS app
 
-One name in the wiring, like every other Vera module — and then `data-vera-motion` attributes work
+One name in the wiring, like every other Vera module — and then `data-vm` attributes work
 inside your components' templates, closed shadow roots included, registered and released with each
 component's own lifecycle:
 
@@ -167,9 +167,9 @@ reason why.
 
 ## The attributes
 
-Every animated element needs the bare **`data-vera-motion`** marker alongside its properties. It is
+Every animated element needs the bare **`data-vm`** marker alongside its properties. It is
 what `querySelectorAll` matches on, and it doubles as the preset slot
-(`data-vera-motion="fade-up"`). Forgetting it used to be completely silent — the element was never
+(`data-vm="fade-up"`). Forgetting it used to be completely silent — the element was never
 found, so it was never refused either. An element carrying a **property** and no marker is now
 reported in `rejected`, naming the attribute. Settings are not enough to trigger it, because three of
 them belong on unmarked elements by design: `stagger` sits on a parent whose children animate,
@@ -183,36 +183,36 @@ The shape of it:
 
 ```html
 <!-- a preset: the shortest path -->
-<div data-vera-motion="fade-up"></div>
+<div data-vm="fade-up"></div>
 
 <!-- a bare value is the END of the timeline; units live in the value -->
-<div data-vera-motion data-vera-motion-opacity="0"></div>
+<div data-vm data-vm-opacity="0"></div>
 
 <!-- a keyframe is a position and a value; one attribute holds as many as you like -->
-<div data-vera-motion
-     data-vera-motion-translate-y="0% 60px, 100% 0px"
-     data-vera-motion-opacity="0% 0, 40% 1"></div>
+<div data-vm
+     data-vm-translate-y="0% 60px, 100% 0px"
+     data-vm-opacity="0% 0, 40% 1"></div>
 
 <!-- positions outside 0-100% extrapolate, and negatives are written plainly -->
-<div data-vera-motion
-     data-vera-motion-translate-x="-20% -90px, 35% 45px, 70% -20px, 100% 0px"></div>
+<div data-vm
+     data-vm-translate-x="-20% -90px, 35% 45px, 70% -20px, 100% 0px"></div>
 
 <!-- a position may use any of % vh vw px rem, independent of the value's unit -->
-<div data-vera-motion data-vera-motion-rotate="-30vh 0deg, 100% 720deg"></div>
+<div data-vm data-vm-rotate="-30vh 0deg, 100% 720deg"></div>
 
 <!-- a width band, merged over the base: less travel on a narrow screen -->
-<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 100px; [0-500]: 100% 20px"></div>
+<div data-vm data-vm-translate-y="0% 0px, 100% 100px; [0-500]: 100% 20px"></div>
 
 <!-- hold it against the viewport while it animates, then release -->
-<div data-vera-motion data-vera-motion-pin="15vh" data-vera-motion-scale="0% 0.8, 100% 1.1"></div>
+<div data-vm data-vm-pin="15vh" data-vm-scale="0% 0.8, 100% 1.1"></div>
 
 <!-- driven by a selector instead of by scroll -->
-<div data-vera-motion data-vera-motion-when=".is-open" data-vera-motion-opacity="0% 0, 100% 1"></div>
+<div data-vm data-vm-when=".is-open" data-vm-opacity="0% 0, 100% 1"></div>
 ```
 
 ### Five rules that cover most of it
 
-1. **A bare value is the end of the timeline.** `data-vera-motion-opacity="0"` fades *to* 0, and the
+1. **A bare value is the end of the timeline.** `data-vm-opacity="0"` fades *to* 0, and the
    missing end is filled from the property's resting value.
 2. **A keyframe is `<position> <value>`, comma-separated.** A position always carries a unit and a
    value may not — which is what makes a lone number unambiguously a value.
@@ -234,13 +234,13 @@ The shape of it:
 5. **A separator left at the end costs nothing.** `"0% 0px, 100% 40px,"` and
    `"…40px;"` are what CSS habit produces, and the value is not CSS — both are read as written. An
    attribute with *nothing* in it is still reported, because that is a mistake with intent behind it.
-6. **The bare `data-vera-motion` marker is required.** CSS has no attribute-prefix selector, so it is what
+6. **The bare `data-vm` marker is required.** CSS has no attribute-prefix selector, so it is what
    lets the runtime find animated elements without walking the entire document.
 
 ### The one thing to read twice
 
 ```html
-data-vera-motion-translate-y="50% 50%"
+data-vm-translate-y="50% 50%"
                        ↑    └── value → 50% of the element's own height (CSS)
                        └─────── position → 50% through the scroll window
 ```
@@ -270,7 +270,7 @@ animation.init();
 
 | option | default | what it does |
 |---|---|---|
-| `inertia` | `0.1` | How much the element resists the position scroll says it should be at, in seconds. `0` tracks scroll exactly. See [Inertia](#inertia). **Range-checked against the same bounds as the attribute** — 0 to 3,600 — and read from the schema rather than written out twice, so the option and `data-vera-motion-inertia` cannot disagree. A negative used to be accepted in silence and produce no transition at all, which is `inertia: 0` reached by a sign error. |
+| `inertia` | `0.1` | How much the element resists the position scroll says it should be at, in seconds. `0` tracks scroll exactly. See [Inertia](#inertia). **Range-checked against the same bounds as the attribute** — 0 to 3,600 — and read from the schema rather than written out twice, so the option and `data-vm-inertia` cannot disagree. A negative used to be accepted in silence and produce no transition at all, which is `inertia: 0` reached by a sign error. |
 | `inertiaEase` | `cubic-bezier(0.33, 1, 0.68, 1)` | Timing function of the catch-up. See [Two easings](#two-easings). |
 | `ease` | `linear` | Timing function of the **curve** — value against scroll position. Anything other than `linear` **requires [`@verajs/motion/easings`](#property-modules)**; without it the runtime warns once and every curve stays straight. **Does nothing on a `when` element**, and says so: `when` holds the element at one end of the timeline or the other, so there is never a point between keyframes for a curve to shape — use `inertia-ease` for the change between the two states. See [Two easings](#two-easings). |
 
@@ -346,7 +346,7 @@ CSSOM refuses outright, which leaves **no transition at all** and turns inertia 
 | `enabled` | Whether it is currently running. |
 | `reducedMotion` | Whether it is stopped *because* the visitor asked for reduced motion. |
 | `touchDisabled` | Whether it is stopped *because* the primary input is a finger and `disableOnTouch` is on. The companion to `reducedMotion`, and both are live: a trackpad arriving on an iPad changes the answer. |
-| `rejected` | Every refusal, with the element it was about: `{ node, rejected }`, an array of reasons per element — each one a sentence, `data-vera-motion-when: is not a selector this library will use`, not a bare attribute name. Every core *setting* was a bare name until 2026-08-31, while properties had carried a sentence all along. **Shaped differently from `scroll-to`'s**, which is `{ node, reason }`, one reason per entry — a consumer rendering both has to branch. `node` is null when the problem is the instance's own configuration. This is what to read when something is not animating, and it was the one member missing from this table while the rest of this file told you eight times to look at it. |
+| `rejected` | Every refusal, with the element it was about: `{ node, rejected }`, an array of reasons per element — each one a sentence, `data-vm-when: is not a selector this library will use`, not a bare attribute name. Every core *setting* was a bare name until 2026-08-31, while properties had carried a sentence all along. **Shaped differently from `scroll-to`'s**, which is `{ node, reason }`, one reason per entry — a consumer rendering both has to branch. `node` is null when the problem is the instance's own configuration. This is what to read when something is not animating, and it was the one member missing from this table while the rest of this file told you eight times to look at it. |
 | `collect()` | Re-scan the roots: pick up elements added since `init()`, **and drop any that have left**, clearing any refusal recorded about markup it is about to read again. Needed only for markup a module must prepare — split text — because rewriting the DOM from inside the mutation observer would re-enter it. Attribute changes and removals are picked up automatically while `observeMutations` is on; with it off, this is what prunes. An element that has left the document is handed back — its styles cleared, and any module holding it told — rather than being updated every frame for the life of the page. **It re-reads elements it has already adopted**, not only new ones — the same path the mutation observer takes, so an edited attribute is picked up whether the observer is on or off. It compares before it re-reads — an element whose own attributes and stagger context are unchanged keeps the parse it has — so an unchanged page costs a scan and not a re-parse: **9.7 ms at 5,000 elements against 78 ms** to read them all again. Call it after rendering, not per frame. |
 | `refresh()` | Re-measure geometry. Call after a layout change the runtime cannot observe. |
 | `observe(root)` | Register an additional root — typically a component's `ShadowRoot`. **Adoption is synchronous** — `instance.elements` is right the moment it returns — and the **painting** lands on the next microtask. That split is not a convenience: a framework built on closed shadow roots hands every root over separately, and writing style at the end of each call made the next one's geometry read force a layout, **779 ms to register 400 roots** against 8.4 ms. A microtask runs before paint, so nothing is ever visible un-animated; what waits is `will-change`, `transform-origin`, `offset-path`, the `position: sticky` a `pin` writes, and the first value. `init()` and `collect()` are one batch each, so they flush before returning and stay fully synchronous. **Nesting is not recursive** — a shadow root inside an observed shadow root needs its own call, and a **closed** one can only ever be handed over by whoever created it, since `element.shadowRoot` is null from outside. Anything that is not a node is refused and reported rather than registered. |
@@ -394,13 +394,13 @@ element genuinely carrying `id="top"` wins over the fallback, exactly as it does
 
 #### The target marker
 
-Every element a managed link points at carries `data-vera-motion-scroll-target` while the instance
+Every element a managed link points at carries `data-vm-scroll-target` while the instance
 holds it. Nothing in the library reads it — it exists so a page can style or find its own sections
 without repeating the nav's selector:
 
 ```css
 /* A mid-page landing clears a sticky header, however the visitor got there. */
-[data-vera-motion-scroll-target] { scroll-margin-top: 5rem; }
+[data-vm-scroll-target] { scroll-margin-top: 5rem; }
 ```
 
 That complements `offset` rather than duplicating it. `offset` applies to scrolling *this library*
@@ -445,16 +445,16 @@ document.addEventListener(EVENTS.complete, (e) => confetti(e.detail.element));
 
 | event | fires when |
 |---|---|
-| `vera-motion:active` | the element is in the update loop — its animation can move from here on |
-| `vera-motion:idle` | it has left the loop, after a final pass that settled it on its clamped value |
-| `vera-motion:complete` | a `data-vera-motion-run-once` element played through and latched. Once, ever — the latch and the position it played to are carried across a re-parse, so editing an unrelated attribute does not replay it |
+| `vm:active` | the element is in the update loop — its animation can move from here on |
+| `vm:idle` | it has left the loop, after a final pass that settled it on its clamped value |
+| `vm:complete` | a `data-vm-run-once` element played through and latched. Once, ever — the latch and the position it played to are carried across a re-parse, so editing an unrelated attribute does not replay it |
 
 Every element reports its state once the observer has settled, then again on each change — so an
-element already on screen at load gets an `vera-motion:active` rather than silence.
+element already on screen at load gets an `vm:active` rather than silence.
 
 **The pair balances across the instance, not only across the tracker.** `disable()`, `destroy()`
 and a `prefers-reduced-motion` change arriving all stop the instance animating, and each now fires
-`vera-motion:idle` for every element that had been announced active — otherwise a listener that
+`vm:idle` for every element that had been announced active — otherwise a listener that
 started something on `active` is left holding an element it believes is still animating. Re-enabling
 starts a fresh tracker, so every element announces its state again, exactly as it did at `init()`.
 
@@ -464,7 +464,7 @@ boundary is retargeted to the host, so `target` is the custom element rather tha
 `detail` also carries `progress`, the timeline position it fired at.
 
 > **These are not visibility events.** The tracker's margin reaches half a viewport beyond the
-> viewport — further if your keyframes sit outside `0–100%` — so `vera-motion:active` fires well before an
+> viewport — further if your keyframes sit outside `0–100%` — so `vm:active` fires well before an
 > element can be seen. They mean "is this animating", not "did the reader see this". For the latter,
 > use your own `IntersectionObserver` with the threshold you actually mean.
 
@@ -553,11 +553,11 @@ and tracks scroll exactly; anything below `0.03` is shorter than two frames and 
 The single most misreadable thing in this API, so it is worth thirty seconds.
 
 ```html
-<div data-vera-motion
-     data-vera-motion-translate-y="0% 0px, 100% 500px"
-     data-vera-motion-ease="ease-in"             <!-- shape of the movement -->
-     data-vera-motion-inertia="0.1"              <!-- how much it trails -->
-     data-vera-motion-inertia-ease="ease-out">   <!-- shape of the trailing -->
+<div data-vm
+     data-vm-translate-y="0% 0px, 100% 500px"
+     data-vm-ease="ease-in"             <!-- shape of the movement -->
+     data-vm-inertia="0.1"              <!-- how much it trails -->
+     data-vm-inertia-ease="ease-out">   <!-- shape of the trailing -->
 ```
 
 | | `ease` | `inertia-ease` |
@@ -596,24 +596,24 @@ start. Measured at `inertia: 0.1`:
 ### Stagger
 
 Siblings at the same Y share a scroll window, so they animate in **perfect unison** — right for a
-hero, wrong for a list. `data-vera-motion-stagger` goes on the parent and shifts each animated descendant's
+hero, wrong for a list. `data-vm-stagger` goes on the parent and shifts each animated descendant's
 keyframes by `index × value`:
 
 ```html
-<div class="grid" data-vera-motion-stagger="8">
-  <div data-vera-motion="fade-up"></div>   <!-- unshifted -->
-  <div data-vera-motion="fade-up"></div>   <!-- +8%  -->
-  <div data-vera-motion="fade-up"></div>   <!-- +16% -->
+<div class="grid" data-vm-stagger="8">
+  <div data-vm="fade-up"></div>   <!-- unshifted -->
+  <div data-vm="fade-up"></div>   <!-- +8%  -->
+  <div data-vm="fade-up"></div>   <!-- +16% -->
 </div>
 ```
 
 Stagger offsets a **scroll** timeline, so it applies to scroll-driven descendants only. A child with
-`data-vera-motion-when` takes no offset — that attribute replaces the scroll driver, so there is no
+`data-vm-when` takes no offset — that attribute replaces the scroll driver, so there is no
 timeline to shift and the row would land in unison. It is reported in `instance.rejected` rather than
 left to be discovered.
 
 `%` by default, because that is what keyframe positions mostly use. Any position unit works —
-`data-vera-motion-stagger="40px"` composes correctly with `data-vera-motion-translate-y="0% …"` even though the two
+`data-vm-stagger="40px"` composes correctly with `data-vm-translate-y="0% …"` even though the two
 units measure different things, because the offset is normalised against geometry exactly as a
 position is. A negative value runs the row in reverse.
 
@@ -624,34 +624,34 @@ and do not advance the outer one.
 
 ### Text splitting
 
-`data-vera-motion-split` breaks an element's text into characters, words or layout-measured lines, and each
-piece animates on its own. Pair it with `data-vera-motion-stagger` on the same element for the classic
+`data-vm-split` breaks an element's text into characters, words or layout-measured lines, and each
+piece animates on its own. Pair it with `data-vm-stagger` on the same element for the classic
 cascade — the stagger is doing that work, not the splitter.
 
 ```html
-<h1 data-vera-motion data-vera-motion-split="chars" data-vera-motion-stagger="3"
-    data-vera-motion-opacity="0% 0, 60% 1"
-    data-vera-motion-translate-y="0% 30px, 60% 0px">Hello there</h1>
+<h1 data-vm data-vm-split="chars" data-vm-stagger="3"
+    data-vm-opacity="0% 0, 60% 1"
+    data-vm-translate-y="0% 30px, 60% 0px">Hello there</h1>
 ```
 
 The pieces inherit the element's animation attributes and its per-element settings (`inertia`,
 `ease`, `inertia-ease`…). The element keeps `stagger` and `split`, because those describe the container.
 
 **`when` moves to the pieces too, and a selector is evaluated against whatever holds it.** That
-changes its subject: `data-vera-motion-when=".is-open"` on the paragraph becomes the same attribute
+changes its subject: `data-vm-when=".is-open"` on the paragraph becomes the same attribute
 on every span, each asking *"do I have `.is-open`?"* — which is never true, so the words never
 animate and nothing is refused, because nothing is wrong. Name the container instead:
 
 ```html
 <div class="panel">
-  <p data-vera-motion-split="words"
-     data-vera-motion-when=".panel.is-open *"
-     data-vera-motion-opacity="0% 0, 100% 1">one two three</p>
+  <p data-vm-split="words"
+     data-vm-when=".panel.is-open *"
+     data-vm-opacity="0% 0, 100% 1">one two three</p>
 </div>
 ```
 
 The `*` is the whole difference. This is the same "a selector may name an ancestor, which is usually
-what you want" that [`when`](#data-vera-motion-when-replaces-the-scroll-driver) already relies on —
+what you want" that [`when`](#data-vm-when-replaces-the-scroll-driver) already relies on —
 after a split it stops being optional.
 
 **A separate import.** `@verajs/motion/split` is a module: a page that does not import it pays nothing
@@ -718,7 +718,7 @@ ffmpeg -i in.mp4 -c:v libx264 -g 5 -keyint_min 5 -sc_threshold 0 -crf 23 \
 ```
 
 That costs **3–6× the file size**, at which point compare it honestly against
-[`data-vera-motion-frame`](#property-modules), which already ships as a module, is frame-exact, and needs no re-encoding.
+[`data-vm-frame`](#property-modules), which already ships as a module, is frame-exact, and needs no re-encoding.
 `requestVideoFrameCallback` is Chrome and Safari only; Firefox degrades to coarser scrubbing.
 
 Full analysis in [`docs/VIDEO-SCRUBBING.md`](docs/VIDEO-SCRUBBING.md).
@@ -729,7 +729,7 @@ There is no fixed `tablet`/`mobile` any more. **The primitive is a width range**
 alias for one.
 
 ```html
-<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 100px; [0-500]: 100% 20px"></div>
+<div data-vm data-vm-translate-y="0% 0px, 100% 100px; [0-500]: 100% 20px"></div>
 ```
 
 At 500px and under, that element travels 20px instead of 100 — **and keeps its `0%` start**, because
@@ -748,9 +748,9 @@ Register names for the ranges you use often, and they work as attribute suffixes
 createMotion({ breakpoints: { phone: [0, 500], wide: [1200, null] } });
 ```
 ```html
-<div data-vera-motion data-vera-motion-translate-y="100px"
-     data-vera-motion-translate-y-phone="20px"
-     data-vera-motion-translate-y-wide="200px"></div>
+<div data-vm data-vm-translate-y="100px"
+     data-vm-translate-y-phone="20px"
+     data-vm-translate-y-wide="200px"></div>
 ```
 
 `null` is no ceiling. The defaults are `{ mobile: [0, 640], tablet: [641, 1024] }`, so those two
@@ -809,11 +809,11 @@ but because a page still reflowing is a page whose geometry was briefly wrong.
 ### `translate-z` needs `perspective`
 
 `translateZ()` has no visual effect at all without perspective — measured, a 100×100 box stays
-100×100. `data-vera-motion-perspective` supplies it as the `perspective()` transform function on the
+100×100. `data-vm-perspective` supplies it as the `perspective()` transform function on the
 element itself, so no ancestor has to cooperate:
 
 ```html
-<div data-vera-motion data-vera-motion-perspective="400px" data-vera-motion-translate-z="0% 0px, 100% 200px"></div>
+<div data-vm data-vm-perspective="400px" data-vm-translate-z="0% 0px, 100% 200px"></div>
 ```
 
 `rotate-x` and `rotate-y` work without it, but read as flat squashing rather than rotation.
@@ -824,28 +824,28 @@ Transform functions do not commute: `translate` then `rotate` is not `rotate` th
 order is **translate → rotate → scale → skew**, set by the schema, regardless of the order you write
 the attributes. Otherwise the same animation would render differently depending on markup order.
 
-### `data-vera-motion-when` replaces the scroll driver
+### `data-vm-when` replaces the scroll driver
 
-`data-vera-motion-when` takes a selector. While the element matches it the animation sits at its end;
+`data-vm-when` takes a selector. While the element matches it the animation sits at its end;
 while it does not, at its start. Everything else is unchanged — keyframes, breakpoints, and the
 inertia that makes it ease rather than snap.
 
 It **replaces** the driver rather than adding to it: an element is scroll-driven or state-driven,
-never both. `data-vera-motion-run-once` means the same thing on either — play through once and latch.
+never both. `data-vm-run-once` means the same thing on either — play through once and latch.
 
 The selector is an ordinary one and may name an ancestor, which is usually what you want: a class
 toggled on a wrapper drives everything inside it.
 
 ```html
 <section class="panel">
-  <div data-vera-motion data-vera-motion-when=".panel.is-open &gt; *"
-       data-vera-motion-opacity="0% 0, 100% 1"></div>
+  <div data-vm data-vm-when=".panel.is-open &gt; *"
+       data-vm-opacity="0% 0, 100% 1"></div>
 </section>
 ```
 
 ```html
-<div data-vera-motion data-vera-motion-when=".is-open"
-     data-vera-motion-translate-y="0% -14px, 100% 0px" data-vera-motion-opacity="0% 0, 100% 1"></div>
+<div data-vm data-vm-when=".is-open"
+     data-vm-translate-y="0% -14px, 100% 0px" data-vm-opacity="0% 0, 100% 1"></div>
 ```
 
 ```js
@@ -871,7 +871,7 @@ not a small consideration.
 
 ### Pinning is `position: sticky`
 
-`data-vera-motion-pin` sets `position: sticky` with your offset, on the edge the instance scrolls
+`data-vm-pin` sets `position: sticky` with your offset, on the edge the instance scrolls
 along — `top` by default, `inset-inline-start` when `scrollDirection` is `'horizontal'`, so a
 right-to-left scroller pins against its own leading edge. The element never leaves
 layout, so nothing jumps when it attaches and nothing collapses when it releases. **How long it
@@ -895,7 +895,7 @@ scrollport rather than an obstacle before it, and the check stops there.
 class MyCard extends HTMLElement {
   connectedCallback() {
     const root = this.attachShadow({ mode: 'open' });
-    root.innerHTML = `<div data-vera-motion="fade-up">…</div>`;
+    root.innerHTML = `<div data-vm="fade-up">…</div>`;
     animation.observe(root);
   }
   disconnectedCallback() { animation.unobserve(this.shadowRoot); }
@@ -1012,8 +1012,8 @@ createMotion().init();
 | `@verajs/motion/easings` | `ease` values other than `linear` — the keywords, `cubic-bezier()`, `steps()` | 0.7 KB gzip | [easings](docs/modules/easings.md) |
 | `@verajs/motion/paint` | `background`, `color`, `border-color`, `shadow`, `text-shadow` | 0.6 KB gzip | [paint](docs/modules/paint.md) |
 | `@verajs/motion/path` | `path`, `path-selector`, `path-rotate` — follow an SVG path | 0.9 KB gzip | [path](docs/modules/path.md) |
-| `@verajs/motion/split` | `data-vera-motion-split` — animate by line, word or character | 2.0 KB gzip | [split](docs/modules/split.md) |
-| `@verajs/motion/sequence` | `data-vera-motion-frame` and the `frame-*` settings — scroll-scrubbed image sequences | 2.0 KB gzip | [sequence](docs/modules/sequence.md) |
+| `@verajs/motion/split` | `data-vm-split` — animate by line, word or character | 2.0 KB gzip | [split](docs/modules/split.md) |
+| `@verajs/motion/sequence` | `data-vm-frame` and the `frame-*` settings — scroll-scrubbed image sequences | 2.0 KB gzip | [sequence](docs/modules/sequence.md) |
 
 A module that takes options is a factory, and calling it is optional:
 `wireMotion(sequence)` uses the defaults, `wireMotion(sequence({ allowedOrigins: ['https://cdn.example'] }))`
@@ -1123,8 +1123,8 @@ what was asked for.
 Both spellings allow it, and mean the same thing:
 
 ```html
-<div data-vera-motion data-vera-motion-opacity="[0-700]: 0% 0, 100% 1">
-<div data-vera-motion data-vera-motion-opacity-mobile="0% 0, 100% 1">
+<div data-vm data-vm-opacity="[0-700]: 0% 0, 100% 1">
+<div data-vm data-vm-opacity-mobile="0% 0, 100% 1">
 ```
 
 "Fade in on small screens, do nothing on large ones" — no base needed. Outside
@@ -1143,7 +1143,7 @@ of `{800, 640}` that matched no viewport while `rejected` stayed empty.
 
 ### Boolean settings take three spellings and refuse the rest
 
-A bare attribute is true, the way HTML booleans are: `data-vera-motion-run-once`.
+A bare attribute is true, the way HTML booleans are: `data-vm-run-once`.
 `"true"` and `"false"` are spelled out as well, because the GUI needs a way to
 say *off* that survives a round trip.
 
@@ -1161,13 +1161,13 @@ Content never ends up hidden, transparent or translated off-screen because a par
 attribute with the element it was on, including elements that produced no animation at all.
 
 **Including refusals about elements the runtime never adopted.** A `split` container carries
-`data-vera-motion-split` and usually no bare marker — the animation attributes move to the pieces —
+`data-vm-split` and usually no bare marker — the animation attributes move to the pieces —
 so it is in neither of the lists this is built from, and every refusal about it went unread:
 nested markup, an unknown mode, the piece cap, a `pin` that would land on every word. They are all
 here now, scoped to the instance's own roots.
 
 **Including refusals a module makes later.** Some things cannot be known at parse time:
-`data-vera-motion-frame` on an element that is not a `<canvas>` parses perfectly — `frame` is a real
+`data-vm-frame` on an element that is not a `<canvas>` parses perfectly — `frame` is a real
 property and the value is valid — and is refused only when `@verajs/motion/sequence` is handed it.
 The same goes for a `frame-url` the origin policy rejects, and for text
 [`split`](docs/modules/split.md) will not touch. Those used to reach the console and nothing else,
@@ -1213,7 +1213,7 @@ figure depends on the geometry, which is why the formula is quoted with it.
 
 Nothing is broken and nothing is reported, because there is no right answer to give. If you want a
 fixed element to animate on scroll, drive it from [`onProgress`](#onprogress) on an element that
-does scroll, or give it `data-vera-motion-when` and animate it on state instead.
+does scroll, or give it `data-vm-when` and animate it on state instead.
 
 **`position: sticky` is different, and is handled.** A sticky ancestor *does* have a right answer —
 the slot the element occupies in the flow — and `offsetTop` does not give it: it follows the stick,
@@ -1262,7 +1262,7 @@ The attribute vocabulary was designed with this in mind, and a few things follow
 from the schema, so it is complete and current by construction. One file is usually enough context.
 
 **The grammar is guessable, deliberately.** Names were kept long and explicit rather than
-abbreviated — `data-vera-motion-translate-y`, not `data-vera-motion-ty` — precisely so a model reaches for the
+abbreviated — `data-vm-translate-y`, not `data-vm-ty` — precisely so a model reaches for the
 right one without having read the docs. If an agent guesses an attribute, it is usually right.
 
 **Two attributes are named `*-ease` and they are not interchangeable.** `ease` shapes the curve
@@ -1298,8 +1298,8 @@ date.
 
 **A prompt that works well:**
 
-> Animate this markup with @verajs/motion. Use `data-vera-motion-*` attributes only — no JavaScript.
-> Prefer presets (`data-vera-motion="fade-up"`) where they fit, and `%` for keyframe positions. `ease`
+> Animate this markup with @verajs/motion. Use `data-vm-*` attributes only — no JavaScript.
+> Prefer presets (`data-vm="fade-up"`) where they fit, and `%` for keyframe positions. `ease`
 > shapes the curve; `inertia` and `inertia-ease` shape the follow — do not use one for the other.
 > Reference: [paste `docs/ATTRIBUTE-REFERENCE.md`]
 

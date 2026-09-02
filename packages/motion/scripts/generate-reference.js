@@ -102,8 +102,8 @@ const CATEGORY_BLURB = {
   transform: 'Composed into a single `transform` string, in the order listed here. CSS transform functions do not commute, so this order is fixed by the schema rather than by the order you write the attributes.',
   filter: 'Composed into a single `filter` string.',
   border: 'Written as individual CSS properties.',
-  svgPath: 'Drives `offset-distance`. Set `data-vera-motion-path-selector` to the `<path>` whose shape to follow.',
-  image: 'Drives a `<canvas>` rather than a style. Requires `data-vera-motion-frame-url` and `data-vera-motion-frame-count`. Frames are drawn to fill the canvas\'s `width`/`height` **attributes**, which default to 300×150 whatever CSS says — set them to the frames\' own size. The module is wired, not loaded on demand — being synchronous is what removed a class of bug the dynamic-import version had.',
+  svgPath: 'Drives `offset-distance`. Set `data-vm-path-selector` to the `<path>` whose shape to follow.',
+  image: 'Drives a `<canvas>` rather than a style. Requires `data-vm-frame-url` and `data-vm-frame-count`. Frames are drawn to fill the canvas\'s `width`/`height` **attributes**, which default to 300×150 whatever CSS says — set them to the frames\' own size. The module is wired, not loaded on demand — being synchronous is what removed a class of bug the dynamic-import version had.',
   paint: 'Written as individual CSS properties, and **not interpolated**. Each authored value takes a slot, the ordinary numeric curve steps between slots, and the value is written as a string — CSS transitions do the animating, which is what `inertia` already sets up. Any colour, gradient or shadow the engine accepts is valid, because `CSS.supports()` is the parser; `url()` is refused, since an attribute must not be able to make a request.',
 };
 
@@ -137,20 +137,20 @@ w();
 w('## Grammar');
 w();
 w('```');
-w('data-vera-motion                              marker (required), or a preset name');
-w('data-vera-motion-<property>="v"               animate to v');
-w('data-vera-motion-<property>="p v, p v, …"     keyframes: position then value');
-w('data-vera-motion-<property>="… ; [a-b]: …"    a width band, merged over the base');
-w('data-vera-motion-<property>-<name>            the same, by a registered name');
-w('data-vera-motion-<setting>="v"                element-level setting');
+w('data-vm                              marker (required), or a preset name');
+w('data-vm-<property>="v"               animate to v');
+w('data-vm-<property>="p v, p v, …"     keyframes: position then value');
+w('data-vm-<property>="… ; [a-b]: …"    a width band, merged over the base');
+w('data-vm-<property>-<name>            the same, by a registered name');
+w('data-vm-<setting>="v"                element-level setting');
 w('```');
 w();
-w('- **A bare value is the end of the timeline.** `data-vera-motion-opacity="0"` fades *to* 0, and the');
+w('- **A bare value is the end of the timeline.** `data-vm-opacity="0"` fades *to* 0, and the');
 w('  missing end is filled from the property\'s resting value.');
 w('- **A position always carries a unit; a value may or may not.** That is what makes a lone number');
 w('  unambiguously a value, so the two forms can share one attribute.');
 w(`- **Position units:** ${POSITION_UNITS.map(code).join(', ')}. **Value units** are per-property — see below.`);
-w('  The two are independent: `data-vera-motion-rotate="-200px 0deg, 100% 720deg"` is valid.');
+w('  The two are independent: `data-vm-rotate="-200px 0deg, 100% 720deg"` is valid.');
 w(`- **Up to ${MAX_KEYFRAMES} keyframes**, and up to ${MAX_BANDS} width bands, per attribute. There is no *midpoint* limit — the old two-midpoint cap is gone — but there is a ceiling, and going over it is reported rather than silently truncated.`);
 w('- **Width bands merge onto the base.** `"0% 0px, 100% 100px; [0-500]: 100% 20px"` keeps the');
 w('  start and overrides only the end. A band keyframe at a new position is added.');
@@ -162,7 +162,7 @@ w('  700; the `[700+]` applies there because it comes second. Write `[0-699]` if
 w('  edge to belong to the lower band. Overlap is allowed rather than refused, because a');
 w('  deliberate `[0-900]` base with a `[0-500]` correction over it is a reasonable thing to write.');
 w('- **A name is only an alias for a range**, registered on the instance:');
-w('  `createMotion({ breakpoints: { phone: [0, 500] } })` then `data-vera-motion-opacity-phone="0"`.');
+w('  `createMotion({ breakpoints: { phone: [0, 500] } })` then `data-vm-opacity-phone="0"`.');
 w('- **One bad entry drops itself, not the property.** `"0% 0, junk, 100% 1"` keeps two keyframes.');
 w();
 w('### Timeline positions');
@@ -178,8 +178,8 @@ w();
 w('Positions outside `0–100%` extrapolate, and negatives are written plainly:');
 w();
 w('```html');
-w('<div data-vera-motion data-vera-motion-opacity="-50% 0, 25% 1">   <!-- starts half a window early -->');
-w('<div data-vera-motion data-vera-motion-rotate="0% 0deg, 150% 90deg">  <!-- exits mid-flight, never reaching 90 -->');
+w('<div data-vm data-vm-opacity="-50% 0, 25% 1">   <!-- starts half a window early -->');
+w('<div data-vm data-vm-rotate="0% 0deg, 150% 90deg">  <!-- exits mid-flight, never reaching 90 -->');
 w('```');
 w();
 w('**Prefer `%`.** It is geometry-free, so it never needs recomputing. The length units are for the');
@@ -190,7 +190,7 @@ w();
 w('### The one readability trap');
 w();
 w('```html');
-w('data-vera-motion-translate-y="50% 50%"');
+w('data-vm-translate-y="50% 50%"');
 w('                       ↑    └── value → 50% of the element\'s own height (CSS)');
 w('                       └─────── position → 50% through the scroll window');
 w('```');
@@ -263,14 +263,14 @@ for (const category of categoryOrder) {
      * headed "resting value" says the colour rests at zero.
      */
     const initial = p.parse ? '—' : p.initial;
-    w(`| ${code('data-vera-motion-' + p.attribute)} | ${code(css)} | ${units} | ${range} | ${initial} | ${from(`p:${p.attribute}`)} |`);
+    w(`| ${code('data-vm-' + p.attribute)} | ${code(css)} | ${units} | ${range} | ${initial} | ${from(`p:${p.attribute}`)} |`);
   }
   w();
 }
 
 w('## Settings');
 w();
-w('Element-level. Property and setting names are deliberately disjoint, so `data-vera-motion-<name>`');
+w('Element-level. Property and setting names are deliberately disjoint, so `data-vm-<name>`');
 w('always resolves unambiguously.');
 w();
 w('Every value is validated, and a numeric setting is range-checked exactly as a property value is —');
@@ -288,7 +288,7 @@ const SETTING_NOTE = {
   pin: 'Hold the element against the leading edge of the viewport at this offset while its animation runs — `top` for a vertical instance, `inset-inline-start` for a horizontal one, so a right-to-left scroller pins against its own leading edge. `position: sticky` underneath, so how long it holds is its containing block\'s extent along that axis. A clipping ancestor, or a containing block with no room to travel, turns sticky off entirely; both are reported in `rejected`.',
   ease: 'Timing function of the **curve** — how value relates to scroll position. Default `linear`. Applies per segment, as `@keyframes` does. **Anything other than `linear` requires [`@verajs/motion/easings`](modules/easings.md)**; without it the runtime warns once and every curve stays straight. Not to be confused with `inertia-ease`, which is handed to CSS and needs no module.',
   split: 'Splits the element\'s text into `chars`, `words` or `lines` so each piece animates on its own. The pieces inherit the animation attributes; the element keeps `stagger`, which is what cascades them. Plain text only: nested markup is refused with a warning, and so are comments — a comment node is how several frameworks anchor themselves in a page. Refused too when the element has **no animation attributes to give the pieces**: splitting then hides the text behind `aria-hidden` and buys nothing.',
-  stagger: 'Goes on a **parent**. Offsets each animated descendant\'s keyframes by `index x value`, so a row arrives one after another instead of in unison. `%` by default; any position unit works and is normalised the same way a keyframe position is. Negative runs the row in reverse. **Scroll-driven descendants only** — it offsets a scroll timeline, and `data-vera-motion-when` replaces the scroll driver, so a state-driven child takes no offset and is reported in `rejected`. A host with **no animated descendants at all** is reported as well, marked or not — it is on an unmarked parent by design, which is what made that the quiet case.',
+  stagger: 'Goes on a **parent**. Offsets each animated descendant\'s keyframes by `index x value`, so a row arrives one after another instead of in unison. `%` by default; any position unit works and is normalised the same way a keyframe position is. Negative runs the row in reverse. **Scroll-driven descendants only** — it offsets a scroll timeline, and `data-vm-when` replaces the scroll driver, so a state-driven child takes no offset and is reported in `rejected`. A host with **no animated descendants at all** is reported as well, marked or not — it is on an unmarked parent by design, which is what made that the quiet case.',
   'run-once': 'Play through once and latch. Means the same on either driver — later scrolling, or the selector no longer matching, will not walk it back.',
   when: 'Drive this element from a selector match instead of from scroll. At the animation\'s end while the element matches, at its start while it does not. **Replaces** the scroll driver — an element is one or the other, never both. A selector **list** is accepted and means what it looks like: while either matches. `:has()` is refused. Re-evaluated when an attribute changes and only then, so `:hover`, `:focus`, `:active`, `:target`, `:checked` and friends cannot be seen at all — a selector using one is **refused**, and the element animates on scroll instead. Use CSS for those. Because it replaces the driver, what depended on the driver goes with it: `ease` and `stagger` are refused on a `when` element, and the *page is too short to finish this* diagnostic never fires for one — it reaches its end when the selector matches, whatever the page height.',
   'will-change': 'Hint the compositor, naming the properties this element actually animates. Use sparingly — it costs memory per element.',
@@ -305,7 +305,7 @@ for (const s of ALL_SETTINGS) {
   const range = s.min !== undefined || s.max !== undefined
     ? `${s.min ?? ''} … ${s.max ?? ''}`
     : s.allowed ? s.allowed.map(code).join(' ') : '—';
-  w(`| ${code('data-vera-motion-' + s.attribute)} | ${code(s.type)} | ${esc(range)} | ${from(`s:${s.attribute}`)} | ${esc(SETTING_NOTE[s.attribute] ?? '')} |`);
+  w(`| ${code('data-vm-' + s.attribute)} | ${code(s.type)} | ${esc(range)} | ${from(`s:${s.attribute}`)} | ${esc(SETTING_NOTE[s.attribute] ?? '')} |`);
 }
 w();
 
@@ -330,18 +330,18 @@ w('| effect on a `when` element | **none** — it sits at one endpoint, never be
 w();
 w('**Both of those "none" cells are refused, not merely true.** Each was documented here and');
 w('accepted in silence by the runtime, which is the worst of both: the reference said the attribute');
-w('does nothing and the library let you write it anyway. `ease` on a `data-vera-motion-when` element');
+w('does nothing and the library let you write it anyway. `ease` on a `data-vm-when` element');
 w('and `inertia-ease` at an effective `inertia` of 0 both land in `instance.rejected`, naming the one');
 w('that does work instead. `inertia-ease` counts the instance default when the element sets no');
 w('`inertia` of its own, and stays quiet when a `transform-inertia` or `filter-inertia` above zero');
 w('brings the catch-up back.');
 w();
 w('```html');
-w('<div data-vera-motion');
-w('     data-vera-motion-translate-y="0% 0px, 100% 500px"');
-w('     data-vera-motion-ease="ease-in"             <!-- creeps, then rushes -->');
-w('     data-vera-motion-inertia="0.1"              <!-- how much it trails -->');
-w('     data-vera-motion-inertia-ease="ease-out">   <!-- shape of the trailing -->');
+w('<div data-vm');
+w('     data-vm-translate-y="0% 0px, 100% 500px"');
+w('     data-vm-ease="ease-in"             <!-- creeps, then rushes -->');
+w('     data-vm-inertia="0.1"              <!-- how much it trails -->');
+w('     data-vm-inertia-ease="ease-out">   <!-- shape of the trailing -->');
 w('```');
 w();
 w('**Why the curve cannot be CSS.** A `transition` runs on a timer and has no way to ask where the');
@@ -382,10 +382,10 @@ w('A name on the marker attribute. Presets expand into ordinary keyframes, so th
 w('special case — they produce exactly what writing the attributes by hand would. An explicit');
 w('attribute for the same property replaces the preset\'s contribution for that property.');
 w();
-w('A **band** does not. `data-vera-motion="fade"` with');
-w('`data-vera-motion-opacity-mobile="0% 0.5, 100% 1"` fades everywhere and fades differently below');
+w('A **band** does not. `data-vm="fade"` with');
+w('`data-vm-opacity-mobile="0% 0.5, 100% 1"` fades everywhere and fades differently below');
 w('that width — the suffixed attribute says where the animation differs, not that the preset was a');
-w('mistake. A band written inline, `data-vera-motion-opacity="[0-700]: 0% 0.5, 100% 1"`, is an');
+w('mistake. A band written inline, `data-vm-opacity="[0-700]: 0% 0.5, 100% 1"`, is an');
 w('explicit attribute for the property and does replace the preset outright.');
 w();
 /**
@@ -397,8 +397,8 @@ w('| preset | expands to |');
 w('|---|---|');
 for (const [name, kf] of Object.entries(PRESETS)) {
   const parts = Object.entries(kf).map(([prop, value]) =>
-    `${code('data-vera-motion-' + prop + '="' + value + '"')}`);
-  w(`| ${code('data-vera-motion="' + name + '"')} | ${esc(parts.join(' · '))} |`);
+    `${code('data-vm-' + prop + '="' + value + '"')}`);
+  w(`| ${code('data-vm="' + name + '"')} | ${esc(parts.join(' · '))} |`);
 }
 w();
 

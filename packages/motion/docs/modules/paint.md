@@ -23,7 +23,7 @@ Every authored value takes a **slot**. The ordinary numeric curve steps between 
 writes the slot's string:
 
 ```html
-<div data-vera-motion data-vera-motion-background="0% white, 100% rebeccapurple">
+<div data-vm data-vm-background="0% white, 100% rebeccapurple">
 ```
 
 That is two slots. The property is declared `discrete`, which tells the runtime these numbers are
@@ -33,7 +33,7 @@ towards the next, so the change lands *at* the keyframe rather than halfway to i
 **So `ease` does nothing here, and cannot.** `ease` reshapes progress *within a segment*, the way
 `@keyframes` applies a timing function — and a held segment has one value from end to end, so
 reshaping the journey across it changes nothing. The segment boundaries are the keyframe positions,
-which no easing moves. Write `data-vera-motion-ease="ease-in"` beside a `background` and the colour
+which no easing moves. Write `data-vm-ease="ease-in"` beside a `background` and the colour
 still changes exactly at the keyframe. It is not refused, because it is not wrong on the element —
 the same `ease` shapes any *numeric* property beside it, and usually that is the point.
 
@@ -41,8 +41,8 @@ That flag is load-bearing, not a description. The slot table is shared by every 
 the page and deduped by value, so the slots one element uses are **not adjacent**:
 
 ```html
-<div data-vera-motion data-vera-motion-background="0% red, 100% blue">   <!-- slots 0, 1 -->
-<div data-vera-motion data-vera-motion-background="0% red, 100% green">  <!-- slots 0, 2 -->
+<div data-vm data-vm-background="0% red, 100% blue">   <!-- slots 0, 1 -->
+<div data-vm data-vm-background="0% red, 100% green">  <!-- slots 0, 2 -->
 ```
 
 Interpolated, the second element ran 0 → 2 and the floor of the middle of that range is 1 — so
@@ -64,7 +64,7 @@ the library works either way.
 ## Both ends must be authored
 
 A paint property has no numeric resting value to fill a missing end from, which is why the reference
-shows `—` in that column. `data-vera-motion-color="red"` gives the runtime one slot and nothing to
+shows `—` in that column. `data-vm-color="red"` gives the runtime one slot and nothing to
 travel from, so write both keyframes.
 
 A lone keyframe now **holds**, which is the only meaning one value can have. It used to fill the

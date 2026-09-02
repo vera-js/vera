@@ -80,7 +80,7 @@ export interface MotionOptions {
   ease?: string;
 
   /**
-   * Named viewport-width ranges, so `data-vera-motion-opacity-mobile` means whatever
+   * Named viewport-width ranges, so `data-vm-opacity-mobile` means whatever
    * this site calls mobile.
    *
    * A name is only ever an alias for a range — the same range you could have
@@ -152,8 +152,8 @@ export interface MotionOptions {
    * library's own frame on its own page for exactly this comparison. This said
    * "roughly 5x" — the fifth copy of a ratio taken from two runs of two
    * different harnesses, and the one the pass that corrected the other four
-   * missed. The rare notifications (`vera-motion:active`, `vera-motion:idle`,
-   * `vera-motion:complete`) are events, where dispatch is free and delegation
+   * missed. The rare notifications (`vm:active`, `vm:idle`,
+   * `vm:complete`) are events, where dispatch is free and delegation
    * is worth having.
    *
    * Values outside 0-1 are normal: keyframes may sit outside that range.
@@ -589,7 +589,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
      * **Against the range the schema declares for the same name**, not merely
      * against `Number.isFinite`. `inertia` is an option *and* an attribute, and
      * the attribute has been range-checked since the rewrite — so
-     * `data-vera-motion-inertia="-1"` was refused and reported while
+     * `data-vm-inertia="-1"` was refused and reported while
      * `createMotion({ inertia: -1 })` was accepted in silence and produced no
      * transition at all, which is `inertia: 0` reached by a sign error with
      * nothing said. `4000` went the other way and wrote `transition: transform
@@ -802,8 +802,8 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
 
   const teardown: Array<() => void> = [];
   /**
-   * Elements a `vera-motion:active` has been dispatched for and no
-   * `vera-motion:idle` since. The pair has to balance across everything that
+   * Elements a `vm:active` has been dispatched for and no
+   * `vm:idle` since. The pair has to balance across everything that
    * stops the instance, not only across what the tracker happens to report.
    */
   const announced = new Set<RuntimeElement>();
@@ -1183,8 +1183,8 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
     /**
      * And the elements this scan is about to walk straight past.
      *
-     * `data-vera-motion` is the whole of `findElements`' selector, so an element
-     * carrying `data-vera-motion-opacity` and nothing else is not found, not
+     * `data-vm` is the whole of `findElements`' selector, so an element
+     * carrying `data-vm-opacity` and nothing else is not found, not
      * adopted, and not refused — it simply does not animate, with an empty
      * `rejected` and no console line. That is the one mistake the attribute
      * design invites, because the marker is the only attribute carrying no
@@ -1323,7 +1323,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
      * of view even though the document still holds it.
      *
      * And still **marked**. The marker is the whole of `findElements`'
-     * selector, so an element whose `data-vera-motion` was removed is no
+     * selector, so an element whose `data-vm` was removed is no
      * longer in the scan at all — it is not re-read, it is not stale by the
      * root test, and it went on animating with its last inline transform for
      * the life of the page. The observer path checks exactly this (`the one
@@ -1511,7 +1511,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
        * these attributes that is every keystroke: a latched element
        * visibly reverted to its first keyframe — a faded-in block going
        * blank while its author edited an unrelated setting — and fired a
-       * second `vera-motion:complete`, an event documented as firing
+       * second `vm:complete`, an event documented as firing
        * once, ever.
        */
       const latched = existing?.runOnceRan ? existing.timelinePosition : null;
@@ -1524,7 +1524,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
        * The marker is what makes an element ours — it is the whole of
        * `findElements`' selector. `parseElement` never checked it,
        * because at init nothing reaches it without one, so removing
-       * `data-vera-motion` left the element registered and still
+       * `data-vm` left the element registered and still
        * animating: the one gesture that means "stop animating this" was
        * the one that did nothing. It has already been dropped and
        * cleared above; not re-adopting it is the whole fix.
@@ -1844,7 +1844,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
     }
     /**
      * Every element that was announced active has now left the loop, which is
-     * what `vera-motion:idle` means — "it has left the loop, after a final pass
+     * what `vm:idle` means — "it has left the loop, after a final pass
      * that settled it", and `clear()` is that final pass.
      *
      * It fired for an element the *tracker* stopped watching and never for an
@@ -2329,7 +2329,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
       retrack();
       /**
        * start(), not update(): update() skips state-driven elements by design,
-       * so re-enabling left every `data-vera-motion-when` element with its styles
+       * so re-enabling left every `data-vm-when` element with its styles
        * cleared and nothing to repaint them. start() forces both kinds.
        */
       start();
@@ -2434,7 +2434,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
        * The two loops above are "what I adopted" and "what I dropped", and a
        * module refuses things about neither: `split` is keyed by the
        * **container**, whose bare marker is optional, so a paragraph written
-       * `data-vera-motion-split="words"` alone appears in no list here. Every
+       * `data-vm-split="words"` alone appears in no list here. Every
        * refusal about it — nested markup, an unknown mode, the piece cap — was
        * recorded and read by nobody, while the README said `rejected` holds
        * every refusal.
@@ -2495,7 +2495,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
        * State-driven elements too. `update()` returns immediately for them —
        * they are driven by their selector, not by scroll — so without this
        * `refresh()` brought everything up to date *except* them. With
-       * `observeMutations: false` that left `data-vera-motion-when` with no way to be
+       * `observeMutations: false` that left `data-vm-when` with no way to be
        * driven at all: the observer was the only thing that ever called it.
        *
        * Forced, for the reason the resize path gives: a re-measure can rebuild
@@ -2517,7 +2517,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
       /**
        * **This root, and synchronously.** `prepare` first, because that is what
        * runs the modules that rewrite the DOM — parsing directly skipped them,
-       * so a `data-vera-motion-split` paragraph inside a newly observed shadow
+       * so a `data-vm-split` paragraph inside a newly observed shadow
        * root was adopted whole and animated as one block.
        *
        * Registering 400 closed shadow roots one at a time — which is what a
@@ -2569,7 +2569,7 @@ export const createMotion = (options: MotionOptions = {}): MotionInstance => {
        * The loop above only reaches nodes this instance *adopted*, and a
        * module's own bookkeeping is not that set. `split` is keyed by the
        * *container*, which carries no animation of its own — splitting keys
-       * off `data-vera-motion-split` and the animation attributes move to the
+       * off `data-vm-split` and the animation attributes move to the
        * pieces — so a container was missed here, and having been dropped from
        * `roots` it was then missed by `destroy()` as well. The paragraph
        * stayed in three pieces for the life of the page, with no instance left

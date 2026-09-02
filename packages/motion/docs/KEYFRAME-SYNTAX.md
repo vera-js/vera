@@ -40,12 +40,12 @@ they apply to.
 
 ```html
 <!-- before -->
-data-vera-motion-translate-y-at-n50="0px"
-data-vera-motion-translate-y-at-30="45px"
-data-vera-motion-translate-y-at-150="400px"
+data-vm-translate-y-at-n50="0px"
+data-vm-translate-y-at-30="45px"
+data-vm-translate-y-at-150="400px"
 
 <!-- after -->
-data-vera-motion-translate-y="-50% 0px, 30% 45px, 150% 400px"
+data-vm-translate-y="-50% 0px, 30% 45px, 150% 400px"
 ```
 
 Measured on the demo page: **125 attributes / 3,105 bytes → 32 / 1,847. 41% smaller**, on top of the
@@ -64,9 +64,9 @@ percentage. Moving it into the value removes both limits at once:
 ## 3. Grammar
 
 ```
-data-vera-motion-<property>="<value>"                              end value (sugar)
-data-vera-motion-<property>="<pos> <value>, <pos> <value>, …"      keyframes
-data-vera-motion-<property>-<breakpoint>="…"                       tablet / mobile override
+data-vm-<property>="<value>"                              end value (sugar)
+data-vm-<property>="<pos> <value>, <pos> <value>, …"      keyframes
+data-vm-<property>-<breakpoint>="…"                       tablet / mobile override
 ```
 
 **A position always carries a unit; a value may or may not.** That single rule is what makes a lone
@@ -85,7 +85,7 @@ only to keep `%` from being a false friend, and it turned out `%` is not one —
 
 `0%` is the moment the element begins entering the scroll window; `100%` is the moment it has
 completely left. The window is **the element's own size plus the viewport**, so the measure is
-normalised per element — which is exactly why `data-vera-motion="fade-up"` works unchanged on a 40px badge
+normalised per element — which is exactly why `data-vm="fade-up"` works unchanged on a 40px badge
 and a full-bleed hero.
 
 That is the same thing CSS's own scroll vocabulary means by a percentage: in `animation-range`, a
@@ -108,15 +108,15 @@ Unchanged — the existing per-property allowlist. `translate-*` takes lengths, 
 Position and value units are **independent**:
 
 ```html
-data-vera-motion-translate-y="-30vh 4rem, 50% 0"
-data-vera-motion-rotate="-200px 0deg, 100% 720deg"
-data-vera-motion-opacity="-10vh 0, 25% 1"
+data-vm-translate-y="-30vh 4rem, 50% 0"
+data-vm-rotate="-200px 0deg, 100% 720deg"
+data-vm-opacity="-10vh 0, 25% 1"
 ```
 
 ### The one readability trap
 
 ```html
-data-vera-motion-translate-y="50% 50%"
+data-vm-translate-y="50% 50%"
                        ↑    └── value → 50% of the element's own height (CSS)
                        └─────── position → 50% through the scroll window
 ```
@@ -134,7 +134,7 @@ slot. It is a documentation problem, not a correctness one, and CSS has the same
 
 ### What is kept
 
-- **Bare-value sugar.** `data-vera-motion-opacity="0"` still means "animate to 0". It is the 90% case and
+- **Bare-value sugar.** `data-vm-opacity="0"` still means "animate to 0". It is the 90% case and
   what keeps presets terse.
 - **A single keyframe still fills its missing end** from the property's resting value, in both
   directions.
@@ -333,8 +333,8 @@ npm run check:reference   # generated reference not stale
 
 | check | why |
 |---|---|
-| `data-vera-motion-opacity="0"` still fades to 0 | the sugar is the 90% case |
-| `data-vera-motion-opacity="0% 0, 100% 1"` matches the old `-from`/bare pair | equivalence |
+| `data-vm-opacity="0"` still fades to 0 | the sugar is the 90% case |
+| `data-vm-opacity="0% 0, 100% 1"` matches the old `-from`/bare pair | equivalence |
 | `"-50% 0px, 100% 60px"` starts before the element enters | replaces `-at-n50` |
 | `"0% 0px, 150% 400px"` never reaches 400px | replaces `-at-150`, exits mid-flight |
 | `"-30vh 0px, 100% 60px"` behaves correctly **after a window resize** | the geometry-dependent path |

@@ -14,7 +14,7 @@ import { createMotion } from '../src/index.ts';
  * `opacity-mobile` on its own is a short walk to it.
  */
 const run = (attrs, options = {}) => {
-  document.body.innerHTML = `<div data-vera-motion ${attrs}></div>`;
+  document.body.innerHTML = `<div data-vm ${attrs}></div>`;
   const node = document.body.firstElementChild;
   Object.defineProperty(node, 'offsetTop', { value: 3000, configurable: true });
   Object.defineProperty(node, 'offsetHeight', { value: 100, configurable: true });
@@ -47,14 +47,14 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('an animation that exists only inside a band', () => {
   it('says nothing when written inline', () => {
-    const { filter, said } = run('data-vera-motion-opacity="[0-700]: 0% 0, 100% 1"');
+    const { filter, said } = run('data-vm-opacity="[0-700]: 0% 0, 100% 1"');
     expect(filter).toBe('opacity(0.5)');
     expect(said).toEqual([]);
   });
 
   it('and says nothing written as a name either', () => {
     const { filter, said } = run(
-      'data-vera-motion-opacity-small="0% 0, 100% 1"',
+      'data-vm-opacity-small="0% 0, 100% 1"',
       { breakpoints: { small: [0, 700] } }
     );
     expect(filter).toBe('opacity(0.5)');
@@ -62,7 +62,7 @@ describe('an animation that exists only inside a band', () => {
   });
 
   it('with the default breakpoints, which is the short walk to it', () => {
-    const { said } = run('data-vera-motion-opacity-mobile="0% 0, 100% 1"');
+    const { said } = run('data-vm-opacity-mobile="0% 0, 100% 1"');
     expect(said).toEqual([]);
   });
 
@@ -70,7 +70,7 @@ describe('an animation that exists only inside a band', () => {
   it('does nothing outside the band, without complaining', () => {
     width(1200);
     const { said } = run(
-      'data-vera-motion-opacity-small="0% 0, 100% 1"',
+      'data-vm-opacity-small="0% 0, 100% 1"',
       { breakpoints: { small: [0, 700] } }
     );
     expect(said).toEqual([]);
@@ -82,7 +82,7 @@ describe('an animation that exists only inside a band', () => {
    */
   it('while a base written as nothing is still refused', () => {
     const { said } = run(
-      'data-vera-motion-opacity="" data-vera-motion-opacity-small="0% 0, 100% 1"',
+      'data-vm-opacity="" data-vm-opacity-small="0% 0, 100% 1"',
       { breakpoints: { small: [0, 700] } }
     );
     expect(said).toEqual(['opacity: no keyframes']);

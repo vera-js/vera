@@ -35,7 +35,7 @@ const flushFrames = () => { const run = frames.splice(0); for (const fn of run) 
 describe('an element dropped between the transition queue and the frame', () => {
   it('is not written back after its clearElement', async () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-translate-y="0% 0, 100% 100px"></div>';
+      '<div id="a" data-vm data-vm-translate-y="0% 0, 100% 100px"></div>';
     const node = document.getElementById('a');
     place(node);
 
@@ -45,10 +45,10 @@ describe('an element dropped between the transition queue and the frame', () => 
     expect(node.style.transition, 'the control: the ordinary path writes it').toContain('transform');
 
     /** The edit queues a fresh deferred write for the re-adopted element… */
-    node.setAttribute('data-vera-motion-translate-y', '0% 0, 100% 200px');
+    node.setAttribute('data-vm-translate-y', '0% 0, 100% 200px');
     await settle();
     /** …and the unmark drops and clears it before that frame fires. */
-    node.removeAttribute('data-vera-motion');
+    node.removeAttribute('data-vm');
     await settle();
     expect(node.style.transition, 'cleared by the drop').toBe('');
 

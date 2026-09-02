@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from './harness.mjs';
 import { expect } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const place = (n) => {
   Object.defineProperty(n, 'offsetTop', { value: 500, configurable: true });
   Object.defineProperty(n, 'offsetHeight', { value: 200, configurable: true });

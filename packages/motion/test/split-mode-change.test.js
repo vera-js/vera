@@ -28,7 +28,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => {}));
 afterEach(() => vi.restoreAllMocks());
 
-const A = 'data-vera-motion';
+const A = 'data-vm';
 const page = (mode) => {
   document.body.innerHTML =
     `<p id="p" ${A} ${A}-split="${mode}" ${A}-opacity="0% 0, 100% 1">ab cd</p>`;

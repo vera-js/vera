@@ -2,7 +2,7 @@ import { describe, it, afterEach } from './harness.mjs';
 import { expect, vi } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 
-const MARKUP = '<div data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+const MARKUP = '<div data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
 
 /**
  * Both preferences are live toggles, so the library watches them. These drive

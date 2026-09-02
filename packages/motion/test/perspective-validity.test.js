@@ -19,7 +19,7 @@ import { createMotion } from '../src/index.ts';
  * `CSS.supports('transform', 'perspective(-100px) translateY(10px)')` is false,
  * and `perspective(0px)` is fine — it flattens rather than fails.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

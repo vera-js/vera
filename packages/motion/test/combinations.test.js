@@ -18,7 +18,7 @@ beforeEach(() => { document.body.innerHTML = ''; });
 describe('the when state machine', () => {
   const build = (extra = '') => {
     document.body.innerHTML =
-      `<div data-vera-motion data-vera-motion-when=".on" ${extra} data-vera-motion-translate-y="0% 0px, 100% 40px"></div>`;
+      `<div data-vm data-vm-when=".on" ${extra} data-vm-translate-y="0% 0px, 100% 40px"></div>`;
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -50,7 +50,7 @@ describe('the when state machine', () => {
   });
 
   it('with run-once, latches on first match and ignores the class going away', async () => {
-    const { node, m } = build('data-vera-motion-run-once');
+    const { node, m } = build('data-vm-run-once');
     node.classList.add('on');
     await settle();
     const latched = node.style.transform;
@@ -75,7 +75,7 @@ describe('the when state machine', () => {
 describe('feature combinations', () => {
   it('stagger applies to split pieces', async () => {
     document.body.innerHTML =
-      '<p data-vera-motion data-vera-motion-split="words" data-vera-motion-stagger="10%" data-vera-motion-opacity="0% 0, 100% 1">one two three</p>';
+      '<p data-vm data-vm-split="words" data-vm-stagger="10%" data-vm-opacity="0% 0, 100% 1">one two three</p>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -91,7 +91,7 @@ describe('feature combinations', () => {
 
   it('a preset and an explicit band coexist', () => {
     document.body.innerHTML =
-      '<div data-vera-motion="fade-up" data-vera-motion-translate-y="[0-3000]: 0% 200px, 100% 0px"></div>';
+      '<div data-vm="fade-up" data-vm-translate-y="[0-3000]: 0% 200px, 100% 0px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -106,7 +106,7 @@ describe('feature combinations', () => {
 
   it('pin and a transform animation coexist', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-pin="20px" data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-pin="20px" data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });

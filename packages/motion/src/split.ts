@@ -42,7 +42,7 @@ const MODES = ['chars', 'words', 'lines'] as const;
  * What is split, and **which mode it was split with**.
  *
  * The mode is held because `prepare` skipped any node already in this map, so
- * changing `data-vera-motion-split` from `words` to `chars` did nothing at
+ * changing `data-vm-split` from `words` to `chars` did nothing at
  * all — the pieces stayed words and nothing was reported. That is the GUI-editor
  * GUI's own action: it writes these attributes, and an author switching the
  * mode saw no change. The same shape as the recorded `stagger` bug,
@@ -72,7 +72,7 @@ const restore = (node: Element): void => {
 export const split: readonly Wirable[] = [
   /**
    * The setting is declared by the module that implements it. Without this the
-   * runtime would report `data-vera-motion-split` as an unknown attribute on
+   * runtime would report `data-vm-split` as an unknown attribute on
    * every element that used it — correctly, since nothing would know it.
    */
   /**
@@ -148,7 +148,7 @@ export const split: readonly Wirable[] = [
          * is where an author makes the mistake.
          *
          * A string test rather than a schema one, because that is exactly how
-         * `createSplit` decides what to copy: any `data-vera-motion-*` other
+         * `createSplit` decides what to copy: any `data-vm-*` other
          * than `split` and `stagger`. Asking the schema here would need a
          * runtime import of it, which is the thing every module avoids.
          */

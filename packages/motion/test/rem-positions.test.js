@@ -17,7 +17,7 @@ import { createMotion } from '../src/index.ts';
  * version that read the size once at import, or hard-coded 16, would have
  * passed everything.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 1000], ['offsetHeight', 200], ['offsetWidth', 200], ['offsetLeft', 0]]) {

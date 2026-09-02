@@ -51,15 +51,15 @@ afterEach(() => vi.restoreAllMocks());
  * skip would quietly shrink the sweep.
  */
 const COMPANIONS = {
-  path: 'data-vera-motion-path-selector="#p"',
-  frame: 'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"',
+  path: 'data-vm-path-selector="#p"',
+  frame: 'data-vm-frame-url="/s/" data-vm-frame-count="10"',
   /**
    * `translateZ()` needs a perspective to project through or it is measured to
    * do nothing, and the runtime reports that at measure time the way it reports
    * a `pin` an ancestor has turned off. Without the companion this sweep reads
    * that diagnostic as the *unit* being refused.
    */
-  'translate-z': 'data-vera-motion-perspective="800px"',
+  'translate-z': 'data-vm-perspective="800px"',
 };
 
 /** `frame` paints a canvas and is refused on anything else — correctly. */
@@ -69,8 +69,8 @@ const ELEMENT = { frame: 'canvas' };
 const refuses = (attribute, value) => {
   document.body.innerHTML =
     '<svg width="0" height="0"><path id="p" d="M0,0 L10,10"></path></svg>' +
-    `<${ELEMENT[attribute] ?? 'div'} data-vera-motion ${COMPANIONS[attribute] ?? ''} ` +
-    `data-vera-motion-${attribute}="0% ${value}, 100% ${value}"></${ELEMENT[attribute] ?? 'div'}>`;
+    `<${ELEMENT[attribute] ?? 'div'} data-vm ${COMPANIONS[attribute] ?? ''} ` +
+    `data-vm-${attribute}="0% ${value}, 100% ${value}"></${ELEMENT[attribute] ?? 'div'}>`;
   const m = createMotion({ respectReducedMotion: false });
   m.init();
   const rejected = m.rejected.map((r) => r.rejected).flat();
@@ -185,8 +185,8 @@ describe('settings', () => {
 
   const refusesSetting = (attribute, value) => {
     document.body.innerHTML =
-      '<canvas data-vera-motion data-vera-motion-opacity="0% 0, 100% 1" ' +
-      `data-vera-motion-${attribute}="${value}"></canvas>`;
+      '<canvas data-vm data-vm-opacity="0% 0, 100% 1" ' +
+      `data-vm-${attribute}="${value}"></canvas>`;
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     const reasons = m.rejected.flatMap((r) => r.rejected);
@@ -254,7 +254,7 @@ describe('a module parse that breaks the number-or-null contract', () => {
       const attr = 'contract-' + label.replace(/[^a-z]/gi, '').toLowerCase();
       wireMotion([{ attribute: attr, category: 'weird', cssProperty: '--' + attr, defaultUnit: '', units: [''], initial: 0, parse }]);
       document.body.innerHTML =
-        '<div data-vera-motion data-vera-motion-' + attr + '="x"></div>';
+        '<div data-vm data-vm-' + attr + '="x"></div>';
       const node = document.body.firstElementChild;
       for (const [k, v] of [['offsetTop', 500], ['offsetHeight', 100], ['offsetParent', null]]) {
         Object.defineProperty(node, k, { value: v, configurable: true });

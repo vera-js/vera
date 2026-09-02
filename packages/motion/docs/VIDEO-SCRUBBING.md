@@ -4,7 +4,7 @@
 The analysis below stands; the conclusion changed, for two reasons.
 
 **1. `onProgress` exists now.** This document was written when the library had no outbound hook, so
-building `data-vera-motion-video` was the only way to offer scrubbing at all. It is now a few lines of
+building `data-vm-video` was the only way to offer scrubbing at all. It is now a few lines of
 consumer code — the recipe is in the README, and it is strategy 3a below verbatim.
 
 **2. Measured, coalescing helps and is still not enough.** Scrubbing a 4s/30fps clip 120 frames
@@ -24,7 +24,7 @@ documenting. But **even the coalesced version trails by ~0.6s of video**, which 
 headline: the encoding decides this, not the code. Building it in would let people skip the part
 that actually matters, and would spend budget to make a bad default slightly less bad.
 
-`data-vera-motion-frame` already ships, is frame-exact, needs no re-encoding, and its module is 2,062
+`data-vm-frame` already ships, is frame-exact, needs no re-encoding, and its module is 2,062
 bytes gzipped, wired by the page rather than loaded on demand — the dynamic import it used to have is
 gone (decision 28) — 372 KB for the demo's 48 frames, 3 KB each. An all-intra video of the same content is
 not obviously smaller.
@@ -132,7 +132,7 @@ and a zero-dependency rule. You also manage `VideoFrame` lifetimes by hand — e
 
 ### 3c. Hybrid — video when it works, sequence when it does not
 
-`data-vera-motion-video-src` plus `data-vera-motion-frame-url` as a fallback, picking based on
+`data-vm-video-src` plus `data-vm-frame-url` as a fallback, picking based on
 `'requestVideoFrameCallback' in HTMLVideoElement.prototype`.
 
 Honest assessment: this doubles the authoring burden (produce both assets) and the code paths, to
@@ -147,16 +147,16 @@ Consistent with the existing grammar — the value is a percentage of the video'
 behaves like any other numeric property:
 
 ```html
-<video data-vera-motion
-       data-vera-motion-video="0% 0, 100% 100"
+<video data-vm
+       data-vm-video="0% 0, 100% 100"
        muted playsinline preload="auto"
        src="./scrub.mp4"></video>
 ```
 
 | attribute | type | notes |
 |---|---|---|
-| `data-vera-motion-video` | keyframe list, values 0–100 | percentage of duration; a normal property |
-| `data-vera-motion-video-fallback` | url | optional image-sequence base, for 3c |
+| `data-vm-video` | keyframe list, values 0–100 | percentage of duration; a normal property |
+| `data-vm-video-fallback` | url | optional image-sequence base, for 3c |
 
 The element must be a `<video>` — reject anything else with a warning, as `frame` does for
 `<canvas>`. `muted` and `playsinline` are required by mobile autoplay policy and should be set by

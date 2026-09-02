@@ -79,7 +79,7 @@ const report = (rule, where, detail) => findings.push({ rule, where, detail });
       const lines = source.split('\n');
       /**
        * Bounded on both sides, because a retired name is often a *prefix* of
-       * its replacement: `motion:active` sits inside `vera-motion:active`, and
+       * its replacement: `motion:active` sits inside `vm:active`, and
        * a plain `includes` reports every correct line as a stale one. A rule
        * that fires for the wrong reason is as useless as one that cannot fire.
        */
@@ -95,7 +95,7 @@ const report = (rule, where, detail) => findings.push({ rule, where, detail });
        * shape, which the first list missed: a name that was considered and
        * **never adopted**. A cost is only a cost against something, so pricing
        * a decision means naming the alternative — `data-motion` is what
-       * `data-vera-motion` was chosen over, and saying so is the opposite of
+       * `data-vm` was chosen over, and saying so is the opposite of
        * describing it as live. A repository whose decision log is half
        * rejected alternatives needs that shape allowed.
        */
@@ -188,7 +188,7 @@ for (const file of SRC) {
   if (file.endsWith('schema.ts')) continue;
   const source = readFileSync(file, 'utf8');
   source.split('\n').forEach((line, i) => {
-    if (/['"`]data-vera-motion/.test(line) && !line.trim().startsWith('*')) {
+    if (/['"`]data-vm/.test(line) && !line.trim().startsWith('*')) {
       report('hard-coded-prefix', `${file}:${i + 1}`, line.trim().slice(0, 60));
     }
   });
@@ -621,7 +621,7 @@ for (const file of SRC) {
 
 /* ── 11 ─ Every in-README anchor resolves to a heading ───────────────────────
  * A dead `](#anchor)` is silent: GitHub renders it as an ordinary link and
- * scrolls nowhere. `[data-vera-motion-frame](#properties)` pointed at a
+ * scrolls nowhere. `[data-vm-frame](#properties)` pointed at a
  * heading that had been renamed, and a link added while consolidating two
  * module tables pointed at `#modules` when the heading is "Property modules". Both
  * were invisible to every other gate. */
@@ -861,16 +861,16 @@ const RULE_COUNT = (readFileSync(fileURLToPath(import.meta.url), 'utf8').match(/
      * The attribute `inertia` was called `speed` first, and the old name
      * outlived the rename in four spike fixtures and two documents — one
      * told a reader the opt-out was
-     * `data-vera-motion-speed="0"`, which does nothing but take the default inertia.
+     * `data-vm-speed="0"`, which does nothing but take the default inertia.
      * The fixtures are caught structurally by `check-examples`, which reads
      * the registry; prose is not, because a document may legitimately name an
      * attribute that was never built. A line teaching the rename names
      * `inertia` and is allowed.
      */
     {
-      wrong: /data-vera-motion-speed\b/, /* the attribute is `inertia` */
+      wrong: /data-vm-speed\b/, /* the attribute is `inertia` */
       right: /\binertia\b/,
-      say: '`data-vera-motion-speed` — the attribute is `inertia`; the old name silently takes the default',
+      say: '`data-vm-speed` — the attribute is `inertia`; the old name silently takes the default',
     },
     /**
      * The option pair went the same way and lasted longer. The design log

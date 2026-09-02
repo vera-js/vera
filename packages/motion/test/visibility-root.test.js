@@ -50,8 +50,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 const build = (options) => {
   document.body.innerHTML =
-    '<div id="pane"><div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></div>';
-  place(document.querySelector('[data-vera-motion]'));
+    '<div id="pane"><div data-vm data-vm-opacity="0% 0, 100% 1"></div></div>';
+  place(document.querySelector('[data-vm]'));
   const m = createMotion({ respectReducedMotion: false, ...options });
   m.init();
   return m;
@@ -75,8 +75,8 @@ describe('the observer root', () => {
 
   it('is the container when it was passed as a node rather than a selector', () => {
     document.body.innerHTML =
-      '<div id="pane"><div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></div>';
-    place(document.querySelector('[data-vera-motion]'));
+      '<div id="pane"><div data-vm data-vm-opacity="0% 0, 100% 1"></div></div>';
+    place(document.querySelector('[data-vm]'));
     const pane = document.getElementById('pane');
     const m = createMotion({ respectReducedMotion: false, scrollElement: pane });
     m.init();

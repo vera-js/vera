@@ -65,7 +65,7 @@ Applies per segment, the way `@keyframes` does — a three-keyframe animation ea
 keyframe and out of it, rather than easing once across the whole timeline.
 
 The message names where the value came from. An element that wrote the attribute is reported as
-`data-vera-motion-ease="…"`; an element that inherited the instance default is reported as an
+`data-vm-ease="…"`; an element that inherited the instance default is reported as an
 option, because it does not carry the attribute and a GUI told otherwise goes looking for markup
 that is not there.
 

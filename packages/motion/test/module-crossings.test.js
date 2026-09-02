@@ -46,8 +46,8 @@ describe('a module that throws where the library calls it', () => {
       apply() { if (armed) throw new Error('apply exploded'); },
     });
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-boom="0% 0px, 100% 50px"></div>' +
-      '<div id="b" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div id="a" data-vm data-vm-boom="0% 0px, 100% 50px"></div>' +
+      '<div id="b" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const b = document.getElementById('b');
     place(document.getElementById('a'));
     place(b);
@@ -69,7 +69,7 @@ describe('a module that throws where the library calls it', () => {
       apply() { throw new Error('apply exploded'); },
     });
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-boom2="0% 0px, 100% 50px"></div>';
+      '<div data-vm data-vm-boom2="0% 0px, 100% 50px"></div>';
     place(document.body.firstElementChild);
 
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
@@ -86,7 +86,7 @@ describe('a module that throws where the library calls it', () => {
       apply() { throw new Error('apply exploded'); },
     });
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-boom3="0% 0px, 100% 50px"></div>';
+      '<div data-vm data-vm-boom3="0% 0px, 100% 50px"></div>';
     place(document.body.firstElementChild);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     expect(() => m.init()).not.toThrow();
@@ -105,8 +105,8 @@ describe('a module that throws where the library calls it', () => {
       parse() { throw new Error('parse exploded'); },
     });
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-boom4="0% x, 100% y"></div>' +
-      '<div id="b" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-boom4="0% x, 100% y"></div>' +
+      '<div id="b" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const b = document.getElementById('b');
     place(b);
 
@@ -133,8 +133,8 @@ describe('a module that throws where the library calls it', () => {
   it('a setting parse: refuses that setting and nothing else', () => {
     wireMotion({ attribute: 'boom-setting', type: 'string', parse() { throw new Error('boom'); } });
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-boom-setting="x" ' +
-      'data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+      '<div data-vm data-vm-boom-setting="x" ' +
+      'data-vm-translate-y="0% 0px, 100% 40px"></div>';
     const node = document.body.firstElementChild;
     place(node);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });

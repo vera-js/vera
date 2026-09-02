@@ -11,8 +11,8 @@ describe('a non-linear ease with the module not wired', () => {
   it('warns once, names the import, and keeps animating', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-ease="ease-in-out" data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-      '<div id="b" data-vera-motion data-vera-motion-ease="ease-out" data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div id="a" data-vm data-vm-ease="ease-in-out" data-vm-opacity="0% 0, 100% 1"></div>' +
+      '<div id="b" data-vm data-vm-ease="ease-out" data-vm-opacity="0% 0, 100% 1"></div>';
     const m = createMotion({ respectReducedMotion: false });
     m.init();
 

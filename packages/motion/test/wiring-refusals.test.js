@@ -14,7 +14,7 @@ import { createMotion, wireMotion } from '../src/index.ts';
  * GUI renders, and a page whose module never wired otherwise sees its
  * attributes reported as unknown with no reason why.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

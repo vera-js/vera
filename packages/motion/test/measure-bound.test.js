@@ -17,7 +17,7 @@ import { createMotion, parseMeasure, getProperty } from '../src/index.ts';
  * exceeds its own keyframe, so a bound set exactly where formatting breaks does
  * not hold after interpolation — and no layout is a billion pixels.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -8,12 +8,12 @@ describe('accessibility contract', () => {
   it('reduced motion never leaves content hidden or displaced', () => {
     vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true });
     document.body.innerHTML = `
-      <div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>
-      <div id="b" data-vera-motion data-vera-motion-translate-y="0% 400px, 100% 0px"></div>
-      <div id="c" data-vera-motion data-vera-motion-scale="0% 0, 100% 1"></div>`;
+      <div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>
+      <div id="b" data-vm data-vm-translate-y="0% 400px, 100% 0px"></div>
+      <div id="c" data-vm data-vm-scale="0% 0, 100% 1"></div>`;
     const a = createMotion({ respectReducedMotion: true });
     a.init();
-    for (const node of document.querySelectorAll('[data-vera-motion]')) {
+    for (const node of document.querySelectorAll('[data-vm]')) {
       expect(node.style.opacity, node.id).not.toBe('0');
       expect(node.style.transform, node.id).toBe('');
       expect(node.style.filter, node.id).toBe('');
@@ -23,7 +23,7 @@ describe('accessibility contract', () => {
   });
 
   it('a split keeps the text readable through a hidden copy and hides only the pieces', () => {
-    document.body.innerHTML = '<h1 data-vera-motion data-vera-motion-opacity="0">Hello there</h1>';
+    document.body.innerHTML = '<h1 data-vm data-vm-opacity="0">Hello there</h1>';
     const node = document.querySelector('h1');
     createSplit(node, 'chars');
     /** No aria-label: ARIA 1.2 prohibits naming these roles; real text needs no naming rule. */
@@ -34,7 +34,7 @@ describe('accessibility contract', () => {
   });
 
   it('a split restores the element exactly, aria included', () => {
-    document.body.innerHTML = '<h1 data-vera-motion data-vera-motion-opacity="0">Hello there</h1>';
+    document.body.innerHTML = '<h1 data-vm data-vm-opacity="0">Hello there</h1>';
     const node = document.querySelector('h1');
     createSplit(node, 'chars').destroy();
     expect(node.hasAttribute('aria-label')).toBe(false);
@@ -42,7 +42,7 @@ describe('accessibility contract', () => {
   });
 
   it('disable() returns content to its natural state, not a frozen frame', () => {
-    document.body.innerHTML = '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     a.disable();
@@ -53,7 +53,7 @@ describe('accessibility contract', () => {
   });
 
   it('pieces created by a split are not focusable or read twice', () => {
-    document.body.innerHTML = '<h1 data-vera-motion data-vera-motion-opacity="0">Hi there</h1>';
+    document.body.innerHTML = '<h1 data-vm data-vm-opacity="0">Hi there</h1>';
     const node = document.querySelector('h1');
     createSplit(node, 'words');
     for (const span of node.querySelectorAll('span[aria-hidden]')) {

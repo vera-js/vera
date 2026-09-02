@@ -19,7 +19,7 @@ import { createMotion } from '../src/index.ts';
 wireMotion([split]);
 
 const MARKUP =
-  '<p data-vera-motion data-vera-motion-split="words" data-vera-motion-opacity="0% 0, 100% 1">the quick fox</p>';
+  '<p data-vm data-vm-split="words" data-vm-opacity="0% 0, 100% 1">the quick fox</p>';
 
 beforeEach(() => { document.body.innerHTML = ''; });
 

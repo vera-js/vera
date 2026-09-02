@@ -9,7 +9,7 @@ wireMotion(split);
  * A module refuses things about elements the instance knows by no other route.
  *
  * `rejected` was built from two lists — what was adopted, and what was dropped
- * — and a split **container** is in neither: its bare `data-vera-motion` marker
+ * — and a split **container** is in neither: its bare `data-vm` marker
  * is optional, so the ordinary spelling has none and nothing parses it. Every
  * refusal about it was recorded in `rejections.ts` and read by nobody, while
  * the README said `rejected` holds every refusal, "including refusals a module
@@ -19,7 +19,7 @@ wireMotion(split);
  * thing keeping a removed element alive — and the instance merges any refused
  * node inside its own roots.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -37,8 +37,8 @@ const place = (node, { width = 300, height = 200 } = {}) => {
   Object.defineProperty(node, 'offsetParent', { value: null, configurable: true });
 };
 
-const build = (attributes = 'data-vera-motion-translate-y="0% 0px, 100% 100px"') => {
-  document.body.innerHTML = `<div id="a" data-vera-motion ${attributes}></div>`;
+const build = (attributes = 'data-vm-translate-y="0% 0px, 100% 100px"') => {
+  document.body.innerHTML = `<div id="a" data-vm ${attributes}></div>`;
   const node = document.getElementById('a');
   place(node);
   return node;
@@ -78,7 +78,7 @@ describe('CSS that outranks the runtime is reported', () => {
   });
 
   it('reports a filter the cascade discarded', () => {
-    const node = build('data-vera-motion-blur="0% 0px, 100% 6px"');
+    const node = build('data-vm-blur="0% 0px, 100% 6px"');
     overrideComputed(node, ['filter']);
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });
     m.init();

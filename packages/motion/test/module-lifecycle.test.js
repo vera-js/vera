@@ -22,7 +22,7 @@ beforeEach(() => { document.body.innerHTML = ''; });
 describe('a module is not told an element is leaving when it is only re-parsed', () => {
   it('keeps the split when a piece is re-parsed', async () => {
     document.body.innerHTML =
-      '<p data-vera-motion data-vera-motion-split="words" data-vera-motion-opacity="0% 0, 100% 1">one two three</p>';
+      '<p data-vm data-vm-split="words" data-vm-opacity="0% 0, 100% 1">one two three</p>';
     const node = document.querySelector('p');
     const m = createMotion({ respectReducedMotion: false });
     m.init();
@@ -30,7 +30,7 @@ describe('a module is not told an element is leaving when it is only re-parsed',
     expect(node.querySelectorAll('span[aria-hidden]')).toHaveLength(3);
 
     /** An attribute edit on a piece forces exactly that re-parse. */
-    node.querySelector('span[aria-hidden]').setAttribute('data-vera-motion-opacity', '0% 0.2, 100% 1');
+    node.querySelector('span[aria-hidden]').setAttribute('data-vm-opacity', '0% 0.2, 100% 1');
     await settle();
 
     expect(node.querySelectorAll('span[aria-hidden]')).toHaveLength(3);
@@ -52,13 +52,13 @@ describe('a module is not told an element is leaving when it is only re-parsed',
     wireMotion({ on: 'release', fn: (node) => released.push(node) });
 
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+      '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const node = document.querySelector('div');
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     await settle();
 
-    node.setAttribute('data-vera-motion-opacity', '0% 0.5, 100% 1');
+    node.setAttribute('data-vm-opacity', '0% 0.5, 100% 1');
     await settle();
     expect(released).toEqual([]);
 

@@ -254,10 +254,10 @@ customElements.define(
             follows this. The library said so in its rejected list, in all three
             engines, and the panel below now shows what it says.
           -->
-          <div class="card" data-vera-motion
-               data-vera-motion-translate-y="0% 70px, 60% 0px"
-               data-vera-motion-opacity="0% 0, 50% 1"
-               data-vera-motion-radius-top-left="0% 70px, 60% 14px">
+          <div class="card" data-vm
+               data-vm-translate-y="0% 70px, 60% 0px"
+               data-vm-opacity="0% 0, 50% 1"
+               data-vm-radius-top-left="0% 70px, 60% 14px">
             <h3>Rendered by VeraJS, animated by @verajs/motion</h3>
             <p>
               This lives in a <code>ShadowRoot</code> created by Vera's <code>init()</code>.

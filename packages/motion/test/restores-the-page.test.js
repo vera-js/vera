@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 /**
  * "Every listener, observer, rAF handle, and injected attribute needs a

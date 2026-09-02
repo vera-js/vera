@@ -12,7 +12,7 @@ const settle = async () => {
 };
 
 const MARKUP =
-  '<p data-vera-motion data-vera-motion-split="words" data-vera-motion-opacity="0% 0, 100% 1">one two three</p>';
+  '<p data-vm data-vm-split="words" data-vm-opacity="0% 0, 100% 1">one two three</p>';
 
 /**
  * The container of a removed split was retained by two node-keyed maps that

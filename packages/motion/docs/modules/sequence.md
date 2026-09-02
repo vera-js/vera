@@ -1,6 +1,6 @@
 # `@verajs/motion/sequence`
 
-Scroll-scrubbed image sequences — `data-vera-motion-frame` and the `frame-*` settings.
+Scroll-scrubbed image sequences — `data-vm-frame` and the `frame-*` settings.
 
 **2.0 KB gzip**, the largest of the modules, and the one whose *assets* dwarf the library entirely.
 
@@ -14,11 +14,11 @@ createMotion().init();
 
 ```html
 <canvas width="1280" height="720"
-        data-vera-motion
-        data-vera-motion-frame="0% 1, 100% 120"
-        data-vera-motion-frame-url="/seq/"
-        data-vera-motion-frame-count="120"
-        data-vera-motion-frame-ext="webp"></canvas>
+        data-vm
+        data-vm-frame="0% 1, 100% 120"
+        data-vm-frame-url="/seq/"
+        data-vm-frame-count="120"
+        data-vm-frame-ext="webp"></canvas>
 ```
 
 **Give the canvas `width` and `height`.** Each frame is drawn to fill the canvas's *bitmap*, and a
@@ -59,11 +59,11 @@ two frames either side of the position instead:
 
 ```html
 <canvas width="1280" height="720"
-        data-vera-motion
-        data-vera-motion-frame="0% 1, 100% 60"
-        data-vera-motion-frame-url="/seq/"
-        data-vera-motion-frame-count="60"
-        data-vera-motion-frame-tween></canvas>
+        data-vm
+        data-vm-frame="0% 1, 100% 60"
+        data-vm-frame-url="/seq/"
+        data-vm-frame-count="60"
+        data-vm-frame-tween></canvas>
 ```
 
 A bare attribute means true, as HTML's own booleans do.
@@ -114,7 +114,7 @@ One property (`frame`) and five settings (`frame-url`, `frame-count`, `frame-pad
 `frame-tween`).
 
 The settings are declared by this module rather than by core, which is what stops the runtime
-reporting `data-vera-motion-frame-url` as an unknown attribute on every element that uses it. See
+reporting `data-vm-frame-url` as an unknown attribute on every element that uses it. See
 the [attribute reference](../ATTRIBUTE-REFERENCE.md#image) for ranges and defaults.
 
 ## The origin allowlist
@@ -192,8 +192,8 @@ are this module's only output — so both halves are yours to author:
 ```html
 <canvas role="img" aria-label="The product rotating a full turn as you scroll"
         style="background: url(frames/0119.avif) center / cover"
-        data-vera-motion data-vera-motion-frame="0% 0, 100% 119"
-        data-vera-motion-frame-url="frames/" data-vera-motion-frame-count="120"></canvas>
+        data-vm data-vm-frame="0% 0, 100% 119"
+        data-vm-frame-url="frames/" data-vm-frame-count="120"></canvas>
 ```
 
 `role="img"` with an `aria-label` gives a screen reader the one sentence the animation is worth.

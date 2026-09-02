@@ -22,7 +22,7 @@ beforeEach(() => {
 describe('teardown against unreadable geometry', () => {
   it('completes, clears the element, and leaves nothing started', () => {
     document.body.innerHTML =
-      '<div id="x" data-vera-motion data-vera-motion-translate-y="0% 0, 100% 90px"></div>';
+      '<div id="x" data-vm data-vm-translate-y="0% 0, 100% 90px"></div>';
     const node = document.getElementById('x');
     for (const [k, v] of [['offsetTop', 500], ['offsetHeight', 100], ['offsetParent', null]]) {
       Object.defineProperty(node, k, { value: v, configurable: true });

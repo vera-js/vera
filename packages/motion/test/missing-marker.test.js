@@ -7,8 +7,8 @@ import { createScrollTo } from '../src/scroll-to.ts';
 wireMotion(split);
 
 /**
- * `data-vera-motion` is the whole of `findElements`' selector, so an element
- * carrying `data-vera-motion-opacity` and nothing else is not found, not
+ * `data-vm` is the whole of `findElements`' selector, so an element
+ * carrying `data-vm-opacity` and nothing else is not found, not
  * adopted, and not refused — it does not animate, with an empty `rejected` and
  * no console line.
  *
@@ -17,7 +17,7 @@ wireMotion(split);
  * is nothing to remember it by. The GUI writes it every time; the other two
  * authors CLAUDE.md names — a person and an AI — forget it.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 500], ['offsetHeight', 200], ['offsetWidth', 200]]) {
@@ -126,7 +126,7 @@ describe('and stays quiet about the elements that are meant to be unmarked', () 
     const m = run();
 
     expect(reasons(m)).toContain('plain text');
-    expect(reasons(m), 'and only that').not.toContain('needs data-vera-motion,');
+    expect(reasons(m), 'and only that').not.toContain('needs data-vm,');
     m.destroy();
   });
 });
@@ -151,7 +151,7 @@ describe('and stays quiet about the elements that are meant to be unmarked', () 
  * `observe(section)` both are.
  */
 describe('an animated element that is its own instance root', () => {
-  const P = 'data-vera-motion';
+  const P = 'data-vm';
   const place = (node) => {
     for (const [key, value] of [['offsetTop', 500], ['offsetHeight', 200]]) {
       Object.defineProperty(node, key, { value, configurable: true });

@@ -8,7 +8,7 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('hostile DOM', () => {
   it('an element removed mid-flight does not throw on the next frame', async () => {
-    document.body.innerHTML = '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     document.getElementById('a').remove();
@@ -19,7 +19,7 @@ describe('hostile DOM', () => {
 
   it('an element moved to a different parent keeps animating', async () => {
     document.body.innerHTML =
-      '<div id="from"><div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div></div><div id="to"></div>';
+      '<div id="from"><div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div></div><div id="to"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     document.getElementById('to').appendChild(document.getElementById('a'));
@@ -29,11 +29,11 @@ describe('hostile DOM', () => {
   });
 
   it('an attribute rewritten to nonsense drops the animation, leaving content readable', async () => {
-    document.body.innerHTML = '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     const node = document.getElementById('a');
-    node.setAttribute('data-vera-motion-opacity', 'garbage');
+    node.setAttribute('data-vm-opacity', 'garbage');
     await settle();
     expect(node.style.filter === '' || node.style.filter === 'opacity(1)').toBe(true);
     a.destroy();
@@ -44,7 +44,7 @@ describe('hostile DOM', () => {
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     const orphan = document.createElement('div');
-    orphan.innerHTML = '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    orphan.innerHTML = '<div data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     expect(() => a.observe(orphan)).not.toThrow();
     a.destroy();
   });
@@ -59,10 +59,10 @@ describe('hostile DOM', () => {
   });
 
   it('an element whose attribute is emptied stops animating without throwing', async () => {
-    document.body.innerHTML = '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>';
+    document.body.innerHTML = '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
-    document.getElementById('a').setAttribute('data-vera-motion-opacity', '');
+    document.getElementById('a').setAttribute('data-vm-opacity', '');
     await settle();
     expect(() => a.refresh()).not.toThrow();
     a.destroy();
@@ -70,7 +70,7 @@ describe('hostile DOM', () => {
 
   it('disable() then destroy() leaves no inline animation styles behind', () => {
     document.body.innerHTML =
-      '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1" data-vera-motion-translate-y="0% 10px, 100% 0px"></div>';
+      '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1" data-vm-translate-y="0% 10px, 100% 0px"></div>';
     const a = createMotion({ respectReducedMotion: false });
     a.init();
     a.disable();
@@ -87,12 +87,12 @@ describe('prototype pollution via attribute names and option keys', () => {
     const before = Object.keys(Object.prototype).length;
 
     document.body.innerHTML = `
-      <div data-vera-motion="__proto__"
-           data-vera-motion-__proto__="0% 0, 100% 1"
-           data-vera-motion-constructor="1"
-           data-vera-motion-opacity-__proto__="0% 0, 100% 1"
-           data-vera-motion-opacity-constructor="0% 0, 100% 1"
-           data-vera-motion-opacity="0% 0, 100% 1"></div>`;
+      <div data-vm="__proto__"
+           data-vm-__proto__="0% 0, 100% 1"
+           data-vm-constructor="1"
+           data-vm-opacity-__proto__="0% 0, 100% 1"
+           data-vm-opacity-constructor="0% 0, 100% 1"
+           data-vm-opacity="0% 0, 100% 1"></div>`;
 
     const m = createMotion({
       respectReducedMotion: false,
@@ -111,7 +111,7 @@ describe('prototype pollution via attribute names and option keys', () => {
     m.init();
     /** toString/valueOf exist on every object; a Map lookup must not find them. */
     for (const name of ['toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
-      const got = parseAttributeName(`data-vera-motion-opacity-${name}`, new Map());
+      const got = parseAttributeName(`data-vm-opacity-${name}`, new Map());
       expect(got).toBeNull();
     }
     m.destroy();

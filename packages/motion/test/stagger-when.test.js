@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from './harness.mjs';
 import { expect } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const place = (n) => {
   Object.defineProperty(n, 'offsetTop', { value: 500, configurable: true });
   Object.defineProperty(n, 'offsetHeight', { value: 200, configurable: true });
@@ -87,7 +87,7 @@ describe('stagger on a state-driven element', () => {
  * never had them.
  */
 describe('a stagger host with nothing animated under it', () => {
-  const PRE = 'data-vera-motion';
+  const PRE = 'data-vm';
   const build = (html) => {
     document.body.innerHTML = html;
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });

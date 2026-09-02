@@ -31,10 +31,10 @@ named by `path-selector`, validates its `d`, and writes `offset-path: path("…"
 </svg>
 
 <div
-  data-vera-motion
-  data-vera-motion-path="0% 0, 100% 100"
-  data-vera-motion-path-selector="#curve"
-  data-vera-motion-path-rotate="auto"
+  data-vm
+  data-vm-path="0% 0, 100% 100"
+  data-vm-path-selector="#curve"
+  data-vm-path-rotate="auto"
 ></div>
 ```
 

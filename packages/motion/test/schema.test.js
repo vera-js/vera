@@ -32,7 +32,7 @@ describe('schema invariants', () => {
   });
 
   it('property and setting namespaces are disjoint', () => {
-    /** The grammar resolves data-vera-motion-<name> by lookup, so a collision would be ambiguous. */
+    /** The grammar resolves data-vm-<name> by lookup, so a collision would be ambiguous. */
     for (const setting of SETTINGS) {
       expect(isProperty(setting.attribute)).toBe(false);
     }

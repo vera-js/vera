@@ -18,7 +18,7 @@ const page = ({ scrollHeight, top, height = 200, keyframes, extra = '' }) => {
   Object.defineProperty(document.documentElement, 'scrollHeight', { value: scrollHeight, configurable: true });
   Object.defineProperty(document.documentElement, 'clientHeight', { value: 700, configurable: true });
   document.body.innerHTML =
-    `<div class="on" data-vera-motion ${extra} data-vera-motion-opacity="${keyframes}"></div>`;
+    `<div class="on" data-vm ${extra} data-vm-opacity="${keyframes}"></div>`;
   const node = document.body.firstElementChild;
   Object.defineProperty(node, 'offsetTop', { value: top, configurable: true });
   Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
@@ -114,7 +114,7 @@ describe('an animation the page is not long enough to finish', () => {
   it('stays quiet on a `when` element, which does not need the page to be long', () => {
     const m = page({
       scrollHeight: 3900, top: 3700, keyframes: '0% 0, 100% 1',
-      extra: 'data-vera-motion-when=".on"',
+      extra: 'data-vm-when=".on"',
     });
     expect(said(m)).not.toContain('the page ends before this animation does');
     m.destroy();

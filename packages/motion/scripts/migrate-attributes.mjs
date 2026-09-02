@@ -1,5 +1,5 @@
 /**
- * Migrates markup from the old `data-oxyani-*` attributes to `data-vera-motion-*`.
+ * Migrates markup from the old `data-oxyani-*` attributes to `data-vm-*`.
  *
  * Reports what it could not map rather than dropping it silently — an
  * unreported drop is how a migration quietly loses a feature.
@@ -122,13 +122,13 @@ const migrateElement = (attrText) => {
     }
 
     const setting = SETTING_MAP[rest];
-    if (setting) { settings.push([`data-vera-motion-${setting}`, value]); continue; }
+    if (setting) { settings.push([`data-vm-${setting}`, value]); continue; }
     note(name, 'setting has no equivalent');
   }
 
   if (!marker && anims.size === 0) return null;
 
-  const out = [['data-vera-motion', undefined]];
+  const out = [['data-vm', undefined]];
   for (const [prop, byBp] of anims) {
     for (const [bp, entry] of byBp) {
       const suffix = bp ? `-${bp}` : '';
@@ -158,7 +158,7 @@ const migrateElement = (attrText) => {
       /** Position order, not attribute order: `end` is written before `mid1` often enough. */
       keyframes.sort((a, b) => a[0] - b[0]);
       out.push([
-        `data-vera-motion-${prop}${suffix}`,
+        `data-vm-${prop}${suffix}`,
         keyframes.map(([pct, value]) => `${pct}% ${value}`).join(', '),
       ]);
     }
@@ -181,7 +181,7 @@ let migrated = source.replace(/<([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^<>]*?)?)(\/?)>/g,
 const count = (s, re) => (s.match(re) || []).length;
 const bytes = (s, re) => (s.match(re) || []).reduce((n, m) => n + m.length, 0);
 const OLD = /data-oxyani[a-z0-9-]*(?:="[^"]*")?/g;
-const NEW = /data-vera-motion[a-z0-9-]*(?:="[^"]*")?/g;
+const NEW = /data-vm[a-z0-9-]*(?:="[^"]*")?/g;
 
 console.log(`\n  ${file}`);
 console.log(`  before  ${String(count(source, OLD)).padStart(4)} attributes  ${String(bytes(source, OLD)).padStart(6)} bytes`);

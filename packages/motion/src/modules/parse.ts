@@ -45,7 +45,7 @@ export interface ElementMotion {
 
 export interface ParseContext {
   /**
-   * Named width ranges, so `data-vera-motion-opacity-mobile` can mean whatever this
+   * Named width ranges, so `data-vm-opacity-mobile` can mean whatever this
    * site calls mobile. A name is only ever an alias for a range.
    */
   readonly breakpoints?: ReadonlyMap<string, Range>;
@@ -292,8 +292,8 @@ const parseSettings = (
      * Why, not just what.
      *
      * Every branch below used to push the bare attribute name, so a GUI
-     * rendering `rejected` showed `data-vera-motion-when` and nothing else for
-     * a `:has()` selector, `data-vera-motion-run-once` for `run-once="yes"`,
+     * rendering `rejected` showed `data-vm-when` and nothing else for
+     * a `:has()` selector, `data-vm-run-once` for `run-once="yes"`,
      * and so on for all ten. A *property* refusal has always carried a
      * sentence — `translate-y: more than 256 keyframes` — and the README
      * describes this array as "reasons" and sends anyone whose element is not
@@ -458,8 +458,8 @@ const applyPreset = (name: string, into: Map<string, Collected>): void => {
      * `-mobile`-style band is not a base.
      *
      * Testing whether the property had been seen at all meant a band-suffixed
-     * override suppressed the preset entirely: `data-vera-motion="fade"` with
-     * `data-vera-motion-opacity-mobile="0% 0.5, 100% 1"` produced no base
+     * override suppressed the preset entirely: `data-vm="fade"` with
+     * `data-vm-opacity-mobile="0% 0.5, 100% 1"` produced no base
      * keyframes, so the element did not fade at any width except that band.
      * The attribute says at which widths it differs; it does not say the
      * preset was a mistake.

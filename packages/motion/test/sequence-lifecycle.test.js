@@ -19,8 +19,8 @@ const settle = async () => {
  */
 const canvasPage = () => {
   document.body.innerHTML =
-    '<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-    'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"></canvas>';
+    '<canvas data-vm data-vm-frame="0% 0, 100% 9" ' +
+    'data-vm-frame-url="/s/" data-vm-frame-count="10"></canvas>';
   const node = document.body.firstElementChild;
   node.getContext = () => ({ drawImage: vi.fn() });
   return node;
@@ -35,8 +35,8 @@ beforeEach(() => { document.body.innerHTML = ''; });
  */
 describe('the sequence module owns the origin policy', () => {
   const markup =
-    '<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-    'data-vera-motion-frame-count="10" data-vera-motion-frame-url="https://cdn.test/s/"></canvas>';
+    '<canvas data-vm data-vm-frame="0% 0, 100% 9" ' +
+    'data-vm-frame-count="10" data-vm-frame-url="https://cdn.test/s/"></canvas>';
 
   it('refuses a cross-origin url by default', () => {
     wireMotion(sequence());
@@ -100,8 +100,8 @@ describe('image sequence across the instance lifecycle', () => {
    */
   it('re-decides a refused canvas after destroy()', async () => {
     document.body.innerHTML =
-      '<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-count="10" data-vera-motion-frame-url="https://elsewhere.test/s/"></canvas>';
+      '<canvas data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-count="10" data-vm-frame-url="https://elsewhere.test/s/"></canvas>';
     document.body.firstElementChild.getContext = () => ({ drawImage: vi.fn() });
     const warned = [];
     vi.spyOn(console, 'warn').mockImplementation((...args) => warned.push(String(args[0])));

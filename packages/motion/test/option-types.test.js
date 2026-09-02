@@ -11,7 +11,7 @@ import { createScrollTo } from '../src/scroll-to.ts';
  * it is a field left at `0`, or a cast that did not happen. Every *value* has
  * been checked since decision 31; the types had not.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -58,7 +58,7 @@ describe('scrollElement that is not an element or a selector', () => {
 
 /**
  * `inertia` is an option *and* an attribute, and only the attribute was
- * range-checked: `data-vera-motion-inertia="-1"` was refused and reported while
+ * range-checked: `data-vm-inertia="-1"` was refused and reported while
  * `createMotion({ inertia: -1 })` was accepted in silence and produced no
  * transition at all — `inertia: 0` reached by a sign error, with nothing said.
  */

@@ -28,16 +28,16 @@ const DIST_EASINGS = new URL('../dist/vera-motion-easings.min.js', import.meta.u
 const built = existsSync(DIST);
 
 const MARKUP =
-  '<div data-vera-motion data-vera-motion-inertia="0.25" data-vera-motion-ease="ease-in-out"' +
-  ' data-vera-motion-translate-y="0% 0, 50% 60px, 100% 40px"' +
-  ' data-vera-motion-scale="0% 1, 100% 1.5"' +
-  ' data-vera-motion-blur="0% 0, 100% 6px"' +
-  ' data-vera-motion-opacity="0% 0.2, 100% 1"' +
-  ' data-vera-motion-radius-top-left="0% 0, 100% 12px"' +
-  ' data-vera-motion-background="0% #16161b, 55% #1c3a2c, 100% #1b2a4a"' +
-  ' data-vera-motion-opacity-small="30% 0.5"' +
+  '<div data-vm data-vm-inertia="0.25" data-vm-ease="ease-in-out"' +
+  ' data-vm-translate-y="0% 0, 50% 60px, 100% 40px"' +
+  ' data-vm-scale="0% 1, 100% 1.5"' +
+  ' data-vm-blur="0% 0, 100% 6px"' +
+  ' data-vm-opacity="0% 0.2, 100% 1"' +
+  ' data-vm-radius-top-left="0% 0, 100% 12px"' +
+  ' data-vm-background="0% #16161b, 55% #1c3a2c, 100% #1b2a4a"' +
+  ' data-vm-opacity-small="30% 0.5"' +
   /** Refused on both sides — the diagnostics channel must flow in production too. */
-  ' data-vera-motion-bogus="1"' +
+  ' data-vm-bogus="1"' +
   ' style="transform: translateX(-50%)"></div>';
 
 /** What one frame's DOM answer looks like, for comparing across builds. */

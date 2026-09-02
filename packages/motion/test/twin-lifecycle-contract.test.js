@@ -3,7 +3,7 @@ import { expect, vi } from './expect.mjs';
 import { createMotion } from '../src/index.ts';
 import { createScrollTo } from '../src/modules/createScrollTo.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (n, top = 1200) => {
   Object.defineProperty(n, 'offsetTop', { value: top, configurable: true });

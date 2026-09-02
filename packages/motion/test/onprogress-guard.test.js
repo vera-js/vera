@@ -22,8 +22,8 @@ afterEach(() => vi.restoreAllMocks());
 
 const page = () => {
   document.body.innerHTML =
-    '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
-    '<div id="b" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>';
+    '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
+    '<div id="b" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>';
 };
 
 describe('onProgress that throws', () => {

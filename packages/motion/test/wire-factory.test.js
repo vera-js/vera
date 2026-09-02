@@ -7,8 +7,8 @@ describe('a factory module wired both ways', () => {
   it('accepts the bare factory', () => {
     wireMotion(sequence);
     document.body.innerHTML =
-      '<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="/s/" data-vera-motion-frame-count="10"></canvas>';
+      '<canvas data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="/s/" data-vm-frame-count="10"></canvas>';
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     /**
@@ -29,8 +29,8 @@ describe('a factory module wired both ways', () => {
   it('and the configured form', () => {
     wireMotion(sequence({ allowedOrigins: ['https://cdn.test'] }));
     document.body.innerHTML =
-      '<canvas data-vera-motion data-vera-motion-frame="0% 0, 100% 9" ' +
-      'data-vera-motion-frame-url="https://cdn.test/s/" data-vera-motion-frame-count="10"></canvas>';
+      '<canvas data-vm data-vm-frame="0% 0, 100% 9" ' +
+      'data-vm-frame-url="https://cdn.test/s/" data-vm-frame-count="10"></canvas>';
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     expect(m.elements[0].parsed.settings['frame-url']).toBe('https://cdn.test/s/');

@@ -29,7 +29,7 @@ beforeEach(() => {
   });
   document.body.innerHTML =
     '<div id="pane" style="overflow:auto">' +
-    '<div id="a" data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>' +
+    '<div id="a" data-vm data-vm-opacity="0% 0, 100% 1"></div>' +
     '</div>';
 });
 afterEach(() => {

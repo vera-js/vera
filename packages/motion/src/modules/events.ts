@@ -31,7 +31,7 @@ import { NAMESPACE } from './namespace.js';
 
 /**
  * Names are derived, never written out, so the namespace has one source
- * (principle #5). `data-vera-motion-*` attributes and `vera-motion:*` events stay
+ * (principle #5). `data-vm-*` attributes and `vm:*` events stay
  * in step.
  */
 export const EVENTS = {

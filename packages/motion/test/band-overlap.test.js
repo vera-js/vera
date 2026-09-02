@@ -3,7 +3,7 @@ import { expect } from './expect.mjs';
 import { parseBandedList, getProperty } from '../src/modules/schema.ts';
 import { createMotion } from '../src/index.ts';
 
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const ty = getProperty('translate-y');
 const place = (n) => {
   Object.defineProperty(n, 'offsetTop', { value: 500, configurable: true });

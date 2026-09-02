@@ -12,7 +12,7 @@ import { createMotion } from '../src/index.ts';
  * happy-dom has no layout, so every box here is declared. What is being tested
  * is the decision, not the geometry; the geometry is the spike's job.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 /** A box the runtime can read: happy-dom returns 0 for all of these. */
 const box = (node, height, width = 800) => {

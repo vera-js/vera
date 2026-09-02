@@ -17,7 +17,7 @@ wireMotion(split);
  * outright on teardown. The label was gone for good, on a page the library
  * says it puts back.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

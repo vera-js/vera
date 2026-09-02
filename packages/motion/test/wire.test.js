@@ -25,7 +25,7 @@ describe('wireMotion() — property modules', () => {
       cssProperty: 'letter-spacing', defaultUnit: 'px',
       units: ['px', 'rem', 'em'], initial: 0,
     });
-    const { node, m } = run('<div data-vera-motion data-vera-motion-letter-spacing="0% 0px, 100% 12px"></div>');
+    const { node, m } = run('<div data-vm data-vm-letter-spacing="0% 0px, 100% 12px"></div>');
     expect(node.style.letterSpacing).not.toBe('');
     expect(m.rejected.flatMap((r) => r.rejected)).toEqual([]);
     m.destroy();
@@ -38,7 +38,7 @@ describe('wireMotion() — property modules', () => {
       units: ['deg'], initial: 0,
     }]);
     const { node, m } = run(
-      '<div data-vera-motion data-vera-motion-blur="0% 8px, 100% 0px" data-vera-motion-hue="0% 0deg, 100% 90deg"></div>');
+      '<div data-vm data-vm-blur="0% 8px, 100% 0px" data-vm-hue="0% 0deg, 100% 90deg"></div>');
     const filter = node.style.filter;
     expect(filter).toContain('hue-rotate(');
     /** Registration order decides composition: built-ins first, modules after. */
@@ -48,7 +48,7 @@ describe('wireMotion() — property modules', () => {
 
   it('a wired property works with bands and keyframes like any other', () => {
     const { m } = run(
-      '<div data-vera-motion data-vera-motion-letter-spacing="0% 0px, 100% 20px; [0-5000]: 100% 3px"></div>');
+      '<div data-vm data-vm-letter-spacing="0% 0px, 100% 20px; [0-5000]: 100% 3px"></div>');
     expect(m.elements[0].plan.all[0].bands).toHaveLength(1);
     m.destroy();
   });
@@ -70,9 +70,9 @@ describe('wireMotion() — property modules', () => {
       defaultUnit: 'px', units: ['px'], initial: 0 }]);
 
     const { node, m } = run(
-      '<div data-vera-motion data-vera-motion-nested-one="0% 0px, 100% 5px"' +
-      ' data-vera-motion-nested-two="0% 0px, 100% 5px"' +
-      ' data-vera-motion-nested-three="0% 0px, 100% 5px"></div>');
+      '<div data-vm data-vm-nested-one="0% 0px, 100% 5px"' +
+      ' data-vm-nested-two="0% 0px, 100% 5px"' +
+      ' data-vm-nested-three="0% 0px, 100% 5px"></div>');
     expect(m.rejected.flatMap((r) => r.rejected)).toEqual([]);
     expect(node.style.letterSpacing).not.toBe('');
     expect(node.style.wordSpacing).not.toBe('');
@@ -80,7 +80,7 @@ describe('wireMotion() — property modules', () => {
   });
 
   it('an unwired attribute is still reported as unknown', () => {
-    const { node, m } = run('<div data-vera-motion data-vera-motion-not-a-thing="0% 0, 100% 1"></div>');
+    const { node, m } = run('<div data-vm data-vm-not-a-thing="0% 0, 100% 1"></div>');
     void node;
     expect(m.rejected.flatMap((r) => r.rejected).some((r) => r.includes('not-a-thing'))).toBe(true);
     m.destroy();
@@ -103,7 +103,7 @@ describe('wireMotion() — a descriptor that cannot work', () => {
       attribute: 'both-kinds', type: 'length', category: 'transform',
       units: ['px'], defaultUnit: 'px', initial: 0, cssProperty: 'left',
     });
-    const { m } = run('<div data-vera-motion data-vera-motion-both-kinds="0% 0px, 100% 5px"></div>');
+    const { m } = run('<div data-vm data-vm-both-kinds="0% 0px, 100% 5px"></div>');
     const said = m.rejected.flatMap((r) => r.rejected).join(' ');
     expect(said).toContain('both a type and a category');
     m.destroy();
@@ -114,7 +114,7 @@ describe('wireMotion() — a descriptor that cannot work', () => {
       attribute: 'writes-nowhere', category: 'transform',
       units: ['px'], defaultUnit: 'px', initial: 0,
     });
-    const { m } = run('<div data-vera-motion data-vera-motion-writes-nowhere="0% 0px, 100% 5px"></div>');
+    const { m } = run('<div data-vm data-vm-writes-nowhere="0% 0px, 100% 5px"></div>');
     const said = m.rejected.flatMap((r) => r.rejected).join(' ');
     expect(said).toContain('no way to write anything');
     m.destroy();
@@ -122,7 +122,7 @@ describe('wireMotion() — a descriptor that cannot work', () => {
 
   /** And the reason survives: neither is registered, so the attribute is unknown too. */
   it('and does not register either of them', () => {
-    const { m } = run('<div data-vera-motion data-vera-motion-both-kinds="0% 0px, 100% 5px"></div>');
+    const { m } = run('<div data-vm data-vm-both-kinds="0% 0px, 100% 5px"></div>');
     const said = m.rejected.flatMap((r) => r.rejected).join(' ');
     expect(said).toContain('both-kinds');
     m.destroy();
@@ -151,7 +151,7 @@ describe('wireMotion() — replacing something already registered', () => {
       attribute: 'opacity', category: 'border', cssProperty: 'outline-offset',
       defaultUnit: 'px', units: ['px'], initial: 0,
     });
-    const { m } = run('<div data-vera-motion data-vera-motion-opacity="0% 0px, 100% 9px"></div>');
+    const { m } = run('<div data-vm data-vm-opacity="0% 0px, 100% 9px"></div>');
     expect(reasons(m)).toContain('replaced the "opacity" property');
     expect(reasons(m)).toContain('for every element on the page');
     m.destroy();
@@ -169,7 +169,7 @@ describe('wireMotion() — replacing something already registered', () => {
     };
     wireMotion(property);
     wireMotion(property);
-    const { m } = run('<div data-vera-motion data-vera-motion-twice-over="0% 0px, 100% 2px"></div>');
+    const { m } = run('<div data-vm data-vm-twice-over="0% 0px, 100% 2px"></div>');
     expect(reasons(m)).not.toContain('twice-over');
     m.destroy();
   });
@@ -177,7 +177,7 @@ describe('wireMotion() — replacing something already registered', () => {
   /** Settings too, which are their own map. */
   it('and reports a setting the same way', () => {
     wireMotion({ attribute: 'run-once', type: 'string' });
-    const { m } = run('<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1"></div>');
+    const { m } = run('<div data-vm data-vm-opacity="0% 0, 100% 1"></div>');
     expect(reasons(m)).toContain('replaced the "run-once" setting');
     m.destroy();
   });

@@ -10,12 +10,12 @@ describe('attributes the runtime cannot understand', () => {
    */
   it('reports them instead of ignoring them', () => {
     document.body.innerHTML = `
-      <div data-vera-motion
-           data-vera-motion-translate-y-[0-3000]="0% 200px, 100% 0px"
-           data-vera-motion-nonsense="whatever"
-           data-vera-motion-tranlsate-y="0% 0px, 100% 40px"
-           data-vera-motion-opacity-phone="0% 0, 100% 1"
-           data-vera-motion-opacity="0% 0, 100% 1"></div>`;
+      <div data-vm
+           data-vm-translate-y-[0-3000]="0% 200px, 100% 0px"
+           data-vm-nonsense="whatever"
+           data-vm-tranlsate-y="0% 0px, 100% 40px"
+           data-vm-opacity-phone="0% 0, 100% 1"
+           data-vm-opacity="0% 0, 100% 1"></div>`;
     const m = createMotion({ respectReducedMotion: false });
     m.init();
     const reported = m.rejected.flatMap((r) => r.rejected);

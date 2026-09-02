@@ -1,6 +1,6 @@
 # `@verajs/motion/split`
 
-Animate a line, word or character at a time — `data-vera-motion-split`.
+Animate a line, word or character at a time — `data-vm-split`.
 
 **2.0 KB gzip.** The only module that rewrites the DOM rather than adding a property.
 
@@ -13,8 +13,8 @@ createMotion().init();
 ```
 
 ```html
-<h1 data-vera-motion data-vera-motion-split="chars" data-vera-motion-stagger="3"
-    data-vera-motion-translate-y="0% 20px, 100% 0px">Hello</h1>
+<h1 data-vm data-vm-split="chars" data-vm-stagger="3"
+    data-vm-translate-y="0% 20px, 100% 0px">Hello</h1>
 ```
 
 Modes are `chars`, `words` and `lines`. Lines are **measured from layout**, not guessed from
@@ -41,7 +41,7 @@ a splitter does, and doing it wrong silently destroys the emphasis rather than t
 
 ## Changing the mode
 
-Switching `data-vera-motion-split` from `words` to `chars` takes effect on the next
+Switching `data-vm-split` from `words` to `chars` takes effect on the next
 `instance.collect()`, not on the attribute change itself.
 
 That is not an oversight in this module. `prepare` deliberately never runs from inside the mutation
@@ -61,7 +61,7 @@ Three are refusals to split at all: text with nested markup, text containing a *
 text that would make more than the piece limit (500).
 
 Two are about the split it does perform. An unknown mode — anything that is not `chars`, `words` or
-`lines` — is refused rather than guessed at. And a `data-vera-motion-pin` on the container is
+`lines` — is refused rather than guessed at. And a `data-vm-pin` on the container is
 *reported but not obeyed*: `pin` moves to each piece with every other animation attribute, and a
 piece cannot hold the container, so the message names the spelling that works — put the pin on a
 wrapper around this element.
@@ -105,11 +105,11 @@ nothing would ever apply it. Put it on a wrapper around the paragraph instead.
 
 Only `split` and `stagger` stay on the container; every other attribute moves to the pieces, `when`
 included. A selector is evaluated against whatever holds it, so
-`data-vera-motion-when=".is-open"` on the paragraph becomes the same attribute on every span, each
+`data-vm-when=".is-open"` on the paragraph becomes the same attribute on every span, each
 asking *"do I have `.is-open`?"* — never true. The words never animate, and nothing is refused,
 because nothing is wrong: the attribute is valid and it is doing what it says.
 
-Name the container: `data-vera-motion-when=".panel.is-open *"`. The `*` is the whole difference,
+Name the container: `data-vm-when=".panel.is-open *"`. The `*` is the whole difference,
 and both `.is-open *` and `.is-open p > *` work. Verified in the suite.
 
 ## Text the bidi algorithm reorders

@@ -118,7 +118,7 @@ describe('a root that is not a node', () => {
     s.init();
 
     expect(s.rejected).toEqual([]);
-    expect(document.getElementById('one').hasAttribute('data-vera-motion-scroll-target')).toBe(true);
+    expect(document.getElementById('one').hasAttribute('data-vm-scroll-target')).toBe(true);
     s.destroy();
   });
 

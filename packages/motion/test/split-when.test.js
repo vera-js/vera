@@ -18,7 +18,7 @@ wireMotion(split);
  * and the one `when` already recommends — and pinned here so the documentation
  * and the behaviour cannot drift apart.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const place = (node) => {
   for (const [key, value] of [['offsetTop', 500], ['offsetHeight', 200], ['offsetWidth', 200], ['offsetLeft', 0]]) {

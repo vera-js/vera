@@ -15,7 +15,7 @@ import { createMotion } from '../src/index.ts';
  * and the element sat at `translateY(0px)` for good.
  */
 const animate = (value) => {
-  document.body.innerHTML = `<div data-vera-motion data-vera-motion-translate-y="${value}"></div>`;
+  document.body.innerHTML = `<div data-vm data-vm-translate-y="${value}"></div>`;
   const node = document.body.firstElementChild;
   Object.defineProperty(node, 'offsetTop', { value: 3000, configurable: true });
   Object.defineProperty(node, 'offsetHeight', { value: 200, configurable: true });
@@ -108,7 +108,7 @@ describe('a separator left at the end', () => {
 describe('a band with nothing after the colon', () => {
   it('is named rather than echoed', () => {
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-opacity="0% 0, 100% 1; [0-700]:"></div>';
+      '<div data-vm data-vm-opacity="0% 0, 100% 1; [0-700]:"></div>';
     const node = document.body.firstElementChild;
     Object.defineProperty(node, 'offsetTop', { value: 3000, configurable: true });
     Object.defineProperty(node, 'offsetHeight', { value: 100, configurable: true });

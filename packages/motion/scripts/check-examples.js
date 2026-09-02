@@ -1,5 +1,5 @@
 /**
- * Every `data-vera-motion` example in the docs must parse cleanly.
+ * Every `data-vm` example in the docs must parse cleanly.
  *
  * The README and the reference are full of markup an author or an agent will
  * copy verbatim. Nothing checked that any of it was valid — a typo in a
@@ -121,7 +121,7 @@ for (const file of files) {
   /**
    * A design note documents a proposal, including attributes that were
    * considered and not built — `docs/VIDEO-SCRUBBING.md` spells out the
-   * `data-vera-motion-video` that was deliberately not shipped. Checking those
+   * `data-vm-video` that was deliberately not shipped. Checking those
    * against the schema would be checking the wrong thing.
    *
    * Reported rather than silently dropped: a check that quietly excludes files
@@ -172,7 +172,7 @@ for (const file of files) {
  * goes on printing a table.
  *
  * `who-tweens.html` is why this runs. Its two subjects were told apart by
- * `data-vera-motion-speed`, the name `inertia` used to have, so both fell back
+ * `data-vm-speed`, the name `inertia` used to have, so both fell back
  * to the default and the page that says "one has no transition at all" had
  * two elements that both did. Its own first line printed the transition string
  * of the element it called untransitioned, and the settle table below agreed

@@ -17,7 +17,7 @@ wireMotion(easings);
  * an earlier audit already called "the most likely thing in the whole
  * attribute set to be misread".
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});

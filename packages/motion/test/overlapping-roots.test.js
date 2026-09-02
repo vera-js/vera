@@ -11,7 +11,7 @@ const place = (n, top = 500) => {
 describe('overlapping roots', () => {
   it('does not register the same element twice', () => {
     document.body.innerHTML =
-      '<div id="host"><div id="a" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div></div>';
+      '<div id="host"><div id="a" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div></div>';
     place(document.getElementById('a'));
     const host = document.getElementById('host');
 
@@ -29,7 +29,7 @@ describe('overlapping roots', () => {
 
   it('does not double-register across destroy + init', () => {
     document.body.innerHTML =
-      '<div id="host"><div id="a" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div></div>';
+      '<div id="host"><div id="a" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div></div>';
     place(document.getElementById('a'));
     const host = document.getElementById('host');
 

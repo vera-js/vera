@@ -42,8 +42,8 @@ describe('a property module that carries its own parse and apply', () => {
   it('animates background through the module, with no core knowledge of colour', () => {
     wireMotion(paint);
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-inertia="0.4" ' +
-      'data-vera-motion-background="0% linear-gradient(red, blue), 100% #0a0"></div>';
+      '<div data-vm data-vm-inertia="0.4" ' +
+      'data-vm-background="0% linear-gradient(red, blue), 100% #0a0"></div>';
     const node = document.body.firstElementChild;
     place(node);
     /** setTransitions defers its write by a frame. */
@@ -67,7 +67,7 @@ describe('a property module that carries its own parse and apply', () => {
   it('the module refuses url() without core knowing why', () => {
     wireMotion(paint);
     document.body.innerHTML =
-      '<div data-vera-motion data-vera-motion-background="0% url(https://evil.test/x.png), 100% red"></div>';
+      '<div data-vm data-vm-background="0% url(https://evil.test/x.png), 100% red"></div>';
     place(document.body.firstElementChild);
     const m = createMotion({ respectReducedMotion: false });
     m.init();

@@ -11,8 +11,8 @@ const settle = async () => {
 };
 
 const PARAGRAPH = (text) =>
-  `<p data-vera-motion data-vera-motion-split="words"
-      data-vera-motion-opacity="0% 0, 100% 1">${text}</p>`;
+  `<p data-vm data-vm-split="words"
+      data-vm-opacity="0% 0, 100% 1">${text}</p>`;
 
 beforeEach(() => { document.body.innerHTML = ''; });
 afterEach(() => { vi.restoreAllMocks(); });

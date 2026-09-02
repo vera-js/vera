@@ -19,7 +19,7 @@ import { createMotion } from '../src/index.ts';
  * decision. `getComputedStyle` does return an inline `perspective`, which is
  * enough for every branch below.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 
 const reasons = (m) => m.rejected.flatMap((entry) => entry.rejected).join('\n');
 

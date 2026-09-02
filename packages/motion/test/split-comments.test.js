@@ -29,7 +29,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-const A = 'data-vera-motion';
+const A = 'data-vm';
 const page = (inner) => {
   document.body.innerHTML =
     `<p id="p" ${A} ${A}-split="words" ${A}-opacity="0% 0, 100% 1">${inner}</p>`;
@@ -104,7 +104,7 @@ describe('an element containing a comment', () => {
  * the mistake.
  */
 describe('a split with no animation attributes to move', () => {
-  const A = 'data-vera-motion';
+  const A = 'data-vm';
   const start = (html) => {
     document.body.innerHTML = html;
     const m = createMotion({ respectReducedMotion: false, inertia: 0 });

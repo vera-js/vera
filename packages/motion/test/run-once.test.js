@@ -9,7 +9,7 @@ const place = (node, top = 0) => {
 };
 
 const MARKUP =
-  '<div data-vera-motion data-vera-motion-run-once data-vera-motion-translate-y="0% 0px, 100% 120px"></div>';
+  '<div data-vm data-vm-run-once data-vm-translate-y="0% 0px, 100% 120px"></div>';
 
 beforeEach(() => { document.body.innerHTML = ''; });
 

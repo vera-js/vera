@@ -28,14 +28,14 @@ describe('observerOptions', () => {
 describe('createMutationObserver', () => {
   it('reports an animated element that was added', () => {
     const { mo, onChanged } = make();
-    const added = el('<div data-vera-motion data-vera-motion-opacity="0"></div>');
+    const added = el('<div data-vm data-vm-opacity="0"></div>');
     mo.fire([{ type: 'childList', addedNodes: [added], removedNodes: [] }]);
     expect(onChanged).toHaveBeenCalledWith([added]);
   });
 
   it('finds animated elements nested inside an added subtree', () => {
     const { mo, onChanged } = make();
-    const wrapper = el('<section><p data-vera-motion data-vera-motion-opacity="0"></p></section>');
+    const wrapper = el('<section><p data-vm data-vm-opacity="0"></p></section>');
     mo.fire([{ type: 'childList', addedNodes: [wrapper], removedNodes: [] }]);
     expect(onChanged.mock.calls[0][0]).toHaveLength(1);
   });
@@ -48,29 +48,29 @@ describe('createMutationObserver', () => {
 
   it('reports removals', () => {
     const { mo, onRemoved } = make();
-    const gone = el('<div data-vera-motion data-vera-motion-opacity="0"></div>');
+    const gone = el('<div data-vm data-vm-opacity="0"></div>');
     mo.fire([{ type: 'childList', addedNodes: [], removedNodes: [gone] }]);
     expect(onRemoved).toHaveBeenCalledWith([gone]);
   });
 
   it('reports an attribute change on an animated element', () => {
     const { mo, onChanged } = make();
-    const node = el('<div data-vera-motion data-vera-motion-opacity="0"></div>');
-    mo.fire([{ type: 'attributes', attributeName: 'data-vera-motion-opacity', target: node, addedNodes: [], removedNodes: [] }]);
+    const node = el('<div data-vm data-vm-opacity="0"></div>');
+    mo.fire([{ type: 'attributes', attributeName: 'data-vm-opacity', target: node, addedNodes: [], removedNodes: [] }]);
     expect(onChanged).toHaveBeenCalledWith([node]);
   });
 
   /** The runtime writes style every frame; watching it would feed on its own output. */
   it('ignores style changes, which are its own writes', () => {
     const { mo, onChanged } = make();
-    const node = el('<div data-vera-motion data-vera-motion-opacity="0"></div>');
+    const node = el('<div data-vm data-vm-opacity="0"></div>');
     mo.fire([{ type: 'attributes', attributeName: 'style', target: node, addedNodes: [], removedNodes: [] }]);
     expect(onChanged).not.toHaveBeenCalled();
   });
 
   it('treats an element added and removed in one batch as removed', () => {
     const { mo, onChanged, onRemoved } = make();
-    const node = el('<div data-vera-motion data-vera-motion-opacity="0"></div>');
+    const node = el('<div data-vm data-vm-opacity="0"></div>');
     mo.fire([{ type: 'childList', addedNodes: [node], removedNodes: [node] }]);
     expect(onChanged).not.toHaveBeenCalled();
     expect(onRemoved).toHaveBeenCalledWith([node]);
@@ -78,10 +78,10 @@ describe('createMutationObserver', () => {
 
   it('deduplicates an element touched several times in one batch', () => {
     const { mo, onChanged } = make();
-    const node = el('<div data-vera-motion data-vera-motion-opacity="0"></div>');
+    const node = el('<div data-vm data-vm-opacity="0"></div>');
     mo.fire([
-      { type: 'attributes', attributeName: 'data-vera-motion-opacity', target: node, addedNodes: [], removedNodes: [] },
-      { type: 'attributes', attributeName: 'data-vera-motion-scale', target: node, addedNodes: [], removedNodes: [] },
+      { type: 'attributes', attributeName: 'data-vm-opacity', target: node, addedNodes: [], removedNodes: [] },
+      { type: 'attributes', attributeName: 'data-vm-scale', target: node, addedNodes: [], removedNodes: [] },
     ]);
     expect(onChanged.mock.calls[0][0]).toHaveLength(1);
   });
@@ -104,7 +104,7 @@ describe('a move is not a removal', () => {
   it('reports a re-parented element as changed, not removed', () => {
     const { mo, onChanged, onRemoved } = make();
     document.body.innerHTML = '<div id="to"></div>';
-    const node = el('<div data-vera-motion></div>');
+    const node = el('<div data-vm></div>');
     document.getElementById('to').appendChild(node);
 
     mo.fire([
@@ -118,7 +118,7 @@ describe('a move is not a removal', () => {
 
   it('still reports a genuinely detached element as removed', () => {
     const { mo, onChanged, onRemoved } = make();
-    const node = el('<div data-vera-motion></div>');
+    const node = el('<div data-vm></div>');
 
     mo.fire([
       { type: 'childList', addedNodes: [node], removedNodes: [] },

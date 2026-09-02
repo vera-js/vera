@@ -16,7 +16,7 @@ import { motion } from '../src/vera.ts';
  * Those four facts are the whole contract this module is built on, so the fake
  * reproduces exactly them and nothing else.
  */
-const P = 'data-vera-motion';
+const P = 'data-vm';
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const wire = (modules) => {
