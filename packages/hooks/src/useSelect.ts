@@ -113,7 +113,35 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   const onTriggerClick = () => (state.open ? close() : open());
 
+  /**
+   * Typeahead, as the APG select-only combobox prescribes: printable characters accumulate for
+   * half a second and the active row jumps to the next enabled label with that prefix, wrapping,
+   * starting after the current row so repeated presses of one letter cycle its matches.
+   */
+  let typed = '';
+  let typedAt = 0;
+  const typeahead = (character: string) => {
+    const now = Date.now();
+    typed = (now - typedAt < 500 ? typed : '') + character.toLowerCase();
+    typedAt = now;
+    if (!state.open) open();
+    const rows = matches();
+    for (let offset = typed.length > 1 ? 0 : 1; offset <= rows.length; offset++) {
+      const index = (state.active + offset) % rows.length;
+      const row = rows[index];
+      if (row && !row.disabled && row.label.toLowerCase().startsWith(typed)) {
+        state.active = index;
+        return;
+      }
+    }
+  };
+
   const onTriggerKeydown = (event: KeyboardEvent) => {
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
+      event.preventDefault();
+      typeahead(event.key);
+      return;
+    }
     if (state.open) {
       /** No search line means focus stays on the trigger — it must drive the open menu too. */
       onMenuKeydown(event);

@@ -43,9 +43,10 @@ test('the committed manifest matches the declared surfaces (the generator refuse
 test('the rendered DOM carries exactly the declared parts — no more, no fewer', async () => {
   const element = dom.window.document.createElement(selectSurface.tag);
   dom.window.document.body.append(element);
+  /** Feature-complete options, so conditionally rendered parts (icon, description, group) exist. */
   element.options = [
-    { label: 'A', value: 'a' },
-    { label: 'B', value: 'b' },
+    { label: 'A', value: 'a', group: 'Letters', iconBefore: '★', description: 'the first one' },
+    { label: 'B', value: 'b', group: 'Letters', iconAfter: '✦' },
   ];
   await frame();
   /** Open it so state-dependent parts render too. */

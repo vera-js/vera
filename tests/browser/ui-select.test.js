@@ -156,7 +156,22 @@ it('the selected checkmark is one ::part pseudo rule away from replaced or gone'
   element.shadowRoot.querySelector('[part="trigger"]').click();
   await frame();
   const selected = element.shadowRoot.querySelector('[part="option"][aria-selected="true"]');
+  const unselected = element.shadowRoot.querySelector('[part="option"][aria-selected="false"]');
   expect(getComputedStyle(selected, '::before').content).to.equal('"✓"', 'the default mark');
+  /**
+   * The mark exists on every row (content cannot transition) and selection grows it from zero.
+   * The selected endpoint is POLLED — the 140ms grow may be in flight at read time, and sampling
+   * a transitioning value at an instant is the exact lie the animation-recipes lesson pins.
+   */
+  expect(getComputedStyle(unselected, '::before').scale).to.equal('0');
+  expect(getComputedStyle(unselected, '::before').width).to.equal('0px', 'collapsed rows sit flush');
+  const settled = () =>
+    getComputedStyle(selected, '::before').scale === '1' &&
+    parseFloat(getComputedStyle(selected, '::before').width) > 13.9;
+  for (let i = 0; i < 120 && !settled(); i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(getComputedStyle(selected, '::before').scale).to.equal('1', 'the mark grew to full size');
+  /** WebKit reports the settled width with subpixel quantization (13.984…), so approximately. */
+  expect(parseFloat(getComputedStyle(selected, '::before').width)).to.be.greaterThan(13.9);
 
   await withStyle('vera-select::part(option)::before { content: "→"; }', async () => {
     expect(getComputedStyle(selected, '::before').content).to.equal('"→"', 'replaced from the page');

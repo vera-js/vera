@@ -12,6 +12,26 @@ export type SelectOption = {
   label: string;
   value: string;
   disabled?: boolean;
+  /**
+   * One sentence rendered under the label, smaller and dimmer — what picking this does. Inside
+   * the option's accessible name on purpose: a listbox has no aria-describedby path, and a
+   * description worth showing is worth announcing. (wp-omni's design, ported contract-for-contract.)
+   */
+  description?: string;
+  /**
+   * The heading this option sits under. Consecutive options sharing a group render inside one
+   * labelled `role="group"` — a real group, never a heading faked as a disabled option, which a
+   * screen reader would announce as a selectable choice.
+   */
+  group?: string;
+  /**
+   * Decorative content before/after the label — a Vera template (`html\`<svg…>\``) or a plain
+   * string rendered as text (an emoji, a dot). DECORATIVE BY CONTRACT: rendered `aria-hidden`,
+   * so an icon can never be the only carrier of meaning. Author-supplied markup only — a string
+   * from data renders as text, so content can never inject.
+   */
+  iconBefore?: unknown;
+  iconAfter?: unknown;
 };
 
 export type DismissController = {

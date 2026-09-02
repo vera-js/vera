@@ -118,6 +118,12 @@ export const SELECT_STYLES = /* css */ `
     :where([part='trigger'])::after {
       transition: transform 140ms ease;
     }
+    :where([part='option'])::before {
+      transition:
+        scale 140ms ease,
+        inline-size 140ms ease,
+        margin-inline-end 140ms ease;
+    }
   }
   :where([part='search']) {
     padding: 7px 9px;
@@ -145,6 +151,41 @@ export const SELECT_STYLES = /* css */ `
     border-radius: min(calc(var(--vera-radius, 6px) - 2px), 8px);
     cursor: pointer;
   }
+  :where([part='option-icon']) {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--vera-fg-muted, #71717a);
+  }
+  :where([part='option-label']) {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+  }
+  :where([part='option-description']) {
+    font-size: 0.85em;
+    color: var(--vera-fg-muted, #71717a);
+  }
+  :where([part='group']) {
+    display: contents;
+  }
+  :where([part='group-label']) {
+    display: block;
+    padding: 6px 8px 2px;
+    font-size: 0.78em;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--vera-fg-muted, #71717a);
+  }
+  /** Screen-reader-only: the results/loading announcement. */
+  :where([part='status']) {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   :where([part='option'][data-active]) {
     background: color-mix(in srgb, var(--vera-accent, #7c3aed) 16%, transparent);
   }
@@ -152,10 +193,26 @@ export const SELECT_STYLES = /* css */ `
     opacity: 0.45;
     cursor: default;
   }
-  :where([part='option'][aria-selected='true'])::before {
+  /**
+   * The checkmark lives on every row so selection can ANIMATE: content changes cannot transition,
+   * but a box can grow. Collapsed it is zero-width and scale(0), with a negative end margin
+   * swallowing the row's gap so unselected labels sit flush; selected it grows to size and the
+   * margin releases, sliding the label over as the mark scales up.
+   */
+  :where([part='option'])::before {
     content: '✓';
-    inline-size: 14px;
+    inline-size: 0;
+    margin-inline-end: -7px;
+    scale: 0;
     color: var(--vera-accent, #7c3aed);
+  }
+  :where([part='option'][aria-selected='true'])::before {
+    inline-size: 14px;
+    margin-inline-end: 0;
+    scale: 1;
+  }
+  :where([part='option'][data-create])::before {
+    content: none;
   }
   :where([part='option'][data-create]) {
     color: var(--vera-accent, #7c3aed);

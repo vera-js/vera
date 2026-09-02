@@ -119,6 +119,7 @@ export class VeraSelect extends HTMLElement {
     'search-placeholder',
     'empty-message',
     'overflow-message',
+    'results-message',
     'aria-label',
   ];
 
@@ -215,6 +216,31 @@ export class VeraSelect extends HTMLElement {
       if (state.open && searchable()) (root.querySelector?.('[part="search"]') as HTMLInputElement | null)?.focus();
     }, this);
 
+    /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
+    useEffect(() => {
+      if (state.open && state.active >= 0)
+        root.querySelector?.('[part="option"][data-active]')?.scrollIntoView?.({ block: 'nearest' });
+    }, this);
+
+    /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */
+    const row = (option: SelectOption, index: number, active: number) => html`
+      <div
+        id=${`opt-${index}`}
+        part="option"
+        role="option"
+        data-index=${index}
+        ?data-active=${index === active}
+        aria-selected=${String(select.chosen(option))}
+        aria-disabled=${String(option.disabled === true)}
+      >
+        ${option.iconBefore != null ? html`<span part="option-icon" aria-hidden="true">${option.iconBefore}</span>` : null}
+        <span part="option-label">
+          ${option.label}${option.description ? html`<span part="option-description">${option.description}</span>` : null}
+        </span>
+        ${option.iconAfter != null ? html`<span part="option-icon" aria-hidden="true">${option.iconAfter}</span>` : null}
+      </div>
+    `;
+
     render(() => {
       const rows = select.matches();
       const creating = select.createLabel();
@@ -224,6 +250,26 @@ export class VeraSelect extends HTMLElement {
       const labels = state.value.map((option) => option.label).join(', ');
       const loading = attrs()['loading'] != null;
       const overflow = attrs()['overflow-message'] ?? null;
+      /**
+       * Consecutive options sharing a `group` render inside one labelled role="group" — a real
+       * group (never a heading faked as an option), invisible to the keyboard model because rows
+       * keep their flat data-index and ids. The visible heading is aria-hidden; the group's
+       * aria-label is what announces.
+       */
+      const segments: { group: string | null; rows: { option: SelectOption; index: number }[] }[] = [];
+      rows.forEach((option, index) => {
+        const group = option.group ?? null;
+        const last = segments[segments.length - 1];
+        if (last && last.group === group) last.rows.push({ option, index });
+        else segments.push({ group, rows: [{ option, index }] });
+      });
+      const status = !state.open
+        ? ''
+        : loading
+          ? 'Loading…'
+          : searchable()
+            ? (attrs()['results-message'] ?? '{count} options').replace('{count}', String(count))
+            : '';
       return html`
         <slot name="trigger" @slotchange=${refresh}>
           <button
@@ -233,6 +279,7 @@ export class VeraSelect extends HTMLElement {
             aria-haspopup="listbox"
             aria-controls="listbox"
             aria-label=${labelOf(this)}
+            aria-required=${attrs()['required'] != null ? 'true' : null}
             aria-expanded=${String(state.open)}
             aria-activedescendant=${state.open ? activeId : null}
             data-state=${state.open ? 'open' : 'closed'}
@@ -252,37 +299,34 @@ export class VeraSelect extends HTMLElement {
             placeholder=${attrs()['search-placeholder'] ?? 'Search…'}
             aria-label=${attrs()['search-placeholder'] ?? 'Search…'}
             aria-controls="listbox"
+            aria-autocomplete="list"
             aria-activedescendant=${state.open ? activeId : null}
             autocomplete="off"
             .value=${state.search}
             @input=${handlers.onSearchInput}
           />
-          <ul
+          <div
             id="listbox"
             part="list"
             role="listbox"
+            aria-label=${labelOf(this)}
             aria-multiselectable=${String(attrs()['multi'] != null)}
             @click=${handlers.onListClick}
             @pointerover=${handlers.onListHover}
           >
-            ${rows.map(
-              (option, index) => html`
-                <li
-                  id=${`opt-${index}`}
-                  part="option"
-                  role="option"
-                  data-index=${index}
-                  ?data-active=${index === active}
-                  aria-selected=${String(select.chosen(option))}
-                  aria-disabled=${String(option.disabled === true)}
-                >
-                  ${option.label}
-                </li>
-              `
+            ${segments.map((segment) =>
+              segment.group === null
+                ? segment.rows.map((entry) => row(entry.option, entry.index, active))
+                : html`
+                    <div part="group" role="group" aria-label=${segment.group}>
+                      <span part="group-label" aria-hidden="true">${segment.group}</span>
+                      ${segment.rows.map((entry) => row(entry.option, entry.index, active))}
+                    </div>
+                  `
             )}
             ${creating
               ? html`
-                  <li
+                  <div
                     id="opt-create"
                     part="option"
                     role="option"
@@ -292,10 +336,11 @@ export class VeraSelect extends HTMLElement {
                     aria-selected="false"
                   >
                     Create “${creating}”
-                  </li>
+                  </div>
                 `
               : null}
-          </ul>
+          </div>
+          <span part="status" role="status">${status}</span>
           <p part="empty" data-state=${count > 0 ? 'hidden' : 'visible'}>
             ${loading ? 'Loading…' : (attrs()['empty-message'] ?? 'No options')}
           </p>

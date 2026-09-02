@@ -33,13 +33,23 @@ export const selectSurface = {
     { name: 'empty-message', description: 'Shown when no option matches. Default "No options".' },
     { name: 'overflow-message', description: 'A footer line under the list — "1,250 more results", consumer-worded.' },
     {
+      name: 'results-message',
+      description:
+        'The screen-reader announcement after filtering; {count} interpolates. Default "{count} options".',
+    },
+    {
       name: 'aria-label',
       description:
         'The accessible name, reflected onto the trigger (a page label cannot reach through the boundary). A <label for> associated via the form also works, through ElementInternals.',
     },
   ],
   properties: [
-    { name: 'options', type: 'SelectOption[]', description: 'The choosable rows. `value` is identity.' },
+    {
+      name: 'options',
+      type: 'SelectOption[]',
+      description:
+        'The choosable rows. `value` is identity; `description` renders under the label (and is announced); consecutive `group`s render as one labelled role="group"; `iconBefore`/`iconAfter` take a Vera template or a plain string, rendered aria-hidden — decorative by contract.',
+    },
     { name: 'value', type: 'SelectOption[]', description: 'The selection — always an array, in both modes.' },
   ],
   events: [
@@ -71,6 +81,12 @@ export const selectSurface = {
     { name: 'search', description: 'The filter input. Present only when searchable/creatable/remote.' },
     { name: 'list', description: 'The listbox. Scroll is contained; ::part(list){overscroll-behavior:auto} opts out.' },
     { name: 'option', description: 'One row. Carries data-active, data-create on the create row, and aria-selected.' },
+    { name: 'option-icon', description: 'The aria-hidden icon span before/after the label, when the option carries one.' },
+    { name: 'option-label', description: 'The label column inside a row (label, and description when present).' },
+    { name: 'option-description', description: 'The dimmer second line under a label.' },
+    { name: 'group', description: 'One labelled cluster of consecutive same-group options (role="group").' },
+    { name: 'group-label', description: 'The visible group heading (aria-hidden; the group aria-label announces).' },
+    { name: 'status', description: 'The visually-hidden role="status" line announcing result counts and loading.' },
     { name: 'empty', description: 'The no-matches message; reads "Loading…" while the loading attribute is set.' },
     { name: 'overflow', description: 'The footer line, shown while overflow-message is set.' },
   ],

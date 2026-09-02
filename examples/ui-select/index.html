@@ -200,13 +200,19 @@
       wire([renderer, styles]);
       await import('@verajs/ui');
 
+      /**
+       * Icons, descriptions and groups ride the option itself (wp-omni's design, ported):
+       * icons render aria-hidden — decorative by contract — and a plain string renders as text,
+       * so an emoji is safe and data can never inject. Consecutive same-group rows cluster
+       * inside one labelled role="group".
+       */
       const FLAVORS = [
-        { label: 'Vanilla', value: 'vanilla' },
-        { label: 'Strawberry', value: 'strawberry' },
-        { label: 'Chocolate', value: 'chocolate' },
-        { label: 'Pistachio', value: 'pistachio' },
-        { label: 'Durian (sold out)', value: 'durian', disabled: true },
-        { label: 'Matcha', value: 'matcha' },
+        { label: 'Vanilla', value: 'vanilla', group: 'Classics', iconBefore: '🍦', description: 'the safe pick' },
+        { label: 'Strawberry', value: 'strawberry', group: 'Classics', iconBefore: '🍓' },
+        { label: 'Chocolate', value: 'chocolate', group: 'Classics', iconBefore: '🍫' },
+        { label: 'Pistachio', value: 'pistachio', group: 'Modern', iconBefore: '🥜', description: 'polarizing, correctly' },
+        { label: 'Durian (sold out)', value: 'durian', group: 'Modern', iconBefore: '🫣', disabled: true },
+        { label: 'Matcha', value: 'matcha', group: 'Modern', iconBefore: '🍵' },
       ];
 
       const show = (id, out) => {

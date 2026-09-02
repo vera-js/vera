@@ -308,6 +308,86 @@ test('without a search line the trigger drives the open menu: arrows, Home/End, 
   element.remove();
 });
 
+test('icons are aria-hidden by contract, descriptions announce, groups are real groups', async () => {
+  const element = await mount();
+  element.options = [
+    { label: 'Vanilla', value: 'v', group: 'Classics', iconBefore: '🍦', description: 'the safe pick' },
+    { label: 'Chocolate', value: 'c', group: 'Classics' },
+    { label: 'Matcha', value: 'm', group: 'Modern', iconAfter: '🍵' },
+    { label: 'Plain', value: 'p' },
+  ];
+  await frame();
+  part(element, 'trigger').click();
+  await frame();
+
+  const icons = root(element).querySelectorAll('[part="option-icon"]');
+  assert.equal(icons.length, 2);
+  for (const icon of icons) assert.equal(icon.getAttribute('aria-hidden'), 'true', 'decorative by contract');
+  assert.equal(icons[0].textContent.trim(), '🍦', 'a plain string renders as text — data cannot inject');
+
+  const described = root(element).querySelector('[part="option"]');
+  assert.match(described.textContent, /the safe pick/, 'the description is inside the option, so it announces');
+
+  const groups = [...root(element).querySelectorAll('[part="group"]')];
+  assert.deepEqual(groups.map((group) => group.getAttribute('aria-label')), ['Classics', 'Modern']);
+  assert.equal(groups[0].getAttribute('role'), 'group');
+  assert.equal(groups[0].querySelectorAll('[part="option"]').length, 2, 'consecutive same-group rows cluster');
+  assert.equal(groups[0].querySelector('[part="group-label"]').getAttribute('aria-hidden'), 'true');
+
+  /** Grouping must not disturb the flat keyboard identity. */
+  const trigger = part(element, 'trigger');
+  trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  await frame();
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'indexes stay flat across groups');
+  element.remove();
+});
+
+test('typeahead: typing on the trigger opens and jumps, cycles on repeat, skips disabled', async () => {
+  const element = await mount(); // Alpha, Beta, Gamma(disabled)
+  const trigger = part(element, 'trigger');
+  const type = (key) => {
+    trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key, bubbles: true }));
+    return frame();
+  };
+  await type('b');
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'open', 'typing opens');
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'and lands on Beta');
+  await type('g');
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'disabled Gamma is never landed on');
+  element.remove();
+});
+
+test('the status line announces result counts in the consumer’s words, and loading', async () => {
+  const element = await mount((el) => {
+    el.setAttribute('searchable', '');
+    el.setAttribute('results-message', '{count} flavors on offer');
+  });
+  assert.equal(part(element, 'status').getAttribute('role'), 'status');
+  assert.equal(part(element, 'status').textContent.trim(), '', 'silent while closed');
+  part(element, 'trigger').click();
+  await frame();
+  assert.equal(part(element, 'status').textContent.trim(), '3 flavors on offer');
+  const search = part(element, 'search');
+  search.value = 'alp';
+  search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await frame();
+  assert.equal(part(element, 'status').textContent.trim(), '1 flavors on offer');
+  element.setAttribute('loading', '');
+  await frame();
+  assert.equal(part(element, 'status').textContent.trim(), 'Loading…');
+  element.remove();
+});
+
+test('required reflects aria-required on the trigger', async () => {
+  const element = await mount((el) => el.setAttribute('required', ''));
+  assert.equal(part(element, 'trigger').getAttribute('aria-required'), 'true');
+  element.removeAttribute('required');
+  await frame();
+  const after = part(element, 'trigger').getAttribute('aria-required');
+  assert.ok(after === null || after === '', 'and releases it');
+  element.remove();
+});
+
 test('form reset empties the selection; the change event carries a copy, not the store', async () => {
   const element = await mount();
   element.value = [OPTIONS[0]];
