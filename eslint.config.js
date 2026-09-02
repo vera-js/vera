@@ -22,6 +22,8 @@ export default [
       '**/.wireit/**',
       // A separate repo (vera-js/internal), gitignored here. Not ours to lint.
       'internal/**',
+      // Same arrangement: vera-js/vera-studio, cloned into this tree and gitignored here.
+      'vera-studio/**',
       '**/*.min.js',
       'bench/.size-*/**',
       /**

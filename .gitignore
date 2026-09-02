@@ -25,6 +25,10 @@ Thumbs.debug
 # Private notes portal (vera-js/internal) — never committed here
 /internal/
 
+# The studio app (vera-js/vera-studio, private) — its own repository, cloned into this tree
+# like `internal/`, never committed here
+/vera-studio/
+
 # scratch from tests/lifecycle-parity.test.mjs, removed in a finally — this is the crash case
 tests/.lifecycle-*
 
