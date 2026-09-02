@@ -1,6 +1,6 @@
 /**
  * The vera-native SSR server — zero dependencies beyond Node itself: no fastify, no wcc, no lit.
- * `@verajs/ssr/vera` must be imported before anything that imports core (it installs the server
+ * `@verajs/ssr` must be imported before anything that imports core (it installs the server
  * environment first, then wires the serializer as the renderer).
  *
  *   node examples/ssr-node/server-native.mjs
@@ -10,7 +10,7 @@
  * markup, which left the headline claim — swap one import and the server DOM is adopted in place —
  * as something the reader had to take on trust.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
@@ -27,9 +27,9 @@ const component = new URL('./components/hello-ssr.js', import.meta.url);
  */
 const CLIENT = `
 import { wire } from '/packages/core/dist/development/vera.js';
-import { renderInto } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
+import { renderer } from '/packages/renderer/dist/development/vera-renderer-hydrate.js';
 
-wire({ on: 'render', fn: renderInto, priority: 50 });
+wire([renderer]);
 await import('/examples/ssr-node/components/hello-ssr.js');
 document.body.dataset.hydrated = 'true';
 `;

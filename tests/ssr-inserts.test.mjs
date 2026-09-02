@@ -10,7 +10,7 @@
  * *becomes the value read*, so `() => count++` would make every read of every store yield a number.
  * That is the point of the hook and the trap in it, and it is asserted here as well as documented.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 

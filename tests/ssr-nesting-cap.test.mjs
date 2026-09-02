@@ -21,7 +21,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 
 const fixture = new URL('./fixtures/ssr/deep-nest.js', import.meta.url);
 const renderToDepth = async (stop) => {

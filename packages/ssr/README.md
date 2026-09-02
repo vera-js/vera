@@ -8,7 +8,7 @@ state-aware, not a regex: it respects quoted attribute values (a `>` is legal in
 leaves the contents of comments, `<script>`, `<style>`, `<textarea>` and `<title>` alone, because
 those are text and a scan for elements has no business reading them.
 
-    import { renderToString } from '@verajs/ssr';        // ('/vera' also works)
+    import { renderToString } from '@verajs/ssr';
     const { html, styles, title } = await renderToString(new URL('./components/app.js', import.meta.url), {
       attributes: { 'user-id': id },   // an object — values are escaped
       props: { rows },                 // structured data; an attribute can only carry a string

@@ -38,7 +38,7 @@ try {
   /** One process per authoring style; the shared entry differs only in which twin it imports. */
   const renderIn = (folder) => {
     const script = `
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { wireApp } from '${new URL('./examples/kitchen-sink/wiring.js', root).href}';
 wireApp(null);
 const out = {};

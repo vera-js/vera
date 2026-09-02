@@ -156,7 +156,7 @@ test('bindings on a dynamic element behave like bindings anywhere', () => {
         '--input-type=module',
         '-e',
         `
-        import { serializeTemplate } from '@verajs/ssr/vera';
+        import { serializeTemplate } from '@verajs/ssr';
         const { html, tag } = await import('@verajs/renderer/tag');
         const H = { 1: tag\`h1\`, 2: tag\`h2\` };
         const view = (level, text) => html\`<section><\${H[level]} class="t">\${text}</\${H[level]}></section>\`;

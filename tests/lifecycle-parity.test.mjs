@@ -581,7 +581,7 @@ try {
     writeFileSync(files[name], source(tag, spec));
   }
   const script = `
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 const out = {};
 /** A case marked \`serverThrows\` is expected to fail; the message is the assertion. */
 const attempt = async (name, url, options) => {

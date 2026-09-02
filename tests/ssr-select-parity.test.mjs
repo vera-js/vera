@@ -25,7 +25,7 @@ for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text'
 const { renderInto } = await load('renderer');
 const { html } = await load('core');
 const { spread } = await load('renderer/spread');
-const { serializeTemplate } = await import('@verajs/ssr/vera');
+const { serializeTemplate } = await import('@verajs/ssr');
 
 const state = (host) => {
   const element = host.querySelector('select');

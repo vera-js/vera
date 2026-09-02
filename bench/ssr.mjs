@@ -20,7 +20,7 @@
  *   node bench/ssr.mjs
  */
 import { execFileSync } from 'node:child_process';
-import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr/vera';
+import { renderToString as veraRender, serializeTemplate } from '@verajs/ssr';
 /** Resolved once, at load, exactly as every other contender's renderer is. */
 const { html } = await import('@verajs/core');
 import { cpus, loadavg } from 'node:os';

@@ -7,7 +7,7 @@
  * because markup cannot carry a constructed sheet; a shape that silently contributed nothing would
  * ship a component with half its CSS and look perfectly fine doing it.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -155,7 +155,7 @@ test('a stylesheet always holds text, and refuses a symbol as the engines do', (
  * hoist leak visible could not, *because* this rule had already thrown the difference away.
  */
 test('hoisting different CSS for the same tag warns and keeps the first', async () => {
-  const { renderToString: render } = await import('@verajs/ssr/vera');
+  const { renderToString: render } = await import('@verajs/ssr');
   const fixture = new URL('./fixtures/ssr/head-style-ssr.js', import.meta.url);
 
   const warnings = [];

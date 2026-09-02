@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { renderToString, renderToStringAsync } from '@verajs/ssr/vera';
+import { renderToString, renderToStringAsync } from '@verajs/ssr';
 
 const dir = new URL('./fixtures/ssr/', import.meta.url);
 const fixtures = readdirSync(dir).filter((name) => name.endsWith('.js'));

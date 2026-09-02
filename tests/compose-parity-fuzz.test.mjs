@@ -97,7 +97,7 @@ test('the server and the client produce the same DOM for a composed component tr
     });
 
     const serverScript = `
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 const out = {};
 ${trees
   .map(

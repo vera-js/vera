@@ -33,7 +33,7 @@ import { JSDOM } from 'jsdom';
 
 /** Captured before the shim installs its globals, which is the whole reason for the order here. */
 const real = new JSDOM('<!doctype html><body></body>').window.document;
-await import('@verajs/ssr/vera');
+await import('@verajs/ssr');
 const shim = globalThis.document;
 
 const OPS = [

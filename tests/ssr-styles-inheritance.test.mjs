@@ -23,7 +23,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 
 const fixture = new URL('./fixtures/ssr/styles-inheritance-ssr.js', import.meta.url);
 const rendered = await renderToString(fixture);

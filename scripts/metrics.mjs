@@ -45,7 +45,7 @@ size['core+renderer'] = (size.core ?? 0) + (size.renderer ?? 0);
  * loaded, and taken as the **fastest** of several rounds: noise is one-sided.
  */
 const speedScript = `
-import { serializeTemplate, renderToString } from '@verajs/ssr/vera';
+import { serializeTemplate, renderToString } from '@verajs/ssr';
 const { html } = await import('@verajs/core');
 const rows = Array.from({ length: 100 }, (_, i) => ({ id: i, label: \`row \${i} <safe>\` }));
 const small = () => html\`<section class="wrap"><h1>\${'hello'}</h1><output>count: \${3}</output><input .value=\${'hello'} /></section>\`;

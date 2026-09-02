@@ -11,7 +11,7 @@
  * to be byte-identical. A new coercion has to be got right in both places to pass, and one fixed on
  * a single side fails here rather than in someone's page.
  */
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 import assert from 'node:assert/strict';
 
 const { html } = await import('@verajs/core');

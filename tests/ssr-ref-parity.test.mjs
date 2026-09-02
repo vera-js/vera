@@ -17,7 +17,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });

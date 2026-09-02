@@ -18,7 +18,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 
 /** Inside the repo: a fixture imports `@verajs/core` by bare specifier and a temp dir cannot resolve it. */
 const dir = mkdtempSync(new URL('./.range-', import.meta.url).pathname);

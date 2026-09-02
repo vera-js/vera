@@ -193,7 +193,7 @@ test('every generated JSX tree compiles to the template it claims', () => {
   const compiled = transformJsx(jsxModule, 'generated.jsx', { inject: false });
 
   const script = `
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 const { html } = await import('@verajs/core');
 
 ${compiled}

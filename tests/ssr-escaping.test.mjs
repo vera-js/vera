@@ -15,7 +15,7 @@
  * markup for dangerous substrings asks the wrong question. The right one is what an HTML parser
  * concludes, which is what a browser will do.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -125,7 +125,7 @@ test('CSS text cannot break out of the <style> element it is written into', () =
  * asserted above.
  */
 test('a stylesheet keeps the characters CSS needs', async () => {
-  const { renderToString } = await import('@verajs/ssr/vera');
+  const { renderToString } = await import('@verajs/ssr');
   const url = new URL('./fixtures/ssr/cssselectors-ssr.js', import.meta.url);
 
   for (const tag of ['cssselectors-ssr', 'css-string']) {

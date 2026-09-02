@@ -5,7 +5,7 @@
  * This import installs the server environment and MUST come before anything that pulls in
  * `@verajs/renderer`.
  */
-import { renderToString, serializeTemplate } from '@verajs/ssr/vera';
+import { renderToString, serializeTemplate } from '@verajs/ssr';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -427,7 +427,7 @@ for (const [what, file, message] of [
  * browser: the server being lenient about an error is the server hiding it.
  */
 {
-  const { registry } = await import('@verajs/ssr/vera');
+  const { registry } = await import('@verajs/ssr');
   assert.ok(registry.has('hello-ssr'), 'a definition from an earlier render is still registered');
   assert.throws(
     () => customElements.define('hello-ssr', class extends HTMLElement {}),
@@ -814,18 +814,18 @@ console.log('ssr request isolation ok — concurrency, per-page styles, attribut
 
   for (const name of ['@verajs/core', '@verajs/styles', '@verajs/router']) {
     assert.equal(
-      attempt(`await import('${name}'); await import('@verajs/ssr/vera');`),
+      attempt(`await import('${name}'); await import('@verajs/ssr');`),
       null,
       `${name} should be order-independent, and the README says which ones are`
     );
   }
 
   assert.ok(
-    attempt("await import('@verajs/renderer'); await import('@verajs/ssr/vera');"),
+    attempt("await import('@verajs/renderer'); await import('@verajs/ssr');"),
     'the renderer no longer needs the shims first — the README says it does'
   );
   assert.equal(
-    attempt("await import('@verajs/ssr/vera'); await import('@verajs/renderer');"),
+    attempt("await import('@verajs/ssr'); await import('@verajs/renderer');"),
     null,
     'the documented order must work'
   );

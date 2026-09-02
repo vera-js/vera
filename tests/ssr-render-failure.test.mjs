@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { renderToString } = await import('@verajs/ssr/vera');
+const { renderToString } = await import('@verajs/ssr');
 const url = (file) => new URL(`./fixtures/ssr/${file}`, import.meta.url);
 
 test('a component that throws fails the render rather than serving empty markup', async () => {

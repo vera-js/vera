@@ -9,7 +9,7 @@
  * A server answering one request with another's markup is the worst defect this package can have,
  * and it is invisible under a single render.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import assert from 'node:assert/strict';
 
 const entry = new URL('../examples/kitchen-sink/entry-ssr.js', import.meta.url);

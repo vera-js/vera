@@ -34,7 +34,7 @@ const real = new JSDOM('<!doctype html><body></body>').window.document;
 const reparse = (markup) => { const host = parser.createElement('div'); host.innerHTML = markup; return host; };
 
 /** Installs the shim's DOM globals, so it goes after both JSDOMs are captured. */
-await import('@verajs/ssr/vera');
+await import('@verajs/ssr');
 const shim = globalThis.document;
 
 const NAMES = ['data-x', 'DataX', 'viewBox', ':x', '@x', '.x', '$x', 'a"b', "a'b", 'a<b', 'a&b', 'a`b', 'a{b', 'a|b', 'a?b', 'a*b', 'a,b', 'a;b', 'a:b', 'a!b', 'a#b', 'a%b', 'a^b', 'a~b', 'a+b', 'a-b', 'a.b', 'a\u00e9b', 'a\u200bb', 'a\ufeffb', 'a\u3042b', 'a\u00a0b', 'a\u{1f600}b', 'a\\b', 'xmlns:x', 'x:y'];

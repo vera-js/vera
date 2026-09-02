@@ -9,7 +9,7 @@
  * Timings are generous on purpose: this asserts the work is linear and finite, not that the machine
  * is fast. `bench/ssr.mjs` and `npm run metrics` own the numbers.
  */
-import { renderToString, serializeTemplate } from '@verajs/ssr/vera';
+import { renderToString, serializeTemplate } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import assert from 'node:assert/strict';
 

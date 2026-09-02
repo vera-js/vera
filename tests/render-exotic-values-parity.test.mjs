@@ -41,7 +41,7 @@ for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text'
  */
 const { renderInto } = await load('renderer');
 const { html } = await load('core');
-const { serializeTemplate } = await import('@verajs/ssr/vera');
+const { serializeTemplate } = await import('@verajs/ssr');
 
 test('the client half is a real DOM, not the SSR shim that just replaced the global one', () => {
   assert.notEqual(globalThis.document, dom.window.document,

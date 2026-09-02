@@ -26,7 +26,7 @@ for (const key of ['document', 'Node', 'HTMLElement', 'DocumentFragment', 'Text'
 const { renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
 const { html } = await load('core');
-const { serializeTemplate } = await import('@verajs/ssr/vera');
+const { serializeTemplate } = await import('@verajs/ssr');
 
 const clean = (element) => element.innerHTML.replaceAll('<!---->', '');
 const onServer = (template) => {

@@ -14,10 +14,10 @@
  * which is the thing that has a name in it and therefore cannot be a literal.
  */
 import { load } from './dist.mjs';
-import '@verajs/ssr/vera';
+import '@verajs/ssr';
 import assert from 'node:assert/strict';
 
-const { serializeTemplate } = await import('@verajs/ssr/vera');
+const { serializeTemplate } = await import('@verajs/ssr');
 const { html } = await load('core');
 const { spread } = await load('renderer/spread');
 

@@ -17,7 +17,7 @@
  * state, which is the failure mode with the worst reproduction story available: intermittent, only
  * under load, and shaped like a bug in the component rather than the renderer.
  */
-import { renderToString, renderToStringAsync } from '@verajs/ssr/vera';
+import { renderToString, renderToStringAsync } from '@verajs/ssr';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 

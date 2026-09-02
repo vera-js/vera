@@ -25,7 +25,7 @@ import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><body></body>');
 const realDocument = dom.window.document;
 
-await import('@verajs/ssr/vera');
+await import('@verajs/ssr');
 const shimDocument = globalThis.document;
 
 const MARKUP =

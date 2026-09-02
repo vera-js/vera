@@ -147,7 +147,7 @@ const jsxModule = `export const VIEWS = {\n${Object.entries(ALL)
 const compiled = transformJsx(jsxModule, 'cases.jsx', { inject: false });
 
 const script = `
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 const { html } = await import('@verajs/core');
 const { keyed } = await import('@verajs/renderer/keyed');
 const { spread } = await import('@verajs/renderer/spread');

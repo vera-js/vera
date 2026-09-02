@@ -41,7 +41,7 @@ const dom = new JSDOM('<!doctype html><body></body>');
 const realDocument = dom.window.document;
 
 /** Installs the shim over the globals, the way `@verajs/ssr` does. */
-await import('@verajs/ssr/vera');
+await import('@verajs/ssr');
 const shimDocument = globalThis.document;
 
 const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);

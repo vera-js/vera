@@ -40,6 +40,8 @@ const REMOVED = {
   connectRouter: 'router',
   '@verajs/collections': '@verajs/reactivity/collections',
   'map-support': '@verajs/reactivity/collections',
+  /** A fossil of the multi-strategy SSR era; the plain specifier was always the same module. */
+  '@verajs/ssr/vera': '@verajs/ssr',
 };
 
 /**

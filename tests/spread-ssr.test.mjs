@@ -11,7 +11,7 @@
  * escape boundary stays in one place per principle #8 and a new binding source cannot introduce a
  * second one.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';

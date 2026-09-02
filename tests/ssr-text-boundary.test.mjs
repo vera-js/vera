@@ -65,7 +65,7 @@ const serverMarkup = execFileSync(
     '--conditions',
     'development',
     '-e',
-    `import('@verajs/ssr/vera').then(async ({ renderToString }) => {
+    `import('@verajs/ssr').then(async ({ renderToString }) => {
        const { html } = await renderToString(new URL('./tests/fixtures/ssr/text-boundary.js', 'file://${root}'), { tag: 't-text' });
        process.stdout.write(html);
      })`,
@@ -146,7 +146,7 @@ const rawtextMarkup = execFileSync(
     '--conditions',
     'development',
     '-e',
-    `import('@verajs/ssr/vera').then(async ({ renderToString }) => {
+    `import('@verajs/ssr').then(async ({ renderToString }) => {
        const { html } = await renderToString(new URL('./tests/fixtures/ssr/rawtext-cr.js', 'file://${root}'), { tag: 't-rawtext' });
        process.stdout.write(html);
      })`,

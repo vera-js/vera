@@ -16,7 +16,7 @@
  * holds a string. Faking them would put content in the wrong place silently, which is worse than a
  * method that is not there.
  */
-import '@verajs/ssr/vera';
+import '@verajs/ssr';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SURFACES, OUT_OF_SCOPE, GLOBALS } from './dom-surface.mjs';

@@ -15,7 +15,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { renderToString, renderToStringAsync } from '@verajs/ssr/vera';
+import { renderToString, renderToStringAsync } from '@verajs/ssr';
 import { isProduction } from './dist.mjs';
 
 /**

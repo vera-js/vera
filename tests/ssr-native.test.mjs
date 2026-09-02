@@ -2,7 +2,7 @@
  * Strategy 4 — vera-native SSR: no wcc, no lit, no acorn, no parse5. This import installs the
  * server environment and MUST come before anything that pulls in @verajs/core.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import assert from 'node:assert/strict';
 
 const { html: markup } = await renderToString(new URL('./fixtures/ssr/hello-ssr.js', import.meta.url));
@@ -34,7 +34,7 @@ assert.ok(/<template shadowrootmode="open"><style>h2 \{ color: teal \}<\/style>/
  */
 {
   const { html: tag } = await import('@verajs/core');
-  const serialize = (await import('@verajs/ssr/vera')).serializeTemplate;
+  const serialize = (await import('@verajs/ssr')).serializeTemplate;
   assert.equal(serialize(tag`<p>${false}</p>`), '<p>false</p>', 'false renders, as it does on the client');
   assert.equal(serialize(tag`<p>${0}</p>`), '<p>0</p>', '0 renders');
   assert.equal(serialize(tag`<p>${null}</p>`), '<p></p>', 'null is empty');

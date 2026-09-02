@@ -56,8 +56,6 @@ const PACKAGES = {
  */
 const SOURCE_PACKAGES = {
   '@verajs/ssr': '../packages/ssr/src/vera/index.js',
-  /** The same module — the exports map points both specifiers at one file — and listed so the check knows it. */
-  '@verajs/ssr/vera': '../packages/ssr/src/vera/index.js',
 };
 
 const root = new URL('..', import.meta.url).pathname;

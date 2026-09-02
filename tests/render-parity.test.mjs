@@ -333,7 +333,7 @@ const STATE = "{ text: 'hello & <world>', count: 3, rows: ['a', 'b'] }";
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
 
 const serverScript = `
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 const { html, svg, mathml } = await import('@verajs/core');
 const { spread } = await import('@verajs/renderer/spread');
 const { hold } = await import('@verajs/renderer');

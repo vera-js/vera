@@ -16,10 +16,6 @@
     ".": {
       "types": "./types/index.d.ts",
       "default": "./src/vera/index.js"
-    },
-    "./vera": {
-      "types": "./types/index.d.ts",
-      "default": "./src/vera/index.js"
     }
   },
   "peerDependencies": {
