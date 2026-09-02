@@ -86,7 +86,7 @@ wire([renderer]);
 Core's `html` needs no `setHtml` — it already produces the shape `@verajs/renderer` accepts, so the
 one `wire` call above is the whole of the setup.
 
-**Order matters.** A component that defines itself before `wire(renderer)` renders with nothing on
+**Order matters.** A component that defines itself before `wire([renderer])` renders with nothing on
 the `'render'` chain — `render()` warns once in development and draws nothing. Static
 `import` declarations are **hoisted**, so this is wrong:
 
@@ -379,7 +379,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.79 KB<!--/size:renderer.gzip--> gzipped. `wire(renderer)` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->3.79 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -459,8 +459,9 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
     <p ?hidden=${!busy}>loading</p>
   </section>`
   ```
-- Hydration is a drop-in entry: SSR apps `import { renderInto } from '@verajs/renderer/hydrate'`
-  (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) and the
+- Hydration is a drop-in entry: SSR apps import from `'@verajs/renderer/hydrate'`
+  (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) — its
+  `renderer` wirable binds the adopting render, so `wire([renderer])` stays the only wiring — and the
   first render ADOPTS server-rendered children — markerless (no framework comments in server
   HTML), node identity preserved, listeners attached, keyed updates move adopted nodes. Any
   mismatch is **repaired**: the result is always exactly what the template describes, and nothing the
@@ -610,7 +611,7 @@ Semantics worth stating:
 ### Autoloader
 
 ```js
-wire(autoloader(import.meta.url, 'components', { extension: '.js' }));
+wire([autoloader(import.meta.url, 'components', { extension: '.js' })]);
 ```
 
 Fetches `components/<tag-name><extension>` the first time an undefined element appears inside an
@@ -788,7 +789,7 @@ blob. Bare specifiers inside resolve through the page's import map.
 
 1. **Both import-map entries.** `@verajs/core` alone is not enough — any `key={}` emits `keyed()`
    from `@verajs/renderer/keyed`.
-2. **One block is one module.** Static imports hoist, so `wire(renderer)` at the top of the
+2. **One block is one module.** Static imports hoist, so `wire([renderer])` at the top of the
    block runs before any `customElements.define` below it. The "define before wiring" hazard
    only applies across separate files.
 3. **Function components are not elements.** They compile to plain calls returning templates.
@@ -909,7 +910,7 @@ Say so rather than inventing an API:
 
 ## Common mistakes
 
-1. Defining a component before `setHtml` / `wire(renderer)` → with nothing on the `'render'`
+1. Defining a component before `setHtml` / `wire([renderer])` → with nothing on the `'render'`
    chain, `render()` warns once in development and draws nothing. (`mount()` is unaffected — it
    commits the setup and never reaches a renderer.)
 2. Static `import` for components in the entry file → hoisted, same failure.

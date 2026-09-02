@@ -17,7 +17,7 @@
  * server emits while passing green.
  */
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 
 const check = process.argv.includes('--check');
 const dir = new URL('../tests/browser/fixtures/', import.meta.url);
@@ -46,8 +46,8 @@ ${script}
 
 const boot = (renderer, mode) => `    <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import { renderInto } from '/packages/renderer/dist/development/${renderer}';
-      await start(renderInto);
+      import { renderer as mod } from '/packages/renderer/dist/development/${renderer}';
+      await start(mod);
       document.documentElement.dataset.sinkMode = '${mode}';
     </script>`;
 

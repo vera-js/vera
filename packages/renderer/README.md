@@ -13,7 +13,7 @@ npm i @verajs/core @verajs/renderer
 
 ## Quick start
 
-`wire(renderer)` is the only wiring. Core's `html` tag already produces the shape this accepts, so
+`wire([renderer])` is the only wiring. Core's `html` tag already produces the shape this accepts, so
 there is no second call to make.
 
 <!-- recipe -->
@@ -276,8 +276,11 @@ zero report is otherwise indistinguishable from an app with nothing to optimise.
 
 <!-- recipe -->
 ```js
-import { renderInto } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
+import { renderer } from '@verajs/renderer/hydrate';   // instead of '@verajs/renderer'
 ```
+
+Same name, same `wire([renderer])`, different entry — this one's `renderer` binds the adopting
+render below, so swapping the import (or the importmap target) really is the only change.
 
 The first render into a container that already has children **adopts** them as server output of the
 same template: node identity is preserved, listeners attach, and updates mutate the adopted nodes.

@@ -19,7 +19,7 @@
  * browser suite does not notice at all.
  */
 import { writeFileSync, readFileSync } from 'node:fs';
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 
 const check = process.argv.includes('--check');
 const target = new URL('../tests/browser/fixtures/hello-ssr.html.js', import.meta.url);

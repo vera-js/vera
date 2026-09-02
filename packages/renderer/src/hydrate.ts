@@ -5,7 +5,7 @@
  * container that already has children adopts them as server output of the same template. Without
  * this import the renderer never carries adoption code — non-SSR apps pay nothing.
  *
- * The server serializer (@verajs/ssr/vera) emits the SAME static strings the renderer parses into
+ * The server serializer (@verajs/ssr) emits the SAME static strings the renderer parses into
  * its canonical template, so server DOM and canonical fragment diverge only at value slots — and
  * at adoption time the values are known. Adoption walks both trees in lockstep: statics must
  * match byte-for-byte (else bail), and at each slot the live text is split so the renderer's own
@@ -35,10 +35,11 @@ import {
   instanceWalker,
   rootParts,
   renderInto as baseRender,
+  renderer as baseRenderer,
 } from './renderer.js';
 import type { Template, Part, Item, TemplateResult, KeyedResult } from './renderer.js';
 
-export { hold, renderer } from './renderer.js';
+export { hold } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 /** Internal bail signal — never escapes `tryAdopt`. */
@@ -535,3 +536,20 @@ export const renderInto = (result: unknown, container: Node) => {
   }
   baseRender(result, container);
 };
+
+/** Same wire-misuse guard the base entry puts on its raw function — see renderer.ts. */
+if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
+
+/**
+ * This entry's `renderer` module, bound to the **hydrating** `renderInto`.
+ *
+ * It used to be a bare re-export of the base entry's descriptor, whose `fn` is the base,
+ * non-adopting render — so the natural `import { renderer } from '@verajs/renderer/hydrate';
+ * wire([renderer])` wired a renderer that never hydrated. The page still looked right (a first
+ * render into a full container clears it and renders fresh), which made the failure silent: every
+ * byte of server work discarded, nothing on screen to say so. The header's promise — point the
+ * importmap at this bundle "and nothing else changes" — is only true now that the descriptor
+ * carries this entry's own function. `connect` and the rest are shared deliberately: they operate
+ * on this bundle's copy of the renderer's module state, which both functions read.
+ */
+export const renderer = { ...baseRenderer, fn: renderInto as never };

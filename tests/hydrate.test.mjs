@@ -1,5 +1,5 @@
 /**
- * Server -> client round trip: REAL @verajs/ssr/vera markup (produced in a subprocess, since its
+ * Server -> client round trip: REAL @verajs/ssr markup (produced in a subprocess, since its
  * shims own globals) adopted by the REAL renderer build in jsdom. Assertions center on IDENTITY —
  * hydration means the server DOM survives, listeners attach, and updates mutate adopted nodes.
  */
@@ -9,7 +9,7 @@ import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 
 const serverScript = `
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 const { html } = await import('@verajs/core');
 const rows = [
   { id: 1, label: 'alpha' },

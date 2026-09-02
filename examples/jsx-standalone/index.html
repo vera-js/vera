@@ -35,9 +35,9 @@
 
     <script type="text/vera-jsx">
       import { init, createStore, render, wire } from '@verajs/core';
-      import { renderInto as renderer } from '@verajs/renderer';
+      import { renderer } from '@verajs/renderer';
 
-      wire({ on: 'render', fn: renderer, priority: 50 });
+      wire([renderer]);
 
       /** A render helper — a "function component" living inside templates. */
       const Empty = ({ children }) => <p><em>{children}</em></p>;

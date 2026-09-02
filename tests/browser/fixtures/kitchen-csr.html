@@ -16,8 +16,8 @@
     <sink-shell></sink-shell>
     <script type="module">
       import { start } from '/examples/kitchen-sink/entry-client.js';
-      import { renderInto } from '/packages/renderer/dist/development/vera-renderer.js';
-      await start(renderInto);
+      import { renderer as mod } from '/packages/renderer/dist/development/vera-renderer.js';
+      await start(mod);
       document.documentElement.dataset.sinkMode = 'csr';
     </script>
   </body>

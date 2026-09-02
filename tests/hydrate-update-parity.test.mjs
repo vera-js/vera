@@ -62,7 +62,7 @@ const STATE_B = `{
 }`;
 
 const serverScript = `
-import { serializeTemplate } from '@verajs/ssr/vera';
+import { serializeTemplate } from '@verajs/ssr';
 const { html } = await import('@verajs/core');
 const state = ${STATE_A};
 const out = {};

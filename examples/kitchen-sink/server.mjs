@@ -17,7 +17,7 @@
  *
  * Zero dependencies beyond Node, matching `examples/ssr-node/server-native.mjs`.
  */
-import { renderToString } from '@verajs/ssr/vera';
+import { renderToString } from '@verajs/ssr';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
@@ -32,8 +32,8 @@ const ENTRY = new URL('./entry-ssr.js', import.meta.url);
 const client = (mode) => `
 import { start } from '/examples/kitchen-sink/entry-client.js';
 /** Bare, so the import map decides which renderer this is — one line, one mode. */
-import { renderInto } from '@verajs/renderer';
-await start(renderInto);
+import { renderer } from '@verajs/renderer';
+await start(renderer);
 document.documentElement.dataset.sinkMode = '${mode}';
 `;
 

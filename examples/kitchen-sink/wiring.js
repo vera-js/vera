@@ -17,11 +17,13 @@ import { autoloader } from '@verajs/autoloader';
 import { installSinkInserts } from './components/sink-inserts.js';
 
 /**
- * @param {unknown} renderer The DOM renderer for this mode — plain, hydrating, or none server-side,
- *   where `@verajs/ssr` has already registered its own.
+ * @param {unknown} renderer The renderer *module* for this mode — `renderer` from
+ *   `@verajs/renderer` (which the importmap may resolve to the hydrate bundle, whose own
+ *   `renderer` binds the adopting render), or none server-side, where `@verajs/ssr` has already
+ *   registered its own. A wirable, like every other module here — no hand-built descriptor.
  */
 export const wireApp = (renderer) => {
-  if (renderer) wire({ on: 'render', fn: /** @type {never} */ (renderer), priority: 50 });
+  if (renderer) wire(/** @type {never} */ (renderer));
   wire([
     /**
      * The router imports no registry of its own, so it has to be handed this one. It used to share
