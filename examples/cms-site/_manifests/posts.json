@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "collection": "posts",
+  "entries": [
+    {
+      "slug": "counting-things",
+      "uuid": "018f3a2e-0002-7000-8000-000000000002",
+      "data": {
+        "uuid": "018f3a2e-0002-7000-8000-000000000002",
+        "title": "Counting Things",
+        "date": "2026-09-01",
+        "tags": [
+          "example"
+        ]
+      },
+      "excerpt": "A second post, so the list has something to sort. It was written after the first one, which is\nwhy it appears above it — date:desc is doing that, not file order."
+    },
+    {
+      "slug": "first-light",
+      "uuid": "018f3a2e-0001-7000-8000-000000000001",
+      "data": {
+        "uuid": "018f3a2e-0001-7000-8000-000000000001",
+        "title": "First Light",
+        "date": "2026-08-30",
+        "tags": [
+          "meta",
+          "site"
+        ]
+      },
+      "excerpt": "Every site starts somewhere, and this one starts as files — this post is markdown in a folder,\nand everything you see is derived from it."
+    },
+    {
+      "slug": "on-lists",
+      "uuid": "018f3a2e-0003-7000-8000-000000000003",
+      "data": {
+        "uuid": "018f3a2e-0003-7000-8000-000000000003",
+        "title": "On Lists",
+        "date": "2026-09-02",
+        "tags": [
+          "example",
+          "meta"
+        ]
+      },
+      "excerpt": "Third post, newest, so it sits on top."
+    }
+  ]
+}

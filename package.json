@@ -30,8 +30,10 @@
     "build": {
       "dependencies": [
         "./packages/autoloader:build",
+        "./packages/cms:build",
         "./packages/core:build",
         "./packages/inserts:build",
+        "./packages/motion:build",
         "./packages/reactivity:build",
         "./packages/renderer:build",
         "./packages/router:build",
@@ -77,6 +79,8 @@
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "globals": "^17.11.0",
+    "happy-dom": "^20.0.0",
+    "@happy-dom/global-registrator": "^20.0.0",
     "jsdom": "^25.0.1",
     "lit-html": "^3.3.3",
     "rollup": "^4.62.4",

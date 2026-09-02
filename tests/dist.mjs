@@ -30,6 +30,9 @@ export const isProduction = process.env.VERA_DIST === 'production';
 
 /** Bundle name -> the `filename` its package.json declares. */
 const ENTRY = {
+  'cms/content': ['cms', 'vera-cms-content'],
+  'cms/publish': ['cms', 'vera-cms-publish'],
+  'cms/node': ['cms', 'vera-cms-node'],
   core: ['core', 'vera'],
   renderer: ['renderer', 'vera-renderer'],
   'renderer/hydrate': ['renderer', 'vera-renderer-hydrate'],
@@ -44,6 +47,14 @@ const ENTRY = {
   'renderer/tag': ['renderer', 'vera-renderer-tag'],
   styles: ['styles', 'vera-styles'],
   'reactivity/collections': ['reactivity', 'vera-reactivity-collections'],
+  motion: ['motion', 'vera-motion'],
+  'motion/scroll-to': ['motion', 'vera-motion-scroll-to'],
+  'motion/paint': ['motion', 'vera-motion-paint'],
+  'motion/path': ['motion', 'vera-motion-path'],
+  'motion/easings': ['motion', 'vera-motion-easings'],
+  'motion/sequence': ['motion', 'vera-motion-sequence'],
+  'motion/split': ['motion', 'vera-motion-split'],
+  'motion/vera': ['motion', 'vera-motion-vera'],
 };
 
 /**

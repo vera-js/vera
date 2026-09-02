@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "collections": {
+    "posts": {
+      "fields": {
+        "date": {
+          "type": "date",
+          "required": true
+        },
+        "tags": {
+          "type": "taxonomy",
+          "taxonomy": "tags"
+        }
+      }
+    },
+    "pages": {},
+    "tags": {}
+  }
+}

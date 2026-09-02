@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeraJS — a flat-file content site</title>
+
+    <!--
+      A site whose content is the `content/` folder beside this file, and nothing else.
+
+      The listing renders from ONE fetch of `_manifests/posts.json` — the static index the
+      `vera-cms` CLI generated from the markdown. Opening a post fetches its .md and parses it
+      right here in the browser. No build ran for this page; `npm run build` produced the bundles
+      the importmap points at, and the CDN swap works the same as every buildless example:
+
+        "@verajs/cms/content": "https://cdn.jsdelivr.net/npm/@verajs/cms/dist/vera-cms-content.min.js"
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/cms/content": "/packages/cms/dist/vera-cms-content.min.js"
+        }
+      }
+    </script>
+
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.6;
+      }
+      cms-site:not(:defined) {
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <cms-site></cms-site>
+    <script type="module" src="./src/index.js"></script>
+  </body>
+</html>

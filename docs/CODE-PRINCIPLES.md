@@ -41,6 +41,12 @@ indistinguishable in style from the code around it.
   (`createStore.ts`, `useEffect.ts`); shared types in `@verajs/shared-types`, shared helpers in
   `@verajs/shared-utils`; the `filename` field in each `package.json` drives every build output name.
   Match the surrounding comment density, naming, and idiom.
+- **Functional style by default; a `class` is permitted in exactly two places.** Public APIs,
+  modules, and app code are functions and closures. The exceptions: the platform boundary
+  (`extends HTMLElement`, which the spec requires), and per-node hot-path machinery where prototype
+  sharing is a *measured* win — today that means `@verajs/renderer`'s internal parts (`spread.ts`
+  records the measurement: as an object literal, `handleEvent` was a fresh closure per bound key).
+  Neither exception may leak a class into a public API surface.
 - **TypeScript is the source of truth.** Packages are `.ts` and stay `.ts`. A component must never
   exist as both `.ts` and `.js` — twins drift silently, in *both* directions.
 - **Artifacts are never committed.** `dist/` is gitignored and produced only by `npm run build`. An

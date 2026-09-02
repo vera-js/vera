@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "collections": [
+    {
+      "name": "pages",
+      "count": 1
+    },
+    {
+      "name": "posts",
+      "count": 3
+    },
+    {
+      "name": "tags",
+      "count": 3
+    }
+  ]
+}

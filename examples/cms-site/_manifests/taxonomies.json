@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "taxonomies": {
+    "tags": {
+      "example": {
+        "count": 2,
+        "collections": {
+          "posts": 2
+        }
+      },
+      "meta": {
+        "count": 2,
+        "collections": {
+          "posts": 2
+        }
+      },
+      "site": {
+        "count": 1,
+        "collections": {
+          "posts": 1
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "name": "@verajs/cms",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Content tooling for flat-file sites: frontmatter, a markdown subset, and rendering.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/cms"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "type": "module",
+  "exports": {
+    "./content": {
+      "types": "./dist/development/vera-cms-content.d.ts",
+      "development": "./dist/development/vera-cms-content.js",
+      "default": "./dist/vera-cms-content.min.js"
+    },
+    "./publish": {
+      "types": "./dist/development/vera-cms-publish.d.ts",
+      "development": "./dist/development/vera-cms-publish.js",
+      "default": "./dist/vera-cms-publish.min.js"
+    },
+    "./node": {
+      "types": "./dist/development/vera-cms-node.d.ts",
+      "development": "./dist/development/vera-cms-node.js",
+      "default": "./dist/vera-cms-node.min.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-cms",
+  "keywords": [],
+  "sideEffects": false
+}

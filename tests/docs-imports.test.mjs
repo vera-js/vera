@@ -42,10 +42,26 @@ const PACKAGES = {
   '@verajs/reactivity/computed': 'reactivity/computed',
   /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
   '@verajs/jsx': 'jsx',
+  /** Unpublished (`private: true`) like motion below, and held to the same bar for the same reason. */
+  '@verajs/cms/content': 'cms/content',
+  '@verajs/cms/publish': 'cms/publish',
+  /**
+   * Unpublished (`private: true` until its audits land), but its README is in this repository and
+   * a reader will act on it — so its documented imports are held to the same bar. Import-safe
+   * outside a browser by its own audit rule 9, which is why loading the bundles here just works.
+   */
+  '@verajs/motion': 'motion',
+  '@verajs/motion/scroll-to': 'motion/scroll-to',
+  '@verajs/motion/paint': 'motion/paint',
+  '@verajs/motion/path': 'motion/path',
+  '@verajs/motion/easings': 'motion/easings',
+  '@verajs/motion/sequence': 'motion/sequence',
+  '@verajs/motion/split': 'motion/split',
+  '@verajs/motion/vera': 'motion/vera',
 };
 
 /** Packages resolved from source rather than a bundle — see below. */
-const SOURCE_PACKAGES = ['@verajs/eslint-config', '@verajs/ssr', '@verajs/ssr/vera'];
+const SOURCE_PACKAGES = ['@verajs/eslint-config', '@verajs/ssr'];
 
 const exportsOf = {};
 for (const [specifier, bundle] of Object.entries(PACKAGES)) {
@@ -63,7 +79,6 @@ for (const [specifier, bundle] of Object.entries(PACKAGES)) {
  */
 exportsOf['@verajs/eslint-config'] = await import('../packages/eslint-config/index.js');
 exportsOf['@verajs/ssr'] = await import('../packages/ssr/src/vera/index.js');
-exportsOf['@verajs/ssr/vera'] = exportsOf['@verajs/ssr'];
 
 /** Markdown and text docs, minus changelogs — those describe releases, not the current API. */
 const docs = [];

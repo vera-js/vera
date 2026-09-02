@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "collection": "tags",
+  "entries": [
+    {
+      "slug": "example",
+      "uuid": "018f3a2e-2000-7000-8000-0000000000e1",
+      "data": {
+        "uuid": "018f3a2e-2000-7000-8000-0000000000e1",
+        "title": "Example"
+      },
+      "excerpt": "Posts that exist to show something working."
+    },
+    {
+      "slug": "meta",
+      "uuid": "018f3a2e-2000-7000-8000-0000000000e2",
+      "data": {
+        "uuid": "018f3a2e-2000-7000-8000-0000000000e2",
+        "title": "Meta"
+      },
+      "excerpt": "The site talking about itself."
+    },
+    {
+      "slug": "site",
+      "uuid": "018f3a2e-2000-7000-8000-0000000000e3",
+      "data": {
+        "uuid": "018f3a2e-2000-7000-8000-0000000000e3",
+        "title": "Site"
+      },
+      "excerpt": "How this site is put together."
+    }
+  ]
+}

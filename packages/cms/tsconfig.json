@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // node.ts and cli.ts import node builtins; the browser entries never do, and never may.
+    "types": ["node"]
+  },
+  // When using rollup composite mode caching, limits cache to only necessary packages
+  "include": ["src/**/*"]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pages",
+  "type": "object",
+  "properties": {
+    "uuid": {
+      "type": "string",
+      "description": "Stable identity, never derived from the path — references key on it."
+    },
+    "title": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
