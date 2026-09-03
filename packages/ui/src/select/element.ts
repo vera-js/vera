@@ -445,7 +445,10 @@ export class VeraSelect extends HTMLElement {
       observer.observe(this, { childList: true, subtree: true, attributes: true });
       (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => observer.disconnect());
     }
-    (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => clearTimeout(entry.hideTimer));
+    (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => {
+      clearTimeout(entry.hideTimer);
+      clearTimeout(entry.timer); // the filter debounce must not fire on a detached element
+    });
     const { state, handlers } = select;
 
     /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land. */

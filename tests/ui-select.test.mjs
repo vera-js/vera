@@ -689,6 +689,38 @@ test('AUDIT P1 — the value getter answers correctly before connect', () => {
   assert.deepEqual(element.selectedOptions.map((o) => o.label), ['B']);
 });
 
+test('AUDIT P2 — the menu consumes its Escape; the filter debounce dies with the element', async () => {
+  const element = await mount();
+  element.open();
+  await frame();
+  let pageEscapes = 0;
+  const pageHandler = (event) => event.key === 'Escape' && pageEscapes++;
+  dom.window.document.addEventListener('keydown', pageHandler);
+  dom.window.document.dispatchEvent(
+    new dom.window.KeyboardEvent('keydown', { key: 'Escape', cancelable: true, bubbles: true })
+  );
+  await frame();
+  dom.window.document.removeEventListener('keydown', pageHandler);
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'the menu closed');
+  assert.equal(pageEscapes, 0, 'and the page modal underneath never heard the keystroke');
+  element.remove();
+
+  const remote = await mount((el) => {
+    el.setAttribute('remote', '');
+    el.setAttribute('debounce', '20');
+  });
+  remote.open();
+  await frame();
+  const search = part(remote, 'search');
+  search.value = 'q';
+  search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  let late = 0;
+  remote.addEventListener('filter', () => late++);
+  remote.remove();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(late, 0, 'no filter event fires on a detached element');
+});
+
 test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
   const element = await mount((el) => el.setAttribute('disabled', ''));
   const trigger = part(element, 'trigger');

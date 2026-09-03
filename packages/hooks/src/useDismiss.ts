@@ -26,7 +26,15 @@ export const useDismiss = (element: LifecycleElement, onDismiss: (event?: Keyboa
     if (!event.composedPath().includes(element)) onDismiss();
   };
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') onDismiss(event);
+    if (event.key !== 'Escape') return;
+    /**
+     * The innermost dismissable consumes its Escape — preventDefault and stopPropagation, so a
+     * page-level handler (a modal underneath) does not also act on the same keystroke (measured:
+     * it did). The platform's own popovers behave this way; so do we.
+     */
+    event.preventDefault();
+    event.stopPropagation();
+    onDismiss(event);
   };
 
   const deactivate = () => {
