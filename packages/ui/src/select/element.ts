@@ -105,14 +105,23 @@ const resolveSelection = (
   raw: (string | SelectOption)[],
   options: SelectOption[],
   current: SelectOption[]
-): SelectOption[] =>
-  raw.map((entry) => {
-    if (typeof entry !== 'string') return entry;
-    return (
-      current.find((option) => option.value === entry) ??
-      options.find((option) => option.value === entry) ?? { label: entry, value: entry }
-    );
-  });
+): SelectOption[] => {
+  /** First occurrence wins: selection identity is the value string, and a duplicate entry is
+   *  ambiguity, not intent (measured: value = ['a','a','b'] doubled the selection). */
+  const seen = new Set<string>();
+  const resolved: SelectOption[] = [];
+  for (const entry of raw) {
+    const option =
+      typeof entry !== 'string'
+        ? entry
+        : (current.find((candidate) => candidate.value === entry) ??
+          options.find((candidate) => candidate.value === entry) ?? { label: entry, value: entry });
+    if (seen.has(option.value)) continue;
+    seen.add(option.value);
+    resolved.push(option);
+  }
+  return resolved;
+};
 
 /** Duplicate values make selection ambiguous by construction — say so, loudly, in development. */
 const warnDuplicates = (options: SelectOption[]) => {

@@ -535,6 +535,8 @@ test('the value model: strings in, mode-shaped out, objects accepted, null clear
   await frame();
   element.value = ['a', 'b'];
   assert.deepEqual(element.value, ['a', 'b'], 'multi takes and returns string arrays');
+  element.value = ['a', 'a', 'b'];
+  assert.deepEqual(element.value, ['a', 'b'], 'duplicate entries collapse — selection identity is the value');
   element.remove();
 });
 
