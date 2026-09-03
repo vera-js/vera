@@ -158,6 +158,54 @@ test('every importable entry is exercised by the strict TypeScript consumer', ()
     'an entry no consumer check imports is an entry whose published TYPES nobody compiles');
 });
 
+/**
+ * **A document that makes a size claim must be a document something checks.**
+ *
+ * `sync-size-claims` regenerates claims inside `<!--size:…-->` markers, and the files it looks at
+ * are a hand-maintained list. A page carrying a marker that is not on that list is never
+ * regenerated and never `--check`ed: its number is frozen at whatever it was when it was typed, in
+ * the one place this project promises numbers do not drift.
+ *
+ * Found by doing it. A new feature page was written with a size claim in it, and the only symptom
+ * was that the claim COUNT did not move — 42 to 42. Nothing failed, because a file the script does
+ * not read cannot disagree with it.
+ */
+test('every document that carries a size claim is one the sync script reads', () => {
+  const script = read('scripts/sync-size-claims.mjs');
+  /**
+   * The script's list has two halves and both have to be read: files it names literally (including
+   * `llms.txt`, which is why this is not `.md`-only), and the per-package READMEs it DERIVES from
+   * its module table — `packages/<dir ?? pkg>/README.md`. Missing the second half made this report
+   * every package README as unchecked, which is the loud direction, but wrong.
+   */
+  const targets = new Set(script.match(/'[\w./-]+\.(?:md|txt)'/g)?.map((quoted) => quoted.slice(1, -1)) ?? []);
+  for (const [, key] of script.matchAll(/\b(?:dir|pkg): '([\w-]+)'/g)) targets.add(`packages/${key}/README.md`);
+  assert.ok(targets.size >= 8, `found only ${targets.size} target files — the scan is broken, not the list`);
+
+  /** Every markdown file in the repository's own docs that carries a marker. */
+  const carrying = [];
+  const walk = (directory) => {
+    for (const entry of readdirSync(new URL(directory, root), { withFileTypes: true })) {
+      const path = `${directory}${entry.name}`;
+      if (entry.isDirectory()) {
+        if (!['node_modules', 'dist', '.git', 'internal', 'bench'].includes(entry.name)) walk(`${path}/`);
+      } else if (entry.name.endsWith('.md') && read(path).includes('<!--size:')) {
+        carrying.push(path);
+      }
+    }
+  };
+  walk('docs/');
+  for (const file of ['README.md', 'llms.txt']) if (has(file) && read(file).includes('<!--size:')) carrying.push(file);
+  for (const directory of readdirSync(new URL('packages/', root)))
+    if (has(`packages/${directory}/README.md`) && read(`packages/${directory}/README.md`).includes('<!--size:'))
+      carrying.push(`packages/${directory}/README.md`);
+
+  assert.ok(carrying.length >= 4, `only ${carrying.length} documents carry a claim — the scan is broken`);
+  const unchecked = carrying.filter((file) => !targets.has(file));
+  assert.deepEqual(unchecked, [],
+    'these make a size claim that nothing regenerates, so it is frozen at whatever was typed');
+});
+
 /** The exemptions are the part most likely to rot: a name kept after the entry it excused is gone. */
 test('every exemption still names a real entry point', () => {
   const real = new Set(entryPoints().map(({ specifier }) => specifier));
