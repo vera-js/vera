@@ -312,6 +312,7 @@ if (process.argv.includes('--snapshot')) {
     styles: 'packages/styles/dist/vera-styles.min.js',
     collections: 'packages/reactivity/dist/vera-reactivity-collections.min.js',
     keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
+    slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
     spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
     tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
     computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',

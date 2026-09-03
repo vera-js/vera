@@ -306,7 +306,11 @@ answered identically in shadow mode (native assignment) and light mode (the capt
 `name` for the default slot. Component authors reach for this; app users do not.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
-seam, so it is safe beside any renderer entry on a CDN page.
+seam, so it is safe beside any renderer entry on a CDN page. The entry is
+**<!--size:slots.gzip-->1.90 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+`@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
+also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
+on both sides.
 
 ## `@verajs/renderer/hydrate`
 

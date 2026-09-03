@@ -333,6 +333,46 @@ algorithm is <!--size:keyed.gzip-->664 B<!--/size:keyed.gzip--> gzipped. Importi
 result with the strategy that reconciles it, so there is nothing to `wire()` and a list always names
 its own reconciler. Additive like `/spread`: it imports nothing and works alongside `/hydrate`.
 
+### Light-DOM slots (`@verajs/renderer/slots`)
+
+`<slot>` works in a LIGHT-DOM component, with the platform's own semantics — so a component has ONE
+version and its users write slot markup the same way either way.
+
+```js
+import { renderer } from '@verajs/renderer';
+import { slots, slotted } from '@verajs/renderer/slots';
+wire([renderer, slots]);
+
+// <user-card><h2 slot="title">Ada</h2>a bio</user-card>
+init(this);                     // light DOM — no shadow options
+render(() => html`<article><header><slot name="title">Untitled</slot></header>
+                  <main><slot>No bio.</slot></main></article>`);
+```
+
+Assignment follows the platform: `slot="x"` goes to the first `<slot name="x">` in tree order,
+everything else (text included) to the first unnamed slot, duplicate names — first wins, and
+fallback renders only while a slot has nothing assigned and comes back if it empties. In a SHADOW
+root the module stands aside completely and the native `<slot>` renders untouched.
+
+**`slotted(host, name?)`** is the accessor a component uses to read what its user gave it — native
+assignment in a shadow root, the capture map in light DOM, so component code does not branch on
+mode. `name` defaults to the unnamed slot.
+
+Three differences worth knowing, all deliberate:
+
+- After distribution a slotted node's `parentNode` is inside the component's rendered tree rather
+  than the host. That is what light DOM *is*, and it is exactly why the user's own CSS and Tailwind
+  classes reach slotted content here when they cannot through a shadow boundary.
+- A node added AFTER the first render joins a slot only if it carries a `slot` attribute —
+  `slot=""` reaches the default slot, so nothing is out of reach, it just has to be said.
+  Everything present before the first render keeps full native semantics, bare text included.
+- There is no `slotchange` event; light mode has no native one. Read `slotted()` in an effect.
+
+Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
+<!--size:slots.gzip-->1.90 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+the server distributes and the client adopts the result in place, keeping node identity, so focus
+and input values survive. Node-safe (it imports nothing and touches no global document).
+
 ### Spread (`@verajs/renderer/spread`)
 
 Bindings whose names are not known when the template is parsed.
@@ -566,8 +606,8 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `reactivity`, `reactivity/collections`, `renderer/keyed`, `renderer/spread`,
-  `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
+  `inserts`, `reactivity`, `reactivity/collections`, `renderer/keyed`, `renderer/slots`,
+  `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow
   root are invisible to the click listener (event retargeting).
