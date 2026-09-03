@@ -60,7 +60,6 @@ for (const [tag, options] of [
 }
 
 const shell = dom.window.document.getElementById('shell');
-const view = shell.querySelector('main');
 const router = initRouter(shell, { view: 'main', focusView: false });
 router.addRoutes([
   { path: '/', component: () => html`<h1>home</h1><link-shadow></link-shadow><link-light></link-light>` },
