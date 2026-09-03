@@ -28,6 +28,43 @@ let warnedAboutScope = false;
  * `_$veraStyles$` is exempt from property mangling — `/^_[a-z]/` is the pattern and `_$…$` does not
  * match it — so both copies spell it identically, exactly as `_$apply$` and `$r` do.
  */
+/**
+ * **`:host` translated for a light host.** Inside the `@scope (tag-name)` block below, the scoping
+ * root IS the element — so `:host` becomes `:scope` and `:host(.a)` becomes `:scope.a` (never
+ * `:scope(.a)`, which is not a selector and which the CSSOM silently rejects).
+ *
+ * This exists because `:host` is how a web component styles its own element — it is in nearly every
+ * component stylesheet ever written, including every one installed from npm. Measured before this:
+ * `:host`, `:host(.flag)` and `::slotted(b)` all applied under a shadow root and all did nothing in
+ * light DOM. Telling authors to write `:host, :scope` fixes their own components and does nothing
+ * for anyone else's, which is why this is translation rather than documentation.
+ *
+ * **The lookahead is the whole trick.** A `:host` that is a SELECTOR sits in a rule prelude, and a
+ * prelude ends with `{`; a `:host` inside a VALUE sits in a declaration block, where the next
+ * structural character is `;` or `}`. So rewriting only when the next one of `{ ; }` is `{` leaves
+ * `content: ":host"`, `url(/x/:host.png)` and `@import url(…:host.css);` alone without needing to
+ * tokenise strings, comments or url()s. A quote-and-comment tokeniser was written first and cost
+ * 240 B against this one's 83 — and got the url cases WRONG.
+ *
+ * `(^|[^\\])` because `.md\:host` is an escaped identifier, not a selector: Tailwind emits those
+ * for arbitrary variants, and Tailwind is a supported build here. Written as a captured group
+ * rather than a lookbehind on purpose — Safari only shipped lookbehind in 16.4, and a regex literal
+ * it cannot parse takes this module down at load rather than degrading.
+ *
+ * `:host-context()` is deliberately not translated: Firefox and WebKit never shipped it.
+ *
+ * TEXT rather than the CSSOM, also on purpose. `@verajs/ssr` runs this exact code under its shim,
+ * which has no stylesheet parser — a CSSOM rewrite would apply on the client and silently no-op on
+ * the server, which is a server/client styling divergence.
+ *
+ * One case it gets wrong and nothing positional could: a data-URI SVG whose own `<style>` contains
+ * `:host`. That `:host` has no shadow host to match either way, so the sheet was already inert.
+ */
+const forLightDom = (css: string): string =>
+  css
+    .replace(/(^|[^\\]):host\(([^)]*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
+    .replace(/(^|[^\\]):host\b(?!-)(?=[^{};]*\{)/g, (_, before) => `${before}:scope`);
+
 const HOISTED = '_$veraStyles$';
 
 /**
@@ -210,40 +247,25 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     );
   }
   /**
-   * **`:host` and `::slotted()` are shadow-only, and in light DOM they match nothing.** Measured in
-   * Chromium against the same stylesheet on the same component in both modes: `:host`,
-   * `:host(.flag)` and `::slotted(b)` all applied under a shadow root and all did nothing here,
-   * while ordinary rules applied in both.
+   * **`::slotted()` is the one shadow-only selector left with nothing to become.** `:host` is
+   * translated above; distributed nodes here are ordinary descendants, so there is no equivalent
+   * selector for them without MARKING them, which is DOM noise in the user's own tree and exactly
+   * what the light-slots design refused. It is also the one that is fair to lose: slotted content
+   * is the user's own DOM, and in light mode their page CSS already reaches it — `::slotted()`
+   * exists to reach across a boundary that is not there.
    *
-   * They cannot simply be left silent. `:host` is how a web component styles its own element — it
-   * is in almost every component stylesheet ever written — so a sheet authored the normal way
-   * silently under-delivers the moment the component is used in light mode, and the author has no
-   * way to see it.
-   *
-   * Translating them is the real answer and it is not all one job: inside `@scope (tag)` the
-   * scoping root IS the element, so `:host` becomes `:scope` and `:host(.flag)` becomes
-   * `:scope.flag`, cleanly. `::slotted()` has no equivalent — distributed nodes are ordinary
-   * descendants here — and giving it one means marking them, which is a decision about the light
-   * DOM the slots design deliberately kept clean. Until that is decided, say so.
-   *
-   * `__DEV__`-only, once per class, and it names which construct it found.
+   * `__DEV__`-only, once per class, so production carries neither the check nor the text.
    */
-  if (__DEV__) {
-    const shadowOnly = [
-      /(^|[^\w-]):host(\b|\()/.test(cssText) ? '`:host`' : '',
-      /::slotted\s*\(/.test(cssText) ? '`::slotted()`' : '',
-    ].filter(Boolean);
-    if (shadowOnly.length > 0)
-      console.warn(
-        `[vera] styles: <${element.localName}> has no shadow root, and ${shadowOnly.join(' and ')} ` +
-          `only ever ${shadowOnly.length > 1 ? 'match' : 'matches'} inside one — those rules do ` +
-          `nothing here. Write \`:host, :scope\` to style the element in BOTH modes (measured: ` +
-          `\`:scope\` alone styles nothing under a shadow root, so it is not a replacement). ` +
-          `\`::slotted()\` has no light-DOM equivalent — slotted content is styled by whoever ` +
-          `provided it, which in light DOM your own page CSS already reaches.`
-      );
-  }
-  const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
+  if (__DEV__ && /::slotted\s*\(/.test(cssText))
+    console.warn(
+      `[vera] styles: <${element.localName}> has no shadow root, and \`::slotted()\` only ever ` +
+        `matches inside one — those rules do nothing here. Slotted content is styled by whoever ` +
+        `provided it, which in light DOM your own page CSS already reaches. ` +
+        `(\`:host\` needs no change: it is translated to \`:scope\` for you.)`
+    );
+  const scoped = supported
+    ? `@scope (${element.localName}) {\n${forLightDom(cssText)}\n}`
+    : forLightDom(cssText);
 
   if (document?.adoptedStyleSheets) {
     const sheet = new CSSStyleSheet();

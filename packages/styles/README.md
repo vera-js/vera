@@ -1,6 +1,6 @@
 # @verajs/styles
 
-`static styles` for VeraJS components (<!--size:styles.gzip-->674 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
+`static styles` for VeraJS components (<!--size:styles.gzip-->757 B<!--/size:styles.gzip--> gzip): constructed stylesheets into shadow
 roots, and `@scope`-wrapped hoisting for light DOM.
 
 <!-- recipe -->
@@ -31,6 +31,22 @@ removes the question. Forget the wiring and core says so, once, in development.
 `@scope (tag-name) { … }` so they apply only inside that component's subtree: scoping without a
 shadow root, done by the platform. Hoisting also survives renders, since a `<style>` inside the
 element would be wiped by the first render pass.
+
+**`:host` works in light DOM too — you write one stylesheet.** Inside that `@scope` block the
+scoping root is the element, so `:host` is translated to `:scope` and `:host(.a)` to `:scope.a`
+when a component has no shadow root. Nothing to remember and nothing to write differently: the same
+sheet styles the element in both modes, which matters most for a component you installed rather
+than wrote, since it will use `:host` and cannot know how you render it. Only SELECTORS are
+translated — a `:host` in a value (`content: ":host"`, `url(/x/:host.png)`) is left exactly as
+written, as is an escaped identifier like `.md\:host`.
+
+**`::slotted()` is the exception, and cannot be otherwise.** In light DOM the nodes a user slots in
+are ordinary descendants, so there is no selector that means "assigned to this slot" without
+marking them — which would put framework attributes in your own markup. It is also the fair one to
+lose: slotted content is the user's DOM, and page CSS already reaches it there. Development says so
+if a light component's sheet uses it.
+
+`:host-context()` is not translated either — Firefox and WebKit never shipped it.
 
 **On an engine with no `@scope`** — Safari before 17.4, Firefox before 128 — the block is hoisted
 **unscoped** rather than dropped, because a dropped block leaves the component unstyled while an

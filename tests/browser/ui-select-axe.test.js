@@ -39,29 +39,38 @@ const OPTIONS = [
  */
 const SETTLE_MS = 250;
 /**
- * **Wait for the animations to end, do not sleep past them and hope.** The menu opens and closes on
- * a transition, and axe's colour-contrast rule reads COMPUTED colour — so auditing while a pill is
- * still interpolating measures a half-faded colour and reports a contrast violation that does not
- * exist in either end state. A fixed sleep is long enough on an idle machine and is not when three
- * browsers are running at once, which is exactly how this failed: green on its own, red inside the
- * full gate, and green again on the next run.
+ * **Wait until nothing is animating, and keep checking — do not sample once and hope.**
  *
- * `CLAUDE.md` names this pattern directly — wait for the property rather than sampling at a chosen
- * instant. The sleep stays, because it also covers work that is not an animation; what is new is
- * that nothing is measured until the animations have actually finished. Each wait is bounded, so a
- * looping animation (a spinner) cannot hang the suite, and a cancelled one is not an error.
+ * The menu opens and closes on a transition, and axe's colour-contrast rule reads COMPUTED colour,
+ * so auditing while a pill is still interpolating measures a half-faded colour and reports a
+ * violation that exists in neither end state. Green on its own, red inside the full three-browser
+ * gate, green again next run — the worst way for a check to behave, because it teaches you to
+ * re-run rather than to look.
+ *
+ * A fixed sleep failed that way first. **Awaiting `document.getAnimations()` once failed the same
+ * way**, for a subtler reason worth keeping: a transition that has not STARTED yet is not in that
+ * list, so the wait found nothing to wait for and returned straight into the animation it was
+ * meant to outlast. Style flushes on a frame; the audit was one frame early.
+ *
+ * So: give the frame, then ask, and repeat until a frame passes with nothing running. Bounded on
+ * both axes, so a looping animation (a spinner) cannot hang the suite.
  */
+const rounds = 8;
 const settle = async () => {
   await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
-  const running = document.getAnimations?.() ?? [];
-  await Promise.all(
-    running.map((animation) =>
-      Promise.race([
-        animation.finished.catch(() => {}),
-        new Promise((resolve) => setTimeout(resolve, SETTLE_MS * 4)),
-      ])
-    )
-  );
+  for (let round = 0; round < rounds; round++) {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const running = document.getAnimations?.() ?? [];
+    if (running.length === 0) return;
+    await Promise.all(
+      running.map((animation) =>
+        Promise.race([
+          animation.finished.catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, SETTLE_MS * 4)),
+        ])
+      )
+    );
+  }
 };
 
 const audit = async (name, { setup, value, open = false, type } = {}) => {

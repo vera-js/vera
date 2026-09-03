@@ -151,20 +151,15 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
 });
 
 /**
- * **`:host` and `::slotted()` are shadow-only, and silence about that was the whole problem.**
- * Measured in Chromium on one stylesheet across both modes: `:host`, `:host(.flag)` and
- * `::slotted(b)` all applied under a shadow root and all did nothing in light DOM, while ordinary
- * rules applied in both. `:host` is how a web component styles its own element — it is in nearly
- * every component stylesheet — so a sheet written the normal way silently under-delivers the moment
- * the component is used light, and the author has no way to see it.
+ * **`::slotted()` is the shadow-only selector with nothing to become.** `:host` is translated for a
+ * light host, so it needs no warning; distributed nodes here are ordinary descendants, and giving
+ * `::slotted()` an equivalent would mean MARKING them — DOM noise in the user's own tree, which the
+ * light-slots design refused. It is also the fair one to lose: slotted content is the user's own
+ * DOM, and in light mode their page CSS already reaches it.
  *
- * Translating them is a separate decision (see the portal): `:host` maps cleanly onto `:scope`
- * inside the `@scope` block, and `::slotted()` has no equivalent without marking distributed nodes.
- * Until then the rule is announced rather than dropped in silence.
- *
- * Development-only: the check and the message are folded out of production.
+ * Development-only: the check and the message fold out of production.
  */
-test('a light host is told when its stylesheet uses shadow-only selectors', { skip: isProduction }, async () => {
+test('a light host is told about ::slotted(), and NOT about :host', { skip: isProduction }, async () => {
   const said = [];
   const original = console.warn;
   console.warn = (message) => said.push(String(message));
@@ -175,7 +170,7 @@ test('a light host is told when its stylesheet uses shadow-only selectors', { sk
       class extends dom.window.HTMLElement {
         static styles = core.css`:host { color: red } ::slotted(b) { color: blue } p { color: green }`;
         connectedCallback() {
-          core.init(this); // LIGHT — no shadow options
+          core.init(this); // LIGHT
           core.render(() => core.html`<p>own</p>`);
         }
       }
@@ -188,10 +183,55 @@ test('a light host is told when its stylesheet uses shadow-only selectors', { sk
   const warning = said.find((message) => message.includes('no shadow root'));
   assert.ok(warning, `expected a diagnostic, got ${JSON.stringify(said)}`);
   assert.match(warning, /^\[vera\] /, 'findable with one filter, like every diagnostic here');
-  assert.match(warning, /`:host`/);
-  assert.match(warning, /`::slotted\(\)`/, 'both constructs are named, not just the first');
-  assert.match(warning, /only ever match inside one/, 'plural, because it found two');
-  assert.match(warning, /`:host, :scope`/,
-    'and it says what to write instead — the DUAL selector, because `:scope` alone styles nothing ' +
-    'under a shadow root and would trade one broken mode for the other');
+  assert.match(warning, /`::slotted\(\)`/, 'it names the construct that cannot work');
+  assert.match(warning, /translated to `:scope` for you/,
+    'and says :host needs nothing — warning about a selector that now works would be a lie');
+});
+
+test('the light-DOM rewrite translates selectors and leaves values alone', async () => {
+  const original = console.warn;
+  console.warn = () => {};
+  let text;
+  try {
+    const name = `x-sty-${nextTag++}`;
+    customElements.define(
+      name,
+      class extends dom.window.HTMLElement {
+        static styles = core.css`
+          :host { a: 1 }
+          :host(.flag) { b: 2 }
+          :host(:not(.x)) { c: 3 }
+          :is(:host, .y) { d: 4 }
+          @media (min-width: 1px) { :host { e: 5 } }
+          :host-context(.z) { f: 6 }
+          .md\\:host { g: 7 }
+          q { content: ":host" }
+          i { background: url(/x/:host.png) }
+        `;
+        connectedCallback() {
+          core.init(this); // LIGHT
+          core.render(() => core.html`<p>own</p>`);
+        }
+      }
+    );
+    D.body.append(D.createElement(name));
+    await frame();
+    text = hoisted();
+  } finally {
+    console.warn = original;
+  }
+
+  /** Selectors: translated. */
+  assert.match(text, /:scope \{ a: 1 \}/, 'a bare :host');
+  assert.match(text, /:scope\.flag \{ b: 2 \}/, ':host(.flag) — and NOT :scope(.flag), which is not a selector');
+  assert.match(text, /:scope:not\(\.x\) \{ c: 3 \}/, 'nested parens survive');
+  assert.match(text, /:is\(:scope, \.y\) \{ d: 4 \}/, 'inside :is()');
+  assert.match(text, /:scope \{ e: 5 \}/, 'inside @media');
+
+  /** Not selectors, or not translatable: left exactly as written. */
+  assert.match(text, /:host-context\(\.z\) \{ f: 6 \}/, 'Firefox and WebKit never shipped :host-context()');
+  assert.match(text, /\.md\\:host \{ g: 7 \}/, 'an ESCAPED identifier is a class name, not a selector — Tailwind emits these');
+  assert.match(text, /content: ":host"/, 'a string value');
+  assert.match(text, /url\(\/x\/:host\.png\)/, 'an unquoted url');
+  assert.doesNotMatch(text, /:scope\.png|:scope"/, 'nothing inside a value was touched');
 });
