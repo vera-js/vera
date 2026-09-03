@@ -140,6 +140,7 @@ const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
+const SLOT = 3; // a <slot> position recorded for the light-slots seam; consumes NO expression values
 
 type Spec = { _type: 0 } | { _type: 1; _name: string } | { _type: 2 };
 
@@ -354,14 +355,40 @@ const scan = (strings: TemplateStringsArray) => {
 
 /** A part's position and shape inside a Template, resolved to a node index for instantiation. */
 type TemplatePart = {
-  _type: 0 | 1 | 2;
+  _type: 0 | 1 | 2 | 3;
   _index: number;
   _name?: string;
+  /** SLOT parts only: the seam function active when this template was constructed. */
+  _handler?: SlotSeamFn;
   _statics?: string[];
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
   _present?: boolean;
   _node?: Node; // only during construction, carrying identity between the two passes
 };
+
+/**
+ * THE LIGHT-SLOTS SEAM. `@verajs/renderer/slots` registers one of these through core's `wire` on
+ * the `'slot'` insert point; the renderer reads it from the registry `connect` was handed — the
+ * app's single registry, so a CDN page loading separate bundles still meets ONE seam (the same
+ * architecture the `'value'` point rides). All member names are `$`-sigiled: the mangle regex
+ * cannot match them, so the contract survives production across bundle boundaries (the child-
+ * directive precedent). An app that never wires it pays one registry lookup per template
+ * CONSTRUCTION (once per shape) and nothing per render.
+ */
+/** The state a taken-over slot hands back; `_$park$` (sigiled, mangle-safe) is called before the
+ *  instance's DOM is bulk-discarded so the USER'S nodes are rescued first. */
+type SlotSeamState = { _$park$?: () => void };
+/** The registered `'slot'` insert is a plain function per wire's contract: take over one cloned
+ *  `<slot>` for the given root, or decline with null/undefined (native slotting proceeds). */
+type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
+
+/**
+ * The container of the renderInto call currently committing — how a slot part learns its root
+ * (light element vs shadow root) at Instance construction. Commits are synchronous per flush, so
+ * one module slot suffices (the `currentInstance` pattern); null outside renderInto (hydration's
+ * adoption path constructs elsewhere and the seam stays inert there until it learns adoption).
+ */
+let _slotRoot: Node | null = null;
 
 const templateCache = new WeakMap<TemplateStringsArray, Template>();
 
@@ -392,6 +419,14 @@ class Template {
     let specIndex = 0;
     let node: Node | null;
     const parts = this._parts;
+    /**
+     * The light-slots seam, resolved once per template construction. Absent (the common app),
+     * the walk keeps its early exit at the last expression and no slot is ever recorded — this
+     * lookup is the seam's whole cost. Present, the walk runs to the end of the template so a
+     * slot AFTER the last expression (or in a template with none) is still found.
+     */
+    const slotSeam =
+      registry !== null ? ((registry.get('slot') as SlotSeamFn[] | undefined)?.[0]) : undefined;
     const consumeIgnored = () => {
       while (specIndex < specs.length && specs[specIndex]._type === IGNORED) {
         parts.push({ _type: IGNORED, _index: -1 });
@@ -399,10 +434,23 @@ class Template {
       }
     };
     consumeIgnored();
-    while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
+    while ((specIndex < specs.length || slotSeam !== undefined) && (node = markerWalker.nextNode()) !== null) {
       if (node.nodeType === 1) {
         const element = node as Element;
-        if (element.hasAttributes()) {
+        /**
+         * A `<slot>` position — recorded with ZERO expression values consumed, before the
+         * attribute loop so spec order is untouched. Whether it is taken over is decided per
+         * INSTANCE (per root); the record only says where slots sit and which seam was active.
+         */
+        if (slotSeam !== undefined && element.localName === 'slot')
+          parts.push({
+            _type: SLOT,
+            _index: -1,
+            _name: element.getAttribute('name') ?? '',
+            _node: element,
+            _handler: slotSeam,
+          });
+        if (specIndex < specs.length && element.hasAttributes()) {
           for (const attributeName of element.getAttributeNames()) {
             if (attributeName.endsWith(MARKER)) {
               /**
@@ -432,7 +480,7 @@ class Template {
             }
           }
         }
-        if (RAW_TEXT_TAGS.test(element.tagName) && element.textContent!.includes(MARKER)) {
+        if (specIndex < specs.length && RAW_TEXT_TAGS.test(element.tagName) && element.textContent!.includes(MARKER)) {
           /**
            * Comments cannot be PARSED inside raw-text elements, but they are legal DOM once
            * created — so the scan left text markers, and here they become real marker comments.
@@ -446,7 +494,7 @@ class Template {
           }
           if (pieces[pieces.length - 1]) element.append(pieces[pieces.length - 1]);
         }
-      } else if ((node as Comment).data === MARKER_COMMENT_DATA) {
+      } else if (specIndex < specs.length && (node as Comment).data === MARKER_COMMENT_DATA) {
         specIndex++;
         const primedText = doc.createTextNode('');
         node.parentNode!.insertBefore(primedText, node);
@@ -490,6 +538,24 @@ const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 
 /** Never equal to any user value, so the first commit always runs. */
 const UNSET = {};
+
+/** Zero-consume placeholder for a slot the seam declined — the native element stays untouched. */
+const SLOT_NOOP: Part = { _commit: (_values, index) => index };
+
+/**
+ * Bind one recorded slot to its cloned element for the root currently rendering. The handler
+ * takes it over (returning state) or declines (shadow roots, roots it does not manage) — and a
+ * construction outside `renderInto` (null root: hydration's adoption path) never even asks.
+ * Taking over sets `notifyOnRemoval`: the seam's `_$park$` must run before a bulk `_clear`
+ * discards DOM that holds the USER'S nodes, or a conditional branch-away would destroy them.
+ */
+const slotAdapter = (templatePart: TemplatePart, element: Element): Part => {
+  if (_slotRoot === null) return SLOT_NOOP;
+  const state = templatePart._handler!(element, _slotRoot, templatePart._name ?? '');
+  if (state == null) return SLOT_NOOP;
+  notifyOnRemoval = true;
+  return { _commit: (_values, index) => index, _$slotState$: state } as Part;
+};
 
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
 const createMarkeredPart = (parent: Node, ref: Node | null) => {
@@ -953,7 +1019,9 @@ class Instance {
       this._parts.push(
         templatePart._type === CHILD
           ? new TextPart(node as Text)
-          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
+          : templatePart._type === SLOT
+            ? slotAdapter(templatePart, node as Element)
+            : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
     }
   }
@@ -981,6 +1049,8 @@ class Instance {
       const part = parts[i];
       if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
       (part as TextPart)._upgraded?._detach();
+      /** A taken-over slot parks the USER'S nodes before this instance's DOM is discarded. */
+      (part as { _$slotState$?: SlotSeamState })._$slotState$?._$park$?.();
     }
   }
 
@@ -1088,9 +1158,9 @@ export type ValueHandler = (part: object, value: unknown) => boolean | void;
  * registry and core another, and an app would register into whichever it happened to import — the
  * failure `connectInserts` used to repair.
  */
-let registry: { get(name: 'value'): ValueHandler[] | undefined } | null = null;
+let registry: { get(name: 'value' | 'slot'): unknown[] | undefined } | null = null;
 const noHandlers: ValueHandler[] = [];
-const valueHandlers = () => (registry ? (registry.get('value') ?? noHandlers) : noHandlers);
+const valueHandlers = () => (registry ? ((registry.get('value') as ValueHandler[] | undefined) ?? noHandlers) : noHandlers);
 
 /**
  * Kinds this package still ships. They read from a local list rather than the registry because the
@@ -1638,9 +1708,11 @@ export const renderInto = (result: unknown, container: Node) => {
    * Flushing on the way out applies it with its own pass, where it belongs, and leaves nothing
    * behind either way. The error still propagates.
    */
+  _slotRoot = container;
   try {
     part._set(result);
   } finally {
+    _slotRoot = null;
     flushSelects();
   }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
@@ -1734,6 +1806,6 @@ export const renderer = {
    * this repo's own typecheck — which reads sources, not the shipped `.d.ts` — saw nothing.
    */
   connect: (given: { get(name: never): unknown }) => {
-    registry = given as { get(name: 'value'): ValueHandler[] | undefined };
+    registry = given as { get(name: 'value' | 'slot'): unknown[] | undefined };
   },
 };
