@@ -59,9 +59,9 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     memo = null;
     if (previous) {
       const index = matches().findIndex((option) => option.value === previous.value);
-      state.active = index === -1 ? 0 : index;
+      state.active = index === -1 ? firstEnabled() : index;
     } else {
-      state.active = 0;
+      state.active = firstEnabled();
     }
   };
 
@@ -77,6 +77,23 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const rowCount = () => matches().length + (createLabel() ? 1 : 0);
 
   const chosen = (option: SelectOption) => state.value.some((entry) => entry.value === option.value);
+
+  /**
+   * "A disabled row never takes the highlight" is an INVARIANT, not a per-handler courtesy — it
+   * held at the arrow/hover/open doors while End, a remote refresh's fallback and a filter reset
+   * all landed the tint on disabled rows Enter refuses (measured). Every door that places the
+   * highlight absolutely goes through these two; the create row counts as walkable at both ends.
+   */
+  const firstEnabled = (): number => {
+    const index = matches().findIndex((option) => !option.disabled);
+    return index !== -1 ? index : createLabel() ? matches().length : -1;
+  };
+  const lastEnabled = (): number => {
+    if (createLabel()) return matches().length;
+    const rows = matches();
+    for (let i = rows.length - 1; i >= 0; i--) if (!rows[i]?.disabled) return i;
+    return -1;
+  };
 
   const close = (refocus = true) => {
     if (!state.open) return;
@@ -101,9 +118,8 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     if (config.canToggle?.('open') === false) return;
     state.open = true;
     pointerAt = null;
-    const rows = matches();
-    const selected = rows.findIndex((option) => !option.disabled && chosen(option));
-    state.active = selected !== -1 ? selected : highlight ? rows.findIndex((option) => !option.disabled) : -1;
+    const selected = matches().findIndex((option) => !option.disabled && chosen(option));
+    state.active = selected !== -1 ? selected : highlight ? firstEnabled() : -1;
     dismiss.activate();
     syncAssigned();
     config.onToggle?.('open');
@@ -228,7 +244,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
       step(event.key === 'ArrowDown' ? 1 : -1);
     } else if (event.key === 'Home' || event.key === 'End') {
       event.preventDefault();
-      state.active = event.key === 'Home' ? 0 : Math.max(rowCount() - 1, 0);
+      state.active = event.key === 'Home' ? firstEnabled() : lastEnabled();
     } else if (event.key === 'Enter') {
       event.preventDefault();
       activate(state.active);
@@ -239,7 +255,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   const onSearchInput = (event: Event) => {
     state.search = (event.target as HTMLInputElement).value;
-    state.active = 0;
+    state.active = firstEnabled();
     config.onSearch?.(state.search);
   };
 

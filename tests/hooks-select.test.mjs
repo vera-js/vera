@@ -261,3 +261,45 @@ test('AUDIT — Space inside the search input types; Space with no active row on
   assert.equal(idle.defaultPrevented, true, 'no active row: still consumed, so the page never scrolls');
   assert.deepEqual(select.state.value, [], 'and nothing was picked');
 });
+
+test('AUDIT — the disabled-highlight invariant holds at EVERY door: Home, End, refresh, filter', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  const EDGED = [
+    { label: 'Gate', value: 'g', disabled: true },
+    { label: 'Alpha', value: 'a' },
+    { label: 'Omega', value: 'o', disabled: true },
+  ];
+  select.setOptions(EDGED);
+  assert.equal(select.state.active, 1, 'seeding lands on the first ENABLED row');
+  select.open();
+  select.handlers.onMenuKeydown(new dom.window.KeyboardEvent('keydown', { key: 'End' }));
+  assert.equal(select.state.active, 1, 'End lands on the last enabled row, not disabled Omega');
+  select.handlers.onMenuKeydown(new dom.window.KeyboardEvent('keydown', { key: 'Home' }));
+  assert.equal(select.state.active, 1, 'Home lands on the first enabled row, not disabled Gate');
+
+  const input = dom.window.document.createElement('input');
+  input.value = '';
+  const event = new dom.window.Event('input');
+  Object.defineProperty(event, 'target', { value: input });
+  select.handlers.onSearchInput(event);
+  assert.equal(select.state.active, 1, 'a filter reset lands on the first enabled row');
+
+  select.setOptions([{ label: 'New', value: 'n', disabled: true }, { label: 'Live', value: 'l' }]);
+  assert.equal(select.state.active, 1, 'a refresh that loses the highlighted row falls to the first enabled');
+
+  select.setOptions(EDGED.map((option) => ({ ...option, disabled: true })));
+  assert.equal(select.state.active, -1, 'all disabled: nothing takes the highlight');
+});
+
+test('AUDIT — End reaches the create row; activate there creates', () => {
+  const element = host();
+  let made = '';
+  const select = useSelect(element, { creatable: () => true, onCreate: (label) => (made = label) });
+  select.setOptions([{ label: 'Alpha', value: 'a' }]);
+  select.open();
+  select.state.search = 'delta';
+  select.handlers.onMenuKeydown(new dom.window.KeyboardEvent('keydown', { key: 'End' }));
+  select.activate(select.state.active);
+  assert.equal(made, 'delta', 'End walked to the create row and Enter created');
+});

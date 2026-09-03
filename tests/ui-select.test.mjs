@@ -316,8 +316,10 @@ test('without a search line the trigger drives the open menu: arrows, Home/End, 
   await key('ArrowDown'); // opens
   assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0');
   await key('End');
-  /** Gamma (index 2) is last but disabled rows are only skipped by stepping; End is positional. */
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-2');
+  /** Gamma (index 2) is last but DISABLED — the disabled-highlight invariant holds at every
+   *  door now, so End lands on the last enabled row. (The old positional End was the one door
+   *  that could tint a row Enter refused.) */
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1');
   await key('Home');
   await key('ArrowDown');
   assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1');
