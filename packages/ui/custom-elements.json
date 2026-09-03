@@ -191,7 +191,7 @@
             },
             {
               "name": "menu",
-              "description": "The dropdown container. Carries data-state."
+              "description": "The dropdown container. Carries data-state. On engines with CSS anchor positioning it is a top-layer popover anchored to the trigger (never clipped by overflow, flips when near the viewport edge where @position-try exists); elsewhere, and beside a slotted trigger, it is the in-host absolute menu."
             },
             {
               "name": "search",

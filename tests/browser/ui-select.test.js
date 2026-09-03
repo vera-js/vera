@@ -216,6 +216,58 @@ it('required means valueMissing until a pick, and the form refuses to validate a
   form.remove();
 });
 
+it('the anchor tier: the menu rides the top layer and escapes an overflow:hidden ancestor', async function () {
+  if (!(CSS.supports('top: anchor(bottom)') && 'showPopover' in HTMLElement.prototype)) {
+    /** Below the tier this engine keeps the in-host menu — covered by every other test here. */
+    this.skip();
+    return;
+  }
+  const clip = document.createElement('div');
+  clip.style.cssText = 'overflow: hidden; height: 60px; width: 260px; position: relative;';
+  const element = document.createElement('vera-select');
+  clip.appendChild(element);
+  document.body.appendChild(clip);
+  element.options = OPTIONS;
+  await frame();
+
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  expect(menu.getAttribute('popover')).to.equal('manual', 'the tier applied the popover attribute');
+
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  expect(menu.matches(':popover-open')).to.equal(true, 'the menu is in the top layer');
+  const menuBox = menu.getBoundingClientRect();
+  const clipBox = clip.getBoundingClientRect();
+  expect(menuBox.bottom).to.be.greaterThan(clipBox.bottom + 20,
+    'the dropdown escapes the overflow prison — the bug class every JS library portals around');
+  expect(Math.abs(menuBox.width - element.shadowRoot.querySelector('[part="trigger"]').getBoundingClientRect().width))
+    .to.be.lessThan(2, 'anchor-size(width) matches the trigger');
+
+  element.close();
+  /** The close transition plays while still popover-open; the popover hides after it settles. */
+  for (let i = 0; i < 120 && menu.matches(':popover-open'); i++)
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(menu.matches(':popover-open')).to.equal(false, 'hidden after the transition settled');
+  clip.remove();
+});
+
+it('below the tier or beside a slotted trigger, the fallback menu still works inside the host', async () => {
+  const element = document.createElement('vera-select');
+  const trigger = document.createElement('button');
+  trigger.slot = 'trigger';
+  trigger.textContent = 'Mine';
+  element.appendChild(trigger); // a slotted trigger opts out of the tier (cross-root anchor question)
+  document.body.appendChild(element);
+  element.options = OPTIONS;
+  await frame();
+  const menu = element.shadowRoot.querySelector('[part="menu"]');
+  expect(menu.hasAttribute('popover')).to.equal(false);
+  trigger.click();
+  await frame();
+  expect(menu.getAttribute('data-state')).to.equal('open', 'the everywhere-fallback path is intact');
+  element.remove();
+});
+
 it('custom states are real: :state(open) and :state(empty) match and flip', async () => {
   const element = await mount();
   expect(element.matches(':state(empty)')).to.equal(true, 'nothing selected yet');

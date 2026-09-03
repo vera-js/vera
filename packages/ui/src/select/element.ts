@@ -46,9 +46,26 @@ type Internal = {
   timer: ReturnType<typeof setTimeout> | undefined;
   /** True while the option list came from light-DOM markup — the mutation observer's gate. */
   htmlSourced: boolean;
+  /** A slotted trigger opts out of the anchor tier: anchor names are tree-scoped, and whether a
+   *  light-DOM anchor is visible to a shadow menu is the open cross-root question (SELECT-V2 §4). */
+  slottedTrigger: boolean;
+  /** The close-animation timer before hidePopover(). */
+  hideTimer: ReturnType<typeof setTimeout> | undefined;
   /** What `selected` attributes declared — form reset restores THIS, not emptiness. */
   defaults: import('@verajs/hooks').SelectOption[];
 };
+
+/**
+ * The anchor tier: top-layer popover + CSS anchor positioning, feature-detected on the specific
+ * things used (never the family name). One tier condition, computed once — the fallback is the
+ * existing menu, untouched.
+ */
+const ANCHOR_TIER =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('top: anchor(bottom)') &&
+  typeof HTMLElement !== 'undefined' &&
+  'showPopover' in HTMLElement.prototype;
 
 const INTERNAL = new WeakMap<VeraSelect, Internal>();
 
@@ -69,6 +86,8 @@ const internal = (element: VeraSelect): Internal => {
       host: createStore({ attrs: {} as Record<string, string | null>, formDisabled: false }),
       timer: undefined,
       htmlSourced: false,
+      slottedTrigger: false,
+      hideTimer: undefined,
       defaults: [],
     };
     INTERNAL.set(element, entry);
@@ -319,6 +338,24 @@ export class VeraSelect extends HTMLElement {
         this.dispatchEvent(toggleEvent('beforetoggle', next === 'open' ? 'closed' : 'open', next, true)),
       onToggle: (next) => {
         syncStates(this);
+        /**
+         * The anchor tier promotes the menu to the top layer. Open: show, then the transition
+         * plays from @starting-style. Close: the data-state transition plays while still
+         * popover-open; the popover hides after it settles (a fixed timer — transitionend never
+         * fires under reduced motion). A reopen inside the window cancels the pending hide.
+         */
+        const menu = root.querySelector?.('[part="menu"]') as
+          | (HTMLElement & { showPopover?: () => void; hidePopover?: () => void })
+          | null;
+        if (ANCHOR_TIER && !entry.slottedTrigger && menu?.hasAttribute('popover')) {
+          clearTimeout(entry.hideTimer);
+          try {
+            if (next === 'open') menu.showPopover?.();
+            else entry.hideTimer = setTimeout(() => menu.hidePopover?.(), 180);
+          } catch {
+            /* already in the requested state — nothing to do */
+          }
+        }
         this.dispatchEvent(toggleEvent('toggle', next === 'open' ? 'closed' : 'open', next, false));
       },
       onChange: (selectedOptions) => {
@@ -392,8 +429,10 @@ export class VeraSelect extends HTMLElement {
     const refresh = () => {
       const assignedTo = (name: string) =>
         (root.querySelector?.(`slot[name="${name}"]`) as HTMLSlotElement | null)?.assignedElements()[0];
+      const slottedTrigger = assignedTo('trigger');
+      entry.slottedTrigger = slottedTrigger !== undefined;
       select.attach({
-        trigger: assignedTo('trigger'),
+        trigger: slottedTrigger,
         value: assignedTo('value'),
         search: assignedTo('search'),
         fallbackTrigger: root.querySelector?.('[part="trigger"]') ?? undefined,
@@ -507,6 +546,7 @@ export class VeraSelect extends HTMLElement {
         </slot>
         <div
           part="menu"
+          popover=${ANCHOR_TIER && !entry.slottedTrigger ? 'manual' : null}
           data-state=${state.open ? 'open' : 'closed'}
           @keydown=${handlers.onMenuKeydown}
           @input=${handlers.onSearchInput}

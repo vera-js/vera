@@ -144,6 +144,47 @@ export const SELECT_STYLES = /* css */ `
     visibility: hidden;
     pointer-events: none;
   }
+  /**
+   * THE ANCHOR TIER (SELECT-V2 §4): where the engine has CSS anchor positioning, the menu is a
+   * top-layer popover anchored to the trigger — killing the overflow-clipping bug class — with
+   * flip-when-clipped via position-try-fallbacks where supported (ignored elsewhere; those
+   * engines keep today's non-flipping behavior, which is what they have now). Everything below
+   * this block is the everywhere-fallback: it is not a second implementation, it is the current
+   * one, kept. The popover attribute itself is applied by the element only on this tier — a
+   * popover attribute on a non-anchor engine would UA-hide the menu display:none.
+   *
+   * The open transition needs @starting-style (a popover enters from display:none); the CLOSE
+   * transition needs none of allow-discrete's cross-engine grief: the element flips to
+   * data-state=closed while still popover-open, today's opacity/translate transition plays, and
+   * the element hides the popover after it settles.
+   */
+  @supports (top: anchor(bottom)) {
+    :where([part='trigger']) {
+      /** Leading underscore: the private-custom-property convention — internal plumbing, not a theme token (the surface drift test enforces the difference). */
+      anchor-name: --_vera-select-anchor;
+    }
+    :where([part='menu'][popover]) {
+      position: fixed;
+      position-anchor: --_vera-select-anchor;
+      inset: auto;
+      /** The popover UA stylesheet adds 0.25em padding; and anchor-size() must land border-box
+       *  or the menu runs 10px proud of the trigger it is matching. */
+      padding: 0;
+      box-sizing: border-box;
+      top: calc(anchor(bottom) + 4px);
+      left: anchor(left);
+      inline-size: anchor-size(width);
+      margin: 0;
+      position-try-fallbacks: flip-block;
+    }
+    :where([part='menu'][popover]:popover-open) {
+      @starting-style {
+        opacity: 0;
+        translate: 0 -6px;
+      }
+    }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     :where([part='menu']) {
       transition:

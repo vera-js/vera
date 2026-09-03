@@ -127,7 +127,11 @@ export const selectSurface = {
   parts: [
     { name: 'trigger', description: 'The control button.' },
     { name: 'value', description: 'The value area inside the trigger.' },
-    { name: 'menu', description: 'The dropdown container. Carries data-state.' },
+    {
+      name: 'menu',
+      description:
+        'The dropdown container. Carries data-state. On engines with CSS anchor positioning it is a top-layer popover anchored to the trigger (never clipped by overflow, flips when near the viewport edge where @position-try exists); elsewhere, and beside a slotted trigger, it is the in-host absolute menu.',
+    },
     { name: 'search', description: 'The filter input. Present only when searchable/creatable/remote.' },
     {
       name: 'list',
