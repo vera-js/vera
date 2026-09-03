@@ -101,3 +101,38 @@ test('an empty style element does not make the rest of the template raw', async 
   assert.equal(parsed.querySelectorAll('img[onerror]').length, 0);
   assert.match(html, /&#60;img/, 'ordinary child text is still escaped');
 });
+
+/**
+ * **A `<template>` ends at ITS close tag, not at the first tag whose name starts the same way.**
+ *
+ * The scanner skips a `<template>` whole — its content is a blueprint the client's parser never
+ * upgrades, so rendering components inside it produces markup the client would never produce. The
+ * depth counter that finds the end matched `<template` as a prefix, so `<templates>` counted as a
+ * nested template open. Balanced, the miscount cancels and nothing shows; unbalanced, the depth
+ * never returns to zero and the skip swallows **the entire rest of the document** — every component
+ * after it silently not rendered, with no error anywhere.
+ *
+ * Found generalising this search so component tags could use it too.
+ */
+test('a tag whose name merely starts with "template" does not extend the skip', async () => {
+  const file = join(dir, 'template-boundary.js');
+  writeFileSync(
+    file,
+    `import { init, render, html } from '@verajs/core';\n` +
+      `class After extends HTMLElement {\n` +
+      `  connectedCallback() { init(this, { mode: 'open' }); render(() => html\`<i>RENDERED</i>\`); }\n` +
+      `}\n` +
+      `customElements.define('tpl-after', After);\n` +
+      `export default class Host extends HTMLElement {\n` +
+      `  connectedCallback() {\n` +
+      `    init(this, { mode: 'open' });\n` +
+      /** Unbalanced on purpose: `<templates>` never closes. */
+      `    render(() => html\`<template><templates></template><tpl-after></tpl-after>\`);\n` +
+      `  }\n` +
+      `}\n` +
+      `customElements.define('tpl-host', Host);\n`
+  );
+  const { html } = await renderToString(new URL(`file://${file}`));
+  assert.match(html, /<i>RENDERED<\/i>/, 'the component AFTER the template still rendered');
+  assert.match(html, /<templates>/, 'and the stray tag is left exactly as written');
+});
