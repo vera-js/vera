@@ -34,6 +34,7 @@ import {
   isTemplateResult,
   instanceWalker,
   rootParts,
+  slotSeam,
   renderInto as baseRender,
   renderer as baseRenderer,
 } from './renderer.js';
@@ -250,9 +251,26 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
       node = cursorSplit(cursor);
     }
   } else if (!_defaultTaken) {
-    const count = Number(_adoptHost?.getAttribute('data-vera-slotted') ?? '');
+    /**
+     * `"offset,count"` on the slot's own parent — see `SLOTTED_ATTR`. Only the count is needed
+     * here (the walk is already standing in the right place); the offset is what lets a FAILED
+     * adoption find these same nodes again instead of destroying them.
+     *
+     * `_defaultTaken` still guards: two default slots sharing a parent would otherwise both read
+     * the one mark, and by native semantics only the first receives anything.
+     */
+    const mark = (parent as Element).getAttribute?.('data-vera-slotted');
+    const count = mark === undefined || mark === null ? 0 : Number(mark.slice(mark.indexOf(',') + 1));
     if (count > 0) {
       _defaultTaken = true;
+      /**
+       * **The mark does not survive the page it delivered.** It describes what the SERVER emitted
+       * and is meaningless the moment those nodes are adopted, so leaving it behind would put a
+       * framework marker in the user's live DOM permanently — queryable, stylable, and stale.
+       * `data-vera-select` sets the precedent: it is stripped before the markup even ships, with
+       * a test asserting the mark must not survive.
+       */
+      (parent as Element).removeAttribute('data-vera-slotted');
       for (let i = 0; i < count; i++) {
         const node = cursorSplit(cursor);
         if (node === null) break;
@@ -276,14 +294,12 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
   } else {
     /** Unassigned: the server rendered this slot's fallback children — adopt them in lockstep
      *  (they ARE the canonical children), then bind them as the shown fallback. */
-    const before = cursor.node; // wrong end until children adopted; recomputed after
     const fallbackStart = cursor.node;
     for (let c = canonicalSlot.firstChild; c !== null; c = c.nextSibling)
       if (c.nodeType === 1 || c.nodeType === 3) adoptNode(c, cursor, state);
     /** The fallback nodes now sit between fallbackStart and cursor.node. */
     const fallback: Node[] = [];
     for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
-    void before;
     const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
     (state._slotStates ??= []).push(seam as never);
@@ -658,7 +674,17 @@ export const renderInto = (result: unknown, container: Node) => {
           `and are unaffected. The two renders have to agree exactly — check for markup the template ` +
           `does not describe, or state settled after the server render.`
       );
+    /**
+     * **Un-distribute before discarding.** A light host's slotted content lives INSIDE the markup
+     * about to be thrown away, so clearing destroyed it: the slots fell back and the user's nodes
+     * were gone from the page permanently, under a warning that said the page was still correct.
+     * The slots module lifts them back out (`_$rescue$`), and re-attaching them as the host's
+     * children puts it in exactly the state a first client render starts from — the clean render
+     * below captures and redistributes them with no special case anywhere.
+     */
+    const rescued = container.nodeType === 1 ? slotSeam()?._$rescue$?.(container as Element) : null;
     clearPreservingStyles(container);
+    if (rescued !== null && rescued !== undefined) for (const node of rescued) container.appendChild(node);
   }
   baseRender(result, container);
 };

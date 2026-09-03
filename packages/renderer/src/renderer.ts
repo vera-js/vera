@@ -378,6 +378,17 @@ export type SlotSeamState = { _$park$?: () => void };
 /** The registered `'slot'` insert is a plain function per wire's contract: take over one cloned
  *  `<slot>` for the given root, or decline with null/undefined (native slotting proceeds). */
 type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
+/**
+ * The seam function plus the members it carries for callers that are not committing a slot —
+ * sigil-named, so they survive property mangling across bundle boundaries (the child-directive
+ * precedent). `_$capture$` lifts a light host's children on its first render; `_$rescue$` puts
+ * them back when hydration has to discard the server's markup; `_$server$`/`_$adopt$` belong to
+ * SSR and the hydrate entry and are reached off the same object.
+ */
+type SlotSeam = SlotSeamFn & {
+  _$capture$?: (host: Element) => void;
+  _$rescue$?: (host: Element) => Node[] | null;
+};
 /** A recorded `<slot>` position: node index in the instance walk + the slot's name. Slot records
  *  live BESIDE the parts array, not in it — instances mount them in one post-loop pass, so
  *  `_update` never iterates them and non-slot apps pay nothing per render. */
@@ -519,7 +530,7 @@ class Template {
      * instead would move a registry lookup onto the hot path for every app, which is the trade
      * this design refuses.
      */
-    const seam = (registry?.get('slot') as SlotSeamFn[] | undefined)?.[0];
+    const seam = slotSeam();
     if (seam !== undefined) {
       instanceWalker.currentNode = content;
       let index = -1;
@@ -1187,6 +1198,15 @@ export type ValueHandler = (part: object, value: unknown) => boolean | void;
  * failure `connectInserts` used to repair.
  */
 let registry: { get(name: 'value' | 'slot'): unknown[] | undefined } | null = null;
+
+/**
+ * The ONE lookup for the `'slot'` insert. Three callers want the same thing in the same shape —
+ * template construction (are there slots to record?), the first render into a container (capture
+ * the host's children), and hydration's rescue (un-distribute before a mismatch discards) — and
+ * the seam carries its cross-bundle members as sigil-named keys, which every caller had to spell
+ * out again. One accessor, spelled once.
+ */
+const slotSeam = (): SlotSeam | undefined => (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
 const noHandlers: ValueHandler[] = [];
 const valueHandlers = () => (registry ? ((registry.get('value') as ValueHandler[] | undefined) ?? noHandlers) : noHandlers);
 
@@ -1729,12 +1749,7 @@ export const renderInto = (result: unknown, container: Node) => {
      * "unassigned light children do not render". Once per container lifetime; shadow roots
      * (nodeType 11) and fragments are excluded.
      */
-    if (container.nodeType === 1 && registry !== null) {
-      const seam = (registry.get('slot') as SlotSeamFn[] | undefined)?.[0] as
-        | (SlotSeamFn & { _$capture$?: (host: Element) => void })
-        | undefined;
-      seam?._$capture$?.(container as Element);
-    }
+    if (container.nodeType === 1) slotSeam()?._$capture$?.(container as Element);
     const marker = comment();
     container.appendChild(marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
@@ -1784,6 +1799,7 @@ export {
   isTemplateResult,
   instanceWalker,
   rootParts,
+  slotSeam,
   _setProfileHook,
   PROFILE_UPDATE,
   PROFILE_CREATE,

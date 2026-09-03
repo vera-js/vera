@@ -114,11 +114,13 @@ test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry
    * re-renders. For slot components that promise was broken: the abandoned attempt left its
    * bindings registered, so the clean render\'s bindings ranked as later duplicates and showed
    * fallback while the user\'s content sat in the discarded tree. Bailing now parks what it
-   * adopted, returning the nodes to holding for the fresh render to redistribute.
+   * adopted, returning the nodes to holding for the fresh render to redistribute — and, for the
+   * slots it never reached, `_$rescue$` lifts the user\'s nodes out before the discard.
    */
   const host = dom.window.document.createElement('div');
-  host.setAttribute('data-vera-slotted', '1');
-  host.innerHTML = '<article><header><h2 slot="header">MY HEADER</h2></header><main>MY BODY</main></article>';
+  host.innerHTML =
+    '<article><header><h2 slot="header">MY HEADER</h2></header>' +
+    '<main data-vera-slotted="0,1">MY BODY</main></article>';
   dom.window.document.getElementById('root').appendChild(host);
   // a client template the server never produced (version skew / state difference)
   renderInto(html`<article><header><slot name="header">fbh</slot></header><main><slot>fbd</slot></main><footer>NEW</footer></article>`, host);
@@ -127,5 +129,60 @@ test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry
   assert.ok(host.textContent.includes('MY BODY'), 'default slot content survived the mismatch');
   assert.ok(host.textContent.includes('NEW'), 'and the client template rendered');
   assert.equal(host.querySelector('slot'), null, 'distributed, not left as slot elements');
+  host.remove();
+});
+
+/**
+ * **The server's delimiter must not outlive the adoption it delivered.** `data-vera-slotted`
+ * describes what the server emitted; once those nodes are adopted it is meaningless, and leaving
+ * it behind puts a framework marker in the user's live DOM permanently. `data-vera-select` sets
+ * the precedent — `ssr-select-parity` asserts "the mark must not survive".
+ */
+test('AUDIT — the data-vera-slotted delimiter is stripped once adopted', async () => {
+  const serverHtml = server('plain body<b>bold</b>');
+  assert.match(serverHtml, /<main data-vera-slotted="0,2">/,
+    'CONTROL: the server did emit the mark, on the slot\'s parent (or this test proves nothing)');
+  const host = hostFromServer(serverHtml);
+  const bBefore = host.querySelector('b');
+  renderInto(card(), host);
+  await settle();
+  assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and the hydrator strips it');
+  assert.equal(host.querySelector('b'), bBefore, 'while still adopting in place — identity preserved');
+  assert.equal(slotted(host).length, 2, 'and the capture map holds both default nodes');
+});
+
+/**
+ * **The mismatch that happens BEFORE the walk reaches a slot** — the broader half of the same
+ * invariant. Parking rescues slots the attempt already adopted; when the two renders disagree at
+ * the root, nothing has been adopted and there is nothing to park, so the discard took the user's
+ * content with it. It was the worst possible shape of bug: content gone from the page for good,
+ * under a warning that said the page was still correct.
+ *
+ * `_$rescue$` un-distributes first, using the only two things the server states — a named node
+ * carries its own `slot`, and the default slot's parent carries `offset,count` — and the clean
+ * render then captures the host's children exactly as it would on a first client render.
+ */
+test('AUDIT — a mismatch BEFORE any slot is adopted still keeps every slotted node', async () => {
+  const serverHtml = server('<h2 slot="header">USER HEADER</h2>USER BODY<b>B</b><p slot="nowhere">ORPHAN</p>');
+  assert.match(serverHtml, /<article>/, 'CONTROL: the server rendered <article> for the drift below to disagree with');
+  const host = hostFromServer(serverHtml);
+  /** Disagrees at the very first element, so adoption dies before any slot. */
+  renderInto(html`<section><header><slot name="header"><em>fb</em></slot></header><main><slot>dfb</slot></main></section>`, host);
+  await settle();
+  assert.ok(host.textContent.includes('USER HEADER'), 'named content survived');
+  assert.ok(host.textContent.includes('USER BODY'), 'default text survived');
+  assert.ok(host.querySelector('b'), 'and the rest of the default run');
+  assert.equal(host.querySelector('section > header > h2').textContent, 'USER HEADER', 'redistributed, not merely present');
+  assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and no marker is left behind');
+
+  /** Live afterwards, like any client render — and content for a slot this state does not have
+   *  is in holding rather than destroyed. */
+  host.querySelector('h2').remove();
+  await settle();
+  assert.equal(host.querySelector('header').textContent, 'fb', 'fallback returns');
+  renderInto(html`<section><aside><slot name="nowhere">none</slot></aside></section>`, host);
+  await settle();
+  assert.equal(host.querySelector('aside').textContent, 'ORPHAN',
+    'the unclaimed node survived the bail in holding and appears when its slot does');
   host.remove();
 });

@@ -330,9 +330,23 @@ export const slotted = (host: Element, name = ''): Node[] => {
  * Input: the host after its template rendered — `source` are the user's original children
  * (snapshotted before the template ran), and the host also contains the rendered template with
  * literal `<slot>` elements. Output: markerless distributed light DOM — each `<slot>` UNWRAPPED
- * to its assigned nodes (or its own fallback children), the source consumed, and one host
- * attribute (`data-vera-slotted`) when the DEFAULT slot received content, which is all hydration
- * needs to tell assigned-from-fallback there.
+ * to its assigned nodes (or its own fallback children), the source consumed, and one attribute
+ * (`data-vera-slotted="offset,count"`) when the DEFAULT slot received content, which is all
+ * hydration needs to tell assigned-from-fallback there.
+ */
+/**
+ * **`"offset,count"`, on the default slot's PARENT — position, not just extent.** A named slot's
+ * content self-identifies (the user's nodes carry their own `slot="x"`); the default slot's does
+ * not, because bare text is common there and cannot carry an attribute, so the server states it.
+ *
+ * The count alone is enough to ADOPT — the adoption walk arrives already standing at the right
+ * place. It is not enough to RECOVER, and recovery is the case that matters: when hydration hits
+ * a mismatch it discards the container and clean-renders, and for a light host the user's slotted
+ * content is *inside* what gets discarded. Marked with only a count on the host, content whose
+ * slot the walk never reached could not be found again and was destroyed — silently, under a
+ * warning that promised the page was still correct. With the position stated, `_$rescue$` lifts
+ * the user's nodes back out before the discard, no walk required, and the clean render
+ * redistributes them exactly as it would on a first client render.
  */
 const SLOTTED_ATTR = 'data-vera-slotted';
 /**
@@ -367,10 +381,15 @@ const serverDistribute = (host: Element, source: Node[]) => {
     if (assigned !== undefined && assigned.length > 0) {
       filled.add(name);
       for (const node of assigned) parent.insertBefore(node, slot);
-      /** The DEFAULT slot's extent is unmarkable in the body (its content may be bare text), so
-       *  the host carries the COUNT — the one deterministic, markerless delimiter the hydrator
-       *  needs. Named slots self-delimit by their own `slot` attribute and need nothing. */
-      if (name === '') host.setAttribute(SLOTTED_ATTR, String(assigned.length));
+      /** The DEFAULT slot's content is unmarkable in the body (it may be bare text), so its
+       *  PARENT states where it is and how much of it there is. Named slots self-delimit by
+       *  their own `slot` attribute and need nothing. Offset is stable: slots are unwrapped in
+       *  document order, so everything before this one is already final. */
+      if (name === '') {
+        let offset = 0;
+        for (let n = parent.firstChild; n !== null && n !== assigned[0]; n = n.nextSibling) offset++;
+        (parent as Element).setAttribute(SLOTTED_ATTR, `${offset},${assigned.length}`);
+      }
     } else {
       /** Fallback: the slot's own children, unwrapped in place. */
       let child = slot.firstChild;
@@ -462,6 +481,64 @@ const adoptSlot = (
   return seam;
 };
 (takeOverSlot as { _$adopt$?: typeof adoptSlot })._$adopt$ = adoptSlot;
+
+/**
+ * HYDRATION rescue — **the user's content must survive a mismatch.** When adoption fails, the
+ * hydrator discards the container's server markup and clean-renders it; for a light host the
+ * user's slotted nodes are *inside* that markup, so the discard destroyed them and the slots
+ * showed fallback, under a warning promising the page was still correct. It was not: content was
+ * gone from the page for good.
+ *
+ * This un-distributes instead: it lifts the user's nodes back out, using exactly the two things
+ * the server states about them — a named node carries its own `slot`, and the default slot's
+ * parent carries `data-vera-slotted="offset,count"` — and returns them for the caller to re-attach
+ * as the host's children. From there nothing is special-cased: the clean render captures them the
+ * way it captures any first client render.
+ *
+ * **Never descends into another component.** A nested host's children are its own source, which
+ * it will capture (or rescue) itself when it renders; taking them here would hand one component's
+ * content to another. A custom element is therefore collected as a node and never entered.
+ *
+ * One documented edge: a component whose FALLBACK content carries a `slot` attribute
+ * (`<slot name="a"><i slot="a">…</i></slot>`) has that fallback rescued as if the user wrote it.
+ * The attribute is meaningless on fallback in native shadow DOM too — it only means anything on a
+ * host's children — so the markup was already saying something it does not mean.
+ */
+const rescue = (host: Element): Node[] | null => {
+  const rescued: Node[] = [];
+  const collect = (parent: Element) => {
+    const mark = parent.getAttribute(SLOTTED_ATTR);
+    let from = -1;
+    let until = -1;
+    if (mark !== null) {
+      const comma = mark.indexOf(',');
+      from = Number(mark.slice(0, comma));
+      until = from + Number(mark.slice(comma + 1));
+    }
+    let index = 0;
+    for (let child = parent.firstChild; child !== null; child = child.nextSibling, index++) {
+      if (index >= from && index < until) {
+        rescued.push(child);
+        continue;
+      }
+      if (child.nodeType !== 1) continue;
+      const element = child as Element;
+      /** The inert carrier holds what no slot claimed — user content too, and its nodes live in
+       *  `content`, not `childNodes`. */
+      if (element.hasAttribute(UNASSIGNED_MARK)) {
+        const held = (element as HTMLTemplateElement).content;
+        for (let node = held.firstChild; node !== null; node = node.nextSibling) rescued.push(node);
+        continue;
+      }
+      if (element.hasAttribute('slot')) rescued.push(element);
+      else if (element.localName.indexOf('-') === -1) collect(element);
+    }
+  };
+  collect(host);
+  for (const node of rescued) node.parentNode?.removeChild(node);
+  return rescued.length > 0 ? rescued : null;
+};
+(takeOverSlot as { _$rescue$?: typeof rescue })._$rescue$ = rescue;
 
 /** The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist. */
 export const slots = {

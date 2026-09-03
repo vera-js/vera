@@ -1,8 +1,8 @@
 /**
  * Light-DOM slot distribution on the SERVER — `@verajs/ssr` + `@verajs/renderer/slots`. The
  * server renders once and distributes through the slots module's `_$server$` hook (markerless: no
- * comments, `<slot>` unwrapped, one `data-vera-slotted` host attribute when the default slot got
- * content — all hydration needs). The client seam is inert under the shim; this is the server pass.
+ * comments, `<slot>` unwrapped, one `data-vera-slotted="offset,count"` attribute on the default
+ * slot's PARENT when it got content — all hydration needs, to adopt and to recover). The client seam is inert under the shim; this is the server pass.
  */
 import { renderToString, renderToStringAsync } from '@verajs/ssr';
 import { wire } from '@verajs/core';
@@ -18,10 +18,12 @@ const render = async (children) => (await renderToString(CARD, { children })).ht
 test('assigned named + default: distributed, marked, and MARKERLESS (no <slot>, no comments)', async () => {
   const html = await render('<h2 slot="header">Hi there</h2>plain body<b>bold</b>');
   assert.match(html, /<header><h2 slot="header">Hi there<\/h2><\/header>/, 'named content in its slot');
-  assert.match(html, /<main>plain body<b>bold<\/b><\/main>/, 'default content in the default slot');
+  assert.match(html, /<main data-vera-slotted="0,2">plain body<b>bold<\/b><\/main>/,
+    'default content in the default slot, its parent stating where it is and how much of it there is');
   assert.doesNotMatch(html, /<slot[\s>]/, 'no <slot> element survives to the light DOM');
   assert.doesNotMatch(html, /<!--/, 'no framework comments');
-  assert.match(html, /<slot-card-ssr data-vera-slotted="2">/, 'the default slot took 2 nodes (text + <b>), so the host carries the count');
+  assert.doesNotMatch(html, /<slot-card-ssr[^>]*data-vera-slotted/,
+    'the mark belongs to the slot\'s parent, never the host — position is what makes it recoverable');
   /** No top-level duplicate of the source. */
   assert.equal((html.match(/Hi there/g) || []).length, 1, 'source appears exactly once');
 });
@@ -44,8 +46,7 @@ test('named only: named distributes, default falls back, host NOT marked', async
 test('default only: default distributes and marks; named falls back', async () => {
   const html = await render('just text');
   assert.match(html, /<header><em>fallback header<\/em><\/header>/);
-  assert.match(html, /<main>just text<\/main>/);
-  assert.match(html, /data-vera-slotted/);
+  assert.match(html, /<main data-vera-slotted="0,1">just text<\/main>/);
 });
 
 test('multiple nodes to one slot keep order', async () => {
