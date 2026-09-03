@@ -117,4 +117,39 @@ describe('the minified bundles, with no build step', () => {
     );
     expect(lazy.textContent).to.equal('loaded on demand');
   });
+
+
+  /**
+   * **Light-DOM slots with no build step at all**, which `CODE-PRINCIPLES.md` #9 calls a hard
+   * constraint rather than an aspiration. This mode has the most to lose for this feature: the
+   * bundles are the MINIFIED ones, every one of them inlines its own `@verajs/inserts`, and the
+   * renderer reaches the slots module across that boundary through sigil-named members that
+   * property mangling must not touch. Nothing else runs that combination in a real browser.
+   */
+  it('distributes light-DOM slots through the import map, minified', () => {
+    const card = frame.contentDocument.querySelector('buildless-card');
+    expect(card, 'CONTROL: the card is in the fixture').to.not.equal(null);
+    expect(card.querySelector('header').textContent).to.equal('Slotted title',
+      'the named slot distributed — if the seam had not crossed the bundle boundary this would read "untitled"');
+    expect(card.querySelector('main').textContent).to.equal('body text', 'and the default slot');
+    expect(card.querySelector('slot')).to.equal(null, 'no <slot> survives into the light DOM');
+    expect(card.readSlotted('title')).to.equal('Slotted title', 'slotted() reads the capture map');
+    expect(Number(card.dataset.slotchanges ?? 0)).to.be.greaterThan(0,
+      'and slotchange fired — the sigil members survived mangling');
+  });
+
+  it('redistributes live, after minification', async () => {
+    const card = frame.contentDocument.querySelector('buildless-card');
+    const before = Number(card.dataset.slotchanges ?? 0);
+    const added = frame.contentDocument.createElement('h2');
+    added.setAttribute('slot', 'title');
+    added.textContent = ' and more';
+    card.appendChild(added);
+    await settle(frame);
+    expect(card.querySelector('header').textContent).to.equal('Slotted title and more',
+      'the observer redistributed in the minified build');
+    expect(Number(card.dataset.slotchanges)).to.be.greaterThan(before, 'and fired again');
+    added.remove();
+  });
+
 });

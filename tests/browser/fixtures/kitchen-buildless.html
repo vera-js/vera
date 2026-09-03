@@ -24,6 +24,7 @@
           "@verajs/core": "/packages/core/dist/vera.min.js",
           "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
           "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
+          "@verajs/renderer/slots": "/packages/renderer/dist/vera-renderer-slots.min.js",
           "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
           "@verajs/router": "/packages/router/dist/vera-router.min.js",
           "@verajs/autoloader": "/packages/autoloader/dist/vera-autoloader.min.js",
@@ -34,6 +35,7 @@
   </head>
   <body>
     <buildless-app></buildless-app>
+    <buildless-card><h2 slot="title">Slotted title</h2>body text</buildless-card>
 
     <script type="module">
       import {
@@ -44,9 +46,10 @@
         html,
         css,
         createStore} from '@verajs/core';
-      import { renderInto as renderer } from '@verajs/renderer';
+      import { renderInto as renderFn, renderer } from '@verajs/renderer';
       import { keyed } from '@verajs/renderer/keyed';
       import { spread } from '@verajs/renderer/spread';
+      import { slots, slotted } from '@verajs/renderer/slots';
       import { initRouter, router, navigate } from '@verajs/router';
       import { styles } from '@verajs/styles';
       import { autoloader } from '@verajs/autoloader';
@@ -57,7 +60,21 @@
        */
       wire([router]);
 
-      wire({ on: 'render', fn: renderer, priority: 50 });
+      /**
+       * The MODULE, not the bare function. Both register a renderer, and only the module form runs
+       * the descriptor's `connect()` — which is how the renderer receives the app's insert registry
+       * and therefore how it finds the `'slot'` seam. Wiring `fn: renderInto` directly leaves the
+       * registry null, so light-DOM slots silently render their fallback and nothing says why.
+       */
+      wire([renderer]);
+      void renderFn;
+      /**
+       * Light-DOM slots through the import map too. This is the mode where the seam has the most to
+       * lose: every bundle here inlines its own `@verajs/inserts`, and the renderer reaches this
+       * module across that boundary through sigil-named members that production mangling must not
+       * touch. Wired through core's own `wire`, which is the rule for any insert.
+       */
+      wire([slots]);
       wire([styles]);
       wire(
         autoloader(new URL('/examples/kitchen-sink/entry-client.js', location.href).href, 'lazy')
@@ -103,6 +120,21 @@
         }
       }
       customElements.define('buildless-app', BuildlessApp);
+
+      /** A LIGHT component distributing its own children, minified, resolved by the import map. */
+      class BuildlessCard extends HTMLElement {
+        connectedCallback() {
+          init(this); // light DOM — no shadow options
+          render(
+            () => html`<article>
+              <header><slot name="title" @slotchange=${() => { this.dataset.slotchanges = String(Number(this.dataset.slotchanges ?? 0) + 1); }}>untitled</slot></header>
+              <main><slot>empty</slot></main>
+            </article>`
+          );
+          this.readSlotted = (name) => slotted(this, name).map((node) => node.textContent).join('');
+        }
+      }
+      customElements.define('buildless-card', BuildlessCard);
       document.documentElement.dataset.sinkMode = 'buildless';
     </script>
   </body>

@@ -325,7 +325,14 @@ console.log(card.querySelector('main').textContent); //   "Body text goes to the
 console.log(slotted(card, 'header').length); //           1
 ```
 
-`slots` is the insert descriptor you wire; that is all a consumer touches. The assignment follows
+`slots` is the insert descriptor you wire; that is all a consumer touches.
+
+> **Wire the renderer as a MODULE — `wire([renderer, slots])` — not as a bare function.** Both
+> spellings register a renderer, and only the module form runs the descriptor's `connect()`, which
+> is how the renderer receives the app's insert registry and therefore how it finds this seam at
+> all. `wire({ on: 'render', fn: renderInto, priority: 50 })` leaves that registry unset, so every
+> `<slot>` renders its fallback and nothing says why. (That spelling is documented for wiring a
+> DIFFERENT renderer — lit-html — where there is no seam to find.) The assignment follows
 the platform's own rules — elements to the slot their `slot` attribute names, text to the default
 slot, fallback shown only while a slot is unassigned and restored when it empties, direct children
 only. Live: appending, removing, or re-slotting children redistributes automatically, with one documented
