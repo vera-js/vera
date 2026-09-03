@@ -198,8 +198,20 @@ export const SELECT_STYLES = /* css */ `
     }
   }
 
+  /*
+   * The visibility transition is DIRECTION-SPLIT on purpose (transition-property reads from the
+   * destination state): closing holds visibility for the fade; opening flips it instantly,
+   * because a transitioning visibility left the menu computed-hidden for a window after open and
+   * a real engine REFUSES focus() into hidden content - the search line's auto-focus silently
+   * failed on first open (Chromium; jsdom focuses anything, so only a browser shows it).
+   */
   @media (prefers-reduced-motion: no-preference) {
     :where([part='menu']) {
+      transition:
+        opacity 140ms ease,
+        translate 140ms ease;
+    }
+    :where([part='menu'][data-state='closed']) {
       transition:
         opacity 140ms ease,
         translate 140ms ease,

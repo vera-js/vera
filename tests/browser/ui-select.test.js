@@ -334,6 +334,27 @@ it('AUDIT — form and labels answer through internals with real form ownership'
   form.remove();
 });
 
+it('AUDIT — the search line takes focus on FIRST open, and typing reaches it', async () => {
+  /**
+   * The search auto-focus silently failed on first open: the menu's visibility transition left
+   * it computed-hidden for a window after data-state flipped, and a real engine refuses focus()
+   * into hidden content (jsdom focuses anything). Every keystroke then fed the trigger's
+   * typeahead instead of the filter, which killed the creatable and remote flows for any user
+   * who did not click the input by hand. The fix is the direction-split visibility transition +
+   * the deferred focus; this pins the whole user path with real keys.
+   */
+  const element = await mount((el) => el.setAttribute('creatable', ''));
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  await frame();
+  expect(element.shadowRoot.activeElement?.getAttribute('part')).to.equal('search', 'first open focuses the search line');
+  await sendKeys({ type: 'Neb' });
+  await frame();
+  expect(element.shadowRoot.querySelector('[part="search"]').value).to.equal('Neb', 'keystrokes reach the filter');
+  expect(element.shadowRoot.querySelector('[part="option"][data-create]')).to.not.equal(null, 'the create row appears');
+  element.remove();
+});
+
 it('custom states are real: :state(open) and :state(empty) match and flip', async () => {
   const element = await mount();
   expect(element.matches(':state(empty)')).to.equal(true, 'nothing selected yet');

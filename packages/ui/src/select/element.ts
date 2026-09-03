@@ -580,14 +580,24 @@ export class VeraSelect extends HTMLElement {
       });
     };
 
-    /** The search line takes focus when the menu opens. Registered before render(), like every hook. */
+    /**
+     * The search line takes focus when the menu opens. Registered before render(), like every
+     * hook — which is exactly why the focus itself is DEFERRED a frame: this effect runs in the
+     * flush that opens the menu, before the template commits data-state="open", so the input is
+     * still under the closed state's visibility:hidden and a real engine REFUSES the focus.
+     * jsdom focuses anything, so only a browser shows it; found by typing into the creatable
+     * demo card and watching every keystroke land on the trigger's typeahead instead.
+     */
     useEffect(() => {
       if (!state.open) return;
-      const search =
-        ((root.querySelector?.('slot[name="search"]') as HTMLSlotElement | null)?.assignedElements()[0] as
-          | HTMLElement
-          | undefined) ?? (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
-      search?.focus?.();
+      requestAnimationFrame(() => {
+        if (!state.open || !this.isConnected) return;
+        const search =
+          ((root.querySelector?.('slot[name="search"]') as HTMLSlotElement | null)?.assignedElements()[0] as
+            | HTMLElement
+            | undefined) ?? (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
+        search?.focus?.();
+      });
     }, this);
 
     /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
