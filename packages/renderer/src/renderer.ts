@@ -140,7 +140,6 @@ const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
-const SLOT = 3; // a <slot> position recorded for the light-slots seam; consumes NO expression values
 
 type Spec = { _type: 0 } | { _type: 1; _name: string } | { _type: 2 };
 
@@ -355,11 +354,9 @@ const scan = (strings: TemplateStringsArray) => {
 
 /** A part's position and shape inside a Template, resolved to a node index for instantiation. */
 type TemplatePart = {
-  _type: 0 | 1 | 2 | 3;
+  _type: 0 | 1 | 2;
   _index: number;
   _name?: string;
-  /** SLOT parts only: the seam function active when this template was constructed. */
-  _handler?: SlotSeamFn;
   _statics?: string[];
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
   _present?: boolean;
@@ -381,6 +378,10 @@ type SlotSeamState = { _$park$?: () => void };
 /** The registered `'slot'` insert is a plain function per wire's contract: take over one cloned
  *  `<slot>` for the given root, or decline with null/undefined (native slotting proceeds). */
 type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
+/** A recorded `<slot>` position: node index in the instance walk + the slot's name. Slot records
+ *  live BESIDE the parts array, not in it — instances mount them in one post-loop pass, so
+ *  `_update` never iterates them and non-slot apps pay nothing per render. */
+type SlotRecord = { _i: number; _n: string };
 
 /**
  * The container of the renderInto call currently committing — how a slot part learns its root
@@ -395,6 +396,9 @@ const templateCache = new WeakMap<TemplateStringsArray, Template>();
 class Template {
   _element: HTMLTemplateElement;
   _parts: TemplatePart[] = [];
+  /** Present only when a 'slot' insert was wired at construction and the markup contains slots. */
+  _slots?: SlotRecord[];
+  _seam?: SlotSeamFn;
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
@@ -419,14 +423,6 @@ class Template {
     let specIndex = 0;
     let node: Node | null;
     const parts = this._parts;
-    /**
-     * The light-slots seam, resolved once per template construction. Absent (the common app),
-     * the walk keeps its early exit at the last expression and no slot is ever recorded — this
-     * lookup is the seam's whole cost. Present, the walk runs to the end of the template so a
-     * slot AFTER the last expression (or in a template with none) is still found.
-     */
-    const slotSeam =
-      registry !== null ? ((registry.get('slot') as SlotSeamFn[] | undefined)?.[0]) : undefined;
     const consumeIgnored = () => {
       while (specIndex < specs.length && specs[specIndex]._type === IGNORED) {
         parts.push({ _type: IGNORED, _index: -1 });
@@ -434,23 +430,10 @@ class Template {
       }
     };
     consumeIgnored();
-    while ((specIndex < specs.length || slotSeam !== undefined) && (node = markerWalker.nextNode()) !== null) {
+    while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
       if (node.nodeType === 1) {
         const element = node as Element;
-        /**
-         * A `<slot>` position — recorded with ZERO expression values consumed, before the
-         * attribute loop so spec order is untouched. Whether it is taken over is decided per
-         * INSTANCE (per root); the record only says where slots sit and which seam was active.
-         */
-        if (slotSeam !== undefined && element.localName === 'slot')
-          parts.push({
-            _type: SLOT,
-            _index: -1,
-            _name: element.getAttribute('name') ?? '',
-            _node: element,
-            _handler: slotSeam,
-          });
-        if (specIndex < specs.length && element.hasAttributes()) {
+        if (element.hasAttributes()) {
           for (const attributeName of element.getAttributeNames()) {
             if (attributeName.endsWith(MARKER)) {
               /**
@@ -480,7 +463,7 @@ class Template {
             }
           }
         }
-        if (specIndex < specs.length && RAW_TEXT_TAGS.test(element.tagName) && element.textContent!.includes(MARKER)) {
+        if (RAW_TEXT_TAGS.test(element.tagName) && element.textContent!.includes(MARKER)) {
           /**
            * Comments cannot be PARSED inside raw-text elements, but they are legal DOM once
            * created — so the scan left text markers, and here they become real marker comments.
@@ -494,7 +477,7 @@ class Template {
           }
           if (pieces[pieces.length - 1]) element.append(pieces[pieces.length - 1]);
         }
-      } else if (specIndex < specs.length && (node as Comment).data === MARKER_COMMENT_DATA) {
+      } else if ((node as Comment).data === MARKER_COMMENT_DATA) {
         specIndex++;
         const primedText = doc.createTextNode('');
         node.parentNode!.insertBefore(primedText, node);
@@ -520,6 +503,28 @@ class Template {
       }
     }
     for (const part of parts) part._node = undefined;
+
+    /**
+     * THE SLOT WALK — the whole template-side seam, and it runs only when a 'slot' insert is
+     * wired at construction. One dedicated pass discovers `<slot>` elements AND indexes them in
+     * the same ELEMENT|TEXT numbering the instance walk uses (Text has no localName, so no
+     * nodeType check is needed). Passes 1 and 2 above are byte-identical to their pre-seam
+     * selves: an unwired app's construction path is untouched, and its only cost is this one
+     * registry lookup per template construction.
+     */
+    const seam = (registry?.get('slot') as SlotSeamFn[] | undefined)?.[0];
+    if (seam !== undefined) {
+      instanceWalker.currentNode = content;
+      let index = -1;
+      while ((node = instanceWalker.nextNode()) !== null) {
+        index++;
+        if ((node as Element).localName === 'slot')
+          (this._slots ??= ((this._seam = seam), [])).push({
+            _i: index,
+            _n: (node as Element).getAttribute('name') ?? '',
+          });
+      }
+    }
   }
 }
 
@@ -539,23 +544,6 @@ const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 /** Never equal to any user value, so the first commit always runs. */
 const UNSET = {};
 
-/** Zero-consume placeholder for a slot the seam declined — the native element stays untouched. */
-const SLOT_NOOP: Part = { _commit: (_values, index) => index };
-
-/**
- * Bind one recorded slot to its cloned element for the root currently rendering. The handler
- * takes it over (returning state) or declines (shadow roots, roots it does not manage) — and a
- * construction outside `renderInto` (null root: hydration's adoption path) never even asks.
- * Taking over sets `notifyOnRemoval`: the seam's `_$park$` must run before a bulk `_clear`
- * discards DOM that holds the USER'S nodes, or a conditional branch-away would destroy them.
- */
-const slotAdapter = (templatePart: TemplatePart, element: Element): Part => {
-  if (_slotRoot === null) return SLOT_NOOP;
-  const state = templatePart._handler!(element, _slotRoot, templatePart._name ?? '');
-  if (state == null) return SLOT_NOOP;
-  notifyOnRemoval = true;
-  return { _commit: (_values, index) => index, _$slotState$: state } as Part;
-};
 
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
 const createMarkeredPart = (parent: Node, ref: Node | null) => {
@@ -998,6 +986,8 @@ type Item = {
 class Instance {
   _parts: Part[] = [];
   _fragment: DocumentFragment;
+  /** Taken-over slot states, parked at teardown. Absent for every template without slots. */
+  _slotStates?: SlotSeamState[];
   constructor(template: Template) {
     /** cloneNode over importNode: same document, and it measures slightly cheaper. */
     this._fragment = template._element.content.cloneNode(true) as DocumentFragment;
@@ -1019,10 +1009,33 @@ class Instance {
       this._parts.push(
         templatePart._type === CHILD
           ? new TextPart(node as Text)
-          : templatePart._type === SLOT
-            ? slotAdapter(templatePart, node as Element)
-            : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
+          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
+    }
+    /**
+     * Slot records mount OUTSIDE the parts array — one extra walk from the top, paid only by
+     * templates that HAVE slots, only inside a renderInto commit (null root — hydration's
+     * adoption path — stays inert), and only when the 'slot' insert answers. Taking over sets
+     * `notifyOnRemoval`: `_$park$` must rescue the USER'S nodes before a bulk `_clear` discards
+     * the DOM holding them on a branch-away. `_update` never sees any of this.
+     */
+    const seam = template._seam;
+    if (seam !== undefined && _slotRoot !== null) {
+      const slotRecords = template._slots!;
+      instanceWalker.currentNode = this._fragment;
+      nodeIndex = -1;
+      for (let i = 0; i < slotRecords.length; i++) {
+        const record = slotRecords[i];
+        while (nodeIndex < record._i) {
+          node = instanceWalker.nextNode();
+          nodeIndex++;
+        }
+        const state = seam(node as Element, _slotRoot, record._n);
+        if (state != null) {
+          (this._slotStates ??= []).push(state);
+          notifyOnRemoval = true;
+        }
+      }
     }
   }
 
@@ -1049,9 +1062,9 @@ class Instance {
       const part = parts[i];
       if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
       (part as TextPart)._upgraded?._detach();
-      /** A taken-over slot parks the USER'S nodes before this instance's DOM is discarded. */
-      (part as { _$slotState$?: SlotSeamState })._$slotState$?._$park$?.();
     }
+    /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
+    this._slotStates?.forEach((state) => state._$park$?.());
   }
 
   _update(values: unknown[]) {
