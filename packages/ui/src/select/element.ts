@@ -286,6 +286,14 @@ export class VeraSelect extends HTMLElement {
     if (name === 'loading') syncStates(this);
     /** A control disabled while its menu is open must not strand the menu (measured: it did). */
     if (name === 'disabled' && value !== null) entry.select?.close(false);
+    /** Single holds ONE through every door: the setter bounds assignments, and this bounds the
+     *  mode change itself — multi toggled off with a plural selection kept it (found by fuzz). */
+    if (name === 'multi' && value === null && entry.select && entry.select.state.value.length > 1) {
+      entry.select.state.value = entry.select.state.value.slice(0, 1);
+      entry.select.sync();
+      reflectForm(this, entry.select.state.value);
+      syncStates(this);
+    }
     /**
      * The form reflection is a snapshot: a multi FormData bakes the name at set time, and
      * validity bakes required and its message — so renaming, or toggling required, must
