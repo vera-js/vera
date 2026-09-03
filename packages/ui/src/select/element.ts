@@ -579,6 +579,33 @@ export class VeraSelect extends HTMLElement {
       const active = Math.min(state.active, Math.max(count - 1, 0));
       const activeId = count === 0 ? null : active === rows.length ? 'opt-create' : `opt-${active}`;
       const labels = state.value.map((option) => option.label).join(', ');
+      /**
+       * The value span must stay WHITESPACE-TIGHT in the template: static text nodes inside it —
+       * even pure indentation — defeat :empty, and :empty is what the placeholder's ::before
+       * hangs on. A multi-line span here erased every placeholder on the page (found by Brian's
+       * screenshot; engines do not ship Selectors 4's whitespace-tolerant :empty).
+       */
+      const valueContent =
+        attrs()['multi'] != null
+          ? state.value.map(
+              (option) => html`
+                <span part="pill">
+                  ${option.label}
+                  <button
+                    part="pill-remove"
+                    type="button"
+                    aria-label=${(attrs()['remove-message'] ?? 'Remove {label}').replace('{label}', option.label)}
+                    @click=${(event: Event) => {
+                      event.stopPropagation();
+                      select.pick(option);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              `
+            )
+          : labels;
       const loading = attrs()['loading'] != null;
       const overflow = attrs()['overflow-message'] ?? null;
       /**
@@ -617,30 +644,9 @@ export class VeraSelect extends HTMLElement {
             @click=${handlers.onTriggerClick}
             @keydown=${handlers.onTriggerKeydown}
           >
-            <slot name="value" @slotchange=${refresh}>
-              <span part="value" data-placeholder=${attrs()['placeholder'] ?? 'Select…'}>
-                ${attrs()['multi'] != null
-                  ? state.value.map(
-                      (option) => html`
-                        <span part="pill">
-                          ${option.label}
-                          <button
-                            part="pill-remove"
-                            type="button"
-                            aria-label=${(attrs()['remove-message'] ?? 'Remove {label}').replace('{label}', option.label)}
-                            @click=${(event: Event) => {
-                              event.stopPropagation();
-                              select.pick(option);
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      `
-                    )
-                  : labels}
-              </span>
-            </slot>
+            <slot name="value" @slotchange=${refresh}
+              ><span part="value" data-placeholder=${attrs()['placeholder'] ?? 'Select…'}>${valueContent}</span></slot
+            >
           </div>
         </slot>
         <div

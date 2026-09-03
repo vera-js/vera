@@ -268,6 +268,25 @@ it('below the tier or beside a slotted trigger, the fallback menu still works in
   element.remove();
 });
 
+it('the placeholder actually PAINTS on an empty trigger — :empty is fragile and now guarded', async () => {
+  const element = await mount((el) => el.setAttribute('placeholder', 'Pick something…'));
+  const value = element.shadowRoot.querySelector('[part="value"]');
+  /**
+   * The placeholder rides ::before via :empty, and :empty dies to ANY static text node in the
+   * template — even pure indentation (a multi-line value span erased every placeholder on the
+   * demo page; engines do not ship whitespace-tolerant :empty). Computed content is the truth.
+   */
+  expect(value.matches(':empty')).to.equal(true, 'no stray text nodes may enter the value span');
+  expect(getComputedStyle(value, '::before').content).to.equal('"Pick something…"', 'and it paints');
+
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  element.shadowRoot.querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  expect(getComputedStyle(value, '::before').content).to.equal('none', 'a selection displaces it');
+  element.remove();
+});
+
 it('custom states are real: :state(open) and :state(empty) match and flip', async () => {
   const element = await mount();
   expect(element.matches(':state(empty)')).to.equal(true, 'nothing selected yet');
