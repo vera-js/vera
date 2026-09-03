@@ -209,6 +209,39 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
         `elsewhere. Attach a shadow root to scope them everywhere, or write selectors that carry the tag.`
     );
   }
+  /**
+   * **`:host` and `::slotted()` are shadow-only, and in light DOM they match nothing.** Measured in
+   * Chromium against the same stylesheet on the same component in both modes: `:host`,
+   * `:host(.flag)` and `::slotted(b)` all applied under a shadow root and all did nothing here,
+   * while ordinary rules applied in both.
+   *
+   * They cannot simply be left silent. `:host` is how a web component styles its own element — it
+   * is in almost every component stylesheet ever written — so a sheet authored the normal way
+   * silently under-delivers the moment the component is used in light mode, and the author has no
+   * way to see it.
+   *
+   * Translating them is the real answer and it is not all one job: inside `@scope (tag)` the
+   * scoping root IS the element, so `:host` becomes `:scope` and `:host(.flag)` becomes
+   * `:scope.flag`, cleanly. `::slotted()` has no equivalent — distributed nodes are ordinary
+   * descendants here — and giving it one means marking them, which is a decision about the light
+   * DOM the slots design deliberately kept clean. Until that is decided, say so.
+   *
+   * `__DEV__`-only, once per class, and it names which construct it found.
+   */
+  if (__DEV__) {
+    const shadowOnly = [
+      /(^|[^\w-]):host(\b|\()/.test(cssText) ? '`:host`' : '',
+      /::slotted\s*\(/.test(cssText) ? '`::slotted()`' : '',
+    ].filter(Boolean);
+    if (shadowOnly.length > 0)
+      console.warn(
+        `[vera] styles: <${element.localName}> has no shadow root, and ${shadowOnly.join(' and ')} ` +
+          `only ever ${shadowOnly.length > 1 ? 'match' : 'matches'} inside one — those rules do ` +
+          `nothing here. Style the element itself with ` +
+          `\`:scope\` (the scoping root is the element), and slotted content with an ordinary ` +
+          `descendant selector.`
+      );
+  }
   const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;
 
   if (document?.adoptedStyleSheets) {

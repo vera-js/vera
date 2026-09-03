@@ -38,6 +38,7 @@ for (const key of [
 ])
   globalThis[key] = dom.window[key];
 
+const { isProduction } = await import('./dist.mjs');
 const core = await load('core');
 const { renderer } = await load('renderer');
 const { styles } = await load('styles');
@@ -147,4 +148,48 @@ test('a class hoists its light-DOM styles exactly once, and a shadow class hoist
   assert.ok(derived > 4, `only ${derived} of ${classes} classes derived from another — the hierarchy arm is not running`);
   assert.ok(instances > 80, `only ${instances} instances were created`);
   assert.deepEqual(failures.slice(0, 10), [], `${failures.length} class(es) hoisted wrongly:\n  ${failures.slice(0, 10).join('\n  ')}`);
+});
+
+/**
+ * **`:host` and `::slotted()` are shadow-only, and silence about that was the whole problem.**
+ * Measured in Chromium on one stylesheet across both modes: `:host`, `:host(.flag)` and
+ * `::slotted(b)` all applied under a shadow root and all did nothing in light DOM, while ordinary
+ * rules applied in both. `:host` is how a web component styles its own element — it is in nearly
+ * every component stylesheet — so a sheet written the normal way silently under-delivers the moment
+ * the component is used light, and the author has no way to see it.
+ *
+ * Translating them is a separate decision (see the portal): `:host` maps cleanly onto `:scope`
+ * inside the `@scope` block, and `::slotted()` has no equivalent without marking distributed nodes.
+ * Until then the rule is announced rather than dropped in silence.
+ *
+ * Development-only: the check and the message are folded out of production.
+ */
+test('a light host is told when its stylesheet uses shadow-only selectors', { skip: isProduction }, async () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (message) => said.push(String(message));
+  try {
+    const name = `x-sty-${nextTag++}`;
+    customElements.define(
+      name,
+      class extends dom.window.HTMLElement {
+        static styles = core.css`:host { color: red } ::slotted(b) { color: blue } p { color: green }`;
+        connectedCallback() {
+          core.init(this); // LIGHT — no shadow options
+          core.render(() => core.html`<p>own</p>`);
+        }
+      }
+    );
+    D.body.append(D.createElement(name));
+    await frame();
+  } finally {
+    console.warn = original;
+  }
+  const warning = said.find((message) => message.includes('no shadow root'));
+  assert.ok(warning, `expected a diagnostic, got ${JSON.stringify(said)}`);
+  assert.match(warning, /^\[vera\] /, 'findable with one filter, like every diagnostic here');
+  assert.match(warning, /`:host`/);
+  assert.match(warning, /`::slotted\(\)`/, 'both constructs are named, not just the first');
+  assert.match(warning, /only ever match inside one/, 'plural, because it found two');
+  assert.match(warning, /`:scope`/, 'and it says what to write instead');
 });

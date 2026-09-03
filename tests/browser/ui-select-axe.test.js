@@ -38,7 +38,31 @@ const OPTIONS = [
  * element` covers light mode, where the parts live in the light DOM.
  */
 const SETTLE_MS = 250;
-const settle = () => new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+/**
+ * **Wait for the animations to end, do not sleep past them and hope.** The menu opens and closes on
+ * a transition, and axe's colour-contrast rule reads COMPUTED colour — so auditing while a pill is
+ * still interpolating measures a half-faded colour and reports a contrast violation that does not
+ * exist in either end state. A fixed sleep is long enough on an idle machine and is not when three
+ * browsers are running at once, which is exactly how this failed: green on its own, red inside the
+ * full gate, and green again on the next run.
+ *
+ * `CLAUDE.md` names this pattern directly — wait for the property rather than sampling at a chosen
+ * instant. The sleep stays, because it also covers work that is not an animation; what is new is
+ * that nothing is measured until the animations have actually finished. Each wait is bounded, so a
+ * looping animation (a spinner) cannot hang the suite, and a cancelled one is not an error.
+ */
+const settle = async () => {
+  await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+  const running = document.getAnimations?.() ?? [];
+  await Promise.all(
+    running.map((animation) =>
+      Promise.race([
+        animation.finished.catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, SETTLE_MS * 4)),
+      ])
+    )
+  );
+};
 
 const audit = async (name, { setup, value, open = false, type } = {}) => {
   const element = document.createElement('vera-select');
