@@ -35,7 +35,11 @@
             },
             {
               "name": "required",
-              "description": "An empty selection reports valueMissing to the owning form."
+              "description": "An empty selection reports valueMissing to the owning form. Toggling it re-reflects validity live."
+            },
+            {
+              "name": "required-message",
+              "description": "The valueMissing message, in the consumer’s words. Default \"Please select an option.\"."
             },
             {
               "name": "disabled",
@@ -101,6 +105,30 @@
             },
             {
               "kind": "field",
+              "name": "validity",
+              "type": {
+                "text": "ValidityState"
+              },
+              "description": "Proxied from internals — element.validity, like an input."
+            },
+            {
+              "kind": "field",
+              "name": "validationMessage",
+              "type": {
+                "text": "string"
+              },
+              "description": "The current constraint message."
+            },
+            {
+              "kind": "field",
+              "name": "willValidate",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Whether the control participates in validation."
+            },
+            {
+              "kind": "field",
               "name": "selectedOptions",
               "type": {
                 "text": "SelectOption[]"
@@ -116,6 +144,16 @@
               "kind": "method",
               "name": "close",
               "description": "Close the menu without refocusing the trigger."
+            },
+            {
+              "kind": "method",
+              "name": "checkValidity",
+              "description": "Native-control validity check, proxied from ElementInternals."
+            },
+            {
+              "kind": "method",
+              "name": "reportValidity",
+              "description": "Check and surface the browser’s validation UI at the trigger."
             }
           ],
           "events": [

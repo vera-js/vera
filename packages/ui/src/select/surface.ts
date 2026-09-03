@@ -21,7 +21,11 @@ export const selectSurface = {
       description:
         'Single-mode initial value, native-input style: read at connect, applies only when neither the property nor selected markup claimed the selection, and doubles as the reset default when the markup declared none. Multi preselects via <option selected>.',
     },
-    { name: 'required', description: 'An empty selection reports valueMissing to the owning form.' },
+    { name: 'required', description: 'An empty selection reports valueMissing to the owning form. Toggling it re-reflects validity live.' },
+    {
+      name: 'required-message',
+      description: 'The valueMissing message, in the consumer’s words. Default "Please select an option.".',
+    },
     {
       name: 'disabled',
       description:
@@ -66,6 +70,9 @@ export const selectSurface = {
       description:
         'Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null. Selection identity is the value string.',
     },
+    { name: 'validity', type: 'ValidityState', description: 'Proxied from internals — element.validity, like an input.' },
+    { name: 'validationMessage', type: 'string', description: 'The current constraint message.' },
+    { name: 'willValidate', type: 'boolean', description: 'Whether the control participates in validation.' },
     {
       name: 'selectedOptions',
       type: 'SelectOption[]',
@@ -109,6 +116,8 @@ export const selectSurface = {
   methods: [
     { name: 'open', description: 'Open the menu — same veto-able path as every gesture.' },
     { name: 'close', description: 'Close the menu without refocusing the trigger.' },
+    { name: 'checkValidity', description: 'Native-control validity check, proxied from ElementInternals.' },
+    { name: 'reportValidity', description: 'Check and surface the browser’s validation UI at the trigger.' },
   ],
   slots: [
     { name: 'trigger', description: 'Replace the whole control. Wired with role, aria, data-state and handlers.' },

@@ -342,6 +342,40 @@ it('HTML-authored options work end to end: parse, icon paints, real form.reset()
   form.remove();
 });
 
+it('AUDIT P3 — form reflection follows a rename and a required toggle; unnamed multi submits nothing', async () => {
+  const form = document.createElement('form');
+  const element = document.createElement('vera-select');
+  element.setAttribute('multi', '');
+  element.setAttribute('name', 'old');
+  form.appendChild(element);
+  document.body.appendChild(form);
+  element.options = OPTIONS;
+  await frame();
+  element.value = ['a', 'b'];
+  element.setAttribute('name', 'renamed');
+  await frame();
+  expect([...new FormData(form).entries()].map((e) => e.join('='))).to.deep.equal(
+    ['renamed=a', 'renamed=b'],
+    'the FormData snapshot follows the rename'
+  );
+
+  element.removeAttribute('name');
+  await frame();
+  expect([...new FormData(form).entries()]).to.have.length(0, 'an unnamed control submits nothing, like native');
+
+  /** required toggled after mount re-reflects validity, and the message speaks the consumer's words. */
+  element.value = [];
+  element.setAttribute('required-message', 'Scoop something');
+  element.setAttribute('required', '');
+  await frame();
+  expect(element.checkValidity()).to.equal(false);
+  expect(element.validationMessage).to.equal('Scoop something');
+  element.removeAttribute('required');
+  await frame();
+  expect(element.checkValidity()).to.equal(true, 'untoggling required re-reflects without a value change');
+  form.remove();
+});
+
 it('form association is real: the select submits like a control and resets with the form', async () => {
   const form = document.createElement('form');
   const element = document.createElement('vera-select');

@@ -158,10 +158,15 @@ const reflectForm = (element: VeraSelect, value: SelectOption[]) => {
   const { internals } = internal(element);
   if (!internals?.setFormValue) return;
   if (element.hasAttribute('multi')) {
-    const data = new FormData();
-    const name = element.getAttribute('name') ?? '';
-    for (const option of value) data.append(name, option.value);
-    internals.setFormValue(data, JSON.stringify(value.map((option) => option.value)));
+    const name = element.getAttribute('name');
+    if (name) {
+      const data = new FormData();
+      for (const option of value) data.append(name, option.value);
+      internals.setFormValue(data, JSON.stringify(value.map((option) => option.value)));
+    } else {
+      /** An unnamed native control submits nothing; an empty-key FormData entry is not nothing. */
+      internals.setFormValue(null, JSON.stringify(value.map((option) => option.value)));
+    }
   } else {
     /** The second argument is explicit restore state — what formStateRestoreCallback receives. */
     internals.setFormValue(value[0]?.value ?? null, JSON.stringify(value.map((option) => option.value)));
@@ -173,7 +178,11 @@ const reflectForm = (element: VeraSelect, value: SelectOption[]) => {
         '[part="trigger"]'
       ) as HTMLElement | null) ?? undefined;
     if (element.hasAttribute('required') && value.length === 0)
-      internals.setValidity({ valueMissing: true }, 'Please select an option.', anchor);
+      internals.setValidity(
+        { valueMissing: true },
+        element.getAttribute('required-message') ?? 'Please select an option.',
+        anchor
+      );
     else internals.setValidity({});
   }
 };
@@ -201,6 +210,8 @@ export class VeraSelect extends HTMLElement {
     'remote',
     'loading',
     'required',
+    'name',
+    'required-message',
     'search-placeholder',
     'empty-message',
     'overflow-message',
@@ -260,6 +271,13 @@ export class VeraSelect extends HTMLElement {
     if (name === 'loading') syncStates(this);
     /** A control disabled while its menu is open must not strand the menu (measured: it did). */
     if (name === 'disabled' && value !== null) entry.select?.close(false);
+    /**
+     * The form reflection is a snapshot: a multi FormData bakes the name at set time, and
+     * validity bakes required and its message — so renaming, or toggling required, must
+     * re-reflect the current selection (measured: a renamed field submitted under the old name).
+     */
+    if ((name === 'name' || name === 'required' || name === 'required-message') && entry.select)
+      reflectForm(this, entry.select.state.value);
   }
 
   formResetCallback() {
@@ -285,6 +303,23 @@ export class VeraSelect extends HTMLElement {
     }
     if (!Array.isArray(values)) return;
     this.value = values; // strings resolve through the setter: known options, else placeholders
+  }
+
+  /** Native-control validity surface, proxied from internals — element.validity, like an input. */
+  get validity(): ValidityState | undefined {
+    return internal(this).internals?.validity;
+  }
+  get validationMessage(): string {
+    return internal(this).internals?.validationMessage ?? '';
+  }
+  get willValidate(): boolean {
+    return internal(this).internals?.willValidate ?? false;
+  }
+  checkValidity(): boolean {
+    return internal(this).internals?.checkValidity?.() ?? true;
+  }
+  reportValidity(): boolean {
+    return internal(this).internals?.reportValidity?.() ?? true;
   }
 
   /** Programmatic control — the same paths every gesture uses, veto-able via beforetoggle. */
