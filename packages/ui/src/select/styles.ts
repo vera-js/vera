@@ -67,14 +67,30 @@
  * but a box can grow. Collapsed it is zero-width and scale(0), with a negative end margin
  * swallowing the row's gap so unselected labels sit flush; selected it grows to size and the
  * margin releases, sliding the label over as the mark scales up.
+ *
+ * ROOT + SURFACE FOREGROUND: :host sets the base text color, but each surface (trigger, menu)
+ * ALSO declares color: var(--vera-fg) — a :host color does not reach the menu as a top-layer
+ * popover (own containing block), and did not reach the menu's content even outside it, so option
+ * rows and the search input were left at the UA #000, invisible on a dark --vera-surface (1.21:1,
+ * axe). Set at each surface, descendants inherit.
+ *
+ * THE SQUEEZE RUNG: viewport-aware SIZE, not just position — below at natural size, flipped above
+ * at natural size, then (only when neither side fits) shrink into the below-area and scroll.
+ * position-area makes the containing block the region under the anchor, so the 100% cap IS the
+ * available space. @position-try rungs with INSET PAIRS are inert on all four engine builds
+ * (probed twice); position-area rungs participate. Nested @supports keeps plain flip elsewhere.
+ *
+ * VISIBILITY IS DIRECTION-SPLIT: the closed-state rule carries visibility in its transition (holds
+ * the fade); the base does not (opening flips it instantly). A transitioning visibility left the
+ * menu computed-hidden after open and a real engine REFUSES focus() into hidden content — the
+ * search auto-focus silently failed on first open (jsdom focuses anything, so browser-only).
+ *
+ * THE CREATE ROW is the one place accent is BODY TEXT; highlighted, it sat on the accent tint at
+ * 4.46:1 (under WCAG AA). --vera-accent-strong mixes accent 20% toward --vera-fg, moving the text
+ * away from the surface in EITHER theme (light ~5.8:1, dark ~6.1:1); a plain darken regressed dark
+ * mode to 3.7:1. Derived from two existing tokens, reusable by any accent-on-tint foreground.
  */
 export const SELECT_STYLES = /* css */ `
-  /*
-   * The component's base foreground. Each SURFACE (trigger, menu) still declares its own color
-   * too, deliberately: a :host color does not reach the menu when it is a top-layer popover (own
-   * containing block), and did not reach the menu's content even outside the top layer here — so
-   * the surfaces cannot rely on inheriting it. This is the root default for anything that does.
-   */
   :host {
     display: block;
     position: relative;
@@ -173,11 +189,6 @@ export const SELECT_STYLES = /* css */ `
     border: 1px solid var(--vera-border, #d4d4d8);
     border-radius: min(var(--vera-radius, 6px), 14px);
     background: var(--vera-surface, #fff);
-    /* The menu is a themed SURFACE, so it declares its own foreground exactly as the trigger
-     * does - never relying on inheriting it. A :host color does not reach a top-layer popover
-     * (its own containing block) and did not reach the menu's content here either; the option
-     * rows and the search input were left at the UA default (#000), invisible on a dark
-     * --vera-surface (measured 1.21:1, axe). Set at the surface, every text node inside inherits. */
     color: var(--vera-fg, #18181b);
     box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
     overflow: hidden;
@@ -188,16 +199,6 @@ export const SELECT_STYLES = /* css */ `
     visibility: hidden;
     pointer-events: none;
   }
-  /*
-   * The squeeze rung makes the menu viewport-aware in SIZE, not just position: below at natural
-   * size, flipped above at natural size, and only when NEITHER side holds the menu whole does it
-   * shrink into the below-area (position-area makes the containing block the region under the
-   * anchor, so the 100% cap IS the available space) and scroll internally - measured identical
-   * on stable Chrome, Playwright Chromium, Firefox and WebKit, 4 geometries each. @position-try
-   * rungs carrying INSET PAIRS are inert on all four engines (probed, twice) - position-area is
-   * the shape that participates. Nested @supports: an engine with anchor() but no position-area
-   * keeps plain flip.
-   */
   @supports (top: anchor(bottom)) {
     :where([part='trigger']) {
       anchor-name: --_vera-select-anchor;
@@ -233,13 +234,6 @@ export const SELECT_STYLES = /* css */ `
     }
   }
 
-  /*
-   * The visibility transition is DIRECTION-SPLIT on purpose (transition-property reads from the
-   * destination state): closing holds visibility for the fade; opening flips it instantly,
-   * because a transitioning visibility left the menu computed-hidden for a window after open and
-   * a real engine REFUSES focus() into hidden content - the search line's auto-focus silently
-   * failed on first open (Chromium; jsdom focuses anything, so only a browser shows it).
-   */
   @media (prefers-reduced-motion: no-preference) {
     :where([part='menu']) {
       transition:
@@ -342,15 +336,6 @@ export const SELECT_STYLES = /* css */ `
   :where([part='option'][data-create])::before {
     content: none;
   }
-  /*
-   * The create row is the one place accent is used as BODY TEXT, and a highlighted create row put
-   * it on the accent-tint active background at 4.46:1 - just under WCAG AA (axe, measured). It uses
-   * --vera-accent-strong, which mixes accent 20% toward --vera-fg: that moves the text AWAY from
-   * the surface in EITHER theme (darker on a light surface, lighter on a dark one), so it clears
-   * 4.5:1 on the tint both ways (light ~5.8:1, dark ~6.1:1) - a plain darken would have regressed
-   * dark mode below the floor (measured 3.7:1). Derived from the two existing tokens, so theming
-   * flows through with no extra work, and reusable by any future accent-on-tint foreground.
-   */
   :where([part='option'][data-create]) {
     color: var(--vera-accent-strong, color-mix(in srgb, var(--vera-accent, #7c3aed), var(--vera-fg, #18181b) 20%));
   }
