@@ -191,6 +191,15 @@ type AdoptState = {
 let _adoptHost: Element | null = null;
 /** Whether the default slot's assignment has been claimed (the host count is for the first one). */
 let _defaultTaken = false;
+/**
+ * Every slot binding this adoption attempt created. If the attempt BAILS, each is parked — which
+ * returns the user's nodes to holding and unregisters the binding. Without it the abandoned
+ * bindings stayed registered, so the clean render's own bindings ranked as later duplicates and
+ * showed fallback while the user's content sat in the discarded tree: a hydration mismatch
+ * silently DESTROYED slotted content, breaking this entry's promise that correctness never
+ * depends on the server markup (measured).
+ */
+let _adoptedSlots: { _$park$: () => void }[] = [];
 
 /** How many values a template part consumes — for skipping the unrendered parts inside an
  *  assigned slot's fallback subtree. */
@@ -261,7 +270,9 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     for (let c = canonicalSlot.firstChild; c !== null; c = c.nextSibling)
       if (c.nodeType === 1 || c.nodeType === 3) fallback.push(c.cloneNode(true));
     accountSubtree(canonicalSlot, state);
-    (state._slotStates ??= []).push(seamAdopt(_adoptHost!, name, assigned, fallback, parent, before) as never);
+    const seam = seamAdopt(_adoptHost!, name, assigned, fallback, parent, before);
+    _adoptedSlots.push(seam as unknown as { _$park$: () => void });
+    (state._slotStates ??= []).push(seam as never);
   } else {
     /** Unassigned: the server rendered this slot's fallback children — adopt them in lockstep
      *  (they ARE the canonical children), then bind them as the shown fallback. */
@@ -273,7 +284,9 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     const fallback: Node[] = [];
     for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
     void before;
-    (state._slotStates ??= []).push(seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node) as never);
+    const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node);
+    _adoptedSlots.push(seam as unknown as { _$park$: () => void });
+    (state._slotStates ??= []).push(seam as never);
   }
 };
 
@@ -552,6 +565,7 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
    *  per adoption (the host count is for the first default slot). */
   _adoptHost = container.nodeType === 1 ? (container as Element) : null;
   _defaultTaken = false;
+  _adoptedSlots = [];
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(getTemplate(result), result.values, cursor);
@@ -567,6 +581,13 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
     return part;
   } catch (error) {
     if (error !== MISMATCH) throw error;
+    /**
+     * Undo every slot this attempt adopted BEFORE the container is cleared: parking returns the
+     * user's nodes to holding and unregisters the binding, so the clean render that follows
+     * redistributes them instead of ranking behind an abandoned binding and showing fallback.
+     */
+    for (const seam of _adoptedSlots) seam._$park$();
+    _adoptedSlots = [];
     start.remove();
     return null;
   }

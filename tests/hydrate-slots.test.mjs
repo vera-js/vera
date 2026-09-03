@@ -107,3 +107,25 @@ test('AUDIT — hydration recovers server-parked unassigned content into the cap
   assert.equal(slotted(host, 'nowhere').length, 1, 'and its content is captured, ready for its slot');
   assert.equal(host.textContent.includes('Recovered'), false, 'still unrendered, as native leaves it');
 });
+
+test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry\'s own invariant)', async () => {
+  /**
+   * hydrate.ts promises "correctness never depends on the server markup" — any mismatch clears and
+   * re-renders. For slot components that promise was broken: the abandoned attempt left its
+   * bindings registered, so the clean render\'s bindings ranked as later duplicates and showed
+   * fallback while the user\'s content sat in the discarded tree. Bailing now parks what it
+   * adopted, returning the nodes to holding for the fresh render to redistribute.
+   */
+  const host = dom.window.document.createElement('div');
+  host.setAttribute('data-vera-slotted', '1');
+  host.innerHTML = '<article><header><h2 slot="header">MY HEADER</h2></header><main>MY BODY</main></article>';
+  dom.window.document.getElementById('root').appendChild(host);
+  // a client template the server never produced (version skew / state difference)
+  renderInto(html`<article><header><slot name="header">fbh</slot></header><main><slot>fbd</slot></main><footer>NEW</footer></article>`, host);
+  await settle();
+  assert.ok(host.textContent.includes('MY HEADER'), 'named slot content survived the mismatch');
+  assert.ok(host.textContent.includes('MY BODY'), 'default slot content survived the mismatch');
+  assert.ok(host.textContent.includes('NEW'), 'and the client template rendered');
+  assert.equal(host.querySelector('slot'), null, 'distributed, not left as slot elements');
+  host.remove();
+});
