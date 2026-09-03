@@ -36,8 +36,8 @@ export const useDismiss = (element: LifecycleElement, onDismiss: (event?: Keyboa
      * popover (manual + auto can coexist) loses its Escape to us and the UA's own close
      * arbitration is blocked. The correct future door is CloseWatcher, where the UA stacks close
      * requests — deferred because CloseWatcher ignores synthetic events, which breaks every
-     * programmatic Escape (tests included); queued in the portal TODO for when it can be adopted
-     * with a real-keystroke test strategy.
+     * programmatic Escape (tests included); worth adopting once a real-keystroke test strategy
+     * exists for it.
      */
     event.preventDefault();
     event.stopPropagation();
