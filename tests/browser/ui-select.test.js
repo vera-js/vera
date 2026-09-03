@@ -385,6 +385,32 @@ it('P4 — the menu is viewport-aware in SIZE: a short viewport squeezes it, nev
   }
 });
 
+it('AUDIT — Escape dismisses through CloseWatcher: a real keypress closes and refocuses', async () => {
+  if (typeof CloseWatcher === 'undefined') return;
+  /**
+   * On CloseWatcher engines the fallback keydown listener is not installed at all — the UA
+   * stacks close requests and arbitrates innermost-first, like native <dialog>. CloseWatcher
+   * ignores synthetic events, so ONLY a real key can prove this path; jsdom exercises the
+   * fallback listener.
+   */
+  const element = await mount();
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  trigger.focus();
+  await sendKeys({ press: ' ' });
+  await frame();
+  expect(element.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state')).to.equal('open');
+  await sendKeys({ press: 'Escape' });
+  await frame();
+  await frame();
+  expect(element.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state')).to.equal('closed', 'the UA close request dismissed the menu');
+  expect(element.shadowRoot.activeElement).to.equal(trigger, 'and focus returned to the trigger');
+  /** The watcher dies with deactivation: a later Escape must not throw or act. */
+  await sendKeys({ press: 'Escape' });
+  await frame();
+  expect(element.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state')).to.equal('closed');
+  element.remove();
+});
+
 it('custom states are real: :state(open) and :state(empty) match and flip', async () => {
   const element = await mount();
   expect(element.matches(':state(empty)')).to.equal(true, 'nothing selected yet');
