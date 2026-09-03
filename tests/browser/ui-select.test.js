@@ -8,7 +8,7 @@
  * one-registry rule a CDN page lives by.
  */
 import { expect } from '@esm-bundle/chai';
-import { sendKeys } from '@web/test-runner-commands';
+import { sendKeys, setViewport } from '@web/test-runner-commands';
 import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { styles } from '@verajs/styles';
@@ -353,6 +353,36 @@ it('AUDIT — the search line takes focus on FIRST open, and typing reaches it',
   expect(element.shadowRoot.querySelector('[part="search"]').value).to.equal('Neb', 'keystrokes reach the filter');
   expect(element.shadowRoot.querySelector('[part="option"][data-create]')).to.not.equal(null, 'the create row appears');
   element.remove();
+});
+
+it('P4 — the menu is viewport-aware in SIZE: a short viewport squeezes it, never strands rows', async () => {
+  if (!CSS.supports('position-area: block-end')) return;
+  /**
+   * Top-layer content does not scroll with the page, so a menu taller than the viewport strands
+   * its overflow rows unreachable. The squeeze rung (position-area + a 100% cap in
+   * @position-try) shrinks the menu into the available area and lets the list scroll — measured
+   * identical on stable Chrome, Playwright Chromium, Firefox and WebKit. Inset-pair rungs are
+   * inert on all four engines; position-area is the shape that participates.
+   */
+  await setViewport({ width: 700, height: 240 });
+  try {
+    const element = await mount((el) => {
+      el.options = Array.from({ length: 30 }, (_, i) => ({ label: `Row ${i}`, value: `r${i}` }));
+    });
+    element.options = Array.from({ length: 30 }, (_, i) => ({ label: `Row ${i}`, value: `r${i}` }));
+    await frame();
+    element.shadowRoot.querySelector('[part="trigger"]').click();
+    await frame();
+    await frame();
+    const menu = element.shadowRoot.querySelector('[part="menu"]').getBoundingClientRect();
+    expect(menu.top).to.be.at.least(-1);
+    expect(menu.bottom).to.be.at.most(window.innerHeight + 1, 'squeezed into the viewport, never clipped');
+    const list = element.shadowRoot.querySelector('[part="list"]');
+    expect(list.scrollHeight).to.be.greaterThan(list.clientHeight, 'and the rows stay reachable by scroll');
+    element.remove();
+  } finally {
+    await setViewport({ width: 800, height: 600 });
+  }
 });
 
 it('custom states are real: :state(open) and :state(empty) match and flip', async () => {

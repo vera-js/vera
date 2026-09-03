@@ -174,6 +174,16 @@ export const SELECT_STYLES = /* css */ `
     visibility: hidden;
     pointer-events: none;
   }
+  /*
+   * The squeeze rung makes the menu viewport-aware in SIZE, not just position: below at natural
+   * size, flipped above at natural size, and only when NEITHER side holds the menu whole does it
+   * shrink into the below-area (position-area makes the containing block the region under the
+   * anchor, so the 100% cap IS the available space) and scroll internally - measured identical
+   * on stable Chrome, Playwright Chromium, Firefox and WebKit, 4 geometries each. @position-try
+   * rungs carrying INSET PAIRS are inert on all four engines (probed, twice) - position-area is
+   * the shape that participates. Nested @supports: an engine with anchor() but no position-area
+   * keeps plain flip.
+   */
   @supports (top: anchor(bottom)) {
     :where([part='trigger']) {
       anchor-name: --_vera-select-anchor;
@@ -194,6 +204,17 @@ export const SELECT_STYLES = /* css */ `
       @starting-style {
         opacity: 0;
         translate: 0 -6px;
+      }
+    }
+    @supports (position-area: block-end) {
+      :where([part='menu'][popover]) {
+        position-try-fallbacks: flip-block, --_vera-select-squeeze;
+      }
+      @position-try --_vera-select-squeeze {
+        inset: auto;
+        position-area: block-end span-inline-end;
+        max-block-size: calc(100% - 12px);
+        margin-block: 4px;
       }
     }
   }
