@@ -107,3 +107,41 @@ for (const [name, renderer] of [
     assert.doesNotMatch(html, /data-vera-slotted/, 'and carries no light-slots marker');
     assert.match(html, /<slot name="header">fallback<\/slot>/, 'the native <slot> survives verbatim');
   });
+
+/**
+ * **NESTING — a light-slot component slotted inside another.** Each host distributes only its own
+ * direct children, so this has to compose with no special handling; it did not. The scanner used
+ * to emit a nested component's rendered markup and then walk its children as ordinary markup
+ * *after* it, so the inner component never received the content it was supposed to distribute:
+ * every slot rendered its fallback and the user's markup sat after the template. The client
+ * distributes it correctly, which made this a server/client divergence — the worst class this
+ * package has — with a visibly wrong first paint and a hydration mismatch behind it.
+ */
+const NESTED = new URL('./fixtures/ssr/slot-nested-ssr.js', import.meta.url);
+const NESTED_CHILDREN =
+  '<h2 slot="header">OUTER HEAD</h2><slot-inner-ssr><b slot="tag">TAG</b>INNER BODY</slot-inner-ssr>';
+for (const [name, renderer] of [
+  ['sync', renderToString],
+  ['async', renderToStringAsync],
+])
+  test(`AUDIT — a nested light-slot component distributes too (${name})`, async () => {
+    const { html } = await renderer(NESTED, { children: NESTED_CHILDREN });
+    assert.match(html, /<header><h2 slot="header">OUTER HEAD<\/h2><\/header>/, 'the outer distributes');
+    assert.match(html, /<i><b slot="tag">TAG<\/b><\/i>/, 'and the INNER one distributes its named slot');
+    assert.match(html, /<u data-vera-slotted="0,1">INNER BODY<\/u>/, 'and its default slot, marked for hydration');
+    assert.doesNotMatch(html, /no tag|no body/, 'no slot fell back to content it was given');
+    assert.doesNotMatch(html, /<slot[\s>]/, 'and nothing is left as a <slot>');
+  });
+
+test('AUDIT — the nested server output is what the CLIENT produces (the divergence itself)', async () => {
+  const { html } = await renderToString(NESTED, { children: NESTED_CHILDREN });
+  /** Markers are the hydration handoff and the hydrator strips them; everything else must match
+   *  the client render recorded in `tests/renderer-slots.test.mjs`. */
+  const withoutMarkers = html.replace(/ data-vera-slotted="[^"]*"/g, '');
+  assert.equal(
+    withoutMarkers,
+    '<slot-outer-ssr><article><header><h2 slot="header">OUTER HEAD</h2></header>' +
+      '<main><slot-inner-ssr><i><b slot="tag">TAG</b></i><u>INNER BODY</u></slot-inner-ssr></main>' +
+      '</article></slot-outer-ssr>'
+  );
+});

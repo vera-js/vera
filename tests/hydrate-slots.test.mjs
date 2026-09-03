@@ -9,14 +9,14 @@ import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 
-/** Server: render the slot card with children, print host attrs + innerHTML on two lines. */
-const server = (children) => {
+/** Server: render a slot fixture with children, in its own process (the shims own globals). */
+const server = (children, fixture = 'slot-card-ssr') => {
   const script = `
     import { renderToString } from '@verajs/ssr';
     import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots');
     wire([slots]);
-    const out = (await renderToString(new URL('./tests/fixtures/ssr/slot-card-ssr.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html;
+    const out = (await renderToString(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html;
     process.stdout.write(out);
   `;
   return execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
@@ -185,4 +185,33 @@ test('AUDIT — a mismatch BEFORE any slot is adopted still keeps every slotted 
   assert.equal(host.querySelector('aside').textContent, 'ORPHAN',
     'the unclaimed node survived the bail in holding and appears when its slot does');
   host.remove();
+});
+
+/**
+ * **Nesting hydrates too** — a light-slot component slotted inside another, adopted in place at
+ * both levels. This is the end of the chain the server-side nesting fix opened: the inner
+ * component now receives its children on the server, distributes them, and the markup it produces
+ * is what the client would have produced, so adoption succeeds instead of falling back.
+ */
+test('AUDIT — nested light-slot components hydrate in place, both levels', async () => {
+  const serverHtml = server(
+    '<h2 slot="header">OUTER HEAD</h2><slot-inner-ssr><b slot="tag">TAG</b>INNER BODY</slot-inner-ssr>',
+    'slot-nested-ssr'
+  );
+  assert.match(serverHtml, /<i><b slot="tag">TAG<\/b><\/i>/, 'CONTROL: the server distributed the inner one');
+  const outer = hostFromServer(serverHtml);
+  const inner = outer.querySelector('slot-inner-ssr');
+  const tagBefore = outer.querySelector('b[slot="tag"]');
+
+  renderInto(html`<article><header><slot name="header">no header</slot></header><main><slot>no body</slot></main></article>`, outer);
+  renderInto(html`<i><slot name="tag">no tag</slot></i><u><slot>no body</slot></u>`, inner);
+  await settle();
+
+  assert.equal(outer.querySelector('b[slot="tag"]'), tagBefore, 'the inner node kept its identity');
+  assert.equal(outer.querySelector('header').textContent, 'OUTER HEAD');
+  assert.equal(inner.querySelector('i').textContent, 'TAG', 'inner named slot adopted');
+  assert.equal(inner.querySelector('u').textContent, 'INNER BODY', 'inner default slot adopted');
+  assert.equal(outer.querySelector('[data-vera-slotted]'), null, 'markers stripped at both levels');
+  assert.deepEqual(slotted(inner, 'tag').map((n) => n.textContent), ['TAG'], 'the inner capture map is live');
+  outer.remove();
 });

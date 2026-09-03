@@ -245,6 +245,48 @@ const entryTags = new Map();
  * @param {string} markup @param {number} depth
  * @param {(name: string, attrs: string, depth: number) => string} [emit] renders one component tag
  */
+/**
+ * Where the element opened at `after` ends, counting nested opens of the same name — `[contentEnd,
+ * elementEnd]`, or `null` when nothing closes it.
+ *
+ * Two callers, and they were one hand-rolled loop and one absence. `<template>` skips its content
+ * whole; a COMPONENT tag needs the same span for the opposite reason — that span is its children,
+ * and it has to be handed them rather than letting them trail it in the stream.
+ *
+ * The name boundary is checked, which the `<template>` loop did not do: `<templates>` counted as a
+ * nested `<template>` and threw the depth off for the rest of the document.
+ *
+ * @param {string} markup @param {string} name @param {number} after
+ * @returns {[number, number] | null}
+ */
+const matchingEnd = (markup, name, after) => {
+  const lower = markup.toLowerCase();
+  const openTag = `<${name}`;
+  const closeTag = `</${name}`;
+  /** A tag name ends where a name character stops — anything else continues the name. */
+  const boundary = (at) => !/[\w-]/.test(lower[at] ?? '');
+  let depth = 1;
+  let at = after;
+  while (depth > 0) {
+    let nextOpen = lower.indexOf(openTag, at);
+    while (nextOpen !== -1 && !boundary(nextOpen + openTag.length))
+      nextOpen = lower.indexOf(openTag, nextOpen + openTag.length);
+    let nextClose = lower.indexOf(closeTag, at);
+    while (nextClose !== -1 && !boundary(nextClose + closeTag.length))
+      nextClose = lower.indexOf(closeTag, nextClose + closeTag.length);
+    if (nextClose === -1) return null;
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      at = nextOpen + openTag.length;
+      depth++;
+    } else {
+      at = markup.indexOf('>', nextClose) + 1 || markup.length;
+      depth--;
+      if (depth === 0) return [nextClose, at];
+    }
+  }
+  return null;
+};
+
 const renderComponentTags = (markup, depth, emit) => {
   if (depth > MAX_DEPTH)
     throw new Error(
@@ -300,24 +342,7 @@ const renderComponentTags = (markup, depth, emit) => {
      * search for their closing tag is enough for them and would mis-nest here.
      */
     if (name === 'template') {
-      const lower = markup.toLowerCase();
-      let depth = 1;
-      let at2 = end;
-      while (depth > 0) {
-        const nextOpen = lower.indexOf('<template', at2);
-        const nextClose = lower.indexOf('</template', at2);
-        if (nextClose === -1) {
-          at2 = markup.length;
-          break;
-        }
-        if (nextOpen !== -1 && nextOpen < nextClose) {
-          depth++;
-          at2 = nextOpen + 9;
-        } else {
-          depth--;
-          at2 = markup.indexOf('>', nextClose) + 1 || markup.length;
-        }
-      }
+      const at2 = matchingEnd(markup, 'template', end)?.[1] ?? markup.length;
       out += markup.slice(open, at2);
       at = at2;
       continue;
@@ -339,10 +364,35 @@ const renderComponentTags = (markup, depth, emit) => {
     if (name && registry.has(name)) {
       /** Rewritten, not kept — the component may have changed its own attributes. */
       const attrs = tagText.slice(1 + name.length, -1);
-      if (emit) out += emit(name, attrs, depth + 1);
+      /**
+       * **A nested component is handed its children**, exactly as `renderToString` hands them to
+       * the top-level one. They used to trail it in the stream instead: the scanner emitted the
+       * component's rendered markup and then walked its children as ordinary markup after it.
+       *
+       * For a shadow component that happens to serialise the same way, which is why it went
+       * unnoticed. For a LIGHT component with slots it is wrong — the component never sees the
+       * content it is supposed to distribute, so every slot renders its fallback and the user's
+       * markup sits after the template. The CLIENT distributes it correctly, which made this a
+       * server/client divergence: a visibly wrong first paint, and a hydration mismatch after it.
+       * It also means a nested component can now read its own children in `connectedCallback`,
+       * which on the client it always could.
+       *
+       * Malformed markup keeps the old path exactly — an unclosed or self-closing tag hands over
+       * nothing and lets the stream carry on, so nothing the fuzz suites feed it changes shape.
+       */
+      const span = tagText.endsWith('/>') ? null : matchingEnd(markup, name, end);
+      const children = span === null ? undefined : markup.slice(end, span[0]);
+      if (emit) out += emit(name, attrs, depth + 1, children);
       else {
-        const rendered = renderComponent(name, attrs, depth + 1);
+        const rendered = renderComponent(name, attrs, depth + 1, undefined, children);
         out += rendered.open + rendered.inner;
+      }
+      if (span !== null) {
+        /** The close tag is consumed with the children, so it is written back here — normalised,
+         *  like the open tag the component just rewrote. */
+        out += `</${name}>`;
+        at = span[1];
+        continue;
       }
     } else {
       out += tagText;
@@ -373,8 +423,8 @@ const PLACEHOLDER_PATTERN = new RegExp(`${PLACEHOLDER}(\\d+)_`, 'gu');
 
 /** @param {string} markup @param {number} depth @param {Array<Promise<string>>} pending */
 const scanAsync = (markup, depth, pending) =>
-  renderComponentTags(markup, depth, (name, attrs, at) => {
-    pending.push(renderComponentAsync(name, attrs, at));
+  renderComponentTags(markup, depth, (name, attrs, at, children) => {
+    pending.push(renderComponentAsync(name, attrs, at, undefined, children));
     return `${PLACEHOLDER}${pending.length - 1}_`;
   });
 
@@ -512,8 +562,16 @@ const prepareInstance = (element, tag, props, children) => {
      * host and `serverDistribute` places them at the `<slot>` positions afterward. Removing them
      * here (while their parent is live) rather than snapshotting-in-place avoids the shim's
      * re-parse orphaning the references (a stale ref serialises a duplicate at the top level).
+     *
+     * **The ELEMENT's children, never the `children` string.** A NESTED component does not arrive
+     * as markup: it was already built when its parent's children were parsed, and it is carried
+     * across the string boundary through `pendingInstances`, so it reaches here with real child
+     * nodes and no `children` argument at all. Gated on the string, a nested component snapshotted
+     * nothing, rendered every slot to its fallback, and left the user's content sitting after the
+     * template — the inner half of a nested pair simply did not slot. This is also what the client
+     * does: `capture()` takes the host's direct children, whatever put them there.
      */
-    const source = children ? [...element.childNodes] : [];
+    const source = [...element.childNodes];
     for (const node of source) element.removeChild(node);
     element._veraSlotSource = source;
   }
