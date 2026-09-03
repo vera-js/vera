@@ -88,13 +88,13 @@ wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** SSR runs in its own process: its shims own globals, and this file already has jsdom's. */
-const server = (tag, template, children) => {
+const server = (tag, template, children, shadow = false) => {
   const file = join(dir, `${tag}.js`);
   writeFileSync(
     file,
     `import { init, render, html } from '@verajs/core';\n` +
       `export default class S extends HTMLElement {\n` +
-      `  connectedCallback() { init(this); render(() => html\`${template}\`); }\n` +
+      `  connectedCallback() { init(this${shadow ? ", { mode: 'open' }" : ''}); render(() => html\`${template}\`); }\n` +
       `}\n` +
       `customElements.define('${tag}', S);\n`
   );
@@ -202,4 +202,50 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
       `hydrated and client-only disagree.\n  hydrated: ${normalise(hydrated.innerHTML)}\n  client:   ${clientOnly}`);
     fresh.remove();
     hydrated.remove();
+  });
+
+/**
+ * **And the same question for a SHADOW component, with slots WIRED.**
+ *
+ * The first defect this feature ever had was here: lifting a host's children out before the
+ * lifecycle, so the light path could distribute them, took them from SHADOW hosts too — and only
+ * the light path put them back. The synchronous chain dropped the content from the page and the
+ * asynchronous one buried it in the unassigned carrier. Nothing about a slots app's own tests could
+ * see it, because the component that broke was the one NOT using the feature.
+ *
+ * A shadow component's serialisation is its declarative shadow template followed by its own light
+ * DOM, and the light DOM is the part that went missing — so it is the part compared here. The
+ * platform slots it; nothing in this module may touch it.
+ */
+let shadowIndex = 0;
+for (const [label, [template, children]] of Object.entries(SHAPES))
+  test(`a SHADOW component is untouched by slots being wired: ${label}`, async () => {
+    const tag = `shadow-parity-${shadowIndex++}`;
+    const fromServer = server(tag, template, children, /* shadow */ true);
+
+    /**
+     * The light DOM follows the declarative template — that is what has to survive. PARSED out
+     * rather than pattern-matched: a non-greedy regex stops at the first `</template>`, which for a
+     * component whose own markup contains one is the wrong tag entirely.
+     */
+    const parsed = dom.window.document.createElement('div');
+    parsed.innerHTML = fromServer;
+    const shadowTemplate = [...parsed.children].find((node) => node.hasAttribute('shadowrootmode'));
+    assert.ok(shadowTemplate, 'CONTROL: the server emitted a declarative shadow template');
+    shadowTemplate.remove();
+    const serverLight = normalise(parsed.innerHTML);
+
+    const host = dom.window.document.createElement('div');
+    host.innerHTML = children;
+    dom.window.document.body.append(host);
+    const root = host.attachShadow({ mode: 'open' });
+    renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, root);
+    await settle();
+
+    assert.equal(serverLight, normalise(host.innerHTML),
+      `the server and the client disagree about a shadow host's own light DOM.\n` +
+        `  server: ${serverLight}\n  client: ${normalise(host.innerHTML)}`);
+    assert.doesNotMatch(fromServer, /data-vera-slotted|data-vera-unassigned/,
+      'and no light-slots marker belongs on a component the platform slots');
+    host.remove();
   });
