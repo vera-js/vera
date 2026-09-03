@@ -190,6 +190,49 @@ test('a light host is told about ::slotted(), and NOT about :host', { skip: isPr
     'including the dual spelling for a component that renders both ways');
 });
 
+/**
+ * **The same diagnostic, on a stylesheet that only MENTIONS the selector.**
+ *
+ * The check was a raw regex over the whole sheet, so a CSS comment explaining why `::slotted()` is
+ * not used — or a `content:` string containing the text — warned that the component used a selector
+ * it does not contain. Found by writing exactly such a comment in `examples/light-slots/`, being
+ * told the example used `::slotted()`, and going to look for it.
+ *
+ * This direction is the one worth pinning. A false positive is indistinguishable from a real one
+ * to the reader, who cannot see the regex: it costs them a search through their own stylesheet and
+ * teaches them the warnings are noise. The opposite failure — stripping too much and missing a real
+ * `::slotted()` — is the same silence as never having written the check, which is where this
+ * feature started.
+ */
+test('a stylesheet that only mentions ::slotted() in prose is not warned about', { skip: isProduction }, async () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (message) => said.push(String(message));
+  try {
+    const name = `x-sty-${nextTag++}`;
+    customElements.define(
+      name,
+      class extends dom.window.HTMLElement {
+        static styles = core.css`
+          /* ::slotted() cannot reach a descendant, so this sheet uses a plain one instead. */
+          [slot='title'] em { color: blue }
+          .badge::after { content: '::slotted(x)' }
+        `;
+        connectedCallback() {
+          core.init(this); // LIGHT
+          core.render(() => core.html`<p>own</p>`);
+        }
+      }
+    );
+    D.body.append(D.createElement(name));
+    await frame();
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(said.find((message) => message.includes('no shadow root')), undefined,
+    `a comment and a string are not selectors, but were read as one: ${JSON.stringify(said)}`);
+});
+
 test('the light-DOM rewrite translates selectors and leaves values alone', async () => {
   const original = console.warn;
   console.warn = () => {};

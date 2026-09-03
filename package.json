@@ -13,6 +13,8 @@
     "dev": "wireit",
     "dev:cdn": "wireit",
     "dev:ssr": "wireit",
+    "dev:select": "wireit",
+    "dev:slots": "wireit",
     "build": "wireit",
     "preview": "wireit",
     "test": "node --conditions development --test \"tests/**/*.test.mjs\"",
@@ -60,6 +62,20 @@
     },
     "dev:ssr": {
       "command": "node examples/ssr-node/server-native.mjs",
+      "dependencies": [
+        "build"
+      ],
+      "service": true
+    },
+    "dev:select": {
+      "command": "node examples/ui-select/serve.js",
+      "dependencies": [
+        "build"
+      ],
+      "service": true
+    },
+    "dev:slots": {
+      "command": "node examples/light-slots/serve.js",
       "dependencies": [
         "build"
       ],

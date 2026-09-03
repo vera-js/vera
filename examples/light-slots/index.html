@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeraJS — light-DOM slots</title>
+
+    <!--
+      No build step. Production bundles through an importmap — the CDN shape.
+
+      `@verajs/renderer/slots` is the only line that differs from any other buildless page. It is
+      OPT-IN: a renderer without it treats a `<slot>` in a light render as inert markup, which is
+      why it has its own bundle and its own map entry rather than riding along in the renderer.
+
+      To run this on CodePen, swap these for CDN URLs and change nothing else.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@verajs/core": "/packages/core/dist/vera.min.js",
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/slots": "/packages/renderer/dist/vera-renderer-slots.min.js",
+          "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
+          "@verajs/hooks": "/packages/hooks/dist/vera-hooks.min.js",
+          "@verajs/ui": "/packages/ui/dist/vera-ui.min.js"
+        }
+      }
+    </script>
+
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 52rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.55;
+        color-scheme: light dark;
+      }
+      h2 {
+        margin-top: 2.5rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+        font-size: 1.05rem;
+        letter-spacing: 0.01em;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+        background: color-mix(in srgb, currentColor 9%, transparent);
+        padding: 0.1em 0.35em;
+        border-radius: 0.25rem;
+      }
+      pre {
+        background: color-mix(in srgb, currentColor 7%, transparent);
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        font-size: 0.85rem;
+      }
+      .pair {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      }
+      button {
+        font: inherit;
+        padding: 0.35rem 0.7rem;
+        border-radius: 0.375rem;
+        border: 1px solid currentColor;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+      .note {
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Light-DOM slots</h1>
+    <p>
+      <code>&lt;slot&gt;</code> without a shadow root. The same template distributes content in
+      light DOM and in shadow DOM, so a component is written once and the consumer picks the mode —
+      and in light DOM the distributed nodes stay ordinary page nodes, reachable by ordinary CSS and
+      ordinary <code>querySelector</code>.
+    </p>
+    <p class="note">
+      Everything here runs in the browser with no toolchain. View source: the whole demo is one
+      inline module at the bottom of this file.
+    </p>
+
+    <h2>1 — the wiring, which is the whole setup</h2>
+    <pre>import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { slots } from '@verajs/renderer/slots';
+
+wire([renderer, slots]);</pre>
+    <p class="note">
+      Wire it at the app entry, <strong>before anything renders</strong>. A template resolves this
+      once, at construction, and is interned for the life of the page — so a component that rendered
+      before the wiring keeps a slotless template forever. In development the renderer says so, once
+      per tag; these are production bundles, where that check is folded away.
+    </p>
+
+    <h2>2 — one component, both modes</h2>
+    <p>
+      Identical template, identical slots. The left card has the <code>light</code> attribute and no
+      shadow root at all; the right one attaches a shadow root and lets the platform distribute.
+      Open devtools and inspect both.
+    </p>
+    <div class="pair">
+      <info-card light>
+        <h3 slot="title">Light DOM</h3>
+        <p>Distributed by <code>@verajs/renderer/slots</code>.</p>
+        <span slot="footer">no shadow root</span>
+      </info-card>
+
+      <info-card>
+        <h3 slot="title">Shadow DOM</h3>
+        <p>Distributed by the platform.</p>
+        <span slot="footer">shadow root, open</span>
+      </info-card>
+    </div>
+
+    <h2>3 — fallback content, when nothing is slotted</h2>
+    <p>Every slot here has fallback markup, and both modes show it the same way.</p>
+    <div class="pair">
+      <info-card light></info-card>
+      <info-card></info-card>
+    </div>
+
+    <h2>4 — the thing shadow DOM cannot do</h2>
+    <p>
+      A component's stylesheet can reach <em>inside</em> slotted content in light mode.
+      <code>::slotted()</code> matches only the top-level assigned node, so
+      <code>::slotted(*) em</code> selects nothing and there is no shadow spelling that works — the
+      nested <code>&lt;em&gt;</code> below is styled by the card's own sheet on the left, and cannot
+      be on the right.
+    </p>
+    <div class="pair">
+      <info-card light>
+        <h3 slot="title">Reaches the <em>nested</em> word</h3>
+        <p>The card's sheet styles <code>[slot='title'] em</code>.</p>
+      </info-card>
+
+      <info-card>
+        <h3 slot="title">Cannot reach the <em>nested</em> word</h3>
+        <p>Same markup, same sheet, shadow boundary in the way.</p>
+      </info-card>
+    </div>
+
+    <h2>5 — <code>@slotchange</code>, live</h2>
+    <p>
+      Move a node between slots and the component is told, in both modes, with the same event name
+      the platform uses. The counter is the component reacting to it.
+    </p>
+    <p><button id="mover">Move the badge</button></p>
+    <div class="pair">
+      <info-card light id="movable-host">
+        <h3 slot="title">Watch the counter</h3>
+        <span id="badge" slot="footer">badge</span>
+        <p>The badge starts in the footer.</p>
+      </info-card>
+    </div>
+
+    <h2>6 — a real component: <code>&lt;vera-select light&gt;</code></h2>
+    <p>
+      <code>@verajs/ui</code>'s select declares four slots. In light mode they are inert unless this
+      page wires the module — which it does, so the slotted trigger below is captured, positioned and
+      wired with the same ARIA and handlers the built-in one gets. The
+      <a href="/examples/ui-select/">ui-select example</a> is the same component <em>without</em> the
+      wiring, which is why its light section slots nothing.
+    </p>
+    <vera-select light aria-label="Flavour">
+      <button slot="trigger" class="fancy">Pick a flavour…</button>
+      <option value="vanilla" selected>Vanilla</option>
+      <option value="chocolate">Chocolate</option>
+      <option value="pistachio">Pistachio</option>
+    </vera-select>
+    <p class="note" id="reach"></p>
+
+    <script type="module">
+      import { css, html, init, createStore, render, wire } from '@verajs/core';
+      import { renderer } from '@verajs/renderer';
+      import { slots, slotted } from '@verajs/renderer/slots';
+      import { styles } from '@verajs/styles';
+
+      /**
+       * `styles` is wired for the same reason as `slots`: a light component has no shadow root to
+       * adopt a stylesheet into, so `static styles` is hoisted to the document and scoped per tag.
+       * `:host` inside it is translated to `:scope`, which is how one sheet serves both modes.
+       */
+      wire([renderer, slots, styles]);
+
+      /**
+       * **`@verajs/ui` is imported DYNAMICALLY, and that is not a style choice.**
+       *
+       * A static `import '@verajs/ui'` is hoisted above every statement in this module, including
+       * the `wire()` call above it. The select would be defined — and any `<vera-select>` already
+       * in the page upgraded and rendered — before a 'slot' insert existed. A template resolves
+       * that seam once, at construction, and is interned for the life of the page, so the element
+       * would keep a slotless template no matter what is wired afterwards, and section 6 would
+       * silently show a fallback trigger instead of the slotted one.
+       *
+       * This page was written with the static import first and did exactly that. The same hoisting
+       * trap is why `examples/cdn-js` loads its components through `import()`.
+       */
+      await import('@verajs/ui');
+
+      class InfoCard extends HTMLElement {
+        /**
+         * One sheet, both modes. In shadow mode it is adopted into the root; in light mode it is
+         * hoisted into an `@scope (info-card)` block, so it still cannot leak onto the page.
+         */
+        static styles = css`
+          :host {
+            display: block;
+            border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+            border-radius: 0.5rem;
+            overflow: hidden;
+          }
+          header {
+            padding: 0.5rem 0.85rem;
+            background: color-mix(in srgb, currentColor 8%, transparent);
+            font-weight: 600;
+          }
+          header h3 {
+            margin: 0;
+            font-size: 0.95rem;
+          }
+          .body {
+            padding: 0.85rem;
+          }
+          .body p {
+            margin: 0;
+          }
+          footer {
+            padding: 0.4rem 0.85rem;
+            font-size: 0.8rem;
+            opacity: 0.7;
+          }
+          .meter {
+            margin: 0;
+            padding: 0 0.85rem 0.6rem;
+            font-size: 0.75rem;
+            opacity: 0.6;
+          }
+          /* Section 4. In light mode this reaches a descendant of slotted content, which
+             ::slotted() cannot express — the shadow card renders the identical rule against
+             nothing. Note the comment syntax: this is inside a template literal, so a backtick
+             here would end the stylesheet and take the rest of the module with it. */
+          [slot='title'] em {
+            font-style: normal;
+            padding: 0 0.25em;
+            border-radius: 0.2em;
+            background: color-mix(in srgb, currentColor 18%, transparent);
+          }
+        `;
+
+        connectedCallback() {
+          /**
+           * The mode is the ONLY difference between the two cards. `init(element)` with nothing
+           * after it renders into the element itself; a `ShadowRootInit` attaches a root.
+           */
+          init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
+
+          const state = createStore({ changes: 0 });
+
+          render(
+            () => html`
+              <header><slot name="title">Untitled</slot></header>
+              <div class="body">
+                <slot @slotchange=${() => state.changes++}>Nothing slotted here.</slot>
+              </div>
+              <footer><slot name="footer">—</slot></footer>
+              <p class="meter">slotchange fired ${state.changes}×</p>
+            `
+          );
+        }
+      }
+      customElements.define('info-card', InfoCard);
+
+      /** Section 5 — moving a node between named slots is all it takes. */
+      document.querySelector('#mover').addEventListener('click', () => {
+        const badge = document.querySelector('#badge');
+        badge.setAttribute('slot', badge.getAttribute('slot') === 'footer' ? 'title' : 'footer');
+      });
+
+      /**
+       * Section 6 — the light-DOM payoff, stated as something you can check rather than claimed.
+       * `slotted()` answers in either mode (it reads native assignment in shadow, the capture map
+       * in light), and in light mode the node is also reachable by an ordinary page query, because
+       * it never left the page's own tree.
+       */
+      requestAnimationFrame(() => {
+        const select = document.querySelector('vera-select[light]');
+        const assigned = slotted(select, 'trigger')[0];
+        const byPageQuery = document.querySelector('vera-select[light] .fancy');
+        document.querySelector('#reach').textContent =
+          `slotted(select, 'trigger') → <${assigned?.localName ?? '?'}>; ` +
+          `the same node found by a plain document.querySelector: ${assigned === byPageQuery}. ` +
+          `Its role, stamped by the component: ${assigned?.getAttribute('role') ?? '(none)'}.`;
+      });
+    </script>
+  </body>
+</html>

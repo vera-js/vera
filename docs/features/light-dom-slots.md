@@ -80,3 +80,14 @@ this pays that and nothing else.
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light
   DOM *is*, and it is exactly why page CSS reaches it.
+
+## Seeing it
+
+[`examples/light-slots/`](../../examples/light-slots/) — `npm run dev:slots`. Buildless, one page,
+production bundles: one component rendered in both modes side by side, fallback content, the
+`::slotted()` contrast above shown as two cards rather than asserted, `@slotchange` on a live
+re-slot, and `<vera-select light>` with a slotted trigger.
+
+Its neighbour [`examples/ui-select/`](../../examples/ui-select/) is the same component with the
+module **not** wired, which is a supported configuration and looks exactly as this page's caveats
+describe. Opening both is the fastest way to see what the wiring buys.

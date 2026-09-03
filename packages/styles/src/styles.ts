@@ -60,6 +60,20 @@ let warnedAboutScope = false;
  * One case it gets wrong and nothing positional could: a data-URI SVG whose own `<style>` contains
  * `:host`. That `:host` has no shadow host to match either way, so the sheet was already inert.
  */
+/**
+ * A stylesheet with its comments and quoted strings removed, for the DIAGNOSTICS to read.
+ *
+ * Only the warnings use it, never the rewrite: stripping text before translating would change the
+ * bytes served, and a comment translated from `:host` to `:scope` is merely a comment either way.
+ * A warning is different — it sends the reader looking for a selector, and one that fires on prose
+ * teaches them the warnings are noise.
+ *
+ * Not a parser and not trying to be. It cannot be fooled in the dangerous direction: stripping too
+ * much only silences a warning, which is the same silence as not having written the check.
+ */
+const withoutText = (css: string): string =>
+  css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(['"])(?:\\.|(?!\1)[^\\])*\1/g, '');
+
 const forLightDom = (css: string): string =>
   css
     .replace(/(^|[^\\]):host\(([^)]*)\)(?=[^{};]*\{)/g, (_, before, inner) => `${before}:scope${inner.trim()}`)
@@ -255,8 +269,16 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
    * exists to reach across a boundary that is not there.
    *
    * `__DEV__`-only, once per class, so production carries neither the check nor the text.
+   *
+   * **Comments and quoted strings are stripped first, because they are text and not selectors.**
+   * A raw `/::slotted\s*\(/` over the whole sheet warns about a stylesheet that merely *mentions*
+   * the selector — which is what a documented one does. Found by writing a CSS comment saying
+   * `::slotted()` cannot express something, in the light-slots example, and being told the example
+   * used a selector it does not contain. This is `CLAUDE.md`'s "grep for the API, not the word",
+   * except shipped: the reader cannot check the regex, so a false positive here is
+   * indistinguishable from a real one and costs them the search.
    */
-  if (__DEV__ && /::slotted\s*\(/.test(cssText))
+  if (__DEV__ && /::slotted\s*\(/.test(withoutText(cssText)))
     console.warn(
       `[vera] styles: <${element.localName}> has no shadow root, and \`::slotted()\` only ever ` +
         `matches inside one — those rules do nothing here. In light DOM you do not need it: ` +
