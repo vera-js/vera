@@ -430,9 +430,21 @@ const templateCache = new WeakMap<TemplateStringsArray, Template>();
 class Template {
   _element: HTMLTemplateElement;
   _parts: TemplatePart[] = [];
-  /** Present only when a 'slot' insert was wired at construction and the markup contains slots. */
-  _slots?: SlotRecord[];
-  _seam?: SlotSeamFn;
+  /**
+   * Present only when a 'slot' insert was wired at construction and the markup contains slots.
+   *
+   * `declare`, like the two below: under ES2022 class-field semantics a plain optional field is
+   * DEFINED on every instance whether or not it is ever assigned, so a CONDITIONALLY assigned one
+   * is weight every template pays for a case most of them do not have.
+   *
+   * Deliberately not applied to the fields the constructors always assign (`_element`, `_name`,
+   * `_statics`, `_start`, `_end`, and the rest). Those need to exist, the saving is the same few
+   * bytes, and they sit on the hot classes where changing when a property first appears can move
+   * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
+   * update throughput before and after, three runs, the way the slot-mount deferral was.
+   */
+  declare _slots?: SlotRecord[];
+  declare _seam?: SlotSeamFn;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
