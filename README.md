@@ -18,7 +18,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/reactivity/computed` | 298 B | 241 B |
 | `@verajs/reactivity/collections` | 1.07 KB | 576 B |
 | `@verajs/renderer/keyed` | 1.28 KB | 664 B |
-| `@verajs/renderer/slots` | 5.55 KB | 2.24 KB |
+| `@verajs/renderer/slots` | 5.38 KB | 2.18 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 <!--/size:table.modules-->
 

@@ -40,6 +40,16 @@ const CASES = {
   'a bare boolean stays an attribute': ['<button disabled>x</button>', 'html`<button disabled>x</button>`'],
   'an event': ['<b onClick={s.fn}>x</b>', 'html`<b @click=${s.fn}>x</b>`'],
   'an event with a compound name': ['<b onPointerDown={s.fn}>x</b>', 'html`<b @pointerdown=${s.fn}>x</b>`'],
+  /**
+   * `<slot>` is an ordinary element to this transform, and that is the point: `@verajs/renderer/slots`
+   * reads the slot's own bindings, so a JSX author has to get the same template a hand-written one
+   * does — a dynamic `name` especially, since a slot whose name did not compile through would
+   * silently register as the DEFAULT slot and take content meant for another.
+   */
+  'a named slot': ['<slot name="header">fb</slot>', 'html`<slot name="header">fb</slot>`'],
+  'a default slot': ['<slot>fb</slot>', 'html`<slot>fb</slot>`'],
+  'a slot with a dynamic name': ['<slot name={s.str}>fb</slot>', 'html`<slot name=${s.str}>fb</slot>`'],
+  'a slot with slotchange': ['<slot name="h" onSlotChange={s.fn}>fb</slot>', 'html`<slot name="h" @slotchange=${s.fn}>fb</slot>`'],
   'dangerouslySetInnerHTML': [
     '<b dangerouslySetInnerHTML={{ __html: s.str }} />',
     'html`<b .innerHTML=${s.str} />`',

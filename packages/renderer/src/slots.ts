@@ -536,9 +536,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
   const filled = new Set<string>();
   /** Collect first (the live list mutates as slots are unwrapped). Any nesting order is fine —
    *  a slot is replaced by its content, and a slot inside assigned content was itself resolved. */
-  const query = (host as unknown as { querySelectorAll?: (s: string) => Iterable<Element> }).querySelectorAll;
-  const slotEls: Element[] =
-    typeof query === 'function' ? [...query.call(host, 'slot')] : collectSlots(host);
+  const slotEls: Element[] = [...host.querySelectorAll('slot')];
   for (const slot of slotEls) {
     const parent = slot.parentNode;
     if (parent === null) continue; // already unwrapped as another slot's assigned content
@@ -580,20 +578,6 @@ const serverDistribute = (host: Element, source: Node[]) => {
   if (carrier !== null) host.appendChild(carrier);
 };
 
-/** DocumentFragment/shim fallback when querySelectorAll is unavailable — a plain descendant walk. */
-const collectSlots = (root: Node): Element[] => {
-  const out: Element[] = [];
-  const visit = (node: Node) => {
-    for (let child = node.firstChild; child !== null; child = child.nextSibling) {
-      if (child.nodeType === 1) {
-        if ((child as Element).localName === 'slot') out.push(child as Element);
-        visit(child);
-      }
-    }
-  };
-  visit(root);
-  return out;
-};
 
 /**
  * Capture a light host's children at its FIRST render, before any slot has necessarily mounted —
