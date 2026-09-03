@@ -28,9 +28,16 @@ export const useDismiss = (element: LifecycleElement, onDismiss: (event?: Keyboa
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return;
     /**
-     * The innermost dismissable consumes its Escape — preventDefault and stopPropagation, so a
-     * page-level handler (a modal underneath) does not also act on the same keystroke (measured:
-     * it did). The platform's own popovers behave this way; so do we.
+     * Escape is consumed while active — preventDefault and stopPropagation — so a page-level
+     * handler (a modal underneath) does not also act on the keystroke (measured: it did).
+     *
+     * KNOWN LIMITATION, recorded rather than overclaimed: this is an outermost-capture consume,
+     * not true innermost arbitration. While this region is open, a coexisting foreign AUTO
+     * popover (manual + auto can coexist) loses its Escape to us and the UA's own close
+     * arbitration is blocked. The correct future door is CloseWatcher, where the UA stacks close
+     * requests — deferred because CloseWatcher ignores synthetic events, which breaks every
+     * programmatic Escape (tests included); queued in the portal TODO for when it can be adopted
+     * with a real-keystroke test strategy.
      */
     event.preventDefault();
     event.stopPropagation();
