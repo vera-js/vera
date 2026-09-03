@@ -237,3 +237,61 @@ test('light: authored options do not eat a slotted trigger', async () => {
   assert.equal(readings.light.options, 2, 'while the authored options still seeded the list');
   assert.equal(readings.light.strayOptions, 0, 'and were consumed, not left as stray visible text');
 });
+
+/**
+ * **A long-lived server's id counter does NOT have to match the client's.**
+ *
+ * Ids are scoped per instance with a counter — `vs1`, `vs2` — rather than a random value,
+ * specifically so a server render and the client that hydrates it can agree. But a server process
+ * does not reset between requests: its third page emits `vs3` while every fresh client starts at
+ * `vs1`, so the two never agree in practice.
+ *
+ * That turns out to be fine, and this pins WHY, because the reasoning is not obvious and a future
+ * change to random ids would break it silently. These ids are only ever referenced from inside the
+ * same component — `aria-controls` pointing at that instance's own listbox — so what matters is
+ * that each side is internally consistent, not that they match each other. Attributes are not
+ * compared structurally during adoption either, so the client simply commits its own values over
+ * the server's without a mismatch.
+ */
+test('a server whose id counter has advanced still hydrates cleanly', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const script = `
+    import { renderToString } from '@verajs/ssr';
+    import { wire } from '@verajs/core';
+    const { styles } = await import('@verajs/styles');
+    const { slots } = await import('@verajs/renderer/slots');
+    wire([styles, slots]);
+    const page = () => renderToString(new URL('file://' + process.cwd() + '/tests/fixtures/ssr/ui-select-ssr.js'), {
+      tag: 'vera-select', attributes: { light: '', 'aria-label': 'Flavor' },
+      children: '<option value="a">Alpha</option>' });
+    await page(); await page();
+    process.stdout.write((await page()).html);`;
+  const serverHtml = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
+    cwd: new URL('..', import.meta.url),
+    encoding: 'utf8',
+  });
+
+  const prefixes = (markup) => [
+    ...new Set([...markup.matchAll(/(?:id|aria-controls)="(vs\d+)-/g)].map(([, prefix]) => prefix)),
+  ];
+  assert.deepEqual(prefixes(serverHtml), ['vs3'],
+    'CONTROL: the third render really did advance the counter past what a client will produce');
+
+  const holder = dom.window.document.createElement('div');
+  holder.innerHTML = serverHtml;
+  dom.window.document.body.append(holder);
+  const element = holder.querySelector('vera-select');
+  await frame();
+  await frame();
+
+  const after = prefixes(element.outerHTML);
+  assert.equal(after.length, 1, 'the client settled on exactly one prefix for this instance');
+  assert.notDeepEqual(after, ['vs3'],
+    'and it is the client\'s own, not the one the server happened to be up to');
+  const trigger = element.querySelector('[role="combobox"]');
+  assert.match(trigger.getAttribute('aria-controls'), /^vs\d+-listbox$/,
+    'and the reference is still well formed');
+  assert.ok(trigger.getAttribute('aria-controls').startsWith(after[0]),
+    'pointing at THIS instance — internal consistency is the property that matters, not agreement');
+  holder.remove();
+});
