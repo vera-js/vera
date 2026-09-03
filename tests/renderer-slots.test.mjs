@@ -512,3 +512,83 @@ test('cloning a RENDERED host captures its own output — clone the source marku
   element.remove();
   clone.remove();
 });
+
+/**
+ * **A `<slot>` inside another slot's FALLBACK.** Legal markup — a fallback that itself defers to
+ * another slot — and it threw a TypeError straight out of `renderInto`, taking the whole render
+ * with it. Slots mount in document order, so taking over the outer one lifts its fallback children
+ * out of the tree; when the outer has an assignment that fallback stays detached, and the inner
+ * slot then had no parent to insert anchors into.
+ *
+ * Declining a parentless slot fixes the crash, and the four static arrangements then read exactly
+ * as the platform does — including the one that looks least likely, where the outer falls back and
+ * the inner distributes from inside it.
+ */
+const NESTED_FALLBACK = '<p><slot name="a"><slot name="b">inner-fb</slot></slot></p>';
+const nestedTemplate = () => ({
+  strings: Object.assign([NESTED_FALLBACK], { raw: [NESTED_FALLBACK] }),
+  values: [],
+});
+
+/**
+ * What a shadow root SHOWS for this shape, flattened by hand. `shadowRoot.textContent` is the wrong
+ * instrument and was the first one used here: it reads the slot elements' own fallback children and
+ * never the assigned light nodes, so it answers `inner-fb` no matter what is assigned.
+ */
+const nativeShows = (shadowHost) => {
+  const outer = shadowHost.shadowRoot.querySelector('slot[name="a"]');
+  const assignedOuter = outer.assignedNodes();
+  if (assignedOuter.length > 0) return assignedOuter.map((node) => node.textContent).join('');
+  const inner = shadowHost.shadowRoot.querySelector('slot[name="b"]');
+  const assignedInner = inner.assignedNodes();
+  return assignedInner.length > 0 ? assignedInner.map((node) => node.textContent).join('') : inner.textContent;
+};
+
+for (const [label, markup, expected] of [
+  ['inner only', '<i slot="b">B</i>', 'B'],
+  ['outer only', '<i slot="a">A</i>', 'A'],
+  ['both', '<i slot="a">A</i><i slot="b">B</i>', 'A'],
+  ['neither', '', 'inner-fb'],
+])
+  test(`a slot inside a slot's fallback: ${label} — matches the platform`, async () => {
+    const shadowHost = host(markup);
+    shadowHost.attachShadow({ mode: 'open' }).innerHTML = NESTED_FALLBACK;
+    const native = nativeShows(shadowHost);
+
+    const lightHost = host(markup);
+    renderInto(nestedTemplate(), lightHost);
+    await settle();
+
+    assert.equal(lightHost.querySelector('p').textContent, expected);
+    assert.equal(lightHost.querySelector('p').textContent, native, 'and the platform agrees');
+    shadowHost.remove();
+    lightHost.remove();
+  });
+
+/**
+ * **The one arrangement that does NOT match, measured and documented rather than left to be found.**
+ * An inner slot is only taken over if it is in the tree when slots mount. If the outer slot had an
+ * assignment then, its fallback was detached and the inner slot was declined — so when that
+ * fallback later becomes visible, it is a literal `<slot>` showing its own children rather than a
+ * live one showing what it was assigned. Supporting it means taking slots over at the moment a
+ * fallback is inserted, which is a feature; not crashing was the fix.
+ */
+test("a slot revealed inside a fallback later shows its fallback, not its assignment", async () => {
+  const shadowHost = host('<i slot="a">A</i><i slot="b">B</i>');
+  shadowHost.attachShadow({ mode: 'open' }).innerHTML = NESTED_FALLBACK;
+  const lightHost = host('<i slot="a">A</i><i slot="b">B</i>');
+  renderInto(nestedTemplate(), lightHost);
+  await settle();
+  assert.equal(lightHost.querySelector('p').textContent, 'A', 'CONTROL: both start showing the outer assignment');
+
+  shadowHost.querySelector('i[slot="a"]').remove();
+  lightHost.querySelector('i[slot="a"]').remove();
+  await settle();
+
+  assert.equal(nativeShows(shadowHost), 'B',
+    'CONTROL: the platform re-slots the inner one when the fallback becomes visible');
+  assert.equal(lightHost.querySelector('p').textContent, 'inner-fb',
+    'here it shows the inner slot\'s own fallback — the documented divergence');
+  shadowHost.remove();
+  lightHost.remove();
+});

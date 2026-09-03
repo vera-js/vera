@@ -395,7 +395,7 @@ Three differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->2.18 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->2.19 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe (it imports nothing and touches no global document).
 

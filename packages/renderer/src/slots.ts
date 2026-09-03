@@ -442,9 +442,23 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
    *  document container is not a light component. Duck-typed — realm-safe for pop-outs. */
   if (root.nodeType !== 1) return null;
   const host = root as Element;
+  /**
+   * **A `<slot>` nested inside ANOTHER slot's fallback has already been detached by the time we
+   * reach it.** Slots mount in document order, and taking over the outer one lifts its fallback
+   * children out of the tree and into `_fallback` — the inner slot among them. Reaching for
+   * `parentNode.insertBefore` then threw a TypeError straight out of `renderInto`, taking the whole
+   * render with it.
+   *
+   * Declining leaves it a literal `<slot>` inside that fallback: inert, showing its own fallback
+   * children if the outer slot ever falls back. That is a documented divergence from the platform,
+   * where an inner slot DOES participate while the outer one shows its fallback — supporting that
+   * means taking slots over at the moment a fallback is inserted, which is a feature rather than
+   * this fix. What matters here is that markup the platform accepts cannot crash the renderer.
+   */
+  if (slot.parentNode === null) return null;
   const state = capture(host);
   const doc = slot.ownerDocument!;
-  const parent = slot.parentNode!;
+  const parent = slot.parentNode;
   const start = doc.createComment('');
   const end = doc.createComment('');
   parent.insertBefore(start, slot);

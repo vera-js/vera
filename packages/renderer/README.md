@@ -339,6 +339,14 @@ only. Live: appending, removing, or re-slotting children redistributes automatic
 divergence — see **Late children** below. Re-renders leave slotted nodes in place, identity intact, so focus and input values
 survive; SSR emits already-distributed markup and hydration adopts it.
 
+**A `<slot>` inside another slot's fallback is not taken over if that fallback is hidden when the
+component first renders.** The four static arrangements match the platform exactly. The one that
+does not is a transition: if the outer slot had an assignment at first render, its fallback — and
+the inner slot in it — was never in the tree, so when that fallback later becomes visible the inner
+slot shows its own fallback children rather than what it was assigned. Supporting it means taking
+slots over at the moment a fallback is inserted; declining a parentless slot is what stops it
+throwing, which it used to do straight out of `renderInto`.
+
 ### Late children
 
 **A node added AFTER the first render joins a slot only if it carries a `slot` attribute** —
@@ -400,7 +408,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->2.18 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->2.19 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
 also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
 on both sides.
