@@ -9,14 +9,19 @@ import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
 
-/** Server: render a slot fixture with children, in its own process (the shims own globals). */
-const server = (children, fixture = 'slot-card-ssr') => {
+/**
+ * Server: render a slot fixture with children, in its own process (the shims own globals).
+ * `awaited` picks the asynchronous chain — the synchronous one refuses an async
+ * `connectedCallback` by design, since its markup would be empty.
+ */
+const server = (children, fixture = 'slot-card-ssr', awaited = false) => {
+  const entry = awaited ? 'renderToStringAsync' : 'renderToString';
   const script = `
-    import { renderToString } from '@verajs/ssr';
+    import { ${entry} } from '@verajs/ssr';
     import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots');
     wire([slots]);
-    const out = (await renderToString(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html;
+    const out = (await ${entry}(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html;
     process.stdout.write(out);
   `;
   return execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
@@ -288,5 +293,42 @@ test('AUDIT — a slot carrying bindings hydrates in place, and its API is live'
   await settle();
   assert.equal(fires, 2, 'and keeps firing');
   assert.deepEqual(seen, ['MINE', 'TWO']);
+  host.remove();
+});
+
+/**
+ * **Three levels of composition, hydrated.** Each host is simultaneously somebody's slotted content
+ * and somebody else's host, and the server's output for that shape has to be adoptable at every
+ * level at once — one bail anywhere would discard a whole subtree and take the levels below it.
+ */
+test('AUDIT — three levels of light-slot components hydrate in place, all at once', async () => {
+  const serverHtml = server(
+    '<i slot="x">A-NAMED</i><deep-b slot=""><i slot="x">B-NAMED</i><deep-c><i slot="x">C-NAMED</i></deep-c></deep-b>',
+    'slot-deep-ssr',
+    /* awaited */ true
+  );
+  assert.match(serverHtml, /<c><i slot="x">C-NAMED<\/i><\/c>/, 'CONTROL: the server distributed all three levels');
+  const host = hostFromServer(serverHtml);
+  const innermost = host.querySelector('i[slot="x"]');
+
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    renderInto(html`<a1><slot name="x">no-a</slot></a1><a2><slot>no-a-default</slot></a2>`, host);
+    renderInto(html`<b1><slot name="x">no-b</slot></b1><b2><slot>no-b-default</slot></b2>`, host.querySelector('deep-b'));
+    renderInto(html`<c><slot name="x">no-c</slot></c>`, host.querySelector('deep-c'));
+    await settle();
+  } finally {
+    console.warn = original;
+  }
+
+  assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
+    'no level bailed — a bail at any of them would take the levels below it too');
+  assert.equal(host.querySelector('i[slot="x"]'), innermost, 'node identity kept through the whole depth');
+  assert.equal(host.querySelector('a1').textContent, 'A-NAMED');
+  assert.equal(host.querySelector('b1').textContent, 'B-NAMED');
+  assert.equal(host.querySelector('c').textContent, 'C-NAMED');
+  assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and every marker is stripped');
   host.remove();
 });

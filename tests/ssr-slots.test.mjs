@@ -158,3 +158,26 @@ test('AUDIT — a DYNAMIC slot name distributes by the name it actually has', as
   assert.match(html, /<footer>AFTER<\/footer>/, 'and the value after the slot is still its own');
   assert.doesNotMatch(html, /no header/, 'the fallback is not rendered beside it');
 });
+
+/**
+ * **Three levels of composition, not merely nesting** — each component slots the next, so every
+ * host is simultaneously somebody's slotted content and somebody else's host. The middle one is
+ * the interesting position: it arrives as an assigned node of the outer default slot AND has to
+ * distribute its own children. The outermost is `async`, so this also holds the awaited chain to
+ * the same answer as the synchronous one.
+ */
+const DEEP = new URL('./fixtures/ssr/slot-deep-ssr.js', import.meta.url);
+test('AUDIT — light slots compose three levels deep, through the async chain', async () => {
+  const { html } = await renderToStringAsync(DEEP, {
+    children:
+      '<i slot="x">A-NAMED</i>' +
+      '<deep-b slot=""><i slot="x">B-NAMED</i><deep-c><i slot="x">C-NAMED</i></deep-c></deep-b>',
+  });
+  assert.match(html, /<a1><i slot="x">A-NAMED<\/i><\/a1>/, 'the outermost distributes its named slot');
+  assert.match(html, /<a2 data-vera-slotted="0,1"><deep-b/, 'and its default slot took the middle component');
+  assert.match(html, /<b1><i slot="x">B-NAMED<\/i><\/b1>/, 'the middle one distributes while BEING distributed');
+  assert.match(html, /<b2 data-vera-slotted="0,1"><deep-c/, 'and passes the innermost along');
+  assert.match(html, /<c><i slot="x">C-NAMED<\/i><\/c>/, 'the innermost distributes too');
+  assert.doesNotMatch(html, /no-a\b|no-b\b|no-c\b/, 'no level fell back to content it was given');
+  assert.doesNotMatch(html, /<slot[\s>]/, 'and nothing is left as a <slot>');
+});
