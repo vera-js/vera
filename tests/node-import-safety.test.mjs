@@ -57,6 +57,7 @@ const SAFE = [
   '@verajs/inserts',
   '@verajs/reactivity',
   '@verajs/reactivity/collections',
+  '@verajs/reactivity/computed',
   '@verajs/renderer/keyed',
   '@verajs/renderer/slots',
   '@verajs/renderer/spread',
