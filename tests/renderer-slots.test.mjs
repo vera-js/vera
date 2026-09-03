@@ -409,3 +409,42 @@ test('a binding that cannot work on a light-DOM slot is diagnosed', { skip: isPr
     'are events and `&ref`, which never appear as attributes, and `name`, which is excluded');
   assert.match(said, /`&ref` all work here/, 'and it says what to reach for instead');
 });
+
+/**
+ * **Children that arrive after the element upgrades** — the timing an HTML parser creates whenever
+ * the component's definition is already registered, and the reason the "must name its slot" rule
+ * bites more often than its wording suggests. Named content still lands, because it names a slot;
+ * bare default content does not, and the slot shows its fallback.
+ *
+ * Pinned as the documented behaviour rather than as a defect. A diagnostic was tried and reverted:
+ * the component's OWN rendered output arrives through the same callback (the fragment is inserted
+ * after the seam drains), so a warning could not tell the two apart without false-positiving on
+ * every light component's first render — which is exactly the ambiguity the rule exists to avoid.
+ */
+test('children appended AFTER the first render need to name their slot', async () => {
+  const element = doc.createElement('div');
+  doc.body.append(element);
+  renderInto(html`<header><slot name="h">FB-H</slot></header><main><slot>FB-D</slot></main>`, element);
+  await settle();
+  assert.equal(element.querySelector('main').textContent, 'FB-D', 'CONTROL: nothing supplied yet');
+
+  const named = doc.createElement('b');
+  named.setAttribute('slot', 'h');
+  named.textContent = 'NAMED';
+  element.append(named, doc.createTextNode('bare text'));
+  await settle();
+
+  assert.equal(element.querySelector('header').textContent, 'NAMED', 'named content lands — it named a slot');
+  assert.equal(element.querySelector('main').textContent, 'FB-D',
+    'bare text does NOT — after the first render, an unnamed node is indistinguishable from the component\'s own DOM');
+
+  /** And the one-attribute fix works, which is what the docs point at. */
+  const explicit = doc.createTextNode('explicit');
+  const carrier = doc.createElement('span');
+  carrier.setAttribute('slot', '');
+  carrier.append(explicit);
+  element.append(carrier);
+  await settle();
+  assert.equal(element.querySelector('main').textContent, 'explicit', '`slot=""` reaches the default slot');
+  element.remove();
+});

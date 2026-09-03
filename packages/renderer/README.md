@@ -328,11 +328,24 @@ console.log(slotted(card, 'header').length); //           1
 `slots` is the insert descriptor you wire; that is all a consumer touches. The assignment follows
 the platform's own rules — elements to the slot their `slot` attribute names, text to the default
 slot, fallback shown only while a slot is unassigned and restored when it empties, direct children
-only. Live: appending, removing, or re-slotting children redistributes automatically (one documented
-divergence — a child *added after first render* joins only if it carries a `slot` attribute, since a
-light host cannot tell a user's late addition from the component's own DOM; `slot=""` reaches the
-default slot). Re-renders leave slotted nodes in place, identity intact, so focus and input values
+only. Live: appending, removing, or re-slotting children redistributes automatically, with one documented
+divergence — see **Late children** below. Re-renders leave slotted nodes in place, identity intact, so focus and input values
 survive; SSR emits already-distributed markup and hydration adopts it.
+
+### Late children
+
+**A node added AFTER the first render joins a slot only if it carries a `slot` attribute** —
+`slot=""` for the default one, so nothing is out of reach, it just has to be said. A light host's
+children after the first render are also the component's own rendered output, and nothing
+distinguishes an unnamed text node from it.
+**This is triggered by TIMING as often as by intent, which is the part worth knowing.** An HTML
+parser creates and upgrades an element before it has read the children, so on any page where the
+definition is already registered — an inline module script above the markup, a streamed
+document — the component renders first and its children arrive second. Named content still lands,
+because it names a slot; bare default content does not, and the slot shows its fallback.
+If that bites, the fix is one attribute (`slot=""`), and the reliable way to avoid it altogether
+is to let the definition load deferred (a plain `<script type="module" src>` is deferred already),
+so the element upgrades with its children in place.
 
 **`slotted(host, name?)`** is the component-internal accessor — what the user assigned to a slot,
 answered identically in shadow mode (native assignment) and light mode (the capture map). Omit
