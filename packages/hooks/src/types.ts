@@ -41,6 +41,14 @@ export type DismissController = {
 
 /** What `useSelect` needs from its host component — functions, so attribute changes stay live. */
 export type SelectConfig = {
+  /**
+   * The host's id prefix, for the ARIA the controller stamps onto markup it does not render.
+   * `aria-controls` is an ID REFERENCE, and a light-DOM host's ids share the page document with
+   * every other component's — so two hosts both stamping `aria-controls="listbox"` sent the second
+   * one's search input at the FIRST one's listbox. Defaults to no prefix, which is what a host with
+   * a shadow root (its own id scope) can afford.
+   */
+  ids?: () => string;
   /** Multi mode: picking toggles membership and the menu stays open. Default single. */
   multi?: () => boolean;
   /** Disabled: every gesture, key and typeahead no-ops; open() refuses. */

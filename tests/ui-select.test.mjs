@@ -9,6 +9,22 @@ import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 
+/**
+ * **ARIA ids are scoped to the instance that wrote them** — a shadow root is its own id scope, but
+ * a LIGHT host's ids land in the page document beside every other component's, so `<vera-select>`
+ * prefixes each one. These read the RELATIONSHIP rather than the literal id, which is the actual
+ * contract and does not care what the prefix is: the referenced element must exist, and be the
+ * option the test means.
+ */
+const activeOption = (trigger, element) => {
+  const id = trigger.getAttribute('aria-activedescendant');
+  if (id === null) return null;
+  const target = root(element).querySelector(`[id="${id}"]`);
+  assert.ok(target, `aria-activedescendant="${id}" points at nothing inside the component`);
+  return target;
+};
+const activeIndex = (trigger, element) => activeOption(trigger, element)?.getAttribute('data-index') ?? null;
+
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'http://localhost/',
   pretendToBeVisual: true,
@@ -314,15 +330,15 @@ test('without a search line the trigger drives the open menu: arrows, Home/End, 
     return frame();
   };
   await key('ArrowDown'); // opens
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0');
+  assert.equal(activeIndex(trigger, element), '0');
   await key('End');
   /** Gamma (index 2) is last but DISABLED — the disabled-highlight invariant holds at every
    *  door now, so End lands on the last enabled row. (The old positional End was the one door
    *  that could tint a row Enter refused.) */
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1');
+  assert.equal(activeIndex(trigger, element), '1');
   await key('Home');
   await key('ArrowDown');
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1');
+  assert.equal(activeIndex(trigger, element), '1');
   await key('Enter');
   assert.equal(element.value, 'b');
   assert.equal(trigger.getAttribute('aria-activedescendant'), null, 'closed means no active descendant');
@@ -361,7 +377,7 @@ test('icons are aria-hidden by contract, descriptions announce, groups are real 
   trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   await frame();
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'indexes stay flat across groups');
+  assert.equal(activeIndex(trigger, element), '1', 'indexes stay flat across groups');
   element.remove();
 });
 
@@ -374,9 +390,9 @@ test('typeahead: typing on the trigger opens and jumps, cycles on repeat, skips 
   };
   await type('b');
   assert.equal(part(element, 'menu').getAttribute('data-state'), 'open', 'typing opens');
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'and lands on Beta');
+  assert.equal(activeIndex(trigger, element), '1', 'and lands on Beta');
   await type('g');
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'disabled Gamma is never landed on');
+  assert.equal(activeIndex(trigger, element), '1', 'disabled Gamma is never landed on');
   element.remove();
 });
 
@@ -592,7 +608,9 @@ test('a slotted search input is wired like our own: filtering, keyboard, combobo
   await frame();
   await frame();
 
-  assert.equal(search.getAttribute('aria-controls'), 'listbox');
+  assert.match(search.getAttribute('aria-controls'), /-listbox$/, 'scoped to this instance');
+  assert.ok(root(element).querySelector(`[id="${search.getAttribute('aria-controls')}"][role="listbox"]`),
+    'and it points at this component\'s own listbox');
   assert.equal(search.getAttribute('aria-autocomplete'), 'list');
 
   part(element, 'trigger').click();
@@ -637,16 +655,16 @@ test('the keyboard highlight tracks the OPTION, not its index, across a remote r
   await frame();
   trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   await frame();
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'Beta is highlighted');
+  assert.equal(activeIndex(trigger, element), '1', 'Beta is highlighted');
 
   element.options = [OPTIONS[1], OPTIONS[0]]; // the "server" reordered — Beta is index 0 now
   await frame();
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0', 'the highlight followed Beta');
+  assert.equal(activeIndex(trigger, element), '0', 'the highlight followed Beta');
   assert.match(root(element).querySelector('[data-active]').textContent, /Beta/);
 
   element.options = [OPTIONS[0]]; // Beta vanished entirely
   await frame();
-  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0', 'a vanished option lands the highlight at the top');
+  assert.equal(activeIndex(trigger, element), '0', 'a vanished option lands the highlight at the top');
   element.remove();
 });
 

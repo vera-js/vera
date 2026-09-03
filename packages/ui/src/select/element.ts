@@ -30,8 +30,28 @@ import { slotted } from '@verajs/renderer/slots';
 import { SELECT_STYLES } from './styles.js';
 import { parseLightOptions } from './parse-options.js';
 
+/**
+ * A shadow root is its own ID scope; a LIGHT host's ids land in the page document beside everyone
+ * else's. Two `<vera-select light>` on one page therefore both wrote `id="listbox"` and `id="opt-0"`,
+ * and the second one's `aria-controls`/`aria-activedescendant` resolved to the FIRST one's listbox
+ * and options — every light-mode select after the first pointed a screen reader at another widget.
+ *
+ * So every id this component writes is scoped to the instance that wrote it. One code path: in a
+ * shadow root the prefix is redundant and harmless, and having both modes emit the same shape is
+ * worth more than the handful of bytes.
+ *
+ * A counter, not a random value, because these ids have to survive a server render: the markup
+ * carries them and the client has to arrive at the same ones. A counter matches whenever the
+ * components are instantiated in the same order, which is what hydrating a server-rendered page
+ * does. `<vera-select>` is not server-rendered today, so this is design rather than a fix — but it
+ * is the reason not to reach for `randomUUID`.
+ */
+let uidSeq = 0;
+
 type Internal = {
   select: ReturnType<typeof useSelect> | null;
+  /** This instance's id prefix — see the note above `uidSeq`. */
+  uid: string;
   /** Values assigned after upgrade but before connect wait here for the controller. Value
    *  entries may be strings — resolvable only once options are known, so resolution waits. */
   pending: { options: SelectOption[]; value: (string | SelectOption)[] };
@@ -82,6 +102,7 @@ const internal = (element: VeraSelect): Internal => {
     }
     entry = {
       select: null,
+      uid: `vs${++uidSeq}`,
       pending: { options: [], value: [] },
       internals,
       host: createStore({ attrs: {} as Record<string, string | null>, formDisabled: false }),
@@ -458,6 +479,7 @@ export class VeraSelect extends HTMLElement {
         : new CustomEvent(type, { detail: { oldState, newState }, cancelable });
 
     const select = (entry.select ??= useSelect(this, {
+      ids: () => `${entry.uid}-`,
       multi: () => this.hasAttribute('multi'),
       disabled: () => this.hasAttribute('disabled') || entry.host.formDisabled,
       creatable: () => this.hasAttribute('creatable'),
@@ -630,7 +652,7 @@ export class VeraSelect extends HTMLElement {
     /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */
     const row = (option: SelectOption, index: number, active: number) => keyed(option.value, html`
       <div
-        id=${`opt-${index}`}
+        id=${`${entry.uid}-opt-${index}`}
         part="option"
         role="option"
         data-index=${index}
@@ -651,7 +673,10 @@ export class VeraSelect extends HTMLElement {
       const creating = select.createLabel();
       const count = rows.length + (creating ? 1 : 0);
       const active = Math.min(state.active, Math.max(count - 1, 0));
-      const activeId = count === 0 || active < 0 ? null : active === rows.length ? 'opt-create' : `opt-${active}`;
+      const activeId =
+        count === 0 || active < 0
+          ? null
+          : `${entry.uid}-opt-${active === rows.length ? 'create' : active}`;
       const labels = state.value.map((option) => option.label).join(', ');
       /**
        * The value span must stay WHITESPACE-TIGHT in the template: static text nodes inside it —
@@ -709,7 +734,7 @@ export class VeraSelect extends HTMLElement {
             part="trigger"
             role="combobox"
             aria-haspopup="listbox"
-            aria-controls="listbox"
+            aria-controls=${`${entry.uid}-listbox`}
             tabindex=${attrs()['disabled'] != null || entry.host.formDisabled ? '-1' : '0'}
             aria-label=${labelOf(this)}
             aria-required=${attrs()['required'] != null ? 'true' : null}
@@ -743,7 +768,7 @@ export class VeraSelect extends HTMLElement {
             />
           </slot>
           <div
-            id="listbox"
+            id=${`${entry.uid}-listbox`}
             part="list"
             role="listbox"
             tabindex="-1"
@@ -767,7 +792,7 @@ export class VeraSelect extends HTMLElement {
             ${creating
               ? html`
                   <div
-                    id="opt-create"
+                    id=${`${entry.uid}-opt-create`}
                     part="option"
                     role="option"
                     data-index=${rows.length}

@@ -28,6 +28,8 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   });
 
   let assigned: AssignedParts = {};
+  /** See `SelectConfig.ids` — the id of the listbox this controller's ARIA must point at. */
+  const listboxId = () => `${config.ids?.() ?? ''}listbox`;
   const multi = () => config.multi?.() === true;
   const disabled = () => config.disabled?.() === true;
 
@@ -331,7 +333,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   /** The stamp map for the search line — same single-source rule as the trigger's. */
   const searchStamps = (activeId: string | null): Record<string, string> => ({
-    'aria-controls': 'listbox',
+    'aria-controls': listboxId(),
     'aria-autocomplete': 'list',
     ...(state.open && activeId ? { 'aria-activedescendant': activeId } : {}),
   });
@@ -343,7 +345,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
    * the bubbled Enter picked again from the unfiltered list). Wiring is ARIA only.
    */
   const wireSearch = (search: Element) => {
-    search.setAttribute('aria-controls', 'listbox');
+    search.setAttribute('aria-controls', listboxId());
     search.setAttribute('aria-autocomplete', 'list');
   };
 

@@ -145,3 +145,52 @@ test('light: swapping the slotted trigger re-wires it, and removing it restores 
   assert.equal(built.getAttribute('aria-haspopup'), 'listbox', 'wired like any other');
   el.remove();
 });
+
+/**
+ * **Two light-mode selects on one page must not share ids.** A shadow root is its own id scope; a
+ * LIGHT host's ids land in the page document beside every other component's. Both instances wrote
+ * `id="listbox"` and `id="opt-0"`, so the second one's `aria-controls` and `aria-activedescendant`
+ * resolved to the FIRST one's listbox and options — every light-mode select after the first pointed
+ * a screen reader at another widget, and nothing failed.
+ *
+ * Two instances is the smallest case that can show it, which is why one instance passed everything.
+ */
+test('light: two selects on a page keep their ARIA pointing at their own parts', async () => {
+  const made = [];
+  for (let index = 0; index < 2; index++) {
+    const el = dom.window.document.createElement('vera-select');
+    el.setAttribute('light', '');
+    el.setAttribute('aria-label', `S${index}`);
+    dom.window.document.body.append(el);
+    el.options = OPTS;
+    made.push(el);
+  }
+  await frame();
+  await frame();
+
+  /** Open both, so each renders its listbox and options into the page. */
+  for (const el of made) {
+    el.querySelector('[role="combobox"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await frame();
+    await frame();
+  }
+  assert.equal(made[1].querySelectorAll('[role="option"]').length, OPTS.length,
+    'CONTROL: the second select really did render its own options');
+
+  /** No id may appear twice anywhere in the document. */
+  const ids = [...dom.window.document.querySelectorAll('[id]')].map((node) => node.id);
+  const duplicated = ids.filter((id, at) => ids.indexOf(id) !== at);
+  assert.deepEqual([...new Set(duplicated)], [], 'two instances wrote the same id');
+
+  /** And every ARIA id reference resolves INSIDE the component that wrote it. */
+  for (const el of made)
+    for (const attribute of ['aria-controls', 'aria-activedescendant'])
+      for (const node of el.querySelectorAll(`[${attribute}]`)) {
+        const id = node.getAttribute(attribute);
+        const target = dom.window.document.getElementById(id);
+        assert.ok(target, `${attribute}="${id}" points at nothing`);
+        assert.ok(el.contains(target),
+          `${attribute}="${id}" resolves to another component's element — the reader is sent elsewhere`);
+      }
+  for (const el of made) el.remove();
+});
