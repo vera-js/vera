@@ -13,8 +13,10 @@ import pkg from './package.json' with { type: 'json' };
  * `@verajs/core` and `@verajs/hooks` stay external in every build, as `@verajs/reactivity` keeps
  * core: the controllers' stores must live in the same core the app renders with — a bundled
  * private copy would hold state nothing else can see. The importmap resolves both on a CDN page.
+ * @verajs/renderer/slots joins them: slotted() reads the wired module's HOSTS map, so a bundled
+ * copy would read an empty one — the same shared-module rule.
  */
-const external = ['@verajs/core', '@verajs/hooks', '@verajs/renderer/spread', '@verajs/renderer/keyed'];
+const external = ['@verajs/core', '@verajs/hooks', '@verajs/renderer/spread', '@verajs/renderer/keyed', '@verajs/renderer/slots'];
 
 /**
  * `_root` and `_cleanups` are exempt from mangling: it is core's structural contract for reaching a (possibly

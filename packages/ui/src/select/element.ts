@@ -26,6 +26,7 @@ import { createStore, html, init, render, useEffect } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 import { keyed } from '@verajs/renderer/keyed';
 import { useSelect, type SelectOption } from '@verajs/hooks';
+import { slotted } from '@verajs/renderer/slots';
 import { SELECT_STYLES } from './styles.js';
 import { parseLightOptions } from './parse-options.js';
 
@@ -396,8 +397,8 @@ export class VeraSelect extends HTMLElement {
    */
   override focus(options?: FocusOptions) {
     const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
-    const slotted = (root.querySelector?.('slot[name="trigger"]') as HTMLSlotElement | null)?.assignedElements()[0];
-    const trigger = (slotted ?? root.querySelector?.('[part="trigger"]')) as HTMLElement | null;
+    const slottedTrigger = slotted(this, 'trigger').find((node) => node.nodeType === 1) as HTMLElement | undefined;
+    const trigger = (slottedTrigger ?? root.querySelector?.('[part="trigger"]')) as HTMLElement | null;
     if (trigger) trigger.focus(options);
     else super.focus(options);
   }
@@ -566,10 +567,11 @@ export class VeraSelect extends HTMLElement {
     });
     const { state, handlers } = select;
 
-    /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land. */
+    /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land.
+     *  `slotted()` answers in BOTH modes: shadow via native assignment, light via the wired slots
+     *  module's capture map — so this one code path serves every corner. */
     const refresh = () => {
-      const assignedTo = (name: string) =>
-        (root.querySelector?.(`slot[name="${name}"]`) as HTMLSlotElement | null)?.assignedElements()[0];
+      const assignedTo = (name: string) => slotted(this, name).find((node) => node.nodeType === 1) as Element | undefined;
       const slottedTrigger = assignedTo('trigger');
       entry.slottedTrigger = slottedTrigger !== undefined;
       /**
@@ -597,14 +599,20 @@ export class VeraSelect extends HTMLElement {
      * jsdom focuses anything, so only a browser shows it; found by typing into the creatable
      * demo card and watching every keystroke land on the trigger's typeahead instead.
      */
+    /**
+     * Light mode has no native `slotchange`, so wire assigned nodes once after the first render —
+     * distribution has already run inside the render commit, so `slotted()` sees them. Idempotent
+     * in shadow mode (the `@slotchange` bindings also call `refresh`, and re-attach is guarded).
+     */
+    useEffect(() => refresh(), this);
+
     useEffect(() => {
       if (!state.open) return;
       requestAnimationFrame(() => {
         if (!state.open || !this.isConnected) return;
         const search =
-          ((root.querySelector?.('slot[name="search"]') as HTMLSlotElement | null)?.assignedElements()[0] as
-            | HTMLElement
-            | undefined) ?? (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
+          (slotted(this, 'search').find((node) => node.nodeType === 1) as HTMLElement | undefined) ??
+          (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
         search?.focus?.();
       });
     }, this);
