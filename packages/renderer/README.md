@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.99 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.02 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -305,9 +305,36 @@ survive; SSR emits already-distributed markup and hydration adopts it.
 answered identically in shadow mode (native assignment) and light mode (the capture map). Omit
 `name` for the default slot. Component authors reach for this; app users do not.
 
+### The `<slot>` element is still the component's handle on the slot
+
+A slot is not only a position, and a component that keeps up with what it was given binds to the
+element itself. All of that means here what it means in a shadow root:
+
+```js
+render(() => html`<header>
+  <slot name=${section} &ref=${(el) => (this.slot = el)}
+        @slotchange=${(e) => wire(e.target.assignedElements())}>Nothing yet</slot>
+</header>`);
+```
+
+- **`@slotchange`** fires on first assignment and on every change after it — and only then, so a
+  child added without a `slot` attribute fires nothing. The sequence and each event's
+  `assignedNodes()` are asserted against real shadow DOM, which is the oracle for this.
+- **`assignedNodes(options)` / `assignedElements(options)`** answer from the live assignment,
+  through `event.target` or a `&ref`. With nothing assigned, `{ flatten: true }` gives the fallback
+  actually on screen, as it does on the platform.
+- **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
+  re-routes if it changes between renders.
+
+**The one thing a light-DOM slot cannot carry is presentation** — `class`, `style`, `id` and other
+plain attributes. A light host has no second tree, so the slot element is not rendered and there is
+nothing for them to apply to, while in a shadow root they do apply. Put them on a real element
+around the slot. Development builds say so, naming the attribute, rather than leaving it to be
+found.
+
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->1.90 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->2.24 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
 also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
 on both sides.

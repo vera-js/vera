@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'http://localhost/',
@@ -281,4 +281,131 @@ test('a SHADOW root is left entirely to native slotting', () => {
   assert.equal(shadowHost.firstElementChild.parentNode, shadowHost, 'the host keeps its own children');
   assert.deepEqual(slotted(shadowHost, 'header').map((node) => node.textContent), ['MINE'],
     'slotted() reads the native assignment — one accessor, both modes');
+});
+
+/* ── The slot ELEMENT as the component's API ──────────────────────────────────────────────────
+ *
+ * A `<slot>` is not just a position: it is the object a component binds to. `@slotchange` is how a
+ * component keeps up with what it was given, `&ref` is how it holds the slot, and
+ * `assignedNodes()`/`assignedElements()` are how it reads through either. In light mode the seam
+ * takes the element out of the document — and every one of those was silently dead, which is the
+ * one place "one version of every component" did not hold. The element is now kept, out of the
+ * document but alive, as exactly that API object.
+ */
+
+/** The same component both ways, reporting what each `slotchange` saw. */
+const recorder = (log) => (event) =>
+  log.push(event.target.assignedElements().map((node) => node.textContent).join('+') || '(none)');
+
+test('slotchange fires the same sequence, with the same payload, as NATIVE shadow DOM', async () => {
+  const readings = {};
+  for (const mode of ['shadow', 'light']) {
+    const log = (readings[mode] = []);
+    const element = host('<b slot="h">ONE</b>');
+    const root = mode === 'shadow' ? element.attachShadow({ mode: 'open' }) : element;
+    renderInto(html`<header><slot name="h" @slotchange=${recorder(log)}>fb</slot></header>`, root);
+    await settle();
+
+    const added = doc.createElement('b');
+    added.setAttribute('slot', 'h');
+    added.textContent = 'TWO';
+    element.append(added);
+    await settle();
+
+    element.querySelector('b').remove();
+    await settle();
+
+    /** A node with no `slot` changes no assignment, so the platform fires nothing. */
+    element.append(doc.createElement('i'));
+    await settle();
+
+    element.querySelectorAll('b').forEach((node) => node.remove());
+    await settle();
+    element.remove();
+  }
+  assert.deepEqual(readings.shadow, ['ONE', 'ONE+TWO', 'TWO', '(none)'],
+    'CONTROL: the platform itself fires on first assignment and on every change, and only then');
+  assert.deepEqual(readings.light, readings.shadow, 'and light mode matches it exactly');
+});
+
+test('assignedNodes/assignedElements answer from the live assignment, through &ref and e.target', async () => {
+  let held = null;
+  let fromEvent = null;
+  const element = host('<b slot="h">ONE</b>text');
+  renderInto(
+    html`<header><slot name="h" &ref=${(node) => { held = node; }}
+      @slotchange=${(event) => { fromEvent = event.target; }}>fb-a<i>fb-b</i></slot></header>`,
+    element
+  );
+  await settle();
+
+  assert.equal(held?.localName, 'slot', '&ref hands over the slot element itself');
+  assert.equal(fromEvent, held, 'and it is the same object the event targets');
+  assert.deepEqual(held.assignedNodes().map((n) => n.textContent), ['ONE']);
+  assert.deepEqual(held.assignedElements().map((n) => n.textContent), ['ONE']);
+
+  /** With nothing assigned, `flatten` reads the fallback actually on screen — as the platform does. */
+  element.querySelector('b').remove();
+  await settle();
+  assert.deepEqual(held.assignedNodes(), [], 'unassigned reads empty');
+  assert.deepEqual(held.assignedNodes({ flatten: true }).map((n) => n.textContent), ['fb-a', 'fb-b'],
+    'and flattened reads the fallback');
+  assert.deepEqual(held.assignedElements({ flatten: true }).map((n) => n.localName), ['i'],
+    'elements only, when asked for elements');
+  element.remove();
+});
+
+test('a DYNAMIC slot name routes by the name it actually has, and re-routes when it changes', async () => {
+  /** ONE draw function called twice — two literals would be two templates and prove nothing. */
+  const draw = (which) => html`<section><slot name=${which}>fb</slot></section>`;
+  const element = host('<b slot="a">A-CONTENT</b><i slot="b">B-CONTENT</i>');
+  renderInto(draw('a'), element);
+  await settle();
+  assert.equal(element.querySelector('section').textContent, 'A-CONTENT',
+    'the name from the binding, not the (absent) static attribute');
+
+  renderInto(draw('b'), element);
+  await settle();
+  assert.equal(element.querySelector('section').textContent, 'B-CONTENT', 'renaming re-routes it');
+  assert.deepEqual(slotted(element, 'a').map((n) => n.textContent), ['A-CONTENT'],
+    'and what it left is still captured, waiting for a slot that wants it');
+  element.remove();
+});
+
+test('a dynamic name is not mistaken for the DEFAULT slot', async () => {
+  const element = host('<b slot="h">NAMED</b>plain text');
+  renderInto(html`<header><slot name=${'h'}>fb-named</slot></header><main><slot>fb-default</slot></main>`, element);
+  await settle();
+  assert.equal(element.querySelector('header').textContent, 'NAMED');
+  assert.equal(element.querySelector('main').textContent, 'plain text',
+    'the default slot keeps its own content — a nameless-looking named slot used to steal it');
+  element.remove();
+});
+
+/**
+ * **What a slot CANNOT carry in a light component says so.** A light host has no second tree, so
+ * the slot element is never rendered and `class`/`style`/`id` have nothing to apply to — while in
+ * a shadow root they do apply, because a `<slot>` is a real element there. That asymmetry is the
+ * one thing this feature cannot make disappear, so it is announced instead of left to be
+ * discovered. Development-only: the guard and the message are folded out of production.
+ */
+test('a binding that cannot work on a light-DOM slot is diagnosed', { skip: isProduction }, async () => {
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    const element = host('<b slot="h">X</b>');
+    renderInto(html`<header><slot name="h" class="marker" @slotchange=${() => {}}>fb</slot></header>`, element);
+    await settle();
+    element.remove();
+  } finally {
+    console.warn = original;
+  }
+  const said = warnings.find((message) => message.includes('does nothing in a light-DOM component'));
+  assert.ok(said, `expected a diagnostic, got ${JSON.stringify(warnings)}`);
+  assert.match(said, /^\[vera\] /, 'every diagnostic this framework prints is findable with one filter');
+  assert.match(said, /carries `class`, which does nothing/,
+    'the inert list is exactly the attribute that will not work — the bindings that DO work here ' +
+    'are events and `&ref`, which never appear as attributes, and `name`, which is excluded');
+  assert.match(said, /`&ref` all work here/, 'and it says what to reach for instead');
 });

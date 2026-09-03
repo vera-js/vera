@@ -389,10 +389,17 @@ type SlotSeam = SlotSeamFn & {
   _$capture$?: (host: Element) => void;
   _$rescue$?: (host: Element) => Node[] | null;
 };
-/** A recorded `<slot>` position: node index in the instance walk + the slot's name. Slot records
- *  live BESIDE the parts array, not in it — instances mount them in one post-loop pass, so
- *  `_update` never iterates them and non-slot apps pay nothing per render. */
-type SlotRecord = { _i: number; _n: string };
+/**
+ * A recorded `<slot>` position — just its node index in the instance walk. Slot records live
+ * BESIDE the parts array, not in it, so `_update` never iterates them and non-slot apps pay
+ * nothing per render.
+ *
+ * The NAME is deliberately not recorded. It used to be, read off the template's static markup,
+ * which made `<slot name=${…}>` a slot with no name at all: it registered as a second DEFAULT
+ * slot and stole the default content while the real default slot showed its fallback. The name is
+ * read from the element at mount instead, which is after its own bindings have committed.
+ */
+type SlotRecord = number;
 
 /**
  * The container of the renderInto call currently committing — how a slot part learns its root
@@ -538,7 +545,7 @@ class Template {
         index++;
         if ((node as Element).localName === 'slot') {
           this._seam = seam;
-          (this._slots ??= []).push({ _i: index, _n: (node as Element).getAttribute('name') ?? '' });
+          (this._slots ??= []).push(index);
         }
       }
     }
@@ -1003,8 +1010,19 @@ type Item = {
 class Instance {
   _parts: Part[] = [];
   _fragment: DocumentFragment;
-  /** Taken-over slot states, parked at teardown. Absent for every template without slots. */
-  _slotStates?: SlotSeamState[];
+  /**
+   * **`declare`, so nothing is emitted and no instance carries these unless it uses them.**
+   * Under ES2022 class-field semantics a plain `_x?: T` is DEFINED on every instance, undefined or
+   * not — measured, two such declarations cost every row of a 200-row list a property apiece and
+   * showed up as a few percent off update throughput. Templates without slots now allocate exactly
+   * what they did before this feature existed, and the ones with slots take a shape transition
+   * once.
+   *
+   * `_slotStates` — taken-over slot states, parked at teardown.
+   * `_pendingSlots` — resolved `<slot>` clones awaiting mount; cleared by the first `_update`.
+   */
+  declare _slotStates?: SlotSeamState[];
+  declare _pendingSlots?: Element[];
   constructor(template: Template) {
     /** cloneNode over importNode: same document, and it measures slightly cheaper. */
     this._fragment = template._element.content.cloneNode(true) as DocumentFragment;
@@ -1036,32 +1054,25 @@ class Instance {
      * `notifyOnRemoval`: `_$park$` must rescue the USER'S nodes before a bulk `_clear` discards
      * the DOM holding them on a branch-away. `_update` never sees any of this.
      */
-    const seam = template._seam;
-    if (seam !== undefined && _slotRoot !== null) {
+    if (template._seam !== undefined && _slotRoot !== null) {
       const slotRecords = template._slots!;
       /**
-       * RESOLVE every slot element to its clone in ONE walk, THEN hand them to the seam — because
-       * the seam MUTATES the fragment (it lifts each `<slot>` out and drops in anchors), and a
-       * walk that interleaved resolution with those mutations would read shifted indices and miss
-       * later slots. Collect-then-act.
+       * RESOLVE every slot element to its clone in ONE walk, and mount them AFTER the first
+       * `_update` — see `_mountSlots`. Collect-then-act, because the seam MUTATES the fragment
+       * (it lifts each `<slot>` out and drops in anchors) and a walk that interleaved resolution
+       * with those mutations would read shifted indices and miss later slots.
        */
       instanceWalker.currentNode = this._fragment;
       nodeIndex = -1;
       const slotNodes: Element[] = [];
       for (let i = 0; i < slotRecords.length; i++) {
-        while (nodeIndex < slotRecords[i]._i) {
+        while (nodeIndex < slotRecords[i]) {
           node = instanceWalker.nextNode();
           nodeIndex++;
         }
         slotNodes.push(node as Element);
       }
-      for (let i = 0; i < slotRecords.length; i++) {
-        const state = seam(slotNodes[i], _slotRoot, slotRecords[i]._n);
-        if (state != null) {
-          (this._slotStates ??= []).push(state);
-          notifyOnRemoval = true;
-        }
-      }
+      this._pendingSlots = slotNodes;
     }
   }
 
@@ -1097,6 +1108,38 @@ class Instance {
     let valueIndex = 0;
     const parts = this._parts;
     for (let i = 0; i < parts.length; i++) valueIndex = parts[i]._commit(values, valueIndex);
+    if (this._pendingSlots !== undefined) this._mountSlots();
+  }
+
+  /**
+   * **Slots mount after the first `_update`, not during construction, because a `<slot>`'s own
+   * bindings are part of its meaning.** `<slot name=${section}>` has no name at all until its
+   * `AttrPart` has committed, and mounting first read the static markup and got `''` — the slot
+   * registered as a second DEFAULT slot, took the default content, and left the real default slot
+   * showing fallback. Committing first also means `@slotchange` and `&ref` are already attached to
+   * the element by the time anything is dispatched on it.
+   *
+   * Once per instance: the fields are cleared here and every later `_update` costs one compare.
+   */
+  _mountSlots() {
+    const slotNodes = this._pendingSlots!;
+    this._pendingSlots = undefined;
+    /**
+     * `_slotRoot` still holds the container: it is set for the whole of one `renderInto` and every
+     * instance under it — nested templates included — is constructed and first-updated inside that
+     * same synchronous span, so this is the root the constructor saw.
+     */
+    const root = _slotRoot;
+    const seam = slotSeam();
+    if (seam === undefined || root === null) return;
+    for (let i = 0; i < slotNodes.length; i++) {
+      const slot = slotNodes[i];
+      const state = seam(slot, root, slot.getAttribute('name') ?? '');
+      if (state != null) {
+        (this._slotStates ??= []).push(state);
+        notifyOnRemoval = true;
+      }
+    }
   }
 }
 

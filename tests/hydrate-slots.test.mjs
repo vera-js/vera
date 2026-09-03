@@ -236,3 +236,57 @@ test('AUDIT — a reserved marker on a non-template element does not break the r
   assert.equal(host.querySelector('article'), null, 'and the server markup was replaced');
   host.remove();
 });
+
+/**
+ * **A slot's own bindings, through the server and back.** The hydrator walks the canonical template
+ * against the server's DOM; for a `<slot>` there is no live element to adopt (the server unwrapped
+ * it), and the template's parts FOR that slot were skipped rather than accounted. Every value after
+ * the slot then read the wrong one, adoption failed, and the whole container fell back to a client
+ * render — so no component whose slot carried `@slotchange`, `&ref` or `name=${…}` could be server
+ * rendered at all. The parts now commit onto a per-instance clone of the slot, which both keeps the
+ * values aligned and makes that element mean here what it means in a client render.
+ */
+test('AUDIT — a slot carrying bindings hydrates in place, and its API is live', async () => {
+  const serverHtml = server('<h2 slot="header">MINE</h2>', 'slot-bound-ssr');
+  assert.match(serverHtml, /<header><h2 slot="header">MINE<\/h2><\/header>/,
+    'CONTROL: the server routed the dynamic name');
+  const host = hostFromServer(serverHtml);
+  const before = host.querySelector('h2');
+
+  let fires = 0;
+  let seen = null;
+  let held = null;
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    renderInto(
+      html`<header><slot name=${'header'} &ref=${(node) => { held = node; }}
+        @slotchange=${(event) => { fires++; seen = event.target.assignedElements().map((n) => n.textContent); }}
+      >no header</slot></header><footer>${'AFTER'}</footer>`,
+      host
+    );
+    await settle();
+  } finally {
+    console.warn = original;
+  }
+
+  assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
+    'adoption succeeded — the values after the slot line up');
+  assert.equal(host.querySelector('h2'), before, 'and the server node kept its identity');
+  assert.equal(host.querySelector('footer').textContent, 'AFTER', 'the value after the slot is its own');
+  assert.equal(fires, 1, 'slotchange fired once for the assignment it was hydrated with');
+  assert.deepEqual(seen, ['MINE']);
+  assert.equal(held?.localName, 'slot', '&ref hands over this instance\'s slot element');
+  assert.deepEqual(held.assignedNodes().map((n) => n.textContent), ['MINE'], 'which reads the live assignment');
+
+  /** And it is live afterwards, exactly as a client-rendered one is. */
+  const added = dom.window.document.createElement('h2');
+  added.setAttribute('slot', 'header');
+  added.textContent = 'TWO';
+  host.appendChild(added);
+  await settle();
+  assert.equal(fires, 2, 'and keeps firing');
+  assert.deepEqual(seen, ['MINE', 'TWO']);
+  host.remove();
+});

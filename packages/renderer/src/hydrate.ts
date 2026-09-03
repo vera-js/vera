@@ -234,10 +234,35 @@ const accountSubtree = (node: Node, state: AdoptState) => {
  * `_$adopt$` (off the template's own seam fn) does the registration.
  */
 const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptState) => {
-  const name = canonicalSlot.getAttribute('name') ?? '';
   const seamAdopt = (state._template._seam as unknown as {
-    _$adopt$: (h: Element, n: string, a: Node[] | null, f: Node[], p: Node, b: Node | null) => Part;
+    _$adopt$: (
+      h: Element, n: string, a: Node[] | null, f: Node[], p: Node, b: Node | null, s?: Element
+    ) => Part;
   })._$adopt$;
+  /**
+   * **The slot's OWN bindings, committed onto a per-instance element.** The server unwrapped the
+   * `<slot>`, so there is no live element to adopt against — but the template's parts for it are
+   * still in the parts array, and skipping them left every value after the slot reading the wrong
+   * one. In practice that meant adoption failed and the whole container fell back to a client
+   * render: any component whose slot carried `@slotchange`, `&ref` or `name=${…}` could not be
+   * server-rendered at all.
+   *
+   * A shallow clone is the target rather than the canonical node, which is shared by every
+   * instance of the template — committing onto that would attach one instance's listeners to all
+   * of them. The clone then IS this instance's slot element, exactly as the clone in a client
+   * render is, so `@slotchange` and `&ref` mean the same thing in both.
+   */
+  const ghost = canonicalSlot.cloneNode(false) as Element;
+  const parts = state._template._parts;
+  while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
+    const templatePart = parts[state._partIndex++];
+    const attrPart = new AttrPart(ghost, templatePart._name!, templatePart._statics!, templatePart._present);
+    state._out.push(attrPart);
+    state._valueIndex = attrPart._commit(state._values, state._valueIndex, true);
+    drainIgnored(state);
+  }
+  /** After the commit, so `<slot name=${…}>` is read as the name it actually has. */
+  const name = ghost.getAttribute('name') ?? '';
   passComments(cursor);
   const parent = cursor.parent;
 
@@ -288,7 +313,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     for (let c = canonicalSlot.firstChild; c !== null; c = c.nextSibling)
       if (c.nodeType === 1 || c.nodeType === 3) fallback.push(c.cloneNode(true));
     accountSubtree(canonicalSlot, state);
-    const seam = seamAdopt(_adoptHost!, name, assigned, fallback, parent, before);
+    const seam = seamAdopt(_adoptHost!, name, assigned, fallback, parent, before, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
     (state._slotStates ??= []).push(seam as never);
   } else {
@@ -300,7 +325,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     /** The fallback nodes now sit between fallbackStart and cursor.node. */
     const fallback: Node[] = [];
     for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
-    const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node);
+    const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
     (state._slotStates ??= []).push(seam as never);
   }

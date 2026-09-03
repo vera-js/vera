@@ -145,3 +145,16 @@ test('AUDIT — the nested server output is what the CLIENT produces (the diverg
       '</article></slot-outer-ssr>'
   );
 });
+
+/**
+ * **A `<slot>`'s own bindings are part of its meaning.** `<slot name=${section}>` has no name in
+ * the static markup, and the server used to read the markup — so the slot was treated as an
+ * unnamed one, took the default content, and left the real default slot on its fallback.
+ */
+const BOUND = new URL('./fixtures/ssr/slot-bound-ssr.js', import.meta.url);
+test('AUDIT — a DYNAMIC slot name distributes by the name it actually has', async () => {
+  const { html } = await renderToString(BOUND, { children: '<h2 slot="header">MINE</h2>' });
+  assert.match(html, /<header><h2 slot="header">MINE<\/h2><\/header>/, 'routed by the committed name');
+  assert.match(html, /<footer>AFTER<\/footer>/, 'and the value after the slot is still its own');
+  assert.doesNotMatch(html, /no header/, 'the fallback is not rendered beside it');
+});

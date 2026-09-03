@@ -600,9 +600,13 @@ export class VeraSelect extends HTMLElement {
      * demo card and watching every keystroke land on the trigger's typeahead instead.
      */
     /**
-     * Light mode has no native `slotchange`, so wire assigned nodes once after the first render —
-     * distribution has already run inside the render commit, so `slotted()` sees them. Idempotent
-     * in shadow mode (the `@slotchange` bindings also call `refresh`, and re-attach is guarded).
+     * One guaranteed wiring pass after the first render, in BOTH modes.
+     *
+     * The `@slotchange` bindings below now cover every mode — light-DOM slots dispatch it on the
+     * slot element exactly as the platform does — but `slotchange` only ever fires for a slot that
+     * HAS an assignment, in a shadow root as much as here. A component given nothing to slot would
+     * otherwise never wire at all, so this runs once regardless. Idempotent: `refresh` is
+     * re-entrant by design and re-attach is guarded.
      */
     useEffect(() => refresh(), this);
 

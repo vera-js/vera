@@ -358,18 +358,35 @@ root the module stands aside completely and the native `<slot>` renders untouche
 assignment in a shadow root, the capture map in light DOM, so component code does not branch on
 mode. `name` defaults to the unnamed slot.
 
+The `<slot>` ELEMENT is also still the component's handle on the slot, and means what it means in a
+shadow root: **`@slotchange`** fires on first assignment and on every change (verified against real
+shadow DOM, event for event); **`assignedNodes()`/`assignedElements()`** answer from the live
+assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the fallback when
+nothing is assigned; and **`name` may be a binding** — `<slot name=${section}>` routes by the name
+it actually has and re-routes when it changes.
+
+```js
+html`<slot name=${section} @slotchange=${(e) => wire(e.target.assignedElements())}>Nothing yet</slot>`
+```
+
 Three differences worth knowing, all deliberate:
 
 - After distribution a slotted node's `parentNode` is inside the component's rendered tree rather
   than the host. That is what light DOM *is*, and it is exactly why the user's own CSS and Tailwind
   classes reach slotted content here when they cannot through a shadow boundary.
+- **A `<slot>` cannot carry presentation here** — `class`, `style`, `id`. A light host has no second
+  tree, so the slot element is not rendered and there is nothing for them to apply to; in a shadow
+  root they do apply. Put them on a real element around the slot. Development builds warn, naming
+  the attribute.
 - A node added AFTER the first render joins a slot only if it carries a `slot` attribute —
   `slot=""` reaches the default slot, so nothing is out of reach, it just has to be said.
   Everything present before the first render keeps full native semantics, bare text included.
-- There is no `slotchange` event; light mode has no native one. Read `slotted()` in an effect.
+- `slotchange` only ever fires for a slot that HAS an assignment — here and in a shadow root alike.
+  A component that must wire itself even when given nothing should do that once from a `useEffect`
+  as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->1.90 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->2.24 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe (it imports nothing and touches no global document).
 
@@ -419,7 +436,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->3.99 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.02 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 

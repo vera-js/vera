@@ -54,3 +54,62 @@ it('distributes, and stays LIVE, for a host in another document', async () => {
   expect(host.querySelector('header').textContent).to.equal('fb', 'fallback returned in the other realm');
   frame.remove();
 });
+
+/**
+ * **`slotchange` must carry the OTHER window's `Event`.** A component in a popped-out window is
+ * handed events by code loaded in this one, and an event built from the wrong realm is not the
+ * `Event` that window's handlers know: `instanceof` is false, and a strict DOM refuses the object
+ * outright. The constructor comes from the HOST's document for exactly this — and deliberately not
+ * from the slot element, whose `ownerDocument` is a `<template>`'s inert one with no window at all.
+ */
+it('dispatches slotchange in the host window\'s own realm', async () => {
+  const frame = await otherRealm();
+  const otherDoc = frame.contentDocument;
+  const otherWin = otherDoc.defaultView;
+  expect(otherWin).to.not.equal(window, 'CONTROL: a second realm');
+
+  const seen = [];
+  const host = otherDoc.createElement('div');
+  host.innerHTML = '<b slot="h">ONE</b>';
+  otherDoc.body.appendChild(host);
+  renderInto(
+    html`<header><slot name="h" @slotchange=${(event) => seen.push(event)}>fb</slot></header>`,
+    host
+  );
+  await settle();
+
+  expect(seen.length).to.equal(1, 'fired for the assignment it was rendered with');
+  expect(seen[0]).to.be.instanceOf(otherWin.Event, "the popped-out window's Event, not this one's");
+  expect(seen[0].type).to.equal('slotchange');
+  expect(seen[0].target.assignedElements().map((n) => n.textContent)).to.deep.equal(['ONE']);
+  frame.remove();
+});
+
+it('slotchange and assignedNodes track live changes in a real engine', async () => {
+  const seen = [];
+  const host = document.createElement('div');
+  host.innerHTML = '<b slot="h">ONE</b>';
+  document.body.appendChild(host);
+  let held = null;
+  renderInto(
+    html`<header><slot name="h" &ref=${(node) => { held = node; }}
+      @slotchange=${(event) => seen.push(event.target.assignedElements().map((n) => n.textContent).join('+') || '(none)')}
+    >fb</slot></header>`,
+    host
+  );
+  await settle();
+
+  const added = document.createElement('b');
+  added.setAttribute('slot', 'h');
+  added.textContent = 'TWO';
+  host.appendChild(added);
+  await settle();
+
+  host.querySelector('b').remove();
+  await settle();
+
+  expect(seen).to.deep.equal(['ONE', 'ONE+TWO', 'TWO'], 'first assignment, then each change');
+  expect(held.assignedNodes().map((n) => n.textContent)).to.deep.equal(['TWO']);
+  expect(slotted(host, 'h').map((n) => n.textContent)).to.deep.equal(['TWO'], 'and slotted() agrees');
+  host.remove();
+});
