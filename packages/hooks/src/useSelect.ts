@@ -31,11 +31,38 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const multi = () => config.multi?.() === true;
   const disabled = () => config.disabled?.() === true;
 
+  /** matches() is consulted several times per keystroke (rows, count, step, activate, render) —
+   *  memoized per (options identity, search, remote) so the filter runs once per real change. */
+  let memo: { options: SelectOption[]; search: string; remote: boolean; result: SelectOption[] } | null = null;
   const matches = (): SelectOption[] => {
-    /** Remote mode: the host narrowed `options` itself; filtering again would double-filter. */
-    if (config.remote?.() === true) return [...state.options];
+    const remote = config.remote?.() === true;
+    if (memo && memo.options === state.options && memo.search === state.search && memo.remote === remote)
+      return memo.result;
     const needle = state.search.trim().toLowerCase();
-    return needle ? state.options.filter((option) => option.label.toLowerCase().includes(needle)) : [...state.options];
+    const result = remote
+      ? [...state.options]
+      : needle
+        ? state.options.filter((option) => option.label.toLowerCase().includes(needle))
+        : [...state.options];
+    memo = { options: state.options, search: state.search, remote, result };
+    return result;
+  };
+
+  /**
+   * The one write path for options — active is tracked BY IDENTITY across the change: the
+   * highlighted option keeps the highlight if it survives (a remote refresh reordering results
+   * must not silently move it), and vanishes to the top if it does not.
+   */
+  const setOptions = (next: SelectOption[]) => {
+    const previous = matches()[state.active];
+    state.options = next;
+    memo = null;
+    if (previous) {
+      const index = matches().findIndex((option) => option.value === previous.value);
+      state.active = index === -1 ? 0 : index;
+    } else {
+      state.active = 0;
+    }
   };
 
   /** The create row's label — non-empty only when creatable, searched, and not an existing label. */
@@ -285,6 +312,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     activate,
     step,
     attach,
+    setOptions,
     triggerStamps,
     searchStamps,
     /** For hosts that write `state` directly (a value property setter): restamp assigned nodes. */

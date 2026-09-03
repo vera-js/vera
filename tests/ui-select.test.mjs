@@ -618,6 +618,26 @@ test('a slotted empty message replaces ours', async () => {
   element.remove();
 });
 
+test('the keyboard highlight tracks the OPTION, not its index, across a remote refresh', async () => {
+  const element = await mount((el) => el.setAttribute('remote', ''));
+  const trigger = part(element, 'trigger');
+  trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  await frame();
+  trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  await frame();
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'Beta is highlighted');
+
+  element.options = [OPTIONS[1], OPTIONS[0]]; // the "server" reordered — Beta is index 0 now
+  await frame();
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0', 'the highlight followed Beta');
+  assert.match(root(element).querySelector('[data-active]').textContent, /Beta/);
+
+  element.options = [OPTIONS[0]]; // Beta vanished entirely
+  await frame();
+  assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-0', 'a vanished option lands the highlight at the top');
+  element.remove();
+});
+
 test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
   const element = await mount((el) => el.setAttribute('disabled', ''));
   const trigger = part(element, 'trigger');

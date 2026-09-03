@@ -24,6 +24,7 @@
  */
 import { createStore, html, init, render, useEffect } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
+import { keyed } from '@verajs/renderer/keyed';
 import { useSelect, type SelectOption } from '@verajs/hooks';
 import { SELECT_STYLES } from './styles.js';
 import { parseLightOptions } from './parse-options.js';
@@ -197,7 +198,7 @@ export class VeraSelect extends HTMLElement {
     entry.htmlSourced = false; // property wins; the markup stops being the source
     const options = Array.isArray(next) ? [...next] : [];
     warnDuplicates(options);
-    if (entry.select) entry.select.state.options = options;
+    if (entry.select) entry.select.setOptions(options);
     else entry.pending.options = options;
   }
 
@@ -338,7 +339,7 @@ export class VeraSelect extends HTMLElement {
         /** Cancelable: a host may claim creation (async ids, dedup). Uncanceled, the option joins. */
         if (!this.dispatchEvent(new CustomEvent('create', { detail, bubbles: true, composed: true, cancelable: true })))
           return;
-        select.state.options = [...select.state.options, detail.option];
+        select.setOptions([...select.state.options, detail.option]);
         select.state.search = '';
         select.pick(detail.option);
       },
@@ -351,7 +352,7 @@ export class VeraSelect extends HTMLElement {
         }, wait);
       },
     }));
-    select.state.options = entry.pending.options;
+    select.setOptions(entry.pending.options);
     /**
      * The value attribute is single-mode initial value, native-input style: it applies only when
      * nothing else (property, selected markup) claimed the selection, and it doubles as the
@@ -378,7 +379,7 @@ export class VeraSelect extends HTMLElement {
         if (!entry.htmlSourced) return;
         const parsed = parseLightOptions(this);
         if (parsed) {
-          select.state.options = parsed.options;
+          select.setOptions(parsed.options);
           entry.defaults = parsed.selected;
         }
       });
@@ -416,7 +417,7 @@ export class VeraSelect extends HTMLElement {
     }, this);
 
     /** One option row. Icons are aria-hidden by contract — the label always says the whole thing. */
-    const row = (option: SelectOption, index: number, active: number) => html`
+    const row = (option: SelectOption, index: number, active: number) => keyed(option.value, html`
       <div
         id=${`opt-${index}`}
         part="option"
@@ -432,7 +433,7 @@ export class VeraSelect extends HTMLElement {
         </span>
         ${option.iconAfter != null ? html`<span part="option-icon" aria-hidden="true">${option.iconAfter}</span>` : null}
       </div>
-    `;
+    `);
 
     render(() => {
       const rows = select.matches();

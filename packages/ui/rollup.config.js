@@ -14,7 +14,7 @@ import pkg from './package.json' with { type: 'json' };
  * core: the controllers' stores must live in the same core the app renders with — a bundled
  * private copy would hold state nothing else can see. The importmap resolves both on a CDN page.
  */
-const external = ['@verajs/core', '@verajs/hooks', '@verajs/renderer/spread'];
+const external = ['@verajs/core', '@verajs/hooks', '@verajs/renderer/spread', '@verajs/renderer/keyed'];
 
 /**
  * `_root` and `_cleanups` are exempt from mangling: it is core's structural contract for reaching a (possibly
