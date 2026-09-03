@@ -71,7 +71,7 @@ export const selectSurface = {
       name: 'value',
       type: 'string | string[]',
       description:
-        'Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null. Selection identity is the value string.',
+        'Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null; single mode holds one, first entry wins — a deliberate divergence from native, whose multiple-selected markup keeps the last. Selection identity is the value string.',
     },
     { name: 'validity', type: 'ValidityState', description: 'Proxied from internals — element.validity, like an input.' },
     { name: 'validationMessage', type: 'string', description: 'The current constraint message.' },

@@ -113,7 +113,7 @@
               "type": {
                 "text": "string | string[]"
               },
-              "description": "Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null. Selection identity is the value string."
+              "description": "Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null; single mode holds one, first entry wins — a deliberate divergence from native, whose multiple-selected markup keeps the last. Selection identity is the value string."
             },
             {
               "kind": "field",
