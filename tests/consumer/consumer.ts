@@ -20,11 +20,19 @@ import { init, createStore, render, wire, html, css, ref, shallowRef, useEffect,
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
+import { slots, slotted } from '@verajs/renderer/slots';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
 import { adoptStyles, applyStyles, styles } from '@verajs/styles';
 import { collections, computed } from '@verajs/reactivity';
+/**
+ * The SUBPATH entries too, not only the package they are re-exported from. A consumer may install
+ * either spelling, and only these compile the declarations those subpaths actually publish — the
+ * base entry's types say nothing about them.
+ */
+import { collections as collectionsEntry } from '@verajs/reactivity/collections';
+import { computed as computedEntry } from '@verajs/reactivity/computed';
 
 interface Row { id: number; label: string }
 
@@ -130,3 +138,27 @@ void formatReport(report);
 showProfiler();
 showProfiler({});
 stopProfiling();
+
+
+/**
+ * **`@verajs/renderer/slots`, wired the documented way.** This exact line did not compile for any
+ * TypeScript consumer: `'slot'` was never added to the insert type map, so a descriptor carrying it
+ * was not assignable to `Registerable`. The insert existed at runtime and only there — every recipe
+ * that wired it ran as JavaScript, and this file, which is the check that would have caught it, had
+ * never imported the entry.
+ */
+wire([renderer, slots]);
+
+const slotHost: Element = document.createElement('div');
+const everything: Node[] = slotted(slotHost);
+const byName: Node[] = slotted(slotHost, 'header');
+/** The narrowing a component actually writes when it wants elements. */
+const slottedElements: Element[] = slotted(slotHost, 'header').filter(
+  (node): node is Element => node.nodeType === 1
+);
+void everything;
+void byName;
+void slottedElements;
+
+void collectionsEntry;
+void computedEntry;

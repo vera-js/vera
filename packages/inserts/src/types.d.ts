@@ -100,6 +100,23 @@ export type CollectionInsert = (
  */
 export type ValueInsert = (part: object, value: unknown) => boolean | void;
 
+/**
+ * Takes over one `<slot>` in a LIGHT-DOM render — `@verajs/renderer/slots`. The renderer hands it
+ * the cloned `<slot>` element, the root being rendered into, and the slot's name; returning null or
+ * undefined declines, which is what happens for a shadow root (the platform slots there) and under
+ * the SSR shim (the server distributes through its own pass instead).
+ *
+ * Declared here for the same reason `ValueInsert` is: without it `wire([renderer, slots])` does not
+ * typecheck for a consumer, because a descriptor's `on` is `keyof InsertFunctionMap` and `'slot'`
+ * was not one of them. The insert existed at runtime and only at runtime — every recipe that wired
+ * it ran as JavaScript, so nothing noticed.
+ */
+export type SlotInsert = (
+  slot: Element,
+  root: Node,
+  name: string
+) => { _$park$?: () => void } | null | undefined;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
@@ -108,9 +125,19 @@ export type InsertFunctionMap = {
   'init': InitInsert;
   'collection': CollectionInsert;
   'value': ValueInsert;
+  'slot': SlotInsert;
 };
 
 export type Inserts = Map<
   keyof InsertFunctionMap,
-  (ProxyHandlerInsert | RendererInsert | SetHandlerInsert | ErrorInsert | InitInsert | CollectionInsert | ValueInsert)[]
+  (
+    | ProxyHandlerInsert
+    | RendererInsert
+    | SetHandlerInsert
+    | ErrorInsert
+    | InitInsert
+    | CollectionInsert
+    | ValueInsert
+    | SlotInsert
+  )[]
 >;

@@ -88,6 +88,17 @@ const NO_RECIPE_MAPPING = {
   '@verajs/renderer/profiler': 'a development tool with no production build (see NO_PRODUCTION_BUILD)',
 };
 
+/** Entries a strict TypeScript consumer cannot import, so `tests/consumer` cannot cover them. */
+const NO_CONSUMER_CHECK = {
+  '@verajs/eslint-config': 'config, not a module',
+  '@verajs/tsconfig': 'config, not a module',
+  '@verajs/jsx': 'a build-time transform, exercised by the JSX suites rather than as a runtime import',
+  '@verajs/jsx/standalone': 'browser-only by construction: it captures `document` at module scope',
+  '@verajs/renderer/hydrate': 'a drop-in replacement for the renderer entry; importing both in one ' +
+    'file would be two renderers, and `ssrcheck.ts` covers the hydration surface',
+  '@verajs/ssr': 'Node-only, and covered by `ssrcheck.ts` beside it',
+};
+
 const NOT_IMPORTABLE = {
   '@verajs/eslint-config': 'config, not a module',
   '@verajs/tsconfig': 'config, not a module',
@@ -125,10 +136,37 @@ test('every importable entry can be reached from a documented recipe', () => {
     'documentation cannot be run, which is how a README stops being true');
 });
 
+/**
+ * **The one check that reads the TYPES rather than the code.** `wire([renderer, slots])` — the line
+ * the slots README, llms.txt and every recipe tell people to write — did not compile for a
+ * TypeScript consumer, because `'slot'` was never added to the insert type map. Nothing caught it:
+ * the recipes run as JavaScript, and this repository's own typecheck resolves `@verajs/*` to SOURCE,
+ * where the descriptor carried an `as never` cast. `tests/consumer` is the file that compiles
+ * against the BUILT declarations the way an installed package is consumed — and it had never
+ * imported the entry.
+ */
+test('every importable entry is exercised by the strict TypeScript consumer', () => {
+  const imported = specifiersIn('tests/consumer/consumer.ts', 8);
+  const alsoSsr = specifiersIn('tests/consumer/ssrcheck.ts', 1);
+  const missing = entryPoints()
+    .map(({ specifier }) => specifier)
+    .filter(
+      (specifier) =>
+        !(specifier in NO_CONSUMER_CHECK) && !imported.has(specifier) && !alsoSsr.has(specifier)
+    );
+  assert.deepEqual(missing, [],
+    'an entry no consumer check imports is an entry whose published TYPES nobody compiles');
+});
+
 /** The exemptions are the part most likely to rot: a name kept after the entry it excused is gone. */
 test('every exemption still names a real entry point', () => {
   const real = new Set(entryPoints().map(({ specifier }) => specifier));
-  const stale = [...Object.keys(NO_SIZE_CLAIM), ...Object.keys(NO_RECIPE_MAPPING), ...Object.keys(NOT_IMPORTABLE)]
+  const stale = [
+    ...Object.keys(NO_SIZE_CLAIM),
+    ...Object.keys(NO_RECIPE_MAPPING),
+    ...Object.keys(NOT_IMPORTABLE),
+    ...Object.keys(NO_CONSUMER_CHECK),
+  ]
     .filter((specifier) => !real.has(specifier));
   assert.deepEqual([...new Set(stale)], [], 'an exemption for an entry that no longer exists');
 });

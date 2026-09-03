@@ -735,10 +735,17 @@ const rescue = (host: Element): Node[] | null => {
 };
 (takeOverSlot as { _$rescue$?: typeof rescue })._$rescue$ = rescue;
 
-/** The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist. */
+/**
+ * The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist.
+ *
+ * `fn` no longer needs a cast: `'slot'` is a declared insert point now, so this is checked against
+ * `SlotInsert` rather than asserted past the type system. It used to be `as never`, which is what a
+ * missing insert type looks like from the inside — and from the OUTSIDE it looked like
+ * `wire([renderer, slots])` failing to compile for every TypeScript consumer.
+ */
 export const slots = {
   name: '@verajs/renderer/slots',
   on: 'slot' as const,
-  fn: takeOverSlot as never,
+  fn: takeOverSlot,
   priority: 50,
 };
