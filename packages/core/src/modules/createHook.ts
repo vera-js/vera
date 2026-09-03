@@ -16,7 +16,7 @@ const newSet = () => new Set();
 export const reportHookError = (error: unknown, element?: ComponentElement) => {
   const handlers = inserts.get('error');
   if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)?.(error, element));
-  else console.error(error);
+  else console.error('[vera] a hook threw:', error);
 };
 
 /**

@@ -71,8 +71,6 @@ const ANY_CONSOLE_CALL = /console\.(warn|error)\(/g;
  */
 const NOT_A_LITERAL = new Map([
   ['autoloader/src/autoloader.ts', "forwards a caught error's own message"],
-  ['core/src/hooks/reportHookError.ts', "forwards a user's own error object"],
-  ['core/src/modules/createHook.ts', "forwards a user's own error object"],
   ['ssr/src/vera/shim.js', "forwards a caught error object"],
   ['router/src/services.ts', 'a ternary between two messages — both branches are checked below'],
 ]);
@@ -99,12 +97,6 @@ test('every console.warn and console.error is prefixed [vera]', () => {
     if (text === null) continue;
     for (const match of text.matchAll(CONSOLE_CALL)) {
       const message = match[2] ?? match[3] ?? match[4] ?? '';
-      /**
-       * `reportHookError` forwards a user's own error object rather than a message of ours, and
-       * prefixing someone else's Error would misattribute it.
-       */
-      if (message === '' && /console\.error\(error\)/.test(match[0] + text.slice(match.index, match.index + 24)))
-        continue;
       if (!message.startsWith(PREFIX_OF(file)))
         problems.push(`${relative(root, file)}: ${JSON.stringify(message.slice(0, 60))}`);
     }
