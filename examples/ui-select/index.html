@@ -188,9 +188,12 @@
 
       <section>
         <h2>Your markup, slotted</h2>
-        <p>The trigger below is page markup with a page class — the component wires behavior onto it
-           and stamps <code>data-state</code>/<code>data-label</code>. Your slotted nodes are yours:
-           the label renders via CSS from the stamp.</p>
+        <p>This trigger is the page's own <code>&lt;button&gt;</code>, styled by the page's own CSS.
+           The component wires the behavior onto it — click, keyboard, ARIA — and reports state back
+           as attributes: <code>data-state="open"</code> while open, <code>data-label</code> carrying
+           the chosen label. It never rewrites your markup. Pick something and watch the label appear:
+           that text is the page's CSS rendering <code>content: attr(data-label)</code> (in this
+           page's stylesheet above). Slot it and you own it.</p>
         <vera-select id="slotted">
           <button class="fancy-trigger" slot="trigger">
             <span slot="value">Pick loudly…</span>
@@ -285,7 +288,13 @@
         document.getElementById('form-out').textContent = `FormData: flavor=${JSON.stringify(data.get('flavor'))}`;
       });
       document.getElementById('form').addEventListener('reset', () => {
-        setTimeout(() => (document.getElementById('form-out').textContent = 'FormData: (reset)'), 0);
+        /** Read the REAL FormData after the reset lands — the proof, not a label. A cleared
+         *  single-mode select submits no entry at all, so .get() answers null. */
+        setTimeout(() => {
+          const data = new FormData(document.getElementById('form'));
+          document.getElementById('form-out').textContent =
+            `after reset — FormData: flavor=${JSON.stringify(data.get('flavor'))} (no entry: the control cleared)`;
+        }, 0);
       });
     </script>
   </body>
