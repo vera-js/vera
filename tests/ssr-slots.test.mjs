@@ -83,3 +83,26 @@ test('values align around a slot whose fallback holds an expression', async () =
   const unassigned = (await renderToString(EXPR, { children: '' })).html;
   assert.match(unassigned, /<x>A<\/x><s>fb:B<\/s><y>C<\/y>/, 'fallback rendered with its own expression');
 });
+
+/**
+ * **A SHADOW component must be untouched by the light-slots pass.** The server lifts a host's
+ * children out before the lifecycle so the light path can distribute them; a shadow host's
+ * children are its LIGHT DOM, which the platform projects through the native `<slot>` itself, so
+ * they have to go back exactly as they were. When they did not, wiring slots for the light
+ * components in an app silently broke every shadow component with slotted content — the sync
+ * chain dropped it from the page and the async chain buried it in the unassigned carrier, which
+ * is the very regression the light-DOM serialization in `renderInstance` exists to prevent.
+ */
+const SHADOW = new URL('./fixtures/ssr/slot-shadow-ssr.js', import.meta.url);
+for (const [name, renderer] of [
+  ['sync', renderToString],
+  ['async', renderToStringAsync],
+])
+  test(`AUDIT — a SHADOW component keeps its light children with slots wired (${name})`, async () => {
+    const { html } = await renderer(SHADOW, { children: '<h2 slot="header">Projected</h2>' });
+    assert.match(html, /<\/template><h2 slot="header">Projected<\/h2>/,
+      'the light child follows the declarative shadow template, for the native slot to project');
+    assert.doesNotMatch(html, /data-vera-unassigned/, 'never parked — this host distributes nothing');
+    assert.doesNotMatch(html, /data-vera-slotted/, 'and carries no light-slots marker');
+    assert.match(html, /<slot name="header">fallback<\/slot>/, 'the native <slot> survives verbatim');
+  });

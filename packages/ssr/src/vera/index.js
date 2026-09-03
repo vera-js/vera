@@ -527,8 +527,21 @@ const prepareInstance = (element, tag, props, children) => {
  */
 const distributeLightSlots = (element) => {
   const source = element._veraSlotSource;
-  if (source === undefined) return; // slots not wired, or a shadow component
+  if (source === undefined) return; // slots not wired for this render
   element._veraSlotSource = undefined;
+  /**
+   * **A SHADOW component's children are its LIGHT DOM**, which the platform itself projects
+   * through the native `<slot>` in the shadow root — nothing here may touch them. They were
+   * lifted out before the lifecycle (the light path needs them out of the way), so put them back
+   * exactly as they were. Without this, wiring slots for the light components in an app silently
+   * broke every SHADOW component that had slotted content: the sync chain dropped it from the
+   * page entirely and the async chain buried it in the unassigned carrier, which is the very bug
+   * the light-DOM serialization below was added to fix.
+   */
+  if (element._shadowRoot) {
+    for (const node of source) element.appendChild(node);
+    return;
+  }
   /** @type {any} */ (inserts).get('slot')?.[0]?._$server$?.(element, source);
 };
 
@@ -571,6 +584,9 @@ const renderInstance = (element, tag, depth, props, children) => {
     );
   }
 
+  /** Light slots: distribute for a light host, or restore a shadow host's light children — must
+   *  happen before either branch reads `openTag()`/`innerHTML`. */
+  distributeLightSlots(element);
   const open = element.openTag();
   /**
    * `_shadowRoot`, not `shadowRoot` — **a closed root is hidden from the page and still serialized.**
@@ -595,8 +611,7 @@ const renderInstance = (element, tag, depth, props, children) => {
     };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */
-  distributeLightSlots(element);
-  return { open: element.openTag(), inner: renderComponentTags(element.innerHTML, depth) };
+  return { open, inner: renderComponentTags(element.innerHTML, depth) };
 };
 
 /**

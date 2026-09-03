@@ -260,3 +260,25 @@ test('AUDIT — a HELD (unassigned) node re-slots too, exactly as native reassig
   assert.equal(slotted(h, 'a').length, 0, 'and left the old bucket');
   h.remove();
 });
+
+/**
+ * **The shadow half of the same invariant the server pass had to be corrected for.** Rendering
+ * into a shadow root must be untouched by this module: the platform's own slot assignment is the
+ * behaviour, and taking it over would be strictly worse. The seam declines any root that is not
+ * an element (`nodeType !== 1`), so a shadow root keeps its literal `<slot>`.
+ */
+test('a SHADOW root is left entirely to native slotting', () => {
+  const shadowHost = host('<b slot="header">MINE</b>');
+  const root = shadowHost.attachShadow({ mode: 'open' });
+  renderInto(card(), root);
+  const native = root.querySelector('slot[name="header"]');
+  assert.ok(native, 'the native <slot> survives — never unwrapped, never anchored');
+  assert.deepEqual(
+    native.assignedNodes().map((node) => node.textContent),
+    ['MINE'],
+    'and the platform assigns to it'
+  );
+  assert.equal(shadowHost.firstElementChild.parentNode, shadowHost, 'the host keeps its own children');
+  assert.deepEqual(slotted(shadowHost, 'header').map((node) => node.textContent), ['MINE'],
+    'slotted() reads the native assignment — one accessor, both modes');
+});
