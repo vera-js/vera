@@ -216,6 +216,48 @@ it('required means valueMissing until a pick, and the form refuses to validate a
   form.remove();
 });
 
+it('custom states are real: :state(open) and :state(empty) match and flip', async () => {
+  const element = await mount();
+  expect(element.matches(':state(empty)')).to.equal(true, 'nothing selected yet');
+  expect(element.matches(':state(open)')).to.equal(false);
+
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  expect(element.matches(':state(open)')).to.equal(true);
+
+  element.shadowRoot.querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  expect(element.matches(':state(empty)')).to.equal(false, 'a pick fills it');
+  expect(element.matches(':state(open)')).to.equal(false, 'single mode closed');
+
+  await withStyle('vera-select:state(open) { outline: 4px solid rgb(1, 2, 3); }', async () => {
+    element.shadowRoot.querySelector('[part="trigger"]').click();
+    await frame();
+    expect(getComputedStyle(element).outlineColor).to.equal('rgb(1, 2, 3)', 'pages style the host by state');
+  });
+  element.remove();
+});
+
+it('multi pills: real remove buttons inside a div trigger, and the div takes focus', async () => {
+  const element = await mount((el) => el.setAttribute('multi', ''));
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  expect(trigger.localName).to.equal('div', 'interactive children are legal again');
+  trigger.focus();
+  expect(element.shadowRoot.activeElement).to.equal(trigger, 'tabindex makes the div focusable');
+
+  trigger.click();
+  await frame();
+  element.shadowRoot.querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  const pill = element.shadowRoot.querySelector('[part="pill"]');
+  expect(pill.textContent).to.contain('Alpha');
+  pill.querySelector('[part="pill-remove"]').click();
+  await frame();
+  expect(element.value).to.deep.equal([], 'the chip removed itself without toggling the menu');
+  expect(element.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state')).to.equal('open');
+  element.remove();
+});
+
 it('HTML-authored options work end to end: parse, icon paints, real form.reset() restores defaults', async () => {
   const form = document.createElement('form');
   form.innerHTML = `

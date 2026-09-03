@@ -99,6 +99,24 @@ test('multi: stays open, toggles, marks aria-selected', async () => {
   options()[0].click();
   await frame();
   assert.deepEqual(element.value, ['b'], 'toggled off');
+
+  /** Pills: the multi value renders chips with real remove buttons — legal now that the trigger
+   *  is a div (interactive-inside-button was why v1 cut them). */
+  const pills = () => root(element).querySelectorAll('[part="pill"]');
+  assert.equal(pills().length, 1);
+  assert.match(pills()[0].textContent, /Beta/);
+  pills()[0].querySelector('[part="pill-remove"]').click();
+  await frame();
+  assert.deepEqual(element.value, [], 'the chip’s remove button unpicks');
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'open', 'and does not toggle the menu');
+
+  options()[0].click();
+  await frame();
+  options()[1].click();
+  await frame();
+  part(element, 'trigger').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
+  await frame();
+  assert.deepEqual(element.value, ['a'], 'Backspace on the trigger removes the most recent pill');
   element.remove();
 });
 
@@ -552,10 +570,58 @@ test('selectedOptions is the label cache: a remote refilter cannot orphan the ch
   element.remove();
 });
 
+test('a slotted search input is wired like our own: filtering, keyboard, combobox aria', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  const search = dom.window.document.createElement('input');
+  search.slot = 'search';
+  element.append(search);
+  dom.window.document.body.append(element);
+  element.options = OPTIONS;
+  await frame();
+  await frame();
+
+  assert.equal(search.getAttribute('aria-controls'), 'listbox');
+  assert.equal(search.getAttribute('aria-autocomplete'), 'list');
+
+  part(element, 'trigger').click();
+  await frame();
+  search.value = 'bet';
+  search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await frame();
+  assert.equal(root(element).querySelectorAll('[part="option"]').length, 1, 'the slotted input filters');
+  search.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await frame();
+  assert.equal(element.value, 'b', 'and its Enter picks through the same keyboard model');
+  element.remove();
+});
+
+test('a slotted empty message replaces ours', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.setAttribute('searchable', '');
+  const empty = dom.window.document.createElement('p');
+  empty.slot = 'empty';
+  empty.textContent = 'The void stares back';
+  element.append(empty);
+  dom.window.document.body.append(element);
+  element.options = OPTIONS;
+  await frame();
+  part(element, 'trigger').click();
+  await frame();
+  const search = part(element, 'search');
+  search.value = 'zzz';
+  search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await frame();
+  /** Fallback content stays in the shadow tree either way — assignment is what displaces it. */
+  const slot = root(element).querySelector('slot[name="empty"]');
+  assert.equal(slot.assignedElements().length, 1, 'the page’s message is assigned in place of ours');
+  assert.match(slot.assignedElements()[0].textContent, /void/);
+  element.remove();
+});
+
 test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
   const element = await mount((el) => el.setAttribute('disabled', ''));
   const trigger = part(element, 'trigger');
-  assert.ok(trigger.hasAttribute('disabled'), 'the native button is truly unfocusable');
+  assert.equal(trigger.getAttribute('tabindex'), '-1', 'a disabled trigger leaves the tab order');
   assert.equal(trigger.getAttribute('aria-disabled'), 'true');
   trigger.click();
   element.open();

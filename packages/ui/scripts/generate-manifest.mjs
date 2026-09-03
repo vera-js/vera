@@ -50,6 +50,7 @@ const manifest = {
         cssParts: surface.parts.map(({ name, description }) => ({ name, description })),
         cssProperties: surface.tokens.map((name) => ({ name })),
         'vera-states': surface.states,
+        'vera-custom-states': surface.customStates ?? [],
       },
     ],
   })),

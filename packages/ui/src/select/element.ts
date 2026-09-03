@@ -108,6 +108,22 @@ const warnDuplicates = (options: SelectOption[]) => {
   }
 };
 
+/**
+ * Custom states — `:state(open)`, `:state(empty)`, `:state(loading)` — the host-level styling
+ * hooks the platform grew for exactly this (ElementInternals.states), composing with Tailwind's
+ * variant syntax and needing zero attributes. Guarded: engines without CustomStateSet simply
+ * skip them; data-state on the parts remains the universal spelling.
+ */
+const syncStates = (element: VeraSelect) => {
+  const entry = internal(element);
+  const states = entry.internals?.states as Set<string> | undefined;
+  if (!states) return;
+  const put = (name: string, on: boolean) => (on ? states.add(name) : states.delete(name));
+  put('open', entry.select?.state.open === true);
+  put('empty', (entry.select?.state.value.length ?? 0) === 0);
+  put('loading', element.hasAttribute('loading'));
+};
+
 /** Pre-upgrade property assignments land as own properties that shadow the accessors — re-route. */
 const upgradeProperty = (element: HTMLElement, key: string) => {
   if (Object.hasOwn(element, key)) {
@@ -203,6 +219,7 @@ export class VeraSelect extends HTMLElement {
       entry.select.state.value = resolveSelection(raw, entry.select.state.options, entry.select.state.value);
       entry.select.sync();
       reflectForm(this, entry.select.state.value);
+      syncStates(this);
     } else {
       entry.pending.value = raw;
     }
@@ -218,6 +235,7 @@ export class VeraSelect extends HTMLElement {
   attributeChangedCallback(name: string, _old: string | null, value: string | null) {
     const { host } = internal(this);
     host.attrs = { ...host.attrs, [name]: value };
+    if (name === 'loading') syncStates(this);
   }
 
   formResetCallback() {
@@ -299,10 +317,12 @@ export class VeraSelect extends HTMLElement {
       canToggle: (next) =>
         this.dispatchEvent(toggleEvent('beforetoggle', next === 'open' ? 'closed' : 'open', next, true)),
       onToggle: (next) => {
+        syncStates(this);
         this.dispatchEvent(toggleEvent('toggle', next === 'open' ? 'closed' : 'open', next, false));
       },
       onChange: (selectedOptions) => {
         reflectForm(this, selectedOptions);
+        syncStates(this);
         /** input then change, the platform's order; input carries no detail, exactly like native. */
         this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
         this.dispatchEvent(
@@ -345,6 +365,7 @@ export class VeraSelect extends HTMLElement {
     select.state.value = resolveSelection(entry.pending.value, select.state.options, select.state.value);
     entry.pending.value = [];
     reflectForm(this, select.state.value);
+    syncStates(this);
 
     /**
      * Markup stays live in shadow mode — but the observer exists ONLY for markup-sourced selects:
@@ -373,13 +394,19 @@ export class VeraSelect extends HTMLElement {
       select.attach({
         trigger: assignedTo('trigger'),
         value: assignedTo('value'),
+        search: assignedTo('search'),
         fallbackTrigger: root.querySelector?.('[part="trigger"]') ?? undefined,
       });
     };
 
     /** The search line takes focus when the menu opens. Registered before render(), like every hook. */
     useEffect(() => {
-      if (state.open && searchable()) (root.querySelector?.('[part="search"]') as HTMLInputElement | null)?.focus();
+      if (!state.open) return;
+      const search =
+        ((root.querySelector?.('slot[name="search"]') as HTMLSlotElement | null)?.assignedElements()[0] as
+          | HTMLElement
+          | undefined) ?? (searchable() ? (root.querySelector?.('[part="search"]') as HTMLInputElement | null) : null);
+      search?.focus?.();
     }, this);
 
     /** Keyboard travel keeps the active row visible. Guarded: jsdom has no scrollIntoView. */
@@ -438,13 +465,12 @@ export class VeraSelect extends HTMLElement {
             : '';
       return html`
         <slot name="trigger" @slotchange=${refresh}>
-          <button
+          <div
             part="trigger"
-            type="button"
             role="combobox"
             aria-haspopup="listbox"
             aria-controls="listbox"
-            ?disabled=${attrs()['disabled'] != null || entry.host.formDisabled}
+            tabindex=${attrs()['disabled'] != null || entry.host.formDisabled ? '-1' : '0'}
             aria-label=${labelOf(this)}
             aria-required=${attrs()['required'] != null ? 'true' : null}
             aria-activedescendant=${state.open ? activeId : null}
@@ -453,24 +479,49 @@ export class VeraSelect extends HTMLElement {
             @keydown=${handlers.onTriggerKeydown}
           >
             <slot name="value" @slotchange=${refresh}>
-              <span part="value" data-placeholder=${attrs()['placeholder'] ?? 'Select…'}>${labels}</span>
+              <span part="value" data-placeholder=${attrs()['placeholder'] ?? 'Select…'}>
+                ${attrs()['multi'] != null
+                  ? state.value.map(
+                      (option) => html`
+                        <span part="pill">
+                          ${option.label}
+                          <button
+                            part="pill-remove"
+                            type="button"
+                            aria-label=${`Remove ${option.label}`}
+                            @click=${(event: Event) => {
+                              event.stopPropagation();
+                              select.pick(option);
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      `
+                    )
+                  : labels}
+              </span>
             </slot>
-          </button>
+          </div>
         </slot>
-        <div part="menu" data-state=${state.open ? 'open' : 'closed'} @keydown=${handlers.onMenuKeydown}>
-          <input
-            part="search"
-            type="text"
-            ?hidden=${!searchable()}
-            placeholder=${attrs()['search-placeholder'] ?? 'Search…'}
-            aria-label=${attrs()['search-placeholder'] ?? 'Search…'}
-            aria-controls="listbox"
-            aria-autocomplete="list"
-            aria-activedescendant=${state.open ? activeId : null}
-            autocomplete="off"
-            .value=${state.search}
-            @input=${handlers.onSearchInput}
-          />
+        <div
+          part="menu"
+          data-state=${state.open ? 'open' : 'closed'}
+          @keydown=${handlers.onMenuKeydown}
+          @input=${handlers.onSearchInput}
+        >
+          <slot name="search" @slotchange=${refresh}>
+            <input
+              part="search"
+              type="text"
+              ?hidden=${!searchable()}
+              placeholder=${attrs()['search-placeholder'] ?? 'Search…'}
+              aria-label=${attrs()['search-placeholder'] ?? 'Search…'}
+              autocomplete="off"
+              ${spread(select.searchStamps(state.open ? activeId : null))}
+              .value=${state.search}
+            />
+          </slot>
           <div
             id="listbox"
             part="list"
@@ -508,9 +559,11 @@ export class VeraSelect extends HTMLElement {
               : null}
           </div>
           <span part="status" role="status">${status}</span>
-          <p part="empty" data-state=${count > 0 ? 'hidden' : 'visible'}>
-            ${loading ? 'Loading…' : (attrs()['empty-message'] ?? 'No options')}
-          </p>
+          <slot name="empty">
+            <p part="empty" data-state=${count > 0 ? 'hidden' : 'visible'}>
+              ${loading ? 'Loading…' : (attrs()['empty-message'] ?? 'No options')}
+            </p>
+          </slot>
           <p part="overflow" data-state=${overflow ? 'visible' : 'hidden'}>${overflow ?? ''}</p>
         </div>
       `;

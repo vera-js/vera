@@ -147,6 +147,12 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   const onTriggerKeydown = (event: KeyboardEvent) => {
     if (disabled()) return;
+    /** The chips pattern: Backspace on the trigger removes the most recent pill in multi mode. */
+    if (event.key === 'Backspace' && multi() && state.value.length) {
+      event.preventDefault();
+      pick(state.value[state.value.length - 1]);
+      return;
+    }
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
       event.preventDefault();
       typeahead(event.key);
@@ -198,6 +204,24 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   // ── assigned markup ────────────────────────────────────────────────────────────────────────────
 
+  /** The stamp map for the search line — same single-source rule as the trigger's. */
+  const searchStamps = (activeId: string | null): Record<string, string> => ({
+    'aria-controls': 'listbox',
+    'aria-autocomplete': 'list',
+    ...(state.open && activeId ? { 'aria-activedescendant': activeId } : {}),
+  });
+
+  /**
+   * No listeners here, deliberately: a slotted input's input/keydown events retarget through the
+   * slot and bubble into the menu's own delegated handlers — the platform already delivers them,
+   * and a second listener double-fires (measured: Enter picked, closed, reset the filter, then
+   * the bubbled Enter picked again from the unfiltered list). Wiring is ARIA only.
+   */
+  const wireSearch = (search: Element) => {
+    search.setAttribute('aria-controls', 'listbox');
+    search.setAttribute('aria-autocomplete', 'list');
+  };
+
   const wireTrigger = (trigger: Element) => {
     trigger.addEventListener('click', onTriggerClick);
     trigger.addEventListener('keydown', onTriggerKeydown as EventListener);
@@ -238,6 +262,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
    */
   const attach = (parts: AssignedParts) => {
     if (parts.trigger && parts.trigger !== assigned.trigger) wireTrigger(parts.trigger);
+    if (parts.search && parts.search !== assigned.search) wireSearch(parts.search);
     assigned = { ...parts };
     syncAssigned();
   };
@@ -261,6 +286,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     step,
     attach,
     triggerStamps,
+    searchStamps,
     /** For hosts that write `state` directly (a value property setter): restamp assigned nodes. */
     sync: syncAssigned,
     handlers: { onTriggerClick, onTriggerKeydown, onMenuKeydown, onSearchInput, onListClick, onListHover },

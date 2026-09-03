@@ -74,5 +74,7 @@ export type SelectConfig = {
 export type AssignedParts = {
   trigger?: Element | undefined;
   value?: Element | undefined;
+  /** A slotted search input — wired with the same input/keydown handlers and combobox ARIA. */
+  search?: Element | undefined;
   fallbackTrigger?: Element | undefined;
 };

@@ -113,6 +113,12 @@ export const selectSurface = {
   slots: [
     { name: 'trigger', description: 'Replace the whole control. Wired with role, aria, data-state and handlers.' },
     {
+      name: 'search',
+      description:
+        'Replace the filter line with your own input — wired with the same input/keydown handlers and combobox ARIA (aria-activedescendant stays a built-in-input feature).',
+    },
+    { name: 'empty', description: 'Replace the no-matches message entirely.' },
+    {
       name: 'value',
       description:
         'Replace the value area inside the default trigger. You own its children — the component stamps data-label with the joined labels and never rewrites your markup.',
@@ -129,6 +135,8 @@ export const selectSurface = {
         'The listbox. Scroll is contained (::part(list){overscroll-behavior:auto} opts out); aria-busy while loading.',
     },
     { name: 'option', description: 'One row. Carries data-active, data-create on the create row, and aria-selected.' },
+    { name: 'pill', description: 'One selected chip in the multi trigger.' },
+    { name: 'pill-remove', description: 'The chip’s remove button (Backspace on the trigger removes the last).' },
     { name: 'option-icon', description: 'The aria-hidden icon span before/after the label, when the option carries one.' },
     { name: 'option-label', description: 'The label column inside a row (label, and description when present).' },
     { name: 'option-description', description: 'The dimmer second line under a label.' },
@@ -145,6 +153,11 @@ export const selectSurface = {
     { on: 'option', attribute: 'data-create', values: ['(present on the create row)'] },
     { on: 'empty', attribute: 'data-state', values: ['visible', 'hidden'] },
     { on: 'overflow', attribute: 'data-state', values: ['visible', 'hidden'] },
+  ],
+  customStates: [
+    { name: 'open', description: ':state(open) while the menu is open.' },
+    { name: 'empty', description: ':state(empty) while nothing is selected.' },
+    { name: 'loading', description: ':state(loading) while the loading attribute is set.' },
   ],
   tokens: [
     '--vera-surface',

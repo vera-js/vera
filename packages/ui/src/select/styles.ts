@@ -74,6 +74,38 @@ export const SELECT_STYLES = /* css */ `
   :where([part='trigger'][data-state='open'])::after {
     transform: translateY(-30%) scaleY(-1) rotate(45deg);
   }
+  :where([part='value']) {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    min-block-size: 1lh;
+  }
+  :where([part='pill']) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 4px 1px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 14%, transparent);
+    font-size: 0.92em;
+  }
+  :where([part='pill-remove']) {
+    display: grid;
+    place-items: center;
+    inline-size: 16px;
+    block-size: 16px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  :where([part='pill-remove']):hover {
+    background: color-mix(in srgb, var(--vera-accent, #7c3aed) 25%, transparent);
+  }
   :where([part='value']:empty)::before {
     content: attr(data-placeholder);
     color: var(--vera-fg-muted, #71717a);

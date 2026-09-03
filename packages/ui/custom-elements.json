@@ -168,6 +168,14 @@
               "description": "Replace the whole control. Wired with role, aria, data-state and handlers."
             },
             {
+              "name": "search",
+              "description": "Replace the filter line with your own input — wired with the same input/keydown handlers and combobox ARIA (aria-activedescendant stays a built-in-input feature)."
+            },
+            {
+              "name": "empty",
+              "description": "Replace the no-matches message entirely."
+            },
+            {
               "name": "value",
               "description": "Replace the value area inside the default trigger. You own its children — the component stamps data-label with the joined labels and never rewrites your markup."
             }
@@ -196,6 +204,14 @@
             {
               "name": "option",
               "description": "One row. Carries data-active, data-create on the create row, and aria-selected."
+            },
+            {
+              "name": "pill",
+              "description": "One selected chip in the multi trigger."
+            },
+            {
+              "name": "pill-remove",
+              "description": "The chip’s remove button (Backspace on the trigger removes the last)."
             },
             {
               "name": "option-icon",
@@ -299,6 +315,20 @@
                 "visible",
                 "hidden"
               ]
+            }
+          ],
+          "vera-custom-states": [
+            {
+              "name": "open",
+              "description": ":state(open) while the menu is open."
+            },
+            {
+              "name": "empty",
+              "description": ":state(empty) while nothing is selected."
+            },
+            {
+              "name": "loading",
+              "description": ":state(loading) while the loading attribute is set."
             }
           ]
         }

@@ -44,10 +44,12 @@ test('the rendered DOM carries exactly the declared parts — no more, no fewer'
   const element = dom.window.document.createElement(selectSurface.tag);
   dom.window.document.body.append(element);
   /** Feature-complete options, so conditionally rendered parts (icon, description, group) exist. */
+  element.setAttribute('multi', ''); // pills render only in multi with a selection
   element.options = [
     { label: 'A', value: 'a', group: 'Letters', iconBefore: '★', description: 'the first one' },
     { label: 'B', value: 'b', group: 'Letters', iconAfter: '✦' },
   ];
+  element.value = ['a'];
   await frame();
   /** Open it so state-dependent parts render too. */
   element.shadowRoot.querySelector('[part="trigger"]').click();
