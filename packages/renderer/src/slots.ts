@@ -255,7 +255,7 @@ const capture = (host: Element, skipChildren = false): HostState => {
    */
   for (const child of [...host.children])
     if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) {
-      const held = (child as HTMLTemplateElement).content ?? child;
+      const held = (child as HTMLTemplateElement).content;
       for (const node of [...held.childNodes]) take(created, node);
       host.removeChild(child);
     }
@@ -530,9 +530,18 @@ const rescue = (host: Element): Node[] | null => {
       }
       if (child.nodeType !== 1) continue;
       const element = child as Element;
-      /** The inert carrier holds what no slot claimed — user content too, and its nodes live in
-       *  `content`, not `childNodes`. */
-      if (element.hasAttribute(UNASSIGNED_MARK)) {
+      /**
+       * The inert carrier holds what no slot claimed — user content too, and its nodes live in
+       * `content`, not `childNodes`.
+       *
+       * **The tag is checked, not just the attribute.** This walks the SERVER's subtree, which is
+       * full of the user's own markup, and `data-vera-unassigned` on anything that is not a
+       * `<template>` reached `.content` on an element that has none: a TypeError thrown out of
+       * `renderInto`, so the mismatch never finished falling back and the page was left with no
+       * client render at all. Reserved attribute or not, a user's markup cannot be allowed to do
+       * that — and `capture` was already checking both.
+       */
+      if (element.localName === 'template' && element.hasAttribute(UNASSIGNED_MARK)) {
         const held = (element as HTMLTemplateElement).content;
         for (let node = held.firstChild; node !== null; node = node.nextSibling) rescued.push(node);
         continue;

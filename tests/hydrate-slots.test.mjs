@@ -215,3 +215,24 @@ test('AUDIT — nested light-slot components hydrate in place, both levels', asy
   assert.deepEqual(slotted(inner, 'tag').map((n) => n.textContent), ['TAG'], 'the inner capture map is live');
   outer.remove();
 });
+
+/**
+ * **The rescue walks the SERVER's subtree, which is full of the user's own markup**, so it may not
+ * assume anything about what it finds there. `data-vera-unassigned` on an element that is not a
+ * `<template>` reached `.content` on an element that has none — a TypeError thrown straight out of
+ * `renderInto`, so the mismatch never finished falling back and the page was left with no client
+ * render at all. Reserved attribute or not, a page's markup cannot be allowed to do that.
+ */
+test('AUDIT — a reserved marker on a non-template element does not break the render', async () => {
+  const host = dom.window.document.createElement('my-host');
+  host.innerHTML =
+    '<article><header><h2 slot="h">KEEP</h2></header>' +
+    '<aside><div data-vera-unassigned>USER DIV</div></aside></article>';
+  dom.window.document.getElementById('root').appendChild(host);
+  /** Disagrees at the root, so the rescue runs over that subtree. */
+  renderInto(html`<section><header><slot name="h">fb</slot></header></section>`, host);
+  await settle();
+  assert.equal(host.querySelector('section > header').textContent, 'KEEP', 'the fallback render completed');
+  assert.equal(host.querySelector('article'), null, 'and the server markup was replaced');
+  host.remove();
+});
