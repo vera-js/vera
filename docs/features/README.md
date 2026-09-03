@@ -22,6 +22,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 | [Both effect models](effect-models.md) | Batched *and* per-change effects, plus change metadata | **Strongest** — nobody else has all three |
 | [No base class](no-base-class.md) | Attaches to a plain `HTMLElement`; retrofittable | **Strong** — structural, Lit cannot match |
 | [Reactivity](reactivity.md) | Automatic tracking; no dep arrays, no property declarations | **Strong** — Solid-class DX without a compiler |
+| [Light-DOM slots](light-dom-slots.md) | One component works in shadow OR light DOM, with the platform's own `<slot>` semantics | **Strong** — measured against native, but Stencil's scoped mode does this too |
 | [Module system](module-system.md) | Genuinely independent modules; 4 extension points | **Medium** — real, but needs explaining |
 | [Performance](performance.md) | Fastest or tied on 5 of 8 DOM operations in a 9-framework table; within 9% on the rest | **Strong** — measured, min-of-21 sessions |
 

@@ -52,6 +52,7 @@ const TARGETS = [
   'docs/features/README.md',
   'docs/features/size.md',
   'docs/features/zero-dependencies.md',
+  'docs/features/light-dom-slots.md',
   // The per-package READMEs are what npm serves on each package page, and the only ones that ship
   // inside a tarball. The root README ships nowhere.
   /**
