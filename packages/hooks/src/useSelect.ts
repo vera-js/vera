@@ -211,10 +211,20 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     typedAt = now;
     if (!state.open) open();
     const rows = matches();
-    for (let offset = typed.length > 1 ? 0 : 1; offset <= rows.length; offset++) {
+    /**
+     * A buffer of ONE repeated character cycles that letter's matches, per APG — otherwise
+     * accumulating `cc` would search for a `cc`-prefix (nothing) and freeze on the first match.
+     * A genuine multi-character prefix (`ch`) refines in place. So the needle is the single
+     * letter when the buffer is all one character, the whole buffer otherwise; the search starts
+     * at the NEXT row for a single/repeated letter (to advance the cycle) and at the CURRENT row
+     * for a real prefix (to narrow without moving off it).
+     */
+    const repeated = [...typed].every((c) => c === typed[0]);
+    const needle = repeated ? typed[0] : typed;
+    for (let offset = repeated ? 1 : 0; offset <= rows.length; offset++) {
       const index = (state.active + offset) % rows.length;
       const row = rows[index];
-      if (row && !row.disabled && row.label.toLowerCase().startsWith(typed)) {
+      if (row && !row.disabled && row.label.toLowerCase().startsWith(needle)) {
         state.active = index;
         return;
       }

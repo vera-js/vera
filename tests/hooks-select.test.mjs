@@ -321,3 +321,33 @@ test('AUDIT — a selection whose option is absent from the new set keeps its ca
   select.setOptions([{ label: 'Other', value: 'z' }]); // b gone from the list
   assert.equal(select.state.value[0].label, 'Server B', 'the cached label survives a refresh that drops it');
 });
+
+test('AUDIT — repeated-letter typeahead cycles; a genuine prefix refines in place', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.setOptions([{ label: 'Apple', value: 'a' }, { label: 'Cranberry', value: 'cr' }, { label: 'Cherry', value: 'ch' }]);
+  select.open();
+  const type = (ch) => select.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: ch, cancelable: true }));
+  const label = () => select.matches()[select.state.active]?.label;
+  type('c'); assert.equal(label(), 'Cranberry', 'first c');
+  type('c'); assert.equal(label(), 'Cherry', 'repeated c cycles to the next c-match');
+  type('c'); assert.equal(label(), 'Cranberry', 'and wraps');
+
+  // a real prefix narrows without cycling
+  const el2 = host();
+  const s2 = useSelect(el2, {});
+  s2.setOptions([{ label: 'Cranberry', value: 'cr' }, { label: 'Cherry', value: 'ch' }]);
+  s2.open();
+  const t2 = (ch) => s2.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: ch, cancelable: true }));
+  t2('c'); t2('h');
+  assert.equal(s2.matches()[s2.state.active]?.label, 'Cherry', 'ch is a prefix, not two cycles');
+
+  // repeated cycling skips a disabled match
+  const el3 = host();
+  const s3 = useSelect(el3, {});
+  s3.setOptions([{ label: 'Cat', value: '1' }, { label: 'Cab', value: '2', disabled: true }, { label: 'Car', value: '3' }]);
+  s3.open();
+  const t3 = (ch) => s3.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: ch, cancelable: true }));
+  t3('c'); t3('c'); t3('c');
+  assert.notEqual(s3.matches()[s3.state.active]?.label, 'Cab', 'a disabled label never takes the cycle');
+});
