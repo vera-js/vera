@@ -225,6 +225,9 @@ export class VeraSelect extends HTMLElement {
     'empty-message',
     'overflow-message',
     'results-message',
+    'loading-message',
+    'create-message',
+    'remove-message',
     'aria-label',
   ];
 
@@ -257,13 +260,16 @@ export class VeraSelect extends HTMLElement {
     const entry = internal(this);
     const raw: (string | SelectOption)[] =
       next == null || next === '' ? [] : Array.isArray(next) ? [...next] : [next];
+    /** Single mode holds ONE: a multi-shaped array in single mode keeps its first entry, the
+     *  same invariant every pick path already maintains. */
+    const bounded = this.hasAttribute('multi') ? raw : raw.slice(0, 1);
     if (entry.select) {
-      entry.select.state.value = resolveSelection(raw, entry.select.state.options, entry.select.state.value);
+      entry.select.state.value = resolveSelection(bounded, entry.select.state.options, entry.select.state.value);
       entry.select.sync();
       reflectForm(this, entry.select.state.value);
       syncStates(this);
     } else {
-      entry.pending.value = raw;
+      entry.pending.value = bounded;
     }
   }
 
@@ -311,7 +317,8 @@ export class VeraSelect extends HTMLElement {
       return;
     }
     if (!Array.isArray(values)) return;
-    this.value = values; // strings resolve through the setter: known options, else placeholders
+    /** Hostile or corrupt restore state: only strings are selection identities. */
+    this.value = values.filter((entry): entry is string => typeof entry === 'string');
   }
 
   /** Native-control validity surface, proxied from internals — element.validity, like an input. */
@@ -579,10 +586,11 @@ export class VeraSelect extends HTMLElement {
         if (last && last.group === group) last.rows.push({ option, index });
         else segments.push({ group, rows: [{ option, index }] });
       });
+      const loadingMessage = attrs()['loading-message'] ?? 'Loading…';
       const status = !state.open
         ? ''
         : loading
-          ? 'Loading…'
+          ? loadingMessage
           : searchable()
             ? (attrs()['results-message'] ?? '{count} options').replace('{count}', String(count))
             : '';
@@ -611,7 +619,7 @@ export class VeraSelect extends HTMLElement {
                           <button
                             part="pill-remove"
                             type="button"
-                            aria-label=${`Remove ${option.label}`}
+                            aria-label=${(attrs()['remove-message'] ?? 'Remove {label}').replace('{label}', option.label)}
                             @click=${(event: Event) => {
                               event.stopPropagation();
                               select.pick(option);
@@ -677,7 +685,7 @@ export class VeraSelect extends HTMLElement {
                     ?data-active=${active === rows.length}
                     aria-selected="false"
                   >
-                    Create “${creating}”
+                    ${(attrs()['create-message'] ?? 'Create “{label}”').replace('{label}', creating)}
                   </div>
                 `
               : null}
@@ -685,7 +693,7 @@ export class VeraSelect extends HTMLElement {
           <span part="status" role="status">${status}</span>
           <slot name="empty">
             <p part="empty" data-state=${count > 0 ? 'hidden' : 'visible'}>
-              ${loading ? 'Loading…' : (attrs()['empty-message'] ?? 'No options')}
+              ${loading ? loadingMessage : (attrs()['empty-message'] ?? 'No options')}
             </p>
           </slot>
           <p part="overflow" data-state=${overflow ? 'visible' : 'hidden'}>${overflow ?? ''}</p>

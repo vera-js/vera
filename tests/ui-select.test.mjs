@@ -748,6 +748,43 @@ test('AUDIT P5 — focus() delegates to the effective trigger, built-in or slott
   light.remove();
 });
 
+test('AUDIT P8 — single mode holds one; restore rejects non-strings; the last three strings are attributes', async () => {
+  const element = await mount();
+  element.value = ['a', 'b']; // multi-shaped in single mode
+  assert.equal(element.value, 'a', 'single mode keeps the first entry, same as every pick path');
+
+  element.formStateRestoreCallback(JSON.stringify(['b', 42, null, 'a']));
+  assert.equal(element.value, 'b', 'non-string entries in restore state are discarded, single keeps first');
+  element.remove();
+
+  const worded = await mount((el) => {
+    el.setAttribute('creatable', '');
+    el.setAttribute('multi', '');
+    el.setAttribute('loading', '');
+    el.setAttribute('create-message', 'Invent “{label}”');
+    el.setAttribute('remove-message', 'Drop {label}');
+    el.setAttribute('loading-message', 'Scooping…');
+  });
+  worded.value = ['a'];
+  await frame();
+  part(worded, 'trigger').click();
+  await frame();
+  assert.equal(
+    root(worded).querySelector('[part="pill-remove"]').getAttribute('aria-label'),
+    'Drop Alpha',
+    'the pill remove name interpolates the consumer’s words'
+  );
+  const search = part(worded, 'search');
+  search.value = 'Mango';
+  search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await frame();
+  assert.match(root(worded).querySelector('[data-create]').textContent, /Invent “Mango”/);
+  worded.options = [];
+  await frame();
+  assert.match(part(worded, 'empty').textContent, /Scooping…/);
+  worded.remove();
+});
+
 test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
   const element = await mount((el) => el.setAttribute('disabled', ''));
   const trigger = part(element, 'trigger');

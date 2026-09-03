@@ -46,6 +46,9 @@ export const selectSurface = {
     { name: 'search-placeholder', description: 'Placeholder and accessible name of the search line. Default "Search…".' },
     { name: 'empty-message', description: 'Shown when no option matches. Default "No options".' },
     { name: 'overflow-message', description: 'A footer line under the list — "1,250 more results", consumer-worded.' },
+    { name: 'loading-message', description: 'The in-flight remote message (empty area and status line). Default "Loading…".' },
+    { name: 'create-message', description: 'The create row’s text; {label} interpolates. Default "Create “{label}”".' },
+    { name: 'remove-message', description: 'The pill remove button’s accessible name; {label} interpolates. Default "Remove {label}".' },
     {
       name: 'results-message',
       description:
