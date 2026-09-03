@@ -181,3 +181,41 @@ test('AUDIT — light slots compose three levels deep, through the async chain',
   assert.doesNotMatch(html, /no-a\b|no-b\b|no-c\b/, 'no level fell back to content it was given');
   assert.doesNotMatch(html, /<slot[\s>]/, 'and nothing is left as a <slot>');
 });
+
+/**
+ * **A `<template>` in a component's own markup used to cost it the whole server render.**
+ *
+ * `@verajs/ssr`'s DOM parses markup to answer `querySelector`, and it REFUSED any fragment
+ * containing a `<template>` — a template's content is a separate fragment it does not model, and
+ * the rule there is to decline rather than guess at a tree. A declined parse leaves the markup a
+ * string with no nodes, so every query answered emptily: measured against a real DOM, ONE empty
+ * `<template>` turned `querySelectorAll('*')` from three elements into none.
+ *
+ * `@verajs/renderer/slots` finds slot positions with a query, so such a component distributed on
+ * the client and silently did not on the server — a server/client divergence, from markup nobody
+ * would suspect. The parser now keeps a template's interior opaque instead, exactly as it already
+ * did for `<svg>`, which is also the honest answer: a real DOM does not match template content from
+ * the host either, so on the question a selector asks, the two agree.
+ */
+const TEMPLATED = new URL('./fixtures/ssr/slot-template-ssr.js', import.meta.url);
+test('AUDIT — a component whose markup holds a <template> still distributes on the server', async () => {
+  const { html } = await renderToString(TEMPLATED, { children: '<b slot="h">MINE</b>' });
+
+  assert.match(html, /<p><b slot="h">MINE<\/b>/, 'the real slot distributed');
+  assert.doesNotMatch(html, /<slot name="h">fallback<\/slot>/, 'so it is not showing its fallback');
+  assert.match(html, /<template><i>inert<\/i><\/template>/,
+    'and the template is reproduced byte for byte, its interior untouched');
+});
+
+test('AUDIT — a component the server CAN parse says nothing', async () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (message) => said.push(String(message));
+  try {
+    await renderToString(CARD, { children: '<h2 slot="header">Hi</h2>body' });
+  } finally {
+    console.warn = original;
+  }
+  assert.deepEqual(said.filter((message) => message.includes('the server cannot see')), [],
+    'the diagnostic must not fire for a component that distributed perfectly well');
+});

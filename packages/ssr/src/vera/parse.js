@@ -75,11 +75,8 @@ const CLOSES_P = new Set([
   'menu', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'ul',
 ]);
 
-/**
- * `<template>` holds a separate document fragment rather than children, which this DOM has no way to
- * represent. A decline rather than a guess.
- */
-const REFUSED = new Set(['template']);
+/** Nothing is refused outright any more — see `OPAQUE` for what `<template>` does instead. */
+const REFUSED = new Set();
 
 /**
  * **Foreign content is kept whole.** `svg` and `math` switch the spec into rules this parser does
@@ -93,6 +90,28 @@ const REFUSED = new Set(['template']);
  * an icon in it got no node view at all, which is a great deal to give up for one `<svg>`.
  */
 const FOREIGN = new Set(['svg', 'math']);
+
+/**
+ * **`<template>` is kept opaque too, for the same reason and by the same mechanism.**
+ *
+ * Its content is a separate document fragment, which this DOM does not model — so the parse used to
+ * REFUSE any markup containing one. That is the heavier version of the mistake the `<svg>` comment
+ * above describes: declining the whole fragment meant a component with a `<template>` anywhere in
+ * its markup got no node view at all, so every `querySelector` on it answered emptily. Measured
+ * against a real DOM, one empty `<template>` was enough to turn `querySelectorAll('*')` from three
+ * elements into none — silently.
+ *
+ * That cost real behaviour. `@verajs/renderer/slots` finds a component's `<slot>` positions with a
+ * query, so a light-DOM component whose markup held a `<template>` distributed on the client and
+ * not on the server: a server/client divergence, from markup nobody would suspect.
+ *
+ * Keeping the interior opaque is also the honest answer rather than merely the convenient one. A
+ * real DOM does not match template content from the host either — `host.querySelector('b')` never
+ * finds a `<b>` inside a `<template>` — so on the question this parser exists to answer, an opaque
+ * chunk and a content fragment agree. What is given up is reaching INTO one (`template.content
+ * .querySelector`), which is a far smaller loss than the whole tree.
+ */
+const OPAQUE = new Set([...FOREIGN, 'template']);
 
 const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
 const ATTRIBUTE = /^([^\s/>="'<]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/;
@@ -253,7 +272,7 @@ export const parseFragment = (markup, create) => {
      * Foreign content runs to its matching end tag and is kept verbatim, nesting counted so an
      * `<svg>` inside an `<svg>` closes the right one.
      */
-    if (FOREIGN.has(name)) {
+    if (OPAQUE.has(name)) {
       let depth = 1;
       let closeAt = -1;
       const opener = new RegExp(`<(/?)${name}\\b`, 'giu');

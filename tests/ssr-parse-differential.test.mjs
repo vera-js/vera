@@ -31,8 +31,14 @@ import '@verajs/ssr';
  *
  * The comparison stops there rather than being skipped: the element itself, and everything around
  * it, still has to match.
+ *
+ * **`<template>` is compared the same way**, and for a reason that is about the question this
+ * parser answers rather than about convenience: a real DOM does not match template content from the
+ * host, so `host.querySelector('b')` never finds a `<b>` inside a `<template>` — an opaque chunk and
+ * parse5's content fragment agree on everything a selector can see. The parse used to refuse such
+ * markup outright, which cost a component with a `<template>` anywhere in it its entire node view.
  */
-const FOREIGN = new Set(['svg', 'math']);
+const FOREIGN = new Set(['svg', 'math', 'template']);
 
 const ours = (entries) =>
   entries
