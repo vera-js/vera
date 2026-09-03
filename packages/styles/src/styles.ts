@@ -259,9 +259,11 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
   if (__DEV__ && /::slotted\s*\(/.test(cssText))
     console.warn(
       `[vera] styles: <${element.localName}> has no shadow root, and \`::slotted()\` only ever ` +
-        `matches inside one — those rules do nothing here. Slotted content is styled by whoever ` +
-        `provided it, which in light DOM your own page CSS already reaches. ` +
-        `(\`:host\` needs no change: it is translated to \`:scope\` for you.)`
+        `matches inside one — those rules do nothing here. In light DOM you do not need it: ` +
+        `slotted content is in the same tree, so an ordinary descendant selector reaches it, and ` +
+        `reaches deeper than \`::slotted()\` can. For a component that renders BOTH ways, write ` +
+        `both — \`::slotted(img), [part="body"] img\` — the way \`:host, :scope\` used to be ` +
+        `needed before \`:host\` was translated for you.`
     );
   const scoped = supported
     ? `@scope (${element.localName}) {\n${forLightDom(cssText)}\n}`

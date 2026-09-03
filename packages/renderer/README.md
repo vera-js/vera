@@ -344,6 +344,19 @@ becomes visible — the same thing the platform does, verified by layout on thre
 handed over in document order, so a slot's nested slots are taken over first, while they still have
 a parent to anchor into.
 
+**`::slotted()` is shadow-only and deliberately not translated.** In light DOM the slotted content
+is in the same tree, so an ordinary descendant selector reaches it — and reaches deeper than
+`::slotted()` can, which only ever matched top-level assigned nodes. Measured on three engines, the
+two are exactly complementary: neither spelling reaches across. A component that renders both ways
+writes both, `::slotted(img), [part="body"] img`, exactly as `:host, :scope` was needed before
+`:host` became translatable.
+
+The asymmetry with `:host` is the reason one is translated and this is not. `:host` styles the
+component ITSELF and nothing else can supply it, so a component from npm that uses it is visibly
+broken in light mode. `::slotted()` styles the USER'S content, which in light DOM the page author
+can already reach — so the failure is a missing default rather than a broken component, and making
+it work would mean writing framework attributes into the user's own markup.
+
 ### Late children
 
 **A node added AFTER the first render joins a slot only if it carries a `slot` attribute** —

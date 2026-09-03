@@ -184,8 +184,10 @@ test('a light host is told about ::slotted(), and NOT about :host', { skip: isPr
   assert.ok(warning, `expected a diagnostic, got ${JSON.stringify(said)}`);
   assert.match(warning, /^\[vera\] /, 'findable with one filter, like every diagnostic here');
   assert.match(warning, /`::slotted\(\)`/, 'it names the construct that cannot work');
-  assert.match(warning, /translated to `:scope` for you/,
-    'and says :host needs nothing — warning about a selector that now works would be a lie');
+  assert.match(warning, /ordinary descendant selector reaches it/,
+    'and teaches the light-DOM equivalent rather than only naming the problem');
+  assert.match(warning, /::slotted\(img\), \[part="body"\] img/,
+    'including the dual spelling for a component that renders both ways');
 });
 
 test('the light-DOM rewrite translates selectors and leaves values alone', async () => {
