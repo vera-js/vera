@@ -445,6 +445,7 @@ test('vera-option: rich rows — icon cloned in (light DOM untouched), descripti
   const element = dom.window.document.createElement('vera-select');
   element.innerHTML = `
     <vera-option value="pistachio">
+      <!-- decorative note that must never reach the label -->
       <svg slot="icon" data-mark="nut"></svg>
       Pistachio
       <span slot="description">polarizing, correctly</span>
@@ -458,6 +459,7 @@ test('vera-option: rich rows — icon cloned in (light DOM untouched), descripti
   const [option] = element.options;
   assert.equal(option.value, 'pistachio');
   assert.equal(option.label, 'Pistachio', 'label is the unslotted text, trimmed');
+  // and a comment child is not content (its textContent is its data — it polluted the label once)
   assert.equal(option.description, 'polarizing, correctly');
 
   const icon = root(element).querySelector('[part="option-icon"]');

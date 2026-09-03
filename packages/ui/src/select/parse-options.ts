@@ -45,6 +45,9 @@ const optionFrom = (node: Element, group: string | null): SelectOption | null =>
     let label = '';
     const option: SelectOption = { label: '', value: '' };
     for (const child of node.childNodes) {
+      /** Comments are not content: Comment.textContent is its data, and an authored
+       *  <!-- note --> polluted the label (measured). Text and elements only. */
+      if (child.nodeType !== 1 && child.nodeType !== 3) continue;
       const slot = child instanceof Element ? child.getAttribute('slot') : null;
       if (slot === 'icon') option.iconBefore = child.cloneNode(true);
       else if (slot === 'icon-after') option.iconAfter = child.cloneNode(true);
