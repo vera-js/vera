@@ -82,3 +82,66 @@ test('the SAME markup in SHADOW mode also works (native slots) — one component
   assert.equal(el.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state'), 'open');
   el.remove();
 });
+
+/**
+ * **Replacing a slotted trigger, live, in LIGHT mode.** This is the case the component could not
+ * handle here until `<slot>` bindings started working in light DOM: `vera-select` keeps itself in
+ * step through `@slotchange` on each of its slots, which fired only in shadow mode, so a light-mode
+ * app that swapped its trigger was left with an unwired one — no role, no ARIA, no keyboard.
+ *
+ * The component was not changed for this. It already bound `@slotchange`; the event simply reaches
+ * it now.
+ */
+test('light: swapping the slotted trigger re-wires it, and removing it restores the built-in one', async () => {
+  const el = dom.window.document.createElement('vera-select');
+  el.setAttribute('light', '');
+  el.setAttribute('aria-label', 'Flavor');
+  const first = dom.window.document.createElement('button');
+  first.setAttribute('slot', 'trigger');
+  first.textContent = 'FIRST';
+  el.append(first);
+  dom.window.document.body.append(el);
+  el.options = OPTS;
+  await frame();
+  await frame();
+
+  const wiring = (node) => ({
+    role: node?.getAttribute('role'),
+    haspopup: node?.getAttribute('aria-haspopup'),
+  });
+  assert.deepEqual(wiring(el.querySelector('button')), { role: 'combobox', haspopup: 'listbox' },
+    'CONTROL: the first slotted trigger is wired');
+
+  /** Swap it for a different element entirely. */
+  const second = dom.window.document.createElement('button');
+  second.setAttribute('slot', 'trigger');
+  second.textContent = 'SECOND';
+  first.remove();
+  el.append(second);
+  await frame();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await frame();
+
+  assert.equal(el.querySelector('button'), second, 'the new trigger is the one on screen');
+  assert.deepEqual(wiring(second), { role: 'combobox', haspopup: 'listbox' },
+    'and it was wired — this is what did not happen before slot bindings worked in light mode');
+
+  /** It is not merely decorated: it drives the component. */
+  second.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  await frame();
+  await frame();
+  assert.ok(el.querySelector('[role="listbox"]'), 'the replaced trigger opens the listbox');
+  assert.equal(second.getAttribute('aria-expanded'), 'true');
+
+  /** Remove it, and the component's OWN trigger comes back — a <div role="combobox">, not a button. */
+  second.remove();
+  await frame();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await frame();
+  const built = el.querySelector('[role="combobox"]');
+  assert.ok(built, 'the fallback trigger returned');
+  assert.equal(built.localName, 'div', "the component's own trigger, not the user's");
+  assert.equal(el.querySelector('button'), null, 'and nothing of the user\'s is left behind');
+  assert.equal(built.getAttribute('aria-haspopup'), 'listbox', 'wired like any other');
+  el.remove();
+});
