@@ -328,8 +328,14 @@ export const SELECT_STYLES = /* css */ `
   :where([part='option'][data-create])::before {
     content: none;
   }
+  /*
+   * The create row is the one place accent is used as BODY TEXT, and a highlighted create row put
+   * it on the accent-tint active background at 4.46:1 - just under WCAG AA (axe, measured). It uses
+   * --vera-accent-strong: a darker accent that clears 4.5:1 on the tint (~5.6:1), DERIVED from
+   * --vera-accent so theming still flows through, and available to any future accent-on-tint text.
+   */
   :where([part='option'][data-create]) {
-    color: var(--vera-accent, #7c3aed);
+    color: var(--vera-accent-strong, color-mix(in srgb, var(--vera-accent, #7c3aed), black 14%));
   }
   :where([part='empty']) {
     margin: 0;

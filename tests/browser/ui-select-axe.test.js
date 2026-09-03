@@ -29,13 +29,36 @@ const OPTIONS = [
   { label: 'Gamma', value: 'g', disabled: true, group: 'Late' },
 ];
 
-const audit = async (name, setup) => {
+/**
+ * One helper for every state. The `settle` before measuring is load-bearing: the menu's opacity
+ * transition is 140ms, and axe composites text through an in-flight opacity — measuring one frame
+ * after open reads a washed-out effective foreground and reports FALSE color-contrast violations
+ * (found while auditing barren/creatable states; the old inline cases measured mid-fade and were
+ * one slow frame from flaking). `open`/`type`/`value` drive the interaction; `element.shadowRoot ??
+ * element` covers light mode, where the parts live in the light DOM.
+ */
+const SETTLE_MS = 250;
+const settle = () => new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+
+const audit = async (name, { setup, value, open = false, type } = {}) => {
   const element = document.createElement('vera-select');
   element.setAttribute('aria-label', 'Flavor');
   setup?.(element);
   document.body.appendChild(element);
   element.options = OPTIONS;
+  if (value !== undefined) element.value = value;
   await frame();
+  const root = element.shadowRoot ?? element;
+  if (open) {
+    root.querySelector('[part="trigger"]').click();
+    await settle();
+  }
+  if (type !== undefined) {
+    const search = root.querySelector('[part="search"]');
+    search.value = type;
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+  }
   const results = await window.axe.run(element, { resultTypes: ['violations'] });
   const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
   expect(results.violations, `${name} — ${summary}`).to.have.length(0);
@@ -44,49 +67,36 @@ const audit = async (name, setup) => {
 
 it('axe: closed, default', () => audit('closed'));
 
-it('axe: open with groups, description, disabled row', async () => {
-  const element = document.createElement('vera-select');
-  element.setAttribute('aria-label', 'Flavor');
-  document.body.appendChild(element);
-  element.options = OPTIONS;
-  await frame();
-  element.shadowRoot.querySelector('[part="trigger"]').click();
-  await frame();
-  const results = await window.axe.run(element, { resultTypes: ['violations'] });
-  const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
-  expect(results.violations, `open — ${summary}`).to.have.length(0);
-  element.remove();
-});
+it('axe: open with groups, description, disabled row', () => audit('open', { open: true }));
 
-it('axe: multi with pills, menu open', async () => {
-  const element = document.createElement('vera-select');
-  element.setAttribute('aria-label', 'Flavors');
-  element.setAttribute('multi', '');
-  element.setAttribute('searchable', '');
-  document.body.appendChild(element);
-  element.options = OPTIONS;
-  element.value = ['a', 'b'];
-  await frame();
-  element.shadowRoot.querySelector('[part="trigger"]').click();
-  await frame();
-  const results = await window.axe.run(element, { resultTypes: ['violations'] });
-  const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
-  expect(results.violations, `pills — ${summary}`).to.have.length(0);
-  element.remove();
-});
+it('axe: multi with pills, menu open', () =>
+  audit('multi pills', {
+    setup: (el) => {
+      el.setAttribute('multi', '');
+      el.setAttribute('searchable', '');
+    },
+    value: ['a', 'b'],
+    open: true,
+  }));
 
-it('axe: disabled, and light mode open', async () => {
-  await audit('disabled', (element) => element.setAttribute('disabled', ''));
-  const element = document.createElement('vera-select');
-  element.setAttribute('aria-label', 'Flavor');
-  element.setAttribute('light', '');
-  document.body.appendChild(element);
-  element.options = OPTIONS;
-  await frame();
-  element.querySelector('[part="trigger"]').click();
-  await frame();
-  const results = await window.axe.run(element, { resultTypes: ['violations'] });
-  const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
-  expect(results.violations, `light — ${summary}`).to.have.length(0);
-  element.remove();
-});
+it('axe: disabled', () => audit('disabled', { setup: (el) => el.setAttribute('disabled', '') }));
+
+it('axe: light mode open', () => audit('light', { setup: (el) => el.setAttribute('light', ''), open: true }));
+
+it('axe: loading, menu open', () =>
+  audit('loading', {
+    setup: (el) => {
+      el.setAttribute('searchable', '');
+      el.setAttribute('loading', '');
+    },
+    open: true,
+  }));
+
+it('axe: empty message on a barren search', () =>
+  audit('barren', { setup: (el) => el.setAttribute('searchable', ''), open: true, type: 'zzzzz' }));
+
+it('axe: creatable with the create row highlighted', () =>
+  audit('creatable', { setup: (el) => el.setAttribute('creatable', ''), open: true, type: 'Gamma2' }));
+
+it('axe: a selected row that is also the active row (checkmark on the highlight tint)', () =>
+  audit('selected+active', { value: 'a', open: true }));

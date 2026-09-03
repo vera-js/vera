@@ -374,6 +374,9 @@
               "name": "--vera-accent"
             },
             {
+              "name": "--vera-accent-strong"
+            },
+            {
               "name": "--vera-radius"
             },
             {

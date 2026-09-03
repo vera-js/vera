@@ -217,6 +217,7 @@ export const selectSurface = {
     '--vera-fg',
     '--vera-fg-muted',
     '--vera-accent',
+    '--vera-accent-strong',
     '--vera-radius',
     '--vera-focus',
   ],
