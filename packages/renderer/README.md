@@ -279,17 +279,50 @@ Native `<slot>` needs a shadow root. This entry teaches the renderer to distribu
 component's own children into the `<slot name="…">` positions of its template, so **one component
 works in both modes** — users write `<div slot="title">` exactly as they would against shadow DOM.
 
-```js
-import { renderer } from '@verajs/renderer';
-import { slots } from '@verajs/renderer/slots';
-wire([renderer, slots]);
-```
+Given this markup:
 
 ```html
 <my-card>
   <h2 slot="header">Hello</h2>
   Body text goes to the default slot.
 </my-card>
+```
+
+<!-- recipe -->
+```js
+import { init, render, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { slots, slotted } from '@verajs/renderer/slots';
+
+wire([renderer, slots]);
+
+customElements.define(
+  'my-card',
+  class extends HTMLElement {
+    connectedCallback() {
+      init(this); // LIGHT DOM — no shadow options
+      render(
+        () => html`<article>
+          <header><slot name="header" @slotchange=${(e) => this.onHeader(e.target)}>Untitled</slot></header>
+          <main><slot>Nothing here yet.</slot></main>
+        </article>`
+      );
+    }
+    /** Written exactly as it would be against a shadow root, and it runs in both. */
+    onHeader(slot) {
+      console.log('header is now:', slot.assignedElements().map((el) => el.textContent));
+    }
+  }
+);
+
+const card = document.createElement('my-card');
+card.innerHTML = '<h2 slot="header">Hello</h2>Body text goes to the default slot.';
+document.body.append(card);
+
+await new Promise((resolve) => requestAnimationFrame(resolve));
+console.log(card.querySelector('header').textContent); // "Hello"
+console.log(card.querySelector('main').textContent); //   "Body text goes to the default slot."
+console.log(slotted(card, 'header').length); //           1
 ```
 
 `slots` is the insert descriptor you wire; that is all a consumer touches. The assignment follows
