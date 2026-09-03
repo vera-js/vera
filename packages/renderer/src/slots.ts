@@ -249,12 +249,15 @@ const capture = (host: Element, skipChildren = false): HostState => {
   /** Hydration already has the children distributed and registers them itself; a fresh CSR
    *  capture lifts them from the host. */
   if (!skipChildren) for (const node of [...host.childNodes]) take(created, node);
-  created._observer.observe(host, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['slot'],
-  });
+  const watching = { childList: true, subtree: true, attributes: true, attributeFilter: ['slot'] };
+  created._observer.observe(host, watching);
+  /**
+   * HOLDING IS WATCHED TOO. Unassigned nodes wait in a detached fragment, which is not in the
+   * host's subtree — so re-slotting one (`slot="a"` → `"b"`) went unseen and the node never moved
+   * to its new slot, while native re-assigns a light child whether or not it is currently
+   * assigned (measured: displayed nodes re-slotted, held ones silently did not).
+   */
+  created._observer.observe(created._holding, watching);
   return created;
 };
 

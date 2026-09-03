@@ -245,3 +245,18 @@ test('AUDIT — unassigned content is captured, invisible, and shown when its sl
   assert.equal(h.textContent.includes('waiting'), true, 'and appears when its slot mounts');
   h.remove();
 });
+
+test('AUDIT — a HELD (unassigned) node re-slots too, exactly as native reassigns a light child', async () => {
+  const h = host('<p slot="a">movable</p>');
+  renderInto(html`<section><slot name="b">b-fallback</slot></section>`, h);
+  assert.equal(h.textContent.includes('movable'), false, 'unassigned: held, unrendered');
+  assert.equal(slotted(h, 'a').length, 1, 'but captured');
+  /** Held nodes wait in a DETACHED fragment — outside the host subtree — so this went unseen
+   *  until the observer watched holding as well. */
+  slotted(h, 'a')[0].setAttribute('slot', 'b');
+  await settle();
+  assert.equal(h.querySelector('section').textContent, 'movable', 'it moved into its new slot');
+  assert.equal(slotted(h, 'b').length, 1);
+  assert.equal(slotted(h, 'a').length, 0, 'and left the old bucket');
+  h.remove();
+});
