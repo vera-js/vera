@@ -40,7 +40,7 @@ test('a marked element inside a real closed shadow root animates through the ada
     connectedCallback() {
       init(this, { mode: 'closed' });
       render(() => html`
-        <div id="inner" data-vera-motion data-vera-motion-translate-y="0% 0px, 100% 40px"></div>
+        <div id="inner" data-vm data-vm-translate-y="0% 0px, 100% 40px"></div>
       `);
     }
   });
