@@ -153,3 +153,45 @@ it('axe: dark tokens - highlighted create row keeps contrast', () =>
     open: true,
     type: 'Gamma2',
   }));
+
+/**
+ * **TWO light-mode selects, audited together.** Every audit above mounts ONE element, and one
+ * instance is exactly what cannot show an id collision: a shadow root scopes ids, a light host's
+ * land in the page document beside every other component's, and both instances were writing
+ * `id="listbox"` and `id="opt-0"`. The second one's `aria-controls` and `aria-activedescendant`
+ * then resolved to the FIRST one's listbox and options — a reader sent to another widget, with
+ * every single-instance audit green.
+ *
+ * axe has the rule for this (`duplicate-id-aria`), so the guard costs one test: run it over a
+ * container holding both, with both menus open so their listboxes and option rows are rendered.
+ */
+it('axe: TWO light-mode selects on one page, both open', async () => {
+  const holder = document.createElement('div');
+  document.body.appendChild(holder);
+  const made = [];
+  for (let index = 0; index < 2; index++) {
+    const element = document.createElement('vera-select');
+    element.setAttribute('light', '');
+    element.setAttribute('aria-label', `Flavor ${index}`);
+    holder.appendChild(element);
+    element.options = OPTIONS;
+    made.push(element);
+  }
+  await frame();
+  for (const element of made) {
+    element.querySelector('[part="trigger"]').click();
+    await settle();
+  }
+  expect(made[1].querySelectorAll('[role="option"]').length).to.be.greaterThan(0,
+    'CONTROL: the second select really rendered its own options');
+
+  /** No id may appear twice anywhere in the document, which is the collision itself. */
+  const ids = [...document.querySelectorAll('[id]')].map((node) => node.id);
+  const duplicated = [...new Set(ids.filter((id, at) => ids.indexOf(id) !== at))];
+  expect(duplicated, `duplicate ids across instances: ${duplicated.join(', ')}`).to.have.length(0);
+
+  const results = await window.axe.run(holder, { resultTypes: ['violations'] });
+  const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
+  expect(results.violations, `two light selects — ${summary}`).to.have.length(0);
+  holder.remove();
+});
