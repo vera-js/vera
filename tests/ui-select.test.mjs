@@ -822,14 +822,29 @@ test('input fires before change, once per commit; beforetoggle can veto; toggle 
 
   element.open();
   await frame();
+  element.addEventListener('beforetoggle', (event) => event.preventDefault(), { once: true });
+  element.close();
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'open', 'the close direction vetoes too');
+  element.close();
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'and un-vetoed close proceeds');
+  element.open();
+  await frame();
+
+  element.open();
+  await frame();
   root(element).querySelectorAll('[part="option"]')[0].click();
   await frame();
   root(element).querySelectorAll('[part="option"]')[1].click();
   await frame();
   element.close();
   await frame();
-  assert.deepEqual(order, ['toggle:open', 'input', 'change', 'input', 'change', 'toggle:closed'],
-    'platform order: input then change, one pair per toggle; toggle bookends');
+  assert.deepEqual(
+    order,
+    ['toggle:open', 'toggle:closed', 'toggle:open', 'input', 'change', 'input', 'change', 'toggle:closed'],
+    'platform order: input then change, one pair per commit; toggles bookend, vetoed transitions are silent'
+  );
   element.remove();
 });
 
