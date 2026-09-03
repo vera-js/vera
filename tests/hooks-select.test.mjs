@@ -218,3 +218,43 @@ test('AUDIT — the highlight clears when the pointer leaves the list; travel re
   select.activate(select.state.active);
   assert.equal(select.state.value.length, 0, 'Enter with no highlighted row picks nothing');
 });
+
+test('AUDIT — Space selects the active option like Enter; warm typeahead keeps it a character', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.setOptions(OPTIONS);
+  select.open();
+  const space = new dom.window.KeyboardEvent('keydown', { key: ' ', cancelable: true });
+  select.handlers.onTriggerKeydown(space);
+  assert.deepEqual(select.state.value.map((option) => option.value), ['a'], 'Space picked the active row');
+  assert.equal(space.defaultPrevented, true, 'and the page did not scroll');
+  assert.equal(select.state.open, false, 'single mode closes on pick');
+
+  select.open();
+  select.handlers.onTriggerKeydown(new dom.window.KeyboardEvent('keydown', { key: 'b', cancelable: true }));
+  const typedSpace = new dom.window.KeyboardEvent('keydown', { key: ' ', cancelable: true });
+  select.handlers.onTriggerKeydown(typedSpace);
+  assert.deepEqual(select.state.value.map((option) => option.value), ['a'], 'mid-typeahead Space picked nothing');
+  assert.equal(select.state.open, true, 'and closed nothing — it joined the type buffer');
+});
+
+test('AUDIT — Space inside the search input types; Space with no active row only guards the page', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.setOptions(OPTIONS);
+  select.open();
+  const input = dom.window.document.createElement('input');
+  dom.window.document.body.append(input);
+  const typing = new dom.window.KeyboardEvent('keydown', { key: ' ', cancelable: true, bubbles: true });
+  Object.defineProperty(typing, 'target', { value: input });
+  select.handlers.onMenuKeydown(typing);
+  assert.equal(typing.defaultPrevented, false, 'the search keeps its space character');
+  assert.deepEqual(select.state.value, [], 'and nothing was picked');
+  input.remove();
+
+  select.handlers.onListLeave();
+  const idle = new dom.window.KeyboardEvent('keydown', { key: ' ', cancelable: true });
+  select.handlers.onMenuKeydown(idle);
+  assert.equal(idle.defaultPrevented, true, 'no active row: still consumed, so the page never scrolls');
+  assert.deepEqual(select.state.value, [], 'and nothing was picked');
+});

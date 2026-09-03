@@ -166,6 +166,9 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
    */
   let typed = '';
   let typedAt = 0;
+  /** A warm buffer means the user is mid-typeahead — Space is then a CHARACTER ("New York"),
+   *  exactly the native <select> rule; cold, it acts (open closed, select open). */
+  const typedWarm = () => typed !== '' && Date.now() - typedAt < 500;
   const typeahead = (character: string) => {
     const now = Date.now();
     typed = (now - typedAt < 500 ? typed : '') + character.toLowerCase();
@@ -190,7 +193,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
       pick(state.value[state.value.length - 1]);
       return;
     }
-    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && (event.key !== ' ' || typedWarm())) {
       event.preventDefault();
       typeahead(event.key);
       return;
@@ -206,9 +209,20 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     }
   };
 
-  /** One keydown for the open menu — arrows, Enter, Tab. Escape belongs to `useDismiss`. */
+  /** Space must keep typing where text is being typed — the search input, or anything editable. */
+  const typesText = (event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    return target != null && (target.localName === 'input' || target.localName === 'textarea' || target.isContentEditable === true);
+  };
+
+  /** One keydown for the open menu — arrows, Enter, Space, Tab. Escape belongs to `useDismiss`. */
   const onMenuKeydown = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    if (event.key === ' ' && !typesText(event)) {
+      /** Space selects like click and Enter — ARIA and native parity. Always consumed while the
+       *  menu is open (even with no active row), or the browser scrolls the page underneath it. */
+      event.preventDefault();
+      activate(state.active);
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       step(event.key === 'ArrowDown' ? 1 : -1);
     } else if (event.key === 'Home' || event.key === 'End') {
