@@ -477,8 +477,18 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
 export const slotted = (host: Element, name = ''): Node[] => {
   const state = HOSTS.get(host);
   if (state !== undefined) return [...(state._map.get(name) ?? [])];
-  const root = host.shadowRoot;
-  if (root !== null) {
+  /**
+   * **`_root` before `shadowRoot`, because a CLOSED root is not reachable through `shadowRoot`** —
+   * it is null there, and reading only that made this return `[]` for a closed component: a silent
+   * wrong answer from an accessor documented as answering in either mode. Core keeps the root it
+   * attached, in both modes, and exempts `_root` from property mangling precisely so other bundles
+   * can read it; `@verajs/styles` already does, for this same reason.
+   *
+   * Written as a QUOTED access because this bundle mangles `_[a-z]` properties and core's does not
+   * mangle this one — `keep_quoted` is what keeps the two spellings the same name in production.
+   */
+  const root = (host as unknown as Record<string, ShadowRoot | null | undefined>)['_root'] ?? host.shadowRoot;
+  if (root != null) {
     /**
      * Matched by READING each slot's name, never by interpolating one into a selector: a name
      * carrying a quote made `slot[name="…"]` an invalid selector and threw a DOMException out of

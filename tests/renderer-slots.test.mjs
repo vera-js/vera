@@ -21,7 +21,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire, html } = await load('core');
+const { wire, html, init, render } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { slots, slotted } = await load('renderer/slots');
 wire([renderer, slots]);
@@ -446,5 +446,40 @@ test('children appended AFTER the first render need to name their slot', async (
   element.append(carrier);
   await settle();
   assert.equal(element.querySelector('main').textContent, 'explicit', '`slot=""` reaches the default slot');
+  element.remove();
+});
+
+/**
+ * **`slotted()` against a CLOSED shadow root.** `element.shadowRoot` is null there, so reading only
+ * that returned `[]` — a silent wrong answer from an accessor documented as answering in either
+ * mode, and the same shape as a bug core's own `init` comment records ("read `element.shadowRoot`,
+ * found null, and fell back"). Core keeps the root it attached in both modes and exempts `_root`
+ * from mangling so other bundles can read it; `@verajs/styles` already does, for this reason.
+ *
+ * Runs in production too, which is the half that matters: this bundle mangles `_[a-z]` properties
+ * and core's does not mangle that one, so the access has to be QUOTED to survive as the same name.
+ */
+test('slotted() reads a CLOSED shadow root, not just an open one', async () => {
+  const tag = `closed-slot-${Math.random().toString(36).slice(2, 8)}`;
+  customElements.define(
+    tag,
+    class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this, { mode: 'closed' });
+        render(() => html`<header><slot name="h">fallback</slot></header>`);
+      }
+    }
+  );
+  const element = doc.createElement(tag);
+  const supplied = doc.createElement('b');
+  supplied.setAttribute('slot', 'h');
+  supplied.textContent = 'CLOSED';
+  element.append(supplied);
+  doc.body.append(element);
+  await settle();
+
+  assert.equal(element.shadowRoot, null, 'CONTROL: a closed root really is unreachable that way');
+  assert.deepEqual(slotted(element, 'h'), [supplied], 'and slotted() finds the assignment anyway');
+  assert.deepEqual(slotted(element), [], 'a slot that does not exist still answers empty');
   element.remove();
 });
