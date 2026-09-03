@@ -3,7 +3,10 @@
  *
  * A `<slot>` in a LIGHT render needs `@verajs/renderer/slots` wired, and wired BEFORE anything
  * renders. Miss either and the picture is identical and baffling: the slot shows its fallback while
- * the host's own children sit beside the component as stray markup, with nothing said.
+ * any content the host was given for it sits beside the component as stray markup, with nothing
+ * said. The conditional phrasing is load-bearing — a component that consumes its own children and
+ * also declares slots (`@verajs/ui`'s select) warns with nothing stray on the page at all, and the
+ * message must not send that reader hunting for markup that is not there.
  *
  * 1. Never wired at all.
  * 2. Wired AFTER a template first rendered. Templates are interned per call site for the life of the

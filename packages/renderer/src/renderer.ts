@@ -417,8 +417,8 @@ const warnSlotless = (root: Element) => {
   warnedSlotless.add(tag);
   console.warn(
     `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but no 'slot' insert is wired — ` +
-      `nothing distributes it, so it shows its fallback while the host's own children sit beside the ` +
-      `component as stray markup. Wire it at the app entry, BEFORE anything renders: ` +
+      `nothing can fill it, so it always shows its fallback, and any content the host is given for ` +
+      `it sits beside the component as stray markup instead. Wire it at the app entry, BEFORE anything renders: ` +
       `\`import { slots } from '@verajs/renderer/slots'; wire([renderer, slots])\`. Wiring it later ` +
       `does not help a template that has already rendered — a template resolves this once, at ` +
       `construction, and is interned per call site for the life of the page.`
@@ -1117,8 +1117,16 @@ class Instance {
     if (__DEV__ && template._slotless === true && _slotRoot !== null && _slotRoot.nodeType === 1) {
       /**
        * **A `<slot>` in a LIGHT render that nothing will distribute.** Both ways of arriving here
-       * are silent otherwise, and both leave the same confusing picture: the slot shows its
-       * fallback while the user's content sits beside the component as stray markup.
+       * are silent otherwise, and both leave the same confusing picture. Measured, for a host given
+       * `<b slot="a">MINE</b>`:
+       *
+       *     <b slot="a">MINE</b><!----><div class="box"><slot name="a">FB</slot></div>
+       *
+       * — the content is not destroyed, it is stranded ahead of the render while the slot shows its
+       * fallback. The message says "any content the host is given" rather than asserting the host
+       * HAS some: a component that consumes its own children before rendering and also declares
+       * slots — `@verajs/ui`'s select is one — warns with nothing stray on the page, and a reader
+       * sent looking for markup that is not there concludes the diagnostic is confused.
        *
        * 1. `@verajs/renderer/slots` was never wired at all.
        * 2. It was wired AFTER this template first rendered. Templates are interned per call site

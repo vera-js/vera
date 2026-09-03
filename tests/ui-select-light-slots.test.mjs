@@ -84,6 +84,54 @@ test('the SAME markup in SHADOW mode also works (native slots) — one component
 });
 
 /**
+ * **Same behaviour is not the same PLACE.** The test above proves the slotted trigger is wired in
+ * both modes — role stamped, click opens the menu — and every one of those assertions would still
+ * pass if light mode distributed the node to the wrong position entirely, because none of them
+ * looks at where it ended up. A trigger that works but renders in the wrong part of the component
+ * is a defect nothing else here can see.
+ *
+ * The oracle is the platform: in shadow mode the trigger's `<slot>` sits at the top level of the
+ * shadow root (`parentElement` is null — a DocumentFragment is not an element), so the light-mode
+ * equivalent is a direct child of the host. Depth from the render root is the comparable quantity,
+ * and asserting it against the shadow answer rather than against a hard-coded `0` means the day
+ * the component nests its trigger, this test follows it instead of failing.
+ */
+test('the slotted trigger lands at the same DEPTH in both modes, measured against the platform', async () => {
+  /** Depth of a node below the render root — the host in light mode, the shadow root in shadow. */
+  const depthBelow = (node, root) => {
+    let depth = 0;
+    for (let parent = node.parentNode; parent !== null && parent !== root; parent = parent.parentNode) depth++;
+    return depth;
+  };
+  const build = async (light) => {
+    const el = dom.window.document.createElement('vera-select');
+    if (light) el.setAttribute('light', '');
+    el.setAttribute('aria-label', 'Flavor');
+    const trigger = dom.window.document.createElement('button');
+    trigger.setAttribute('slot', 'trigger');
+    el.append(trigger);
+    dom.window.document.body.append(el);
+    el.options = OPTS;
+    await frame();
+    return { el, trigger };
+  };
+
+  const shadow = await build(false);
+  const nativeSlot = shadow.trigger.assignedSlot;
+  assert.ok(nativeSlot, 'CONTROL: the platform assigned it, so there is an oracle to compare against');
+  /** The slot stands where the content renders, so the slot's depth IS the content's depth. */
+  const want = depthBelow(nativeSlot, shadow.el.shadowRoot);
+
+  const light = await build(true);
+  assert.deepEqual(slotted(light.el, 'trigger'), [light.trigger], 'CONTROL: light mode assigned it too');
+  assert.equal(depthBelow(light.trigger, light.el), want,
+    'light distribution put the trigger somewhere the platform would not have');
+
+  shadow.el.remove();
+  light.el.remove();
+});
+
+/**
  * **Replacing a slotted trigger, live, in LIGHT mode.** This is the case the component could not
  * handle here until `<slot>` bindings started working in light DOM: `vera-select` keeps itself in
  * step through `@slotchange` on each of its slots, which fired only in shadow mode, so a light-mode

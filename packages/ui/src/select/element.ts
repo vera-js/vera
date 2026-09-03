@@ -9,8 +9,12 @@
  *
  * Modes: shadow root by default; the `light` attribute (read at connect — a root cannot be
  * un-attached) renders the same template into the element, where the same stylesheet is hoisted
- * per tag by `@verajs/styles`. Slots in light DOM are inert wrappers that display their fallback,
- * so the template is identical in both.
+ * per tag by `@verajs/styles`. The template is identical in both, and what its slots DO in light
+ * mode depends on the consumer: with `@verajs/renderer/slots` wired they distribute, verified
+ * against the shadow mode's own assignment as the oracle — a `slot="trigger"` button lands in the
+ * same position either way. Without it they are inert wrappers showing their fallback, and the
+ * renderer says so once per tag in development. Both are supported; only the second was true when
+ * this component was written.
  *
  * The accessible name is resolved from the host's `aria-label`, else from an associated
  * `<label for>` through `ElementInternals.labels` — reflected onto the trigger, because the
