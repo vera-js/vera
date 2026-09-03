@@ -17,7 +17,7 @@ for (const key of ['window','document','HTMLElement','customElements','CSSStyleS
 const { wire } = await load('core');
 const { renderer } = await load('renderer');
 const { styles } = await load('styles');
-const { slots } = await load('renderer/slots');
+const { slots, slotted } = await load('renderer/slots');
 wire([renderer, styles, slots]); // the app opts into light-DOM slots
 
 await load('ui');
@@ -193,4 +193,47 @@ test('light: two selects on a page keep their ARIA pointing at their own parts',
           `${attribute}="${id}" resolves to another component's element — the reader is sent elsewhere`);
       }
   for (const el of made) el.remove();
+});
+
+/**
+ * **HTML-authored options AND a slotted trigger, together.** Both are supported, and in light mode
+ * they collided: seeding options from `<option>` children cleared the host wholesale, which took
+ * the slotted trigger with it. The same markup worked in shadow mode, so the component looked
+ * correct anywhere anyone was likely to test it.
+ *
+ * Only the nodes the parse actually claimed are removed now. The comparison is the point — identical
+ * markup, both modes, same result.
+ */
+test('light: authored options do not eat a slotted trigger', async () => {
+  const readings = {};
+  for (const mode of ['light', 'shadow']) {
+    const el = dom.window.document.createElement('vera-select');
+    if (mode === 'light') el.setAttribute('light', '');
+    el.setAttribute('aria-label', 'Flavor');
+    el.innerHTML =
+      '<option value="a">Alpha</option><option value="b" selected>Beta</option>' +
+      '<button slot="trigger" class="mine">MY TRIGGER</button>';
+    dom.window.document.body.append(el);
+    await frame();
+    await frame();
+
+    const trigger = el.querySelector('button.mine');
+    readings[mode] = {
+      options: el.options.length,
+      seeded: el.value?.value ?? el.value,
+      triggerKept: trigger !== null,
+      triggerWired: trigger?.getAttribute('role') ?? null,
+      slotted: slotted(el, 'trigger').length,
+      /** The authored <option>s must NOT be left showing as stray text. */
+      strayOptions: el.querySelectorAll('option').length,
+    };
+    el.remove();
+  }
+
+  assert.equal(readings.shadow.triggerKept, true, 'CONTROL: shadow mode keeps the slotted trigger');
+  assert.equal(readings.light.triggerKept, true, 'and light mode must not eat it');
+  assert.equal(readings.light.triggerWired, 'combobox', 'the slotted trigger is wired, not merely present');
+  assert.equal(readings.light.slotted, 1, 'and it is in the capture map');
+  assert.equal(readings.light.options, 2, 'while the authored options still seeded the list');
+  assert.equal(readings.light.strayOptions, 0, 'and were consumed, not left as stray visible text');
 });

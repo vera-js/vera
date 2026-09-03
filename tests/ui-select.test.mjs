@@ -1035,3 +1035,45 @@ test('AUDIT — value set BEFORE options resolves its label once options arrive'
   assert.match(part(element, 'value').textContent, /Beta/, 'and the trigger shows it');
   element.remove();
 });
+
+/**
+ * **The combination that used to spin forever**, in the DEFAULT shadow mode: HTML-authored options,
+ * one of them `selected`, and a slotted trigger. Each is supported and each is harmless alone.
+ *
+ * The options observer watched the host subtree with `attributes: true`, which includes the ARIA
+ * this component stamps onto a slotted trigger. Stamping woke the observer, the observer re-parsed
+ * and re-seeded from `selected`, re-seeding re-rendered, the render stamped again — an infinite
+ * SYNCHRONOUS loop inside one animation frame, so the page never painted again. Without `selected`
+ * the re-parse settled on an equal value and stopped, which is why two thirds of the combination
+ * looked fine.
+ *
+ * Written against a wall-clock DEADLINE rather than as a plain await, because the failure mode is a
+ * hang: a test that reproduces it must fail, not take the suite down with it.
+ */
+test('authored options + selected + a slotted trigger do not spin the render loop', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.setAttribute('aria-label', 'Flavor');
+  element.innerHTML =
+    '<option value="a">Alpha</option><option value="b" selected>Beta</option>' +
+    '<button slot="trigger">Pick</button>';
+  dom.window.document.body.append(element);
+
+  /** Frames must keep arriving. If the loop is back, none do and the deadline ends the test. */
+  const deadline = Date.now() + 2000;
+  let frames = 0;
+  while (frames < 6 && Date.now() < deadline) {
+    await new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
+    frames++;
+  }
+  assert.ok(frames >= 6, `the render loop stalled — only ${frames} frames in 2s, which is the spin`);
+
+  /** And it actually worked, so this is not passing on a component that failed to render. */
+  assert.equal(element.options.length, 2, 'CONTROL: the authored options seeded the list');
+  assert.equal(element.value?.value ?? element.value, 'b', 'CONTROL: `selected` seeded the value');
+  assert.equal(
+    element.querySelector('button')?.getAttribute('role'),
+    'combobox',
+    'CONTROL: the slotted trigger was wired'
+  );
+  element.remove();
+});

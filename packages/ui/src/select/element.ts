@@ -452,9 +452,14 @@ export class VeraSelect extends HTMLElement {
         /**
          * Light mode renders into the element but does not clear it — the authored options would
          * remain as stray visible text beside the real UI. Consume them explicitly: light-mode
-         * HTML authoring is one-shot by construction, so the subtree is ours from here.
+         * HTML authoring is one-shot by construction, so those nodes are ours from here.
+         *
+         * **Only the ones this parse claimed.** Clearing the host wholesale took everything else
+         * the user put there with it — a slotted trigger most of all — so authored options plus a
+         * slotted trigger worked in shadow mode and silently lost the trigger in light. Measured on
+         * identical markup in both modes, which is the comparison that makes it obvious.
          */
-        if (this.hasAttribute('light')) this.replaceChildren();
+        if (this.hasAttribute('light')) for (const node of parsed.consumed) node.remove();
       }
     }
     init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
@@ -580,7 +585,27 @@ export class VeraSelect extends HTMLElement {
           entry.defaults = parsed.selected;
         }
       });
-      observer.observe(this, { childList: true, subtree: true, attributes: true });
+      /**
+       * **Only the attributes a parse actually reads.** `attributes: true` watched the whole host
+       * subtree — which includes the ARIA this component stamps onto a SLOTTED trigger. Stamping
+       * woke the observer, the observer re-parsed and re-seeded, re-seeding re-rendered, the render
+       * stamped again: an infinite synchronous loop inside one frame, so the page never painted
+       * again.
+       *
+       * It needed all three of authored options, a `selected` among them, and a slotted trigger —
+       * each supported, each harmless alone, and the default shadow mode. Without `selected` the
+       * re-parse settled on an equal value and stopped; with it, every pass wrote fresh defaults.
+       *
+       * These are exactly the attributes `parse-options.ts` reads. A filter is the fix rather than
+       * an equality check on the result, because the loop should not start: nothing the component
+       * writes to its own assigned nodes is a reason to re-read the author's options.
+       */
+      observer.observe(this, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['selected', 'value', 'label', 'disabled', 'data-group', 'data-description', 'slot'],
+      });
       (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => observer.disconnect());
     }
     (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => {

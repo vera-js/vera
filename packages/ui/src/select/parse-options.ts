@@ -70,9 +70,16 @@ const optionFrom = (node: Element, group: string | null): SelectOption | null =>
  */
 export const parseLightOptions = (
   host: Element
-): { options: SelectOption[]; selected: SelectOption[] } | null => {
+): { options: SelectOption[]; selected: SelectOption[]; consumed: Element[] } | null => {
   const options: SelectOption[] = [];
   const selected: SelectOption[] = [];
+  /**
+   * The top-level children this parse actually claimed. Light mode removes them after seeding —
+   * authored options would otherwise sit as stray visible text beside the real UI — and it must
+   * remove ONLY these. Clearing the host wholesale destroyed everything else the user put there,
+   * a slotted trigger included, silently and only in light mode.
+   */
+  const consumed: Element[] = [];
   const take = (node: Element, group: string | null) => {
     const option = optionFrom(node, group);
     if (!option) return;
@@ -82,10 +89,14 @@ export const parseLightOptions = (
   for (const child of host.children) {
     if (child.localName === 'optgroup') {
       const group = child.getAttribute('label');
+      const before = options.length;
       for (const grandchild of child.children) take(grandchild, group);
+      if (options.length > before) consumed.push(child);
     } else {
+      const before = options.length;
       take(child, null);
+      if (options.length > before) consumed.push(child);
     }
   }
-  return options.length ? { options, selected } : null;
+  return options.length ? { options, selected, consumed } : null;
 };
