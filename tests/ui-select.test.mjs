@@ -978,3 +978,28 @@ test('AUDIT — a menu appearing under a PARKED cursor does not steal the keyboa
   assert.ok(rows[1].hasAttribute('data-active'), 'and arrows continue from it');
   element.remove();
 });
+
+test('AUDIT — a [slot="value"] nested INSIDE a slotted trigger is found and stamped', async () => {
+  /** Slot assignment reaches only direct host children, so the natural authoring shape
+   *  (<button slot="trigger"><span slot="value">…) never reaches <slot name="value"> — the
+   *  controller must find it in the slotted trigger's subtree. The demo card rendered its label
+   *  from this stamp and silently never updated (measured). */
+  const element = dom.window.document.createElement('vera-select');
+  const trigger = dom.window.document.createElement('button');
+  trigger.slot = 'trigger';
+  const valueNode = dom.window.document.createElement('span');
+  valueNode.setAttribute('slot', 'value');
+  valueNode.textContent = 'Pick…';
+  trigger.append(valueNode);
+  element.append(trigger);
+  dom.window.document.body.append(element);
+  element.options = OPTIONS;
+  await frame();
+  trigger.click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  assert.equal(valueNode.getAttribute('data-label'), 'Alpha', 'the nested value node is stamped');
+  assert.equal(valueNode.textContent, 'Pick…', 'and its children are untouched — you slot it, you own it');
+  element.remove();
+});

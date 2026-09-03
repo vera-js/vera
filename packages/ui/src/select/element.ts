@@ -572,9 +572,18 @@ export class VeraSelect extends HTMLElement {
         (root.querySelector?.(`slot[name="${name}"]`) as HTMLSlotElement | null)?.assignedElements()[0];
       const slottedTrigger = assignedTo('trigger');
       entry.slottedTrigger = slottedTrigger !== undefined;
+      /**
+       * A `[slot="value"]` may sit INSIDE a slotted trigger rather than as a direct host child —
+       * the natural authoring shape (`<button slot="trigger"><span slot="value">`). Slot
+       * assignment only reaches direct children, so the shadow `<slot name="value">` never gets
+       * it; find it in the slotted trigger's subtree so its data-label is still stamped (the demo
+       * card renders its label from exactly this, and it silently never updated — measured).
+       */
+      const slottedValue =
+        assignedTo('value') ?? (slottedTrigger?.querySelector?.('[slot="value"]') as Element | undefined) ?? undefined;
       select.attach({
         trigger: slottedTrigger,
-        value: assignedTo('value'),
+        value: slottedValue,
         search: assignedTo('search'),
         fallbackTrigger: root.querySelector?.('[part="trigger"]') ?? undefined,
       });
