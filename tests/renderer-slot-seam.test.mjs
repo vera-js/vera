@@ -37,10 +37,26 @@ const fakeSeam = (slot, root, name) => {
 };
 wire([renderer, { name: 'fake-slots', on: 'slot', fn: fakeSeam, priority: 50 }]);
 
-test('a template with no handler-era construction records nothing (cache is per-shape)', () => {
-  // Templates constructed BEFORE the handler wired would skip recording — this suite wires first,
-  // so use fresh shapes throughout; this test just documents the ordering contract.
-  assert.ok(true);
+test('the seam is resolved per TEMPLATE and cached — one consultation per shape, per instance', () => {
+  /**
+   * Replaces a placeholder that asserted `true` and measured nothing (the house rule: a probe that
+   * measures nothing reports perfect behaviour). What is actually contracted: the registry is read
+   * at template CONSTRUCTION, so a shape records its slots once and every later instance of that
+   * same shape reuses the record — consulting the handler once per slot per instance, never
+   * re-reading the registry. This is why wiring must precede the first render (documented in the
+   * module and at the seam).
+   */
+  const shape = (n) => html`<div><slot name="per-shape">${n}</slot></div>`;
+  const first = dom.window.document.createElement('div');
+  renderInto(shape(1), first);
+  assert.equal(calls.length, 1, 'first instance of the shape consults once');
+  const second = dom.window.document.createElement('div');
+  renderInto(shape(2), second);
+  assert.equal(calls.length, 2, 'a second INSTANCE consults again (its own cloned slot)');
+  assert.deepEqual(calls.map((c) => c.name), ['per-shape', 'per-shape']);
+  renderInto(shape(3), second);
+  assert.equal(calls.length, 2, 'but a re-render of the same instance does not');
+  calls.length = 0;
 });
 
 test('slots are discovered — including after the last expression and with no expressions at all', () => {

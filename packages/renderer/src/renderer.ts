@@ -511,6 +511,13 @@ class Template {
      * nodeType check is needed). Passes 1 and 2 above are byte-identical to their pre-seam
      * selves: an unwired app's construction path is untouched, and its only cost is this one
      * registry lookup per template construction.
+     *
+     * **Resolved per TEMPLATE, and templates are cached per call site for the life of the page** —
+     * so a shape first constructed before `wire([slots])` ran never gains slot support, silently.
+     * That is the ordinary insert contract (wire at the app entry, beside the renderer, before
+     * anything renders) and it is stated in the slots module's own docs; resolving per INSTANCE
+     * instead would move a registry lookup onto the hot path for every app, which is the trade
+     * this design refuses.
      */
     const seam = (registry?.get('slot') as SlotSeamFn[] | undefined)?.[0];
     if (seam !== undefined) {
@@ -518,11 +525,10 @@ class Template {
       let index = -1;
       while ((node = instanceWalker.nextNode()) !== null) {
         index++;
-        if ((node as Element).localName === 'slot')
-          (this._slots ??= ((this._seam = seam), [])).push({
-            _i: index,
-            _n: (node as Element).getAttribute('name') ?? '',
-          });
+        if ((node as Element).localName === 'slot') {
+          this._seam = seam;
+          (this._slots ??= []).push({ _i: index, _n: (node as Element).getAttribute('name') ?? '' });
+        }
       }
     }
   }

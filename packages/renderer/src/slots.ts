@@ -16,6 +16,12 @@
  * **Additive entry** (the `keyed`/`spread` family): imports nothing, reaches the renderer only
  * through the wired seam, safe alongside any renderer entry on a CDN page.
  *
+ * **Wire it at the app entry, before anything renders.** The renderer resolves this seam once per
+ * TEMPLATE, and templates are cached per call site for the life of the page — so a component that
+ * rendered before the wiring keeps a slotless template forever. That is the same contract every
+ * insert carries; the alternative (re-checking the registry per instance) would put a lookup on
+ * the hot path of every app, slots or not.
+ *
  * The semantics contract is the platform's own assignment algorithm: elements go to the slot
  * their `slot` attribute names, text nodes (whitespace included) to the default slot, comments
  * are never slottables (which also keeps the renderer's root marker out of capture), duplicate

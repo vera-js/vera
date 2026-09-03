@@ -73,3 +73,13 @@ test('AUDIT — unassigned slot content is PRESERVED in an inert template, never
     'the unassigned one is parked inert (native leaves unassigned light children in the DOM; dropping them lost content forever)');
   assert.doesNotMatch(html, /<main>[^<]*Survives/, 'and is not rendered anywhere');
 });
+
+/** Expression alignment around slots: an ASSIGNED slot's fallback is never rendered, so its own
+ *  expressions must be accounted without consuming the values that follow it. */
+const EXPR = new URL('./fixtures/ssr/slot-expr-ssr.js', import.meta.url);
+test('values align around a slot whose fallback holds an expression', async () => {
+  const assigned = (await renderToString(EXPR, { children: '<i slot="s">MINE</i>' })).html;
+  assert.match(assigned, /<x>A<\/x><s><i slot="s">MINE<\/i><\/s><y>C<\/y>/, 'fallback skipped, x and y still correct');
+  const unassigned = (await renderToString(EXPR, { children: '' })).html;
+  assert.match(unassigned, /<x>A<\/x><s>fb:B<\/s><y>C<\/y>/, 'fallback rendered with its own expression');
+});
