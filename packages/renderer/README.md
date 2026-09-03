@@ -347,6 +347,19 @@ If that bites, the fix is one attribute (`slot=""`), and the reliable way to avo
 is to let the definition load deferred (a plain `<script type="module" src>` is deferred already),
 so the element upgrades with its children in place.
 
+**Cloning a RENDERED light component does not work, and cannot.** `cloneNode(true)` copies a
+light host's children — which after a render are the component's own output with the user's slotted
+nodes already distributed into it. The clone then captures all of that as its slot content, so its
+rendered tree ends up nested inside its own default slot. A shadow component clones cleanly for the
+opposite reason: `cloneNode` does not copy a shadow root, so the clone re-renders and its light
+children are still just its light children.
+
+Nothing can detect this — the ambiguity is the same one behind the late-children rule above, and
+the original user content was consumed at the first render, so there is nothing to recover. **To
+duplicate a component, clone the SOURCE markup and let the copy render itself**, rather than cloning
+a live instance. This matters most to anything that duplicates components as an operation: an editor
+canvas, a repeater, a drag-to-copy.
+
 **`slotted(host, name?)`** is the component-internal accessor — what the user assigned to a slot,
 answered identically in shadow mode (native assignment) and light mode (the capture map). Omit
 `name` for the default slot. Component authors reach for this; app users do not.

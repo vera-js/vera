@@ -483,3 +483,32 @@ test('slotted() reads a CLOSED shadow root, not just an open one', async () => {
   assert.deepEqual(slotted(element), [], 'a slot that does not exist still answers empty');
   element.remove();
 });
+
+/**
+ * **A rendered light component cannot be cloned, and this pins why.** `cloneNode(true)` copies the
+ * host's children, which after a render are the component's own output with the user's slotted
+ * nodes already distributed into it — so the clone captures all of that as its own slot content.
+ * Nothing can tell those children apart from user content (the same ambiguity as the late-children
+ * rule), and the original source was consumed at the first render, so there is nothing to recover.
+ *
+ * Asserted as behaviour so the docs stay true, and because anything that duplicates components as
+ * an operation — an editor canvas, a repeater — has to clone the SOURCE markup instead.
+ */
+test('cloning a RENDERED host captures its own output — clone the source markup instead', async () => {
+  const element = host('<b slot="h">MINE</b>body');
+  renderInto(html`<header><slot name="h">fb</slot></header><main><slot>none</slot></main>`, element);
+  await settle();
+  assert.equal(element.querySelector('header').textContent, 'MINE', 'CONTROL: the original distributed');
+
+  const clone = element.cloneNode(true);
+  doc.body.append(clone);
+  renderInto(html`<header><slot name="h">fb</slot></header><main><slot>none</slot></main>`, clone);
+  await settle();
+
+  assert.equal(clone.querySelector('header').textContent, 'fb',
+    "the clone's named slot falls back — the user's node is no longer a direct child of it");
+  assert.ok(clone.querySelector('main header'),
+    "and the ORIGINAL's rendered tree is now inside the clone's default slot, which is the tell");
+  element.remove();
+  clone.remove();
+});
