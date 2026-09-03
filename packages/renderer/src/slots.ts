@@ -40,8 +40,15 @@
  * included; removals and `slot`-attribute changes of captured nodes are tracked everywhere in
  * the tree by identity, so they have no such restriction.)
  *
- * Every document/window touch derives from the nodes themselves (`ownerDocument`) — the pop-out
- * rule; nothing here reads a global.
+ * **Pop-out rule.** Every *document* touch derives from the node itself (`ownerDocument`), so a
+ * component rendered into a second window creates its nodes in that window's document.
+ *
+ * The one global read is `MutationObserver`, deliberately: an observer is not bound to the realm
+ * of the nodes it watches, so deriving the constructor from `ownerDocument.defaultView` would buy
+ * nothing and cost bytes on every capture. **Measured, not assumed** — `tests/browser/
+ * slots-realm.test.js` renders a host in a second same-origin document and asserts that live
+ * additions, `slot` changes and removals all reach their slots, on Chromium, Firefox and WebKit.
+ * Behaviour the platform decides is not settled under jsdom.
  */
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the

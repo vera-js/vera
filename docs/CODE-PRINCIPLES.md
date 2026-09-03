@@ -69,7 +69,20 @@ premise of VeraJS is that the platform is now good enough; act like it.
 - **Memory discipline is part of correctness here.** The store leans on `WeakRef`/`WeakMap` to avoid
   retaining detached elements. Anything holding an element reference must not defeat that.
 - **Do not leak the framework into the DOM.** The attribute conventions (`.prop`, `?bool`, `@event`,
-  `route`, `view`, `autoloader`) are the public contract; keep them documented and stable.
+  `route`, `view`, `autoloader`) are the public contract; keep them documented and stable. A marker
+  the framework writes for its own use is removed once it has been used — `data-vera-select` never
+  reaches the page, and `data-vera-slotted` is stripped the moment hydration adopts the nodes it
+  delimits.
+- **Derive `document` and `window` from the node, never from the module global.** An element can
+  live in a document that is not the one your code was loaded into — a popped-out window, an
+  iframe, a portal — and it is the element that knows which. `node.ownerDocument`, and
+  `node.ownerDocument.defaultView ?? window` for the view (the global as a fallback only, for a
+  detached node). This is why it matters: listeners attach to the wrong window, `matchMedia`,
+  `getComputedStyle` and `requestAnimationFrame` run on the wrong timeline, layers portal into the
+  wrong DOM, and measurements read the wrong viewport — none of which fails loudly. Where a global
+  IS the right answer, say why, and measure it: an observer is not bound to the realm of the nodes
+  it watches, so `@verajs/renderer/slots` constructs one from the global deliberately, with a
+  browser test on three engines standing behind the claim.
 - **Accessibility is not a follow-up:** keyboard path, focus management, and ARIA land in the *same*
   pass as any interaction. Never ship a mouse-only feature — including in examples, which people copy.
 
