@@ -43,6 +43,7 @@ const ENTRY = {
   'reactivity/computed': ['reactivity', 'vera-reactivity-computed'],
   reactivity: ['reactivity', 'vera-reactivity'],
   'renderer/keyed': ['renderer', 'vera-renderer-keyed'],
+  'renderer/slots': ['renderer', 'vera-renderer-slots'],
   'renderer/spread': ['renderer', 'vera-renderer-spread'],
   'renderer/tag': ['renderer', 'vera-renderer-tag'],
   styles: ['styles', 'vera-styles'],

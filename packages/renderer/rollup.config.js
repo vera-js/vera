@@ -63,6 +63,12 @@ export default [
   defaultRollupConfig(`${pkg.filename}-keyed`, [], /^_[a-z]/, { input: 'src/keyed.ts' }),
   /** Additive for the same reason, and it inlines `spread` because it builds on that protocol. */
   defaultRollupConfig(`${pkg.filename}-tag`, [], /^_[a-z]/, { input: 'src/tag.ts' }),
+  /**
+   * Additive: imports nothing; the renderer reaches IT through the wired 'slot' insert, and its
+   * only cross-bundle surface is the sigiled `_$park$` on the states it returns — mangle-exempt
+   * by the same `$` rule as the others.
+   */
+  defaultRollupConfig(`${pkg.filename}-slots`, [], /^_[a-z]/, { input: 'src/slots.ts' }),
   ...(isProduction
     ? []
     : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),

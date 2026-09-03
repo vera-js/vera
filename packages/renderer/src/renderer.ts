@@ -1022,15 +1022,24 @@ class Instance {
     const seam = template._seam;
     if (seam !== undefined && _slotRoot !== null) {
       const slotRecords = template._slots!;
+      /**
+       * RESOLVE every slot element to its clone in ONE walk, THEN hand them to the seam — because
+       * the seam MUTATES the fragment (it lifts each `<slot>` out and drops in anchors), and a
+       * walk that interleaved resolution with those mutations would read shifted indices and miss
+       * later slots. Collect-then-act.
+       */
       instanceWalker.currentNode = this._fragment;
       nodeIndex = -1;
+      const slotNodes: Element[] = [];
       for (let i = 0; i < slotRecords.length; i++) {
-        const record = slotRecords[i];
-        while (nodeIndex < record._i) {
+        while (nodeIndex < slotRecords[i]._i) {
           node = instanceWalker.nextNode();
           nodeIndex++;
         }
-        const state = seam(node as Element, _slotRoot, record._n);
+        slotNodes.push(node as Element);
+      }
+      for (let i = 0; i < slotRecords.length; i++) {
+        const state = seam(slotNodes[i], _slotRoot, slotRecords[i]._n);
         if (state != null) {
           (this._slotStates ??= []).push(state);
           notifyOnRemoval = true;
@@ -1707,6 +1716,19 @@ export const renderInto = (result: unknown, container: Node) => {
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) {
+    /**
+     * FIRST render into this container. If it is a light element host and a 'slot' insert is
+     * wired, capture its children NOW — so slot content provided before its (possibly
+     * conditional) `<slot>` mounts is held rather than left visible in the host, matching native
+     * "unassigned light children do not render". Once per container lifetime; shadow roots
+     * (nodeType 11) and fragments are excluded.
+     */
+    if (container.nodeType === 1 && registry !== null) {
+      const seam = (registry.get('slot') as SlotSeamFn[] | undefined)?.[0] as
+        | (SlotSeamFn & { _$capture$?: (host: Element) => void })
+        | undefined;
+      seam?._$capture$?.(container as Element);
+    }
     const marker = comment();
     container.appendChild(marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));

@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->3.96 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.00 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -260,6 +260,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/keyed` | `keyed(key, result)` — keyed list reconciliation | yes |
 | `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
 | `@verajs/renderer/tag` | `` tag`h1` `` — an element whose tag name is decided at runtime | yes |
+| `@verajs/renderer/slots` | `slots` (wire it) + `slotted(host, name?)` — light-DOM `<slot>` distribution | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
 `/hydrate` and `/profiler` each re-export the whole public API, so they are drop-in replacements for
@@ -271,6 +272,41 @@ each bundle their own renderer with its own instrumentation hook, so profiling w
 through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
 frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
 zero report is otherwise indistinguishable from an app with nothing to optimise.
+
+## `@verajs/renderer/slots` — light-DOM slots
+
+Native `<slot>` needs a shadow root. This entry teaches the renderer to distribute a light-DOM
+component's own children into the `<slot name="…">` positions of its template, so **one component
+works in both modes** — users write `<div slot="title">` exactly as they would against shadow DOM.
+
+```js
+import { renderer } from '@verajs/renderer';
+import { slots } from '@verajs/renderer/slots';
+wire([renderer, slots]);
+```
+
+```html
+<my-card>
+  <h2 slot="header">Hello</h2>
+  Body text goes to the default slot.
+</my-card>
+```
+
+`slots` is the insert descriptor you wire; that is all a consumer touches. The assignment follows
+the platform's own rules — elements to the slot their `slot` attribute names, text to the default
+slot, fallback shown only while a slot is unassigned and restored when it empties, direct children
+only. Live: appending, removing, or re-slotting children redistributes automatically (one documented
+divergence — a child *added after first render* joins only if it carries a `slot` attribute, since a
+light host cannot tell a user's late addition from the component's own DOM; `slot=""` reaches the
+default slot). Re-renders leave slotted nodes in place, identity intact, so focus and input values
+survive; SSR emits already-distributed markup and hydration adopts it.
+
+**`slotted(host, name?)`** is the component-internal accessor — what the user assigned to a slot,
+answered identically in shadow mode (native assignment) and light mode (the capture map). Omit
+`name` for the default slot. Component authors reach for this; app users do not.
+
+Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
+seam, so it is safe beside any renderer entry on a CDN page.
 
 ## `@verajs/renderer/hydrate`
 
