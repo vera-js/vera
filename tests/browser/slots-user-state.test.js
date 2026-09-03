@@ -81,3 +81,48 @@ it('fallback returns when the last assigned node leaves, and goes again when it 
   expect(slotted(host, 'head')).to.deep.equal([node], 'the capture map agrees');
   host.remove();
 });
+
+/**
+ * **Slotted content takes its place in the FLATTENED tree, not in the order the user wrote it.**
+ * The author here writes SECOND before FIRST and the template renders those slots the other way
+ * round, so the two orders disagree — which is the only arrangement that can tell them apart.
+ *
+ * Measured as layout position, because that is the engine's own answer to "what is the flattened
+ * order", and it is what sequential focus navigation then follows. Asserted against a real shadow
+ * root on the same page rather than against a description of one.
+ *
+ * (`compareDocumentPosition` is the wrong instrument and was the first thing tried: in shadow mode
+ * the buttons never leave the host's light DOM, so the DOM tree still reports the author's order
+ * while the page renders the other one. The CONTROL caught it.)
+ */
+it('places slotted content in the flattened order, as native shadow slotting does', async () => {
+  const markup = '<button slot="second">SECOND</button><button slot="first">FIRST</button>';
+  const order = {};
+
+  for (const mode of ['shadow', 'light']) {
+    const host = document.createElement('div');
+    host.innerHTML = markup;
+    document.body.appendChild(host);
+    if (mode === 'shadow') {
+      host.attachShadow({ mode: 'open' }).innerHTML =
+        '<nav><slot name="first"></slot></nav><aside><slot name="second"></slot></aside>';
+    } else {
+      renderInto(html`<nav><slot name="first"></slot></nav><aside><slot name="second"></slot></aside>`, host);
+    }
+    await settle();
+
+    const buttons = [...host.querySelectorAll('button')];
+    expect(buttons.length).to.equal(2, `CONTROL: both buttons present in ${mode} mode`);
+    const tops = buttons.map((button) => button.getBoundingClientRect().top);
+    expect(new Set(tops).size).to.equal(2, `CONTROL: the two ${mode} buttons occupy different rows, or this measures nothing`);
+    order[mode] = buttons
+      .slice()
+      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+      .map((button) => button.textContent);
+    host.remove();
+  }
+
+  expect(order.shadow).to.deep.equal(['FIRST', 'SECOND'],
+    'CONTROL: the platform lays out by slot position, not by the order the author wrote');
+  expect(order.light).to.deep.equal(order.shadow, 'and light distribution matches it');
+});
