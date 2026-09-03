@@ -16,7 +16,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', {
 for (const key of [
   'window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element',
   'DocumentFragment', 'requestAnimationFrame', 'cancelAnimationFrame', 'Event', 'CustomEvent',
-  'KeyboardEvent', 'FormData',
+  'KeyboardEvent', 'FormData', 'MutationObserver',
 ]) {
   globalThis[key] = dom.window[key];
 }
@@ -385,6 +385,115 @@ test('required reflects aria-required on the trigger', async () => {
   await frame();
   const after = part(element, 'trigger').getAttribute('aria-required');
   assert.ok(after === null || after === '', 'and releases it');
+  element.remove();
+});
+
+test('HTML-authored options: option/optgroup parse, selected seeds value AND reset-to-defaults', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.innerHTML = `
+    <optgroup label="Classics">
+      <option value="vanilla" selected>Vanilla</option>
+      <option value="chocolate" data-description="the safe pick">Chocolate</option>
+    </optgroup>
+    <option disabled>Durian</option>
+  `;
+  dom.window.document.body.append(element);
+  await frame();
+
+  assert.deepEqual(
+    element.options.map((o) => [o.value, o.label, o.group ?? null, o.disabled ?? false]),
+    [
+      ['vanilla', 'Vanilla', 'Classics', false],
+      ['chocolate', 'Chocolate', 'Classics', false],
+      ['Durian', 'Durian', null, true],
+    ],
+    'a value-less option falls back to its text; optgroup label becomes the group'
+  );
+  assert.equal(element.options[1].description, 'the safe pick');
+  assert.deepEqual(element.value.map((o) => o.value), ['vanilla'], 'selected seeded the value');
+
+  part(element, 'trigger').click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[1].click();
+  await frame();
+  assert.deepEqual(element.value.map((o) => o.value), ['chocolate']);
+  element.formResetCallback();
+  assert.deepEqual(element.value.map((o) => o.value), ['vanilla'], 'reset restores DEFAULTS, not emptiness');
+  element.remove();
+});
+
+test('vera-option: rich rows — icon cloned in (light DOM untouched), description, label, value fallback', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.innerHTML = `
+    <vera-option value="pistachio">
+      <svg slot="icon" data-mark="nut"></svg>
+      Pistachio
+      <span slot="description">polarizing, correctly</span>
+    </vera-option>
+  `;
+  dom.window.document.body.append(element);
+  await frame();
+  part(element, 'trigger').click();
+  await frame();
+
+  const [option] = element.options;
+  assert.equal(option.value, 'pistachio');
+  assert.equal(option.label, 'Pistachio', 'label is the unslotted text, trimmed');
+  assert.equal(option.description, 'polarizing, correctly');
+
+  const icon = root(element).querySelector('[part="option-icon"]');
+  assert.equal(icon.getAttribute('aria-hidden'), 'true');
+  assert.ok(icon.querySelector('svg[data-mark="nut"]'), 'the authored svg reached the row');
+  assert.ok(element.querySelector('vera-option svg[data-mark="nut"]'), 'as a CLONE — the source markup keeps its node');
+  assert.match(root(element).querySelector('[part="option"]').textContent, /polarizing/);
+  element.remove();
+});
+
+test('precedence: HTML seeds, property wins — and permanently retires the markup as source', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.innerHTML = '<option value="from-html">From HTML</option>';
+  dom.window.document.body.append(element);
+  await frame();
+  assert.deepEqual(element.options.map((o) => o.value), ['from-html']);
+
+  element.options = OPTIONS;
+  await frame();
+  assert.deepEqual(element.options.map((o) => o.value), ['a', 'b', 'g'], 'the property replaced the markup');
+
+  element.insertAdjacentHTML('beforeend', '<option value="late">Late</option>');
+  await frame();
+  await frame();
+  assert.deepEqual(element.options.map((o) => o.value), ['a', 'b', 'g'], 'markup mutations no longer apply');
+  element.remove();
+});
+
+test('markup stays live in shadow mode: added options appear, selected edits move the defaults', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.innerHTML = '<option value="one" selected>One</option>';
+  dom.window.document.body.append(element);
+  await frame();
+
+  element.insertAdjacentHTML('beforeend', '<option value="two">Two</option>');
+  await frame();
+  await frame();
+  assert.deepEqual(element.options.map((o) => o.value), ['one', 'two'], 'the observer saw the new option');
+
+  element.querySelector('option[value="two"]').setAttribute('selected', '');
+  await frame();
+  await frame();
+  element.formResetCallback();
+  assert.deepEqual(element.value.map((o) => o.value), ['one', 'two'], 'defaults track the markup');
+  element.remove();
+});
+
+test('light mode: children seed the options and are consumed by the first render — one-shot, documented', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.setAttribute('light', '');
+  element.innerHTML = '<option value="lit">Lit</option>';
+  dom.window.document.body.append(element);
+  await frame();
+  assert.deepEqual(element.options.map((o) => o.value), ['lit'], 'parsed before render consumed them');
+  assert.equal(element.querySelector('option'), null, 'the light render owns the subtree now');
   element.remove();
 });
 

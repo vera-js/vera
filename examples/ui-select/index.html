@@ -125,6 +125,23 @@
       </section>
 
       <section>
+        <h2>HTML-authored (zero JS)</h2>
+        <p>This card has <em>no script wiring at all</em> — the options are light-DOM
+           <code>&lt;option&gt;</code>/<code>&lt;optgroup&gt;</code>/<code>&lt;vera-option&gt;</code> markup,
+           <code>selected</code> seeds the value and the reset default. View source.</p>
+        <vera-select placeholder="Authored in HTML…" aria-label="HTML authored">
+          <optgroup label="Classics">
+            <option value="vanilla" selected>Vanilla</option>
+            <option value="chocolate" data-description="the safe pick">Chocolate</option>
+          </optgroup>
+          <vera-option value="pistachio">
+            <span slot="icon">🥜</span> Pistachio
+            <span slot="description">polarizing, correctly</span>
+          </vera-option>
+        </vera-select>
+      </section>
+
+      <section>
         <h2>Multi + search</h2>
         <p><code>multi searchable</code> — the menu stays open and toggles; typing filters; disabled rows are
            skipped. Search is opt-in: a plain select has no search line.</p>

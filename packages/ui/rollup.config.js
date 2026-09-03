@@ -17,12 +17,12 @@ import pkg from './package.json' with { type: 'json' };
 const external = ['@verajs/core', '@verajs/hooks', '@verajs/renderer/spread'];
 
 /**
- * `_root` is exempt from mangling: it is core's structural contract for reaching a (possibly
+ * `_root` and `_cleanups` are exempt from mangling: it is core's structural contract for reaching a (possibly
  * closed) shadow root on the live element — the same exemption core's own regex carries, held by
  * `tests/core-structural-contracts.test.mjs`. Mangled, the element read `this.<mangled>` while
  * core stored `_root`, and every root lookup fell back to the element — production build only.
  */
-const mangle = /^_(?!root$)[a-z]/;
+const mangle = /^_(?!root$|cleanups$)[a-z]/;
 
 export default [
   defaultRollupConfig(pkg.filename, external, mangle, { alwaysExternal: external }),

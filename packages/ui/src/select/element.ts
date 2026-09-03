@@ -26,6 +26,7 @@ import { createStore, html, init, render, useEffect } from '@verajs/core';
 import { spread } from '@verajs/renderer/spread';
 import { useSelect, type SelectOption } from '@verajs/hooks';
 import { SELECT_STYLES } from './styles.js';
+import { parseLightOptions } from './parse-options.js';
 
 type Internal = {
   select: ReturnType<typeof useSelect> | null;
@@ -41,6 +42,10 @@ type Internal = {
   host: { attrs: Record<string, string | null>; formDisabled: boolean };
   /** The debounce timer for the `filter` event. */
   timer: ReturnType<typeof setTimeout> | undefined;
+  /** True while the option list came from light-DOM markup — the mutation observer's gate. */
+  htmlSourced: boolean;
+  /** What `selected` attributes declared — form reset restores THIS, not emptiness. */
+  defaults: import('@verajs/hooks').SelectOption[];
 };
 
 const INTERNAL = new WeakMap<VeraSelect, Internal>();
@@ -61,6 +66,8 @@ const internal = (element: VeraSelect): Internal => {
       internals,
       host: createStore({ attrs: {} as Record<string, string | null>, formDisabled: false }),
       timer: undefined,
+      htmlSourced: false,
+      defaults: [],
     };
     INTERNAL.set(element, entry);
   }
@@ -137,6 +144,7 @@ export class VeraSelect extends HTMLElement {
   }
   set options(next: SelectOption[]) {
     const entry = internal(this);
+    entry.htmlSourced = false; // property wins; the markup stops being the source
     const options = Array.isArray(next) ? [...next] : [];
     if (entry.select) entry.select.state.options = options;
     else entry.pending.options = options;
@@ -164,7 +172,8 @@ export class VeraSelect extends HTMLElement {
   }
 
   formResetCallback() {
-    this.value = [];
+    /** Reset means DEFAULTS — what `selected` attributes declared — not emptiness (native parity). */
+    this.value = [...internal(this).defaults];
   }
 
   /** Fieldset-inherited and form-level disabling arrives here, not as an attribute. */
@@ -196,6 +205,29 @@ export class VeraSelect extends HTMLElement {
 
   connectedCallback() {
     for (const key of ['options', 'value']) upgradeProperty(this, key);
+    const entry0 = internal(this);
+    /**
+     * HTML seeds, property wins: light-DOM <option>/<optgroup>/<vera-option> children become the
+     * option list only when no property has provided one. `selected` seeds both the value and the
+     * reset defaults. Must run before init() — in light mode the first render consumes the
+     * children (one-shot authoring, fine for documents; shadow mode keeps them live).
+     */
+    if (!entry0.pending.options.length && !entry0.select?.state.options.length) {
+      const parsed = parseLightOptions(this);
+      if (parsed) {
+        entry0.pending.options = parsed.options;
+        entry0.htmlSourced = true;
+        entry0.defaults = parsed.selected;
+        if (!entry0.pending.value.length && !entry0.select?.state.value.length)
+          entry0.pending.value = [...parsed.selected];
+        /**
+         * Light mode renders into the element but does not clear it — the authored options would
+         * remain as stray visible text beside the real UI. Consume them explicitly: light-mode
+         * HTML authoring is one-shot by construction, so the subtree is ours from here.
+         */
+        if (this.hasAttribute('light')) this.replaceChildren();
+      }
+    }
     init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
     const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
     const entry = internal(this);
@@ -247,6 +279,25 @@ export class VeraSelect extends HTMLElement {
     select.state.options = entry.pending.options;
     select.state.value = entry.pending.value;
     reflectForm(this, select.state.value);
+
+    /**
+     * Markup stays live in shadow mode — but the observer exists ONLY for markup-sourced selects:
+     * a property-driven one (the common JS path) pays zero observer. htmlSourced also gates the
+     * callback, so a later property assignment retires an existing observer's effect; it is
+     * released for real through the _cleanups contract on disconnect.
+     */
+    if (entry.htmlSourced && typeof MutationObserver !== 'undefined' && !this.hasAttribute('light')) {
+      const observer = new MutationObserver(() => {
+        if (!entry.htmlSourced) return;
+        const parsed = parseLightOptions(this);
+        if (parsed) {
+          select.state.options = parsed.options;
+          entry.defaults = parsed.selected;
+        }
+      });
+      observer.observe(this, { childList: true, subtree: true, attributes: true });
+      (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => observer.disconnect());
+    }
     const { state, handlers } = select;
 
     /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land. */

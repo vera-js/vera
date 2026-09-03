@@ -216,6 +216,38 @@ it('required means valueMissing until a pick, and the form refuses to validate a
   form.remove();
 });
 
+it('HTML-authored options work end to end: parse, icon paints, real form.reset() restores defaults', async () => {
+  const form = document.createElement('form');
+  form.innerHTML = `
+    <vera-select name="flavor">
+      <optgroup label="Classics">
+        <option value="vanilla" selected>Vanilla</option>
+        <option value="chocolate">Chocolate</option>
+      </optgroup>
+      <vera-option value="pistachio"><svg slot="icon" width="10" height="10"></svg>Pistachio</vera-option>
+    </vera-select>`;
+  document.body.appendChild(form);
+  const element = form.querySelector('vera-select');
+  await frame();
+
+  expect(element.options.map((o) => o.value)).to.deep.equal(['vanilla', 'chocolate', 'pistachio']);
+  expect(new FormData(form).get('flavor')).to.equal('vanilla', 'selected seeded the submitted value');
+
+  element.shadowRoot.querySelector('[part="trigger"]').click();
+  await frame();
+  const icon = element.shadowRoot.querySelector('[part="option-icon"] svg');
+  expect(icon, 'the authored svg reached the shadow row').to.exist;
+  expect(icon.getBoundingClientRect().width).to.be.greaterThan(0, 'and paints');
+
+  element.shadowRoot.querySelectorAll('[part="option"]')[1].click();
+  await frame();
+  expect(new FormData(form).get('flavor')).to.equal('chocolate');
+  form.reset();
+  await frame();
+  expect(new FormData(form).get('flavor')).to.equal('vanilla', 'reset restores the selected default, not emptiness');
+  form.remove();
+});
+
 it('form association is real: the select submits like a control and resets with the form', async () => {
   const form = document.createElement('form');
   const element = document.createElement('vera-select');

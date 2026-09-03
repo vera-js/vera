@@ -10,7 +10,7 @@
 export const selectSurface = {
   tag: 'vera-select',
   description:
-    'A single/multi select. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated, searchable, creatable, remote-filterable.',
+    'A single/multi select. Options author in plain HTML (<option>/<optgroup>, <vera-option> for rows with markup; `selected` seeds value and reset default; HTML seeds, the property wins) or via the options property. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated, searchable, creatable, remote-filterable.',
   attributes: [
     { name: 'multi', description: 'Picking toggles membership and the menu stays open.' },
     { name: 'placeholder', description: 'Shown in the value area while nothing is selected.' },

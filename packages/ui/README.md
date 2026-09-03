@@ -11,6 +11,18 @@ Shadow DOM by default, light DOM by attribute, restylable without a fight.
 import '@verajs/ui';          // registers <vera-select>
 ```
 
+Buildless-first: options can be authored in plain HTML — `<option>`, `<optgroup>`, and
+`<vera-option>` for rows with markup (icons, rich descriptions), since `<option>`'s parser drops
+element children on engines without the customizable-select relaxation. `selected` seeds the
+value and the form-reset default. HTML seeds, the `.options` property wins.
+
+```html
+<vera-select name="flavor">
+  <optgroup label="Classics"><option value="vanilla" selected>Vanilla</option></optgroup>
+  <vera-option value="pistachio"><svg slot="icon">…</svg> Pistachio</vera-option>
+</vera-select>
+```
+
 ```js
 import { VeraSelect } from '@verajs/ui/elements';  // classes only — you control registration
 ```

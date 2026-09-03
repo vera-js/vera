@@ -11,7 +11,7 @@
           "customElement": true,
           "tagName": "vera-select",
           "name": "VeraSelect",
-          "description": "A single/multi select. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated, searchable, creatable, remote-filterable.",
+          "description": "A single/multi select. Options author in plain HTML (<option>/<optgroup>, <vera-option> for rows with markup; `selected` seeds value and reset default; HTML seeds, the property wins) or via the options property. Shadow DOM by default, `light` to opt out; supply your own trigger by slot or use the built-in one; form-associated, searchable, creatable, remote-filterable.",
           "attributes": [
             {
               "name": "multi",
