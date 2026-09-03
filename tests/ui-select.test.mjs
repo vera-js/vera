@@ -490,6 +490,7 @@ test('precedence: HTML seeds, property wins — and permanently retires the mark
 
 test('markup stays live in shadow mode: added options appear, selected edits move the defaults', async () => {
   const element = dom.window.document.createElement('vera-select');
+  element.setAttribute('multi', ''); // plural defaults are a multi concern; single truncates to one
   element.innerHTML = '<option value="one" selected>One</option>';
   dom.window.document.body.append(element);
   await frame();
@@ -833,7 +834,7 @@ test('input fires before change, once per commit; beforetoggle can veto; toggle 
 });
 
 test('formStateRestoreCallback rebuilds the selection — known values from options, unknown as placeholders', async () => {
-  const element = await mount();
+  const element = await mount((el) => el.setAttribute('multi', '')); // restoring plural is a multi concern
   element.formStateRestoreCallback(JSON.stringify(['b', 'ghost']));
   await frame();
   assert.deepEqual(element.selectedOptions.map((o) => [o.value, o.label]), [['b', 'Beta'], ['ghost', 'ghost']]);
