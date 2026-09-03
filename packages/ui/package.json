@@ -2,7 +2,7 @@
   "name": "@verajs/ui",
   "version": "0.0.0",
   "private": true,
-  "description": "VeraJS components: styled, accessible, form-associated custom elements over @verajs/hooks — shadow DOM by default, light by attribute, restylable without a fight.",
+  "description": "VeraJS components: styled, accessible, form-associated custom elements over @verajs/hooks \u2014 shadow DOM by default, light by attribute, restylable without a fight.",
   "license": "MIT",
   "engines": {
     "node": ">=20"
@@ -31,7 +31,8 @@
   },
   "peerDependencies": {
     "@verajs/core": ">=0.2.0",
-    "@verajs/hooks": ">=0.0.0"
+    "@verajs/hooks": ">=0.0.0",
+    "@verajs/renderer": ">=0.1.0"
   },
   "files": [
     "dist",

@@ -29,6 +29,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   let assigned: AssignedParts = {};
   const multi = () => config.multi?.() === true;
+  const disabled = () => config.disabled?.() === true;
 
   const matches = (): SelectOption[] => {
     /** Remote mode: the host narrowed `options` itself; filtering again would double-filter. */
@@ -52,19 +53,23 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   const close = (refocus = true) => {
     if (!state.open) return;
+    if (config.canToggle?.('closed') === false) return;
     state.open = false;
     state.search = '';
     state.active = 0;
     dismiss.deactivate();
     syncAssigned();
+    config.onToggle?.('closed');
     if (refocus) ((assigned.trigger ?? assigned.fallbackTrigger) as HTMLElement | undefined)?.focus?.();
   };
 
   const open = () => {
-    if (state.open) return;
+    if (state.open || disabled()) return;
+    if (config.canToggle?.('open') === false) return;
     state.open = true;
     dismiss.activate();
     syncAssigned();
+    config.onToggle?.('open');
   };
 
   const dismiss = useDismiss(element, (event) => {
@@ -111,7 +116,11 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   // ── the handlers — bound by the host template on its own nodes, attached here on assigned ones ─
 
-  const onTriggerClick = () => (state.open ? close() : open());
+  const onTriggerClick = () => {
+    if (disabled()) return;
+    if (state.open) close();
+    else open();
+  };
 
   /**
    * Typeahead, as the APG select-only combobox prescribes: printable characters accumulate for
@@ -137,6 +146,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   };
 
   const onTriggerKeydown = (event: KeyboardEvent) => {
+    if (disabled()) return;
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
       event.preventDefault();
       typeahead(event.key);
@@ -201,12 +211,24 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
    * effect below on state changes, and from `attach` directly — a swapped-in node must be stamped
    * now, not on the next state change.
    */
+  /**
+   * THE STAMP MAP — the single source for every state attribute a trigger carries. The host's
+   * template spreads exactly this object onto its own trigger; `syncAssigned` applies the same
+   * object imperatively to a slotted one. One definition, two consumers, drift impossible — the
+   * previous shape wrote the knowledge twice, the house's most-repeated defect class.
+   */
+  const triggerStamps = (): Record<string, string> => ({
+    'aria-expanded': String(state.open),
+    'aria-disabled': String(disabled()),
+    'data-state': state.open ? 'open' : 'closed',
+  });
+
   const syncAssigned = () => {
-    if (assigned.trigger) {
-      assigned.trigger.setAttribute('aria-expanded', String(state.open));
-      assigned.trigger.setAttribute('data-state', state.open ? 'open' : 'closed');
-    }
-    if (assigned.value) assigned.value.textContent = state.value.map((option) => option.label).join(', ');
+    if (assigned.trigger)
+      for (const [name, value] of Object.entries(triggerStamps())) assigned.trigger.setAttribute(name, value);
+    /** A slotted value node is stamped, never rewritten: you slot it, you own its children (§5). */
+    if (assigned.value)
+      assigned.value.setAttribute('data-label', state.value.map((option) => option.label).join(', '));
   };
 
   /**
@@ -238,6 +260,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     activate,
     step,
     attach,
+    triggerStamps,
     /** For hosts that write `state` directly (a value property setter): restamp assigned nodes. */
     sync: syncAssigned,
     handlers: { onTriggerClick, onTriggerKeydown, onMenuKeydown, onSearchInput, onListClick, onListHover },

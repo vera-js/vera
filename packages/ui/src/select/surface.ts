@@ -17,6 +17,11 @@ export const selectSurface = {
     { name: 'light', description: 'Render into the light DOM instead of a shadow root. Read at connect.' },
     { name: 'name', description: 'The form field name — submitted via ElementInternals where supported.' },
     { name: 'required', description: 'An empty selection reports valueMissing to the owning form.' },
+    {
+      name: 'disabled',
+      description:
+        'Every gesture, key and typeahead no-ops; open() refuses. Fieldset/form disabling arrives through formDisabledCallback and behaves identically.',
+    },
     { name: 'searchable', description: 'Show the filter line above the options.' },
     {
       name: 'creatable',
@@ -54,6 +59,21 @@ export const selectSurface = {
   ],
   events: [
     {
+      name: 'input',
+      detail: '(none — read the element, like native)',
+      description: 'Before change on every committed change; multi fires one per toggle.',
+    },
+    {
+      name: 'beforetoggle',
+      detail: 'ToggleEvent { oldState, newState } (CustomEvent detail where ToggleEvent is absent)',
+      description: 'Before the menu opens or closes. Cancelable — preventDefault() vetoes the transition.',
+    },
+    {
+      name: 'toggle',
+      detail: 'ToggleEvent { oldState, newState }',
+      description: 'After the menu settles open or closed.',
+    },
+    {
       name: 'change',
       detail: '{ value: SelectOption[] }',
       description: 'After every committed change. Bubbles and crosses the shadow boundary.',
@@ -70,16 +90,28 @@ export const selectSurface = {
       description: 'A debounced search edit — the remote seam. Fetch, then set `.options`.',
     },
   ],
+  methods: [
+    { name: 'open', description: 'Open the menu — same veto-able path as every gesture.' },
+    { name: 'close', description: 'Close the menu without refocusing the trigger.' },
+  ],
   slots: [
     { name: 'trigger', description: 'Replace the whole control. Wired with role, aria, data-state and handlers.' },
-    { name: 'value', description: 'Replace only the value area inside the default trigger; label text is kept in sync.' },
+    {
+      name: 'value',
+      description:
+        'Replace the value area inside the default trigger. You own its children — the component stamps data-label with the joined labels and never rewrites your markup.',
+    },
   ],
   parts: [
     { name: 'trigger', description: 'The control button.' },
     { name: 'value', description: 'The value area inside the trigger.' },
     { name: 'menu', description: 'The dropdown container. Carries data-state.' },
     { name: 'search', description: 'The filter input. Present only when searchable/creatable/remote.' },
-    { name: 'list', description: 'The listbox. Scroll is contained; ::part(list){overscroll-behavior:auto} opts out.' },
+    {
+      name: 'list',
+      description:
+        'The listbox. Scroll is contained (::part(list){overscroll-behavior:auto} opts out); aria-busy while loading.',
+    },
     { name: 'option', description: 'One row. Carries data-active, data-create on the create row, and aria-selected.' },
     { name: 'option-icon', description: 'The aria-hidden icon span before/after the label, when the option carries one.' },
     { name: 'option-label', description: 'The label column inside a row (label, and description when present).' },

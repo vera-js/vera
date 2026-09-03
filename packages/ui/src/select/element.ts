@@ -23,6 +23,7 @@
  * property assigned before it), and `declare` cannot carry the values these need.
  */
 import { createStore, html, init, render, useEffect } from '@verajs/core';
+import { spread } from '@verajs/renderer/spread';
 import { useSelect, type SelectOption } from '@verajs/hooks';
 import { SELECT_STYLES } from './styles.js';
 
@@ -37,7 +38,7 @@ type Internal = {
    * useless expression, so attribute changes re-rendered in development and silently never in
    * production. A value the output genuinely uses cannot be eliminated.
    */
-  host: { attrs: Record<string, string | null> };
+  host: { attrs: Record<string, string | null>; formDisabled: boolean };
   /** The debounce timer for the `filter` event. */
   timer: ReturnType<typeof setTimeout> | undefined;
 };
@@ -58,7 +59,7 @@ const internal = (element: VeraSelect): Internal => {
       select: null,
       pending: { options: [], value: [] },
       internals,
-      host: createStore({ attrs: {} as Record<string, string | null> }),
+      host: createStore({ attrs: {} as Record<string, string | null>, formDisabled: false }),
       timer: undefined,
     };
     INTERNAL.set(element, entry);
@@ -83,13 +84,19 @@ const reflectForm = (element: VeraSelect, value: SelectOption[]) => {
     const data = new FormData();
     const name = element.getAttribute('name') ?? '';
     for (const option of value) data.append(name, option.value);
-    internals.setFormValue(data);
+    internals.setFormValue(data, JSON.stringify(value.map((option) => option.value)));
   } else {
-    internals.setFormValue(value[0]?.value ?? null);
+    /** The second argument is explicit restore state — what formStateRestoreCallback receives. */
+    internals.setFormValue(value[0]?.value ?? null, JSON.stringify(value.map((option) => option.value)));
   }
   if (internals.setValidity) {
+    /** The anchor is what reportValidity() focuses and points the browser's bubble at. */
+    const anchor =
+      (((element as { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element).querySelector?.(
+        '[part="trigger"]'
+      ) as HTMLElement | null) ?? undefined;
     if (element.hasAttribute('required') && value.length === 0)
-      internals.setValidity({ valueMissing: true }, 'Please select an option.');
+      internals.setValidity({ valueMissing: true }, 'Please select an option.', anchor);
     else internals.setValidity({});
   }
 };
@@ -111,6 +118,7 @@ export class VeraSelect extends HTMLElement {
   static observedAttributes = [
     'multi',
     'placeholder',
+    'disabled',
     'searchable',
     'creatable',
     'remote',
@@ -159,6 +167,33 @@ export class VeraSelect extends HTMLElement {
     this.value = [];
   }
 
+  /** Fieldset-inherited and form-level disabling arrives here, not as an attribute. */
+  formDisabledCallback(isDisabled: boolean) {
+    internal(this).host.formDisabled = isDisabled;
+  }
+
+  /** Session restore / bfcache hands back the state reflectForm stored (a JSON value list). */
+  formStateRestoreCallback(restored: unknown) {
+    if (typeof restored !== 'string') return;
+    let values: string[];
+    try {
+      values = JSON.parse(restored) as string[];
+    } catch {
+      return;
+    }
+    if (!Array.isArray(values)) return;
+    const known = new Map(this.options.map((option) => [option.value, option]));
+    this.value = values.map((value) => known.get(value) ?? { label: value, value });
+  }
+
+  /** Programmatic control — the same paths every gesture uses, veto-able via beforetoggle. */
+  open() {
+    internal(this).select?.open();
+  }
+  close() {
+    internal(this).select?.close(false);
+  }
+
   connectedCallback() {
     for (const key of ['options', 'value']) upgradeProperty(this, key);
     init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
@@ -169,12 +204,26 @@ export class VeraSelect extends HTMLElement {
     /** The search line exists for explicit searchers; `creatable` and `remote` both need it. */
     const searchable = () => attrs()['searchable'] != null || attrs()['creatable'] != null || attrs()['remote'] != null;
 
+    /** ToggleEvent where the platform has it (the popover/details vocabulary); a shaped CustomEvent elsewhere. */
+    const toggleEvent = (type: string, oldState: string, newState: string, cancelable: boolean) =>
+      typeof ToggleEvent !== 'undefined'
+        ? new ToggleEvent(type, { oldState, newState, cancelable, bubbles: false })
+        : new CustomEvent(type, { detail: { oldState, newState }, cancelable });
+
     const select = (entry.select ??= useSelect(this, {
       multi: () => this.hasAttribute('multi'),
+      disabled: () => this.hasAttribute('disabled') || entry.host.formDisabled,
       creatable: () => this.hasAttribute('creatable'),
       remote: () => this.hasAttribute('remote'),
+      canToggle: (next) =>
+        this.dispatchEvent(toggleEvent('beforetoggle', next === 'open' ? 'closed' : 'open', next, true)),
+      onToggle: (next) => {
+        this.dispatchEvent(toggleEvent('toggle', next === 'open' ? 'closed' : 'open', next, false));
+      },
       onChange: (value) => {
         reflectForm(this, value);
+        /** input then change, the platform's order; input carries no detail, exactly like native. */
+        this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
         this.dispatchEvent(new CustomEvent('change', { detail: { value }, bubbles: true, composed: true }));
       },
       onCreate: (label) => {
@@ -278,11 +327,11 @@ export class VeraSelect extends HTMLElement {
             role="combobox"
             aria-haspopup="listbox"
             aria-controls="listbox"
+            ?disabled=${attrs()['disabled'] != null || entry.host.formDisabled}
             aria-label=${labelOf(this)}
             aria-required=${attrs()['required'] != null ? 'true' : null}
-            aria-expanded=${String(state.open)}
             aria-activedescendant=${state.open ? activeId : null}
-            data-state=${state.open ? 'open' : 'closed'}
+            ${spread(select.triggerStamps())}
             @click=${handlers.onTriggerClick}
             @keydown=${handlers.onTriggerKeydown}
           >
@@ -309,6 +358,7 @@ export class VeraSelect extends HTMLElement {
             id="listbox"
             part="list"
             role="listbox"
+            aria-busy=${String(loading)}
             aria-label=${labelOf(this)}
             aria-multiselectable=${String(attrs()['multi'] != null)}
             @click=${handlers.onListClick}

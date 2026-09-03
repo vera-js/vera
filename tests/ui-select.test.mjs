@@ -388,6 +388,63 @@ test('required reflects aria-required on the trigger', async () => {
   element.remove();
 });
 
+test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
+  const element = await mount((el) => el.setAttribute('disabled', ''));
+  const trigger = part(element, 'trigger');
+  assert.ok(trigger.hasAttribute('disabled'), 'the native button is truly unfocusable');
+  assert.equal(trigger.getAttribute('aria-disabled'), 'true');
+  trigger.click();
+  element.open();
+  trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'b', bubbles: true }));
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'nothing opens it');
+
+  element.removeAttribute('disabled');
+  await frame();
+  element.formDisabledCallback(true); // what a disabled <fieldset> delivers
+  await frame();
+  element.open();
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'form disabling behaves identically');
+  element.formDisabledCallback(false);
+  element.remove();
+});
+
+test('input fires before change, once per commit; beforetoggle can veto; toggle reports the settled state', async () => {
+  const element = await mount((el) => el.setAttribute('multi', ''));
+  const order = [];
+  element.addEventListener('input', () => order.push('input'));
+  element.addEventListener('change', () => order.push('change'));
+  element.addEventListener('toggle', (event) => order.push(`toggle:${event.newState ?? event.detail.newState}`));
+
+  element.addEventListener('beforetoggle', (event) => event.preventDefault(), { once: true });
+  element.open();
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'beforetoggle vetoed the open');
+
+  element.open();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[0].click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[1].click();
+  await frame();
+  element.close();
+  await frame();
+  assert.deepEqual(order, ['toggle:open', 'input', 'change', 'input', 'change', 'toggle:closed'],
+    'platform order: input then change, one pair per toggle; toggle bookends');
+  element.remove();
+});
+
+test('formStateRestoreCallback rebuilds the selection — known values from options, unknown as placeholders', async () => {
+  const element = await mount();
+  element.formStateRestoreCallback(JSON.stringify(['b', 'ghost']));
+  await frame();
+  assert.deepEqual(element.value.map((o) => [o.value, o.label]), [['b', 'Beta'], ['ghost', 'ghost']]);
+  element.formStateRestoreCallback('not json'); // hostile restore state must be a no-op
+  assert.equal(element.value.length, 2);
+  element.remove();
+});
+
 test('form reset empties the selection; the change event carries a copy, not the store', async () => {
   const element = await mount();
   element.value = [OPTIONS[0]];

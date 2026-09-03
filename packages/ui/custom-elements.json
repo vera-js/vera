@@ -34,6 +34,10 @@
               "description": "An empty selection reports valueMissing to the owning form."
             },
             {
+              "name": "disabled",
+              "description": "Every gesture, key and typeahead no-ops; open() refuses. Fieldset/form disabling arrives through formDisabledCallback and behaves identically."
+            },
+            {
               "name": "searchable",
               "description": "Show the filter line above the options."
             },
@@ -90,9 +94,40 @@
                 "text": "SelectOption[]"
               },
               "description": "The selection — always an array, in both modes."
+            },
+            {
+              "kind": "method",
+              "name": "open",
+              "description": "Open the menu — same veto-able path as every gesture."
+            },
+            {
+              "kind": "method",
+              "name": "close",
+              "description": "Close the menu without refocusing the trigger."
             }
           ],
           "events": [
+            {
+              "name": "input",
+              "type": {
+                "text": "CustomEvent<(none — read the element, like native)>"
+              },
+              "description": "Before change on every committed change; multi fires one per toggle."
+            },
+            {
+              "name": "beforetoggle",
+              "type": {
+                "text": "CustomEvent<ToggleEvent { oldState, newState } (CustomEvent detail where ToggleEvent is absent)>"
+              },
+              "description": "Before the menu opens or closes. Cancelable — preventDefault() vetoes the transition."
+            },
+            {
+              "name": "toggle",
+              "type": {
+                "text": "CustomEvent<ToggleEvent { oldState, newState }>"
+              },
+              "description": "After the menu settles open or closed."
+            },
             {
               "name": "change",
               "type": {
@@ -122,7 +157,7 @@
             },
             {
               "name": "value",
-              "description": "Replace only the value area inside the default trigger; label text is kept in sync."
+              "description": "Replace the value area inside the default trigger. You own its children — the component stamps data-label with the joined labels and never rewrites your markup."
             }
           ],
           "cssParts": [
@@ -144,7 +179,7 @@
             },
             {
               "name": "list",
-              "description": "The listbox. Scroll is contained; ::part(list){overscroll-behavior:auto} opts out."
+              "description": "The listbox. Scroll is contained (::part(list){overscroll-behavior:auto} opts out); aria-busy while loading."
             },
             {
               "name": "option",

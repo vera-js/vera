@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     "src/**/*",
+    "../renderer/src/**/*",
     "../hooks/src/**/*",
     "../core/src/**/*",
     "../inserts/src/**/*",

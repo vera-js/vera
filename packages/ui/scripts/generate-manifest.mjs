@@ -32,12 +32,15 @@ const manifest = {
           .join(''),
         description: surface.description,
         attributes: surface.attributes.map(({ name, description }) => ({ name, description })),
-        members: surface.properties.map(({ name, type, description }) => ({
-          kind: 'field',
-          name,
-          type: { text: type },
-          description,
-        })),
+        members: [
+          ...surface.properties.map(({ name, type, description }) => ({
+            kind: 'field',
+            name,
+            type: { text: type },
+            description,
+          })),
+          ...(surface.methods ?? []).map(({ name, description }) => ({ kind: 'method', name, description })),
+        ],
         events: surface.events.map(({ name, detail, description }) => ({
           name,
           type: { text: `CustomEvent<${detail}>` },

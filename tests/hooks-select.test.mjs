@@ -147,7 +147,8 @@ test('attach stamps an assigned trigger immediately — not on the next state ch
   assert.equal(trigger.getAttribute('role'), 'combobox');
   assert.equal(trigger.getAttribute('aria-expanded'), 'false');
   assert.equal(trigger.getAttribute('data-state'), 'closed');
-  assert.equal(value.textContent, 'Alpha', 'label text synced at attach time');
+  assert.equal(value.getAttribute('data-label'), 'Alpha', 'stamped at attach — never rewritten: you slot it, you own it');
+  assert.equal(value.textContent, '', 'the slotted node’s children are untouched');
 
   trigger.click();
   assert.equal(select.state.open, true, 'the assigned trigger drives the same handlers');

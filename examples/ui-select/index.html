@@ -14,6 +14,7 @@
         "imports": {
           "@verajs/core": "/packages/core/dist/vera.min.js",
           "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
+          "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
           "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
           "@verajs/hooks": "/packages/hooks/dist/vera-hooks.min.js",
           "@verajs/ui": "/packages/ui/dist/vera-ui.min.js"
@@ -101,6 +102,8 @@
         cursor: pointer;
       }
       .fancy-trigger[data-state='open'] { outline: 3px solid #db277755; }
+      /* The slotted value is OURS to render — the component only stamps data-label on it. */
+      .fancy-trigger [slot='value']:not([data-label=''])::after { content: ': ' attr(data-label); font-weight: 600; }
 
       /* Section 5 (light mode): plain selectors reach the parts — no shadow in the way. */
       .light-styled [part='trigger'] { border-color: #0d9488; }
@@ -167,8 +170,9 @@
 
       <section>
         <h2>Your markup, slotted</h2>
-        <p>The trigger below is page markup with a page class — the component wires behavior and
-           <code>data-state</code> onto it.</p>
+        <p>The trigger below is page markup with a page class — the component wires behavior onto it
+           and stamps <code>data-state</code>/<code>data-label</code>. Your slotted nodes are yours:
+           the label renders via CSS from the stamp.</p>
         <vera-select id="slotted">
           <button class="fancy-trigger" slot="trigger">
             <span slot="value">Pick loudly…</span>

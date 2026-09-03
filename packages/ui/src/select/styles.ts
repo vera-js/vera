@@ -45,6 +45,10 @@ export const SELECT_STYLES = /* css */ `
     text-align: start;
     cursor: pointer;
   }
+  :where([part='trigger'][aria-disabled='true']) {
+    opacity: 0.55;
+    cursor: default;
+  }
   :where([part='trigger']):focus-visible {
     outline: 2px solid var(--vera-focus, #7c3aed66);
     outline-offset: 1px;

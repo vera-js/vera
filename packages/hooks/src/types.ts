@@ -43,6 +43,8 @@ export type DismissController = {
 export type SelectConfig = {
   /** Multi mode: picking toggles membership and the menu stays open. Default single. */
   multi?: () => boolean;
+  /** Disabled: every gesture, key and typeahead no-ops; open() refuses. */
+  disabled?: () => boolean;
   /** Creatable: a search string matching no option offers a create row. */
   creatable?: () => boolean;
   /** Remote filtering: `matches()` returns options untouched — the host owns narrowing them. */
@@ -54,6 +56,12 @@ export type SelectConfig = {
   onCreate?: (label: string) => void;
   /** Called on every search edit with the query — the host's seam for remote typeahead. */
   onSearch?: (query: string) => void;
+  /**
+   * Called before open/close with the intended state; returning false vetoes it — the host's
+   * cancelable `beforetoggle` seam. `onToggle` reports the settled state after.
+   */
+  canToggle?: (next: 'open' | 'closed') => boolean;
+  onToggle?: (next: 'open' | 'closed') => void;
 };
 
 /**
