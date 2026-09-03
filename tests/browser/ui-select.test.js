@@ -8,6 +8,7 @@
  * one-registry rule a CDN page lives by.
  */
 import { expect } from '@esm-bundle/chai';
+import { sendKeys } from '@web/test-runner-commands';
 import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { styles } from '@verajs/styles';
@@ -286,6 +287,32 @@ it('the placeholder actually PAINTS on an empty trigger — :empty is fragile an
   element.shadowRoot.querySelectorAll('[part="option"]')[0].click();
   await frame();
   expect(getComputedStyle(value, '::before').content).to.equal('none', 'a selection displaces it');
+  element.remove();
+});
+
+it('AUDIT — a real Tab from an open menu lands on the next control, never inside the list', async () => {
+  const element = await mount();
+  const after = document.createElement('button');
+  after.textContent = 'next control';
+  document.body.appendChild(after);
+  /**
+   * Chrome and Firefox make scroll containers keyboard-focusable when they carry no explicit
+   * tabindex — pure UA magic, invisible to any tabIndex property read. Without the listbox's
+   * explicit tabindex="-1", Tab walked INTO the scrollable list, the close then display:none'd
+   * it a frame later, and focus fell to body: the user's Tab was eaten (Brian hit this on the
+   * demo page). Only a real keypress can regress-test it, hence sendKeys.
+   */
+  const trigger = element.shadowRoot.querySelector('[part="trigger"]');
+  trigger.focus();
+  await sendKeys({ press: ' ' });
+  await frame();
+  expect(element.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state')).to.equal('open');
+  await sendKeys({ press: 'Tab' });
+  await frame();
+  await frame();
+  expect(document.activeElement).to.equal(after, 'Tab leaves the widget for the next control');
+  expect(element.shadowRoot.querySelector('[part="menu"]').getAttribute('data-state')).to.equal('closed', 'and the menu closed behind it');
+  after.remove();
   element.remove();
 });
 

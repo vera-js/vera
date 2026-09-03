@@ -904,3 +904,15 @@ test('AUDIT — hover is not sticky: pointerleave clears data-active; click-open
   );
   element.remove();
 });
+
+test('AUDIT — the listbox opts out of sequential focus explicitly (scroll containers are UA-focusable)', async () => {
+  const element = await mount();
+  part(element, 'trigger').click();
+  await frame();
+  assert.equal(
+    part(element, 'list').getAttribute('tabindex'),
+    '-1',
+    'Chrome/Firefox implicitly tab-focus scrollable divs; the explicit -1 is the opt-out Tab depends on'
+  );
+  element.remove();
+});

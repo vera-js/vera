@@ -672,6 +672,7 @@ export class VeraSelect extends HTMLElement {
             id="listbox"
             part="list"
             role="listbox"
+            tabindex="-1"
             aria-busy=${String(loading)}
             aria-label=${labelOf(this)}
             aria-multiselectable=${String(attrs()['multi'] != null)}
