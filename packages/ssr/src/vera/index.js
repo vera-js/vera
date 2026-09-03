@@ -499,6 +499,37 @@ const prepareInstance = (element, tag, props, children) => {
    * therefore sees them, and one that overwrites its own light DOM wins — same order, same result.
    */
   if (children) element.innerHTML = children;
+  /**
+   * Light-DOM slots: if an app wired `@verajs/renderer/slots`, snapshot the user's children NOW —
+   * before `connectedCallback` renders the template after them — so the server can distribute
+   * them into the template's `<slot>` positions once it has run (see `distributeLightSlots`).
+   * Opt-in and decoupled: `inserts` is consulted, this module imports nothing of slots.
+   */
+  const slotInsert = /** @type {any} */ (inserts).get('slot')?.[0];
+  if (slotInsert?._$server$ !== undefined) {
+    /**
+     * Take the user's children OUT now — held by reference — so the template renders into an empty
+     * host and `serverDistribute` places them at the `<slot>` positions afterward. Removing them
+     * here (while their parent is live) rather than snapshotting-in-place avoids the shim's
+     * re-parse orphaning the references (a stale ref serialises a duplicate at the top level).
+     */
+    const source = children ? [...element.childNodes] : [];
+    for (const node of source) element.removeChild(node);
+    element._veraSlotSource = source;
+  }
+};
+
+/**
+ * After a LIGHT component's template has rendered (its `<slot>`s now sit after the snapshotted
+ * source children), hand both to the slots module's server distributor: it unwraps each `<slot>`
+ * to its assigned nodes or fallback and stamps `data-vera-slotted` on the host for the default
+ * slot. No-op unless the app wired slots and this element had children.
+ */
+const distributeLightSlots = (element) => {
+  const source = element._veraSlotSource;
+  if (source === undefined) return; // slots not wired, or a shadow component
+  element._veraSlotSource = undefined;
+  /** @type {any} */ (inserts).get('slot')?.[0]?._$server$?.(element, source);
 };
 
 /** Runs the lifecycle on an element that is already built, and serializes it. */
@@ -564,7 +595,8 @@ const renderInstance = (element, tag, depth, props, children) => {
     };
   }
   /** Light DOM: rendered content becomes the element's children (client re-render replaces). */
-  return { open, inner: renderComponentTags(element.innerHTML, depth) };
+  distributeLightSlots(element);
+  return { open: element.openTag(), inner: renderComponentTags(element.innerHTML, depth) };
 };
 
 /**
@@ -612,6 +644,7 @@ const renderInstanceAsync = async (element, tag, depth, props, children) => {
   await flushFramesAsync((error) => renderErrors.push({ error, tag }));
   setRenderingTag(previousTag);
 
+  distributeLightSlots(element);
   const pieces = instancePieces(element);
   const scannedShadow = pieces.shadowRoot ? await renderComponentTagsAsync(pieces.shadowMarkup, depth) : '';
   const scannedLight = pieces.lightMarkup ? await renderComponentTagsAsync(pieces.lightMarkup, depth) : '';

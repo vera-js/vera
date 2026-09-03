@@ -217,6 +217,13 @@ const capture = (host: Element): HostState => {
 
 /** The seam function — called by the renderer once per `<slot>` per instance (see the seam). */
 const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null => {
+  /**
+   * The SERVER declines the client path entirely: SSR renders once and distributes through
+   * `_$server$` (markerless, no observer, no anchors). If this ran under the shim it would insert
+   * anchors and capture into a fragment, fighting the server pass. `__veraSsrShimmed` is the flag
+   * SSR sets when it installs the DOM.
+   */
+  if ((globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return null;
   /** Only an element host is ours: a shadow root keeps native slotting, and a fragment or
    *  document container is not a light component. Duck-typed — realm-safe for pop-outs. */
   if (root.nodeType !== 1) return null;
@@ -275,15 +282,85 @@ export const slotted = (host: Element, name = ''): Node[] => {
 };
 
 /**
+ * SERVER distribution — a self-contained, observer-free, anchor-free pass for SSR. The client
+ * path (capture + anchors + a live observer) is meaningless on a server that renders once and
+ * flattens templates through its own serializer, so `@verajs/ssr` calls THIS instead, reached
+ * off the insert as `_$server$` (like `_$capture$`) so ssr needs no import of this module.
+ *
+ * Input: the host after its template rendered — `source` are the user's original children
+ * (snapshotted before the template ran), and the host also contains the rendered template with
+ * literal `<slot>` elements. Output: markerless distributed light DOM — each `<slot>` UNWRAPPED
+ * to its assigned nodes (or its own fallback children), the source consumed, and one host
+ * attribute (`data-vera-slotted`) when the DEFAULT slot received content, which is all hydration
+ * needs to tell assigned-from-fallback there.
+ */
+const SLOTTED_ATTR = 'data-vera-slotted';
+const serverDistribute = (host: Element, source: Node[]) => {
+  const buckets = new Map<string, Node[]>();
+  for (const node of source) {
+    const name = slotNameOf(node);
+    if (name === null) continue;
+    let bucket = buckets.get(name);
+    if (bucket === undefined) buckets.set(name, (bucket = []));
+    bucket.push(node);
+    if (node.parentNode !== null) node.parentNode.removeChild(node);
+  }
+  const filled = new Set<string>();
+  /** Collect first (the live list mutates as slots are unwrapped). Any nesting order is fine —
+   *  a slot is replaced by its content, and a slot inside assigned content was itself resolved. */
+  const query = (host as unknown as { querySelectorAll?: (s: string) => Iterable<Element> }).querySelectorAll;
+  const slotEls: Element[] =
+    typeof query === 'function' ? [...query.call(host, 'slot')] : collectSlots(host);
+  for (const slot of slotEls) {
+    const parent = slot.parentNode;
+    if (parent === null) continue; // already unwrapped as another slot's assigned content
+    const name = slot.getAttribute('name') ?? '';
+    const assigned = !filled.has(name) ? buckets.get(name) : undefined;
+    if (assigned !== undefined && assigned.length > 0) {
+      filled.add(name);
+      for (const node of assigned) parent.insertBefore(node, slot);
+      if (name === '') host.setAttribute(SLOTTED_ATTR, '');
+    } else {
+      /** Fallback: the slot's own children, unwrapped in place. */
+      let child = slot.firstChild;
+      while (child !== null) {
+        const next = child.nextSibling;
+        parent.insertBefore(child, slot);
+        child = next;
+      }
+    }
+    parent.removeChild(slot);
+  }
+};
+
+/** DocumentFragment/shim fallback when querySelectorAll is unavailable — a plain descendant walk. */
+const collectSlots = (root: Node): Element[] => {
+  const out: Element[] = [];
+  const visit = (node: Node) => {
+    for (let child = node.firstChild; child !== null; child = child.nextSibling) {
+      if (child.nodeType === 1) {
+        if ((child as Element).localName === 'slot') out.push(child as Element);
+        visit(child);
+      }
+    }
+  };
+  visit(root);
+  return out;
+};
+
+/**
  * Capture a light host's children at its FIRST render, before any slot has necessarily mounted —
  * so content destined for a slot that only appears later (a conditional `<slot>` behind a branch)
  * is held invisibly meanwhile, exactly as native shadow DOM leaves an unassigned light child
  * unrendered. Idempotent (capture is once per host); the renderer calls it once per host lifetime.
  */
 (takeOverSlot as { _$capture$?: (host: Element) => void })._$capture$ = (host) => {
+  if ((globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return;
   capture(host);
   drain(HOSTS.get(host)!);
 };
+/** The server hook — SSR calls this (never the client capture/anchor path). */
+(takeOverSlot as { _$server$?: (host: Element, source: Node[]) => void })._$server$ = serverDistribute;
 
 /** The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist. */
 export const slots = {
