@@ -19,6 +19,55 @@
  * Selectors target `[part="…"]` directly: the part attribute doubles as the light-DOM styling
  * hook, so there is one name per node, not a part name and a class name to keep in lockstep.
  */
+/**
+ * IN-SHEET COMMENTARY, RELOCATED — a comment inside a template literal is STRING DATA to
+ * the minifier and ships in every bundle (measured; the reclaim is in the commit). The
+ * notes below annotate the sheet in source order; the sheet itself stays prose-free.
+ *
+ * Both states spell the full function list so the transition interpolates per function:
+ * scaleY runs 1 -> -1 (the chevron flattens through zero and inverts — a mirror flip, not a
+ * rotation) while the rotate stays constant. Mismatched lists would fall back to matrix
+ * decomposition and animate something else entirely.
+ *
+ * Capped, deliberately, while the trigger takes the raw token: --vera-radius: 999px is a
+ * legitimate pill trigger, but on a box this tall the same value plus overflow:hidden turns
+ * the menu into a lens that clips its own rows. Found by the first demo page.
+ *
+ * Open/close animates the way the renderer README's recipe prescribes: display stays constant
+ * (Firefox ignores allow-discrete on display while reporting support — pinned in
+ * tests/browser/animation-recipes.test.js), and the closed state rides opacity + translate,
+ * with visibility carrying the interaction/a11y removal — it flips discretely at the
+ * transition's end, so the menu is untabbable and unread the moment it finishes leaving.
+ * position:absolute means the always-rendered box costs no layout.
+ *
+ * THE ANCHOR TIER (SELECT-V2 §4): where the engine has CSS anchor positioning, the menu is a
+ * top-layer popover anchored to the trigger — killing the overflow-clipping bug class — with
+ * flip-when-clipped via position-try-fallbacks where supported (ignored elsewhere; those
+ * engines keep today's non-flipping behavior, which is what they have now). Everything below
+ * this block is the everywhere-fallback: it is not a second implementation, it is the current
+ * one, kept. The popover attribute itself is applied by the element only on this tier — a
+ * popover attribute on a non-anchor engine would UA-hide the menu display:none.
+ * 
+ * The open transition needs @starting-style (a popover enters from display:none); the CLOSE
+ * transition needs none of allow-discrete's cross-engine grief: the element flips to
+ * data-state=closed while still popover-open, today's opacity/translate transition plays, and
+ * the element hides the popover after it settles.
+ *
+ * Leading underscore: the private-custom-property convention — internal plumbing, not a theme token (the surface drift test enforces the difference).
+ *
+ * The popover UA stylesheet adds 0.25em padding; and anchor-size() must land border-box
+ *  or the menu runs 10px proud of the trigger it is matching.
+ *
+ * Scroll stays inside the menu instead of chaining to the page — wp-omni's bounce-free
+ *  default. The opt-out is one rule: ::part(list) { overscroll-behavior: auto }.
+ *
+ * Screen-reader-only: the results/loading announcement.
+ *
+ * The checkmark lives on every row so selection can ANIMATE: content changes cannot transition,
+ * but a box can grow. Collapsed it is zero-width and scale(0), with a negative end margin
+ * swallowing the row's gap so unselected labels sit flush; selected it grows to size and the
+ * margin releases, sliding the label over as the mark scales up.
+ */
 export const SELECT_STYLES = /* css */ `
   :host {
     display: block;
@@ -62,12 +111,6 @@ export const SELECT_STYLES = /* css */ `
     block-size: 7px;
     border-inline-end: 1.5px solid var(--vera-fg-muted, #71717a);
     border-block-end: 1.5px solid var(--vera-fg-muted, #71717a);
-    /**
-     * Both states spell the full function list so the transition interpolates per function:
-     * scaleY runs 1 -> -1 (the chevron flattens through zero and inverts — a mirror flip, not a
-     * rotation) while the rotate stays constant. Mismatched lists would fall back to matrix
-     * decomposition and animate something else entirely.
-     */
     transform: translateY(-70%) scaleY(1) rotate(45deg);
     pointer-events: none;
   }
@@ -120,55 +163,25 @@ export const SELECT_STYLES = /* css */ `
     flex-direction: column;
     max-block-size: 260px;
     border: 1px solid var(--vera-border, #d4d4d8);
-    /**
-     * Capped, deliberately, while the trigger takes the raw token: --vera-radius: 999px is a
-     * legitimate pill trigger, but on a box this tall the same value plus overflow:hidden turns
-     * the menu into a lens that clips its own rows. Found by the first demo page.
-     */
     border-radius: min(var(--vera-radius, 6px), 14px);
     background: var(--vera-surface, #fff);
     box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
     overflow: hidden;
   }
-  /**
-   * Open/close animates the way the renderer README's recipe prescribes: display stays constant
-   * (Firefox ignores allow-discrete on display while reporting support — pinned in
-   * tests/browser/animation-recipes.test.js), and the closed state rides opacity + translate,
-   * with visibility carrying the interaction/a11y removal — it flips discretely at the
-   * transition's end, so the menu is untabbable and unread the moment it finishes leaving.
-   * position:absolute means the always-rendered box costs no layout.
-   */
   :where([part='menu'][data-state='closed']) {
     opacity: 0;
     translate: 0 -6px;
     visibility: hidden;
     pointer-events: none;
   }
-  /**
-   * THE ANCHOR TIER (SELECT-V2 §4): where the engine has CSS anchor positioning, the menu is a
-   * top-layer popover anchored to the trigger — killing the overflow-clipping bug class — with
-   * flip-when-clipped via position-try-fallbacks where supported (ignored elsewhere; those
-   * engines keep today's non-flipping behavior, which is what they have now). Everything below
-   * this block is the everywhere-fallback: it is not a second implementation, it is the current
-   * one, kept. The popover attribute itself is applied by the element only on this tier — a
-   * popover attribute on a non-anchor engine would UA-hide the menu display:none.
-   *
-   * The open transition needs @starting-style (a popover enters from display:none); the CLOSE
-   * transition needs none of allow-discrete's cross-engine grief: the element flips to
-   * data-state=closed while still popover-open, today's opacity/translate transition plays, and
-   * the element hides the popover after it settles.
-   */
   @supports (top: anchor(bottom)) {
     :where([part='trigger']) {
-      /** Leading underscore: the private-custom-property convention — internal plumbing, not a theme token (the surface drift test enforces the difference). */
       anchor-name: --_vera-select-anchor;
     }
     :where([part='menu'][popover]) {
       position: fixed;
       position-anchor: --_vera-select-anchor;
       inset: auto;
-      /** The popover UA stylesheet adds 0.25em padding; and anchor-size() must land border-box
-       *  or the menu runs 10px proud of the trigger it is matching. */
       padding: 0;
       box-sizing: border-box;
       top: calc(anchor(bottom) + 4px);
@@ -216,8 +229,6 @@ export const SELECT_STYLES = /* css */ `
     padding: 3px;
     list-style: none;
     overflow-y: auto;
-    /** Scroll stays inside the menu instead of chaining to the page — wp-omni's bounce-free
-     *  default. The opt-out is one rule: ::part(list) { overscroll-behavior: auto }. */
     overscroll-behavior: contain;
   }
   :where([part='option']) {
@@ -254,7 +265,6 @@ export const SELECT_STYLES = /* css */ `
     text-transform: uppercase;
     color: var(--vera-fg-muted, #71717a);
   }
-  /** Screen-reader-only: the results/loading announcement. */
   :where([part='status']) {
     position: absolute;
     inline-size: 1px;
@@ -270,12 +280,6 @@ export const SELECT_STYLES = /* css */ `
     opacity: 0.45;
     cursor: default;
   }
-  /**
-   * The checkmark lives on every row so selection can ANIMATE: content changes cannot transition,
-   * but a box can grow. Collapsed it is zero-width and scale(0), with a negative end margin
-   * swallowing the row's gap so unselected labels sit flush; selected it grows to size and the
-   * margin releases, sliding the label over as the mark scales up.
-   */
   :where([part='option'])::before {
     content: '✓';
     inline-size: 0;
