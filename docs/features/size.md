@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->7 185 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->6 376 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->7 191 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->6 376 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -122,7 +122,7 @@ describing the bytes honestly.)*
 | Module | gzip | |
 | --- | ---: | --- |
 | `@verajs/core` | 3 069 B | state (incl. Map and Set), hooks, lifecycle, render |
-| `@verajs/renderer` | 4 116 B | keyed template renderer, refs, `hold` |
+| `@verajs/renderer` | 4 122 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 3 655 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 353 B | lazy component discovery |
 | `@verajs/styles` | 757 B | `static styles` adoption, shadow and light DOM |

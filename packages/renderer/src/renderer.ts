@@ -409,6 +409,22 @@ type SlotRecord = number;
  */
 let _slotRoot: Node | null = null;
 
+/** See the slotless branch in `Instance`. Once per host tag, so a list cannot flood a console. */
+const warnedSlotless = new Set<string>();
+const warnSlotless = (root: Element) => {
+  const tag = root.localName;
+  if (warnedSlotless.has(tag)) return;
+  warnedSlotless.add(tag);
+  console.warn(
+    `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but no 'slot' insert is wired — ` +
+      `nothing distributes it, so it shows its fallback while the host's own children sit beside the ` +
+      `component as stray markup. Wire it at the app entry, BEFORE anything renders: ` +
+      `\`import { slots } from '@verajs/renderer/slots'; wire([renderer, slots])\`. Wiring it later ` +
+      `does not help a template that has already rendered — a template resolves this once, at ` +
+      `construction, and is interned per call site for the life of the page.`
+  );
+};
+
 const templateCache = new WeakMap<TemplateStringsArray, Template>();
 
 class Template {
@@ -417,6 +433,10 @@ class Template {
   /** Present only when a 'slot' insert was wired at construction and the markup contains slots. */
   _slots?: SlotRecord[];
   _seam?: SlotSeamFn;
+  /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
+   *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
+   *  ES2022 class-field semantics, which is production weight for a development-only check. */
+  declare _slotless?: boolean;
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
@@ -538,6 +558,12 @@ class Template {
      * this design refuses.
      */
     const seam = slotSeam();
+    /**
+     * **Dev-only: remember that this markup HAS slots even when nothing can distribute them.**
+     * Without it the two ways of getting the wiring wrong are indistinguishable from a component
+     * that simply has no slots — see the warning at the instance's slot mount.
+     */
+    if (__DEV__ && seam === undefined && markup.includes('<slot')) this._slotless = true;
     if (seam !== undefined) {
       instanceWalker.currentNode = content;
       let index = -1;
@@ -1073,6 +1099,26 @@ class Instance {
         slotNodes.push(node as Element);
       }
       this._pendingSlots = slotNodes;
+    }
+    /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
+     *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
+    if (__DEV__ && template._slotless === true && _slotRoot !== null && _slotRoot.nodeType === 1) {
+      /**
+       * **A `<slot>` in a LIGHT render that nothing will distribute.** Both ways of arriving here
+       * are silent otherwise, and both leave the same confusing picture: the slot shows its
+       * fallback while the user's content sits beside the component as stray markup.
+       *
+       * 1. `@verajs/renderer/slots` was never wired at all.
+       * 2. It was wired AFTER this template first rendered. Templates are interned per call site
+       *    for the life of the page and resolve the seam once, at construction — so a component
+       *    that rendered before the wiring keeps a slotless template forever, and every later use
+       *    of it fails the same way. Measured: the same `draw()` distributes at a fresh call site
+       *    and not at this one.
+       *
+       * A shadow root never reaches here: the platform slots there, which is why this is gated on
+       * an element root.
+       */
+      warnSlotless(_slotRoot as Element);
     }
   }
 
