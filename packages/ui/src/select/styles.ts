@@ -69,13 +69,21 @@
  * margin releases, sliding the label over as the mark scales up.
  */
 export const SELECT_STYLES = /* css */ `
+  /*
+   * The component's base foreground. Each SURFACE (trigger, menu) still declares its own color
+   * too, deliberately: a :host color does not reach the menu when it is a top-layer popover (own
+   * containing block), and did not reach the menu's content even outside the top layer here — so
+   * the surfaces cannot rely on inheriting it. This is the root default for anything that does.
+   */
   :host {
     display: block;
     position: relative;
+    color: var(--vera-fg, #18181b);
   }
   :where(:scope) {
     display: block;
     position: relative;
+    color: var(--vera-fg, #18181b);
   }
 
   :where([part='trigger']) {
@@ -165,6 +173,12 @@ export const SELECT_STYLES = /* css */ `
     border: 1px solid var(--vera-border, #d4d4d8);
     border-radius: min(var(--vera-radius, 6px), 14px);
     background: var(--vera-surface, #fff);
+    /* The menu is a themed SURFACE, so it declares its own foreground exactly as the trigger
+     * does - never relying on inheriting it. A :host color does not reach a top-layer popover
+     * (its own containing block) and did not reach the menu's content here either; the option
+     * rows and the search input were left at the UA default (#000), invisible on a dark
+     * --vera-surface (measured 1.21:1, axe). Set at the surface, every text node inside inherits. */
+    color: var(--vera-fg, #18181b);
     box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
     overflow: hidden;
   }
@@ -331,11 +345,14 @@ export const SELECT_STYLES = /* css */ `
   /*
    * The create row is the one place accent is used as BODY TEXT, and a highlighted create row put
    * it on the accent-tint active background at 4.46:1 - just under WCAG AA (axe, measured). It uses
-   * --vera-accent-strong: a darker accent that clears 4.5:1 on the tint (~5.6:1), DERIVED from
-   * --vera-accent so theming still flows through, and available to any future accent-on-tint text.
+   * --vera-accent-strong, which mixes accent 20% toward --vera-fg: that moves the text AWAY from
+   * the surface in EITHER theme (darker on a light surface, lighter on a dark one), so it clears
+   * 4.5:1 on the tint both ways (light ~5.8:1, dark ~6.1:1) - a plain darken would have regressed
+   * dark mode below the floor (measured 3.7:1). Derived from the two existing tokens, so theming
+   * flows through with no extra work, and reusable by any future accent-on-tint foreground.
    */
   :where([part='option'][data-create]) {
-    color: var(--vera-accent-strong, color-mix(in srgb, var(--vera-accent, #7c3aed), black 14%));
+    color: var(--vera-accent-strong, color-mix(in srgb, var(--vera-accent, #7c3aed), var(--vera-fg, #18181b) 20%));
   }
   :where([part='empty']) {
     margin: 0;

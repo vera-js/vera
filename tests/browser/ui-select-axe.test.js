@@ -100,3 +100,23 @@ it('axe: creatable with the create row highlighted', () =>
 
 it('axe: a selected row that is also the active row (checkmark on the highlight tint)', () =>
   audit('selected+active', { value: 'a', open: true }));
+
+/**
+ * Dark mode is consumer-set tokens (the sheet ships light fallbacks). The derived
+ * --vera-accent-strong mixes toward --vera-fg, so it must stay above the contrast floor when a
+ * consumer flips surface/fg dark and uses a light accent - a plain darken regressed this to
+ * 3.7:1. The highlighted create row is the state that exercises accent-on-tint text.
+ */
+it('axe: dark tokens - highlighted create row keeps contrast', () =>
+  audit('dark creatable', {
+    setup: (el) => {
+      el.setAttribute('creatable', '');
+      el.style.setProperty('--vera-surface', '#1a1a1e');
+      el.style.setProperty('--vera-fg', '#fafafa');
+      el.style.setProperty('--vera-fg-muted', '#a1a1aa');
+      el.style.setProperty('--vera-accent', '#a78bfa');
+      el.style.setProperty('--vera-border', '#3f3f46');
+    },
+    open: true,
+    type: 'Gamma2',
+  }));
