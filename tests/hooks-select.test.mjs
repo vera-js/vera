@@ -134,6 +134,34 @@ test('search narrows matches and Escape-driven dismissal clears it', async () =>
   assert.equal(select.state.search, '', 'closing resets the filter');
 });
 
+test('re-slotting a trigger away and back never double-wires it', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.state.options = OPTIONS;
+  const a = dom.window.document.createElement('button');
+  const b = dom.window.document.createElement('button');
+  select.attach({ trigger: a });
+  select.attach({ trigger: b });
+  select.attach({ trigger: a }); // back again — the A -> B -> A shuffle
+  a.click();
+  assert.equal(select.state.open, true, 'one click, one toggle — duplicate listeners would cancel out');
+});
+
+test('a disabled row never takes the hover highlight', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.state.options = OPTIONS; // Gamma (index 2) disabled
+  select.state.active = 0;
+  const row = dom.window.document.createElement('div');
+  row.dataset.index = '2';
+  dom.window.document.body.append(row);
+  const event = new dom.window.Event('pointerover', { bubbles: true });
+  Object.defineProperty(event, 'target', { value: row });
+  select.handlers.onListHover(event);
+  assert.equal(select.state.active, 0, 'the highlight stayed put');
+  row.remove();
+});
+
 test('attach stamps an assigned trigger immediately — not on the next state change', () => {
   const element = host();
   const select = useSelect(element, {});

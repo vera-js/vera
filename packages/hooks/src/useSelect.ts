@@ -226,7 +226,12 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
 
   const onListHover = (event: Event) => {
     const row = (event.target as Element).closest?.('[data-index]');
-    if (row) state.active = Number((row as HTMLElement).dataset['index']);
+    if (!row) return;
+    const index = Number((row as HTMLElement).dataset['index']);
+    /** A disabled row never takes the highlight — hovering one showed the active tint while
+     *  Enter refused, a mixed signal native selects do not send. */
+    if (matches()[index]?.disabled) return;
+    state.active = index;
   };
 
   // ── assigned markup ────────────────────────────────────────────────────────────────────────────
@@ -249,7 +254,15 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     search.setAttribute('aria-autocomplete', 'list');
   };
 
+  /**
+   * Wired-once, tracked per NODE across its whole life — not against the previous assignment.
+   * Re-slotting a node away and back (A -> B -> A) passed the "different from last" check and
+   * wired A twice; duplicate click listeners toggled twice per click and the menu never opened.
+   */
+  const wired = new WeakSet<Element>();
   const wireTrigger = (trigger: Element) => {
+    if (wired.has(trigger)) return;
+    wired.add(trigger);
     trigger.addEventListener('click', onTriggerClick);
     trigger.addEventListener('keydown', onTriggerKeydown as EventListener);
     trigger.setAttribute('role', 'combobox');
