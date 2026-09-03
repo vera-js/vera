@@ -723,6 +723,29 @@ test('AUDIT P2 — the menu consumes its Escape; the filter debounce dies with t
   assert.equal(late, 0, 'no filter event fires on a detached element');
 });
 
+test('AUDIT P5 — focus() delegates to the effective trigger, built-in or slotted, either mode', async () => {
+  const element = await mount();
+  element.focus();
+  assert.equal(root(element).activeElement, part(element, 'trigger'), 'shadow: focus lands on our trigger');
+  element.remove();
+
+  const slotted = dom.window.document.createElement('vera-select');
+  const trigger = dom.window.document.createElement('button');
+  trigger.slot = 'trigger';
+  slotted.append(trigger);
+  dom.window.document.body.append(slotted);
+  slotted.options = OPTIONS;
+  await frame();
+  slotted.focus();
+  assert.equal(dom.window.document.activeElement, trigger, 'a slotted trigger receives the delegation');
+  slotted.remove();
+
+  const light = await mount((el) => el.setAttribute('light', ''));
+  light.focus();
+  assert.equal(dom.window.document.activeElement, light.querySelector('[part="trigger"]'), 'light mode too');
+  light.remove();
+});
+
 test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
   const element = await mount((el) => el.setAttribute('disabled', ''));
   const trigger = part(element, 'trigger');

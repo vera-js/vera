@@ -147,6 +147,11 @@
             },
             {
               "kind": "method",
+              "name": "focus",
+              "description": "Delegates to the effective trigger (slotted or built-in), both DOM modes — so label clicks and el.focus() land where typing works."
+            },
+            {
+              "kind": "method",
               "name": "checkValidity",
               "description": "Native-control validity check, proxied from ElementInternals."
             },

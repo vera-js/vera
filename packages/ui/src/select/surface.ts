@@ -116,6 +116,7 @@ export const selectSurface = {
   methods: [
     { name: 'open', description: 'Open the menu — same veto-able path as every gesture.' },
     { name: 'close', description: 'Close the menu without refocusing the trigger.' },
+    { name: 'focus', description: 'Delegates to the effective trigger (slotted or built-in), both DOM modes — so label clicks and el.focus() land where typing works.' },
     { name: 'checkValidity', description: 'Native-control validity check, proxied from ElementInternals.' },
     { name: 'reportValidity', description: 'Check and surface the browser’s validation UI at the trigger.' },
   ],

@@ -322,6 +322,19 @@ export class VeraSelect extends HTMLElement {
     return internal(this).internals?.reportValidity?.() ?? true;
   }
 
+  /**
+   * Focus delegates to the effective trigger — slotted if supplied, ours otherwise — in both DOM
+   * modes. Native controls focus their UI; without this, element.focus() (including the UA's own
+   * call when an associated <label> is clicked) was a no-op on an unfocusable host (measured).
+   */
+  override focus(options?: FocusOptions) {
+    const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
+    const slotted = (root.querySelector?.('slot[name="trigger"]') as HTMLSlotElement | null)?.assignedElements()[0];
+    const trigger = (slotted ?? root.querySelector?.('[part="trigger"]')) as HTMLElement | null;
+    if (trigger) trigger.focus(options);
+    else super.focus(options);
+  }
+
   /** Programmatic control — the same paths every gesture uses, veto-able via beforetoggle. */
   open() {
     internal(this).select?.open();
