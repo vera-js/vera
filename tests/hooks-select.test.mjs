@@ -155,9 +155,12 @@ test('a disabled row never takes the hover highlight', () => {
   const row = dom.window.document.createElement('div');
   row.dataset.index = '2';
   dom.window.document.body.append(row);
-  const event = new dom.window.Event('pointerover', { bubbles: true });
-  Object.defineProperty(event, 'target', { value: row });
-  select.handlers.onListHover(event);
+  /** Two moves with different coordinates: the first primes the parked-cursor guard. */
+  for (const clientX of [10, 11]) {
+    const event = new dom.window.MouseEvent('pointermove', { bubbles: true, clientX, clientY: 10 });
+    Object.defineProperty(event, 'target', { value: row });
+    select.handlers.onListHover(event);
+  }
   assert.equal(select.state.active, 0, 'the highlight stayed put');
   row.remove();
 });

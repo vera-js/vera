@@ -730,7 +730,7 @@ export class VeraSelect extends HTMLElement {
             aria-label=${labelOf(this)}
             aria-multiselectable=${String(attrs()['multi'] != null)}
             @click=${handlers.onListClick}
-            @pointerover=${handlers.onListHover}
+            @pointermove=${handlers.onListHover}
             @pointerleave=${handlers.onListLeave}
           >
             ${segments.map((segment) =>

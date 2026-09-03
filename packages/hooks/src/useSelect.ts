@@ -100,6 +100,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     if (state.open || disabled()) return;
     if (config.canToggle?.('open') === false) return;
     state.open = true;
+    pointerAt = null;
     const rows = matches();
     const selected = rows.findIndex((option) => !option.disabled && chosen(option));
     state.active = selected !== -1 ? selected : highlight ? rows.findIndex((option) => !option.disabled) : -1;
@@ -257,7 +258,21 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     state.active = -1;
   };
 
+  /**
+   * Hover requires the pointer to have MOVED inside this open session. Engines re-dispatch
+   * boundary/move events when content appears or scrolls under a PARKED cursor (measured:
+   * Firefox synthesized a hover for the row under the resting mouse the instant a
+   * keyboard-opened menu appeared beneath it, stealing the keyboard's starting highlight;
+   * the same mechanism makes arrow-key scrolling fight the cursor). The first event after
+   * open primes the coordinates and is ignored; only a real coordinate change highlights —
+   * a moving mouse streams events, so priming is imperceptible.
+   */
+  let pointerAt: { x: number; y: number } | null = null;
   const onListHover = (event: Event) => {
+    const { clientX: x, clientY: y } = event as PointerEvent;
+    const moved = pointerAt !== null && (pointerAt.x !== x || pointerAt.y !== y);
+    pointerAt = { x, y };
+    if (!moved) return;
     const row = (event.target as Element).closest?.('[data-index]');
     if (!row) return;
     const index = Number((row as HTMLElement).dataset['index']);

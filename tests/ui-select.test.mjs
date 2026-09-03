@@ -892,7 +892,9 @@ test('AUDIT — hover is not sticky: pointerleave clears data-active; click-open
     'a mouse open with nothing selected tints no row'
   );
   const rows = root(element).querySelectorAll('[part="option"]');
-  rows[1].dispatchEvent(new dom.window.Event('pointerover', { bubbles: true }));
+  /** Two moves with different coordinates: the first primes the parked-cursor guard. */
+  rows[1].dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }));
+  rows[1].dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, clientX: 11, clientY: 10 }));
   await frame();
   assert.ok(rows[1].hasAttribute('data-active'), 'hovering a row tints it');
   part(element, 'list').dispatchEvent(new dom.window.Event('pointerleave'));
@@ -955,5 +957,22 @@ test('AUDIT — a pre-upgrade `disabled = true` expando survives the dance like 
   await frame();
   assert.equal(element.hasAttribute('disabled'), true, 'the early boolean reached the attribute');
   assert.equal(element.getAttribute('name'), 'early', 'the early string reached the attribute');
+  element.remove();
+});
+
+test('AUDIT — a menu appearing under a PARKED cursor does not steal the keyboard highlight', async () => {
+  const element = await mount();
+  part(element, 'trigger').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  await frame();
+  const rows = root(element).querySelectorAll('[part="option"]');
+  /** Engines re-dispatch boundary/move events with UNCHANGED coordinates when content appears
+   *  under a resting mouse (Firefox, measured live). Same coords twice = parked, ignored. */
+  rows[1].dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 40 }));
+  rows[1].dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 40 }));
+  await frame();
+  assert.ok(rows[0].hasAttribute('data-active'), 'the keyboard starting point survives a parked cursor');
+  part(element, 'trigger').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  await frame();
+  assert.ok(rows[1].hasAttribute('data-active'), 'and arrows continue from it');
   element.remove();
 });
