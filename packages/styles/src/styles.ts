@@ -237,9 +237,10 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
       console.warn(
         `[vera] styles: <${element.localName}> has no shadow root, and ${shadowOnly.join(' and ')} ` +
           `only ever ${shadowOnly.length > 1 ? 'match' : 'matches'} inside one — those rules do ` +
-          `nothing here. Style the element itself with ` +
-          `\`:scope\` (the scoping root is the element), and slotted content with an ordinary ` +
-          `descendant selector.`
+          `nothing here. Write \`:host, :scope\` to style the element in BOTH modes (measured: ` +
+          `\`:scope\` alone styles nothing under a shadow root, so it is not a replacement). ` +
+          `\`::slotted()\` has no light-DOM equivalent — slotted content is styled by whoever ` +
+          `provided it, which in light DOM your own page CSS already reaches.`
       );
   }
   const scoped = supported ? `@scope (${element.localName}) {\n${cssText}\n}` : cssText;

@@ -191,5 +191,7 @@ test('a light host is told when its stylesheet uses shadow-only selectors', { sk
   assert.match(warning, /`:host`/);
   assert.match(warning, /`::slotted\(\)`/, 'both constructs are named, not just the first');
   assert.match(warning, /only ever match inside one/, 'plural, because it found two');
-  assert.match(warning, /`:scope`/, 'and it says what to write instead');
+  assert.match(warning, /`:host, :scope`/,
+    'and it says what to write instead — the DUAL selector, because `:scope` alone styles nothing ' +
+    'under a shadow root and would trade one broken mode for the other');
 });
