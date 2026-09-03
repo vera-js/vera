@@ -96,3 +96,14 @@ test('re-render after hydration keeps user nodes in place', async () => {
   assert.equal(host.querySelector('input'), input, 'same node after re-render');
   assert.equal(input.value, 'typed', 'state intact');
 });
+
+test('AUDIT — hydration recovers server-parked unassigned content into the capture map', async () => {
+  const serverHtml = server('<h2 slot="header">Hi</h2><p slot="nowhere">Recovered</p>');
+  assert.ok(serverHtml.includes('data-vera-unassigned'), 'the server parked it');
+  const host = hostFromServer(serverHtml);
+  renderInto(card(), host);
+  await settle();
+  assert.equal(host.querySelector('template[data-vera-unassigned]'), null, 'the carrier is consumed');
+  assert.equal(slotted(host, 'nowhere').length, 1, 'and its content is captured, ready for its slot');
+  assert.equal(host.textContent.includes('Recovered'), false, 'still unrendered, as native leaves it');
+});

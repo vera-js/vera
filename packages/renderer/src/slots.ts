@@ -142,6 +142,35 @@ const refill = (state: HostState, name: string) => {
 };
 
 /**
+ * Register one binding for `name` and hand back its park closure — the single source for both the
+ * client seam and hydration's adopt, which previously spelled the same registration and the same
+ * park body twice (the house's most-repeated defect class). Park rescues assigned user nodes into
+ * holding before the instance's DOM is bulk-discarded, unregisters, and promotes the next
+ * duplicate slot to the assignment — native's next-in-tree-order.
+ */
+const bind = (state: HostState, binding: Binding): SeamState => {
+  let list = state._bindings.get(binding._name);
+  if (list === undefined) state._bindings.set(binding._name, (list = []));
+  list.push(binding);
+  return {
+    _$park$: () => {
+      if (binding._assigned) {
+        let node = binding._start.nextSibling;
+        while (node !== null && node !== binding._end) {
+          const next = node.nextSibling;
+          state._holding.appendChild(node);
+          node = next;
+        }
+      }
+      const at = list!.indexOf(binding);
+      if (at !== -1) list!.splice(at, 1);
+      if (at === 0 && list!.length > 0) fill(state, list![0], true);
+      drain(state);
+    },
+  };
+};
+
+/**
  * The user's mutations, batched. Additions join only with an explicit `slot` attribute (the
  * documented rule above); removals and re-slottings of CAPTURED nodes are recognized anywhere by
  * identity. Template-caused records match nothing here: its nodes were never captured, and our
@@ -205,6 +234,18 @@ const capture = (host: Element, skipChildren = false): HostState => {
     _observer: new MutationObserver((records) => onMutations(host, records)),
   });
   HOSTS.set(host, created);
+  /**
+   * A server render parks content no slot claimed in an inert `<template>` — recover it into
+   * holding (captured, unrendered, ready if its slot ever mounts) and drop the carrier, so the
+   * round trip matches CSR exactly. Done before the children walk so the carrier is never itself
+   * mistaken for slot content.
+   */
+  for (const child of [...host.children])
+    if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) {
+      const held = (child as HTMLTemplateElement).content ?? child;
+      for (const node of [...held.childNodes]) take(created, node);
+      host.removeChild(child);
+    }
   /** Hydration already has the children distributed and registers them itself; a fresh CSR
    *  capture lifts them from the host. */
   if (!skipChildren) for (const node of [...host.childNodes]) take(created, node);
@@ -241,30 +282,10 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
   for (const node of fallback) slot.removeChild(node);
   parent.removeChild(slot);
   const binding: Binding = { _start: start, _end: end, _name: name, _fallback: fallback, _assigned: false };
-  let siblings = state._bindings.get(name);
-  if (siblings === undefined) state._bindings.set(name, (siblings = []));
-  siblings.push(binding);
-  fill(state, binding, siblings[0] === binding);
+  const seam = bind(state, binding);
+  fill(state, binding, state._bindings.get(name)![0] === binding);
   drain(state);
-  return {
-    _$park$: () => {
-      /** Rescue assigned user nodes before the instance's DOM is bulk-discarded; if a duplicate
-       *  slot was waiting behind this one, it inherits the assignment — native's next-in-tree. */
-      if (binding._assigned) {
-        let node = binding._start.nextSibling;
-        while (node !== null && node !== binding._end) {
-          const next = node.nextSibling;
-          state._holding.appendChild(node);
-          node = next;
-        }
-      }
-      const list = state._bindings.get(binding._name)!;
-      const at = list.indexOf(binding);
-      if (at !== -1) list.splice(at, 1);
-      if (at === 0 && list.length > 0) fill(state, list[0], true);
-      drain(state);
-    },
-  };
+  return seam;
 };
 
 /**
@@ -277,8 +298,16 @@ export const slotted = (host: Element, name = ''): Node[] => {
   if (state !== undefined) return [...(state._map.get(name) ?? [])];
   const root = host.shadowRoot;
   if (root !== null) {
-    const slot = root.querySelector<HTMLSlotElement>(name === '' ? 'slot:not([name])' : `slot[name="${name}"]`);
-    if (slot !== null) return slot.assignedNodes();
+    /**
+     * Matched by READING each slot's name, never by interpolating one into a selector: a name
+     * carrying a quote made `slot[name="…"]` an invalid selector and threw a DOMException out of
+     * a public accessor, and `slot:not([name])` missed `<slot name="">` — which the platform
+     * counts as the default slot (measured against native `assignedNodes`). One rule,
+     * `(getAttribute('name') ?? '') === name`, is the platform's own and covers both.
+     */
+    for (const slot of root.querySelectorAll('slot'))
+      if (((slot as HTMLSlotElement).getAttribute('name') ?? '') === name)
+        return (slot as HTMLSlotElement).assignedNodes();
   }
   return [];
 };
@@ -297,6 +326,14 @@ export const slotted = (host: Element, name = ''): Node[] => {
  * needs to tell assigned-from-fallback there.
  */
 const SLOTTED_ATTR = 'data-vera-slotted';
+/**
+ * Unassigned slot content is PRESERVED, not dropped — native leaves an unassigned light child in
+ * the DOM (present, unrendered), and a light host has no second tree to hide it in, so the server
+ * parks it in an inert `<template>` (exactly what the element is for: parsed, never rendered).
+ * Hydration drains it back into holding, so content for a slot that only appears in another state
+ * survives the round trip instead of vanishing from the HTML forever.
+ */
+const UNASSIGNED_MARK = 'data-vera-unassigned';
 const serverDistribute = (host: Element, source: Node[]) => {
   const buckets = new Map<string, Node[]>();
   for (const node of source) {
@@ -336,6 +373,17 @@ const serverDistribute = (host: Element, source: Node[]) => {
     }
     parent.removeChild(slot);
   }
+  /** Whatever no slot claimed goes into the inert carrier, in its original order per name. */
+  let carrier: Element | null = null;
+  for (const [name, bucket] of buckets) {
+    if (filled.has(name) || bucket.length === 0) continue;
+    if (carrier === null) {
+      carrier = host.ownerDocument!.createElement('template');
+      carrier.setAttribute(UNASSIGNED_MARK, '');
+    }
+    for (const node of bucket) carrier.appendChild(node);
+  }
+  if (carrier !== null) host.appendChild(carrier);
 };
 
 /** DocumentFragment/shim fallback when querySelectorAll is unavailable — a plain descendant walk. */
@@ -394,24 +442,15 @@ const adoptSlot = (
   parent.insertBefore(start, firstShown ?? before);
   parent.insertBefore(end, before);
   const isAssigned = assigned !== null && assigned.length > 0;
-  if (isAssigned) for (const node of assigned!) { bucketOf(state, name).push(node); state._names.set(node, name); }
-  const binding: Binding = { _start: start, _end: end, _name: name, _fallback: isAssigned ? fallback : [...fallback], _assigned: isAssigned };
-  let list = state._bindings.get(name);
-  if (list === undefined) state._bindings.set(name, (list = []));
-  list.push(binding);
+  if (isAssigned)
+    for (const node of assigned!) {
+      bucketOf(state, name).push(node);
+      state._names.set(node, name);
+    }
+  const binding: Binding = { _start: start, _end: end, _name: name, _fallback: fallback, _assigned: isAssigned };
+  const seam = bind(state, binding);
   drain(state);
-  return {
-    _$park$: () => {
-      if (binding._assigned) {
-        let node = binding._start.nextSibling;
-        while (node !== null && node !== binding._end) { const next = node.nextSibling; state._holding.appendChild(node); node = next; }
-      }
-      const at = list!.indexOf(binding);
-      if (at !== -1) list!.splice(at, 1);
-      if (at === 0 && list!.length > 0) fill(state, list![0], true);
-      drain(state);
-    },
-  };
+  return seam;
 };
 (takeOverSlot as { _$adopt$?: typeof adoptSlot })._$adopt$ = adoptSlot;
 

@@ -65,3 +65,11 @@ test('a component WITHOUT the module wired is unaffected (literal <slot> stays â
   const asyncOut = (await renderToStringAsync(CARD, { children: '<h2 slot="header">X</h2>Y' })).html;
   assert.equal(asyncOut, sync, 'sync and async chains produce identical distributed markup');
 });
+
+test('AUDIT â€” unassigned slot content is PRESERVED in an inert template, never dropped', async () => {
+  const html = await render('<h2 slot="header">Kept</h2><p slot="nowhere">Survives</p>');
+  assert.match(html, /<header><h2 slot="header">Kept<\/h2><\/header>/, 'the assigned one distributes');
+  assert.match(html, /<template data-vera-unassigned=""><p slot="nowhere">Survives<\/p><\/template>/,
+    'the unassigned one is parked inert (native leaves unassigned light children in the DOM; dropping them lost content forever)');
+  assert.doesNotMatch(html, /<main>[^<]*Survives/, 'and is not rendered anywhere');
+});

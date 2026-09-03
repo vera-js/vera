@@ -214,3 +214,34 @@ test('a node the user adopts while unassigned is respected, not stolen back', ()
   assert.equal(slotted(h, 'gone').length, 0, 'and the capture record is purged');
   h.remove(); theirs.remove();
 });
+
+test('AUDIT — slotted() matches the platform: <slot name=""> IS the default slot', () => {
+  const el = doc.createElement('div');
+  el.innerHTML = '<i>default content</i>';
+  doc.body.append(el);
+  const root = el.attachShadow({ mode: 'open' });
+  root.innerHTML = '<slot name=""></slot>';
+  /** Native counts an empty name as the default slot; `slot:not([name])` missed it. */
+  assert.equal(root.querySelector('slot').assignedNodes().length, 1, 'native assigns it');
+  assert.equal(slotted(el).length, 1, 'and so does slotted()');
+  el.remove();
+});
+
+test('AUDIT — slotted() never builds a selector from the name (a quote threw a DOMException)', () => {
+  const el = doc.createElement('div');
+  doc.body.append(el);
+  el.attachShadow({ mode: 'open' }).innerHTML = '<slot name="ok"></slot>';
+  assert.deepEqual(slotted(el, 'a"]b'), [], 'a hostile name answers emptily instead of throwing');
+  assert.deepEqual(slotted(el, "x'y"), []);
+  el.remove();
+});
+
+test('AUDIT — unassigned content is captured, invisible, and shown when its slot arrives', () => {
+  const h = host('<p slot="later">waiting</p>');
+  renderInto(html`<div>only this</div>`, h);
+  assert.equal(h.textContent.includes('waiting'), false, 'unassigned content is not rendered');
+  assert.equal(slotted(h, 'later').length, 1, 'but it is preserved');
+  renderInto(html`<div>now<slot name="later"></slot></div>`, h);
+  assert.equal(h.textContent.includes('waiting'), true, 'and appears when its slot mounts');
+  h.remove();
+});
