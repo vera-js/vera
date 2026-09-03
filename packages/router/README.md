@@ -297,8 +297,14 @@ Router's `<Link to="edit">`, which would give `/docs/intro/edit` — a `route` a
 change where a link points, or the same markup would go to two different places depending on
 whether the script ran.
 
-Routed links must live in the router's own template. A link inside a *child* component's shadow root
-is invisible to the click listener, because retargeting hides it.
+A link inside a *child* component's **shadow root** is invisible to the click listener, because
+retargeting rewrites the event's target to the host before the listener sees it — so routed links
+belong in the router's own template, or in a component that renders **light**.
+
+A **light-DOM** child is a different matter: nothing is retargeted, the link is an ordinary element
+in the same tree, and the router handles it exactly as it handles its own. Both halves are pinned in
+`tests/router-component-links.test.mjs` — the limitation as much as the capability, since a
+limitation people plan around has to be described accurately.
 
 **Active links** are marked as the route changes: an exact match gets `.active` and
 `aria-current="page"`; an ancestor of the current path — `/users` while at `/users/5` — gets
