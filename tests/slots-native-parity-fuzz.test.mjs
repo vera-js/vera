@@ -33,7 +33,13 @@ const doc = dom.window.document;
 /** Each case is a genuinely different template, so a fresh strings identity is the honest shape. */
 const template = (markup) => ({ strings: Object.assign([markup], { raw: [markup] }), values: [] });
 
-let seed = 20260903;
+/**
+ * SEVERAL seeds, not one. A single seed explores one path through the case space and then explores
+ * it forever; a handful cover meaningfully more for the same wall-clock, and each is still fixed, so
+ * a failure names the seed and the run that produced it and bisects to exactly that case.
+ */
+const SEEDS = [20260903, 11, 4242, 99991, 7777777];
+let seed = 0;
 const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 const NAMES = ['a', 'b', '', null];
@@ -50,7 +56,9 @@ test('light distribution matches native shadow slotting across generated markup'
   let nonTrivial = 0;
   const mismatches = [];
 
-  for (let run = 0; run < 400; run++) {
+  for (const start of SEEDS) {
+  seed = start;
+  for (let run = 0; run < 200; run++) {
     const userMarkup = Array.from({ length: Math.floor(random() * 5) + 1 }, () => {
       if (pick(['element', 'element', 'text']) === 'text') return pick(['t1', ' ', 'hello']);
       const name = pick(NAMES);
@@ -78,14 +86,16 @@ test('light distribution matches native shadow slotting across generated markup'
     const fallbacks = slotMarkup.match(/>([^<]*)<\/slot>/g) ?? [];
     if (native.some((shown, index) => shown !== fallbacks[index])) nonTrivial++;
     if (JSON.stringify(native) !== JSON.stringify(light))
-      mismatches.push({ run, userMarkup, slotMarkup, native, light });
+      mismatches.push({ seed: start, run, userMarkup, slotMarkup, native, light });
 
     shadowHost.remove();
     lightHost.remove();
   }
+  }
 
-  assert.equal(compared, 400);
-  assert.ok(nonTrivial > 300, `CONTROL: only ${nonTrivial} cases distributed anything — the run proves little`);
+  assert.equal(compared, SEEDS.length * 200);
+  assert.ok(nonTrivial > compared * 0.75,
+    `CONTROL: only ${nonTrivial} of ${compared} cases distributed anything — the run proves little`);
   assert.deepEqual(mismatches, [], 'every case must read the same as the platform');
 });
 
