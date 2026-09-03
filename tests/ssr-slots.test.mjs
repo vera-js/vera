@@ -21,7 +21,7 @@ test('assigned named + default: distributed, marked, and MARKERLESS (no <slot>, 
   assert.match(html, /<main>plain body<b>bold<\/b><\/main>/, 'default content in the default slot');
   assert.doesNotMatch(html, /<slot[\s>]/, 'no <slot> element survives to the light DOM');
   assert.doesNotMatch(html, /<!--/, 'no framework comments');
-  assert.match(html, /<slot-card-ssr data-vera-slotted="">/, 'the default slot got content, so the host is marked');
+  assert.match(html, /<slot-card-ssr data-vera-slotted="2">/, 'the default slot took 2 nodes (text + <b>), so the host carries the count');
   /** No top-level duplicate of the source. */
   assert.equal((html.match(/Hi there/g) || []).length, 1, 'source appears exactly once');
 });

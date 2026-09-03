@@ -193,7 +193,7 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
 };
 
 /** Capture the host's children — once, at the first slot the seam hands us for it. */
-const capture = (host: Element): HostState => {
+const capture = (host: Element, skipChildren = false): HostState => {
   let state = HOSTS.get(host);
   if (state !== undefined) return state;
   const doc = host.ownerDocument!;
@@ -205,7 +205,9 @@ const capture = (host: Element): HostState => {
     _observer: new MutationObserver((records) => onMutations(host, records)),
   });
   HOSTS.set(host, created);
-  for (const node of [...host.childNodes]) take(created, node);
+  /** Hydration already has the children distributed and registers them itself; a fresh CSR
+   *  capture lifts them from the host. */
+  if (!skipChildren) for (const node of [...host.childNodes]) take(created, node);
   created._observer.observe(host, {
     childList: true,
     subtree: true,
@@ -319,7 +321,10 @@ const serverDistribute = (host: Element, source: Node[]) => {
     if (assigned !== undefined && assigned.length > 0) {
       filled.add(name);
       for (const node of assigned) parent.insertBefore(node, slot);
-      if (name === '') host.setAttribute(SLOTTED_ATTR, '');
+      /** The DEFAULT slot's extent is unmarkable in the body (its content may be bare text), so
+       *  the host carries the COUNT — the one deterministic, markerless delimiter the hydrator
+       *  needs. Named slots self-delimit by their own `slot` attribute and need nothing. */
+      if (name === '') host.setAttribute(SLOTTED_ATTR, String(assigned.length));
     } else {
       /** Fallback: the slot's own children, unwrapped in place. */
       let child = slot.firstChild;
@@ -361,6 +366,54 @@ const collectSlots = (root: Node): Element[] => {
 };
 /** The server hook — SSR calls this (never the client capture/anchor path). */
 (takeOverSlot as { _$server$?: (host: Element, source: Node[]) => void })._$server$ = serverDistribute;
+
+/**
+ * HYDRATION adopt — wrap already-distributed server nodes as a live binding IN PLACE, so a
+ * server-rendered slot component becomes fully interactive with zero node churn: the user's nodes
+ * keep their identity (focus, input values), and the capture map + observer come alive for
+ * re-renders and mutations. Called by the hydrate entry once per `<slot>` it reconciles.
+ *
+ * `assigned` are the user's nodes already sitting at the slot position (null/empty ⇒ the slot
+ * showed its fallback, which is `fallback` — those nodes are already in place too). `parent` and
+ * `before` bound where anchors go. Returns the binding's park state, exactly like `takeOverSlot`.
+ */
+const adoptSlot = (
+  host: Element,
+  name: string,
+  assigned: Node[] | null,
+  fallback: Node[],
+  parent: Node,
+  before: Node | null,
+): SeamState => {
+  const state = capture(host, /* skipChildren */ true);
+  const doc = host.ownerDocument!;
+  const start = doc.createComment('');
+  const end = doc.createComment('');
+  /** Anchors bracket whatever is shown (assigned nodes, or the fallback the server rendered). */
+  const firstShown = (assigned && assigned.length > 0 ? assigned[0] : fallback[0]) ?? before;
+  parent.insertBefore(start, firstShown ?? before);
+  parent.insertBefore(end, before);
+  const isAssigned = assigned !== null && assigned.length > 0;
+  if (isAssigned) for (const node of assigned!) { bucketOf(state, name).push(node); state._names.set(node, name); }
+  const binding: Binding = { _start: start, _end: end, _name: name, _fallback: isAssigned ? fallback : [...fallback], _assigned: isAssigned };
+  let list = state._bindings.get(name);
+  if (list === undefined) state._bindings.set(name, (list = []));
+  list.push(binding);
+  drain(state);
+  return {
+    _$park$: () => {
+      if (binding._assigned) {
+        let node = binding._start.nextSibling;
+        while (node !== null && node !== binding._end) { const next = node.nextSibling; state._holding.appendChild(node); node = next; }
+      }
+      const at = list!.indexOf(binding);
+      if (at !== -1) list!.splice(at, 1);
+      if (at === 0 && list!.length > 0) fill(state, list![0], true);
+      drain(state);
+    },
+  };
+};
+(takeOverSlot as { _$adopt$?: typeof adoptSlot })._$adopt$ = adoptSlot;
 
 /** The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist. */
 export const slots = {

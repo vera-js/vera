@@ -182,6 +182,99 @@ type AdoptState = {
   _partIndex: number;
   _nodeIndex: number;
   _out: Part[];
+  /** Taken-over slot states — parked at teardown, never committed (kept OUT of `_parts`). */
+  _slotStates?: import('./renderer.js').SlotSeamState[];
+};
+
+/** The light host being hydrated — every `<slot>` in the render projects it, set once in
+ *  `tryAdopt` (the render container), null when no slot handler is wired. */
+let _adoptHost: Element | null = null;
+/** Whether the default slot's assignment has been claimed (the host count is for the first one). */
+let _defaultTaken = false;
+
+/** How many values a template part consumes — for skipping the unrendered parts inside an
+ *  assigned slot's fallback subtree. */
+const partValueCount = (part: { _type: number; _statics?: string[] }): number =>
+  part._type === 1 ? (part._statics!.length - 1) : 1;
+
+/**
+ * Account for (skip) the parts inside a canonical subtree whose DOM the server did NOT render —
+ * an assigned slot's fallback. Advances the walk indices and value cursor without touching DOM,
+ * so the parts AFTER the slot still line up. Walks the node's CHILDREN (the fallback), in the
+ * same ELEMENT|TEXT order the walker numbers by.
+ */
+const accountSubtree = (node: Node, state: AdoptState) => {
+  const parts = state._template._parts;
+  for (let child = node.firstChild; child !== null; child = child.nextSibling) {
+    if (child.nodeType !== 1 && child.nodeType !== 3) continue;
+    state._nodeIndex++;
+    while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
+      state._valueIndex += partValueCount(parts[state._partIndex]);
+      state._partIndex++;
+    }
+    if (child.nodeType === 1) accountSubtree(child, state);
+  }
+};
+
+/**
+ * Reconcile a canonical `<slot>` against server-distributed DOM. Named slots take the consecutive
+ * cursor nodes carrying `slot="name"`; the default slot takes the host-count nodes (`data-vera-
+ * slotted="N"`). Found nodes are wrapped in place as a live binding (identity/state preserved);
+ * an unassigned slot adopts its server-rendered fallback children normally. The slots module's
+ * `_$adopt$` (off the template's own seam fn) does the registration.
+ */
+const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptState) => {
+  const name = canonicalSlot.getAttribute('name') ?? '';
+  const seamAdopt = (state._template._seam as unknown as {
+    _$adopt$: (h: Element, n: string, a: Node[] | null, f: Node[], p: Node, b: Node | null) => Part;
+  })._$adopt$;
+  passComments(cursor);
+  const parent = cursor.parent;
+
+  /** Collect the server nodes assigned to this slot. */
+  const assigned: Node[] = [];
+  if (name !== '') {
+    let node = cursorSplit(cursor);
+    while (node !== null && node.nodeType === 1 && (node as Element).getAttribute('slot') === name) {
+      assigned.push(node);
+      cursor.node = node.nextSibling;
+      node = cursorSplit(cursor);
+    }
+  } else if (!_defaultTaken) {
+    const count = Number(_adoptHost?.getAttribute('data-vera-slotted') ?? '');
+    if (count > 0) {
+      _defaultTaken = true;
+      for (let i = 0; i < count; i++) {
+        const node = cursorSplit(cursor);
+        if (node === null) break;
+        assigned.push(node);
+        cursor.node = node.nextSibling;
+      }
+    }
+  }
+
+  if (assigned.length > 0) {
+    /** Assigned: the fallback was NOT rendered, so its parts are accounted (skipped) and its
+     *  nodes cloned from the canonical template for live re-fallback later. */
+    const before = cursor.node;
+    const fallback: Node[] = [];
+    for (let c = canonicalSlot.firstChild; c !== null; c = c.nextSibling)
+      if (c.nodeType === 1 || c.nodeType === 3) fallback.push(c.cloneNode(true));
+    accountSubtree(canonicalSlot, state);
+    (state._slotStates ??= []).push(seamAdopt(_adoptHost!, name, assigned, fallback, parent, before) as never);
+  } else {
+    /** Unassigned: the server rendered this slot's fallback children — adopt them in lockstep
+     *  (they ARE the canonical children), then bind them as the shown fallback. */
+    const before = cursor.node; // wrong end until children adopted; recomputed after
+    const fallbackStart = cursor.node;
+    for (let c = canonicalSlot.firstChild; c !== null; c = c.nextSibling)
+      if (c.nodeType === 1 || c.nodeType === 3) adoptNode(c, cursor, state);
+    /** The fallback nodes now sit between fallbackStart and cursor.node. */
+    const fallback: Node[] = [];
+    for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
+    void before;
+    (state._slotStates ??= []).push(seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node) as never);
+  }
 };
 
 /** Adopts one canonical node (and, for elements, its subtree) against the live cursor. */
@@ -199,6 +292,13 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
       drainIgnored(state);
     }
     if (!isSlot) expectText(cursor, (canonical as Text).data);
+    return;
+  }
+
+  /** A `<slot>` in the canonical template maps to distributed content (or fallback) in the server
+   *  DOM — reconciled specially — but only when a slot handler was wired at construction. */
+  if (state._template._seam !== undefined && (canonical as Element).localName === 'slot') {
+    adoptSlotElement(canonical as Element, cursor, state);
     return;
   }
 
@@ -429,6 +529,7 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     if (__DEV__) why = 'the markup ran out before the template did';
     throw MISMATCH;
   }
+  if (state._slotStates !== undefined) instance._slotStates = state._slotStates;
   return instance;
 };
 
@@ -447,6 +548,10 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
   if (__DEV__) why = '';
   const start = comment();
   container.insertBefore(start, first);
+  /** The container is the light host every slot in this render projects; `_defaultTaken` resets
+   *  per adoption (the host count is for the first default slot). */
+  _adoptHost = container.nodeType === 1 ? (container as Element) : null;
+  _defaultTaken = false;
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(getTemplate(result), result.values, cursor);

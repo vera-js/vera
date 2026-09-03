@@ -374,7 +374,7 @@ type TemplatePart = {
  */
 /** The state a taken-over slot hands back; `_$park$` (sigiled, mangle-safe) is called before the
  *  instance's DOM is bulk-discarded so the USER'S nodes are rescued first. */
-type SlotSeamState = { _$park$?: () => void };
+export type SlotSeamState = { _$park$?: () => void };
 /** The registered `'slot'` insert is a plain function per wire's contract: take over one cloned
  *  `<slot>` for the given root, or decline with null/undefined (native slotting proceeds). */
 type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
