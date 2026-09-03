@@ -303,3 +303,21 @@ test('AUDIT — End reaches the create row; activate there creates', () => {
   select.activate(select.state.active);
   assert.equal(made, 'delta', 'End walked to the create row and Enter created');
 });
+
+test('AUDIT — a selection made before its option existed upgrades its label when options arrive', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.state.value = [{ label: 'b', value: 'b' }]; // placeholder label = raw value (pre-options)
+  select.setOptions([{ label: 'Alpha', value: 'a' }, { label: 'Beta', value: 'b' }]);
+  assert.equal(select.state.value[0].label, 'Beta', 'placeholder label upgraded to the real one');
+  assert.equal(select.state.value[0].value, 'b', 'the value string is unchanged');
+});
+
+test('AUDIT — a selection whose option is absent from the new set keeps its cached label (remote)', () => {
+  const element = host();
+  const select = useSelect(element, { remote: () => true });
+  select.setOptions([{ label: 'Server B', value: 'b' }]);
+  select.state.value = [{ label: 'Server B', value: 'b' }];
+  select.setOptions([{ label: 'Other', value: 'z' }]); // b gone from the list
+  assert.equal(select.state.value[0].label, 'Server B', 'the cached label survives a refresh that drops it');
+});

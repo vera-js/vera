@@ -1003,3 +1003,17 @@ test('AUDIT — a [slot="value"] nested INSIDE a slotted trigger is found and st
   assert.equal(valueNode.textContent, 'Pick…', 'and its children are untouched — you slot it, you own it');
   element.remove();
 });
+
+test('AUDIT — value set BEFORE options resolves its label once options arrive', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  dom.window.document.body.append(element);
+  await frame();
+  element.value = 'b';                       // no options yet -> placeholder label 'b'
+  await frame();
+  element.options = [{ label: 'Alpha', value: 'a' }, { label: 'Beta', value: 'b' }];
+  await frame();
+  assert.equal(element.value, 'b', 'the value string holds');
+  assert.equal(element.selectedOptions[0].label, 'Beta', 'the label upgraded from the raw value');
+  assert.match(part(element, 'value').textContent, /Beta/, 'and the trigger shows it');
+  element.remove();
+});

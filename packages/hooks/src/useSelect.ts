@@ -57,6 +57,25 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     const previous = matches()[state.active];
     state.options = next;
     memo = null;
+    /**
+     * A selection made before its option existed carries a PLACEHOLDER label (the value string
+     * itself — a value set before options, or a remote pick whose option later leaves the list).
+     * When the real option now appears, adopt it so the label upgrades from the raw value to the
+     * real text; keep the cached object when it does not (remote-safe — the label cache is the
+     * whole point there). Same by-identity idea as the active tracking below.
+     */
+    if (state.value.length) {
+      let upgraded = false;
+      const merged = state.value.map((entry) => {
+        const real = next.find((option) => option.value === entry.value);
+        if (real && real !== entry) upgraded = true;
+        return real ?? entry;
+      });
+      if (upgraded) {
+        state.value = merged;
+        syncAssigned();
+      }
+    }
     if (previous) {
       const index = matches().findIndex((option) => option.value === previous.value);
       state.active = index === -1 ? firstEnabled() : index;
