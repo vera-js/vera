@@ -119,6 +119,18 @@ describe.
   deliberate exception — a browser keeps them off the markup, and on a server the markup is the whole
   output, so they are mirrored exactly as `serializer.js` already mirrors the same three for template
   bindings.
+- **A parsed `<template>`'s content is opaque, and `template.content` is `undefined` here.** The
+  element itself is modelled — found by `querySelector`, styled, serialised back byte for byte — and
+  a query on the host correctly does not descend into it, which is what a real DOM does too. What is
+  missing is reaching INTO one: `template.content.querySelector(…)` answers nothing on the server
+  and a fragment in the browser.
+  It used to be far worse. Markup containing a `<template>` was refused outright, so the host had no
+  nodes at all and EVERY query on it answered emptily — one empty `<template>` turned
+  `querySelectorAll('*')` from three elements into none, silently, and cost light-DOM slots their
+  whole server render. Keeping the interior opaque, exactly as `<svg>` already was, fixed that.
+  Implementing `content` is a contained follow-up if anything needs it: the interior is already
+  retained verbatim, so the getter is a lazy `parseFragment` of the string it already holds.
+
 - **The server DOM is complete, and checked twice.** Every member a real element, shadow root,
   document, `CSSStyleSheet`, `DOMTokenList` **or window** exposes in Chromium, Firefox and WebKit is
   either implemented or listed as out of scope with a reason — and every member that *is* implemented

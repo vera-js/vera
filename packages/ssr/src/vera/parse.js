@@ -339,7 +339,6 @@ export const parseFragment = (markup, create) => {
     }
     node.element._sourceCloseTag = node.closeTag;
     /** Marked so anything comparing this tree knows the interior is not modelled. */
-    if (node.foreign) node.element._foreign = true;
     return node.element;
   };
   return root.children.map((child) =>
