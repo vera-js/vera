@@ -219,3 +219,24 @@ test('AUDIT — a component the server CAN parse says nothing', async () => {
   assert.deepEqual(said.filter((message) => message.includes('the server cannot see')), [],
     'the diagnostic must not fire for a component that distributed perfectly well');
 });
+
+/**
+ * **A `<template>` as slotted CONTENT.** The same parse refusal that cost a component its whole
+ * node view also stopped this working: children containing a `<template>` could not be parsed, so
+ * the snapshot was empty and nothing distributed. Keeping a template's interior opaque fixed both
+ * symptoms at once, which is worth pinning separately — they looked like two defects.
+ */
+test('AUDIT — a <template> among the children distributes like any other node', async () => {
+  const slotted = await renderToString(CARD, {
+    children: '<template slot="header"><b>inert</b></template>plain body',
+  });
+  assert.match(slotted.html, /<header><template slot="header"><b>inert<\/b><\/template><\/header>/,
+    'a template assigned to a named slot lands there, its interior untouched');
+
+  const mixed = await renderToString(CARD, {
+    children: '<h2 slot="header">H</h2><template><b>x</b></template>tail',
+  });
+  assert.match(mixed.html, /<header><h2 slot="header">H<\/h2><\/header>/, 'the named slot still works beside it');
+  assert.match(mixed.html, /<main data-vera-slotted="0,2"><template><b>x<\/b><\/template>tail<\/main>/,
+    'and a template in the default slot is counted and placed like any other node');
+});
