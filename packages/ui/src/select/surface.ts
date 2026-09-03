@@ -16,6 +16,11 @@ export const selectSurface = {
     { name: 'placeholder', description: 'Shown in the value area while nothing is selected.' },
     { name: 'light', description: 'Render into the light DOM instead of a shadow root. Read at connect.' },
     { name: 'name', description: 'The form field name — submitted via ElementInternals where supported.' },
+    {
+      name: 'value',
+      description:
+        'Single-mode initial value, native-input style: read at connect, applies only when neither the property nor selected markup claimed the selection, and doubles as the reset default when the markup declared none. Multi preselects via <option selected>.',
+    },
     { name: 'required', description: 'An empty selection reports valueMissing to the owning form.' },
     {
       name: 'disabled',
@@ -55,7 +60,18 @@ export const selectSurface = {
       description:
         'The choosable rows. `value` is identity; `description` renders under the label (and is announced); consecutive `group`s render as one labelled role="group"; `iconBefore`/`iconAfter` take a Vera template or a plain string, rendered aria-hidden — decorative by contract.',
     },
-    { name: 'value', type: 'SelectOption[]', description: 'The selection — always an array, in both modes.' },
+    {
+      name: 'value',
+      type: 'string | string[]',
+      description:
+        'Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null. Selection identity is the value string.',
+    },
+    {
+      name: 'selectedOptions',
+      type: 'SelectOption[]',
+      description:
+        'The selection as full options — native <select>.selectedOptions. Doubles as the label cache: a remote refilter cannot orphan a chosen label.',
+    },
   ],
   events: [
     {
@@ -75,7 +91,7 @@ export const selectSurface = {
     },
     {
       name: 'change',
-      detail: '{ value: SelectOption[] }',
+      detail: '{ value: string | string[], selectedOptions: SelectOption[] }',
       description: 'After every committed change. Bubbles and crosses the shadow boundary.',
     },
     {

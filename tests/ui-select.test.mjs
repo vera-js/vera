@@ -68,7 +68,7 @@ test('shadow by default: parts render, the menu opens on click, a pick commits a
   assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed');
 
   const events = [];
-  element.addEventListener('change', (event) => events.push(event.detail.value.map((o) => o.value)));
+  element.addEventListener('change', (event) => events.push(event.detail.value));
 
   part(element, 'trigger').click();
   await frame();
@@ -77,8 +77,9 @@ test('shadow by default: parts render, the menu opens on click, a pick commits a
 
   root(element).querySelectorAll('[part="option"]')[1].click();
   await frame();
-  assert.deepEqual(events, [['b']]);
-  assert.deepEqual(element.value.map((o) => o.value), ['b']);
+  assert.deepEqual(events, ['b'], 'the detail carries the mode-shaped string value');
+  assert.equal(element.value, 'b', 'single mode: value is a string');
+  assert.deepEqual(element.selectedOptions.map((o) => o.label), ['Beta'], 'selectedOptions carries the objects');
   assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'single mode closes');
   assert.match(part(element, 'value').textContent, /Beta/);
 });
@@ -93,11 +94,11 @@ test('multi: stays open, toggles, marks aria-selected', async () => {
   options()[1].click();
   await frame();
   assert.equal(part(element, 'menu').getAttribute('data-state'), 'open', 'multi stays open');
-  assert.deepEqual(element.value.map((o) => o.value), ['a', 'b']);
+  assert.deepEqual(element.value, ['a', 'b'], 'multi: value is a string array');
   assert.equal(options()[0].getAttribute('aria-selected'), 'true');
   options()[0].click();
   await frame();
-  assert.deepEqual(element.value.map((o) => o.value), ['b'], 'toggled off');
+  assert.deepEqual(element.value, ['b'], 'toggled off');
   element.remove();
 });
 
@@ -116,7 +117,7 @@ test('keyboard: ArrowDown opens from the trigger; arrows skip disabled; Enter pi
 
   menu.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await frame();
-  assert.deepEqual(element.value.map((o) => o.value), ['b']);
+  assert.equal(element.value, 'b');
 
   trigger.click();
   await frame();
@@ -157,7 +158,7 @@ test('a slotted trigger is wired like our own: role, state stamps, and the same 
   element.append(trigger);
   dom.window.document.body.append(element);
   element.options = OPTIONS;
-  element.value = [OPTIONS[0]];
+  element.value = 'a';
   await frame();
   await frame();
 
@@ -238,7 +239,7 @@ test('creatable offers exactly the missing label; the create event is cancelable
   row.click();
   await frame();
   assert.deepEqual(created, ['Mint']);
-  assert.deepEqual(element.value.map((o) => o.value), ['mint-id'], 'the shaped option was picked');
+  assert.equal(element.value, 'mint-id', 'the shaped option was picked');
   assert.ok(element.options.some((o) => o.value === 'mint-id'), 'and joined the options');
 
   /** A canceled create leaves everything untouched. */
@@ -303,7 +304,7 @@ test('without a search line the trigger drives the open menu: arrows, Home/End, 
   await key('ArrowDown');
   assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1');
   await key('Enter');
-  assert.deepEqual(element.value.map((o) => o.value), ['b']);
+  assert.equal(element.value, 'b');
   assert.equal(trigger.getAttribute('aria-activedescendant'), null, 'closed means no active descendant');
   element.remove();
 });
@@ -410,15 +411,15 @@ test('HTML-authored options: option/optgroup parse, selected seeds value AND res
     'a value-less option falls back to its text; optgroup label becomes the group'
   );
   assert.equal(element.options[1].description, 'the safe pick');
-  assert.deepEqual(element.value.map((o) => o.value), ['vanilla'], 'selected seeded the value');
+  assert.equal(element.value, 'vanilla', 'selected seeded the value');
 
   part(element, 'trigger').click();
   await frame();
   root(element).querySelectorAll('[part="option"]')[1].click();
   await frame();
-  assert.deepEqual(element.value.map((o) => o.value), ['chocolate']);
+  assert.equal(element.value, 'chocolate');
   element.formResetCallback();
-  assert.deepEqual(element.value.map((o) => o.value), ['vanilla'], 'reset restores DEFAULTS, not emptiness');
+  assert.equal(element.value, 'vanilla', 'reset restores DEFAULTS, not emptiness');
   element.remove();
 });
 
@@ -482,7 +483,7 @@ test('markup stays live in shadow mode: added options appear, selected edits mov
   await frame();
   await frame();
   element.formResetCallback();
-  assert.deepEqual(element.value.map((o) => o.value), ['one', 'two'], 'defaults track the markup');
+  assert.deepEqual(element.selectedOptions.map((o) => o.value), ['one', 'two'], 'defaults track the markup');
   element.remove();
 });
 
@@ -494,6 +495,60 @@ test('light mode: children seed the options and are consumed by the first render
   await frame();
   assert.deepEqual(element.options.map((o) => o.value), ['lit'], 'parsed before render consumed them');
   assert.equal(element.querySelector('option'), null, 'the light render owns the subtree now');
+  element.remove();
+});
+
+test('the value model: strings in, mode-shaped out, objects accepted, null clears', async () => {
+  const element = await mount();
+  element.value = 'b';
+  await frame();
+  assert.equal(element.value, 'b');
+  assert.match(part(element, 'value').textContent, /Beta/, 'a bare string found its option and label');
+
+  element.value = null;
+  assert.equal(element.value, '', 'null clears to the empty string');
+
+  element.value = OPTIONS[1]; // a full option still works — it adopts its own label
+  assert.equal(element.value, 'b');
+
+  element.setAttribute('multi', '');
+  await frame();
+  element.value = ['a', 'b'];
+  assert.deepEqual(element.value, ['a', 'b'], 'multi takes and returns string arrays');
+  element.remove();
+});
+
+test('the value attribute seeds single-mode initial value and doubles as the reset default', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.setAttribute('value', 'b');
+  dom.window.document.body.append(element);
+  element.options = OPTIONS;
+  await frame();
+  /** Attribute read at connect; options arrived just after — the pending resolution covers it. */
+  const fresh = dom.window.document.createElement('vera-select');
+  fresh.options = OPTIONS;
+  fresh.setAttribute('value', 'b');
+  dom.window.document.body.append(fresh);
+  await frame();
+  assert.equal(fresh.value, 'b', 'the attribute seeded the value');
+  fresh.value = 'a';
+  fresh.formResetCallback();
+  assert.equal(fresh.value, 'b', 'and doubles as the reset default');
+  element.remove();
+  fresh.remove();
+});
+
+test('selectedOptions is the label cache: a remote refilter cannot orphan the chosen label', async () => {
+  const element = await mount((el) => el.setAttribute('remote', ''));
+  part(element, 'trigger').click();
+  await frame();
+  root(element).querySelectorAll('[part="option"]')[1].click(); // Beta
+  await frame();
+  element.options = [{ label: 'Zeta', value: 'z' }]; // the "server" refiltered Beta away
+  await frame();
+  assert.equal(element.value, 'b', 'the selection identity survives');
+  assert.deepEqual(element.selectedOptions.map((o) => o.label), ['Beta'], 'and so does its label');
+  assert.match(part(element, 'value').textContent, /Beta/);
   element.remove();
 });
 
@@ -548,27 +603,27 @@ test('formStateRestoreCallback rebuilds the selection — known values from opti
   const element = await mount();
   element.formStateRestoreCallback(JSON.stringify(['b', 'ghost']));
   await frame();
-  assert.deepEqual(element.value.map((o) => [o.value, o.label]), [['b', 'Beta'], ['ghost', 'ghost']]);
+  assert.deepEqual(element.selectedOptions.map((o) => [o.value, o.label]), [['b', 'Beta'], ['ghost', 'ghost']]);
   element.formStateRestoreCallback('not json'); // hostile restore state must be a no-op
-  assert.equal(element.value.length, 2);
+  assert.equal(element.selectedOptions.length, 2);
   element.remove();
 });
 
 test('form reset empties the selection; the change event carries a copy, not the store', async () => {
   const element = await mount();
-  element.value = [OPTIONS[0]];
+  element.value = 'a';
   await frame();
   let detail;
-  element.addEventListener('change', (event) => (detail = event.detail.value));
+  element.addEventListener('change', (event) => (detail = event.detail.selectedOptions));
   part(element, 'trigger').click();
   await frame();
   root(element).querySelectorAll('[part="option"]')[1].click();
   await frame();
   detail.push({ label: 'X', value: 'x' });
-  assert.equal(element.value.length, 1, 'mutating the event detail cannot corrupt the store');
+  assert.equal(element.selectedOptions.length, 1, 'mutating the event detail cannot corrupt the store');
 
   element.formResetCallback();
   await frame();
-  assert.deepEqual(element.value, []);
+  assert.equal(element.value, '', 'single-mode empty is the empty string');
   element.remove();
 });

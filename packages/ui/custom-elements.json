@@ -30,6 +30,10 @@
               "description": "The form field name — submitted via ElementInternals where supported."
             },
             {
+              "name": "value",
+              "description": "Single-mode initial value, native-input style: read at connect, applies only when neither the property nor selected markup claimed the selection, and doubles as the reset default when the markup declared none. Multi preselects via <option selected>."
+            },
+            {
               "name": "required",
               "description": "An empty selection reports valueMissing to the owning form."
             },
@@ -91,9 +95,17 @@
               "kind": "field",
               "name": "value",
               "type": {
+                "text": "string | string[]"
+              },
+              "description": "Mode-consistent strings: a string in single mode (empty string when none), a string array in multi. The setter also accepts full options and null. Selection identity is the value string."
+            },
+            {
+              "kind": "field",
+              "name": "selectedOptions",
+              "type": {
                 "text": "SelectOption[]"
               },
-              "description": "The selection — always an array, in both modes."
+              "description": "The selection as full options — native <select>.selectedOptions. Doubles as the label cache: a remote refilter cannot orphan a chosen label."
             },
             {
               "kind": "method",
@@ -131,7 +143,7 @@
             {
               "name": "change",
               "type": {
-                "text": "CustomEvent<{ value: SelectOption[] }>"
+                "text": "CustomEvent<{ value: string | string[], selectedOptions: SelectOption[] }>"
               },
               "description": "After every committed change. Bubbles and crosses the shadow boundary."
             },

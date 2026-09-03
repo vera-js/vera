@@ -30,8 +30,9 @@ import { parseLightOptions } from './parse-options.js';
 
 type Internal = {
   select: ReturnType<typeof useSelect> | null;
-  /** Values assigned after upgrade but before connect wait here for the controller. */
-  pending: { options: SelectOption[]; value: SelectOption[] };
+  /** Values assigned after upgrade but before connect wait here for the controller. Value
+   *  entries may be strings — resolvable only once options are known, so resolution waits. */
+  pending: { options: SelectOption[]; value: (string | SelectOption)[] };
   internals: ElementInternals | undefined;
   /**
    * Observed attributes mirrored into a store as real values the template reads. The first cut
@@ -72,6 +73,39 @@ const internal = (element: VeraSelect): Internal => {
     INTERNAL.set(element, entry);
   }
   return entry;
+};
+
+/**
+ * Resolve value entries to options: a string finds its option by value — first in the current
+ * selection (keeping a cached label the options list no longer carries), then in the options —
+ * and an unknown string becomes a placeholder whose label is itself. A full option passes
+ * through, adopting its own label into the cache.
+ */
+const resolveSelection = (
+  raw: (string | SelectOption)[],
+  options: SelectOption[],
+  current: SelectOption[]
+): SelectOption[] =>
+  raw.map((entry) => {
+    if (typeof entry !== 'string') return entry;
+    return (
+      current.find((option) => option.value === entry) ??
+      options.find((option) => option.value === entry) ?? { label: entry, value: entry }
+    );
+  });
+
+/** Duplicate values make selection ambiguous by construction — say so, loudly, in development. */
+const warnDuplicates = (options: SelectOption[]) => {
+  if (!__DEV__) return;
+  const seen = new Set<string>();
+  for (const option of options) {
+    if (seen.has(option.value))
+      console.warn(
+        `[vera] ui: <vera-select> options contain duplicate value ${JSON.stringify(option.value)} — ` +
+          `selection is by value, so these rows will mirror each other.`
+      );
+    seen.add(option.value);
+  }
 };
 
 /** Pre-upgrade property assignments land as own properties that shadow the accessors — re-route. */
@@ -146,24 +180,39 @@ export class VeraSelect extends HTMLElement {
     const entry = internal(this);
     entry.htmlSourced = false; // property wins; the markup stops being the source
     const options = Array.isArray(next) ? [...next] : [];
+    warnDuplicates(options);
     if (entry.select) entry.select.state.options = options;
     else entry.pending.options = options;
   }
 
-  get value(): SelectOption[] {
-    const { select, pending } = internal(this);
-    return [...(select?.state.value ?? pending.value)];
+  /**
+   * The value model (SELECT-V2 §2): mode-consistent STRINGS — a string in single mode ('' when
+   * empty), a string[] in multi. `selectedOptions` carries the objects, exactly like native
+   * <select>. Internally the controller keeps full options: that store IS the label cache, which
+   * is how a remote-mode selection keeps its label after the option leaves the filtered list.
+   */
+  get value(): string | string[] {
+    const selected = internal(this).select?.state.value ?? [];
+    return this.hasAttribute('multi') ? selected.map((option) => option.value) : (selected[0]?.value ?? '');
   }
-  set value(next: SelectOption[]) {
+  set value(next: string | string[] | SelectOption[] | null | undefined) {
     const entry = internal(this);
-    const value = Array.isArray(next) ? [...next] : [];
+    const raw: (string | SelectOption)[] =
+      next == null || next === '' ? [] : Array.isArray(next) ? [...next] : [next];
     if (entry.select) {
-      entry.select.state.value = value;
+      entry.select.state.value = resolveSelection(raw, entry.select.state.options, entry.select.state.value);
       entry.select.sync();
+      reflectForm(this, entry.select.state.value);
     } else {
-      entry.pending.value = value;
+      entry.pending.value = raw;
     }
-    reflectForm(this, value);
+  }
+
+  /** The selection as full options — native <select>.selectedOptions, same name, same idea. */
+  get selectedOptions(): SelectOption[] {
+    const { select, pending } = internal(this);
+    if (select) return [...select.state.value];
+    return resolveSelection(pending.value, pending.options, []);
   }
 
   attributeChangedCallback(name: string, _old: string | null, value: string | null) {
@@ -191,8 +240,7 @@ export class VeraSelect extends HTMLElement {
       return;
     }
     if (!Array.isArray(values)) return;
-    const known = new Map(this.options.map((option) => [option.value, option]));
-    this.value = values.map((value) => known.get(value) ?? { label: value, value });
+    this.value = values; // strings resolve through the setter: known options, else placeholders
   }
 
   /** Programmatic control — the same paths every gesture uses, veto-able via beforetoggle. */
@@ -220,6 +268,7 @@ export class VeraSelect extends HTMLElement {
         entry0.defaults = parsed.selected;
         if (!entry0.pending.value.length && !entry0.select?.state.value.length)
           entry0.pending.value = [...parsed.selected];
+        warnDuplicates(parsed.options);
         /**
          * Light mode renders into the element but does not clear it — the authored options would
          * remain as stray visible text beside the real UI. Consume them explicitly: light-mode
@@ -252,11 +301,17 @@ export class VeraSelect extends HTMLElement {
       onToggle: (next) => {
         this.dispatchEvent(toggleEvent('toggle', next === 'open' ? 'closed' : 'open', next, false));
       },
-      onChange: (value) => {
-        reflectForm(this, value);
+      onChange: (selectedOptions) => {
+        reflectForm(this, selectedOptions);
         /** input then change, the platform's order; input carries no detail, exactly like native. */
         this.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-        this.dispatchEvent(new CustomEvent('change', { detail: { value }, bubbles: true, composed: true }));
+        this.dispatchEvent(
+          new CustomEvent('change', {
+            detail: { value: this.value, selectedOptions: [...selectedOptions] },
+            bubbles: true,
+            composed: true,
+          })
+        );
       },
       onCreate: (label) => {
         const detail = { label, option: { label, value: label } as SelectOption };
@@ -277,7 +332,18 @@ export class VeraSelect extends HTMLElement {
       },
     }));
     select.state.options = entry.pending.options;
-    select.state.value = entry.pending.value;
+    /**
+     * The value attribute is single-mode initial value, native-input style: it applies only when
+     * nothing else (property, selected markup) claimed the selection, and it doubles as the
+     * reset default when the markup declared none.
+     */
+    const valueAttribute = this.getAttribute('value');
+    if (valueAttribute && !entry.pending.value.length && !entry.defaults.length) {
+      entry.pending.value = [valueAttribute];
+      entry.defaults = resolveSelection([valueAttribute], select.state.options, []);
+    }
+    select.state.value = resolveSelection(entry.pending.value, select.state.options, select.state.value);
+    entry.pending.value = [];
     reflectForm(this, select.state.value);
 
     /**

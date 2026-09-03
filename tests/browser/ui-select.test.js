@@ -152,7 +152,7 @@ it('slotted markup is the page’s: page CSS and page classes style it, and it d
 
 it('the selected checkmark is one ::part pseudo rule away from replaced or gone', async () => {
   const element = await mount();
-  element.value = [OPTIONS[0]];
+  element.value = 'a';
   element.shadowRoot.querySelector('[part="trigger"]').click();
   await frame();
   const selected = element.shadowRoot.querySelector('[part="option"][aria-selected="true"]');
@@ -266,6 +266,6 @@ it('form association is real: the select submits like a control and resets with 
   form.reset();
   await frame();
   expect(new FormData(form).get('flavor')).to.equal(null);
-  expect(element.value).to.deep.equal([]);
+  expect(element.value).to.equal('', 'single-mode empty is the empty string');
   form.remove();
 });

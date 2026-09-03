@@ -241,7 +241,7 @@
         element.options = FLAVORS;
         if (out)
           element.addEventListener('change', (event) => {
-            document.getElementById(out).textContent = JSON.stringify(event.detail.value.map((o) => o.value));
+            document.getElementById(out).textContent = JSON.stringify(event.detail.value);
           });
       };
 
@@ -258,7 +258,7 @@
       const remote = document.getElementById('remote');
       remote.options = FLAVORS;
       remote.addEventListener('change', (event) => {
-        document.getElementById('remote-out').textContent = JSON.stringify(event.detail.value.map((o) => o.value));
+        document.getElementById('remote-out').textContent = JSON.stringify(event.detail.value);
       });
       remote.addEventListener('filter', (event) => {
         remote.setAttribute('loading', '');

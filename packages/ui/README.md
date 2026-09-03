@@ -51,7 +51,7 @@ import { VeraSelect } from '@verajs/ui/elements';  // classes only — you contr
 event + `loading`/`overflow-message` — the async-typeahead seam), `required` (real constraint
 validation), `placeholder`, `search-placeholder`, `empty-message`, `debounce`, `light`, `name`,
 `aria-label` (reflected onto the trigger; an associated `<label for>` also names it, through
-ElementInternals). Properties `options`/`value`; events `change`/`create`/`filter`.
+ElementInternals). Properties `options`, `value` (mode-consistent strings — string in single, `string[]` in multi; `el.value = 'b'` just works), `selectedOptions` (the objects, native-select style); events `input`/`change`/`create`/`filter`/`beforetoggle`/`toggle`; methods `open()`/`close()`.
 
 Two library versions on one page warn instead of silently forking — and `@verajs/ui/elements`
 exists for the page that must control registration itself.
