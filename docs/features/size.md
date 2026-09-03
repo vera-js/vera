@@ -131,7 +131,7 @@ describing the bytes honestly.)*
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
 | `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 664 B | `keyed()` — keyed list reconciliation |
-| `@verajs/renderer/slots` | 2 243 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/slots` | 2 311 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/inserts` | 357 B | the extension point |
 <!--/size:table.permodule-->
 

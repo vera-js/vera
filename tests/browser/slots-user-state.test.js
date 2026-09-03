@@ -126,3 +126,42 @@ it('places slotted content in the flattened order, as native shadow slotting doe
     'CONTROL: the platform lays out by slot position, not by the order the author wrote');
   expect(order.light).to.deep.equal(order.shadow, 'and light distribution matches it');
 });
+
+/**
+ * **A slot inside another slot's fallback, measured by LAYOUT.** This is the only reliable
+ * instrument for it: `textContent` and `innerText` do not cross a shadow boundary, so slotted
+ * content is invisible to both and three separate attempts to read this that way all reported
+ * "nothing" and looked like a defect. A box either exists or it does not.
+ *
+ * The platform's rule, measured here rather than assumed: while the OUTER slot has an assignment
+ * its fallback is not rendered, so the inner slot's content has no box; the moment that assignment
+ * goes, the fallback renders and the inner slot's content gains one. Light distribution has to do
+ * both halves.
+ */
+it('renders a fallback-nested slot exactly when the platform does', async () => {
+  const reading = {};
+  for (const mode of ['shadow', 'light']) {
+    const element = document.createElement('div');
+    element.innerHTML = '<i slot="a">A</i><i slot="b">B</i>';
+    document.body.appendChild(element);
+    /** Held BEFORE rendering: in light mode an unassigned node is captured out of the host, so
+     *  querying the host for it afterwards finds nothing. */
+    const b = element.querySelector('i[slot="b"]');
+    const a = element.querySelector('i[slot="a"]');
+    const markup = '<p><slot name="a"><slot name="b">inner-fb</slot></slot></p>';
+    if (mode === 'shadow') element.attachShadow({ mode: 'open' }).innerHTML = markup;
+    else renderInto({ strings: Object.assign([markup], { raw: [markup] }), values: [] }, element);
+    await settle();
+
+    const boxed = () => b.getBoundingClientRect().height > 0;
+    const before = boxed();
+    a.remove();
+    await settle();
+    reading[mode] = { whileOuterAssigned: before, afterOuterGone: boxed() };
+    element.remove();
+  }
+
+  expect(reading.shadow).to.deep.equal({ whileOuterAssigned: false, afterOuterGone: true },
+    'CONTROL: the platform hides it under an assigned outer slot and renders it once that goes');
+  expect(reading.light).to.deep.equal(reading.shadow, 'and light distribution matches, both halves');
+});

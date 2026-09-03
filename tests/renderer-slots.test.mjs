@@ -566,29 +566,35 @@ for (const [label, markup, expected] of [
   });
 
 /**
- * **The one arrangement that does NOT match, measured and documented rather than left to be found.**
- * An inner slot is only taken over if it is in the tree when slots mount. If the outer slot had an
- * assignment then, its fallback was detached and the inner slot was declined — so when that
- * fallback later becomes visible, it is a literal `<slot>` showing its own children rather than a
- * live one showing what it was assigned. Supporting it means taking slots over at the moment a
- * fallback is inserted, which is a feature; not crashing was the fix.
+ * **A slot revealed inside a fallback takes over at that moment — the platform does the same.**
+ *
+ * This used to be the one arrangement that diverged, and it was documented as a limit before the
+ * cause was understood: the renderer hands slots over in document order, so the outer one detached
+ * its fallback children — the inner slot among them — before that slot's turn came, leaving it
+ * parentless and declined. It then sat there as a literal `<slot>` showing its own children.
+ *
+ * The slots module now takes over a slot's nested slots BEFORE extracting its fallback, deepest
+ * first, while they still have a parent. Binding order stays tree order, which is what decides
+ * duplicate names, and the renderer's later visit finds them parentless and declines as before, so
+ * nothing is taken over twice.
+ *
+ * The platform's answer was measured by LAYOUT, not by reading the tree: with the outer slot
+ * assigned the inner content has no box, and once that assignment goes it gains one. Three separate
+ * attempts to read this with `textContent`/`innerText` all said "nothing" — those do not cross a
+ * shadow boundary, so slotted content is invisible to them, and each time it looked like a defect.
  */
-test("a slot revealed inside a fallback later shows its fallback, not its assignment", async () => {
-  const shadowHost = host('<i slot="a">A</i><i slot="b">B</i>');
-  shadowHost.attachShadow({ mode: 'open' }).innerHTML = NESTED_FALLBACK;
+test('a slot revealed inside a fallback distributes, as the platform does', async () => {
   const lightHost = host('<i slot="a">A</i><i slot="b">B</i>');
   renderInto(nestedTemplate(), lightHost);
   await settle();
-  assert.equal(lightHost.querySelector('p').textContent, 'A', 'CONTROL: both start showing the outer assignment');
+  assert.equal(lightHost.querySelector('p').textContent, 'A', 'CONTROL: it starts showing the outer assignment');
 
-  shadowHost.querySelector('i[slot="a"]').remove();
   lightHost.querySelector('i[slot="a"]').remove();
   await settle();
 
-  assert.equal(nativeShows(shadowHost), 'B',
-    'CONTROL: the platform re-slots the inner one when the fallback becomes visible');
-  assert.equal(lightHost.querySelector('p').textContent, 'inner-fb',
-    'here it shows the inner slot\'s own fallback — the documented divergence');
-  shadowHost.remove();
+  assert.equal(lightHost.querySelector('p').textContent, 'B',
+    "the inner slot's assignment, not its fallback — the platform renders this too");
+  assert.deepEqual(slotted(lightHost, 'b').map((node) => node.textContent), ['B'],
+    'and it is a live binding, not a one-off insertion');
   lightHost.remove();
 });

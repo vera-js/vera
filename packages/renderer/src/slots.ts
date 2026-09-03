@@ -456,6 +456,7 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
    * this fix. What matters here is that markup the platform accepts cannot crash the renderer.
    */
   if (slot.parentNode === null) return null;
+  const nestedStates: SeamState[] = [];
   const state = capture(host);
   const doc = slot.ownerDocument!;
   const parent = slot.parentNode;
@@ -463,6 +464,27 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
   const end = doc.createComment('');
   parent.insertBefore(start, slot);
   parent.insertBefore(end, slot);
+  /**
+   * **Slots inside this one's FALLBACK are taken over first, while they still have a parent.**
+   *
+   * The renderer hands slots over in document order, so the outer one arrives first — and the first
+   * thing it used to do was detach its fallback children, taking any nested slot out of the tree
+   * with them. By the time that inner slot's turn came it had no parent to anchor into: it threw
+   * until a guard declined it, and declining left it a literal `<slot>` that showed its own
+   * fallback instead of what it was assigned, whenever the outer one later fell back. Measured
+   * against a shadow root, which re-slots it: three arrangements, three different wrong answers,
+   * one of them showing nothing at all.
+   *
+   * Doing it here rather than reordering the renderer's mount keeps binding order in TREE order,
+   * which is what decides duplicate names. Deepest first, so a slot nested two levels down is live
+   * before the one containing it captures it. The renderer still visits these afterwards and the
+   * parentless guard declines them, so nothing is taken over twice.
+   */
+  const nested = [...slot.querySelectorAll('slot')].reverse();
+  for (const inner of nested) {
+    const innerState = takeOverSlot(inner, root, inner.getAttribute('name') ?? '');
+    if (innerState !== null) nestedStates.push(innerState);
+  }
   const fallback = [...slot.childNodes];
   for (const node of fallback) slot.removeChild(node);
   /** Out of the document, but KEPT — it is the component's handle on this slot. */
@@ -480,6 +502,16 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
   const seam = bind(state, binding);
   fill(state, binding);
   drain(state);
+  /** Parking this slot has to park the ones living in its fallback, or a branch-away would strand
+   *  their bindings while their nodes go with the discarded DOM. */
+  if (nestedStates.length > 0) {
+    const own = seam._$park$;
+    const inner = nestedStates;
+    seam._$park$ = () => {
+      for (const state of inner) state._$park$();
+      own();
+    };
+  }
   return seam;
 };
 
