@@ -141,6 +141,62 @@
             },
             {
               "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "string"
+              },
+              "description": "Native IDL reflection of the `name` attribute — the form-entry key."
+            },
+            {
+              "kind": "field",
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Native IDL reflection of the `disabled` attribute; setting it toggles the attribute."
+            },
+            {
+              "kind": "field",
+              "name": "required",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Native IDL reflection of the `required` attribute; setting it toggles the attribute."
+            },
+            {
+              "kind": "field",
+              "name": "multi",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Native-style IDL reflection of the `multi` attribute; setting it toggles the attribute."
+            },
+            {
+              "kind": "field",
+              "name": "labels",
+              "type": {
+                "text": "NodeList | undefined"
+              },
+              "description": "The <label> elements associated with this control, via ElementInternals — native parity."
+            },
+            {
+              "kind": "field",
+              "name": "form",
+              "type": {
+                "text": "HTMLFormElement | null"
+              },
+              "description": "The owning form, via ElementInternals — native parity."
+            },
+            {
+              "kind": "field",
+              "name": "type",
+              "type": {
+                "text": "string"
+              },
+              "description": "'select-one' or 'select-multiple' — the native <select> vocabulary, for code that feature-detects against real selects."
+            },
+            {
+              "kind": "field",
               "name": "selectedOptions",
               "type": {
                 "text": "SelectOption[]"

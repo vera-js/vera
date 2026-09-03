@@ -916,3 +916,44 @@ test('AUDIT — the listbox opts out of sequential focus explicitly (scroll cont
   );
   element.remove();
 });
+
+test('AUDIT — native IDL reflections: name/disabled/required/multi reflect, labels/form/type answer', async () => {
+  const element = await mount((el) => el.setAttribute('name', 'flavor'));
+  assert.equal(element.name, 'flavor', 'name reads the attribute');
+  element.name = 'renamed';
+  assert.equal(element.getAttribute('name'), 'renamed', 'name setter reflects');
+
+  assert.equal(element.disabled, false);
+  element.disabled = true;
+  assert.equal(element.hasAttribute('disabled'), true, 'disabled = true is no longer a silent expando');
+  element.disabled = false;
+  assert.equal(element.hasAttribute('disabled'), false);
+
+  element.required = true;
+  assert.equal(element.hasAttribute('required'), true);
+
+  assert.equal(element.type, 'select-one', 'the native <select> vocabulary');
+  element.multi = true;
+  assert.equal(element.hasAttribute('multi'), true, 'multi reflects like the rest');
+  assert.equal(element.type, 'select-multiple');
+  element.multi = false;
+
+  /** jsdom's ElementInternals does not track form ownership on reparenting — presence is
+   *  asserted here; the BEHAVIOR (form identity, labels list) is pinned in the browser suite. */
+  assert.ok('form' in element, 'the form accessor exists');
+  assert.ok('labels' in element, 'the labels accessor exists');
+  element.remove();
+});
+
+test('AUDIT — a pre-upgrade `disabled = true` expando survives the dance like options does', async () => {
+  /** The dance list must carry every accessor: an own property assigned before upgrade shadows
+   *  the prototype accessor forever unless re-routed. */
+  const element = dom.window.document.createElement('vera-select');
+  element.disabled = true;
+  element.name = 'early';
+  dom.window.document.body.append(element);
+  await frame();
+  assert.equal(element.hasAttribute('disabled'), true, 'the early boolean reached the attribute');
+  assert.equal(element.getAttribute('name'), 'early', 'the early string reached the attribute');
+  element.remove();
+});

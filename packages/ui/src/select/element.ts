@@ -347,6 +347,49 @@ export class VeraSelect extends HTMLElement {
   }
 
   /**
+   * The native form-control IDL reflections. Every one of these exists on a real <select>, and
+   * their absence is a SILENT failure: `element.disabled = true` lands as an inert expando and
+   * nothing anywhere reports it. Form libraries and a11y tooling read `.labels`/`.form`/`.name`;
+   * ports from native set the booleans. Attributes stay the source of truth - the setters
+   * reflect, exactly as the platform's own controls do.
+   */
+  get name(): string {
+    return this.getAttribute('name') ?? '';
+  }
+  set name(next: string) {
+    this.setAttribute('name', next);
+  }
+  get disabled(): boolean {
+    return this.hasAttribute('disabled');
+  }
+  set disabled(next: boolean) {
+    this.toggleAttribute('disabled', next === true);
+  }
+  get required(): boolean {
+    return this.hasAttribute('required');
+  }
+  set required(next: boolean) {
+    this.toggleAttribute('required', next === true);
+  }
+  get multi(): boolean {
+    return this.hasAttribute('multi');
+  }
+  set multi(next: boolean) {
+    this.toggleAttribute('multi', next === true);
+  }
+  get labels(): NodeList | undefined {
+    return internal(this).internals?.labels;
+  }
+  get form(): HTMLFormElement | null {
+    return internal(this).internals?.form ?? null;
+  }
+  /** 'select-one' / 'select-multiple' - the native <select> vocabulary, so feature detection
+   *  written against real selects keeps working. */
+  get type(): string {
+    return this.hasAttribute('multi') ? 'select-multiple' : 'select-one';
+  }
+
+  /**
    * Focus delegates to the effective trigger — slotted if supplied, ours otherwise — in both DOM
    * modes. Native controls focus their UI; without this, element.focus() (including the UA's own
    * call when an associated <label> is clicked) was a no-op on an unfocusable host (measured).
@@ -368,7 +411,7 @@ export class VeraSelect extends HTMLElement {
   }
 
   connectedCallback() {
-    for (const key of ['options', 'value']) upgradeProperty(this, key);
+    for (const key of ['options', 'value', 'name', 'disabled', 'required', 'multi']) upgradeProperty(this, key);
     const entry0 = internal(this);
     /**
      * HTML seeds, property wins: light-DOM <option>/<optgroup>/<vera-option> children become the

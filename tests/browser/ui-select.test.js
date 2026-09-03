@@ -316,6 +316,24 @@ it('AUDIT — a real Tab from an open menu lands on the next control, never insi
   element.remove();
 });
 
+it('AUDIT — form and labels answer through internals with real form ownership', async () => {
+  const form = document.createElement('form');
+  const label = document.createElement('label');
+  label.htmlFor = 'idl-x';
+  label.textContent = 'Pick';
+  document.body.appendChild(form);
+  form.appendChild(label);
+  const element = document.createElement('vera-select');
+  element.id = 'idl-x';
+  element.setAttribute('name', 'x');
+  form.appendChild(element);
+  element.options = OPTIONS;
+  await frame();
+  expect(element.form).to.equal(form, 'form identity through internals');
+  expect(element.labels.length).to.equal(1, 'the associated label is listed');
+  form.remove();
+});
+
 it('custom states are real: :state(open) and :state(empty) match and flip', async () => {
   const element = await mount();
   expect(element.matches(':state(empty)')).to.equal(true, 'nothing selected yet');

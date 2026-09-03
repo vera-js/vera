@@ -77,6 +77,41 @@ export const selectSurface = {
     { name: 'validationMessage', type: 'string', description: 'The current constraint message.' },
     { name: 'willValidate', type: 'boolean', description: 'Whether the control participates in validation.' },
     {
+      name: 'name',
+      type: 'string',
+      description: 'Native IDL reflection of the `name` attribute — the form-entry key.',
+    },
+    {
+      name: 'disabled',
+      type: 'boolean',
+      description: 'Native IDL reflection of the `disabled` attribute; setting it toggles the attribute.',
+    },
+    {
+      name: 'required',
+      type: 'boolean',
+      description: 'Native IDL reflection of the `required` attribute; setting it toggles the attribute.',
+    },
+    {
+      name: 'multi',
+      type: 'boolean',
+      description: 'Native-style IDL reflection of the `multi` attribute; setting it toggles the attribute.',
+    },
+    {
+      name: 'labels',
+      type: 'NodeList | undefined',
+      description: 'The <label> elements associated with this control, via ElementInternals — native parity.',
+    },
+    {
+      name: 'form',
+      type: 'HTMLFormElement | null',
+      description: 'The owning form, via ElementInternals — native parity.',
+    },
+    {
+      name: 'type',
+      type: 'string',
+      description: "'select-one' or 'select-multiple' — the native <select> vocabulary, for code that feature-detects against real selects.",
+    },
+    {
       name: 'selectedOptions',
       type: 'SelectOption[]',
       description:
