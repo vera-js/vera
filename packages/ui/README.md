@@ -45,13 +45,15 @@ import { VeraSelect } from '@verajs/ui/elements';  // classes only — you contr
 - **State is styleable**: open/closed and the active row are `data-state`/`data-active`
   attributes, for `data-[state=open]:` -style variants.
 
-## The select's surface (see `custom-elements.json` for the full contract)
+## The select's surface
 
-`multi`, `searchable`, `creatable` (cancelable `create` event), `remote` (debounced `filter`
-event + `loading`/`overflow-message` — the async-typeahead seam), `required` (real constraint
-validation), `placeholder`, `search-placeholder`, `empty-message`, `debounce`, `light`, `name`,
-`aria-label` (reflected onto the trigger; an associated `<label for>` also names it, through
-ElementInternals). Properties `options`, `value` (mode-consistent strings — string in single, `string[]` in multi; `el.value = 'b'` just works), `selectedOptions` (the objects, native-select style); events `input`/`change`/`create`/`filter`/`beforetoggle`/`toggle`; methods `open()`/`close()`.
+The full contract — every attribute, property, event, slot, part, state and token — lives in
+`custom-elements.json`, generated from the declared surface and drift-checked by the gate. This
+README deliberately does not enumerate it: a hand-copied list is how docs rot (this one had
+already drifted three attributes behind when the rule was adopted). Broad strokes: HTML or
+property options; string value model with `selectedOptions`; searchable/creatable/remote;
+form-associated with real validity; every user-facing string an attribute; `beforetoggle`/`toggle`
+with veto; top-layer menu where the engine has anchor positioning.
 
 Two library versions on one page warn instead of silently forking — and `@verajs/ui/elements`
 exists for the page that must control registration itself.
