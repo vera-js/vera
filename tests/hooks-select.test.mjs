@@ -181,3 +181,40 @@ test('attach stamps an assigned trigger immediately — not on the next state ch
   trigger.click();
   assert.equal(select.state.open, true, 'the assigned trigger drives the same handlers');
 });
+
+// ── AUDIT: highlight modality and stickiness (Brian's phantom-hover report) ─────────────────────
+
+test('AUDIT — a pointer open highlights nothing; keyboard opens highlight selected-or-first', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.setOptions(OPTIONS);
+
+  select.handlers.onTriggerClick();
+  assert.equal(select.state.active, -1, 'mouse open with nothing selected: no phantom hover');
+  select.close(false);
+
+  select.open();
+  assert.equal(select.state.active, 0, 'keyboard open: the first enabled row is the starting point');
+  select.close(false);
+
+  select.state.value = [OPTIONS[1]];
+  select.handlers.onTriggerClick();
+  assert.equal(select.state.active, 1, 'a real selection is highlighted whatever opened the menu');
+});
+
+test('AUDIT — the highlight clears when the pointer leaves the list; travel re-enters sanely', () => {
+  const element = host();
+  const select = useSelect(element, {});
+  select.setOptions(OPTIONS);
+  select.open();
+  select.handlers.onListLeave();
+  assert.equal(select.state.active, -1, 'pointer gone: no row keeps the tint');
+  select.step(1);
+  assert.equal(select.state.active, 0, 'ArrowDown from cleared starts at the top');
+  select.handlers.onListLeave();
+  select.step(-1);
+  assert.equal(select.state.active, 1, 'ArrowUp from cleared starts at the bottom, skipping disabled Gamma');
+  select.handlers.onListLeave();
+  select.activate(select.state.active);
+  assert.equal(select.state.value.length, 0, 'Enter with no highlighted row picks nothing');
+});

@@ -90,10 +90,19 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     if (refocus) ((assigned.trigger ?? assigned.fallbackTrigger) as HTMLElement | undefined)?.focus?.();
   };
 
-  const open = () => {
+  /**
+   * `highlight` is the caller's input modality. A keyboard open (Enter/ArrowDown/typeahead) needs
+   * a starting row — selected option first, else the first enabled one, per the APG combobox — but
+   * a POINTER open highlighting row 0 reads as a phantom hover (Brian saw it and called it one).
+   * A real selection is highlighted regardless: that tint is information, not focus theater.
+   */
+  const open = (highlight = true) => {
     if (state.open || disabled()) return;
     if (config.canToggle?.('open') === false) return;
     state.open = true;
+    const rows = matches();
+    const selected = rows.findIndex((option) => !option.disabled && chosen(option));
+    state.active = selected !== -1 ? selected : highlight ? rows.findIndex((option) => !option.disabled) : -1;
     dismiss.activate();
     syncAssigned();
     config.onToggle?.('open');
@@ -126,7 +135,8 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     const count = rowCount();
     if (count === 0) return;
     const rows = matches();
-    let next = state.active;
+    /** From the cleared state (-1): ArrowDown starts at the top, ArrowUp at the bottom. */
+    let next = state.active < 0 ? (delta > 0 ? -1 : 0) : state.active;
     for (let i = 0; i < count; i++) {
       next = (next + delta + count) % count;
       if (next >= rows.length || !rows[next]?.disabled) break;
@@ -146,7 +156,7 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const onTriggerClick = () => {
     if (disabled()) return;
     if (state.open) close();
-    else open();
+    else open(false);
   };
 
   /**
@@ -222,6 +232,15 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
   const onListClick = (event: Event) => {
     const row = (event.target as Element).closest?.('[data-index]');
     if (row) activate(Number((row as HTMLElement).dataset['index']));
+  };
+
+  /**
+   * The highlight is not sticky: when the pointer leaves the list it clears (-1 = no active row),
+   * exactly as a CSS :hover would — the last-hovered row keeping the tint forever read as a
+   * broken hover state, because visually it is one. Keyboard travel brings it straight back.
+   */
+  const onListLeave = () => {
+    state.active = -1;
   };
 
   const onListHover = (event: Event) => {
@@ -330,6 +349,6 @@ export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) 
     searchStamps,
     /** For hosts that write `state` directly (a value property setter): restamp assigned nodes. */
     sync: syncAssigned,
-    handlers: { onTriggerClick, onTriggerKeydown, onMenuKeydown, onSearchInput, onListClick, onListHover },
+    handlers: { onTriggerClick, onTriggerKeydown, onMenuKeydown, onSearchInput, onListClick, onListHover, onListLeave },
   };
 };

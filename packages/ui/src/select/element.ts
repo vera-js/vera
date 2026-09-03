@@ -577,7 +577,7 @@ export class VeraSelect extends HTMLElement {
       const creating = select.createLabel();
       const count = rows.length + (creating ? 1 : 0);
       const active = Math.min(state.active, Math.max(count - 1, 0));
-      const activeId = count === 0 ? null : active === rows.length ? 'opt-create' : `opt-${active}`;
+      const activeId = count === 0 || active < 0 ? null : active === rows.length ? 'opt-create' : `opt-${active}`;
       const labels = state.value.map((option) => option.label).join(', ');
       /**
        * The value span must stay WHITESPACE-TIGHT in the template: static text nodes inside it —
@@ -677,6 +677,7 @@ export class VeraSelect extends HTMLElement {
             aria-multiselectable=${String(attrs()['multi'] != null)}
             @click=${handlers.onListClick}
             @pointerover=${handlers.onListHover}
+            @pointerleave=${handlers.onListLeave}
           >
             ${segments.map((segment) =>
               segment.group === null

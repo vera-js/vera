@@ -353,8 +353,10 @@ test('icons are aria-hidden by contract, descriptions announce, groups are real 
   assert.equal(groups[0].querySelectorAll('[part="option"]').length, 2, 'consecutive same-group rows cluster');
   assert.equal(groups[0].querySelector('[part="group-label"]').getAttribute('aria-hidden'), 'true');
 
-  /** Grouping must not disturb the flat keyboard identity. */
+  /** Grouping must not disturb the flat keyboard identity. (Two presses: a CLICK-opened menu
+   *  starts with no active row — the phantom-hover fix — so the first ArrowDown lands on 0.) */
   const trigger = part(element, 'trigger');
+  trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   trigger.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
   await frame();
   assert.equal(trigger.getAttribute('aria-activedescendant'), 'opt-1', 'indexes stay flat across groups');
@@ -877,5 +879,28 @@ test('form reset empties the selection; the change event carries a copy, not the
   element.formResetCallback();
   await frame();
   assert.equal(element.value, '', 'single-mode empty is the empty string');
+  element.remove();
+});
+
+test('AUDIT — hover is not sticky: pointerleave clears data-active; click-open shows no phantom row', async () => {
+  const element = await mount();
+  part(element, 'trigger').click();
+  await frame();
+  assert.equal(
+    root(element).querySelector('[part="option"][data-active]'),
+    null,
+    'a mouse open with nothing selected tints no row'
+  );
+  const rows = root(element).querySelectorAll('[part="option"]');
+  rows[1].dispatchEvent(new dom.window.Event('pointerover', { bubbles: true }));
+  await frame();
+  assert.ok(rows[1].hasAttribute('data-active'), 'hovering a row tints it');
+  part(element, 'list').dispatchEvent(new dom.window.Event('pointerleave'));
+  await frame();
+  assert.equal(
+    root(element).querySelector('[part="option"][data-active]'),
+    null,
+    'the tint leaves with the pointer — the last-hovered row does not keep it'
+  );
   element.remove();
 });
