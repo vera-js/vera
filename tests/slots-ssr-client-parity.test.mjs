@@ -82,6 +82,7 @@ for (const key of [
 }
 const { wire } = await load('core');
 const { renderer, renderInto } = await load('renderer');
+const { renderInto: hydrateInto, renderer: hydrateRenderer } = await load('renderer/hydrate');
 const { slots, slotted } = await load('renderer/slots');
 wire([renderer, slots]);
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -152,4 +153,53 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
         `the server parked ${JSON.stringify(parkedTextOnly)} but the client is not holding it (holds ${JSON.stringify(held)})`);
     }
     host.remove();
+  });
+
+/**
+ * **The third corner: server output, HYDRATED, against the client-only render.**
+ *
+ * The two comparisons above hold the server to the client. This holds the HYDRATED result to it —
+ * which is the corner that produced this feature's worst defects, because a mismatch there does not
+ * merely render differently, it discards the server's DOM and once destroyed the user's content
+ * outright. A shape can serialise correctly and still adopt wrongly.
+ *
+ * The hydrate entry carries its own renderer, so it needs its own wiring; the seam is resolved from
+ * the registry `connect()` hands it, exactly as the base entry's is.
+ */
+wire([hydrateRenderer, slots]);
+
+let hydrateIndex = 0;
+for (const [label, [template, children]] of Object.entries(SHAPES))
+  test(`hydrating the server's output matches a client render: ${label}`, async () => {
+    const tag = `hydrated-${hydrateIndex++}`;
+    const fromServer = server(tag, template, children);
+
+    /** Client-only, for the answer to match. */
+    const fresh = dom.window.document.createElement('div');
+    fresh.innerHTML = children;
+    dom.window.document.body.append(fresh);
+    renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, fresh);
+    await settle();
+    const clientOnly = normalise(fresh.innerHTML);
+
+    /** The server's markup, adopted. */
+    const hydrated = dom.window.document.createElement('div');
+    hydrated.innerHTML = fromServer;
+    dom.window.document.body.append(hydrated);
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (message) => warnings.push(String(message));
+    try {
+      hydrateInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, hydrated);
+      await settle();
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
+      `adoption bailed, so the server's work was thrown away.\n  server: ${normalise(fromServer)}`);
+    assert.equal(normalise(hydrated.innerHTML), clientOnly,
+      `hydrated and client-only disagree.\n  hydrated: ${normalise(hydrated.innerHTML)}\n  client:   ${clientOnly}`);
+    fresh.remove();
+    hydrated.remove();
   });
