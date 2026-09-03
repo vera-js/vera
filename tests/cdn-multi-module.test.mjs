@@ -38,9 +38,10 @@ const { styles } = await load('styles');
 const routerModule = await load('router');
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
+const { slots, slotted } = await load('renderer/slots');
 
 /** One call, every module handed over — the line a CDN page actually writes. */
-core.wire([renderer, styles, routerModule.router]);
+core.wire([renderer, styles, routerModule.router, slots]);
 
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
@@ -97,4 +98,69 @@ test('and the router navigates and renders a route on the same page', async () =
   assert.equal(shell.querySelector('[view="main"]').textContent.trim(), 'about',
     'the router changed the URL but nothing rendered — the classic two-registry symptom');
   assert.equal(dom.window.location.pathname, '/about');
+});
+
+/**
+ * **`@verajs/renderer/slots` across a real bundle boundary.** It is the module with the most to
+ * lose here: the renderer reaches it through FIVE sigil-named members — `_$capture$`, `_$park$`,
+ * `_$rescue$`, `_$adopt$`, `_$server$` — and sigils exist precisely because production mangles
+ * property names, so a bundle boundary is the only place a broken one shows. Everything else about
+ * this module is exercised against its own bundle; this is the one place it is exercised against
+ * somebody else's.
+ *
+ * Slotting into a LIGHT component, beside a shadow one using the same wired modules, since the
+ * seam has to decline the shadow root and take over the light host in the same process.
+ */
+test('light-DOM slots work with every other module loaded, across bundles', async () => {
+  customElements.define('x-cdn-card', class extends HTMLElement {
+    connectedCallback() {
+      core.init(this); // LIGHT
+      core.render(
+        () => core.html`<article>
+          <header><slot name="title" @slotchange=${(event) => { this._seen = event.target.assignedElements().length; }}>untitled</slot></header>
+          <main><slot>empty</slot></main>
+        </article>`
+      );
+    }
+  });
+  const element = dom.window.document.createElement('x-cdn-card');
+  element.innerHTML = '<h2 slot="title">Titled</h2>body text';
+  dom.window.document.getElementById('app').appendChild(element);
+  await frame();
+
+  assert.equal(element.querySelector('header').textContent, 'Titled',
+    'distribution did not happen — the renderer could not reach the slot insert across the boundary');
+  assert.equal(element.querySelector('main').textContent, 'body text');
+  assert.equal(element.querySelector('slot'), null, 'and no <slot> survived into the light DOM');
+  assert.deepEqual(slotted(element, 'title').map((node) => node.textContent), ['Titled'],
+    'slotted() reads the capture map that the OTHER bundle built');
+  assert.equal(element._seen, 1, 'and slotchange crossed the boundary too');
+
+  /** Live, which is the `_$capture$`/observer half rather than the mount half. */
+  const added = dom.window.document.createElement('h2');
+  added.setAttribute('slot', 'title');
+  added.textContent = 'Also';
+  element.appendChild(added);
+  await frame();
+  assert.equal(element.querySelector('header').textContent, 'TitledAlso', 'live redistribution across bundles');
+  assert.equal(element._seen, 2);
+});
+
+test('and a SHADOW component on the same page is untouched by the slots module', async () => {
+  customElements.define('x-cdn-shadow', class extends HTMLElement {
+    connectedCallback() {
+      core.init(this, { mode: 'open' });
+      core.render(() => core.html`<header><slot name="title">untitled</slot></header>`);
+    }
+  });
+  const element = dom.window.document.createElement('x-cdn-shadow');
+  element.innerHTML = '<h2 slot="title">Native</h2>';
+  dom.window.document.getElementById('app').appendChild(element);
+  await frame();
+
+  const native = element.shadowRoot.querySelector('slot[name="title"]');
+  assert.ok(native, 'the native <slot> must survive — the seam declines any root that is not an element');
+  assert.deepEqual(native.assignedNodes().map((node) => node.textContent), ['Native'],
+    'and the platform still does the assigning');
+  assert.equal(element.firstElementChild.parentNode, element, 'the host keeps its own children');
 });

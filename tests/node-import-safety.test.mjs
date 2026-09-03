@@ -44,8 +44,13 @@ const importInNode = (specifier) => {
 
 /**
  * Node-safe: importing does not touch the DOM. `@verajs/ssr` is here by necessity, and
- * `@verajs/jsx` because it is a build-time transform — but `keyed`, `spread` and `tag` are here too,
- * which is not obvious from the fact that their parent entry is not.
+ * `@verajs/jsx` because it is a build-time transform — but `keyed`, `spread`, `slots` and `tag` are
+ * here too, which is not obvious from the fact that their parent entry is not.
+ *
+ * `slots` is the one that has to stay this way for a reason beyond tidiness: `@verajs/ssr` renders
+ * light-DOM slots by reaching the module through the insert registry, in Node, with no DOM. It
+ * imports nothing and derives every document from the nodes it is handed, which is what keeps it
+ * importable there — and this list is what keeps that true.
  */
 const SAFE = [
   '@verajs/core',
@@ -53,6 +58,7 @@ const SAFE = [
   '@verajs/reactivity',
   '@verajs/reactivity/collections',
   '@verajs/renderer/keyed',
+  '@verajs/renderer/slots',
   '@verajs/renderer/spread',
   '@verajs/renderer/tag',
   '@verajs/router',

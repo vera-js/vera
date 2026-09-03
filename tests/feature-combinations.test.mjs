@@ -18,7 +18,7 @@ import { load } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of ['document', 'HTMLElement', 'Node', 'Element', 'customElements', 'DocumentFragment',
-                   'Text', 'Comment', 'Event', 'CSSStyleSheet'])
+                   'Text', 'Comment', 'Event', 'CSSStyleSheet', 'MutationObserver'])
   globalThis[key] = dom.window[key];
 
 const core = await load('core');
@@ -26,7 +26,15 @@ const { renderInto, hold } = await load('renderer');
 const { renderInto: hydrateInto } = await load('renderer/hydrate');
 const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
+const { slots, slotted } = await load('renderer/slots');
 const { html } = core;
+/** The RENDERER has to be wired too, not just the module: the seam is resolved from the registry
+ *  `connect()` hands the renderer, so wiring slots alone leaves it with nowhere to look. Caught by
+ *  the CONTROL assertions below — a list of fallbacks reorders just as convincingly as real
+ *  content, so without them these tests would have passed while distributing nothing. */
+core.wire([await load('renderer').then((m) => m.renderer), slots]);
+/** Observer callbacks are microtasks; a macrotask hop settles a pending batch. */
+const settle = () => new Promise((resolve) => dom.window.setTimeout(resolve, 0));
 const div = () => dom.window.document.createElement('div');
 
 test('spread + hydrate: bindings apply to the adopted node, and updates keep it', () => {
@@ -118,4 +126,65 @@ test('keyed + ref: a reorder keeps every ref, a removal releases exactly one', (
   draw([]);
   assert.equal(refs.a.value, null);
   assert.equal(refs.c.value, null);
+});
+
+/**
+ * **slots + keyed.** A keyed list REORDERS and REMOVES the DOM that slot bindings live in, and a
+ * keyed move must not look like a teardown — the same distinction the refs case above turns on. If
+ * a move parked the binding, the user's slotted node would be pulled back into holding and the row
+ * would render its fallback; if a removal did NOT park, the node would be discarded with the row.
+ */
+test('slots + keyed: rows carry their slotted content through a reorder, and give it back on removal', async () => {
+  const host = div();
+  host.innerHTML = '<b slot="s1">ONE</b><i slot="s2">TWO</i>';
+  dom.window.document.body.appendChild(host);
+  const rows = (order) => html`<ul>${order.map((id) =>
+    keyed(id, html`<li data-id=${id}><slot name=${'s' + id}>fb${id}</slot></li>`))}</ul>`;
+
+  renderInto(rows([1, 2]), host);
+  await settle();
+  const one = host.querySelector('b');
+  assert.deepEqual([...host.querySelectorAll('li')].map((li) => li.textContent), ['ONE', 'TWO'],
+    'CONTROL: both rows distributed');
+
+  renderInto(rows([2, 1]), host);
+  await settle();
+  assert.deepEqual([...host.querySelectorAll('li')].map((li) => li.textContent), ['TWO', 'ONE'],
+    'a keyed MOVE must not read as a teardown — the content moved with its row');
+  assert.equal(host.querySelector('b'), one, 'as the same node');
+
+  renderInto(rows([2]), host);
+  await settle();
+  assert.deepEqual([...host.querySelectorAll('li')].map((li) => li.textContent), ['TWO']);
+  assert.deepEqual(slotted(host, 's1').map((n) => n.textContent), ['ONE'],
+    'a keyed REMOVAL must park rather than discard — the node is captured, waiting');
+
+  renderInto(rows([1, 2]), host);
+  await settle();
+  assert.equal(host.querySelector('b'), one, 'and the very same node comes back when its row does');
+  host.remove();
+});
+
+/**
+ * **slots + hold.** `hold` retains a subtree across renders instead of rebuilding it. The slot
+ * binding inside must be retained with it — rebuilt anchors would re-park and re-fill, which is
+ * visible as churn even when the result looks the same.
+ */
+test('slots + hold: a held subtree keeps its slot binding and the node inside it', async () => {
+  const host = div();
+  host.innerHTML = '<b slot="h">HELD</b>';
+  dom.window.document.body.appendChild(host);
+  const draw = (n) => html`<section>${hold(html`<div><slot name="h">fb</slot></div>`)}<footer>${n}</footer></section>`;
+
+  renderInto(draw(1), host);
+  await settle();
+  const node = host.querySelector('b');
+  assert.equal(host.querySelector('div').textContent, 'HELD', 'CONTROL: distributed inside the held subtree');
+
+  renderInto(draw(2), host);
+  await settle();
+  assert.equal(host.querySelector('footer').textContent, '2', 'CONTROL: the render around it did update');
+  assert.equal(host.querySelector('div').textContent, 'HELD');
+  assert.equal(host.querySelector('b'), node, 'the held subtree kept the very same slotted node');
+  host.remove();
 });
