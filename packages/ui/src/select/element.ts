@@ -228,7 +228,9 @@ export class VeraSelect extends HTMLElement {
    * is how a remote-mode selection keeps its label after the option leaves the filtered list.
    */
   get value(): string | string[] {
-    const selected = internal(this).select?.state.value ?? [];
+    /** Through selectedOptions, so the pre-connect pending world resolves identically (a getter
+     *  blind to pending answered '' for a value just assigned - measured). */
+    const selected = this.selectedOptions;
     return this.hasAttribute('multi') ? selected.map((option) => option.value) : (selected[0]?.value ?? '');
   }
   set value(next: string | string[] | SelectOption[] | null | undefined) {
@@ -253,9 +255,11 @@ export class VeraSelect extends HTMLElement {
   }
 
   attributeChangedCallback(name: string, _old: string | null, value: string | null) {
-    const { host } = internal(this);
-    host.attrs = { ...host.attrs, [name]: value };
+    const entry = internal(this);
+    entry.host.attrs = { ...entry.host.attrs, [name]: value };
     if (name === 'loading') syncStates(this);
+    /** A control disabled while its menu is open must not strand the menu (measured: it did). */
+    if (name === 'disabled' && value !== null) entry.select?.close(false);
   }
 
   formResetCallback() {
@@ -265,7 +269,9 @@ export class VeraSelect extends HTMLElement {
 
   /** Fieldset-inherited and form-level disabling arrives here, not as an attribute. */
   formDisabledCallback(isDisabled: boolean) {
-    internal(this).host.formDisabled = isDisabled;
+    const entry = internal(this);
+    entry.host.formDisabled = isDisabled;
+    if (isDisabled) entry.select?.close(false);
   }
 
   /** Session restore / bfcache hands back the state reflectForm stored (a JSON value list). */
@@ -298,14 +304,13 @@ export class VeraSelect extends HTMLElement {
      * reset defaults. Must run before init() — in light mode the first render consumes the
      * children (one-shot authoring, fine for documents; shadow mode keeps them live).
      */
-    if (!entry0.pending.options.length && !entry0.select?.state.options.length) {
+    if (!entry0.select && !entry0.pending.options.length) {
       const parsed = parseLightOptions(this);
       if (parsed) {
         entry0.pending.options = parsed.options;
         entry0.htmlSourced = true;
         entry0.defaults = parsed.selected;
-        if (!entry0.pending.value.length && !entry0.select?.state.value.length)
-          entry0.pending.value = [...parsed.selected];
+        if (!entry0.pending.value.length) entry0.pending.value = [...parsed.selected];
         warnDuplicates(parsed.options);
         /**
          * Light mode renders into the element but does not clear it — the authored options would
@@ -318,6 +323,13 @@ export class VeraSelect extends HTMLElement {
     init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
     const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
     const entry = internal(this);
+    /**
+     * Everything seed-shaped below runs only on the controller's FIRST creation. A reconnect
+     * re-enters this callback with live state, and re-seeding from pending (long since consumed)
+     * wiped options and value to empty, while re-reading the value attribute clobbered a live
+     * selection - all three measured before this guard existed.
+     */
+    const created = !entry.select;
 
     const attrs = () => entry.host.attrs;
     /** The search line exists for explicit searchers; `creatable` and `remote` both need it. */
@@ -351,7 +363,14 @@ export class VeraSelect extends HTMLElement {
           clearTimeout(entry.hideTimer);
           try {
             if (next === 'open') menu.showPopover?.();
-            else entry.hideTimer = setTimeout(() => menu.hidePopover?.(), 180);
+            else
+              entry.hideTimer = setTimeout(() => {
+                try {
+                  menu.hidePopover?.();
+                } catch {
+                  /* detached or already hidden - the UA force-hid it */
+                }
+              }, 180);
           } catch {
             /* already in the requested state — nothing to do */
           }
@@ -389,20 +408,23 @@ export class VeraSelect extends HTMLElement {
         }, wait);
       },
     }));
-    select.setOptions(entry.pending.options);
-    /**
-     * The value attribute is single-mode initial value, native-input style: it applies only when
-     * nothing else (property, selected markup) claimed the selection, and it doubles as the
-     * reset default when the markup declared none.
-     */
-    const valueAttribute = this.getAttribute('value');
-    if (valueAttribute && !entry.pending.value.length && !entry.defaults.length) {
-      entry.pending.value = [valueAttribute];
-      entry.defaults = resolveSelection([valueAttribute], select.state.options, []);
+    if (created) {
+      select.setOptions(entry.pending.options);
+      entry.pending.options = [];
+      /**
+       * The value attribute is single-mode initial value, native-input style: it applies only
+       * when nothing else (property, selected markup) claimed the selection, and it doubles as
+       * the reset default when the markup declared none.
+       */
+      const valueAttribute = this.getAttribute('value');
+      if (valueAttribute && !entry.pending.value.length && !entry.defaults.length) {
+        entry.pending.value = [valueAttribute];
+        entry.defaults = resolveSelection([valueAttribute], select.state.options, []);
+      }
+      select.state.value = resolveSelection(entry.pending.value, select.state.options, select.state.value);
+      entry.pending.value = [];
+      reflectForm(this, select.state.value);
     }
-    select.state.value = resolveSelection(entry.pending.value, select.state.options, select.state.value);
-    entry.pending.value = [];
-    reflectForm(this, select.state.value);
     syncStates(this);
 
     /**
@@ -423,6 +445,7 @@ export class VeraSelect extends HTMLElement {
       observer.observe(this, { childList: true, subtree: true, attributes: true });
       (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => observer.disconnect());
     }
+    (this as { _cleanups?: Set<() => void> })._cleanups?.add(() => clearTimeout(entry.hideTimer));
     const { state, handlers } = select;
 
     /** Slotted nodes to the controller — plus our own trigger, so close-with-refocus can land. */

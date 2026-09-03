@@ -42,9 +42,15 @@ export const useDismiss = (element: LifecycleElement, onDismiss: (event?: Keyboa
     /** Capture phase, so a stopPropagation() inside unrelated UI cannot hold the region open. */
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('keydown', onKeyDown, true);
+    /**
+     * Registered at ACTIVATE, into the element's CURRENT cleanup set - not once at creation.
+     * init() replaces _cleanups on every re-init, so a creation-time registration lives in the
+     * first connect's set only, and an element moved in the DOM then removed while open leaked
+     * both document listeners (measured: a document Escape drove a detached element's controller).
+     */
+    element._cleanups?.add(deactivate);
   };
 
-  element._cleanups?.add(deactivate);
 
   return { activate, deactivate };
 };

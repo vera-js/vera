@@ -638,6 +638,57 @@ test('the keyboard highlight tracks the OPTION, not its index, across a remote r
   element.remove();
 });
 
+test('AUDIT P1 — reconnection: live state survives a DOM move; nothing re-seeds, nothing leaks', async () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.setAttribute('value', 'x');
+  dom.window.document.body.append(element);
+  element.options = [{ label: 'X', value: 'x' }, { label: 'Y', value: 'y' }];
+  await frame();
+  element.options = [{ label: 'Two', value: '2' }]; // live replacement
+  element.value = '2';
+
+  element.remove();
+  dom.window.document.body.append(element); // the move
+  await frame();
+  assert.deepEqual(element.options.map((o) => o.value), ['2'], 'options survive — reconnect must not re-seed');
+  assert.equal(element.value, '2', 'the live selection survives — the value attribute must not re-apply');
+
+  /** Removed while open, after a reconnect: the dismissal listeners must go with it. */
+  element.open();
+  await frame();
+  const toggled = [];
+  element.addEventListener('toggle', () => toggled.push(1));
+  element.remove();
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(toggled.length, 0, 'a detached element hears nothing from document — no leaked listener');
+});
+
+test('AUDIT P1 — disabling while open closes the menu, through both the attribute and the form path', async () => {
+  const element = await mount();
+  element.open();
+  await frame();
+  element.setAttribute('disabled', '');
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'attribute path');
+  element.removeAttribute('disabled');
+  await frame();
+  element.open();
+  await frame();
+  element.formDisabledCallback(true); // a fieldset disabling
+  await frame();
+  assert.equal(part(element, 'menu').getAttribute('data-state'), 'closed', 'form path');
+  element.formDisabledCallback(false);
+  element.remove();
+});
+
+test('AUDIT P1 — the value getter answers correctly before connect', () => {
+  const element = dom.window.document.createElement('vera-select');
+  element.options = [{ label: 'B', value: 'b' }];
+  element.value = 'b';
+  assert.equal(element.value, 'b', 'pending resolves through the same path as selectedOptions');
+  assert.deepEqual(element.selectedOptions.map((o) => o.label), ['B']);
+});
+
 test('disabled means inert: gestures, keys, typeahead and open() all refuse — including via fieldset', async () => {
   const element = await mount((el) => el.setAttribute('disabled', ''));
   const trigger = part(element, 'trigger');
