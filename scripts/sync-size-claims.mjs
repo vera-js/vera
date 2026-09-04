@@ -188,6 +188,22 @@ if (snapshot && !snapshotStale) {
     if (listOwn && listLit) values['list.vs-lit.bytes'] = bytes(listLit.gzip - listOwn.gzip);
   }
 
+  /**
+   * **Every shipped MODULE addressable by name**, so prose can cite one and stay in sync with the
+   * table above it. Added when the README grew a section pitching light-DOM slots and quoted the
+   * module's size inline: the number was correct on the day and nothing regenerated it, which is
+   * precisely the drift `--check` exists to prevent — the one place this project promises numbers
+   * do not move.
+   */
+  for (const m of MODULES) {
+    /** `-` rather than `/`: the marker pattern is `[\w.-]+`, so a slash makes the marker
+     *  invisible to it — not unknown, INVISIBLE, which is worse. Found by writing one. */
+    const slug = m.dir ? `${m.dir}-${m.pkg}` : m.pkg;
+    const size = gzipSync(readFileSync(new URL(`../${m.dist}`, import.meta.url))).length;
+    values[`module.${slug}.bytes`] = bytes(size);
+    values[`module.${slug}.kb`] = kb(size, 2);
+  }
+
   /** Every contender addressable by slug, so prose can cite any of them and stay in sync. */
   for (const a of apps) {
     const slug = a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

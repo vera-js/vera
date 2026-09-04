@@ -53,6 +53,7 @@ module system is open — use the prebuilt ones or write your own.
 @verajs/router        tiny router with nested routes, wildcards, params
 @verajs/autoloader    lazy-loads custom elements on discovery
 @verajs/styles        adopts `static styles` — shadow sheets, @scope for light DOM
+@verajs/renderer/slots  `<slot>` in LIGHT DOM, with the platform's own semantics
 @verajs/reactivity    computed values; reactive Map/Set for stores
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
@@ -68,6 +69,47 @@ adds a byte to your bundle:
 
 The modules are **genuinely independent** — the router and autoloader do not require core, and can be
 used on their own or with another framework entirely.
+
+---
+
+## `<slot>` without a shadow root
+
+Slots are the best part of web components and they arrive welded to a shadow root — so taking them
+means taking style encapsulation, `::slotted()`'s limits and a boundary your page CSS cannot cross.
+`@verajs/renderer/slots` unwelds them:
+
+```html
+<my-card>
+  <h2 slot="title">Hello</h2>
+  Body text, distributed to the default slot.
+</my-card>
+```
+
+```js
+import { slots } from '@verajs/renderer/slots';
+wire([renderer, slots]);            // the whole setup
+```
+
+**The same component template works in either mode** — the only difference is whether it attaches a
+shadow root — so the consumer chooses, not the author. And in light mode the distributed nodes stay
+ordinary page nodes: your stylesheet reaches them, `querySelector` finds them, devtools shows them
+where you expect.
+
+That includes reaching *inside* slotted content, which shadow DOM cannot express at all —
+`::slotted()` matches only the top-level assigned node, so `::slotted(*) em` selects nothing, while
+`[slot='title'] em` simply works.
+
+**The semantics are the platform's, not an approximation.** Distribution, fallback content,
+`slotchange` (including *not* firing when an assignment is unchanged), re-slotting, removal,
+ordering of late insertions, `assignedNodes()`-equivalent reads, SSR and hydration are each verified
+against a real shadow root given the identical input — the suite renders one component both ways and
+asserts they agree, rather than asserting a table of expected strings. It is
+<!--size:module.renderer-slots.kb-->2.92 KB<!--/size:module.renderer-slots.kb--> gzipped and entirely
+opt-in: an app that never wires it pays nothing, and the renderer treats a `<slot>` it cannot
+distribute as inert markup with a development warning.
+
+Full claim, evidence and caveats: [`docs/features/light-dom-slots.md`](docs/features/light-dom-slots.md).
+Runnable: [`examples/light-slots/`](examples/light-slots/) — `npm run dev:slots`.
 
 ---
 
