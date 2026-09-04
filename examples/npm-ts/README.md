@@ -41,10 +41,6 @@ an example using the default stack:
   development diagnostics*, each of which named the module and the exact line to add — which is
   incidentally a fair test of those messages.
 
-**Known leftover:** `hello-component.ts` renders `<sl-image-comparer>`, a Shoelace element that has
-never been a dependency here, so the autoloader 404s on every load and two Unsplash images are
-fetched from the network. It is left alone pending a decision rather than quietly deleted.
-
 **A note on the remaining files.** This directory predates the project's overhaul and doubles as
 its exercise ground: `hello-component` / `goodbye-component` (toggled subtrees over a deliberately
 large store), `wcc-single-element` (a template-clone footer from an earlier era), `name-acquire`
