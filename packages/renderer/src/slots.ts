@@ -568,16 +568,26 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
          * the same inference-instead-of-ownership this module spent its history removing, at the
          * cost of an O(run) scan on every fill of every host forever.
          *
-         * Two conditions make it safe, and both are facts rather than proxies: the run must be
+         * Three conditions make it safe, and each is a fact rather than a proxy: the run must be
          * ASSIGNED (a run showing FALLBACK holds the component's own nodes, and adopting those
-         * would make a component's fallback into the user's content), and the node's own slot
-         * name must MATCH the binding it landed in — so a stray element dropped into a named
-         * slot's run is left alone instead of being filed under a name it never claimed.
+         * would make a component's fallback into the user's content); the node must lie BETWEEN
+         * the anchors, not merely share their parent, or anything dropped elsewhere in that
+         * element would be pulled into the slot; and the node's own slot name must MATCH the
+         * binding it landed in, so a stray element in a named slot's run is left alone rather
+         * than filed under a name it never claimed.
+         *
+         * Measured before keeping the scan over bindings: with 500 rows rendered inside a host,
+         * every one of them an unstamped nested addition that reaches this loop, four bindings
+         * cost the same as one (44.5–51.5 ms against 45.1–53.9). DOM work dominates completely.
          */
         for (const binding of state._bindings)
           if (
             binding._assigned &&
             binding._start.parentNode === record.target &&
+            // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's flag
+            (binding._start.compareDocumentPosition(node) & 4) !== 0 &&
+            // eslint-disable-next-line no-bitwise -- and the end anchor follows the node in turn
+            (node.compareDocumentPosition(binding._end) & 4) !== 0 &&
             slotNameOf(node) === binding._name
           ) {
             take(state, node);
