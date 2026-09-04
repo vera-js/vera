@@ -72,9 +72,21 @@ type Binding = {
   _end: Comment;
   /** Read from `_slot` at mount and kept in step with it, so `<slot name=${…}>` works. */
   _name: string;
-  /** The slot element's own template children — shown while nothing is assigned, held here
-   *  (detached, referenced) while displaced, restored when the slot empties. */
-  _fallback: Node[];
+  /**
+   * **The displaced region, parked in a fragment — empty whenever the region is on screen.**
+   *
+   * It began as an array of the slot's template children, detached one by one. That is a snapshot,
+   * and the region it stands for is not static: a slot NESTED in this fallback keeps distributing
+   * while displaced, so the array recorded a state that had moved on. Two failures came out of it,
+   * one of them content loss — see `fill`.
+   *
+   * A fragment is the same idea without the snapshot. Displacing appends the region into it and
+   * restoring inserts it back in one call, so anything that happened inside while it was away
+   * comes back too, in place, with no list to keep in step. It also keeps every anchor PARENTED
+   * while displaced, which is what lets a nested binding go on working instead of tripping `fill`'s
+   * discarded-anchors guard.
+   */
+  _fallback: DocumentFragment;
   _assigned: boolean;
   /**
    * **The `<slot>` element itself, kept out of the document but alive as the component's API
@@ -112,6 +124,17 @@ type HostState = {
   /** Captured nodes that are not currently displayed wait here — out of the document, exactly
    *  like an unassigned light child under native shadow DOM (present, not rendered). */
   _holding: DocumentFragment;
+  /**
+   * Every `_fallback` park fragment on this host, so `fill` can tell one of OUR resting places
+   * from a tree the user has taken a node into.
+   *
+   * A set rather than a check against the binding being filled, because the two need not be the
+   * same binding: a node placed by a slot nested in another slot's fallback rests in the OUTER
+   * binding's fragment, and at three levels of nesting it rests in one belonging to neither. The
+   * per-binding comparison happens to be right at depth two and silently wrong below it, which is
+   * the kind of correct-looking check this file has been bitten by before.
+   */
+  _parks: WeakSet<Node>;
   /** node → its current slot name, for every node ever captured: the identity test that lets
    *  the observer spot USER removals and re-slottings amid the template's own mutations. */
   _names: WeakMap<Node, string>;
@@ -158,6 +181,13 @@ const HOMES = new WeakMap<Node, Comment>();
  * marker nodes across template-identity rebuilds, emptying included, so landmarks cannot churn.)
  */
 const LANDMARKS = new WeakMap<Node, Node>();
+
+/**
+ * What the observer watches, wherever it watches. Hoisted because captured nodes rest in more than
+ * one place and every one of them needs the SAME watch — see the `observe` calls in `capture` and
+ * the park fragment in `takeOverSlot`.
+ */
+const WATCHING = { childList: true, subtree: true, attributes: true, attributeFilter: ['slot'] };
 
 /** Slottables are elements and text nodes — comments and the rest are never assigned. */
 const slotNameOf = (node: Node): string | null =>
@@ -350,9 +380,22 @@ const same = (a: Node[], b: Node[]): boolean => {
 /**
  * Make one binding show what it should: the assignment (when it is the active binding for its
  * name and the bucket has nodes) or its fallback. Current occupants are evacuated first —
- * assigned nodes to holding (they remain captured), fallback nodes to detachment (the
- * `_fallback` array keeps them). A bucket entry the USER spirited away while it was held
- * (removed from holding, or adopted into their own DOM) is purged rather than stolen back.
+ * assigned nodes to holding (they remain captured), an unassigned region into `_fallback`, which
+ * is a fragment rather than a list precisely because that region goes on living while it is away.
+ * A bucket entry the USER spirited away while it was held (removed from holding, or adopted into
+ * their own DOM) is purged rather than stolen back.
+ *
+ * **What the fragment fixes, stated because it cost real content.** Detaching the region node by
+ * node left every anchor inside it parentless, so a binding nested in this fallback hit the guard
+ * at the top of this function and returned without placing anything. A child the user added for
+ * that inner slot while the outer one was assigned therefore went into its bucket and nowhere
+ * else — and when the outer slot later fell back, the old list restored the inner slot's ORIGINAL
+ * fallback over the top. The user's node was detached, invisible, and unrecoverable, while the
+ * inner slot's own `assignedNodes()` still named it. In a shadow root the same sequence simply
+ * shows the node, because there the inner slot never leaves the tree.
+ *
+ * Parked in a fragment, the anchors keep a parent, the inner binding places into the fragment as
+ * it always would, and restoring carries the result back. One call, no list, no re-fill pass.
  */
 const fill = (state: HostState, binding: Binding) => {
   const parent = binding._start.parentNode;
@@ -375,7 +418,7 @@ const fill = (state: HostState, binding: Binding) => {
     const next = node.nextSibling;
     wasShowing.set(node, wasShowing.size);
     if (binding._assigned) state._holding.appendChild(node);
-    else parent.removeChild(node);
+    else binding._fallback.appendChild(node);
     node = next;
   }
   const bucket = activeFor(state, binding._name) === binding ? bucketOf(state, binding._name) : NOTHING;
@@ -401,8 +444,16 @@ const fill = (state: HostState, binding: Binding) => {
   for (let i = 0; i < bucket.length; i++) {
     const candidate = bucket[i];
     const home = candidate.parentNode;
-    if (home !== state._holding && home !== null && home !== parent) {
-      /** The user took this node for themselves while it was unassigned — respect that. */
+    if (home !== state._holding && home !== null && home !== parent && !state._parks.has(home)) {
+      /**
+       * The user took this node for themselves while it was unassigned — respect that.
+       *
+       * `_parks` is the exception and it is not decoration: a node distributed by a slot nested in
+       * a displaced fallback rests in that fallback's park fragment, which is a home of OURS. Read
+       * as a user adoption it was purged from the bucket instead of being placed, so re-slotting
+       * such a node to an outer slot dropped it — visible content, gone, in a sequence a shadow
+       * root handles without comment.
+       */
       bucket.splice(i--, 1);
       state._names.delete(candidate);
       continue;
@@ -411,7 +462,7 @@ const fill = (state: HostState, binding: Binding) => {
     shown.push(candidate);
   }
   binding._assigned = shown.length > 0;
-  if (shown.length === 0) for (const fallback of binding._fallback) parent.insertBefore(fallback, binding._end);
+  if (shown.length === 0) parent.insertBefore(binding._fallback, binding._end);
   if (!same(binding._shown, shown)) {
     binding._shown = shown;
     signal(state, binding);
@@ -499,8 +550,7 @@ const expose = (state: HostState, binding: Binding) => {
     if (bucket.length > 0) return [...bucket];
     if (flatten !== true) return [];
     const shown: Node[] = [];
-    if (binding._start.parentNode === null) shown.push(...binding._fallback);
-    else for (let n = binding._start.nextSibling; n !== null && n !== binding._end; n = n.nextSibling) shown.push(n);
+    for (let n = binding._start.nextSibling; n !== null && n !== binding._end; n = n.nextSibling) shown.push(n);
     return shown.filter((node) => slotNameOf(node) !== null);
   };
   slot.assignedNodes = (options?: { flatten?: boolean }) => read(options?.flatten) as Node[];
@@ -693,6 +743,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _map: new Map(),
     _bindings: [],
     _holding: doc.createDocumentFragment(),
+    _parks: new WeakSet(),
     _names: new WeakMap(),
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,
@@ -741,15 +792,14 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
       }
     }
   }
-  const watching = { childList: true, subtree: true, attributes: true, attributeFilter: ['slot'] };
-  created._observer.observe(host, watching);
+  created._observer.observe(host, WATCHING);
   /**
    * HOLDING IS WATCHED TOO. Unassigned nodes wait in a detached fragment, which is not in the
    * host's subtree — so re-slotting one (`slot="a"` → `"b"`) went unseen and the node never moved
    * to its new slot, while native re-assigns a light child whether or not it is currently
    * assigned (measured: displayed nodes re-slotted, held ones silently did not).
    */
-  created._observer.observe(created._holding, watching);
+  created._observer.observe(created._holding, WATCHING);
   return created;
 };
 
@@ -809,8 +859,17 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
     const innerState = takeOverSlot(inner, root, inner.getAttribute('name') ?? '');
     if (innerState !== null) nestedStates.push(innerState);
   }
-  const fallback = [...slot.childNodes];
-  for (const node of fallback) slot.removeChild(node);
+  const fallback = doc.createDocumentFragment();
+  state._parks.add(fallback);
+  /**
+   * **And a park is watched too, for exactly the reason holding is.** A displaced fallback is a
+   * second detached place captured nodes rest in: a slot nested here goes on distributing while the
+   * outer slot is assigned, so its content sits in this fragment, outside the host's subtree. Left
+   * unwatched, re-slotting one of those nodes (`slot="i"` → `""`) was invisible and it never moved
+   * — the same defect `_holding` already carries a comment about, one level further out.
+   */
+  state._observer.observe(fallback, WATCHING);
+  while (slot.firstChild !== null) fallback.appendChild(slot.firstChild);
   /** Out of the document, but KEPT — it is the component's handle on this slot. */
   parent.removeChild(slot);
   const binding: Binding = {
@@ -1106,6 +1165,18 @@ const adoptSlot = (
   parent.insertBefore(start, firstShown ?? before);
   parent.insertBefore(end, before);
   const isAssigned = assigned !== null && assigned.length > 0;
+  /**
+   * `_fallback` holds the DISPLACED region and is empty while the region is on screen, so which
+   * branch this is decides where these nodes belong. Assigned: the server never rendered the
+   * fallback and these are clones off the canonical template, displaced from the start — they go
+   * into the fragment. Unassigned: the server DID render them and they are live in the page
+   * between the anchors, so they stay exactly where they are and the fragment starts empty.
+   * Moving them would delete server output from the document.
+   */
+  const held = doc.createDocumentFragment();
+  state._parks.add(held);
+  state._observer.observe(held, WATCHING);
+  if (isAssigned) for (const node of fallback) held.appendChild(node);
   if (isAssigned)
     for (const node of assigned!) {
       bucketOf(state, name).push(node);
@@ -1115,7 +1186,7 @@ const adoptSlot = (
     _start: start,
     _end: end,
     _name: name,
-    _fallback: fallback,
+    _fallback: held,
     _assigned: isAssigned,
     _slot: slot,
     _shown: [],

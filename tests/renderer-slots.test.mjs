@@ -441,6 +441,88 @@ test('flatten returns slottables only — not a comment in the fallback, not a n
 });
 
 /**
+ * **A slot nested in a displaced fallback keeps working — content added to it must not be lost.**
+ *
+ * The outer slot is assigned, so its fallback — which contains the inner slot — is not on screen.
+ * The user then adds a child for that inner slot. In a shadow root nothing about this is special:
+ * the inner slot never left the tree, so when the outer slot later falls back, the node is there.
+ *
+ * Here the fallback had been detached NODE BY NODE, which left the inner binding's anchors
+ * parentless. `fill` returned early on them, so the node went into its bucket and nowhere else, and
+ * when the outer slot fell back, the restore list put the inner slot's ORIGINAL fallback back over
+ * the top. The user's node ended up detached, invisible and unreachable, while the inner slot's own
+ * `assignedNodes()` still named it — the failure reports itself as working.
+ *
+ * Parking the displaced region in a FRAGMENT is what fixes it: anchors keep a parent, so the inner
+ * binding places normally, and restoring carries back whatever happened while it was away.
+ */
+test('content added to a slot inside a displaced fallback survives and appears', async () => {
+  const element = host('<u slot="b">15</u>');
+  let inner = null;
+  renderInto(
+    html`<p><slot name="b"><em>E</em><slot name="i" &ref=${(node) => { inner = node; }}>D</slot></slot></p>`,
+    element
+  );
+  await settle();
+  assert.equal(element.querySelector('p').textContent, '15', 'CONTROL: the outer slot is assigned');
+
+  const late = doc.createElement('u');
+  late.setAttribute('slot', 'i');
+  late.textContent = 'LATE';
+  element.append(late);
+  await settle();
+  assert.deepEqual(inner.assignedNodes().map((n) => n.textContent), ['LATE'],
+    'the inner slot takes it even though it is not currently rendered');
+
+  element.querySelector('u[slot="b"]').remove();
+  await settle();
+  assert.equal(element.querySelector('p').textContent, 'ELATE',
+    'and when the outer slot falls back, the node is THERE — not the stale original fallback');
+  assert.equal(late.isConnected, true, 'the user\'s node is in the document, not stranded detached');
+  element.remove();
+});
+
+/**
+ * **Re-slotting a node OUT of a displaced nested slot.**
+ *
+ * The node rests in the outer binding's park fragment, which is not in the host's subtree — so the
+ * `slot` attribute change was invisible to the observer and the node never moved. `_holding` already
+ * carries a comment about exactly this failure, measured against native, and a park is simply a
+ * second detached place captured nodes rest in: it needs the same watch.
+ *
+ * The other half is the placement guard, which reads a node whose parent is neither holding nor the
+ * region as one the user has adopted, and purges it rather than stealing it back. A park is a home
+ * of OURS, so it is registered as one — and registered per host rather than compared against the
+ * binding being filled, since at three levels of nesting the node rests in a fragment belonging to
+ * neither binding involved.
+ */
+test('a node re-slotted out of a displaced nested slot moves to its new slot', async () => {
+  const element = host();
+  const first = doc.createElement('u');
+  first.textContent = '13';
+  const second = doc.createElement('u');
+  second.setAttribute('slot', 'i');
+  second.textContent = '78';
+  element.append(first, second);
+
+  let outer = null;
+  renderInto(
+    html`<p><slot &ref=${(node) => { outer = node; }}><em>E</em><slot name="i">D</slot></slot></p>`,
+    element
+  );
+  await settle();
+  assert.deepEqual(outer.assignedNodes().map((n) => n.textContent), ['13'],
+    'CONTROL: only the unnamed child is on the default slot to begin with');
+
+  second.setAttribute('slot', '');
+  await settle();
+  assert.deepEqual(outer.assignedNodes().map((n) => n.textContent), ['13', '78'],
+    'changing its slot moves it, as native re-assigns a light child wherever it currently rests');
+  assert.equal(element.querySelector('p').textContent, '1378', 'and it is on screen');
+  element.remove();
+});
+
+/**
  * **The slot element is an API object, not a position — now a published claim, so pinned.**
  *
  * The README and `llms.txt` tell a shadow user migrating here to reach the slot through `&ref` or
