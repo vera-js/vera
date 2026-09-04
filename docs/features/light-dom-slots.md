@@ -75,10 +75,18 @@ this pays that and nothing else.
 - **A node APPENDED after the component's output must name its slot** (`slot=""` for the default
   one). The host's tail is where its own children and the component's output meet, and nothing
   distinguishes an unnamed text node from the component's there. Everywhere else — inserted before
-  or among the original light content — additions keep full native semantics, attribute-less text
-  included, so the renderer's own `${…}` re-renders and an ordinary `insertBefore` need nothing
-  said. The timing trigger still applies at the tail: a parser upgrades an element before it has
-  read its children, so let the definition load deferred.
+  or among the original light content — additions are captured with native MEMBERSHIP semantics,
+  attribute-less text included, so the renderer's own `${…}` re-renders and an ordinary
+  `insertBefore` need nothing said. The timing trigger still applies at the tail: a parser upgrades
+  an element before it has read its children, so let the definition load deferred.
+- **A late insertion joins its slot at the END, where native would place it by document order.**
+  Membership is native; position is not. Distribution moves nodes into the component, so by the
+  time a node is inserted into the host afterwards, the siblings that would have ordered it are no
+  longer beside it — and an undistributed node sits ahead of all distributed content, which reads
+  as "first" for a hand-inserted node and "last" for a list's freshly created row, with nothing in
+  the DOM to tell them apart. Native answers `PREPENDED, Body`; this answers `Body, PREPENDED`.
+  Order the slot's content from the data instead, which is where a component's content usually
+  comes from anyway. Pinned in `tests/slots-transition-parity.test.mjs`.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light

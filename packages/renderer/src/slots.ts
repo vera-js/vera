@@ -44,6 +44,15 @@
  * identity, so they have no such restriction. `tests/slots-transition-parity.test.mjs` holds
  * the light/shadow matrix this rule has to satisfy.)
  *
+ * **What the light region does NOT restore is ORDER.** A late insertion is captured natively and
+ * then joins its slot at the end. Distribution moved the siblings that would have ordered it, and
+ * document position cannot substitute: every undistributed node sits ahead of all distributed
+ * content, which is the right reading for a hand-inserted node and the wrong one for a list's
+ * freshly created row, with nothing in the DOM separating the two — measured, by trying it and
+ * watching every relocated list reorder itself. Closing it needs a position record per captured
+ * node (the tombstone tier in the internal markerless-renderer design), which is deliberately not
+ * built. Pinned as a known divergence in the transition-parity suite.
+ *
  * **Pop-out rule.** Every *document* touch derives from the node itself (`ownerDocument`), so a
  * component rendered into a second window creates its nodes in that window's document.
  *

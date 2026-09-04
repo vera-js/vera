@@ -121,3 +121,40 @@ for (const [label, values] of CASES) {
     assert.equal(got, want, `light DOM says ${JSON.stringify(got)}, the platform says ${JSON.stringify(want)}`);
   });
 }
+
+/**
+ * **THE KNOWN DIVERGENCE, pinned deliberately: membership is native, ORDER is not.**
+ *
+ * A node inserted into the light region after the first render is captured with native semantics —
+ * no `slot` attribute needed, text included (that is what the sentinel bought). Where it lands in
+ * its slot's content is where this parts company with the platform: native keeps the light tree
+ * intact and reads assignment order from it, while distribution here MOVES nodes into the
+ * component, so by the time a late insertion arrives, the siblings that would have ordered it are
+ * no longer beside it. Document position cannot stand in: an undistributed node sits in the host
+ * ahead of ALL distributed content, which is right for a user's `insertBefore` and wrong for a
+ * list's freshly created row, and nothing in the DOM tells those two apart.
+ *
+ * Measured against a native shadow root given the identical mutation: the platform answers
+ * `PREPENDED, Body`; this answers `Body, PREPENDED`. Closing it needs a position record per
+ * captured node — the tombstone tier of `MARKERLESS-RENDERER.md`, shelved on complexity grounds.
+ *
+ * Pinned rather than left loose so the behaviour is a decision with a reason attached, and so a
+ * future positional model announces itself here by failing.
+ */
+test('KNOWN DIVERGENCE: a late light-region insertion joins its slot at the end, not in document order', async () => {
+  const page = D.createElement('div');
+  D.body.append(page);
+  const draw = (v) => html`<t-light>${v}</t-light>`;
+  renderInto(draw('Body'), page);
+  await frame();
+  await frame();
+  const host = page.querySelector('t-light');
+  assert.equal(shown(host), 'Body', 'CONTROL: the original light content distributed');
+
+  host.insertBefore(D.createTextNode('PREPENDED'), host.firstChild);
+  await frame();
+  await frame();
+  assert.equal(shown(host), 'BodyPREPENDED',
+    'captured (native membership) but appended — native would answer PREPENDEDBody; see the note above');
+  page.remove();
+});
