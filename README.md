@@ -9,7 +9,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
 | `@verajs/core` | 6.84 KB | **3.00 KB** |
-| `@verajs/renderer` | 10.32 KB | 4.04 KB |
+| `@verajs/renderer` | 10.78 KB | 4.15 KB |
 | `@verajs/router` | 8.39 KB | 3.57 KB |
 | `@verajs/autoloader` | 2.67 KB | 1.32 KB |
 | `@verajs/styles` | 1.39 KB | 757 B |
@@ -17,17 +17,17 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/tag` | 2.85 KB | 1.45 KB |
 | `@verajs/reactivity/computed` | 298 B | 241 B |
 | `@verajs/reactivity/collections` | 1.07 KB | 576 B |
-| `@verajs/renderer/keyed` | 1.90 KB | 904 B |
-| `@verajs/renderer/slots` | 6.25 KB | 2.50 KB |
+| `@verajs/renderer/keyed` | 1.96 KB | 923 B |
+| `@verajs/renderer/slots` | 6.58 KB | 2.57 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.2 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.3 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->6.2 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->6.3 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 

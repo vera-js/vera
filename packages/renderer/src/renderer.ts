@@ -388,6 +388,8 @@ type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | n
 type SlotSeam = SlotSeamFn & {
   _$capture$?: (host: Element) => void;
   _$rescue$?: (host: Element) => Node[] | null;
+  /** A captured node's host-side anchor (the light-region sentinel) — see the upgrade below. */
+  _$home$?: (node: Node) => Comment | null;
 };
 /**
  * A recorded `<slot>` position — just its node index in the instance walk. Slot records live
@@ -1246,9 +1248,25 @@ class TextPart implements Part {
        */
       const start = comment();
       const end = comment();
-      const parent = this._text.parentNode!;
-      parent.insertBefore(start, this._text);
-      parent.insertBefore(end, this._text.nextSibling);
+      /**
+       * **Markers go where the part LIVES, which is not always where its text node is.** In a
+       * light host wired for slots, this text node was captured and distributed into the
+       * component's tree — planting markers beside it there put them inside the slot's range,
+       * the slot's next fill swept them into the holding fragment, and the part spent the rest
+       * of the page rendering into detached space (measured: `<host>${text}</host>` toggling
+       * through null showed FALLBACK forever). `_$home$` answers with the host's light-region
+       * sentinel for a captured node and null for everything else, so every app without light
+       * slots takes the second branch untouched.
+       */
+      const home = slotSeam()?._$home$?.(this._text) ?? null;
+      const parent = home !== null ? home.parentNode! : this._text.parentNode!;
+      if (home !== null) {
+        parent.insertBefore(start, home);
+        parent.insertBefore(end, home);
+      } else {
+        parent.insertBefore(start, this._text);
+        parent.insertBefore(end, this._text.nextSibling);
+      }
       const part = new ChildPart(start, end);
       part._mode = TEXT;
       part._text = this._text;
@@ -1443,21 +1461,31 @@ class ChildPart implements Part {
     const items = this._items;
     /**
      * **Content that is no longer between the markers.** `@verajs/renderer/slots` distributes a
-     * light host's children by MOVING them into the component's tree, so a list part rendering
-     * those children keeps its markers in the host while its items live inside the component.
+     * light host's children by MOVING them into the component's tree, so a part rendering those
+     * children keeps its markers in the host while its content lives inside the component.
      *
-     * Both branches below are wrong for that, and they are wrong in opposite directions. The walk
-     * finds the markers adjacent and removes nothing — the list stays on screen after being
-     * cleared. The whole-parent fast path is the dangerous one: nothing precedes the start and
-     * nothing follows the end, so it takes `parent.textContent = ''` and wipes the HOST, which by
-     * then also contains the component's own rendered output.
+     * Both branches below are wrong for that, and wrong in opposite directions. The walk finds
+     * the markers adjacent and removes nothing — the content stays on screen after being cleared
+     * (a template swap in a light host showed the OLD template forever). The whole-parent fast
+     * path is the dangerous one: it would `textContent = ''` the HOST, component render and all.
      *
-     * The items know where they are. `$m` into the scratch fragment does not care which parent
-     * they came from, and one clear afterwards drops the whole batch.
+     * Every mode knows its content by IDENTITY, which is parent-agnostic and split-proof: items
+     * through `$m`, TEXT through `_text`, NODE through `_value`, TEMPLATE through the top-level
+     * node array recorded at commit. The one shape that cannot be found this way is a
+     * DocumentFragment committed at NODE position (its children scatter and it keeps no record);
+     * that falls through to the walk, as before.
      */
-    if (items !== null && items.length > 0 && this._start.nextSibling === end) {
-      for (const item of items) if (item !== null) this.$m(item, null, SCRATCH);
-      SCRATCH.textContent = '';
+    if (this._start.nextSibling === end && this._mode !== EMPTY) {
+      if (items !== null) {
+        for (const item of items) if (item !== null) this.$m(item, null, SCRATCH);
+        SCRATCH.textContent = '';
+      } else if (this._mode === TEXT) {
+        (this._text as ChildNode | null)?.remove();
+      } else if (this._mode === TEMPLATE) {
+        if (Array.isArray(this._value)) for (const node of this._value as ChildNode[]) node.remove();
+      } else if (this._mode === NODE && typeof (this._value as ChildNode).remove === 'function') {
+        (this._value as ChildNode).remove();
+      }
     } else /**
      * When this part owns its parent's entire contents, one `textContent = ''` replaces removing
      * every node individually. For a 1 000-row table body that is the difference between ~22 ms
@@ -1565,6 +1593,15 @@ class ChildPart implements Part {
       if (this._mode !== EMPTY) this._clear();
       const instance = new Instance(template);
       instance._update(value.values);
+      /**
+       * The instance's top-level nodes, recorded while they are still in the fragment. `_value`
+       * is unused in TEMPLATE mode, and this is what lets `_clear` and `hold`'s parking find the
+       * content after `@verajs/renderer/slots` has moved it out of the marker range — per node,
+       * parent-agnostic, so even content split across two slots comes back. Costs one small array
+       * on a path that just built an Instance and cloned a template; same-shape updates never
+       * reach here.
+       */
+      this._value = [...instance._fragment.childNodes];
       this._insert(instance._fragment);
       this._instance = instance;
       this._shape = value.strings;
@@ -1657,13 +1694,19 @@ class ChildPart implements Part {
     }
     const held = (this._held ??= new Map());
     if (this._mode === TEMPLATE) {
-      /** Park the live nodes back in their instance's own (empty) fragment. */
+      /** Park the live nodes back in their instance's own (empty) fragment. When the range is
+       *  empty but content existed, slots relocated it — the recorded top-level nodes park it
+       *  from wherever it lives, split slots and holding included. */
       const fragment = this._instance!._fragment;
-      let node = this._start.nextSibling;
-      while (node !== this._end) {
-        const next = node!.nextSibling;
-        fragment.appendChild(node!);
-        node = next;
+      if (this._start.nextSibling === this._end && Array.isArray(this._value)) {
+        for (const node of this._value as Node[]) fragment.appendChild(node);
+      } else {
+        let node = this._start.nextSibling;
+        while (node !== this._end) {
+          const next = node!.nextSibling;
+          fragment.appendChild(node!);
+          node = next;
+        }
       }
       held.set(this._shape!, this._instance!);
     } else if (this._mode !== EMPTY) {
@@ -1671,6 +1714,7 @@ class ChildPart implements Part {
     }
     const instance = held.get(result.strings) ?? new Instance(getTemplate(result));
     instance._update(result.values);
+    this._value = [...instance._fragment.childNodes];
     this._insert(instance._fragment);
     this._instance = instance;
     this._shape = result.strings;
@@ -1703,6 +1747,7 @@ class ChildPart implements Part {
       part._instance = instance;
       part._shape = result.strings;
       part._mode = TEMPLATE;
+      part._value = [...instance._fragment.childNodes];
       part._start.parentNode!.insertBefore(instance._fragment, part._end);
       return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }

@@ -59,7 +59,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->2.50 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->2.57 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 renderer carries a small seam that records where a template's slots are; an app that never wires
 this pays that and nothing else.
 
@@ -72,10 +72,13 @@ this pays that and nothing else.
   tree, so an ordinary descendant selector reaches it — and reaches deeper than `::slotted()` can.
   A component that renders both ways writes both. `:host` *is* translated, because a component needs
   it to style itself and nothing else can supply that.
-- **A node added after the first render must name its slot** (`slot=""` for the default one). After
-  that first render the host's children are also the component's own output, and nothing
-  distinguishes an unnamed text node from it. This is triggered by TIMING as much as intent: a
-  parser upgrades an element before it has read its children, so let the definition load deferred.
+- **A node APPENDED after the component's output must name its slot** (`slot=""` for the default
+  one). The host's tail is where its own children and the component's output meet, and nothing
+  distinguishes an unnamed text node from the component's there. Everywhere else — inserted before
+  or among the original light content — additions keep full native semantics, attribute-less text
+  included, so the renderer's own `${…}` re-renders and an ordinary `insertBefore` need nothing
+  said. The timing trigger still applies at the tail: a parser upgrades an element before it has
+  read its children, so let the definition load deferred.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light

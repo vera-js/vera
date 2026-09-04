@@ -29,16 +29,20 @@
  * while nothing is assigned and comes back when a slot empties, and capture takes the host's
  * DIRECT children only, so nested components compose.
  *
- * **The one documented divergence from native, and why.** After the first render, the host's
- * top-level childList cannot distinguish a node the USER appended from one the component's own
- * template inserted — both arrive as `addedNodes` with the host as parent (native never has this
- * problem; it has two trees). A heuristic here would eventually capture a component's own
- * markup as slot content, which is the worst possible failure, so the rule is explicit instead:
- * a node ADDED AFTER first render joins the slot system only if it carries a `slot` attribute —
- * and `slot=""` targets the default slot, so nothing is out of reach, it just must be said.
- * (Everything present BEFORE first render keeps full native semantics, attribute-less text
- * included; removals and `slot`-attribute changes of captured nodes are tracked everywhere in
- * the tree by identity, so they have no such restriction.)
+ * **The one documented divergence from native, and why — now confined to the host's TAIL.**
+ * Native has two trees; here the host's childList holds both the user's content and the
+ * component's output, and only one region is ambiguous. At capture, a sentinel comment marks
+ * where the light region ends (the component's render appends after it), and a top-level node
+ * added BEFORE it — judged by the mutation record's insertion site, so a same-batch move cannot
+ * hide it — is host content with full native semantics: text included, no attribute needed.
+ * That region is where the renderer's own re-renders of `<host>${…}</host>` land, and where a
+ * user's insertBefore lands. What remains explicit is the tail: a node APPENDED after the
+ * component's output joins the slot system only if it carries a `slot` attribute — `slot=""`
+ * targets the default slot, so nothing is out of reach, it just must be said. A heuristic there
+ * would eventually capture the component's own markup as slot content, the worst possible
+ * failure. (Removals and `slot`-attribute changes of captured nodes are tracked everywhere by
+ * identity, so they have no such restriction. `tests/slots-transition-parity.test.mjs` holds
+ * the light/shadow matrix this rule has to satisfy.)
  *
  * **Pop-out rule.** Every *document* touch derives from the node itself (`ownerDocument`), so a
  * component rendered into a second window creates its nodes in that window's document.
@@ -108,9 +112,31 @@ type HostState = {
   /** The host window's `Event` — see `signal` for why it cannot be taken from the slot. */
   _event: typeof Event;
   _observer: MutationObserver;
+  /**
+   * **The boundary between the host's LIGHT REGION and the component's own render.** One comment,
+   * appended at capture time — after the children are lifted, before the component's first render
+   * appends its output — so everything that ever sits before it at the host's top level is host
+   * content, and everything after is the component's. Two things stand on it:
+   *
+   * 1. The observer captures a top-level addition BEFORE the sentinel with full native semantics —
+   *    no `slot` attribute required, text included. The attribute rule was written for USER
+   *    mutations, whose ambiguity is real only at the host's tail; it was also catching the
+   *    RENDERER's own re-renders of `<host>${…}</host>`, whose new nodes always land in the light
+   *    region, and stranding them invisibly (measured: every `→ null → back` transition, every
+   *    template swap, every list refill in a light host showed FALLBACK or stale content forever,
+   *    while shadow passed all of them). The documented divergence shrinks to: content APPENDED
+   *    after the component's output must name its slot.
+   * 2. `_$home$` hands it to the renderer, so a text part that upgrades AFTER its text node was
+   *    captured plants its markers here — in the host — instead of chasing the node into the
+   *    slot, where the next fill swept markers and all into the holding fragment and the part
+   *    spent the rest of the page rendering into detached space.
+   */
+  _sentinel: Comment;
 };
 
 const HOSTS = new WeakMap<Element, HostState>();
+/** Every captured node → its host's sentinel, for `_$home$`. Entries die with their nodes. */
+const HOMES = new WeakMap<Node, Comment>();
 
 /** Slottables are elements and text nodes — comments and the rest are never assigned. */
 const slotNameOf = (node: Node): string | null =>
@@ -155,6 +181,7 @@ const take = (state: HostState, node: Node): string | null => {
       }
   bucket.splice(at, 0, node);
   state._names.set(node, name);
+  HOMES.set(node, state._sentinel);
   if (!settled) state._holding.appendChild(node);
   return name;
 };
@@ -426,13 +453,43 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
        * (`parentNode === null` is its test for "truly gone"), so the two halves agree about what a
        * move is.
        */
+      /**
+       * A top-level addition in the LIGHT REGION — before the sentinel — is host content with
+       * full native semantics: text nodes included, no attribute needed. That is where the
+       * renderer's own re-renders of `<host>${…}</host>` land (their part anchors sit before the
+       * component's output, which appended after the sentinel), and where a user's insertBefore
+       * lands. Additions AFTER the sentinel are beside or inside the component's own output,
+       * where user content and component markup are indistinguishable, so the explicit-attribute
+       * rule stands there — the documented divergence, now shrunk to the host's tail.
+       */
+      /**
+       * Judged by the INSERTION SITE, not the node's current position: a keyed list creates a
+       * row between the part's markers and moves it among its siblings in the same batch, so by
+       * callback time the node lives inside the component. `record.nextSibling` is the node that
+       * followed at the moment of insertion — for renderer inserts that is the part's own end
+       * marker, which stays in the host — and where it has since moved or gone, the node's own
+       * current position is the fallback.
+       */
+      const sentinel = state._sentinel;
+      const site = record.nextSibling;
+      // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's flag
+      const before = (anchor: Node | null): boolean =>
+        anchor !== null &&
+        anchor.parentNode === host &&
+        (anchor === sentinel || (anchor.compareDocumentPosition(sentinel) & 4) !== 0);
+      const lit =
+        record.target === host &&
+        sentinel.parentNode === host &&
+        (before(site) || (node.parentNode === host && before(node)));
       if (
-        (node.parentNode === host || record.target === host) &&
-        node.nodeType === 1 &&
-        (node as Element).hasAttribute('slot') &&
+        (lit ||
+          ((node.parentNode === host || record.target === host) &&
+            node.nodeType === 1 &&
+            (node as Element).hasAttribute('slot'))) &&
         !state._names.has(node)
       ) {
-        touched.add(take(state, node)!);
+        const name = take(state, node);
+        if (name !== null) touched.add(name);
       }
     }
     for (const node of record.removedNodes) {
@@ -465,8 +522,16 @@ const capture = (host: Element, skipChildren = false): HostState => {
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,
     _observer: new MutationObserver((records) => onMutations(host, records)),
+    /** Appended below, after construction — it needs the state object to exist first. */
+    _sentinel: doc.createComment(''),
   });
   HOSTS.set(host, created);
+  /**
+   * Placed while the children are still present, so it lands AFTER all of them; the lifting
+   * below leaves it (comments are never slottables), and the component's render appends after
+   * it. See the field's own comment for the two jobs it does.
+   */
+  host.appendChild(created._sentinel);
   /**
    * A server render parks content no slot claimed in an inert `<template>` — recover it into
    * holding (captured, unrendered, ready if its slot ever mounts) and drop the carrier, so the
@@ -745,6 +810,16 @@ const serverDistribute = (host: Element, source: Node[]) => {
   if ((globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return;
   capture(host);
   drain(HOSTS.get(host)!);
+};
+/**
+ * A captured node's HOME — the sentinel marking the end of its host's light region. The renderer's
+ * text-part upgrade calls this: markers for a part whose text node was captured belong in the
+ * HOST, not wherever distribution carried the node (see `_sentinel`). Returns null for a node no
+ * light host has captured, which is every node in an app without light slots.
+ */
+(takeOverSlot as { _$home$?: (node: Node) => Comment | null })._$home$ = (node) => {
+  const sentinel = HOMES.get(node);
+  return sentinel !== undefined && sentinel.parentNode !== null ? sentinel : null;
 };
 /** The server hook — SSR calls this (never the client capture/anchor path). */
 (takeOverSlot as { _$server$?: (host: Element, source: Node[]) => void })._$server$ = serverDistribute;

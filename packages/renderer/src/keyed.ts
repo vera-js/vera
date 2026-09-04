@@ -44,7 +44,7 @@ import type { Item, KeyedResult, ListStrategy } from './renderer.js';
  * job and has not run yet. They are skipped by the placement pass for that render and land in slot
  * order when it does.
  */
-const reconcileRelocated: ListStrategy = (part, newValues, items, parent) => {
+const reconcileRelocated: ListStrategy = (part, newValues, items, parent, end) => {
   const count = newValues.length;
   const byKey = new Map<unknown, Item>();
   for (const item of items) if (item !== null) byKey.set(item.$k, item);
@@ -76,30 +76,38 @@ const reconcileRelocated: ListStrategy = (part, newValues, items, parent) => {
    * whole list; re-attaching is not free, it blurs focus and restarts transitions.
    */
   const successorIn = new Map<Node, Node>();
-  let lastContainer: Node = parent;
   for (let i = count - 1; i >= 0; i--) {
     const item = newItems[i];
-    if (item === undefined) {
-      /**
-       * Created under the HOST, because that is what the observer counts as the user's content —
-       * a node created straight into the component's tree looks like the component's own output
-       * and is never captured. Then moved among its neighbours, which the observer reads as a move
-       * rather than a disappearance. With no successor it is the last of its run, and being left
-       * in the host is already correct: distribution appends it.
-       */
-      const created = part.$c(newValues[i], parent, null);
-      const successor = successorIn.get(lastContainer);
-      if (successor !== undefined && lastContainer !== parent) part.$m(created, successor, lastContainer);
-      newItems[i] = created;
-    } else {
-      const container = part.$f(item).parentNode;
-      if (container === null) continue;
-      const successor = successorIn.get(container);
-      if (successor !== undefined) part.$m(item, successor, container);
-      lastContainer = container;
+    if (item === undefined) continue; // created below, in forward order, once neighbours are final
+    const container = part.$f(item).parentNode;
+    if (container === null) continue;
+    const successor = successorIn.get(container);
+    if (successor !== undefined) part.$m(item, successor, container);
+    successorIn.set(container, part.$f(item));
+  }
+  /**
+   * **Creations run FORWARD, after every surviving item is in its final place.** Two reasons.
+   * A new item belongs beside its logical successor, and the successor's position is only final
+   * once the reverse pass above has run. And consecutive new rows must land in logical order:
+   * created back-to-front they arrive in the host reversed, the observer captures them in
+   * arrival order, and the list renders permuted.
+   *
+   * Created under the HOST, before `end` — the part's own boundary. Created straight into the
+   * component's tree they would read as the component's own output and never be captured;
+   * appended to the host's tail they would sit in the component's region, which is the same
+   * mistake. Between the part's markers they are unambiguously the host's content, which the
+   * observer captures with native semantics. A new item whose logical successor lives inside
+   * the component is then moved beside it — a move, which the observer already reads correctly.
+   */
+  for (let i = 0; i < count; i++) {
+    if (newItems[i] !== undefined) continue;
+    const created = part.$c(newValues[i], parent, end);
+    const following = i + 1 < count ? newItems[i + 1] : undefined;
+    if (following !== undefined) {
+      const first = part.$f(following);
+      if (first.parentNode !== null && first.parentNode !== parent) part.$m(created, first, first.parentNode);
     }
-    const first = part.$f(newItems[i]);
-    if (first.parentNode !== null) successorIn.set(first.parentNode, first);
+    newItems[i] = created;
   }
   return newItems;
 };
