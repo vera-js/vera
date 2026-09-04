@@ -560,3 +560,47 @@ for (const [label, disturb] of [
     assert.equal(want, 'A,U', 'CONTROL: the platform keeps the edit after the surviving content');
     assert.equal(await run('t-gap-light'), want);
   });
+
+/**
+ * **A fill that recomputes to the SAME assignment must stay silent** — the half of `slotchange`
+ * the count-parity test above cannot see, because every action it takes genuinely changes
+ * something. `fill` runs whenever a name is touched, and a run that comes back identical is
+ * common: a `<slot name=${…}>` renaming itself between names that hold no content refills on
+ * every render, and without the `_shown` comparison each one dispatches.
+ *
+ * Found by mutation testing this module: removing the comparison broke nothing in the suite, and
+ * this case is what it costs — four renames fire four spurious events instead of none, doubling
+ * work in every consumer while the content stays correct, which is exactly how the invariant
+ * would rot unnoticed.
+ */
+test('renaming a slot between empty names fires no slotchange', async () => {
+  let count = 0;
+  const bump = () => { count++; };
+  const host = D.createElement('div');
+  host.innerHTML = '<b slot="keep">K</b>';
+  D.body.append(host);
+  /** One call site per shape; the NAME is the dynamic value. */
+  const tpl = (name) =>
+    html`<div class="box"><slot name="keep">KF</slot><i><slot name=${name} @slotchange=${bump}>NF</slot></i></div>`;
+  renderInto(tpl('a'), host);
+  await frame();
+  await frame();
+  count = 0;
+
+  for (const name of ['b', 'c', 'd', 'b']) {
+    renderInto(tpl(name), host);
+    await frame();
+    await frame();
+  }
+  assert.equal(count, 0, 'four refills that assign nothing either side must dispatch nothing');
+
+  /** CONTROL: the counter works — a genuine assignment change does fire. */
+  const extra = D.createElement('u');
+  extra.setAttribute('slot', 'b');
+  extra.textContent = 'B';
+  host.append(extra);
+  await frame();
+  await frame();
+  assert.equal(count, 1, 'and a real change still fires exactly once');
+  host.remove();
+});
