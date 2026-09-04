@@ -140,6 +140,17 @@ const HOSTS = new WeakMap<Element, HostState>();
 const HOSTED: PropertyDescriptor = { value: true, enumerable: false, configurable: true };
 /** Every captured node → its host's sentinel, for `_$home$`. Entries die with their nodes. */
 const HOMES = new WeakMap<Node, Comment>();
+/**
+ * **The light tree's surviving skeleton, indexed.** Distribution moves the CONTENT out of the
+ * host, but the part markers never move — so a comment's neighbours at capture time are exactly
+ * the positional record a late hand-edit needs. Each comment in the initial walk maps to the
+ * member captured immediately after it; placement walks forward from an inserted node to the
+ * first recorded comment whose member is still in the right bucket, and goes before that member.
+ * A WeakMap and a walk over LIVE nodes only, so a torn-down part's markers take their entries
+ * with them and staleness needs no bookkeeping. (Verified before building: a part keeps the SAME
+ * marker nodes across template-identity rebuilds, emptying included, so landmarks cannot churn.)
+ */
+const LANDMARKS = new WeakMap<Node, Node>();
 
 /** Slottables are elements and text nodes — comments and the rest are never assigned. */
 const slotNameOf = (node: Node): string | null =>
@@ -213,15 +224,35 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
       last !== undefined &&
       // eslint-disable-next-line no-bitwise -- fast append: skip the scan when the last member already precedes it
       !(last.parentNode === home && (last.compareDocumentPosition(node) & 4) !== 0)
-    )
-      for (let i = 0; i < bucket.length; i++) {
-        const member = bucket[i];
-        // eslint-disable-next-line no-bitwise -- first distributed member, or an in-place member that follows
-        if (member.parentNode !== home || (node.compareDocumentPosition(member) & 4) !== 0) {
-          at = i;
-          break;
+    ) {
+      /**
+       * LANDMARKS first — exact where available: the nearest recorded comment after the node
+       * names the member it belongs before, which places a hand-edit BETWEEN two parts' groups
+       * where the scan below can only say "ahead of everything distributed". Skips members that
+       * left this bucket (pulled, or another slot's) by walking on; bounded by the sentinel.
+       */
+      let placed = false;
+      for (let next = node.nextSibling; next !== null && next !== sentinel; next = next.nextSibling) {
+        const member = next.nodeType === 8 ? LANDMARKS.get(next) : undefined;
+        if (member !== undefined) {
+          const found = bucket.indexOf(member);
+          if (found !== -1) {
+            at = found;
+            placed = true;
+            break;
+          }
         }
       }
+      if (!placed)
+        for (let i = 0; i < bucket.length; i++) {
+          const member = bucket[i];
+          // eslint-disable-next-line no-bitwise -- first distributed member, or an in-place member that follows
+          if (member.parentNode !== home || (node.compareDocumentPosition(member) & 4) !== 0) {
+            at = i;
+            break;
+          }
+        }
+    }
   }
   bucket.splice(at, 0, node);
   state._names.set(node, name);
@@ -587,7 +618,17 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     }
   /** Hydration already has the children distributed and registers them itself; a fresh CSR
    *  capture lifts them from the host. */
-  if (!skipChildren) for (const node of [...host.childNodes]) take(created, node, true);
+  if (!skipChildren) {
+    /** Comments seen since the last member become its landmarks — see LANDMARKS. */
+    let pending: Node[] | null = null;
+    for (const node of [...host.childNodes]) {
+      if (node.nodeType === 8) (pending ??= []).push(node);
+      else if (take(created, node, true) !== null && pending !== null) {
+        for (const mark of pending) LANDMARKS.set(mark, node);
+        pending = null;
+      }
+    }
+  }
   const watching = { childList: true, subtree: true, attributes: true, attributeFilter: ['slot'] };
   created._observer.observe(host, watching);
   /**

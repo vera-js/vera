@@ -222,3 +222,47 @@ test('but content the renderer places INTO a host is still the user\'s', async (
   assert.equal(shown(page.querySelector('t-light')), '<video></video>', 'and it swaps like any other value');
   page.remove();
 });
+
+/**
+ * **The last residue, closed: a hand-edit BETWEEN two parts' groups lands between them.**
+ *
+ * Distribution moves content out of the host, but the part markers never move — they are the
+ * light tree's surviving skeleton, and the capture walk indexes them (comment → the member
+ * captured next). An unstamped insertion walks forward to the nearest recorded comment and goes
+ * before that member: exact placement where the positional scan could only answer "ahead of
+ * everything distributed". Verified before building that a part keeps the SAME marker nodes
+ * across template-identity rebuilds, so the index cannot churn.
+ *
+ * What remains below this is only: two USER nodes inserted into the SAME inter-marker gap at
+ * different times tie-break arbitrarily between themselves. There is no information left
+ * anywhere to order them — the reference each "meant" no longer exists.
+ */
+test('a hand-edit between two parts\' content lands between their groups, as native', async () => {
+  const tplA = (v) => html`<em>${v}</em>`;
+  const tplB = (v) => html`<strong>${v}</strong>`;
+  const run = async (tag) => {
+    const page = D.createElement('div');
+    D.body.append(page);
+    const draw = (a, b) =>
+      tag === 't-light' ? html`<t-light>${tplA(a)}${tplB(b)}</t-light>` : html`<t-shadow>${tplA(a)}${tplB(b)}</t-shadow>`;
+    renderInto(draw('A', 'B'), page);
+    await frame();
+    await frame();
+    const host = page.querySelector(tag);
+    const U = D.createTextNode('U');
+    if (host.shadowRoot) host.insertBefore(U, host.querySelector('strong'));
+    else {
+      /** The user's gesture: insert before b's marker run — the nodes still standing in the host. */
+      const comments = [...host.childNodes].filter((n) => n.nodeType === 8);
+      host.insertBefore(U, comments[2] ?? null);
+    }
+    await frame();
+    await frame();
+    const out = shown(host);
+    page.remove();
+    return out;
+  };
+  const want = await run('t-shadow');
+  assert.equal(want, '<em>A</em>U<strong>B</strong>', 'CONTROL: native puts U between the groups');
+  assert.equal(await run('t-light'), want, 'and so do we — placed against the marker skeleton');
+});
