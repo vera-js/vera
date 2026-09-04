@@ -37,7 +37,7 @@ for (const key of ['window','document','HTMLElement','customElements','CSSStyleS
 const { init, html, render, wire } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { keyed } = await load('renderer/keyed');
-const { slots } = await load('renderer/slots');
+const { slots, slotted } = await load('renderer/slots');
 wire([renderer, slots]);
 
 const D = dom.window.document;
@@ -302,4 +302,87 @@ test('children streamed in after the render land as native, chunk by chunk', asy
   const want = await stream('t-shadow');
   assert.notEqual(want, 'FALLBACK', 'CONTROL: the oracle received the stream');
   assert.equal(await stream('t-light'), want, 'the streamed children land in order, text included');
+});
+
+/**
+ * **`slotchange` COUNT parity, not just content parity.**
+ *
+ * The platform fires on assignment CHANGE, never on every recomputation — a slot that refills with
+ * the same nodes stays quiet. Light DOM tracks that with `_shown` and a comparison, which is
+ * exactly the kind of invariant that degrades into "fires on every fill" without anyone noticing,
+ * because the content stays correct while the event storm doubles work in every consumer.
+ *
+ * So this counts events through a full lifecycle — re-slot, un-slot, remove each kind, re-add —
+ * and compares the NUMBER against a shadow root fed the identical sequence, alongside the content
+ * at every step. Note the listener: in light mode the `<slot>` element is deliberately kept out of
+ * the document as the component's API object, so `querySelectorAll('slot')` finds nothing and the
+ * template binding is how a component listens. A probe that attached listeners the shadow way
+ * measured zero events and looked like a total failure.
+ */
+test('slotchange fires the same number of times as the platform, through a full lifecycle', async () => {
+  let lightCount = 0;
+  const bump = () => { lightCount++; };
+  customElements.define(
+    't-life',
+    class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this); // LIGHT
+        render(() => html`<div class="box"><header><slot name="h" @slotchange=${bump}>HF</slot></header><main><slot @slotchange=${bump}>DF</slot></main></div>`);
+      }
+    }
+  );
+  customElements.define(
+    't-life-shadow',
+    class extends dom.window.HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' }).innerHTML =
+          '<div class="box"><header><slot name="h">HF</slot></header><main><slot>DF</slot></main></div>';
+      }
+    }
+  );
+
+  const run = async (tag) => {
+    const host = D.createElement(tag);
+    const text = D.createTextNode('TEXT');
+    const el = Object.assign(D.createElement('p'), { textContent: 'EL' });
+    host.append(text, el);
+    D.body.append(host);
+    let shadowCount = 0;
+    lightCount = 0;
+    if (host.shadowRoot) for (const s of host.shadowRoot.querySelectorAll('slot')) s.addEventListener('slotchange', () => shadowCount++);
+    await frame();
+    await frame();
+    /** Count from the same point in both: after mount. */
+    shadowCount = 0;
+    lightCount = 0;
+    const read = (name) =>
+      host.shadowRoot
+        ? [...host.shadowRoot.querySelectorAll('slot')][name === 'h' ? 0 : 1]
+            .assignedNodes().map((n) => (n.data ?? n.localName).trim()).filter(Boolean).join(',')
+        : slotted(host, name).map((n) => (n.data ?? n.localName).trim()).filter(Boolean).join(',');
+    const steps = [];
+    const snap = () => steps.push(`h=[${read('h')}] d=[${read('')}]`);
+    snap();
+    for (const act of [
+      () => el.setAttribute('slot', 'h'),
+      () => el.removeAttribute('slot'),
+      () => text.remove(),
+      () => el.remove(),
+      () => host.append(D.createTextNode('BACK')),
+    ]) {
+      act();
+      await frame();
+      await frame();
+      snap();
+    }
+    host.remove();
+    return { steps, count: host.shadowRoot ? shadowCount : lightCount };
+  };
+
+  const want = await run('t-life-shadow');
+  assert.ok(want.count > 3, `CONTROL: the platform fired only ${want.count} times — the sequence did nothing`);
+  const got = await run('t-life');
+  assert.deepEqual(got.steps, want.steps, 'assignment matches the platform at every step');
+  assert.equal(got.count, want.count, 'and so does the number of slotchange events');
 });
