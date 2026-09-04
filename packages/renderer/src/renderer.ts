@@ -386,7 +386,7 @@ type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | n
  * SSR and the hydrate entry and are reached off the same object.
  */
 type SlotSeam = SlotSeamFn & {
-  _$capture$?: (host: Element) => void;
+  _$capture$?: (host: Element, boundary?: Comment) => void;
   _$rescue$?: (host: Element) => Node[] | null;
   /** A captured node's host-side anchor (the light-region sentinel) — see the upgrade below. */
   _$home$?: (node: Node) => Comment | null;
@@ -2006,9 +2006,22 @@ export const renderInto = (result: unknown, container: Node) => {
      * "unassigned light children do not render". Once per container lifetime; shadow roots
      * (nodeType 11) and fragments are excluded.
      */
-    if (container.nodeType === 1) slotSeam()?._$capture$?.(container as Element);
+    /**
+     * **The marker goes in FIRST, and capture is handed it as the light region's boundary.**
+     *
+     * This part's start marker already delimits where the render's output begins, so the boundary
+     * slots needs is a node the renderer was creating anyway — the sentinel it used to append for
+     * itself landed immediately before this one, two adjacent comments doing the same job. Passing
+     * it removes one comment from every light host and keeps the two in step by construction: they
+     * cannot drift apart if they are the same node.
+     *
+     * Appending before capture is safe and necessary. Safe because a comment is never a slottable,
+     * so the children walk steps over it; necessary because capture LIFTS the host's children, and
+     * a marker appended afterwards would land in the same place either way — this way slots has it.
+     */
     const marker = comment();
     container.appendChild(marker);
+    if (container.nodeType === 1) slotSeam()?._$capture$?.(container as Element, marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   /**

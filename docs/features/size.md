@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->7 456 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->6 606 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->7 457 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->6 606 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -45,10 +45,10 @@ the thing reconciliation exists for:
 
 | | gzipped |
 | --- | ---: |
-| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->7 367 B<!--/size:list.bytes-->** |
+| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->7 362 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-<!--size:list.vs-lit.bytes-->-541 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
+<!--size:list.vs-lit.bytes-->-536 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -122,7 +122,7 @@ describing the bytes honestly.)*
 | Module | gzip | |
 | --- | ---: | --- |
 | `@verajs/core` | 3 069 B | state (incl. Map and Set), hooks, lifecycle, render |
-| `@verajs/renderer` | 4 387 B | keyed template renderer, refs, `hold` |
+| `@verajs/renderer` | 4 388 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 3 655 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 353 B | lazy component discovery |
 | `@verajs/styles` | 757 B | `static styles` adoption, shadow and light DOM |
@@ -131,7 +131,7 @@ describing the bytes honestly.)*
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
 | `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
-| `@verajs/renderer/slots` | 2 646 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/slots` | 2 660 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/inserts` | 357 B | the extension point |
 <!--/size:table.permodule-->
 

@@ -535,7 +535,7 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
 };
 
 /** Capture the host's children — once, at the first slot the seam hands us for it. */
-const capture = (host: Element, skipChildren = false): HostState => {
+const capture = (host: Element, skipChildren = false, boundary?: Comment): HostState => {
   let state = HOSTS.get(host);
   if (state !== undefined) return state;
   const doc = host.ownerDocument!;
@@ -547,16 +547,17 @@ const capture = (host: Element, skipChildren = false): HostState => {
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,
     _observer: new MutationObserver((records) => onMutations(host, records)),
-    /** Appended below, after construction — it needs the state object to exist first. */
-    _sentinel: doc.createComment(''),
+    /**
+     * **The renderer's own root marker, when it has one** — it already delimits where the render's
+     * output begins, which is exactly this boundary, so a sentinel of our own was a second comment
+     * saying the same thing one position to the left. Only the paths that reach `capture` WITHOUT
+     * one (hydration adopts per slot, and its render's marker is not in hand there) still mint it.
+     */
+    _sentinel: boundary ?? doc.createComment(''),
   });
   HOSTS.set(host, created);
-  /**
-   * Placed while the children are still present, so it lands AFTER all of them; the lifting
-   * below leaves it (comments are never slottables), and the component's render appends after
-   * it. See the field's own comment for the two jobs it does.
-   */
-  host.appendChild(created._sentinel);
+  /** Ours to place only if ours to make; the renderer's is already in the document. */
+  if (boundary === undefined) host.appendChild(created._sentinel);
   /**
    * A server render parks content no slot claimed in an inert `<template>` — recover it into
    * holding (captured, unrendered, ready if its slot ever mounts) and drop the carrier, so the
@@ -831,9 +832,12 @@ const serverDistribute = (host: Element, source: Node[]) => {
  * is held invisibly meanwhile, exactly as native shadow DOM leaves an unassigned light child
  * unrendered. Idempotent (capture is once per host); the renderer calls it once per host lifetime.
  */
-(takeOverSlot as { _$capture$?: (host: Element) => void })._$capture$ = (host) => {
+(takeOverSlot as { _$capture$?: (host: Element, boundary?: Comment) => void })._$capture$ = (
+  host,
+  boundary,
+) => {
   if ((globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed) return;
-  capture(host);
+  capture(host, false, boundary);
   drain(HOSTS.get(host)!);
 };
 /**
