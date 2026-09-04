@@ -409,8 +409,16 @@ setBasePath('/app');
 ```
 
 Either way, `navigate('/users')` means the route `/users` and puts `/app/users` in the address bar,
-and a link written `href="/app/users"` is marked active on that route. A path that merely shares a
-prefix with the base — `/application` — is not treated as being under it.
+and a link written `href="/app/users"` is marked active on that route. `navigate` accepts the mounted
+path too, so `navigate('/app/users')` and `navigate('/users')` are the same navigation. A path that
+merely shares a prefix with the base — `/application` — is not treated as being under it.
+
+**Write hrefs the way the browser will read them** — relative (`href="users"`, resolved against the
+`<base>`) or with the base (`href="/app/users"`). A route-space href like `href="/users"` *appears*
+to work, because the router intercepts the click and re-bases it, but it is a broken URL for
+everything the router does not intercept: opening in a new tab, copying the link, or a crawler.
+`resolve(name, params)` returns route space for exactly this reason — it is built to be handed to
+`navigate()`, not to be used as an `href` under a base.
 
 **Specificity is scored from the pattern text**, using the token syntax above, so replacing the
 matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It

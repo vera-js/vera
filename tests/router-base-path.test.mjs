@@ -203,3 +203,38 @@ test('the <base> element supplies the base when nothing is set explicitly', asyn
   setBasePath(null);
   base.remove();
 });
+
+/**
+ * **The page-load path, which is the one that actually matters.**
+ *
+ * Everything above navigates from inside an already-running app. A real visitor arrives at
+ * `/app/users/5` cold, and `handleInitial` is what routes that — a different code path from
+ * `popstate` and from `navigate`, reading `location` before any navigation has happened. If the
+ * base were not stripped there, a deployed app would show its 404 view on every fresh load and
+ * work perfectly once you clicked something, which is a uniquely confusing way to fail.
+ *
+ * Params are asserted, not just the match: stripping the wrong number of characters still matches a
+ * `:id` route and quietly hands the component the wrong id.
+ */
+test('a cold load on a mounted URL routes, with params intact', async () => {
+  setBasePath('/app');
+  window.history.replaceState(null, '', '/app/users/5');
+
+  let params = null;
+  const host = doc.createElement('div');
+  const view = doc.createElement('main');
+  host.appendChild(view);
+  doc.body.appendChild(host);
+  const router = initRouter(host, { view, focusView: false, handleInitial: true });
+  router.addRoutes([
+    { path: '/', component: () => { hit = 'home'; return ''; } },
+    { path: '/users/:id', component: (p) => { hit = 'one user'; params = p; return ''; } },
+  ]);
+  await tick();
+  await tick();
+
+  assert.equal(hit, 'one user', 'the landing URL matched its route');
+  assert.equal(params?.id, '5', 'and the param is the id, not a fragment of the base');
+  assert.equal(window.location.pathname, '/app/users/5', 'the URL the visitor typed is left alone');
+  setBasePath(null);
+});
