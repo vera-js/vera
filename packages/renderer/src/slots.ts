@@ -490,7 +490,23 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
         record.target === host &&
         sentinel.parentNode === host &&
         (before(site) || (node.parentNode === host && before(node)));
+      /**
+       * **The renderer's own output is never content.** It stamps what it inserts at the top
+       * level of the container it was rendering into — the component's own output, as opposed to
+       * `<x-card>${value}</x-card>`, where the part's parent is the host but the render root is
+       * an ancestor and the value IS the user's content.
+       *
+       * Without this, a component whose rendered root legitimately carries a `slot` attribute —
+       * content destined for ITS parent's slot — had that root captured as the host's own slot
+       * content and moved into holding: the component rendered NOTHING, on the first render, with
+       * no children involved and nothing thrown. A property rather than a marker or an attribute
+       * because it has to be invisible to CSS, serialization and `children`, and has to ride on
+       * text nodes, which no attribute can.
+       *
+       * Sigil-named so property mangling leaves it alone across the bundle boundary.
+       */
       if (
+        (node as { _$own$?: boolean })._$own$ !== true &&
         (lit ||
           ((node.parentNode === host || record.target === host) &&
             node.nodeType === 1 &&

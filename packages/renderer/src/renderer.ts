@@ -1008,6 +1008,31 @@ const flushSelects = () => {
 
 const SCRATCH = doc.createDocumentFragment();
 
+/**
+ * Marks a node as the render root's OWN output — see `ChildPart._insert`. Sigil-named so property
+ * mangling cannot rename it: this is read by `@verajs/renderer/slots`, across a bundle boundary,
+ * and a module-scoped Symbol would be minted twice on a CDN page (the `@verajs/styles` lesson).
+ *
+ * A fragment is stamped through to its children, because inserting one moves the children and the
+ * fragment itself never enters the document — the observer reports the children.
+ *
+ * **Defined rather than assigned, so it is NON-ENUMERABLE.** A plain `node._$own$ = true` is an own
+ * enumerable property: measured, it then shows up in `Object.keys(element)` — which is `[]` for
+ * every other DOM element — and in `for…in`. Invisibility to everything outside the framework is
+ * the whole reason this is a property and not a marker or an attribute, and an enumerable one is
+ * not invisible. The descriptor is shared, so this allocates nothing per node, and the path is
+ * gated on slots being wired, so no app that does not use them ever reaches it.
+ */
+const OWN_DESCRIPTOR = { value: true, enumerable: false, configurable: true, writable: true };
+const stampOwn = (node: Node) => {
+  if (node.nodeType === 11) {
+    for (let child = node.firstChild; child !== null; child = child.nextSibling)
+      Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
+    return;
+  }
+  Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
+};
+
 /** A row is either an element-mode instance or a markered part; both can hold directives. */
 const detachItem = (item: Item) => {
   item._instance?._teardown();
@@ -1333,7 +1358,21 @@ let registry: { get(name: 'value' | 'slot'): unknown[] | undefined } | null = nu
  * the seam carries its cross-bundle members as sigil-named keys, which every caller had to spell
  * out again. One accessor, spelled once.
  */
-const slotSeam = (): SlotSeam | undefined => (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
+/**
+ * **Whether ANY app on this page wired light slots**, latched the first time the seam answers.
+ *
+ * The ownership stamp in `_insert`/`$c` exists only for `@verajs/renderer/slots` to read, and its
+ * guard has to be free for everyone else — `_slotRoot` is set for every `renderInto`, so without
+ * this an app with no slots at all would stamp every top-level node it renders, which for a list
+ * at the root is a property write per ROW. One boolean instead, false for the life of a page that
+ * never wires them.
+ */
+let slotsWired = false;
+const slotSeam = (): SlotSeam | undefined => {
+  const seam = (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
+  if (seam !== undefined) slotsWired = true;
+  return seam;
+};
 const noHandlers: ValueHandler[] = [];
 const valueHandlers = () => (registry ? ((registry.get('value') as ValueHandler[] | undefined) ?? noHandlers) : noHandlers);
 
@@ -1428,8 +1467,31 @@ class ChildPart implements Part {
     return index + 1;
   }
 
+  /**
+   * **A component's own output is STAMPED, so the slot system cannot mistake it for content.**
+   *
+   * `@verajs/renderer/slots` captures a top-level element carrying a `slot` attribute as the
+   * host's content — which a component's own rendered root may legitimately be, when it renders
+   * something destined for ITS parent's slot. Measured: with slots wired,
+   * `renderInto(html\`<div slot="x">…</div>\`, element)` distributed the component's output into
+   * its own holding fragment and the component rendered NOTHING, on the first render, with no
+   * children involved and nothing thrown.
+   *
+   * The renderer is the one party that knows: it is inserting at the top level of the container
+   * it was asked to render into. `_slotRoot` is that container for the whole of one `renderInto`,
+   * so `parent === _slotRoot` is exactly "this is the component's own output" and distinguishes it
+   * from `<x-card>${value}</x-card>`, where the part's parent is the host but the render root is
+   * an ancestor — the user's light content, which must still be captured.
+   *
+   * Two comparisons on a path that is already touching the DOM, and the stamp is a PROPERTY:
+   * invisible to CSS, to serialization and to `children`, unlike any marker or attribute, and it
+   * rides on text nodes, which no attribute can. An app without slots wired writes it and nothing
+   * ever reads it.
+   */
   _insert(node: Node) {
-    this._start.parentNode!.insertBefore(node, this._end);
+    const parent = this._start.parentNode!;
+    if (slotsWired && _slotRoot !== null && parent === _slotRoot) stampOwn(node);
+    parent.insertBefore(node, this._end);
   }
 
   /**
@@ -1726,6 +1788,9 @@ class ChildPart implements Part {
    * markers at all; anything else gets its own start/end marker pair so moves can never dangle.
    */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
+    /** A list rendered at the render root's own top level: its rows are the component's own
+     *  output too, and reach the DOM through this path rather than `_insert`. */
+    const own = slotsWired && _slotRoot !== null && parent === _slotRoot;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       const template = getTemplate(result);
@@ -1733,6 +1798,7 @@ class ChildPart implements Part {
       instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
+        if (own) stampOwn(rootNode);
         parent.insertBefore(rootNode, ref);
         return {
           $k: result.key,
@@ -1748,6 +1814,7 @@ class ChildPart implements Part {
       part._shape = result.strings;
       part._mode = TEMPLATE;
       part._value = [...instance._fragment.childNodes];
+      if (own) stampOwn(instance._fragment);
       part._start.parentNode!.insertBefore(instance._fragment, part._end);
       return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }

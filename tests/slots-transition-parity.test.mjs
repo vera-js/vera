@@ -181,3 +181,62 @@ test('KNOWN DIVERGENCE: a late light-region insertion joins its slot at the end,
     'appended TEXT is not — it cannot carry slot="" and stays beside the component (see the note)');
   page.remove();
 });
+
+/**
+ * **A component's own output is not its content — the two sides of one distinction.**
+ *
+ * `slots` captures a top-level element carrying a `slot` attribute as the host's content. A
+ * component's own rendered root may legitimately be exactly that, when it renders something
+ * destined for ITS parent's slot — and it was being captured and moved into holding, so the
+ * component rendered NOTHING. First render, no children needed, nothing thrown: the failure had
+ * no symptom except an empty component. Found by asking what "failing open" would actually look
+ * like and discovering the answer was already shipping.
+ *
+ * The renderer stamps what it inserts at the top level of the container it was rendering into
+ * (`_$own$`, a property — invisible to CSS and serialization, and able to ride on text nodes,
+ * which no attribute can). Both tests are needed and neither is sufficient: the first says the
+ * stamp exists, the second says it means the right thing. Stamping everything the renderer
+ * touches would pass the first and fail the second, because in `<host>${node}</host>` the
+ * renderer also places the node — the difference is which RENDER ROOT it was placing for.
+ */
+test('a component whose own output carries slot= still renders it', async () => {
+  customElements.define(
+    't-selfslot',
+    class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this); // LIGHT
+        render(() => html`<div slot="header" class="box"><slot>FB</slot></div>`);
+      }
+    }
+  );
+  const host = D.createElement('t-selfslot');
+  host.append(D.createTextNode('A'));
+  D.body.append(host);
+  renderInto(html`<div slot="header" class="box"><slot>FB</slot></div>`, host);
+  await frame();
+  await frame();
+  assert.ok(host.querySelector('.box'), 'the component rendered its own output at all');
+  assert.equal(host.querySelector('.box').textContent, 'A', 'and it still distributes the host content');
+  host.remove();
+});
+
+test('but content the renderer places INTO a host is still the user\'s', async () => {
+  const page = D.createElement('div');
+  D.body.append(page);
+  const draw = (v) => html`<t-light>${v}</t-light>`;
+  /** A DOM node the renderer inserts at the host's top level — placed by an OUTER render, so it
+   *  is the user's light content and must distribute, stamp or no stamp. */
+  const canvas = D.createElement('canvas');
+  renderInto(draw(canvas), page);
+  await frame();
+  await frame();
+  assert.equal(shown(page.querySelector('t-light')), '<canvas></canvas>',
+    'a node placed by an outer render is content, not output');
+
+  const video = D.createElement('video');
+  renderInto(draw(video), page);
+  await frame();
+  await frame();
+  assert.equal(shown(page.querySelector('t-light')), '<video></video>', 'and it swaps like any other value');
+  page.remove();
+});
