@@ -45,6 +45,48 @@ const REMOVED = {
 };
 
 /**
+ * **A retired RULE, which is the half of drift the name list cannot see.**
+ *
+ * `REMOVED` catches an identifier that no longer exists, because an identifier is a token you can
+ * grep. A retired *behaviour* leaves no token: when light-DOM slots stopped requiring a `slot`
+ * attribute on post-render additions, three documents went on teaching the rule — `llms.txt`, the
+ * renderer README's "Late children" section, and a sentence inside `slots.ts` — and every suite
+ * stayed green, because nothing had been renamed. A reader following any of them would have added
+ * attributes nothing requires and concluded bare text was unreachable.
+ *
+ * So the same discipline, one level up: **retiring a rule means adding the phrasing that taught it
+ * here.** The key is a distinctive fragment of the old CLAIM, not of the subject — matching
+ * "slot attribute" would fire on every legitimate mention of the feature, while matching the
+ * sentence that made the demand fires only where the demand is still being made. History is
+ * **The exemption is per LINE here, where the name guard's is per paragraph — and the difference
+ * is the whole reason this one works.** Both extremes were measured against the drift that
+ * prompted it, by reinstating yesterday's exact stale line:
+ *
+ * | exemption | on the real drift | on legitimate history |
+ * | --- | --- | --- |
+ * | paragraph (the name guard's) | **missed it** — stayed green | fine |
+ * | none | caught it | **false positive** on a test comment saying "used to pin …" |
+ * | the line | caught it | fine |
+ *
+ * Paragraph granularity is right for a NAME and wrong for a RULE, because a paragraph correcting
+ * a rule says "used to" or "no longer" almost by definition — so exempting the block exempts
+ * precisely where the old claim gets reintroduced, and the guard is ornamental in the way
+ * `CLAUDE.md` warns a check that measures nothing always is. A rule's key is long and
+ * self-contained, so a marker on its own line is enough to tell "this is what we used to demand"
+ * from "this is what we demand", and prose does not have to contort to satisfy it.
+ */
+const RETIRED_RULES = {
+  'joins a slot only if it carries':
+    'post-render additions are native — bare text included, in document order (slots stamps ownership)',
+  'only if it carries a `slot` attribute':
+    'post-render additions are native — bare text included, in document order (slots stamps ownership)',
+  'must name its slot':
+    'post-render additions are native; `slot=""` still routes but is not required',
+  'need to name their slot':
+    'post-render additions are native; `slot=""` still routes but is not required',
+};
+
+/**
  * A line explaining a removal, rather than teaching it.
  *
  * **Exempting the whole paragraph is deliberate, and both tighter rules were tried.** The exemption
@@ -126,6 +168,50 @@ test('no documentation teaches an API that was removed', () => {
     }
   }
   assert.deepEqual(problems, [], `documentation teaches removed APIs:\n  ${problems.join('\n  ')}`);
+});
+
+/**
+ * The rule half of the same guard. Shares the corpus, the paragraph unit and the `HISTORICAL`
+ * exemption, because it is the same failure with a phrase in place of a name — see `RETIRED_RULES`.
+ */
+test('no documentation teaches a rule that was retired', () => {
+  const problems = [];
+  for (const file of docs) {
+    /**
+     * **This file is the one document that must quote the retired claims**, since the list and
+     * its rationale are written here — so it is the corpus's single exemption. The name guard
+     * needs no equivalent: its keys are bare identifiers, which the source rule blanks along with
+     * the rest of the code. A phrase lives in prose, and prose in a `.mjs` file is a comment,
+     * which is exactly what gets read.
+     */
+    if (/docs-removed-apis\.test\.mjs$/.test(file)) continue;
+    const isSource = /\.(js|jsx|mjs|ts)$/.test(file);
+    const source = readIfPresent(file);
+    if (source === null) continue;
+    const lines = source
+      .split('\n')
+      .map((line) => (!isSource || /^\s*(\/\/|\/\*|\*)/.test(line) ? line : ''));
+    let start = 0;
+    for (let i = 0; i <= lines.length; i++) {
+      if (i < lines.length && lines[i].trim() !== '') continue;
+      const paragraph = lines.slice(start, i);
+      const first = start;
+      start = i + 1;
+      if (!paragraph.length) continue;
+      paragraph.forEach((line, offset) => {
+        /** Per LINE, not per paragraph — see `RETIRED_RULES` for the measurement behind that. */
+        if (HISTORICAL.test(line)) return;
+        /** One report per line: several phrasings of one retired rule describe one mistake. */
+        const claim = Object.keys(RETIRED_RULES).find((key) => line.includes(key));
+        if (claim !== undefined)
+          problems.push(
+            `${relative(root, file)}:${first + offset + 1} still teaches a retired rule — ` +
+              `${RETIRED_RULES[claim]}\n    ${line.trim().slice(0, 96)}`
+          );
+      });
+    }
+  }
+  assert.deepEqual(problems, [], `documentation teaches retired rules:\n  ${problems.join('\n  ')}`);
 });
 
 /**
