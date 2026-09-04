@@ -78,9 +78,9 @@ this pays that and nothing else.
   an `insertBefore` at the front precedes distributed content, and a growing list extends itself —
   each matching what a shadow root would do (`tests/slots-transition-parity.test.mjs` compares them
   directly). `slot=""`/`slot="name"` still route as before. Two notes: whitespace you append now
-  suppresses the default fallback, exactly as it does in a shadow root; and hand-edits interleaved
-  among SEVERAL `${…}` expressions' content in one host order approximately — membership is always
-  right, and that mix is the one remaining gap between the modes.
+  suppresses the default fallback, exactly as it does in a shadow root; and re-slotting a node
+  (`slot="a"` → `"b"`) puts it back in light-tree order rather than the order it arrived, so an item
+  toggled into a "pinned" slot holds its place instead of jumping to the end.
 - **A `<slot>` cannot sit inside table markup** — `<table><tbody><slot></slot></tbody></table>`
   does not do what it looks like, in EITHER mode. The HTML parser's table insertion mode rejects a
   `<slot>` element and foster-parents it out, so the slot and everything distributed into it end up
@@ -92,7 +92,14 @@ this pays that and nothing else.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light
-  DOM *is*, and it is exactly why page CSS reaches it.
+  DOM *is*, and it is exactly why page CSS reaches it. The consequence worth knowing before you meet
+  it: **`host.insertBefore(node, aChildYouGaveIt)` throws `NotFoundError`**, because that child is no
+  longer a *direct* child of the host — the same line works on a shadow host, where nothing moves.
+  Use `child.before(node)` / `child.after(node)`, which go through the node's current parent and are
+  correct in both modes. This is also the shape of the only ordering difference left: what light has
+  is fewer positions you can name, not worse ordering of the ones you can. Every position reachable
+  in light DOM orders exactly as the platform does — measured across every insertion point on a
+  multi-part host, not argued.
 
 ## Seeing it
 
