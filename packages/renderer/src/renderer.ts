@@ -1440,7 +1440,25 @@ class ChildPart implements Part {
     if (notifyOnRemoval) this._detach();
     const parent = this._start.parentNode!;
     const end = this._end;
+    const items = this._items;
     /**
+     * **Content that is no longer between the markers.** `@verajs/renderer/slots` distributes a
+     * light host's children by MOVING them into the component's tree, so a list part rendering
+     * those children keeps its markers in the host while its items live inside the component.
+     *
+     * Both branches below are wrong for that, and they are wrong in opposite directions. The walk
+     * finds the markers adjacent and removes nothing — the list stays on screen after being
+     * cleared. The whole-parent fast path is the dangerous one: nothing precedes the start and
+     * nothing follows the end, so it takes `parent.textContent = ''` and wipes the HOST, which by
+     * then also contains the component's own rendered output.
+     *
+     * The items know where they are. `$m` into the scratch fragment does not care which parent
+     * they came from, and one clear afterwards drops the whole batch.
+     */
+    if (items !== null && items.length > 0 && this._start.nextSibling === end) {
+      for (const item of items) if (item !== null) this.$m(item, null, SCRATCH);
+      SCRATCH.textContent = '';
+    } else /**
      * When this part owns its parent's entire contents, one `textContent = ''` replaces removing
      * every node individually. For a 1 000-row table body that is the difference between ~22 ms
      * (lit-html's per-node teardown) and ~5 ms.
@@ -1723,6 +1741,18 @@ class ChildPart implements Part {
    * cold methods, exempt from mangling, two characters each.
    */
   $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
+    /**
+     * **Already where it is going.** A reorder asks for many positions that are already correct,
+     * and re-inserting a node that is in place is not free: it detaches and re-attaches, which
+     * blurs focus, restarts a CSS transition and wakes every MutationObserver watching. The
+     * relocated path below leans on this — it re-places every item rather than computing which
+     * ones moved — but the ordinary two-ended diff gets the same saving.
+     *
+     * The item's LAST node is the one whose `nextSibling` decides this, and reading `_element` /
+     * `_part._end` is why the check lives here rather than travelling with the algorithm.
+     */
+    const last = item._element ?? item._part!._end!;
+    if (last.nextSibling === ref && last.parentNode === parent) return;
     if (item._element !== null) {
       parent.insertBefore(item._element, ref);
       return;
@@ -1787,14 +1817,20 @@ class ChildPart implements Part {
         this._insert(fragment);
       } else if (count < items.length) {
         if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
-        const last = items[items.length - 1];
-        let node: Node | null = this.$f(items[count]);
-        const stop = last._element !== null ? last._element.nextSibling : last._part!._end!.nextSibling;
-        while (node !== stop) {
-          const next: Node | null = node!.nextSibling;
-          parent.removeChild(node!);
-          node = next;
-        }
+        /**
+         * **Removed through the items, not by walking the range.** The walk this replaced ran from
+         * the first doomed item to the last one's end and called `parent.removeChild` on each node,
+         * which assumes every one of them is still a child of `parent`. `@verajs/renderer/slots`
+         * moves a light host's children into the component's tree, and the walk then threw
+         * `NotFoundError` out of the middle of a render — a plain `<x-card>${rows}</x-card>` losing
+         * one row was enough, with no keyed list anywhere in it.
+         *
+         * `$m` into the scratch fragment is indifferent to where a node currently lives, and the
+         * batch is dropped by one clear at the end, so the contiguous-run saving the walk was for
+         * is kept.
+         */
+        for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
+        SCRATCH.textContent = '';
         items.length = count;
       }
       return;

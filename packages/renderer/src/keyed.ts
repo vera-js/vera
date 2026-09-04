@@ -23,6 +23,87 @@ import type { Item, KeyedResult, ListStrategy } from './renderer.js';
  * already happened in the renderer and is passed in, so this function only ever runs against a
  * non-empty list that is already keyed.
  */
+/**
+ * **Reconciliation for a list whose nodes no longer live where its markers do.**
+ *
+ * `@verajs/renderer/slots` distributes a light-DOM host's children by MOVING them into the
+ * component's tree. A keyed list that renders those children therefore ends up split: the items are
+ * inside the component, the part's own markers stay behind in the host. The two-ended diff below
+ * positions against those markers and against `end`, so every move it makes asks the host to insert
+ * before a reference that is somewhere else — `NotFoundError`, in both builds. Shadow DOM never hits
+ * this because the platform PROJECTS rather than moves: the nodes stay children of the host.
+ *
+ * The way out is to stop looking for an anchor. Walking the new order in REVERSE, each item is
+ * placed immediately before its successor **in its own container**, and the last item in each
+ * container is left exactly where it is. That needs no end marker, no part boundary, and no
+ * knowledge of slots — and it is what makes a list SPLIT ACROSS SLOTS come out right for free,
+ * since items in different containers simply have different successors. Native does the same thing
+ * for the same input: order within each slot follows the logical order.
+ *
+ * Items created here go into the host, not into a container, because distribution is the observer's
+ * job and has not run yet. They are skipped by the placement pass for that render and land in slot
+ * order when it does.
+ */
+const reconcileRelocated: ListStrategy = (part, newValues, items, parent) => {
+  const count = newValues.length;
+  const byKey = new Map<unknown, Item>();
+  for (const item of items) if (item !== null) byKey.set(item.$k, item);
+
+  const newItems: Item[] = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const existing = byKey.get((newValues[i] as KeyedResult).key);
+    if (existing !== undefined) {
+      part.$u(existing, newValues[i]);
+      newItems[i] = existing;
+      byKey.delete((newValues[i] as KeyedResult).key);
+    }
+  }
+  /** Whatever kept no key is gone. `$d` moves into a scratch fragment, so its parent is irrelevant. */
+  for (const dropped of byKey.values()) part.$d(dropped);
+
+  /**
+   * **One reverse pass that both places and creates**, so an item's successor is already final when
+   * it is needed — and it is needed twice. Placing reads it as the reference; CREATING reads the
+   * container it lives in, which is the only way a new item can land among its logical neighbours.
+   *
+   * Creating in the host instead would be simpler and is wrong: the observer distributes it later
+   * and appends it, so an insertion in the middle of a list arrives at the end. Creating it in the
+   * successor's container puts it where native would — and if it names a DIFFERENT slot than its
+   * neighbour, it is in the host's subtree with a `slot` attribute, which is exactly what the
+   * observer is watching for, so that case corrects itself.
+   *
+   * `$m` short-circuits an item already in position, which is what keeps this from re-attaching a
+   * whole list; re-attaching is not free, it blurs focus and restarts transitions.
+   */
+  const successorIn = new Map<Node, Node>();
+  let lastContainer: Node = parent;
+  for (let i = count - 1; i >= 0; i--) {
+    const item = newItems[i];
+    if (item === undefined) {
+      /**
+       * Created under the HOST, because that is what the observer counts as the user's content —
+       * a node created straight into the component's tree looks like the component's own output
+       * and is never captured. Then moved among its neighbours, which the observer reads as a move
+       * rather than a disappearance. With no successor it is the last of its run, and being left
+       * in the host is already correct: distribution appends it.
+       */
+      const created = part.$c(newValues[i], parent, null);
+      const successor = successorIn.get(lastContainer);
+      if (successor !== undefined && lastContainer !== parent) part.$m(created, successor, lastContainer);
+      newItems[i] = created;
+    } else {
+      const container = part.$f(item).parentNode;
+      if (container === null) continue;
+      const successor = successorIn.get(container);
+      if (successor !== undefined) part.$m(item, successor, container);
+      lastContainer = container;
+    }
+    const first = part.$f(newItems[i]);
+    if (first.parentNode !== null) successorIn.set(first.parentNode, first);
+  }
+  return newItems;
+};
+
 const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
   const count = newValues.length;
 
@@ -40,6 +121,21 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
     }
     if (i === count) return items;
   }
+
+  /**
+   * **Has anything moved this list's nodes out from under its markers?**
+   *
+   * Only `@verajs/renderer/slots` does today, but the question is asked of the DOM rather than of
+   * that module — keyed imports nothing, and a list does not need to know what moved its nodes to
+   * know that they moved.
+   *
+   * Placed after the no-change fast path, so the dominant case (same keys, same order) never
+   * reaches it. What remains is one `parentNode` read per item against a diff that already does far
+   * more per item, and it breaks on the first mismatch, so the case it exists for costs exactly one.
+   */
+  for (let i = 0; i < items.length; i++)
+    if (part.$f(items[i]).parentNode !== parent)
+      return reconcileRelocated(part, newValues, items, parent, end);
 
   const oldItems: (Item | null)[] = items;
   const newKeys: unknown[] = new Array(count);

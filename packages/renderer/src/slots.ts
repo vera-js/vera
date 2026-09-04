@@ -126,9 +126,36 @@ const bucketOf = (state: HostState, name: string): Node[] => {
 const take = (state: HostState, node: Node): string | null => {
   const name = slotNameOf(node);
   if (name === null) return null;
-  bucketOf(state, name).push(node);
+  const bucket = bucketOf(state, name);
+  const binding = activeFor(state, name);
+  /**
+   * **A node captured where it already belongs stays there.** Whoever put it inside the run put it
+   * in a POSITION, and evacuating it to the holding fragment throws that away — it comes back at
+   * the end, because the fragment has no idea where it was. A keyed list inserting a row into a
+   * light host's children is the case: the row is created under the host, moved among its
+   * neighbours, and captured in the same batch, and the position is the only thing that says where
+   * it goes.
+   *
+   * Everything else — a node the user appended, one arriving from the holding fragment — is held
+   * as before, and `fill` places it.
+   */
+  const settled = binding !== undefined && node.parentNode === binding._start.parentNode;
+  /**
+   * Document order, not arrival order. Pushing was right only while capture happened in one pass
+   * over the host's children; a node inserted among the others belongs among them, and native
+   * decides that by position rather than by when it showed up.
+   */
+  let at = bucket.length;
+  if (settled)
+    for (let i = 0; i < bucket.length; i++)
+      // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's own flag
+      if ((node.compareDocumentPosition(bucket[i]) & 4) !== 0) {
+        at = i;
+        break;
+      }
+  bucket.splice(at, 0, node);
   state._names.set(node, name);
-  state._holding.appendChild(node);
+  if (!settled) state._holding.appendChild(node);
   return name;
 };
 
@@ -198,14 +225,38 @@ const same = (a: Node[], b: Node[]): boolean => {
 const fill = (state: HostState, binding: Binding) => {
   const parent = binding._start.parentNode;
   if (parent === null) return; // anchors already discarded mid-teardown — nothing to show
+  /**
+   * **The run's current order is remembered before it is taken apart, because it is the intent.**
+   *
+   * The bucket records what is assigned; its order is the order things were CAPTURED. Re-placing
+   * from it therefore undoes any reordering that happened after distribution — and a keyed list
+   * rendering a host's children reorders exactly those nodes, in place, where they now live. The
+   * symptom was a list that reordered correctly and then snapped back to its original order the
+   * next time anything caused a refill.
+   *
+   * Only the case that is currently wrong changes: when nothing has reordered the run, this order
+   * IS the bucket's order and the sort below is the identity.
+   */
+  const wasShowing = new Map<Node, number>();
   let node = binding._start.nextSibling;
   while (node !== null && node !== binding._end) {
     const next = node.nextSibling;
+    wasShowing.set(node, wasShowing.size);
     if (binding._assigned) state._holding.appendChild(node);
     else parent.removeChild(node);
     node = next;
   }
   const bucket = activeFor(state, binding._name) === binding ? bucketOf(state, binding._name) : NOTHING;
+  /**
+   * Members that were on screen keep their relative order; anything else — newly captured, or
+   * coming back from the holding template — follows in bucket order. Sorted in place, so the
+   * bucket carries the corrected order forward and one refill does not have to redo the last one's
+   * work. `NOTHING` is shared and must never be written to.
+   */
+  if (wasShowing.size > 0 && bucket !== NOTHING)
+    bucket.sort(
+      (a, b) => (wasShowing.get(a) ?? wasShowing.size) - (wasShowing.get(b) ?? wasShowing.size)
+    );
   const shown: Node[] = [];
   for (let i = 0; i < bucket.length; i++) {
     const candidate = bucket[i];
@@ -361,8 +412,22 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
       continue;
     }
     for (const node of record.addedNodes) {
+      /**
+       * **`record.target` is where it was ADDED; `parentNode` is where it is NOW**, and the two
+       * differ whenever something appends a node to the host and then positions it in the same
+       * batch. A keyed list inserting a row into a light host's children does exactly that: the row
+       * has to be created under the host to count as the user's content, and has to end up among
+       * its logical neighbours, which are already inside the component. Reading only the current
+       * parent, the row was created, moved, and then never captured — it vanished on the next
+       * refill, which is the worst of the three outcomes.
+       *
+       * Accepting either is safe in the direction that matters: `hasAttribute('slot')` still gates
+       * it, and the removal handler below already declines to un-capture a node that merely moved
+       * (`parentNode === null` is its test for "truly gone"), so the two halves agree about what a
+       * move is.
+       */
       if (
-        node.parentNode === host &&
+        (node.parentNode === host || record.target === host) &&
         node.nodeType === 1 &&
         (node as Element).hasAttribute('slot') &&
         !state._names.has(node)
@@ -516,13 +581,42 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
 };
 
 /**
+ * **The capture map records membership, not order.** Native `assignedNodes()` answers in flat-tree
+ * order, so this has to as well, and the bucket's own order is the order things were CAPTURED —
+ * which stops being the document's the moment anything reorders the distributed nodes. A keyed list
+ * rendering a host's children is exactly that: the DOM came out `cab` and this still said `abc`,
+ * while the same component in shadow mode said `cab`. The observer cannot fix it either — it
+ * deliberately ignores moves inside the component's own tree, or it would react to every render.
+ *
+ * The common case is a handful of nodes sharing one parent, so that is the fast path: one walk of
+ * that parent's children. Members split across parents — some distributed, some still parked in the
+ * holding template — fall back to comparing positions, which is exact wherever they are.
+ */
+const inDocumentOrder = (bucket: Node[] | undefined): Node[] => {
+  if (bucket === undefined || bucket.length < 2) return bucket === undefined ? [] : [...bucket];
+  const parent = bucket[0].parentNode;
+  let shared = parent !== null;
+  for (let i = 1; shared && i < bucket.length; i++) if (bucket[i].parentNode !== parent) shared = false;
+  if (!shared)
+    return [...bucket].sort((a, b) =>
+      // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's own flag
+      a === b ? 0 : a.compareDocumentPosition(b) & 4 ? -1 : 1
+    );
+  const members = new Set(bucket);
+  const ordered: Node[] = [];
+  for (let node = parent!.firstChild; node !== null; node = node.nextSibling)
+    if (members.has(node)) ordered.push(node);
+  return ordered;
+};
+
+/**
  * What the user slotted, by name — the component-internal accessor that answers identically in
- * both modes. Shadow: the native assignment. Light: the capture map (a fresh array; membership
- * is live, so ask again after mutations). `''`/omitted is the default slot.
+ * both modes. Shadow: the native assignment. Light: the capture map, in document order (a fresh
+ * array; membership is live, so ask again after mutations). `''`/omitted is the default slot.
  */
 export const slotted = (host: Element, name = ''): Node[] => {
   const state = HOSTS.get(host);
-  if (state !== undefined) return [...(state._map.get(name) ?? [])];
+  if (state !== undefined) return inDocumentOrder(state._map.get(name));
   /**
    * **`_root` before `shadowRoot`, because a CLOSED root is not reachable through `shadowRoot`** —
    * it is null there, and reading only that made this return `[]` for a closed component: a silent
