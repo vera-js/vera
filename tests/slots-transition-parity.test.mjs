@@ -386,3 +386,50 @@ test('slotchange fires the same number of times as the platform, through a full 
   assert.deepEqual(got.steps, want.steps, 'assignment matches the platform at every step');
   assert.equal(got.count, want.count, 'and so does the number of slotchange events');
 });
+
+/**
+ * **A node the user takes for themselves is un-assigned, and the fallback returns.**
+ *
+ * Moving a slotted node to a live parent elsewhere is not a removal — `parentNode` stays non-null —
+ * and the observer read that as an internal move, which is what a keyed row created under the host
+ * and positioned inside the component in one batch actually is. So the node stayed captured
+ * forever: no longer in the run, so the slot showed NOTHING — not the node, and not its fallback,
+ * where a shadow root un-assigns and falls back. `fill` already carried the matching guard ("the
+ * user took this node for themselves"); nothing ever gave it a reason to run.
+ *
+ * The three answers the observer now distinguishes: detached entirely is gone, the holding
+ * fragment or anywhere in the host's own subtree is a move, anywhere else is the user's.
+ */
+test('a slotted node moved to another parent un-assigns, and the fallback comes back', async () => {
+  const run = async (tag) => {
+    const host = D.createElement(tag);
+    const node = D.createElement('b');
+    node.setAttribute('slot', 'h');
+    node.textContent = 'X';
+    host.append(node);
+    D.body.append(host);
+    if (tag === 't-life') {
+      renderInto(html`<div class="box"><header><slot name="h">HF</slot></header><main><slot>DF</slot></main></div>`, host);
+      await frame();
+      await frame();
+    }
+    const read = () =>
+      host.shadowRoot
+        ? host.shadowRoot.querySelector('slot').assignedNodes().map((n) => n.textContent).join(',') || 'HF'
+        : host.querySelector('header').textContent;
+    const before = read();
+    const elsewhere = D.createElement('section');
+    D.body.append(elsewhere);
+    elsewhere.append(node); // a MOVE, not a removal: parentNode stays non-null
+    await frame();
+    await frame();
+    const after = read();
+    host.remove();
+    elsewhere.remove();
+    return { before, after };
+  };
+  const want = await run('t-life-shadow');
+  assert.equal(want.before, 'X', 'CONTROL: the platform had it assigned to begin with');
+  assert.equal(want.after, 'HF', 'CONTROL: and falls back once the user takes it');
+  assert.deepEqual(await run('t-life'), want, 'light does the same');
+});

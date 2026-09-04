@@ -557,10 +557,24 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
     }
     for (const node of record.removedNodes) {
       const name = state._names.get(node);
-      /** Our evacuations were drained; an undrained removal of a captured node is the user's —
-       *  unless it LANDED somewhere in the same batch (a move, which addedNodes/attributes
-       *  handling covers) — `parentNode === null` is "truly gone". */
-      if (name !== undefined && node.parentNode === null) {
+      /**
+       * Our evacuations were drained, so an undrained removal of a captured node is the user's.
+       * The question is only whether it is still OURS to hold, and there are three answers:
+       * detached entirely (`parentNode === null`) is gone; the holding fragment or anywhere in
+       * the host's own subtree is a MOVE the add/attribute handling covers — a keyed row created
+       * under the host and positioned inside the component in one batch is exactly that; and
+       * anywhere else is the user taking the node for themselves.
+       *
+       * That third case used to read as a move and kept the node captured forever: it was no
+       * longer in the run, so the slot showed nothing — not the node, and not its fallback — where
+       * a shadow root un-assigns and falls back. `fill` already had the corresponding guard
+       * ("the user took this node") but nothing brought it a reason to run.
+       */
+      if (
+        name !== undefined &&
+        node.parentNode !== state._holding &&
+        !host.contains(node)
+      ) {
         pull(state, node, name);
         state._names.delete(node);
         touched.add(name);
