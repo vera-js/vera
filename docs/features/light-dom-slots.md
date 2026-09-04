@@ -87,6 +87,15 @@ this pays that and nothing else.
   the DOM to tell them apart. Native answers `PREPENDED, Body`; this answers `Body, PREPENDED`.
   Order the slot's content from the data instead, which is where a component's content usually
   comes from anyway. Pinned in `tests/slots-transition-parity.test.mjs`.
+- **A TEXT node appended after the component's output cannot be reached at all.** The tail rule
+  asks for a `slot` attribute and a text node cannot carry one, so `host.append('more')` on a
+  rendered light component leaves the text beside the component rather than in its default slot
+  (native puts it in the slot). Wrap it — `host.append(Object.assign(document.createElement('span'),
+  { slot: '', textContent: 'more' }))` — or set the content through the template that renders the
+  host. The rule cannot simply be relaxed for text: a component whose own template starts or ends
+  with top-level text would then have its own output captured as slot content, which is the
+  failure mode this whole rule exists to prevent. Closing it properly means giving the renderer's
+  root part a closing boundary in light hosts, so the component's output ends somewhere nameable.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light

@@ -135,8 +135,16 @@ for (const [label, values] of CASES) {
  * list's freshly created row, and nothing in the DOM tells those two apart.
  *
  * Measured against a native shadow root given the identical mutation: the platform answers
- * `PREPENDED, Body`; this answers `Body, PREPENDED`. Closing it needs a position record per
- * captured node — the tombstone tier of `MARKERLESS-RENDERER.md`, shelved on complexity grounds.
+ * `PREPENDED, Body`; this answers `Body, PREPENDED`. Closing THIS one needs a position record per
+ * captured node — the tombstone tier of `MARKERLESS-RENDERER.md` — because renderer-created list
+ * rows share the same region and want the opposite answer, and nothing in the DOM separates them.
+ *
+ * It has a sibling that is NOT the same problem and is worth keeping distinct: a text node
+ * appended at the host's TAIL is not captured at all, since the tail rule asks for a `slot`
+ * attribute and text cannot carry one. That one is not about position records — it needs the
+ * renderer's root part to carry a closing boundary in light hosts, so the component's output ends
+ * somewhere nameable and the tail becomes unambiguous. Documented in the feature page; the
+ * `append element` case below is the half that already works.
  *
  * Pinned rather than left loose so the behaviour is a decision with a reason attached, and so a
  * future positional model announces itself here by failing.
@@ -156,5 +164,20 @@ test('KNOWN DIVERGENCE: a late light-region insertion joins its slot at the end,
   await frame();
   assert.equal(shown(host), 'BodyPREPENDED',
     'captured (native membership) but appended — native would answer PREPENDEDBody; see the note above');
+
+  /** The tail's own limit, pinned beside it: an ELEMENT naming its slot is reached, TEXT is not. */
+  const named = D.createElement('i');
+  named.setAttribute('slot', '');
+  named.textContent = 'TAILED';
+  host.appendChild(named);
+  await frame();
+  await frame();
+  assert.match(shown(host), /TAILED/, 'an element naming its slot is reached at the tail');
+
+  host.appendChild(D.createTextNode('LOOSE'));
+  await frame();
+  await frame();
+  assert.doesNotMatch(shown(host), /LOOSE/,
+    'appended TEXT is not — it cannot carry slot="" and stays beside the component (see the note)');
   page.remove();
 });
