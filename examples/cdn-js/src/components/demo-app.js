@@ -1,6 +1,5 @@
-import { init, createStore, render, useEffect } from '@verajs/core';
+import { init, createStore, render, useEffect, html } from '@verajs/core';
 import { initRouter } from '@verajs/router';
-import { html } from 'lit-html';
 
 /**
  * Root of the buildless example.

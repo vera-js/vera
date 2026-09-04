@@ -14,7 +14,10 @@
         "@verajs/core":        "https://cdn.jsdelivr.net/npm/@verajs/core/dist/vera.min.js"
         "@verajs/router":      "https://cdn.jsdelivr.net/npm/@verajs/router/dist/vera-router.min.js"
         "@verajs/autoloader":  "https://cdn.jsdelivr.net/npm/@verajs/autoloader/dist/vera-autoloader.min.js"
-        "lit-html":            "https://cdn.jsdelivr.net/npm/lit-html@3.2.0/lit-html.js"
+        "@verajs/renderer":    "https://cdn.jsdelivr.net/npm/@verajs/renderer/dist/vera-renderer.min.js"
+
+      Four bundles and nothing else — no third-party renderer, and no network dependency this
+      project does not publish. That is the point of the mode.
     -->
     <script type="importmap">
       {
@@ -22,7 +25,7 @@
           "@verajs/core": "/packages/core/dist/vera.min.js",
           "@verajs/router": "/packages/router/dist/vera-router.min.js",
           "@verajs/autoloader": "/packages/autoloader/dist/vera-autoloader.min.js",
-          "lit-html": "https://cdn.jsdelivr.net/npm/lit-html@3.2.0/lit-html.js"
+          "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js"
         }
       }
     </script>

@@ -49,7 +49,35 @@ const sourceAliases = () => {
   return alias;
 };
 
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   plugins: [veraJsx()],
   resolve: { alias: sourceAliases() },
+  /**
+   * **`__DEV__` has to be defined here, because the aliases above serve SOURCE.**
+   *
+   * Every package guards its diagnostics as `if (__DEV__) { … }`, and the rollup build folds that
+   * to a literal before terser removes the dead branch. Vite does no such thing, so an example
+   * importing an aliased source hits a bare identifier and the page dies with `__DEV__ is not
+   * defined` — no render, no clue, and only in the browser.
+   *
+   * It went unnoticed because the one example on these aliases was running on lit-html as its
+   * renderer and never reached a guarded path. Moving it onto `@verajs/renderer` surfaced it
+   * immediately, which is the argument for examples exercising the default stack rather than an
+   * exotic one.
+   *
+   * `true` in dev is also the right value on its own terms: an example is where you WANT the
+   * diagnostics, and `npm run preview` builds with `mode === 'production'` and gets the folded
+   * behaviour a consumer ships.
+   */
+  define: {
+    __DEV__: JSON.stringify(mode !== 'production'),
+    /**
+     * `__HYDRATING__` folds per ENTRY in the real build, not per mode — the renderer's base bundle
+     * gets `false` and its hydrate bundle `true`, from one source. A dev server has one copy of
+     * that source and must pick, and `false` is the copy these examples use: adoption is exercised
+     * by `examples/ssr-node` (its own server) and by the browser suite's fixtures, both of which
+     * run against BUILT artifacts where the fold is real.
+     */
+    __HYDRATING__: 'false',
+  },
 }));

@@ -1,16 +1,18 @@
 /**
  * Entry point for the npm + TypeScript example.
  *
- * Everything here resolves through bare specifiers (`@verajs/core`, `lit-html`), which is how a
- * real consumer installs VeraJS. In this repo `vite.config.js` aliases `@verajs/*` to the package
- * sources so the example runs against live code rather than a published build.
+ * Everything here resolves through bare specifiers (`@verajs/core`, `@verajs/renderer`), which is
+ * how a real consumer installs VeraJS. In this repo `vite.config.js` aliases `@verajs/*` to the
+ * package sources so the example runs against live code rather than a published build.
  *
  * The buildless counterpart of this file is `examples/cdn-js/src/index.js`.
  */
-import { setHtml, wire } from '@verajs/core';
+import { wire } from '@verajs/core';
 import { autoloader } from '@verajs/autoloader';
+import { renderer } from '@verajs/renderer';
+import { slots } from '@verajs/renderer/slots';
+import { styles } from '@verajs/styles';
 import { router } from '@verajs/router';
-import { html, render } from 'lit-html';
 
 /**
  * The router imports no registry of its own, so this hands it core's — the same line, and the same
@@ -45,14 +47,19 @@ addEventListener('vera:autoload-error', (event) => {
   addEventListener('online', () => autoload.retry(element), { once: true });
 });
 
-wire({ on: 'render', fn: render, priority: 50 });
-setHtml(html);
+/**
+ * The renderer, plus the two modules this app's components actually need: light-DOM slots, because
+ * `<parent-element>` renders a `<slot>` without attaching a shadow root, and `static styles`
+ * adoption, which left core in 0.2.0. Both were found by reading the development diagnostics rather
+ * than by knowing — each names the module and the exact line to add.
+ */
+wire([renderer, slots, styles]);
 
 /**
  * Loaded with dynamic `import()` on purpose — a static `import` declaration is **hoisted** and runs
  * before this module's body, so the components would `customElements.define()` and upgrade before
- * `wire(render)` / `setHtml` above had run. They would then render through core's defaults, and a lit
- * template object would reach `template.innerHTML`, painting a literal `[object Object]`.
+ * the `wire` calls above had run. A component that renders before a renderer is wired has nothing
+ * on the `'render'` insert to write its output, and core says so rather than painting anything.
  *
  * Configuration must complete before any component defines itself.
  */

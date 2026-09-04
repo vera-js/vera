@@ -1,6 +1,5 @@
-import { init, createStore, render, useEffect } from '@verajs/core';
+import { init, createStore, render, useEffect, html } from '@verajs/core';
 import { computed } from '../inserts/computed.js';
-import { html } from 'lit-html';
 
 /**
  * Loaded lazily by the autoloader — nothing imports this file. It is fetched the first time

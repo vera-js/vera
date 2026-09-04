@@ -1,4 +1,3 @@
-// import { html } from 'lit-html';
 import { css, html, init, ref, render, createStore } from '@verajs/core';
 
 const styles = css`

@@ -10,10 +10,10 @@
  *
  *   2. The autoloader keeps its default `.js` extension, because these files really are `.js`.
  */
-import { setHtml, wire } from '@verajs/core';
+import { wire } from '@verajs/core';
 import { autoloader } from '@verajs/autoloader';
+import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
-import { html, render } from 'lit-html';
 import { computedValues } from './inserts/computed.js';
 
 /**
@@ -22,7 +22,7 @@ import { computedValues } from './inserts/computed.js';
  * values as a ten-line `'proxy-handler'` insert are the worked example (see
  * src/inserts/computed.js); priority is required, because chains are priority-ordered.
  */
-wire([router, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
+wire([renderer, router, { on: 'proxy-handler', fn: computedValues, priority: 40 }]);
 
 
 /**
@@ -55,14 +55,11 @@ addEventListener('vera:autoload-error', ({ detail }) => {
   addEventListener('online', () => autoload.retry(detail.element), { once: true });
 });
 
-wire({ on: 'render', fn: render, priority: 50 });
-setHtml(html);
-
 /**
  * Dynamic `import()`, not a static one. A static `import` declaration is **hoisted** and evaluates
- * before this module's body, so `demo-app` would `customElements.define()` and upgrade before
- * `wire(render)` / `setHtml` above had run — rendering through core's defaults and painting a literal
- * `[object Object]` where the template should be.
+ * before this module's body, so `demo-app` would `customElements.define()` and upgrade before the
+ * `wire` above had run — and a component that renders with nothing on the `'render'` insert has
+ * nowhere to put its output.
  *
  * Configuration must complete before any component defines itself.
  */

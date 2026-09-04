@@ -1,34 +1,20 @@
+/**
+ * The app shell. Nothing here is special — it renders one template and lets the autoloader bring in
+ * everything the markup names.
+ *
+ * It used to call `hydrate` from `@lit-labs/ssr-client` before rendering, alongside a commented-out
+ * block wiring lit's SSR renderer. Both went with the move to `@verajs/renderer`, and neither was
+ * doing anything: the call handed lit a FUNCTION where it wants a `TemplateResult`, and `render`
+ * ran immediately afterwards regardless. Hydration in this framework is `@verajs/renderer/hydrate`,
+ * exercised for real by `examples/ssr-node` and the browser suite's fixtures.
+ */
 import { html, init, render, useEffect } from '@verajs/core';
-import { hydrate } from '@lit-labs/ssr-client';
 
 import './parent-element.js';
 import './child-element.js';
 import './quantity-picker.js';
 import './name-acquire.js';
 import './wcc-single-element.js';
-
-// IGNORE FOR NOW - NOT NEEDED TO HYDRATE
-// import { render as SSRRender } from '@lit-labs/ssr/lib/render-with-global-dom-shim.js';
-// import { collectResult, collectResultSync } from '@lit-labs/ssr/lib/render-result.js';
-
-// wire({ on: 'render', fn: (content, element) => {
-//   element.innerHTML = collectResultSync(SSRRender(content));
-// }, priority: 50 });
-
-// const template = document.createElement('template');
-
-// template.innerHTML = `
-//   <style>
-//     .footer {
-//       color: white;
-//       background-color: #192a27;
-//     }
-//   </style>
-
-//   <footer class="footer">
-//     <h4>My Blog &copy; ${new Date().getFullYear()}</h4>
-//   </footer>
-// `;
 
 class MainElement extends HTMLElement {
   connectedCallback() {
@@ -39,15 +25,7 @@ class MainElement extends HTMLElement {
       return html`<parent-element><div>HI FRIENDS!!</div></parent-element>`;
     };
 
-    if (typeof window !== 'undefined') {
-      console.log('hydrating');
-      hydrate(template, this);
-    }
-
-    // if (!document.querySelector) {
-    console.log('rendering');
     render(template);
-    // }
   }
 }
 export default MainElement;

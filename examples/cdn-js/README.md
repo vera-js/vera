@@ -22,3 +22,13 @@ What to look at, in order:
    the test suite (`tests/example-computed.test.mjs`, `tests/example-batch-boundary.test.mjs`).
 
 The npm + TypeScript counterpart of this example is [`../npm-ts/`](../npm-ts/).
+
+## It runs on `@verajs/renderer`, and that is new
+
+This example used to import `html` and `render` from **lit-html**, fetched from jsDelivr in the
+import map — so the mode this repository calls its baseline was demonstrating VeraJS driven by a
+third-party renderer, over a network dependency the project does not publish, while
+`@verajs/renderer` was never loaded at all. It now wires four bundles and nothing else.
+
+The lit version predated `@verajs/renderer` and was simply never moved across. `examples/npm-ts` was
+in the same state and moved in the same pass.

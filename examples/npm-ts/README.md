@@ -24,17 +24,26 @@ What this example exists to prove, and where:
    properties.
 5. **`src/components/base.ts`** — the router in a component: `initRouter`, routes, an outlet.
 
-**This example runs on lit-html, not `@verajs/renderer`** — `src/index.ts` calls `setHtml(html)`
-and wires lit's `render` on the `'render'` insert, and three components import `html` from
-`lit-html` directly. That is history rather than a recommendation: it predates `@verajs/renderer`
-and was never moved across. **Nothing about it is the path a new app should take**, and the docs no
-longer describe swapping the renderer as a mode.
+**It runs on the default stack** — `wire([renderer, slots, styles])` and core's own `html`, with no
+`setHtml` call, because core's tag already produces the shape the renderer accepts. It used to run
+on lit-html as its renderer, which predated `@verajs/renderer` and was never moved across; that left
+the example for npm + TypeScript exercising a configuration no user has.
 
-The claim it used to justify — that core is not welded to one renderer — is now asserted instead of
-demonstrated, in `tests/foreign-renderer.test.mjs`, which drives real lit-html through the seam and
-fails if that ever stops working. Which leaves this example exercising a configuration no user has,
-while the npm + TypeScript mode it is supposed to cover goes unexercised. Rewriting it onto
-`@verajs/renderer` is outstanding work.
+Moving it found two things the lit version could never have hit, both of which are the argument for
+an example using the default stack:
+
+- `vite.config.js` aliases `@verajs/*` to package **source**, and the source guards diagnostics as
+  `if (__DEV__)`. Only the real build folds that to a literal, so the page died on
+  `__DEV__ is not defined` — no render, no clue, browser-only. Same again for `__HYDRATING__`. The
+  config now defines both.
+- Two modules were missing: light-DOM slots (`<parent-element>` renders a `<slot>` without a shadow
+  root) and `static styles` adoption, which left core in 0.2.0. Both were found by *reading the
+  development diagnostics*, each of which named the module and the exact line to add — which is
+  incidentally a fair test of those messages.
+
+**Known leftover:** `hello-component.ts` renders `<sl-image-comparer>`, a Shoelace element that has
+never been a dependency here, so the autoloader 404s on every load and two Unsplash images are
+fetched from the network. It is left alone pending a decision rather than quietly deleted.
 
 **A note on the remaining files.** This directory predates the project's overhaul and doubles as
 its exercise ground: `hello-component` / `goodbye-component` (toggled subtrees over a deliberately

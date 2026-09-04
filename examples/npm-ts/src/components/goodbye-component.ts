@@ -1,7 +1,6 @@
-import { html } from 'lit-html';
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
-import { css, init, createStore, useEffect, render, deps, useLayoutEffect, ref } from '@verajs/core';
+import { css, init, createStore, useEffect, render, deps, useLayoutEffect, ref, html } from '@verajs/core';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
 const generateLargeObject = (depth: number, breadth: number) => {

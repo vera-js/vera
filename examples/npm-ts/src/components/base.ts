@@ -1,11 +1,9 @@
-import { init, createStore, useEffect, useLayoutEffect, render } from '@verajs/core';
+import { init, createStore, useEffect, useLayoutEffect, render, html } from '@verajs/core';
 import { initRouter } from '@verajs/router';
-import { html } from 'lit-html';
 import { globalState } from '../globalState.js';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 import { testingChunks } from './logic-chunk.js';
 
-// import { ref, createRef } from 'https://cdn.jsdelivr.net/npm/lit-html@3.2.0/directives/ref.js';
 
 const hello = () => html`<hello-component autoloader>Loading hello...</hello-component>`;
 const goodbye = () => html`<goodbye-component autoloader>Loading goodbye...</goodbye-component>`;

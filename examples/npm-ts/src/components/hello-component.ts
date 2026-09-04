@@ -1,6 +1,5 @@
-import { html } from 'lit-html';
 import { globalState } from '../globalState.js';
-import { createStore, init, useEffect, render } from '@verajs/core';
+import { createStore, init, useEffect, render, html } from '@verajs/core';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
 class HelloComponent extends HTMLElement {
