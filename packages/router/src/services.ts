@@ -165,6 +165,9 @@ export const stripBase = (path: string): string => {
   return rest.startsWith('/') || rest.startsWith('?') || rest.startsWith('#') ? rest : path;
 };
 
+/** The mount point, for the diagnostic in `methods.ts`. Empty means the origin root. */
+export const currentBase = (): string => basePath();
+
 /** Route path → browser path, for the one place the router writes to history. */
 export const addBase = (path: string): string => {
   const base = basePath();
@@ -197,18 +200,32 @@ export const forward = () => go(1);
  * @param params Values for the pattern's `:params` and `*wildcards`
  * @return The path, or `''` if no route carries that name
  */
+/**
+ * **Returns a URL you can put in an `href`, not a route path.**
+ *
+ * Under a base those are two different strings for one destination, and this returning the route
+ * path made it a trap: `href=${resolve('user', { id })}` produced `/users/5` on an app mounted at
+ * `/app`, which the router re-bases when the link is CLICKED and which is simply a wrong URL
+ * everywhere the router is not involved — a new tab, a copied link, a crawler, a page with JS off.
+ * The failure is invisible in the one case anybody tests.
+ *
+ * Returning the mounted path costs no new API because `navigate` already accepts either spelling:
+ * every string it is given is resolved and stripped, so `navigate(resolve(…))` works unchanged and
+ * `navigate({ name, params })` — which calls straight through here — still routes. With no base the
+ * two are the same string, so this changes nothing for an app at the origin root.
+ */
 export const resolve = (name: string, params: RouteParams = {}) => {
   const pattern = names.get(name);
   if (pattern === undefined) {
     if (__DEV__) console.warn(`[vera] no route is named "${name}"`);
     return '';
   }
-  return pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
+  return addBase(pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
     const value = params[key];
     /** An absent optional param takes its segment with it; an absent required one is left visible. */
     if (value === undefined) return token.endsWith('?') ? '' : token;
     return `/${(Array.isArray(value) ? value : [value]).map(encodeURIComponent).join('/')}`;
-  });
+  }));
 };
 
 /**

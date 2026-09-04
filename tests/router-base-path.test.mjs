@@ -23,7 +23,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', { url: 'http://localhost/app/start' });
 const { window } = dom;
@@ -34,7 +34,7 @@ globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
 const tick = () => new Promise((resolve) => setTimeout(resolve, 25));
 
-const { initRouter, navigate, setBasePath } = await load('router');
+const { initRouter, navigate, resolve, setBasePath } = await load('router');
 const doc = window.document;
 
 /** A fresh host + router per test, so no test inherits another's current route. */
@@ -236,5 +236,68 @@ test('a cold load on a mounted URL routes, with params intact', async () => {
   assert.equal(hit, 'one user', 'the landing URL matched its route');
   assert.equal(params?.id, '5', 'and the param is the id, not a fragment of the base');
   assert.equal(window.location.pathname, '/app/users/5', 'the URL the visitor typed is left alone');
+  setBasePath(null);
+});
+
+/**
+ * **`resolve()` returns a URL you can put in an href, not a route path.**
+ *
+ * Under a base those are two strings for one destination, and returning the route path made this a
+ * trap: `href=${resolve('user', { id })}` gave `/users/5` on an app mounted at `/app`. The router
+ * re-bases that when the link is CLICKED, so it navigates correctly — and it is a wrong URL
+ * everywhere the router is not involved: a new tab, a copied link, a crawler, JS disabled. The one
+ * path anybody tests is the one path that works.
+ *
+ * It costs no new API because `navigate` accepts either spelling — every string it receives is
+ * resolved and stripped — so both uses are now correct with one return value.
+ */
+test('resolve() returns the mounted path, and navigate still accepts it', async () => {
+  setBasePath('/app');
+  mount([...ROUTES, { path: '/users/:id', name: 'user', component: () => { hit = 'one user'; return ''; } }]);
+  assert.equal(resolve('user', { id: 5 }), '/app/users/5', 'href-ready: the URL a browser can follow');
+
+  await reset();
+  await navigate(resolve('user', { id: 5 }), 'navigate');
+  await tick();
+  assert.equal(hit, 'one user', 'and handing it straight back to navigate still routes');
+  assert.equal(window.location.pathname, '/app/users/5', 'without doubling the base');
+  setBasePath(null);
+});
+
+test('resolve() is unchanged for an app at the origin root', () => {
+  setBasePath(null);
+  mount([...ROUTES, { path: '/users/:id', name: 'user2', component: () => '' }]);
+  assert.equal(resolve('user2', { id: 5 }), '/users/5', 'no base, no difference');
+});
+
+/**
+ * The net for the hrefs `resolve()` never sees. A `route` attribute means the router handles this
+ * link, so under a base its href belongs inside the base; one in route space navigates fine and is
+ * a broken URL outside the router. Development-only, and asserted rather than assumed — a
+ * diagnostic nobody has watched fire is a diagnostic that may not.
+ */
+test('a routed href pointing outside the base is diagnosed', { skip: isProduction }, async () => {
+  setBasePath('/app');
+  const { host } = mount(ROUTES);
+  await reset();
+
+  const said = [];
+  const warn = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    const link = doc.createElement('a');
+    link.setAttribute('route', '');
+    link.setAttribute('href', '/users');
+    host.appendChild(link);
+    link.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    await tick();
+  } finally {
+    console.warn = warn;
+  }
+
+  const message = said.find((line) => line.includes('points outside'));
+  assert.ok(message, `expected a warning about the base, got: ${JSON.stringify(said)}`);
+  assert.match(message, /\[vera\]/, 'carries the house prefix so one filter finds every diagnostic');
+  assert.match(message, /"\/app\/users"/, 'and names the href the author should have written');
   setBasePath(null);
 });

@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.80 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.81 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -213,6 +213,9 @@ resolve('file', { rest: ['a', 'b'] });      //  /files/a/b          — a wildca
 resolve('user-edit', { id: 5 });            //  /users/5/edit       — an omitted `:tab?` takes its segment
 ```
 
+Under a base these carry it — `/app/users/5` — so the result goes straight into an `href`, and
+`navigate()` still accepts it. See *Serving the app from a subdirectory*.
+
 Names are page-wide, because a name is a handle on a URL and every router shares one URL. A child
 route registers its complete path, so `resolve('child')` gives `/parent/child`. Two routes claiming
 one name warn in development.
@@ -380,7 +383,7 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 | | |
 | --- | --- |
 | `setRouterRenderer(fn)` | what draws a route's template into its outlet |
-| `resolve(name, params)` | build a named route's path |
+| `resolve(name, params)` | build a named route's URL — `href`-ready, and `navigate()` takes it too |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
 | `setBasePath(path)` | the path prefix the app is served under; `null` returns to reading `<base href>` |
 | `router` | hand this router core's insert registry — pass it to `wire` |
@@ -416,9 +419,13 @@ merely shares a prefix with the base — `/application` — is not treated as be
 **Write hrefs the way the browser will read them** — relative (`href="users"`, resolved against the
 `<base>`) or with the base (`href="/app/users"`). A route-space href like `href="/users"` *appears*
 to work, because the router intercepts the click and re-bases it, but it is a broken URL for
-everything the router does not intercept: opening in a new tab, copying the link, or a crawler.
-`resolve(name, params)` returns route space for exactly this reason — it is built to be handed to
-`navigate()`, not to be used as an `href` under a base.
+everything the router does not intercept: a new tab, a copied link, a crawler, a page with JS off.
+The one case anybody tests is the one case that works, so development builds say so, naming the
+href you should have written.
+
+`resolve(name, params)` returns the **mounted** path — `/app/users/5`, ready for an `href` — and
+`navigate()` accepts it unchanged, because every path it is given is resolved and stripped. So one
+return value is correct in both places, and at the origin root it is the same string it always was.
 
 **Specificity is scored from the pattern text**, using the token syntax above, so replacing the
 matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It

@@ -636,8 +636,9 @@ Semantics worth stating:
   `setBasePath('/app')` says it directly instead, for an app that does not want `<base>` rebasing
   its assets too; `setBasePath(null)` returns to reading the document. `navigate` accepts either
   spelling. **Write hrefs relative or with the base** — a route-space `href="/users"` works when
-  clicked (the router re-bases it) and is a broken URL in a new tab or when copied. `resolve()`
-  returns route space, for handing to `navigate()` rather than for an `href`.
+  clicked (the router re-bases it) and is a broken URL in a new tab or when copied; development
+  builds warn and name the href you should have written. `resolve(name, params)` returns the MOUNTED
+  path, so it is `href`-ready, and `navigate()` accepts it unchanged.
 - Params arrive **percent-decoded**: `/u/John%20Doe` yields `John Doe`, and each wildcard segment
   decodes individually. A malformed escape yields the raw text rather than throwing.
 - Window listeners attach on the first `initRouter`, so importing the router is side-effect-free

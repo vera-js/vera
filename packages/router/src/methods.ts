@@ -1,6 +1,9 @@
 import { Route, RouteOptions } from './types.js';
 import { routerSettings } from './state.js';
-import { navigate, stripBase } from './services.js';
+
+/** Hrefs already reported by the base diagnostic below — one word each, not one per click. */
+const warnedOutside = new Set<string>();
+import { currentBase, navigate, stripBase } from './services.js';
 import { elements, elementsData, getOrCreate, handlers, names, routers } from './state.js';
 
 /**
@@ -56,6 +59,32 @@ const addLinkListener = (element: HTMLElement) => {
     if (link.target || link.hasAttribute('download')) return;
 
     e.preventDefault();
+    /**
+     * **A routed link that points outside the mount is a wrong URL that still works.**
+     *
+     * `route` means the router handles this link, so under a base its href should be inside the
+     * base — written `/app/users`, or relative and resolved there by `<base>`. An href in ROUTE
+     * space (`/users`) navigates perfectly when clicked, because the router intercepts it and
+     * re-bases what it writes to history, and is a broken URL for everything that does not go
+     * through the router: opening in a new tab, copying the link, a crawler, a page with JS off.
+     * The one case anybody tests is the one case that works, so it is worth a word.
+     *
+     * `resolve()` no longer produces this shape; a hand-written href still can. Development only,
+     * and once per href — a nav bar should not narrate on every click.
+     */
+    if (__DEV__) {
+      const base = currentBase();
+      if (base !== '' && !url.pathname.startsWith(base) && !warnedOutside.has(href)) {
+        warnedOutside.add(href);
+        console.warn(
+          `[vera] router: <a route href="${href}"> points outside the app's base ("${base}"). ` +
+            `Clicking it works, because the router re-bases the URL it writes — but the href itself ` +
+            `is wrong anywhere the router is not involved: a new tab, a copied link, a crawler. ` +
+            `Write it as "${base}${url.pathname}" or relative to the <base>. \`resolve()\` already ` +
+            `returns the mounted path.`
+        );
+      }
+    }
     const path = stripBase(url.pathname) + url.search + url.hash;
     /**
      * **A click has nobody to reject to.**
