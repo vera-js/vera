@@ -301,3 +301,25 @@ test('a routed href pointing outside the base is diagnosed', { skip: isProductio
   assert.match(message, /"\/app\/users"/, 'and names the href the author should have written');
   setBasePath(null);
 });
+
+/**
+ * **`<base target="_blank">` is a valid element carrying no URL.**
+ *
+ * The platform ignores a `<base>` without an `href` when computing `baseURI`, so matching a bare
+ * `base` selector would read the DOCUMENT'S OWN URL as the mount point — the same failure the first
+ * implementation had, arriving by a different door. The selector is `base[href]` for this reason.
+ */
+test('a <base> without an href is not a mount point', async () => {
+  setBasePath(null);
+  const bare = doc.createElement('base');
+  bare.setAttribute('target', '_blank');
+  doc.head.appendChild(bare);
+
+  mount(ROUTES);
+  await reset();
+  await navigate('/users', 'navigate');
+  await tick();
+  assert.equal(window.location.pathname, '/users', 'no href means no base, not the current page');
+  assert.equal(hit, 'users');
+  bare.remove();
+});

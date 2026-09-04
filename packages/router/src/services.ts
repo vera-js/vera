@@ -149,8 +149,24 @@ const normalizeBase = (path: string): string => {
  */
 const basePath = (): string => {
   if (explicitBase !== null) return explicitBase;
-  const href = document.querySelector('base')?.getAttribute('href');
-  return href == null ? '' : normalizeBase(new URL(href, window.location.href).pathname);
+  /**
+   * **No document, no base** — and, more to the point, no thrown `ReferenceError`. `resolve()` was
+   * pure string work before it started consulting this, and the router is documented as safe to
+   * IMPORT under Node with routing browser-only; reaching for `document` from a function an SSR
+   * pass might reasonably call to build an `href` would quietly narrow that. An explicit
+   * `setBasePath` still applies, since it needs nothing from the DOM.
+   *
+   * `base[href]`, not `base` — `<base target="_blank">` is valid and carries no URL, and the
+   * platform ignores it when computing `baseURI`, so matching a bare `<base>` would read the
+   * document's own URL as a mount point. That is the same mistake that made the first version of
+   * this wrong, arriving by a different door.
+   *
+   * With the element confirmed, `document.baseURI` IS its resolved value — the browser has already
+   * done the work, including for a relative `href="app/"` — so nothing is re-resolved here and no
+   * `window` is touched.
+   */
+  if (typeof document === 'undefined' || document.querySelector('base[href]') === null) return '';
+  return normalizeBase(new URL(document.baseURI).pathname);
 };
 
 /**
