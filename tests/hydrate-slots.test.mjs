@@ -332,3 +332,38 @@ test('AUDIT — three levels of light-slot components hydrate in place, all at o
   assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and every marker is stripped');
   host.remove();
 });
+
+/**
+ * **The offset/count mark is a NUMBER PAIR parsed out of markup, and markup is not trustworthy.**
+ *
+ * `data-vera-slotted="offset,count"` is the server's own handoff, but the rescue and the adopt walk
+ * read it from whatever is in the page — and a user can paste content carrying that attribute, or
+ * a proxy can mangle it. The pair is turned into a range and used to slice a child list, which is
+ * exactly the shape that hangs, throws, or quietly captures somebody else's nodes when the numbers
+ * are hostile.
+ *
+ * Companion to the reserved-marker test above: that one covers the attribute on the wrong ELEMENT,
+ * this one covers the wrong VALUE. Every case must complete, and none may claim more nodes than
+ * the element actually has.
+ */
+for (const [label, value] of [
+  ['a count far beyond the child list', '0,999999'],
+  ['a negative offset', '-5,3'],
+  ['non-numeric halves', 'abc,def'],
+  ['no comma at all', '7'],
+  ['an empty value', ''],
+  ['an overflowing exponent', '1e400,1e400'],
+])
+  test(`AUDIT — a hostile slotted mark (${label}) degrades safely`, async () => {
+    const host = dom.window.document.createElement('my-host');
+    host.innerHTML = `<article><main data-vera-slotted="${value}">USER</main></article>`;
+    dom.window.document.getElementById('root').appendChild(host);
+    /** Disagrees at the root, so the rescue reads the mark on the way to a clean render. */
+    renderInto(html`<section><main><slot>fb</slot></main></section>`, host);
+    await settle();
+    assert.ok(host.querySelector('section'), 'the render completed rather than throwing');
+    assert.equal(host.querySelector('article'), null, 'and the server markup was replaced');
+    /** Nothing may be claimed that the element did not contain: one text node at most. */
+    assert.ok(slotted(host, '').length <= 1, `claimed ${slotted(host, '').length} nodes from a one-child element`);
+    host.remove();
+  });
