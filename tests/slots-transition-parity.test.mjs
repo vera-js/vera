@@ -604,3 +604,45 @@ test('renaming a slot between empty names fires no slotchange', async () => {
   assert.equal(count, 1, 'and a real change still fires exactly once');
   host.remove();
 });
+
+/**
+ * **A comment is never a slottable, and after the first render `slotNameOf` is the only thing
+ * saying so.**
+ *
+ * The capture walk excludes comments by node type on its way past them (they become landmarks),
+ * and the renderer's own markers carry the ownership stamp — so two layers already protect the
+ * framework's nodes. A comment the USER adds after the first render has neither: it arrives
+ * through the observer, and the type check inside `slotNameOf` is the whole defence.
+ *
+ * Found by mutation: making comments slottable passes the entire suite. The reason it hides is
+ * that a comment renders nothing, so the visible output is identical either way — the assignment
+ * is wrong, `slotted()` reports a node the platform never would, and a lone comment would suppress
+ * a fallback that should be showing.
+ */
+test('a comment added after the first render is never assigned', async () => {
+  const run = async (tag) => {
+    const host = D.createElement(tag);
+    host.append(D.createTextNode('text'));
+    D.body.append(host);
+    if (tag === 't-light') {
+      renderInto(html`<div class="box"><slot>FALLBACK</slot></div>`, host);
+      await frame();
+      await frame();
+    }
+    const read = () =>
+      host.shadowRoot
+        ? host.shadowRoot.querySelector('slot').assignedNodes().length
+        : slotted(host, '').length;
+    const before = read();
+    host.appendChild(D.createComment(' a note '));
+    await frame();
+    await frame();
+    const after = read();
+    host.remove();
+    return { before, after };
+  };
+  const want = await run('t-shadow');
+  assert.equal(want.before, 1, 'CONTROL: the text was assigned to begin with');
+  assert.equal(want.after, 1, 'CONTROL: and the platform ignores the comment');
+  assert.deepEqual(await run('t-light'), want, 'a comment must not join the assignment');
+});
