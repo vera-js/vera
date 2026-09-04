@@ -81,6 +81,14 @@ this pays that and nothing else.
   suppresses the default fallback, exactly as it does in a shadow root; and hand-edits interleaved
   among SEVERAL `${…}` expressions' content in one host order approximately — membership is always
   right, and that mix is the one remaining gap between the modes.
+- **A `<slot>` cannot sit inside table markup** — `<table><tbody><slot></slot></tbody></table>`
+  does not do what it looks like, in EITHER mode. The HTML parser's table insertion mode rejects a
+  `<slot>` element and foster-parents it out, so the slot and everything distributed into it end up
+  before the `<table>`; a shadow root does exactly the same with the same markup, so this is the
+  platform rather than this module, and the two stay in step.
+  Ordinary bindings are unaffected — `<tbody>${rows}</tbody>` works, because the renderer's own
+  anchor is a comment and table parsing permits comments where it rejects elements. So a table
+  component takes its rows as data rather than as slotted content.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light

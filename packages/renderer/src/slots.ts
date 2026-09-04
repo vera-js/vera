@@ -45,6 +45,13 @@
  * light host now suppresses the default fallback, because it does exactly that in a shadow root
  * (measured). `tests/slots-transition-parity.test.mjs` holds the matrix.
  *
+ * **A `<slot>` cannot sit inside table markup**, in either mode: the parser's table insertion mode
+ * rejects the element and foster-parents it out, so the slot lands before the `<table>` and takes
+ * its distributed content with it. Measured against a shadow root given the same markup — it does
+ * the same thing, so the modes agree and this is the platform's rule rather than this module's.
+ * Ordinary bindings are fine (`<tbody>${rows}</tbody>` renders correctly) because the renderer's
+ * anchor is a COMMENT, which table parsing permits where it rejects elements.
+ *
  * **Pop-out rule.** Every *document* touch derives from the node itself (`ownerDocument`), so a
  * component rendered into a second window creates its nodes in that window's document.
  *
