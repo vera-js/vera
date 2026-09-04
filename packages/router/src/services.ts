@@ -823,8 +823,25 @@ const updateActiveLink = (element: HTMLElement, path: string) => {
     /**
      * Pathname only (a link may carry its own query or hash), stripped on both sides so
      * `href="/about/"` still matches the normalized path.
+     *
+     * **A RELATIVE href has to be resolved first**, or it is compared as written and never matches:
+     * `href="hello"` against a path of `/hello` is a string comparison of two different things, so
+     * a nav built with relative links simply never highlighted. That predates the base feature —
+     * it was just invisible while every example wrote absolute hrefs.
+     *
+     * The resolution goes through `document.baseURI`, the same source the link-click handler uses,
+     * so a link is judged active by exactly the URL clicking it would go to. An absolute path skips
+     * the `URL` construction entirely, which is what almost every href is and keeps a forty-link
+     * nav bar allocation-free per navigation.
      */
-    const href = stripBase(stripTrailingSlash((link.getAttribute('href') ?? '').split(/[?#]/)[0]));
+    const raw = (link.getAttribute('href') ?? '').split(/[?#]/)[0];
+    let resolved = raw;
+    if (raw !== '' && !raw.startsWith('/')) {
+      const url = new URL(raw, document.baseURI);
+      /** Another origin is never the current route, and its pathname could collide with one. */
+      resolved = url.origin === window.location.origin ? url.pathname : '';
+    }
+    const href = stripBase(stripTrailingSlash(resolved));
 
     const exact = href === path;
     /**

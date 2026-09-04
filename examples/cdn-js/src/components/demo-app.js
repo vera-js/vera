@@ -54,10 +54,10 @@ class DemoApp extends HTMLElement {
 
       return html`
         <nav>
-          <a route href="/">home</a>
-          <a route href="/hello">hello</a>
-          <a route href="/hello/verajs">hello/verajs</a>
-          <a route href="/nowhere">404</a>
+          <a route href="./">home</a>
+          <a route href="hello">hello</a>
+          <a route href="hello/verajs">hello/verajs</a>
+          <a route href="nowhere">404</a>
         </nav>
 
         <div view="main"></div>

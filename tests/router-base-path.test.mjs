@@ -149,6 +149,37 @@ test('a path that only shares a prefix with the base is left alone', async () =>
   setBasePath(null);
 });
 
+/**
+ * **A relative href is resolved before it is compared.** Written as-is, `href="hello"` is matched
+ * against a path of `/hello` — two different strings for the same destination — so a nav built with
+ * relative links never highlighted at all. That predates the base feature and was invisible only
+ * because every example here wrote absolute hrefs; a base makes relative links the natural spelling,
+ * which is how it surfaced.
+ *
+ * Resolution goes through `document.baseURI`, the same source the link-click handler uses, so a link
+ * is judged active by exactly the URL that clicking it would reach.
+ */
+test('a RELATIVE href is marked active — it is resolved, not compared as written', async () => {
+  setBasePath('/app');
+  const { host } = mount(ROUTES);
+  await reset();
+
+  const relative = doc.createElement('a');
+  relative.setAttribute('route', '');
+  relative.setAttribute('href', 'users');
+  const foreign = doc.createElement('a');
+  foreign.setAttribute('route', '');
+  foreign.setAttribute('href', 'https://example.com/users');
+  host.append(relative, foreign);
+
+  await navigate('/users', 'navigate');
+  await tick();
+  assert.ok(relative.classList.contains('active'), 'the relative link resolves to the current route');
+  assert.ok(!foreign.classList.contains('active'),
+    'and another origin never matches, though its pathname would collide');
+  setBasePath(null);
+});
+
 test('the <base> element supplies the base when nothing is set explicitly', async () => {
   setBasePath(null);
   const base = doc.createElement('base');

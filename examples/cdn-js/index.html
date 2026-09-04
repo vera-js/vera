@@ -19,6 +19,17 @@
       Four bundles and nothing else — no third-party renderer, and no network dependency this
       project does not publish. That is the point of the mode.
     -->
+    <!--
+      This example is served from a subdirectory, so it declares where it is mounted. The router
+      reads this element: routes stay written at the root (`/hello`), the base is added to the
+      address bar and stripped back off when one is read. Relative hrefs below resolve against it
+      too, which is the platform doing the same job for links.
+
+      A site at the origin root needs none of this. `setBasePath('/somewhere')` is the alternative
+      for an app that does not want `<base>` rebasing its assets as well.
+    -->
+    <base href="/examples/cdn-js/" />
+
     <script type="importmap">
       {
         "imports": {
