@@ -9,8 +9,8 @@ public surface is about 30 functions, so an assistant does not need training dat
 it correctly. Everything else is standard Custom Elements and tagged template literals.
 
 If you already know lit-html the templates will look familiar, and the semantics are deliberately the
-same — but VeraJS ships its own renderer and needs nothing from lit. Using lit-html instead is a
-one-line swap, documented under *Swapping the template tag* near the end, and is entirely optional.
+same — child-position values match it exactly, and `tests/lit-parity.test.mjs` measures that against
+lit's own output rather than asserting it. VeraJS ships its own renderer and needs nothing from lit.
 
 > ⚠️ **LIVING DOCUMENT — EXPECT DRIFT.** VeraJS is pre-release and under active development. The API
 > is not frozen and this file will keep changing. It is maintained by hand, so it can fall behind the
@@ -133,7 +133,7 @@ costs roughly 60x more per render than a plain array. If rows are replaced rathe
 | `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
-| `html` | tagged template | What you use. Replaceable via `setHtml` if you want a different tag — see *Swapping the template tag*. |
+| `html` | tagged template | What you use. `setHtml` replaces it if you need a different tag. |
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
@@ -740,30 +740,6 @@ NOT work without `wire(collections)`):
   for a case whose idiom is replacement. `state.when = new Date(t)` is a property write and fully
   reactive; `state.when.setTime(t)` is not. This is core's rule, and applies with or without the
   collections module.
-
----
-
-## Swapping the template tag — optional
-
-**Skip this unless you specifically want it.** Core's `html` and `@verajs/renderer` are the default
-and need no configuration; this exists because the renderer is an insert like any other, so the
-template tag and the thing that writes to the DOM can both be replaced.
-
-It is here for two reasons: an app already written against lit-html can move to VeraJS without
-rewriting its templates, and it is the proof that core is not welded to one renderer. Neither is a
-reason to reach for it in new code — `@verajs/renderer` is smaller, and browser-confirmed faster than
-or equal to lit-html on all eight benchmark operations.
-
-```js
-import { setHtml, wire } from '@verajs/core';
-import { html, render as litRender } from 'lit-html';
-
-setHtml(html);                                        // the template tag
-wire({ on: 'render', fn: litRender, priority: 50 });  // what writes to the DOM
-```
-
-Both calls are needed and both must run before any component defines itself. A string renderer, a
-test double, or anything else implementing the same two contracts works the same way.
 
 ---
 

@@ -155,10 +155,6 @@ Runnable: [`examples/light-slots/`](examples/light-slots/) — `npm run dev:slot
 `html` comes from core and needs no `setHtml` — `@verajs/renderer` accepts the shape it produces, so
 those two lines are the whole setup.
 
-*(Optional: the renderer is an insert, so it can be swapped. An app already written against lit-html
-can keep its templates with `wire({ on: 'render', fn: litRender, priority: 50 }); setHtml(litHtml);`
-— unnecessary for new code, where `@verajs/renderer` is smaller and measurably faster.)*
-
 ### npm + TypeScript
 
 ```bash

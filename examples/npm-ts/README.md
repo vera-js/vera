@@ -24,9 +24,17 @@ What this example exists to prove, and where:
    properties.
 5. **`src/components/base.ts`** — the router in a component: `initRouter`, routes, an outlet.
 
-This example also runs against **lit-html as the renderer** (`setHtml(html)` +
-`wire({ on: 'render', fn: render, priority: 50 })`) — deliberately, so the repo exercises the
-renderer-swap path somewhere real. New apps should prefer `@verajs/renderer` and skip both calls.
+**This example runs on lit-html, not `@verajs/renderer`** — `src/index.ts` calls `setHtml(html)`
+and wires lit's `render` on the `'render'` insert, and three components import `html` from
+`lit-html` directly. That is history rather than a recommendation: it predates `@verajs/renderer`
+and was never moved across. **Nothing about it is the path a new app should take**, and the docs no
+longer describe swapping the renderer as a mode.
+
+The claim it used to justify — that core is not welded to one renderer — is now asserted instead of
+demonstrated, in `tests/foreign-renderer.test.mjs`, which drives real lit-html through the seam and
+fails if that ever stops working. Which leaves this example exercising a configuration no user has,
+while the npm + TypeScript mode it is supposed to cover goes unexercised. Rewriting it onto
+`@verajs/renderer` is outstanding work.
 
 **A note on the remaining files.** This directory predates the project's overhaul and doubles as
 its exercise ground: `hello-component` / `goodbye-component` (toggled subtrees over a deliberately
