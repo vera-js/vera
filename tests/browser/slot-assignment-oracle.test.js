@@ -96,3 +96,96 @@ it('an empty or whitespace text node suppresses the fallback; a comment does not
   commented.append(document.createComment('c'));
   expect(assigned(commented), 'a comment is never a slottable — which is why markers are safe').to.equal('FALLBACK');
 });
+
+/**
+ * **The cases the 2026-09-04 light-slots work was measured against.**
+ *
+ * Everything asserted that day — flatten's contents, a slot nested in another slot's fallback, and
+ * the order a re-slotted node joins its new bucket — was compared against jsdom's shadow DOM,
+ * because the node suites run under jsdom. That is the arrangement this file exists to make safe:
+ * the node suites prove `light === jsdom's shadow`, and these prove `jsdom's shadow === every real
+ * engine's shadow`. Without them the day's parity claims rest on jsdom being right about slot
+ * assignment, which `CLAUDE.md` says never to assume.
+ *
+ * `<slot name="o">` here holds a nested `<slot name="i">` in its fallback, which is the arrangement
+ * that produced two content-loss defects: while the outer slot is assigned its fallback is not
+ * rendered, and the question is whether the inner slot goes on participating in assignment anyway.
+ */
+customElements.define(
+  'oracle-nest',
+  class extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' }).innerHTML =
+        '<div class="box"><slot name="o"><em>E</em><!--mine--><slot name="i">DEEP</slot></slot></div>';
+    }
+  }
+);
+const nest = () => {
+  const el = document.createElement('oracle-nest');
+  document.body.appendChild(el);
+  made.push(el);
+  return {
+    el,
+    outer: el.shadowRoot.querySelector('slot[name="o"]'),
+    inner: el.shadowRoot.querySelector('slot[name="i"]'),
+  };
+};
+const show = (nodes) =>
+  nodes.map((n) => (n.nodeType === 1 ? `<${n.localName}>${n.textContent}` : `"${n.textContent}"`)).join(',') || '-';
+
+it('flatten returns SLOTTABLES — a comment in fallback content is not one', () => {
+  const { outer } = nest();
+  expect(show(outer.assignedNodes()), 'CONTROL: nothing assigned').to.equal('-');
+  expect(show(outer.assignedNodes({ flatten: true })), 'the <!--mine--> is absent, and the nested slot flattens through')
+    .to.equal('<em>E,"DEEP"');
+});
+
+it('a slot nested in an unrendered fallback still takes its assignment', () => {
+  const { el, outer, inner } = nest();
+  const owned = document.createElement('u');
+  owned.setAttribute('slot', 'o');
+  el.appendChild(owned);
+  expect(show(outer.assignedNodes()), 'CONTROL: the outer slot is assigned, so its fallback is not rendered')
+    .to.equal('<u>');
+
+  const deep = document.createElement('b');
+  deep.setAttribute('slot', 'i');
+  deep.textContent = 'LATE';
+  el.appendChild(deep);
+  expect(show(inner.assignedNodes()), 'the inner slot assigns it even though it is not being rendered')
+    .to.equal('<b>LATE');
+
+  owned.remove();
+  expect(show(outer.assignedNodes({ flatten: true })), 'and when the outer slot falls back, that content is what shows')
+    .to.equal('<em>E,<b>LATE');
+});
+
+it('a re-slotted node joins in DOCUMENT order, not the order it arrived', () => {
+  const el = host();
+  const early = document.createElement('u');
+  early.textContent = 'EARLY';
+  el.appendChild(early);
+
+  const late = document.createElement('u');
+  late.textContent = 'LATE';
+  el.appendChild(late);
+  const slot = el.shadowRoot.querySelector('slot');
+  expect(show(slot.assignedNodes()), 'CONTROL: both are on the default slot to begin with')
+    .to.equal('<u>EARLY,<u>LATE');
+
+  /** Out and back: the node has not moved in the light tree, so it returns to its own place. */
+  early.setAttribute('slot', 'gone');
+  expect(show(slot.assignedNodes()), 'CONTROL: naming a slot that does not exist un-assigns it').to.equal('<u>LATE');
+  early.setAttribute('slot', '');
+  expect(show(slot.assignedNodes()), 'it comes back AHEAD of the one that was already there')
+    .to.equal('<u>EARLY,<u>LATE');
+
+  const front = document.createElement('u');
+  front.textContent = 'FRONT';
+  el.insertBefore(front, el.firstChild);
+  front.setAttribute('slot', 'gone');
+  front.setAttribute('slot', '');
+  expect(show(slot.assignedNodes()), 'and a node inserted at the front takes the front')
+    .to.equal('<u>FRONT,<u>EARLY,<u>LATE');
+});
