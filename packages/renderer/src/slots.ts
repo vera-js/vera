@@ -916,7 +916,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
   }
   const filled = new Set<string>();
   /** Parents carrying a mark, with the user's first and last node — see the separator pass. */
-  const marked: Array<{ parent: Element; first: Node; last: Node }> = [];
+  const marked: Array<{ parent: Element; first: Node; last: Node; count: number }> = [];
   /** Collect first (the live list mutates as slots are unwrapped). Any nesting order is fine —
    *  a slot is replaced by its content, and a slot inside assigned content was itself resolved. */
   const slotEls: Element[] = [...host.querySelectorAll('slot')];
@@ -932,12 +932,15 @@ const serverDistribute = (host: Element, source: Node[]) => {
        *  PARENT states where it is and how much of it there is. Named slots self-delimit by
        *  their own `slot` attribute and need nothing. Offset is stable: slots are unwrapped in
        *  document order, so everything before this one is already final. */
-      if (name === '') {
-        let offset = 0;
-        for (let n = parent.firstChild; n !== null && n !== assigned[0]; n = n.nextSibling) offset++;
-        (parent as Element).setAttribute(SLOTTED_ATTR, `${offset},${assigned.length}`);
-        marked.push({ parent: parent as Element, first: assigned[0], last: assigned[assigned.length - 1] });
-      }
+      /** The mark is written after the separator pass — see it for why position is computed once,
+       *  at the end, rather than here where the nodes are still moving. */
+      if (name === '')
+        marked.push({
+          parent: parent as Element,
+          first: assigned[0],
+          last: assigned[assigned.length - 1],
+          count: assigned.length,
+        });
     } else {
       /** Fallback: the slot's own children, unwrapped in place. */
       let child = slot.firstChild;
@@ -969,7 +972,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
    * slot receives content at all) — one rule here removes the class instead of handling members of
    * it. React emits the same 7 bytes for the same reason.
    */
-  for (const { first, last } of marked) {
+  for (const { parent, first, last, count } of marked) {
     const doc = host.ownerDocument!;
     const ahead = first.previousSibling;
     if (ahead !== null && ahead.nodeType === 3 && first.nodeType === 3)
@@ -977,6 +980,17 @@ const serverDistribute = (host: Element, source: Node[]) => {
     const behind = last.nextSibling;
     if (behind !== null && behind.nodeType === 3 && last.nodeType === 3)
       last.parentNode!.insertBefore(doc.createComment(''), behind);
+    /**
+     * **The mark is written HERE, once, after the nodes have stopped moving.** Computing the offset
+     * in the loop above and inserting separators afterwards put the two out of step: a leading
+     * separator shifts the user's content one place right, so the recorded offset addressed the
+     * separator instead — and the rescue, which is the only reader of the offset, then kept nothing
+     * and the page fell back to the component's own fallback with the user's content gone. Position
+     * has exactly one place that computes it, and it is downstream of everything that moves.
+     */
+    let offset = 0;
+    for (let n = parent.firstChild; n !== null && n !== first; n = n.nextSibling) offset++;
+    parent.setAttribute(SLOTTED_ATTR, `${offset},${count}`);
   }
 
   let carrier: Element | null = null;

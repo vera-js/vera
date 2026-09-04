@@ -443,6 +443,36 @@ for (const [shape, want] of [
     host.remove();
   });
 
+/**
+ * **The BAIL path for the same shapes, which reads the offset rather than the count.**
+ *
+ * Adoption uses only the count; the offset has exactly one reader, the rescue that runs when
+ * hydration falls back. So a mark whose offset is wrong passes every hydration test and loses the
+ * user's content only on the path whose warning promises the page is still correct.
+ *
+ * This exists because the separator fix broke it: inserting a comment ahead of the user's content
+ * shifted it one place right, while the offset had already been computed in the loop above — so
+ * the rescue sliced the separator and kept nothing, and the page fell back to the component's own
+ * fallback with the user's content gone. The mark is now written after the nodes stop moving, and
+ * this is the test that says so.
+ */
+for (const [shape, want] of [
+  ['lead', 'BODY'],
+  ['tail', 'BODY'],
+])
+  test(`AUDIT — a hydration bail rescues the user's content across a separator (${shape})`, async () => {
+    const host = hostFromServer(server('BODY', 'slot-adjacent-ssr', false, { shape }));
+    /** Disagrees at the root, so the bail runs and the rescue reads the offset. */
+    renderInto(html`<section><main><slot>fb</slot></main></section>`, host);
+    await settle();
+    assert.deepEqual(
+      slotted(host, '').map((node) => (node.data ?? node.textContent)),
+      [want],
+      "the rescue kept the user's content, not the separator beside it"
+    );
+    host.remove();
+  });
+
 /** The client templates, matching the fixture's shapes exactly — hydration compares against these. */
 const SHAPES = {
   tail: () => html`<article><main><slot>fb</slot> TAIL</main></article>`,

@@ -59,7 +59,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->3.01 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->3.02 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 renderer carries a small seam that records where a template's slots are; an app that never wires
 this pays that and nothing else.
 
