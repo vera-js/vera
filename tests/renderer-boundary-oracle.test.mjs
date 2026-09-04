@@ -110,26 +110,25 @@ test('a tail part refills after foreign nodes a user appended to its parent', ()
   renderInto(draw(null), host);
   const parent = host.querySelector('div');
   /**
-   * User code appends into the same parent while the part is empty. **The one place the markered
-   * and markerless representations legitimately disagree**, so this asserts only what both
-   * guarantee: the foreign node survives, the static content is untouched, and the part's
-   * content returns inside the parent exactly once.
+   * User code appends into the same parent while the part is empty. **Exact-position refill is a
+   * CONTRACT here, not an accident of the representation** (decided 2026-09-05): the part's
+   * content returns exactly where it was — BEFORE the foreign node — the way lit's markers answer
+   * it, and not by appending to the parent the way React's `getHostSibling` does. Any future
+   * boundary representation must preserve this, which is exactly the assertion that retired the
+   * "elide the end marker for provably-last parts" optimisation: it saved one comment by trading
+   * this line away.
    *
-   * Where it returns differs. Markers pin the exact old position (before the foreign node — lit's
-   * answer). A provably-last markerless part appends (after it — React's answer, and what Vera's
-   * ROOT part has always done: `_end === null` appends after foreign tail content today). Foreign
-   * nodes inside a rendered parent sit outside the ownership contract either way; the strict
-   * order for the markerless representation is pinned in the census suite beside the rewrite,
-   * not here, because this file must be true under both.
+   * The ROOT part is the one deliberate exception and is pinned in the pre-existing-content test
+   * below: rendering into a container appends, the standard mount contract shared with React and
+   * Vue since 0.1.
    */
   const foreign = D.createElement('em');
   foreign.textContent = 'foreign';
   parent.append(foreign);
   renderInto(draw('y'), host);
   assert.ok(parent.contains(foreign), 'the foreign node was not destroyed');
-  assert.equal(host.querySelectorAll('b').length, 1, 'the refilled content exists exactly once');
-  assert.equal(visible(parent).replace('<em>foreign</em>', ''), '<span>static</span><b>y</b>',
-    'static and rendered content are intact and ordered, wherever the foreign node sits');
+  assert.equal(visible(parent), '<span>static</span><b>y</b><em>foreign</em>',
+    'the part refilled at its exact old position, before the foreign node — never appended after it');
 });
 
 test('keyed items emptying to a contentless template keep list order', () => {
