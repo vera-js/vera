@@ -367,3 +367,36 @@ for (const [label, value] of [
     assert.ok(slotted(host, '').length <= 1, `claimed ${slotted(host, '').length} nodes from a one-child element`);
     host.remove();
   });
+
+/**
+ * **The OFFSET half of `data-vera-slotted="offset,count"`, which nothing exercised.**
+ *
+ * The mark tells a failed adoption which of the parent's children were the user's. Adoption itself
+ * only needs the count — the walk is already standing in the right place — so the offset is used by
+ * exactly one path: the rescue that runs when hydration bails. It is non-zero only when the default
+ * slot has siblings BEFORE it in the same parent, and no fixture produced that shape, so forcing
+ * the offset to 0 passed the entire suite.
+ *
+ * What it costs: with a wrong offset the rescue slices the wrong range and keeps the COMPONENT's
+ * own static content while discarding the user's — measured on the fixture below, which rescued
+ * "PREFIX" instead of "USER BODY". A silent swap of one for the other, on the path whose warning
+ * promises the page is still correct.
+ */
+test('AUDIT — a non-zero slotted offset rescues the user content, not the component\'s', async () => {
+  const serverHtml = server('USER BODY', 'slot-offset-ssr');
+  const mark = /data-vera-slotted="(\d+),(\d+)"/.exec(serverHtml);
+  assert.ok(mark, `the server emitted no slotted mark: ${serverHtml}`);
+  assert.notEqual(mark[1], '0', 'CONTROL: this fixture exists to produce a NON-ZERO offset');
+
+  const host = hostFromServer(serverHtml);
+  /** Disagrees at the root, so the bail runs and the rescue reads the mark. */
+  renderInto(html`<section><main><slot>fb</slot></main></section>`, host);
+  await settle();
+  assert.deepEqual(
+    slotted(host, '').map((node) => (node.data ?? node.textContent).trim()),
+    ['USER BODY'],
+    "the rescue kept the user's content"
+  );
+  assert.doesNotMatch(host.textContent, /PREFIX/, "and did not mistake the component's own markup for it");
+  host.remove();
+});
