@@ -29,29 +29,21 @@
  * while nothing is assigned and comes back when a slot empties, and capture takes the host's
  * DIRECT children only, so nested components compose.
  *
- * **The one documented divergence from native, and why — now confined to the host's TAIL.**
- * Native has two trees; here the host's childList holds both the user's content and the
- * component's output, and only one region is ambiguous. At capture, a sentinel comment marks
- * where the light region ends (the component's render appends after it), and a top-level node
- * added BEFORE it — judged by the mutation record's insertion site, so a same-batch move cannot
- * hide it — is host content with full native semantics: text included, no attribute needed.
- * That region is where the renderer's own re-renders of `<host>${…}</host>` land, and where a
- * user's insertBefore lands. What remains explicit is the tail: a node APPENDED after the
- * component's output joins the slot system only if it carries a `slot` attribute — `slot=""`
- * targets the default slot, so nothing is out of reach, it just must be said. A heuristic there
- * would eventually capture the component's own markup as slot content, the worst possible
- * failure. (Removals and `slot`-attribute changes of captured nodes are tracked everywhere by
- * identity, so they have no such restriction. `tests/slots-transition-parity.test.mjs` holds
- * the light/shadow matrix this rule has to satisfy.)
- *
- * **What the light region does NOT restore is ORDER.** A late insertion is captured natively and
- * then joins its slot at the end. Distribution moved the siblings that would have ordered it, and
- * document position cannot substitute: every undistributed node sits ahead of all distributed
- * content, which is the right reading for a hand-inserted node and the wrong one for a list's
- * freshly created row, with nothing in the DOM separating the two — measured, by trying it and
- * watching every relocated list reorder itself. Closing it needs a position record per captured
- * node (the tombstone tier in the internal markerless-renderer design), which is deliberately not
- * built. Pinned as a known divergence in the transition-parity suite.
+ * **Post-render additions are NATIVE, and the mechanism is ownership, not position.** The host's
+ * childList holds both the user's content and the component's output, and the old rules told them
+ * apart by where a node sat — which made bare text unreachable at the tail and a late insertion
+ * join its slot out of order. Now the renderer stamps everything it emits at a captured host's
+ * top level (a non-enumerable `_$own$` property: `true` for a root part's own output — the
+ * structural `_end === null` test, so async commits are covered — and the placing part for
+ * content from an outer template). An unstamped top-level addition is therefore knowably the
+ * user's: captured with full native semantics, text included, no `slot` attribute required
+ * (`slot=""`/`slot="name"` still route). Ordering reads the same fact — placed content extends
+ * its part's own group; an unstamped node before the boundary takes its document position ahead
+ * of content distributed away, and past it, appends. One residue, stated so this cannot
+ * overclaim: hand-edits interleaved among SEVERAL `${…}` parts' content in one host order
+ * approximately — membership is always right. And one parity note: whitespace appended to a
+ * light host now suppresses the default fallback, because it does exactly that in a shadow root
+ * (measured). `tests/slots-transition-parity.test.mjs` holds the matrix.
  *
  * **Pop-out rule.** Every *document* touch derives from the node itself (`ownerDocument`), so a
  * component rendered into a second window creates its nodes in that window's document.
@@ -144,6 +136,8 @@ type HostState = {
 };
 
 const HOSTS = new WeakMap<Element, HostState>();
+/** The host mark's shared descriptor — non-enumerable, for the same invisibility the stamps get. */
+const HOSTED: PropertyDescriptor = { value: true, enumerable: false, configurable: true };
 /** Every captured node → its host's sentinel, for `_$home$`. Entries die with their nodes. */
 const HOMES = new WeakMap<Node, Comment>();
 
@@ -158,7 +152,11 @@ const bucketOf = (state: HostState, name: string): Node[] => {
 };
 
 /** Take one node into the slot system: bucket it, remember it, and physically hold it. */
-const take = (state: HostState, node: Node): string | null => {
+/** `ordered`: the caller vouches the node arrives in its final relative order (the initial
+ *  capture walk and the server-park recovery — both iterate host order), so placement is a plain
+ *  append: O(1), and immune to the fact that earlier-taken siblings are already in holding and
+ *  can no longer be position-compared. */
+const take = (state: HostState, node: Node, ordered = false): string | null => {
   const name = slotNameOf(node);
   if (name === null) return null;
   const bucket = bucketOf(state, name);
@@ -176,18 +174,55 @@ const take = (state: HostState, node: Node): string | null => {
    */
   const settled = binding !== undefined && node.parentNode === binding._start.parentNode;
   /**
-   * Document order, not arrival order. Pushing was right only while capture happened in one pass
-   * over the host's children; a node inserted among the others belongs among them, and native
-   * decides that by position rather than by when it showed up.
+   * **Where a captured node goes in the bucket — one branch per way of knowing.**
+   *
+   * SETTLED (already inside its slot's run): document order — whoever moved it there meant that
+   * position; a keyed mid-insert lands here. PLACED (stamped with the part that put it in the
+   * host): after that part's last member, so a grown row extends its own list and two parts'
+   * content in one host cannot interleave; no member yet means append, where a first row belongs.
+   * UNSTAMPED (a human's): its position speaks — before the boundary it precedes everything
+   * distributed away (document order among nodes still beside it); at or past the boundary it
+   * was appended, and appends. The last-member fast path keeps the initial capture walk O(1) per
+   * node — each child follows the one before it — instead of O(n²) over a big light list.
    */
+  const own = (node as { _$own$?: unknown })._$own$;
   let at = bucket.length;
-  if (settled)
+  if (ordered) {
+    /* the caller's order is the order — fall through to the splice */
+  } else if (settled) {
     for (let i = 0; i < bucket.length; i++)
       // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's own flag
       if ((node.compareDocumentPosition(bucket[i]) & 4) !== 0) {
         at = i;
         break;
       }
+  } else if (own !== undefined) {
+    for (let i = bucket.length - 1; i >= 0; i--)
+      if ((bucket[i] as { _$own$?: unknown })._$own$ === own) {
+        at = i + 1;
+        break;
+      }
+  } else {
+    const home = node.parentNode;
+    const last = bucket[bucket.length - 1];
+    const sentinel = state._sentinel;
+    if (
+      sentinel.parentNode === home &&
+      // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
+      (node.compareDocumentPosition(sentinel) & 4) !== 0 &&
+      last !== undefined &&
+      // eslint-disable-next-line no-bitwise -- fast append: skip the scan when the last member already precedes it
+      !(last.parentNode === home && (last.compareDocumentPosition(node) & 4) !== 0)
+    )
+      for (let i = 0; i < bucket.length; i++) {
+        const member = bucket[i];
+        // eslint-disable-next-line no-bitwise -- first distributed member, or an in-place member that follows
+        if (member.parentNode !== home || (node.compareDocumentPosition(member) & 4) !== 0) {
+          at = i;
+          break;
+        }
+      }
+  }
   bucket.splice(at, 0, node);
   state._names.set(node, name);
   HOMES.set(node, state._sentinel);
@@ -284,15 +319,23 @@ const fill = (state: HostState, binding: Binding) => {
   }
   const bucket = activeFor(state, binding._name) === binding ? bucketOf(state, binding._name) : NOTHING;
   /**
-   * Members that were on screen keep their relative order; anything else — newly captured, or
-   * coming back from the holding template — follows in bucket order. Sorted in place, so the
-   * bucket carries the corrected order forward and one refill does not have to redo the last one's
-   * work. `NOTHING` is shared and must never be written to.
+   * **A stable MERGE, not a re-sort.** Run members keep the run's order (a keyed reorder happens
+   * in place, invisible to the observer — the run is its only record). Everything else keeps its
+   * BUCKET position, ranked beside the run member it follows: a prepend `take` placed at index 0
+   * stays ahead of the run instead of being shoved to the end — which is exactly how the first
+   * ordering attempt broke two suites. Equal ranks fall back to bucket order (sort stability is
+   * guaranteed), and `NOTHING` is shared and never written to.
    */
-  if (wasShowing.size > 0 && bucket !== NOTHING)
-    bucket.sort(
-      (a, b) => (wasShowing.get(a) ?? wasShowing.size) - (wasShowing.get(b) ?? wasShowing.size)
-    );
+  if (wasShowing.size > 0 && bucket !== NOTHING) {
+    const rank = new Map<Node, number>();
+    let carried = -1;
+    for (const member of bucket) {
+      const shown = wasShowing.get(member);
+      if (shown !== undefined) carried = shown;
+      rank.set(member, shown ?? carried + 0.5);
+    }
+    bucket.sort((a, b) => rank.get(a)! - rank.get(b)!);
+  }
   const shown: Node[] = [];
   for (let i = 0; i < bucket.length; i++) {
     const candidate = bucket[i];
@@ -449,68 +492,32 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
     }
     for (const node of record.addedNodes) {
       /**
-       * **`record.target` is where it was ADDED; `parentNode` is where it is NOW**, and the two
-       * differ whenever something appends a node to the host and then positions it in the same
-       * batch. A keyed list inserting a row into a light host's children does exactly that: the row
-       * has to be created under the host to count as the user's content, and has to end up among
-       * its logical neighbours, which are already inside the component. Reading only the current
-       * parent, the row was created, moved, and then never captured — it vanished on the next
-       * refill, which is the worst of the three outcomes.
+       * **Ownership answers capture outright — the heuristic stack this replaces is gone.**
        *
-       * Accepting either is safe in the direction that matters: `hasAttribute('slot')` still gates
-       * it, and the removal handler below already declines to un-capture a node that merely moved
-       * (`parentNode === null` is its test for "truly gone"), so the two halves agree about what a
-       * move is.
-       */
-      /**
-       * A top-level addition in the LIGHT REGION — before the sentinel — is host content with
-       * full native semantics: text nodes included, no attribute needed. That is where the
-       * renderer's own re-renders of `<host>${…}</host>` land (their part anchors sit before the
-       * component's output, which appended after the sentinel), and where a user's insertBefore
-       * lands. Additions AFTER the sentinel are beside or inside the component's own output,
-       * where user content and component markup are indistinguishable, so the explicit-attribute
-       * rule stands there — the documented divergence, now shrunk to the host's tail.
-       */
-      /**
-       * Judged by the INSERTION SITE, not the node's current position: a keyed list creates a
-       * row between the part's markers and moves it among its siblings in the same batch, so by
-       * callback time the node lives inside the component. `record.nextSibling` is the node that
-       * followed at the moment of insertion — for renderer inserts that is the part's own end
-       * marker, which stays in the host — and where it has since moved or gone, the node's own
-       * current position is the fallback.
-       */
-      const sentinel = state._sentinel;
-      const site = record.nextSibling;
-      // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, the platform's flag
-      const before = (anchor: Node | null): boolean =>
-        anchor !== null &&
-        anchor.parentNode === host &&
-        (anchor === sentinel || (anchor.compareDocumentPosition(sentinel) & 4) !== 0);
-      const lit =
-        record.target === host &&
-        sentinel.parentNode === host &&
-        (before(site) || (node.parentNode === host && before(node)));
-      /**
-       * **The renderer's own output is never content.** It stamps what it inserts at the top
-       * level of the container it was rendering into — the component's own output, as opposed to
-       * `<x-card>${value}</x-card>`, where the part's parent is the host but the render root is
-       * an ancestor and the value IS the user's content.
+       * Every node the renderer puts at a captured host's top level is stamped: `true` when it
+       * is the render's own output, the placing part when it is content from an outer template.
+       * So "may I capture this?" is one property read:
        *
-       * Without this, a component whose rendered root legitimately carries a `slot` attribute —
-       * content destined for ITS parent's slot — had that root captured as the host's own slot
-       * content and moved into holding: the component rendered NOTHING, on the first render, with
-       * no children involved and nothing thrown. A property rather than a marker or an attribute
-       * because it has to be invisible to CSS, serialization and `children`, and has to ride on
-       * text nodes, which no attribute can.
+       *   `true`   — the component's own output. Never content. (Without this, a component whose
+       *              rendered root carries a `slot` attribute had its output eaten.)
+       *   a part   — placed content: captured, ordered by its part (see `take`).
+       *   absent   — a human put it here: captured with full native semantics, TEXT INCLUDED,
+       *              which retires the `slot=`-after-first-render rule and the tail-text hole in
+       *              one move. Safe for exactly one reason: the renderer stamps 100% of its own
+       *              top-level output — measured across every template shape, and structurally
+       *              guaranteed by the `_end === null` root test, async commits included — so
+       *              unstamped genuinely means "not the renderer's".
        *
-       * Sigil-named so property mangling leaves it alone across the bundle boundary.
+       * Deleted here: the insertion-site reconstruction (`record.nextSibling`, the region helper)
+       * — it existed because created-then-moved keyed rows were positionally indistinguishable
+       * from user content, and they are stamped now — and the tail attribute arm, the fail-closed
+       * stand-in for ownership nobody could know. `record.target === host` still bounds this to
+       * TOP-LEVEL additions (current parent alone misses same-batch moves); a component's
+       * internal renders mutate deeper parents and are never considered.
        */
       if (
-        (node as { _$own$?: boolean })._$own$ !== true &&
-        (lit ||
-          ((node.parentNode === host || record.target === host) &&
-            node.nodeType === 1 &&
-            (node as Element).hasAttribute('slot'))) &&
+        (record.target === host || node.parentNode === host) &&
+        (node as { _$own$?: unknown })._$own$ !== true &&
         !state._names.has(node)
       ) {
         const name = take(state, node);
@@ -556,6 +563,14 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _sentinel: boundary ?? doc.createComment(''),
   });
   HOSTS.set(host, created);
+  /**
+   * The host is MARKED as captured, on itself — this is what the renderer's stamp gate reads in
+   * `_insert`/`$c`: one own-property read instead of a seam call, and it cannot go stale in the
+   * dangerous direction (a part committing into a not-yet-captured host reads undefined, stamps
+   * nothing, and that content is exactly what the initial walk below lifts). Symmetric with the
+   * node stamps: ownership facts live on the objects they describe.
+   */
+  Object.defineProperty(host, '_$hosted$', HOSTED);
   /** Ours to place only if ours to make; the renderer's is already in the document. */
   if (boundary === undefined) host.appendChild(created._sentinel);
   /**
@@ -567,12 +582,12 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
   for (const child of [...host.children])
     if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) {
       const held = (child as HTMLTemplateElement).content;
-      for (const node of [...held.childNodes]) take(created, node);
+      for (const node of [...held.childNodes]) take(created, node, true);
       host.removeChild(child);
     }
   /** Hydration already has the children distributed and registers them itself; a fresh CSR
    *  capture lifts them from the host. */
-  if (!skipChildren) for (const node of [...host.childNodes]) take(created, node);
+  if (!skipChildren) for (const node of [...host.childNodes]) take(created, node, true);
   const watching = { childList: true, subtree: true, attributes: true, attributeFilter: ['slot'] };
   created._observer.observe(host, watching);
   /**

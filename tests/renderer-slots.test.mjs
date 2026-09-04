@@ -97,7 +97,15 @@ test('LIVE: re-slotting via the slot attribute moves a node between slots', asyn
   h.remove();
 });
 
-test('the documented divergence: post-render additions need a slot attribute; slot="" reaches default', async () => {
+/**
+ * **The divergence this test used to document is CLOSED.** Post-render additions no longer need a
+ * `slot` attribute: the renderer stamps 100% of its own output (a non-enumerable property, chosen
+ * by the structural `_end === null` root test), so an unstamped top-level node is knowably the
+ * user's and joins the slot system with full native semantics — attribute-less elements and bare
+ * text included. `slot=""`/`slot="name"` still work and still route; they are just no longer the
+ * only door. This test asserted the old rule as "documented"; it now asserts native.
+ */
+test('post-render additions join the slot system with native semantics — no attribute required', async () => {
   const h = host('');
   renderInto(html`<main><slot>fallback</slot></main>`, h);
   assert.equal(h.querySelector('main').textContent, 'fallback');
@@ -105,14 +113,13 @@ test('the documented divergence: post-render additions need a slot attribute; sl
   loose.textContent = 'loose';
   h.append(loose);
   await settle();
-  assert.equal(h.querySelector('main').textContent, 'fallback', 'attribute-less addition stays outside the slot system (documented)');
-  assert.equal(loose.parentNode, h, 'and remains ordinary DOM where the user put it');
+  assert.equal(h.querySelector('main').textContent, 'loose', 'an attribute-less addition reaches the default slot, as native');
   const explicit = doc.createElement('p');
   explicit.setAttribute('slot', '');
   explicit.textContent = 'explicit';
   h.append(explicit);
   await settle();
-  assert.equal(h.querySelector('main').textContent, 'explicit', 'slot="" reaches the default slot');
+  assert.equal(h.querySelector('main').textContent, 'looseexplicit', 'slot="" still routes, appended after');
   h.remove();
 });
 
@@ -412,16 +419,19 @@ test('a binding that cannot work on a light-DOM slot is diagnosed', { skip: isPr
 
 /**
  * **Children that arrive after the element upgrades** — the timing an HTML parser creates whenever
- * the component's definition is already registered, and the reason the "must name its slot" rule
- * bites more often than its wording suggests. Named content still lands, because it names a slot;
- * bare default content does not, and the slot shows its fallback.
+ * the component's definition is already registered. This test used to pin the "must name its slot"
+ * rule as documented behaviour, with a comment explaining why a diagnostic could not tell the
+ * user's bare text from the component's own rendered output.
  *
- * Pinned as the documented behaviour rather than as a defect. A diagnostic was tried and reverted:
- * the component's OWN rendered output arrives through the same callback (the fragment is inserted
- * after the seam drains), so a warning could not tell the two apart without false-positiving on
- * every light component's first render — which is exactly the ambiguity the rule exists to avoid.
+ * The ownership stamp is what the diagnostic could not be: the component's output arrives through
+ * the same callback, but STAMPED — a non-enumerable property written by the renderer for
+ * everything it emits at a host's top level, `true` for a root part's own render (the structural
+ * `_end === null` test, so an async directive's late commit is covered too) and the placing part
+ * for content from an outer template. The ambiguity the old rule existed to avoid is gone, so the
+ * rule is gone: bare text and attribute-less elements land in the default slot, exactly as a
+ * shadow root would assign them.
  */
-test('children appended AFTER the first render need to name their slot', async () => {
+test('children appended AFTER the first render land with native semantics, bare text included', async () => {
   const element = doc.createElement('div');
   doc.body.append(element);
   renderInto(html`<header><slot name="h">FB-H</slot></header><main><slot>FB-D</slot></main>`, element);
@@ -435,17 +445,17 @@ test('children appended AFTER the first render need to name their slot', async (
   await settle();
 
   assert.equal(element.querySelector('header').textContent, 'NAMED', 'named content lands — it named a slot');
-  assert.equal(element.querySelector('main').textContent, 'FB-D',
-    'bare text does NOT — after the first render, an unnamed node is indistinguishable from the component\'s own DOM');
+  assert.equal(element.querySelector('main').textContent, 'bare text',
+    'bare text lands too — the stamp tells it apart from the component\'s own DOM, which no rule could');
 
-  /** And the one-attribute fix works, which is what the docs point at. */
+  /** `slot=""` still routes; it is a door, no longer the only one. */
   const explicit = doc.createTextNode('explicit');
   const carrier = doc.createElement('span');
   carrier.setAttribute('slot', '');
   carrier.append(explicit);
   element.append(carrier);
   await settle();
-  assert.equal(element.querySelector('main').textContent, 'explicit', '`slot=""` reaches the default slot');
+  assert.equal(element.querySelector('main').textContent, 'bare textexplicit', '`slot=""` reaches the default slot');
   element.remove();
 });
 

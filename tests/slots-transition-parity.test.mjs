@@ -123,33 +123,23 @@ for (const [label, values] of CASES) {
 }
 
 /**
- * **THE KNOWN DIVERGENCE, pinned deliberately: membership is native, ORDER is not.**
+ * **The two former divergences, now pinned as PARITY.** Both used to be documented limits:
  *
- * A node inserted into the light region after the first render is captured with native semantics —
- * no `slot` attribute needed, text included (that is what the sentinel bought). Where it lands in
- * its slot's content is where this parts company with the platform: native keeps the light tree
- * intact and reads assignment order from it, while distribution here MOVES nodes into the
- * component, so by the time a late insertion arrives, the siblings that would have ordered it are
- * no longer beside it. Document position cannot stand in: an undistributed node sits in the host
- * ahead of ALL distributed content, which is right for a user's `insertBefore` and wrong for a
- * list's freshly created row, and nothing in the DOM tells those two apart.
+ * A late light-region insertion joined its slot at the END (native: document order). Distribution
+ * moves nodes, so position could not answer — but OWNERSHIP can: renderer output and placed
+ * content are stamped, so an unstamped node before the boundary is knowably the user's and takes
+ * its document position, ahead of content distributed away. Native answers `PREPENDED, Body`;
+ * so do we, in CSR and after hydration alike.
  *
- * Measured against a native shadow root given the identical mutation: the platform answers
- * `PREPENDED, Body`; this answers `Body, PREPENDED`. Closing THIS one needs a position record per
- * captured node — the tombstone tier of `MARKERLESS-RENDERER.md` — because renderer-created list
- * rows share the same region and want the opposite answer, and nothing in the DOM separates them.
+ * Appended tail TEXT was unreachable — it cannot carry the `slot` attribute the old tail rule
+ * demanded. The rule demanded it because ownership was unknowable; it is stamped now, so the
+ * attribute requirement is retired and bare text appends land in the default slot, as native.
  *
- * It has a sibling that is NOT the same problem and is worth keeping distinct: a text node
- * appended at the host's TAIL is not captured at all, since the tail rule asks for a `slot`
- * attribute and text cannot carry one. That one is not about position records — it needs the
- * renderer's root part to carry a closing boundary in light hosts, so the component's output ends
- * somewhere nameable and the tail becomes unambiguous. Documented in the feature page; the
- * `append element` case below is the half that already works.
- *
- * Pinned rather than left loose so the behaviour is a decision with a reason attached, and so a
- * future positional model announces itself here by failing.
+ * The residue, stated so this comment cannot overclaim: hand-edits interleaved among SEVERAL
+ * `${…}` parts' content in one host order approximately (membership always right). That is the
+ * whole remaining gap between light and shadow.
  */
-test('KNOWN DIVERGENCE: a late light-region insertion joins its slot at the end, not in document order', async () => {
+test('a late light-region insertion takes its document position, as native', async () => {
   const page = D.createElement('div');
   D.body.append(page);
   const draw = (v) => html`<t-light>${v}</t-light>`;
@@ -162,42 +152,36 @@ test('KNOWN DIVERGENCE: a late light-region insertion joins its slot at the end,
   host.insertBefore(D.createTextNode('PREPENDED'), host.firstChild);
   await frame();
   await frame();
-  assert.equal(shown(host), 'BodyPREPENDED',
-    'captured (native membership) but appended — native would answer PREPENDEDBody; see the note above');
+  assert.equal(shown(host), 'PREPENDEDBody', 'prepended text precedes distributed content — the native answer');
 
-  /** The tail's own limit, pinned beside it: an ELEMENT naming its slot is reached, TEXT is not. */
+  /** The tail, both kinds: an element with no attribute at all, and bare text. */
   const named = D.createElement('i');
   named.setAttribute('slot', '');
   named.textContent = 'TAILED';
   host.appendChild(named);
   await frame();
   await frame();
-  assert.match(shown(host), /TAILED/, 'an element naming its slot is reached at the tail');
+  assert.match(shown(host), /TAILED/, 'slot="" still routes');
 
   host.appendChild(D.createTextNode('LOOSE'));
   await frame();
   await frame();
-  assert.doesNotMatch(shown(host), /LOOSE/,
-    'appended TEXT is not — it cannot carry slot="" and stays beside the component (see the note)');
+  assert.equal(shown(host), 'PREPENDEDBody<i>TAILED</i>LOOSE',
+    'appended bare text lands last in the default slot — the hole the attribute rule could never close');
   page.remove();
 });
 
 /**
  * **A component's own output is not its content — the two sides of one distinction.**
  *
- * `slots` captures a top-level element carrying a `slot` attribute as the host's content. A
- * component's own rendered root may legitimately be exactly that, when it renders something
- * destined for ITS parent's slot — and it was being captured and moved into holding, so the
- * component rendered NOTHING. First render, no children needed, nothing thrown: the failure had
- * no symptom except an empty component. Found by asking what "failing open" would actually look
- * like and discovering the answer was already shipping.
- *
- * The renderer stamps what it inserts at the top level of the container it was rendering into
- * (`_$own$`, a property — invisible to CSS and serialization, and able to ride on text nodes,
- * which no attribute can). Both tests are needed and neither is sufficient: the first says the
- * stamp exists, the second says it means the right thing. Stamping everything the renderer
- * touches would pass the first and fail the second, because in `<host>${node}</host>` the
- * renderer also places the node — the difference is which RENDER ROOT it was placing for.
+ * `slots` used to capture any top-level element carrying a `slot` attribute. A component's own
+ * rendered root may legitimately be exactly that — content destined for ITS parent's slot — and
+ * it was captured and moved into holding, so the component rendered NOTHING. First render, no
+ * children needed, nothing thrown. The ownership stamp is the fix, and these two tests are both
+ * needed and neither is sufficient: the first says the stamp exists, the second says it means the
+ * right thing. Stamping everything the renderer touches would pass the first and fail the second,
+ * because in `<host>${node}</host>` the renderer also places the node — the difference is which
+ * RENDER it was placing for, which is why the stamp's value is structural (`_end === null`).
  */
 test('a component whose own output carries slot= still renders it', async () => {
   customElements.define(
@@ -224,8 +208,6 @@ test('but content the renderer places INTO a host is still the user\'s', async (
   const page = D.createElement('div');
   D.body.append(page);
   const draw = (v) => html`<t-light>${v}</t-light>`;
-  /** A DOM node the renderer inserts at the host's top level — placed by an OUTER render, so it
-   *  is the user's light content and must distribute, stamp or no stamp. */
   const canvas = D.createElement('canvas');
   renderInto(draw(canvas), page);
   await frame();

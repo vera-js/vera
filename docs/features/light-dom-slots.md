@@ -59,7 +59,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->2.60 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->2.74 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 renderer carries a small seam that records where a template's slots are; an app that never wires
 this pays that and nothing else.
 
@@ -72,30 +72,15 @@ this pays that and nothing else.
   tree, so an ordinary descendant selector reaches it — and reaches deeper than `::slotted()` can.
   A component that renders both ways writes both. `:host` *is* translated, because a component needs
   it to style itself and nothing else can supply that.
-- **A node APPENDED after the component's output must name its slot** (`slot=""` for the default
-  one). The host's tail is where its own children and the component's output meet, and nothing
-  distinguishes an unnamed text node from the component's there. Everywhere else — inserted before
-  or among the original light content — additions are captured with native MEMBERSHIP semantics,
-  attribute-less text included, so the renderer's own `${…}` re-renders and an ordinary
-  `insertBefore` need nothing said. The timing trigger still applies at the tail: a parser upgrades
-  an element before it has read its children, so let the definition load deferred.
-- **A late insertion joins its slot at the END, where native would place it by document order.**
-  Membership is native; position is not. Distribution moves nodes into the component, so by the
-  time a node is inserted into the host afterwards, the siblings that would have ordered it are no
-  longer beside it — and an undistributed node sits ahead of all distributed content, which reads
-  as "first" for a hand-inserted node and "last" for a list's freshly created row, with nothing in
-  the DOM to tell them apart. Native answers `PREPENDED, Body`; this answers `Body, PREPENDED`.
-  Order the slot's content from the data instead, which is where a component's content usually
-  comes from anyway. Pinned in `tests/slots-transition-parity.test.mjs`.
-- **A TEXT node appended after the component's output cannot be reached at all.** The tail rule
-  asks for a `slot` attribute and a text node cannot carry one, so `host.append('more')` on a
-  rendered light component leaves the text beside the component rather than in its default slot
-  (native puts it in the slot). Wrap it — `host.append(Object.assign(document.createElement('span'),
-  { slot: '', textContent: 'more' }))` — or set the content through the template that renders the
-  host. The rule cannot simply be relaxed for text: a component whose own template starts or ends
-  with top-level text would then have its own output captured as slot content, which is the
-  failure mode this whole rule exists to prevent. Closing it properly means giving the renderer's
-  root part a closing boundary in light hosts, so the component's output ends somewhere nameable.
+- **Additions after the first render are native — membership and order, text included.** The
+  renderer stamps its own output with a hidden, non-enumerable property, so an unstamped node at
+  the host's top level is knowably yours: bare text appended to the host reaches the default slot,
+  an `insertBefore` at the front precedes distributed content, and a growing list extends itself —
+  each matching what a shadow root would do (`tests/slots-transition-parity.test.mjs` compares them
+  directly). `slot=""`/`slot="name"` still route as before. Two notes: whitespace you append now
+  suppresses the default fallback, exactly as it does in a shadow root; and hand-edits interleaved
+  among SEVERAL `${…}` expressions' content in one host order approximately — membership is always
+  right, and that mix is the one remaining gap between the modes.
 - **A rendered light component cannot be cloned.** `cloneNode(true)` copies its output with the
   user's nodes distributed into it; duplicate a component from its source markup instead.
 - **A slotted node's `parentNode` is inside the component's tree**, not the host. That is what light

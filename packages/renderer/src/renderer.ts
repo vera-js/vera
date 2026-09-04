@@ -1023,8 +1023,22 @@ const SCRATCH = doc.createDocumentFragment();
  * not invisible. The descriptor is shared, so this allocates nothing per node, and the path is
  * gated on slots being wired, so no app that does not use them ever reaches it.
  */
-const OWN_DESCRIPTOR = { value: true, enumerable: false, configurable: true, writable: true };
-const stampOwn = (node: Node) => {
+const OWN_DESCRIPTOR: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
+/**
+ * The stamp is VALUED, and the value is the discriminator (`docs` in the slots module read it):
+ *
+ *   `true`        — the render root's own output: never slot content.
+ *   a ChildPart   — light content PLACED by that part from an outer template. The part identity
+ *                   is the ordering group: a grown row belongs after ITS part's other rows, and
+ *                   `<host>${a}${b}</host>` must not interleave a's refill into b's content —
+ *                   which is exactly what happens if the group is the render root, shared by both.
+ *   absent        — an imperative user mutation; the light region orders it by document position.
+ *
+ * One shared, mutated descriptor: `defineProperty` reads it synchronously, so this allocates
+ * nothing per node while keeping the property non-enumerable (see the invisibility note above).
+ */
+const stampOwn = (node: Node, value: true | object = true) => {
+  OWN_DESCRIPTOR.value = value;
   if (node.nodeType === 11) {
     for (let child = node.firstChild; child !== null; child = child.nextSibling)
       Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
@@ -1488,9 +1502,28 @@ class ChildPart implements Part {
    * rides on text nodes, which no attribute can. An app without slots wired writes it and nothing
    * ever reads it.
    */
+  /**
+   * **One property read decides all stamping, and root-part-ness decides the value.**
+   *
+   * `_$hosted$` is set on the host element itself by `@verajs/renderer/slots` at capture, so
+   * "does anything care about ownership here" is a single own-property read — no seam call, no
+   * registry lookup, and pages that are not captured hosts (every container in most apps) cost
+   * exactly that read and write nothing. The mark cannot go stale in the direction that matters:
+   * a part's first commit runs in a detached fragment before its host is captured, reads
+   * `undefined`, and stamps nothing — and that content is exactly what the initial capture walk
+   * lifts anyway. Every later commit sees the mark.
+   *
+   * The VALUE is structural, not temporal. `_end === null` is true of root parts alone (see
+   * `_clear`), and a root part's inserts are by definition the render's own output — a fact that
+   * stays true for a directive committing from a microtask hours after `renderInto` returned,
+   * where the earlier `parent === _slotRoot` test read null and left ASYNC output unstamped for
+   * the flipped capture rule to eat. Everything else inserting into a host is placing content
+   * INTO it from outside, stamped with the part — the ordering group.
+   */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (slotsWired && _slotRoot !== null && parent === _slotRoot) stampOwn(node);
+    if (slotsWired && (parent as { _$hosted$?: boolean })._$hosted$ === true)
+      stampOwn(node, this._end === null ? true : this);
     parent.insertBefore(node, this._end);
   }
 
@@ -1788,9 +1821,15 @@ class ChildPart implements Part {
    * markers at all; anything else gets its own start/end marker pair so moves can never dangle.
    */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
-    /** A list rendered at the render root's own top level: its rows are the component's own
-     *  output too, and reach the DOM through this path rather than `_insert`. */
-    const own = slotsWired && _slotRoot !== null && parent === _slotRoot;
+    /** Rows reach the DOM here rather than through `_insert`; same one-read gate, same
+     *  structural value — a root list's rows are the render's own output, any other part's rows
+     *  are content it places into the host, stamped with the part as the ordering group. */
+    const stamp =
+      slotsWired && (parent as { _$hosted$?: boolean })._$hosted$ === true
+        ? this._end === null
+          ? true
+          : this
+        : null;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       const template = getTemplate(result);
@@ -1798,7 +1837,7 @@ class ChildPart implements Part {
       instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        if (own) stampOwn(rootNode);
+        if (stamp !== null) stampOwn(rootNode, stamp);
         parent.insertBefore(rootNode, ref);
         return {
           $k: result.key,
@@ -1814,7 +1853,7 @@ class ChildPart implements Part {
       part._shape = result.strings;
       part._mode = TEMPLATE;
       part._value = [...instance._fragment.childNodes];
-      if (own) stampOwn(instance._fragment);
+      if (stamp !== null) stampOwn(instance._fragment, stamp);
       part._start.parentNode!.insertBefore(instance._fragment, part._end);
       return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }
