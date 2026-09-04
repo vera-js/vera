@@ -39,9 +39,12 @@
  * user's: captured with full native semantics, text included, no `slot` attribute required
  * (`slot=""`/`slot="name"` still route). Ordering reads the same fact — placed content extends
  * its part's own group; an unstamped node before the boundary takes its document position ahead
- * of content distributed away, and past it, appends. One residue, stated so this cannot
- * overclaim: hand-edits interleaved among SEVERAL `${…}` parts' content in one host order
- * approximately — membership is always right. And one parity note: whitespace appended to a
+ * of content distributed away, and past it, appends. **Re-slotting keeps that answer**: a node
+ * whose `slot` attribute changes has not moved in the light tree, so it rejoins by a rank taken
+ * when it was first captured rather than by arrival — otherwise an item toggled into a "pinned"
+ * slot jumped to the end of the pinned list instead of holding its place. One residue, stated so
+ * this cannot overclaim: hand-edits interleaved among SEVERAL `${…}` parts' content in one host
+ * order approximately — membership is always right. And one parity note: whitespace appended to a
  * light host now suppresses the default fallback, because it does exactly that in a shadow root
  * (measured). `tests/slots-transition-parity.test.mjs` holds the matrix.
  *
@@ -140,6 +143,31 @@ type HostState = {
   _names: WeakMap<Node, string>;
   /** Each kept `<slot>` element back to its binding, so a `name` change is recognised. */
   _ghosts: WeakMap<Element, Binding>;
+  /**
+   * **Light-tree order, remembered — because distributing a node destroys it.**
+   *
+   * Native `assignedNodes()` answers in flat-tree order, which for a light child is simply its
+   * position among the host's children. A shadow host keeps every child where it was, so that
+   * position is always readable. Here the children are MOVED — into a slot's region, or out to
+   * the holding fragment when nothing claims them — and once two captured nodes live in different
+   * places, nothing in the DOM says which came first.
+   *
+   * That is invisible while a node stays in one bucket, because the bucket was built in order. It
+   * surfaces when a node CHANGES slot: it joins a bucket that may already hold nodes which come
+   * after it in the light tree, and the only honest answer is a position the DOM no longer knows.
+   * Appending was the old answer and it read as arrival order — an item toggled into a "pinned"
+   * slot jumped to the end of the pinned list instead of holding its place.
+   *
+   * A rank per node is the whole mechanism: assigned once, when the node is first captured, and
+   * never touched again — because re-slotting does not move a node in the LIGHT tree, which is the
+   * tree this orders. Ranks are compared, never trusted as indices, so gaps from removals are
+   * harmless.
+   */
+  _rank: WeakMap<Node, number>;
+  _next: number;
+  /** Ranks below every existing one, for a node inserted into the light region ahead of content
+   *  already distributed away — see `take`. Counts down; the two never meet in any real host. */
+  _min: number;
   /** The host window's `Event` — see `signal` for why it cannot be taken from the slot. */
   _event: typeof Event;
   _observer: MutationObserver;
@@ -235,6 +263,15 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
    */
   const own = (node as { _$own$?: unknown })._$own$;
   let at = bucket.length;
+  /**
+   * Set when this node sits in the light region ahead of everything already distributed — the rule
+   * the unstamped branch below states in words. It is tracked separately from `at` because `at` is
+   * a position in ONE bucket, and a node can land at the end of its own bucket while still
+   * preceding every node in every other one. That is exactly the case a prepend into an empty
+   * bucket makes: `at` is 0 and means nothing, and ranking from bucket neighbours put the node
+   * last when it belonged first.
+   */
+  let front = false;
   if (ordered) {
     /* the caller's order is the order — fall through to the splice */
   } else if (settled) {
@@ -254,6 +291,10 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
     const home = node.parentNode;
     const last = bucket[bucket.length - 1];
     const sentinel = state._sentinel;
+    front =
+      sentinel.parentNode === home &&
+      // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
+      (node.compareDocumentPosition(sentinel) & 4) !== 0;
     if (
       sentinel.parentNode === home &&
       // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
@@ -275,6 +316,7 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
           const found = bucket.indexOf(member);
           if (found !== -1) {
             at = found;
+            front = false;
             placed = true;
             break;
           }
@@ -298,6 +340,7 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
             const found = bucket.indexOf(member);
             if (found !== -1) {
               at = found + 1;
+              front = false;
               placed = true;
               break;
             }
@@ -313,6 +356,35 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
           }
         }
     }
+  }
+  /**
+   * **A first sighting takes its light-tree rank from the position just computed.**
+   *
+   * `at` is this module's best answer to "where does this node belong", worked out from whatever
+   * evidence exists — document position, the part that placed it, landmarks, the sentinel. That
+   * answer is about ONE bucket, and re-slotting needs the same fact about the light tree, so the
+   * rank is interpolated between the neighbours it landed among rather than invented separately.
+   * Deriving it here is what makes the two agree by construction; a counter bumped on arrival
+   * instead gave a node inserted at the FRONT of the light tree a tail rank, and re-slotting it
+   * then sent it to the end — right where it was, wrong where it went.
+   *
+   * Midpoints, so an insertion never has to renumber. Doubles run out after about fifty
+   * insertions between one adjacent pair, which no light host reaches; a re-capture (removed and
+   * re-added) starts fresh at the tail, which is also where the platform puts it.
+   */
+  if (!state._rank.has(node)) {
+    const before = at > 0 ? state._rank.get(bucket[at - 1]) : undefined;
+    const after = at < bucket.length ? state._rank.get(bucket[at]) : undefined;
+    state._rank.set(
+      node,
+      front
+        ? --state._min
+        : after === undefined
+          ? state._next++
+          : before === undefined
+            ? after - 1
+            : (before + after) / 2
+    );
   }
   bucket.splice(at, 0, node);
   state._names.set(node, name);
@@ -620,7 +692,24 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
         const next = slotNameOf(node)!;
         if (next !== previous) {
           pull(state, node, previous);
-          bucketOf(state, next).push(node);
+          /**
+           * By LIGHT ORDER, not arrival. The node has not moved in the light tree — only its
+           * `slot` attribute changed — so its rank still says where it belongs among whatever the
+           * new bucket already holds. Appending here was the whole of the ordering divergence.
+           * `fill`'s stable merge preserves this: a member ahead of the current run ranks before
+           * it, which is the same rule that keeps a prepend ahead.
+           */
+          const joining = bucketOf(state, next);
+          const rank = state._rank.get(node)!;
+          let at = joining.length;
+          for (let i = 0; i < joining.length; i++) {
+            const other = state._rank.get(joining[i]);
+            if (other !== undefined && other > rank) {
+              at = i;
+              break;
+            }
+          }
+          joining.splice(at, 0, node);
           state._names.set(node, next);
           touched.add(previous);
           touched.add(next);
@@ -744,6 +833,9 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _bindings: [],
     _holding: doc.createDocumentFragment(),
     _parks: new WeakSet(),
+    _rank: new WeakMap(),
+    _next: 0,
+    _min: 0,
     _names: new WeakMap(),
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,

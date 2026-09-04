@@ -523,6 +523,59 @@ test('a node re-slotted out of a displaced nested slot moves to its new slot', a
 });
 
 /**
+ * **A re-slotted node takes its place in LIGHT-TREE order, not the order it arrived.**
+ *
+ * Native `assignedNodes()` answers in flat-tree order, which for a light child is just its position
+ * among the host's children — always readable in a shadow root, because nothing moves. Here the
+ * children ARE moved, into a slot's region or out to holding, and once two captured nodes live in
+ * different places nothing in the DOM says which came first.
+ *
+ * That is invisible while a node stays in one bucket, because the bucket was built in order. It
+ * surfaces the moment a node changes slot and joins a bucket that already holds nodes coming after
+ * it in the light tree. Appending was the old answer, and it read as arrival order: an item toggled
+ * into a "pinned" slot jumped to the end of the pinned list instead of holding its place.
+ *
+ * Both halves are here because they failed for different reasons. A node that has been present
+ * since capture is ranked by the capture walk. One inserted at the FRONT after render is ranked by
+ * the rule the module already states — content in the light region precedes everything distributed
+ * away — and ranking it from its bucket's neighbours instead put it last whenever that bucket was
+ * empty, where the position means nothing.
+ */
+test('re-slotting places a node by light-tree order, not arrival order', async () => {
+  const element = host();
+  const early = doc.createElement('u');
+  early.textContent = 'EARLY';
+  element.append(early);
+
+  let slot = null;
+  renderInto(html`<p><slot name="a" &ref=${(node) => { slot = node; }}>F</slot></p>`, element);
+  await settle();
+
+  const late = doc.createElement('u');
+  late.setAttribute('slot', 'a');
+  late.textContent = 'LATE';
+  element.append(late);
+  await settle();
+  assert.deepEqual(slot.assignedNodes().map((n) => n.textContent), ['LATE'], 'CONTROL: only the named one');
+
+  early.setAttribute('slot', 'a');
+  await settle();
+  assert.deepEqual(slot.assignedNodes().map((n) => n.textContent), ['EARLY', 'LATE'],
+    'the node present since capture keeps its place ahead of the one appended later');
+
+  /** Inserted at the front of the light region AFTER the render, into a bucket holding nothing. */
+  const front = doc.createElement('u');
+  front.textContent = 'FRONT';
+  element.insertBefore(front, element.firstChild);
+  await settle();
+  front.setAttribute('slot', 'a');
+  await settle();
+  assert.deepEqual(slot.assignedNodes().map((n) => n.textContent), ['FRONT', 'EARLY', 'LATE'],
+    'and a front insertion precedes everything already distributed away');
+  element.remove();
+});
+
+/**
  * **The slot element is an API object, not a position — now a published claim, so pinned.**
  *
  * The README and `llms.txt` tell a shadow user migrating here to reach the slot through `&ref` or
