@@ -243,6 +243,29 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
           }
         }
       }
+      /**
+       * **Backward too, because the skeleton has landmarks on both sides.** Looking only forward
+       * meant that when every following landmark named a member that had since been removed or
+       * re-slotted elsewhere, placement fell through to the scan below — which knows nothing
+       * finer than "ahead of everything distributed" and so put the edit FIRST. Measured against a
+       * shadow root given the same disturbance: it answers `A,U` and this answered `U,A`.
+       *
+       * A preceding landmark names the member captured just after it, so a node inserted after
+       * that comment belongs after that member — the mirror of the forward rule, and it resolves
+       * exactly when the forward walk cannot.
+       */
+      if (!placed)
+        for (let prev = node.previousSibling; prev !== null; prev = prev.previousSibling) {
+          const member = prev.nodeType === 8 ? LANDMARKS.get(prev) : undefined;
+          if (member !== undefined) {
+            const found = bucket.indexOf(member);
+            if (found !== -1) {
+              at = found + 1;
+              placed = true;
+              break;
+            }
+          }
+        }
       if (!placed)
         for (let i = 0; i < bucket.length; i++) {
           const member = bucket[i];

@@ -43,6 +43,22 @@ wire([renderer, slots]);
 const D = dom.window.document;
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(r));
 
+/** A two-slot shell for the gap tests — named plus default, both modes. */
+for (const [tag, mode] of [['t-gap-light', undefined], ['t-gap-shadow', { mode: 'open' }]])
+  customElements.define(
+    tag,
+    class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this, mode);
+        if (mode === undefined) render(() => html`<div class="box"><slot name="n">NF</slot><main><slot>DF</slot></main></div>`);
+      }
+      constructor() {
+        super();
+        if (mode !== undefined) this.attachShadow(mode).innerHTML = '<div class="box"><slot name="n">NF</slot><main><slot>DF</slot></main></div>';
+      }
+    }
+  );
+
 for (const [tag, mode] of [['t-light', undefined], ['t-shadow', { mode: 'open' }]])
   customElements.define(
     tag,
@@ -486,3 +502,61 @@ test('splitText on slotted text keeps both halves, as native', async () => {
   assert.equal(want.assigned, 2, 'CONTROL: the platform reports both halves');
   assert.deepEqual(await run('t-light'), want, 'and so do we, through a refill of the same slot');
 });
+
+/**
+ * **A gap edit when the landmark it would have used is gone.**
+ *
+ * Landmarks name "the member captured after this comment", and placement walked FORWARD to the
+ * first one still in the bucket. When every following landmark named a member that had since been
+ * removed or re-slotted elsewhere, nothing resolved and placement fell through to the positional
+ * scan — which knows nothing finer than "ahead of everything distributed" and so put the edit
+ * FIRST, where the platform puts it after the content that remains.
+ *
+ * The skeleton has landmarks on both sides, so the walk does too: a preceding landmark names the
+ * member captured just after it, so a node inserted after that comment belongs after that member.
+ * It resolves exactly when the forward walk cannot.
+ */
+for (const [label, disturb] of [
+  ['re-slotted elsewhere', (b) => b.setAttribute('slot', 'n')],
+  ['removed', (b) => b.remove()],
+])
+  test(`a gap edit lands correctly when the following group was ${label}`, async () => {
+    const tplA = (v) => html`<em>${v}</em>`;
+    const tplB = (v) => html`<strong>${v}</strong>`;
+    const run = async (tag) => {
+      const page = D.createElement('div');
+      D.body.append(page);
+      renderInto(
+        tag === 't-gap-light'
+          ? html`<t-gap-light>${tplA('A')}${tplB('B')}</t-gap-light>`
+          : html`<t-gap-shadow>${tplA('A')}${tplB('B')}</t-gap-shadow>`,
+        page
+      );
+      await frame();
+      await frame();
+      const host = page.querySelector(tag);
+      const b = host.querySelector('strong');
+      disturb(b);
+      await frame();
+      await frame();
+      /** The gap edit: where B's group was. */
+      if (host.shadowRoot) host.insertBefore(D.createTextNode('U'), b.parentNode === host ? b : null);
+      else {
+        const comments = [...host.childNodes].filter((n) => n.nodeType === 8);
+        host.insertBefore(D.createTextNode('U'), comments[2] ?? null);
+      }
+      await frame();
+      await frame();
+      const read = () =>
+        host.shadowRoot
+          ? [...host.shadowRoot.querySelectorAll('slot')][1]
+              .assignedNodes().map((n) => (n.data ?? n.textContent).trim()).filter(Boolean).join(',')
+          : slotted(host, '').map((n) => (n.data ?? n.textContent).trim()).filter(Boolean).join(',');
+      const out = read();
+      page.remove();
+      return out;
+    };
+    const want = await run('t-gap-shadow');
+    assert.equal(want, 'A,U', 'CONTROL: the platform keeps the edit after the surviving content');
+    assert.equal(await run('t-gap-light'), want);
+  });
