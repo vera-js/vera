@@ -362,6 +362,136 @@ test('assignedNodes/assignedElements answer from the live assignment, through &r
   element.remove();
 });
 
+/**
+ * **`{ flatten: true }` returns SLOTTABLES, and the fallback is not automatically all slottables.**
+ *
+ * The test above passes a fallback of `fb-a<i>fb-b</i>` — text and an element, every node in it
+ * assignable — so it could never see the filter missing, and the filter was missing. `flatten`
+ * handed back the fallback region verbatim, which surfaces two things through a public API that
+ * the platform does not put there:
+ *
+ * - a comment the author wrote inside their own fallback content, and
+ * - when the fallback holds a NESTED slot, this module's own markers bracketing whatever that
+ *   inner slot distributed — an implementation detail escaping through the documented surface.
+ *
+ * They look like separate bugs and are one: the platform's word is *flattened slottables*, and
+ * `slotNameOf` already encodes what a slottable is for the assignment path. Shadow is the oracle
+ * for both, as everywhere else here.
+ */
+test('flatten returns slottables only — not a comment in the fallback, not a nested slot\'s markers', async () => {
+  const element = host();
+  let held = null;
+  renderInto(
+    html`<header><slot name="h" &ref=${(node) => { held = node; }}><i>A</i><!--mine--><b>B</b></slot></header>`,
+    element
+  );
+  await settle();
+  assert.deepEqual(
+    held.assignedNodes({ flatten: true }).map((n) => n.nodeType),
+    [1, 1],
+    "the author's own comment is not a slottable, so flatten does not return it"
+  );
+
+  /**
+   * The nested case, which is also the recursion check: the outer slot is unassigned, so its
+   * fallback shows, and that fallback IS a slot — whose own assignment is what flattening must
+   * reach. The platform recurses; here the inner slot's content is physically in the region, so
+   * the recursion is structural and only the markers around it had to go.
+   */
+  const outer = host('<u slot="i">IN</u>');
+  let o = null;
+  renderInto(
+    html`<header><slot name="o" &ref=${(node) => { o = node; }}><slot name="i">DEEP</slot></slot></header>`,
+    outer
+  );
+  await settle();
+  assert.deepEqual(
+    o.assignedNodes({ flatten: true }).map((n) => n.localName ?? `#${n.nodeType}`),
+    ['u'],
+    "the inner slot's assignment, alone — the markers bracketing it are not slottables either"
+  );
+  outer.querySelector('u').remove();
+  await settle();
+  assert.deepEqual(
+    o.assignedNodes({ flatten: true }).map((n) => n.textContent),
+    ['DEEP'],
+    "and with the inner slot unassigned too, its own fallback — flattening all the way down"
+  );
+
+  /**
+   * The staleness half, which is why this reads the region rather than the restore list. The
+   * restore list is a snapshot of the slot's template children, and a nested slot redistributes
+   * underneath it — so reported from the snapshot, this kept naming the removed `<u>` for the life
+   * of the page, and the re-add returned the OLD node rather than the new one. The identities are
+   * asserted through `textContent` deliberately: both nodes are `<u>`, so a tag-name check passes
+   * on the stale answer.
+   */
+  const again = doc.createElement('u');
+  again.setAttribute('slot', 'i');
+  again.textContent = 'BACK';
+  outer.append(again);
+  await settle();
+  assert.deepEqual(
+    o.assignedNodes({ flatten: true }).map((n) => n.textContent),
+    ['BACK'],
+    'a re-add reports the node now in the document, not the one the snapshot remembers'
+  );
+  element.remove();
+  outer.remove();
+});
+
+/**
+ * **The slot element is an API object, not a position — now a published claim, so pinned.**
+ *
+ * The README and `llms.txt` tell a shadow user migrating here to reach the slot through `&ref` or
+ * `event.target`, and say plainly that `querySelector('slot')` will not find it. That sentence was
+ * written because a probe hit it: the obvious first move after switching modes returns null, and
+ * silence about it makes the whole slot API look absent. A light host has no second tree, so a
+ * rendered `<slot>` would be a real element in the user's own DOM — shifting `:nth-child`, matching
+ * their selectors — which is why it stays out and why this is a contract rather than an oversight.
+ */
+test('the slot element is unreachable by selector and reports itself disconnected', async () => {
+  const element = host('<b slot="h">ONE</b>');
+  let held = null;
+  renderInto(html`<header><slot name="h" &ref=${(node) => { held = node; }}>fb</slot></header>`, element);
+  await settle();
+
+  assert.equal(held?.localName, 'slot', 'CONTROL: the ref did hand over a slot element');
+  assert.equal(element.querySelector('slot'), null, 'and it is not in the host — no selector reaches it');
+  assert.equal(held.isConnected, false, 'it reports itself out of the document, honestly');
+  assert.deepEqual(held.assignedNodes().map((n) => n.textContent), ['ONE'],
+    'while still answering as the live API object the bindings attached to');
+  element.remove();
+});
+
+/**
+ * **The displaced case, which is the other place the fallback lives.**
+ *
+ * When the OUTER slot has an assignment its fallback is not rendered — and `fill` displaces it node
+ * by node, anchors included, so the inner binding has no region to read. The platform still answers
+ * for that inner slot, because in a shadow tree it never left the tree at all; only its rendering
+ * stopped. So the restore list is the record here, and the discriminator is that `_start` has no
+ * parent — no flag, no bookkeeping to fall out of step.
+ *
+ * This is the case a live-region read alone gets wrong, and it is worth its own test because the
+ * first fix for the staleness above passed everything else and silently returned nothing here.
+ */
+test('a slot displaced inside another slot\'s fallback still reports its own fallback', async () => {
+  const element = host('<u slot="o">OUT</u>');
+  let inner = null;
+  renderInto(
+    html`<header><slot name="o"><slot name="i" &ref=${(node) => { inner = node; }}>DEEP</slot></slot></header>`,
+    element
+  );
+  await settle();
+  assert.deepEqual(element.querySelector('header').textContent, 'OUT',
+    'CONTROL: the outer slot is assigned, so its fallback — the inner slot — is not rendered');
+  assert.deepEqual(inner.assignedNodes(), [], 'the inner slot has no assignment');
+  assert.deepEqual(inner.assignedNodes({ flatten: true }).map((n) => n.textContent), ['DEEP'],
+    'and flattening it still reports its own fallback, as a shadow tree does');
+  element.remove();
+});
+
 test('a DYNAMIC slot name routes by the name it actually has, and re-routes when it changes', async () => {
   /** ONE draw function called twice — two literals would be two templates and prove nothing. */
   const draw = (which) => html`<section><slot name=${which}>fb</slot></section>`;

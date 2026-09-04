@@ -468,13 +468,40 @@ const bind = (state: HostState, binding: Binding): SeamState => {
  * ordinary way of reading a slot come back empty in light mode.
  *
  * `flatten` means what it means on the platform for a slot with nothing assigned: the fallback
- * that is actually being shown.
+ * **that is actually on screen right now**. Both halves of that sentence were wrong.
+ *
+ * It answered from `_fallback`, which is the restore list — a snapshot of the slot's template
+ * children, taken once. That is the right list to re-insert from and the wrong list to report,
+ * because the region it stands for is live: a NESTED slot inside fallback content redistributes
+ * as its own assignment changes, and a binding inside fallback content re-renders. Reported from
+ * the snapshot, a nested slot's flatten kept naming a node the user had already removed from the
+ * document, forever.
+ *
+ * So read from wherever the fallback IS. Rendered, that is the region between the anchors, and
+ * reading it there is live by construction rather than by maintenance — nothing has to remember to
+ * update it — which also makes the recursion the platform specifies fall out for free, since an
+ * inner slot's distributed content is physically in that region. Displaced, there is no region to
+ * walk: `fill` detaches the old fallback node by node, anchors included, so `_start` has no parent
+ * and the restore list is the only record of it. That is the one honest discriminator here and it
+ * needs no new state — a slot nested in another slot's fallback is exactly the case that reaches
+ * it, and the platform still answers for such a slot because in a shadow tree it never left.
+ *
+ * The filter is the second half: the platform's word is *slottables*, so `slotNameOf` — the same
+ * predicate that decides assignment everywhere else in this file — is what says which nodes count.
+ * Without it the walk hands back a user's own `<!-- -->` written into fallback content, and this
+ * module's own markers around a nested slot's content: an implementation detail escaping through
+ * a documented API. One predicate closes both.
  */
 const expose = (state: HostState, binding: Binding) => {
   const slot = binding._slot as HTMLSlotElement;
   const read = (flatten?: boolean): Node[] => {
     const bucket = activeFor(state, binding._name) === binding ? (state._map.get(binding._name) ?? NOTHING) : NOTHING;
-    return bucket.length > 0 ? [...bucket] : flatten === true ? [...binding._fallback] : [];
+    if (bucket.length > 0) return [...bucket];
+    if (flatten !== true) return [];
+    const shown: Node[] = [];
+    if (binding._start.parentNode === null) shown.push(...binding._fallback);
+    else for (let n = binding._start.nextSibling; n !== null && n !== binding._end; n = n.nextSibling) shown.push(n);
+    return shown.filter((node) => slotNameOf(node) !== null);
   };
   slot.assignedNodes = (options?: { flatten?: boolean }) => read(options?.flatten) as Node[];
   slot.assignedElements = (options?: { flatten?: boolean }) =>

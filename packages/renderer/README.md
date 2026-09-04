@@ -407,7 +407,11 @@ render(() => html`<header>
   `assignedNodes()` are asserted against real shadow DOM, which is the oracle for this.
 - **`assignedNodes(options)` / `assignedElements(options)`** answer from the live assignment,
   through `event.target` or a `&ref`. With nothing assigned, `{ flatten: true }` gives the fallback
-  actually on screen, as it does on the platform.
+  actually on screen — slottables only, so a comment you wrote into fallback content is not in it,
+  and a nested slot flattens through to whatever it is showing, both as the platform does.
+- **`&ref` or `event.target` is how you reach the slot — `querySelector('slot')` will not find it.**
+  The slot element is deliberately not in your DOM (see below), so it is unreachable by selector and
+  reports `isConnected === false`. It is a live API object, not a position in the tree.
 - **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
   re-routes if it changes between renders.
 
@@ -419,7 +423,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.02 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->3.07 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
 also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
 on both sides.

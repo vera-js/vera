@@ -361,9 +361,12 @@ mode. `name` defaults to the unnamed slot.
 The `<slot>` ELEMENT is also still the component's handle on the slot, and means what it means in a
 shadow root: **`@slotchange`** fires on first assignment and on every change (verified against real
 shadow DOM, event for event); **`assignedNodes()`/`assignedElements()`** answer from the live
-assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the fallback when
-nothing is assigned; and **`name` may be a binding** — `<slot name=${section}>` routes by the name
-it actually has and re-routes when it changes.
+assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the SLOTTABLES of
+the fallback currently on screen (a comment in fallback content is not one; a nested slot flattens
+through to what it is showing); and **`name` may be a binding** — `<slot name=${section}>` routes by
+the name it actually has and re-routes when it changes. Reach the element through `&ref` or
+`event.target` only: it is deliberately not in the document, so `querySelector('slot')` finds
+nothing and `isConnected` is `false`.
 
 ```js
 html`<slot name=${section} @slotchange=${(e) => wire(e.target.assignedElements())}>Nothing yet</slot>`
@@ -390,7 +393,7 @@ Three differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->3.02 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->3.07 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe (it imports nothing and touches no global document).
 
