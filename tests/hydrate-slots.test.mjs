@@ -14,14 +14,14 @@ import assert from 'node:assert/strict';
  * `awaited` picks the asynchronous chain — the synchronous one refuses an async
  * `connectedCallback` by design, since its markup would be empty.
  */
-const server = (children, fixture = 'slot-card-ssr', awaited = false) => {
+const server = (children, fixture = 'slot-card-ssr', awaited = false, attributes = null) => {
   const entry = awaited ? 'renderToStringAsync' : 'renderToString';
   const script = `
     import { ${entry} } from '@verajs/ssr';
     import { wire } from '@verajs/core';
     const { slots } = await import('@verajs/renderer/slots');
     wire([slots]);
-    const out = (await ${entry}(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)} })).html;
+    const out = (await ${entry}(new URL('./tests/fixtures/ssr/${fixture}.js', 'file://' + process.cwd() + '/'), { children: ${JSON.stringify(children)}${attributes ? `, attributes: ${JSON.stringify(attributes)}` : ''} })).html;
     process.stdout.write(out);
   `;
   return execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', script], {
@@ -400,3 +400,53 @@ test('AUDIT — a non-zero slotted offset rescues the user content, not the comp
   assert.doesNotMatch(host.textContent, /PREFIX/, "and did not mistake the component's own markup for it");
   host.remove();
 });
+
+/**
+ * **Serialisation is where node identity dies, and the mark counts nodes.**
+ *
+ * `data-vera-slotted="offset,count"` addresses the user's content by position among the parent's
+ * children — as they are ON THE SERVER. The client's parser joins adjacent text into one node, so
+ * wherever the user's slotted text touches text the component contributed, the mark addresses a
+ * node spanning a boundary it cannot see. Both edges break, and each corrupts a different reader:
+ *
+ * - TRAILING breaks adoption's count. Measured: `<main><slot>fb</slot> TAIL</main>` served
+ *   "BODY TAIL" and hydrated to "BODY TAIL TAIL" — the static text adopted a second time.
+ * - LEADING breaks the offset, which only `rescue` reads, so a hydration bail would slice the
+ *   wrong range and keep the component's own markup while discarding the user's.
+ *
+ * The server emits a separator comment at any boundary that would merge — the side that KNOWS,
+ * rather than having hydration infer it from the canonical template. The inference works, and was
+ * built first, but needs a fresh case for everything that can follow a slot (static text, a second
+ * default slot's fallback, a named slot's fallback, and whether that named slot receives content
+ * at all); one rule removes the class instead of handling its members. React spends the same 7
+ * bytes for the same reason.
+ *
+ * All four shapes below produced corrupted hydration before the fix, and each names a different
+ * neighbour, which is what makes them worth having as four rather than one.
+ */
+for (const [shape, want] of [
+  ['tail', 'BODY TAIL'],
+  ['lead', 'LEAD BODY'],
+  ['named', 'BODYXF'],
+  ['dup', 'BODYSECOND-FB'],
+])
+  test(`AUDIT — slotted text adjacent to the component's own text hydrates intact (${shape})`, async () => {
+    const serverHtml = server('BODY', 'slot-adjacent-ssr', false, { shape });
+    const served = /<main[^>]*>([\s\S]*?)<\/main>/.exec(serverHtml)?.[1] ?? '';
+    assert.match(served, /<!---->/, 'CONTROL: the server marked the boundary that would merge');
+    assert.equal(served.replace(/<!---*>/g, ''), want, 'CONTROL: and served the right text');
+
+    const host = hostFromServer(serverHtml);
+    renderInto(SHAPES[shape](), host);
+    await settle();
+    assert.equal(host.querySelector('main').textContent, want, 'hydration neither duplicated nor dropped it');
+    host.remove();
+  });
+
+/** The client templates, matching the fixture's shapes exactly — hydration compares against these. */
+const SHAPES = {
+  tail: () => html`<article><main><slot>fb</slot> TAIL</main></article>`,
+  lead: () => html`<article><main>LEAD <slot>fb</slot></main></article>`,
+  named: () => html`<article><main><slot>fb</slot><slot name="x">XF</slot></main></article>`,
+  dup: () => html`<article><main><slot>FIRST-FB</slot><slot>SECOND-FB</slot></main></article>`,
+};

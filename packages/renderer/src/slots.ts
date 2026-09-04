@@ -915,6 +915,8 @@ const serverDistribute = (host: Element, source: Node[]) => {
     if (node.parentNode !== null) node.parentNode.removeChild(node);
   }
   const filled = new Set<string>();
+  /** Parents carrying a mark, with the user's first and last node — see the separator pass. */
+  const marked: Array<{ parent: Element; first: Node; last: Node }> = [];
   /** Collect first (the live list mutates as slots are unwrapped). Any nesting order is fine —
    *  a slot is replaced by its content, and a slot inside assigned content was itself resolved. */
   const slotEls: Element[] = [...host.querySelectorAll('slot')];
@@ -934,6 +936,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
         let offset = 0;
         for (let n = parent.firstChild; n !== null && n !== assigned[0]; n = n.nextSibling) offset++;
         (parent as Element).setAttribute(SLOTTED_ATTR, `${offset},${assigned.length}`);
+        marked.push({ parent: parent as Element, first: assigned[0], last: assigned[assigned.length - 1] });
       }
     } else {
       /** Fallback: the slot's own children, unwrapped in place. */
@@ -947,6 +950,35 @@ const serverDistribute = (host: Element, source: Node[]) => {
     parent.removeChild(slot);
   }
   /** Whatever no slot claimed goes into the inert carrier, in its original order per name. */
+  /**
+   * **Separators where two text runs would MERGE, because serialisation is where node identity
+   * dies.** The `offset,count` mark counts nodes as they are HERE; the client's parser joins
+   * adjacent text into one node, and the mark then addresses a node spanning a boundary it cannot
+   * see. Both edges of the user's content are at risk and each corrupts a different reader:
+   *
+   * - the TRAILING edge breaks adoption's count — measured, `<main><slot>fb</slot> TAIL</main>`
+   *   served "BODY TAIL" and hydrated to "BODY TAIL TAIL", the static text adopted twice.
+   * - the LEADING edge breaks the offset, which only `rescue` reads — so a hydration bail would
+   *   slice the wrong range and keep the component's markup instead of the user's.
+   *
+   * Run AFTER the slot loop, because until every slot is unwrapped the neighbour of a boundary is
+   * still a `<slot>` element and the merge is not yet visible. Emitted by the side that KNOWS: the
+   * alternative was to have hydration infer the boundary from the canonical template, which works
+   * for the shape in front of you and needs a new case for each thing that can follow a slot
+   * (static text, another default slot's fallback, a named slot's fallback, and whether that named
+   * slot receives content at all) — one rule here removes the class instead of handling members of
+   * it. React emits the same 7 bytes for the same reason.
+   */
+  for (const { first, last } of marked) {
+    const doc = host.ownerDocument!;
+    const ahead = first.previousSibling;
+    if (ahead !== null && ahead.nodeType === 3 && first.nodeType === 3)
+      first.parentNode!.insertBefore(doc.createComment(''), first);
+    const behind = last.nextSibling;
+    if (behind !== null && behind.nodeType === 3 && last.nodeType === 3)
+      last.parentNode!.insertBefore(doc.createComment(''), behind);
+  }
+
   let carrier: Element | null = null;
   for (const [name, bucket] of buckets) {
     if (filled.has(name) || bucket.length === 0) continue;
