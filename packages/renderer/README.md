@@ -359,18 +359,19 @@ it work would mean writing framework attributes into the user's own markup.
 
 ### Late children
 
-**A node added AFTER the first render joins a slot only if it carries a `slot` attribute** —
-`slot=""` for the default one, so nothing is out of reach, it just has to be said. A light host's
-children after the first render are also the component's own rendered output, and nothing
-distinguishes an unnamed text node from it.
-**This is triggered by TIMING as often as by intent, which is the part worth knowing.** An HTML
-parser creates and upgrades an element before it has read the children, so on any page where the
-definition is already registered — an inline module script above the markup, a streamed
-document — the component renders first and its children arrive second. Named content still lands,
-because it names a slot; bare default content does not, and the slot shows its fallback.
-If that bites, the fix is one attribute (`slot=""`), and the reliable way to avoid it altogether
-is to let the definition load deferred (a plain `<script type="module" src>` is deferred already),
-so the element upgrades with its children in place.
+**A node added AFTER the first render joins its slot with full native semantics** — bare text and
+attribute-less elements included, in document order, exactly as a shadow root would assign them.
+The renderer stamps everything it emits at a light host's top level with a hidden, non-enumerable
+property, so an unstamped node there is knowably the user's; `slot=""`/`slot="name"` still route,
+they are simply no longer required.
+
+This used to be the feature's one documented divergence, and the rule existed because a light
+host's children after the first render are also the component's own rendered output, with nothing
+in the DOM to tell them apart. Ownership is written down now rather than inferred from position,
+so the ambiguity — and the rule — are gone. Two things remain worth knowing: whitespace appended
+to a light host suppresses the default fallback, which is parity (a shadow root does the same), and
+hand-edits interleaved among SEVERAL `${…}` expressions' content in one host order approximately,
+with membership always correct.
 
 **Cloning a RENDERED light component does not work, and cannot.** `cloneNode(true)` copies a
 light host's children — which after a render are the component's own output with the user's slotted

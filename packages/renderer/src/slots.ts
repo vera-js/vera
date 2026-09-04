@@ -125,8 +125,8 @@ type HostState = {
    *    RENDERER's own re-renders of `<host>${…}</host>`, whose new nodes always land in the light
    *    region, and stranding them invisibly (measured: every `→ null → back` transition, every
    *    template swap, every list refill in a light host showed FALLBACK or stale content forever,
-   *    while shadow passed all of them). The documented divergence shrinks to: content APPENDED
-   *    after the component's output must name its slot.
+   *    while shadow passed all of them). That divergence is since gone entirely — ownership
+   *    stamps replaced the region heuristic, and post-render additions are native.
    * 2. `_$home$` hands it to the renderer, so a text part that upgrades AFTER its text node was
    *    captured plants its markers here — in the host — instead of chasing the node into the
    *    slot, where the next fill swept markers and all into the holding fragment and the part

@@ -378,18 +378,13 @@ Three differences worth knowing, all deliberate:
   tree, so the slot element is not rendered and there is nothing for them to apply to; in a shadow
   root they do apply. Put them on a real element around the slot. Development builds warn, naming
   the attribute.
-- A node added AFTER the first render joins a slot only if it carries a `slot` attribute —
-  `slot=""` for the default one, so nothing is out of reach, it just has to be said. A light host's
-  children after the first render are also the component's own rendered output, and nothing
-  distinguishes an unnamed text node from it.
-  **This is triggered by TIMING as often as by intent, which is the part worth knowing.** An HTML
-  parser creates and upgrades an element before it has read the children, so on any page where the
-  definition is already registered — an inline module script above the markup, a streamed
-  document — the component renders first and its children arrive second. Named content still lands,
-  because it names a slot; bare default content does not, and the slot shows its fallback.
-  If that bites, the fix is one attribute (`slot=""`), and the reliable way to avoid it altogether
-  is to let the definition load deferred (a plain `<script type="module" src>` is deferred already),
-  so the element upgrades with its children in place.
+- A node added AFTER the first render joins its slot with full native semantics — bare text and
+  attribute-less elements included, in document order. The renderer stamps everything it emits at
+  a light host's top level with a hidden non-enumerable property, so an unstamped node there is
+  knowably yours; `slot=""`/`slot="name"` still route, they are simply no longer required. Two
+  notes: whitespace you append suppresses the default fallback, exactly as it does in a shadow
+  root; and hand-edits interleaved among SEVERAL `${…}` expressions' content in one host order
+  approximately (membership is always right).
 - `slotchange` only ever fires for a slot that HAS an assignment — here and in a shadow root alike.
   A component that must wire itself even when given nothing should do that once from a `useEffect`
   as well.
