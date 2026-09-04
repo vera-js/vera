@@ -266,3 +266,40 @@ test('a hand-edit between two parts\' content lands between their groups, as nat
   assert.equal(want, '<em>A</em>U<strong>B</strong>', 'CONTROL: native puts U between the groups');
   assert.equal(await run('t-light'), want, 'and so do we — placed against the marker skeleton');
 });
+
+/**
+ * **The parser case — the reason the retired rule bit more often than its wording suggested.**
+ *
+ * When a component's definition is already registered (an inline module above the markup, a
+ * streamed document), the HTML parser upgrades and renders the element BEFORE it has read the
+ * children, which then arrive one at a time. Under the old rule bare text in that stream was
+ * simply lost, and the docs described the timing as the trigger. They now promise it works, so
+ * this holds them to it — chunk by chunk, mixed text and elements, against a shadow root fed the
+ * identical sequence.
+ */
+test('children streamed in after the render land as native, chunk by chunk', async () => {
+  const stream = async (tag) => {
+    const host = D.createElement(tag);
+    D.body.append(host);
+    if (tag === 't-light') {
+      renderInto(html`<div class="box"><slot>FALLBACK</slot></div>`, host);
+      await frame();
+      await frame();
+    }
+    for (const make of [
+      () => D.createTextNode('first line'),
+      () => Object.assign(D.createElement('p'), { textContent: 'para' }),
+      () => D.createTextNode(' tail'),
+    ]) {
+      host.appendChild(make());
+      await frame();
+      await frame();
+    }
+    const out = shown(host);
+    host.remove();
+    return out;
+  };
+  const want = await stream('t-shadow');
+  assert.notEqual(want, 'FALLBACK', 'CONTROL: the oracle received the stream');
+  assert.equal(await stream('t-light'), want, 'the streamed children land in order, text included');
+});
