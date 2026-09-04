@@ -63,6 +63,7 @@ const CASES = [
   ['setCss(notAFunction)', () => core.setCss(42), /setCss: expected a function/],
   ['setRouterRenderer(notAFunction)', () => routerModule.setRouterRenderer(42), /setRouterRenderer: expected a function/],
   ['setMatchFunction(notAFunction)', () => routerModule.setMatchFunction(42), /setMatchFunction: expected a function/],
+  ['setBasePath(notAString)', () => routerModule.setBasePath(42), /setBasePath: expected a string or null/],
   ['allowRenderLoop(notAnElement)', () => core.allowRenderLoop(42), /allowRenderLoop: expected a component element/],
 ];
 

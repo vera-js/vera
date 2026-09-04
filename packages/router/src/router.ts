@@ -1,7 +1,7 @@
 import { AddRoutes, RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptions } from './types.js';
 import { on, off } from './events.js';
 import { elements, elementsData, routerSettings } from './state.js';
-import { attachWindowListeners, navigate } from './services.js';
+import { attachWindowListeners, navigate, stripBase } from './services.js';
 import { addRoutes, deleteRouter, removeRoute } from './methods.js';
 
 /**
@@ -84,7 +84,7 @@ export const initRouter = (
        * handling passes `pathname + search + hash`. `?page=2`, `?q=…` and every filter in a
        * bookmarked URL were invisible on exactly the load that had them.
        */
-      navigate(window.location.pathname + window.location.search + window.location.hash, 'init')
+      navigate(stripBase(window.location.pathname) + window.location.search + window.location.hash, 'init')
     );
 
   return {

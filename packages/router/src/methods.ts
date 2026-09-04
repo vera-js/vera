@@ -1,6 +1,6 @@
 import { Route, RouteOptions } from './types.js';
 import { routerSettings } from './state.js';
-import { navigate } from './services.js';
+import { navigate, stripBase } from './services.js';
 import { elements, elementsData, getOrCreate, handlers, names, routers } from './state.js';
 
 /**
@@ -34,7 +34,15 @@ const addLinkListener = (element: HTMLElement) => {
      * to be hijacked and handed to the router as a path, which matched nothing and dead-ended the
      * click. The browser owns those.
      */
-    const url = new URL(href, window.location.href);
+    /**
+     * `document.baseURI`, not `location.href`. The router is REPLACING what the browser would have
+     * done with this click, so it has to resolve the href the way the browser does — and the
+     * platform resolves a relative URL against the document's base, which `<base href>` changes.
+     * Measured in Chromium: on `/section/page.html` under `<base href="/app/">`, the browser takes
+     * `href="users"` to `/app/users` while `location.href` gives `/section/users`. Where there is
+     * no `<base>` the two are identical, so this only ever corrects the case that was wrong.
+     */
+    const url = new URL(href, document.baseURI);
     if (url.origin !== window.location.origin) return;
 
     /**
@@ -48,7 +56,7 @@ const addLinkListener = (element: HTMLElement) => {
     if (link.target || link.hasAttribute('download')) return;
 
     e.preventDefault();
-    const path = url.pathname + url.search + url.hash;
+    const path = stripBase(url.pathname) + url.search + url.hash;
     /**
      * **A click has nobody to reject to.**
      *

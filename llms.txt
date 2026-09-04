@@ -628,7 +628,13 @@ Semantics worth stating:
 - `back()`, `forward()` and `go(n)` are exported alongside `navigate`.
 - Relative hrefs on routed links resolve **as the browser resolves them** — from `/docs/intro`,
   `href="edit"` is `/docs/edit`, NOT React Router's `/docs/intro/edit`. A cross-origin href is left
-  to the browser.
+  to the browser. Resolution goes through `document.baseURI`, which is what the platform uses, so a
+  `<base href>` on the page moves routed links exactly as it moves every other link.
+- **Serving from a subdirectory:** write routes at the root (`/users`, not `/app/users`) and add
+  `<base href="/app/">`. The router reads it, adds the base when writing to the address bar and
+  strips it when reading one back, and marks a link written `href="/app/users"` active on `/users`.
+  `setBasePath('/app')` says it directly instead, for an app that does not want `<base>` rebasing
+  its assets too; `setBasePath(null)` returns to reading the document.
 - Params arrive **percent-decoded**: `/u/John%20Doe` yields `John Doe`, and each wildcard segment
   decodes individually. A malformed escape yields the raw text rather than throwing.
 - Window listeners attach on the first `initRouter`, so importing the router is side-effect-free

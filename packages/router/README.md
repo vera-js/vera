@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.57 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.76 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -382,7 +382,35 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 | `setRouterRenderer(fn)` | what draws a route's template into its outlet |
 | `resolve(name, params)` | build a named route's path |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
+| `setBasePath(path)` | the path prefix the app is served under; `null` returns to reading `<base href>` |
 | `router` | hand this router core's insert registry — pass it to `wire` |
+
+### Serving the app from a subdirectory
+
+Write your routes as if the app were at the origin's root — `/users`, not `/app/users`. The base is
+a deployment fact, not part of the route table, so the router adds it when it writes to the address
+bar and strips it when it reads one back. Links carry it, because the browser has to be able to
+follow them:
+
+```html
+<base href="/app/">
+```
+
+That is all it takes: the `<base>` element is the platform's own answer to "what do relative URLs
+resolve against", every deployment tool that serves from a subdirectory already emits it, and the
+router reads it. Note that `<base>` also rebases every *other* relative URL on the page — assets and
+form actions included — which is usually what you want and occasionally not.
+
+When it is not, say so directly instead, and the router ignores the document:
+
+```js
+import { setBasePath } from '@verajs/router';
+setBasePath('/app');
+```
+
+Either way, `navigate('/users')` means the route `/users` and puts `/app/users` in the address bar,
+and a link written `href="/app/users"` is marked active on that route. A path that merely shares a
+prefix with the base — `/application` — is not treated as being under it.
 
 **Specificity is scored from the pattern text**, using the token syntax above, so replacing the
 matcher with `setMatchFunction` leaves ranking reading a grammar that matcher may not share. It

@@ -89,6 +89,89 @@ export const setMatchFunction = (matchFunction: <P extends ParamData>(routePatte
 };
 
 /**
+ * **Mounting the app somewhere other than the origin's root.**
+ *
+ * A site served at `/app/` has routes written `/users`, not `/app/users` — the base is a deployment
+ * fact, not part of the route table. So the router works entirely in ROUTE SPACE and the base is
+ * added or stripped only where a path crosses to or from the browser. That boundary is small and
+ * known: four reads (initial route, `popstate`, `resolve`, link clicks), one write (`updateHistory`)
+ * and one comparison (`updateActiveLink`, which matches an `href` carrying the base against a path
+ * that does not). Keeping every other line base-unaware is what stops this from leaking everywhere.
+ *
+ * The default comes from `<base href>`, read through `document.baseURI` — the platform's own answer
+ * to "what do relative URLs resolve against", already written by every deployment tool that serves
+ * an app from a subdirectory, and already what the BROWSER uses. Deriving it costs no API at all for
+ * the common case.
+ *
+ * `setBasePath` exists because `<base>` is not free: it rebases every relative URL on the page,
+ * assets and form actions included. An app that wants its routes scoped without that side effect
+ * has no way to express it otherwise, so it gets an explicit override that wins over the document.
+ */
+let explicitBase: string | null = null;
+
+/**
+ * Set the path prefix the app is mounted under — `setBasePath('/app')`. Overrides `<base href>`.
+ * `null` returns to deriving it from the document.
+ */
+export const setBasePath = (path: string | null) => {
+  if (__DEV__ && path !== null && typeof path !== 'string')
+    throw new Error(
+      `setBasePath: expected a string or null and received ${String(path)}. It is the path prefix ` +
+        `the app is served under, such as '/app'.`
+    );
+  explicitBase = path === null ? null : normalizeBase(path);
+};
+
+/**
+ * A base is stored with a leading slash and no trailing one, so `/app` + `/users` concatenates and
+ * `path === base` means the app's own root. The empty string is the root mount and makes both
+ * helpers below no-ops, which is the case almost every app is in.
+ */
+const normalizeBase = (path: string): string => {
+  const trimmed = path.replace(/\/+$/, '');
+  if (trimmed === '') return '';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+};
+
+/**
+ * **The `<base>` ELEMENT, not `document.baseURI`.** They are the same thing only when a `<base>`
+ * exists; with none, `baseURI` is the document's own URL, whose pathname is the CURRENT ROUTE. Read
+ * as a mount point that is catastrophic and quietly so — deriving it that way, a navigation from
+ * `/start` to `/fast` wrote `/start/fast` to the address bar, and every route still matched, because
+ * route space was correct the whole time and only the URL was wrong. The suite caught it; reasoning
+ * about it had not.
+ *
+ * (`document.baseURI` remains exactly right where the browser's own resolution is being reproduced —
+ * see the link-click handler in `methods.ts`. This is a different question with a similar name.)
+ *
+ * Read per navigation rather than cached, because `<base>` can be rewritten at runtime and a stale
+ * mount point is the same class of bug. One `querySelector` per navigation, which is user-paced.
+ */
+const basePath = (): string => {
+  if (explicitBase !== null) return explicitBase;
+  const href = document.querySelector('base')?.getAttribute('href');
+  return href == null ? '' : normalizeBase(new URL(href, window.location.href).pathname);
+};
+
+/**
+ * Browser path → route path. A path outside the base is returned UNCHANGED rather than mangled:
+ * it is not ours, no route should match it, and quietly rewriting it would invent a match.
+ */
+export const stripBase = (path: string): string => {
+  const base = basePath();
+  if (base === '' || !path.startsWith(base)) return path;
+  const rest = path.slice(base.length);
+  if (rest === '') return '/';
+  return rest.startsWith('/') || rest.startsWith('?') || rest.startsWith('#') ? rest : path;
+};
+
+/** Route path → browser path, for the one place the router writes to history. */
+export const addBase = (path: string): string => {
+  const base = basePath();
+  return base === '' ? path : `${base}${path === '/' ? '' : path}` || '/';
+};
+
+/**
  * The history stack, by the names the other routers use. `go(-1)` and `back()` are the same call;
  * both are here because a component that already imports `navigate` should not have to reach for
  * `window.history` to undo it.
@@ -143,8 +226,8 @@ const updateHistory = (path: string, trigger: RouteTrigger) => {
      * the routed content exists — which is why `scrollRestoration` is set to `'manual'`.
      */
     window.history.replaceState({ scroll: [window.scrollX, window.scrollY] }, '', window.location.href);
-    window.history.pushState(null, '', path);
-  } else if (trigger === 'replace') window.history.replaceState(null, '', path);
+    window.history.pushState(null, '', addBase(path));
+  } else if (trigger === 'replace') window.history.replaceState(null, '', addBase(path));
 };
 
 /** Scroll position carried by the entry a `popstate` traversal landed on, applied after routing. */
@@ -211,7 +294,7 @@ export const attachWindowListeners = () => {
      * than dropping it.
      */
     /** `search` included for the same reason `init` includes it — a traversal restores a whole URL. */
-    navigate(window.location.pathname + window.location.search + window.location.hash, 'popstate');
+    navigate(stripBase(window.location.pathname) + window.location.search + window.location.hash, 'popstate');
   });
 
   window.addEventListener('hashchange', () => {
@@ -309,7 +392,7 @@ export const navigate = async (
      */
     let resolved;
     try {
-      resolved = new URL(path, window.location.href);
+      resolved = new URL(path, document.baseURI);
     } catch {
       resolved = null;
     }
@@ -346,7 +429,7 @@ export const navigate = async (
         );
       return false;
     }
-    if (resolved) path = resolved.pathname + resolved.search + resolved.hash;
+    if (resolved) path = stripBase(resolved.pathname) + resolved.search + resolved.hash;
   }
   if (path === state.currentPath) return true;
   const id = ++navigationId;
@@ -741,7 +824,7 @@ const updateActiveLink = (element: HTMLElement, path: string) => {
      * Pathname only (a link may carry its own query or hash), stripped on both sides so
      * `href="/about/"` still matches the normalized path.
      */
-    const href = stripTrailingSlash((link.getAttribute('href') ?? '').split(/[?#]/)[0]);
+    const href = stripBase(stripTrailingSlash((link.getAttribute('href') ?? '').split(/[?#]/)[0]));
 
     const exact = href === path;
     /**
