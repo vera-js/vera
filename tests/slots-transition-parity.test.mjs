@@ -433,3 +433,56 @@ test('a slotted node moved to another parent un-assigns, and the fallback comes 
   assert.equal(want.after, 'HF', 'CONTROL: and falls back once the user takes it');
   assert.deepEqual(await run('t-life'), want, 'light does the same');
 });
+
+/**
+ * **`splitText` on distributed content — a node that appears INSIDE a run, never passing the
+ * host's top level.**
+ *
+ * Splitting a text node is what a highlighting library does, and on a light host the text has
+ * already been moved into the component, so the tail is created as a sibling THERE. The capture
+ * rule looks at the host's top level and never saw it, so it was missing from the bucket — and
+ * the next refill of that slot evacuated it to holding and never brought it back. The text
+ * silently lost half of itself; a shadow root reports both halves assigned and shows both.
+ *
+ * Captured from the mutation record rather than by sweeping the run during `fill`: the observer
+ * holds the exact node, and re-deriving it downstream would be inference in place of ownership,
+ * plus an O(run) scan on every fill of every host. Both guards are facts rather than proxies —
+ * the run must be assigned (a run showing fallback holds the component's own nodes), and the
+ * node's slot name must match the binding it landed in.
+ */
+test('splitText on slotted text keeps both halves, as native', async () => {
+  const run = async (tag) => {
+    const host = D.createElement(tag);
+    host.append(D.createTextNode('hello world'));
+    D.body.append(host);
+    if (tag === 't-light') {
+      renderInto(html`<div class="box"><slot>FALLBACK</slot></div>`, host);
+      await frame();
+      await frame();
+    }
+    const read = () => (host.shadowRoot ? host.shadowRoot.querySelector('slot').assignedNodes() : slotted(host, ''));
+    const tail = read()[0].splitText(5);
+    await frame();
+    await frame();
+    /** Force a refill of the SAME slot — where the uncaptured tail used to be swept away. */
+    const nudge = D.createElement('b');
+    nudge.setAttribute('slot', '');
+    host.append(nudge);
+    await frame();
+    await frame();
+    nudge.remove();
+    await frame();
+    await frame();
+    const now = read();
+    const out = {
+      assigned: now.length,
+      includesTail: now.includes(tail),
+      visible: shown(host).replace(/^FALLBACK$/, ''),
+    };
+    host.remove();
+    return out;
+  };
+  const want = await run('t-shadow');
+  assert.equal(want.assigned, 2, 'CONTROL: the platform reports both halves');
+  assert.deepEqual(await run('t-light'), want, 'and so do we, through a refill of the same slot');
+});

@@ -553,6 +553,37 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
       ) {
         const name = take(state, node);
         if (name !== null) touched.add(name);
+      } else if (!state._names.has(node) && (node as { _$own$?: unknown })._$own$ !== true) {
+        /**
+         * **A slottable that appeared INSIDE a run, never passing the host's top level.**
+         *
+         * `splitText` on distributed text is the real case — a highlighting library's core
+         * gesture — and the tail is created as a sibling in the COMPONENT's tree, where the rule
+         * above does not look. Left uncaptured it was missing from the bucket, so the next refill
+         * evacuated it to holding and never brought it back: the text silently lost half of
+         * itself, while a shadow root reports both halves assigned and shows them.
+         *
+         * Captured here, from the record, rather than by having `fill` sweep its run for
+         * surprises — the observer holds the exact node, and re-deriving it downstream would be
+         * the same inference-instead-of-ownership this module spent its history removing, at the
+         * cost of an O(run) scan on every fill of every host forever.
+         *
+         * Two conditions make it safe, and both are facts rather than proxies: the run must be
+         * ASSIGNED (a run showing FALLBACK holds the component's own nodes, and adopting those
+         * would make a component's fallback into the user's content), and the node's own slot
+         * name must MATCH the binding it landed in — so a stray element dropped into a named
+         * slot's run is left alone instead of being filed under a name it never claimed.
+         */
+        for (const binding of state._bindings)
+          if (
+            binding._assigned &&
+            binding._start.parentNode === record.target &&
+            slotNameOf(node) === binding._name
+          ) {
+            take(state, node);
+            touched.add(binding._name);
+            break;
+          }
       }
     }
     for (const node of record.removedNodes) {
