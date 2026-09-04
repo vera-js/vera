@@ -358,6 +358,12 @@ root the module stands aside completely and the native `<slot>` renders untouche
 assignment in a shadow root, the capture map in light DOM, so component code does not branch on
 mode. `name` defaults to the unnamed slot.
 
+⚠️ **`host.insertBefore(node, child)` throws once `child` has been distributed.** A light host's
+children are MOVED into the slot they are assigned to, so a child you appended is no longer a direct
+child of the host, and the platform refuses the insert with `NotFoundError` — where the same line
+works on a shadow host, because nothing moves there. Use `child.before(node)` / `child.after(node)`,
+which route through the node's current parent and are correct in both modes.
+
 The `<slot>` ELEMENT is also still the component's handle on the slot, and means what it means in a
 shadow root: **`@slotchange`** fires on first assignment and on every change (verified against real
 shadow DOM, event for event); **`assignedNodes()`/`assignedElements()`** answer from the live

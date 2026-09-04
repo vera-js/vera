@@ -409,6 +409,13 @@ render(() => html`<header>
   through `event.target` or a `&ref`. With nothing assigned, `{ flatten: true }` gives the fallback
   actually on screen — slottables only, so a comment you wrote into fallback content is not in it,
   and a nested slot flattens through to whatever it is showing, both as the platform does.
+- **Use `child.before(node)` / `child.after(node)`, never `host.insertBefore(node, child)`.** A light
+  host's children are physically moved into the slot they are assigned to, so a child you appended
+  and kept a reference to is no longer a *direct* child of the host — and `insertBefore` throws
+  `NotFoundError` when its reference node is not a child of the node it is called on. In a shadow
+  root the same line works, because there nothing moves. `before()`/`after()` route through the
+  node's own current parent, so they are correct in both modes, and the content lands in the order
+  you asked for. This is the sharpest difference between the two modes and the easiest to hit.
 - **`&ref` or `event.target` is how you reach the slot — `querySelector('slot')` will not find it.**
   The slot element is deliberately not in your DOM (see below), so it is unreachable by selector and
   reports `isConnected === false`. It is a live API object, not a position in the tree.

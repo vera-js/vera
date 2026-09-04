@@ -42,9 +42,17 @@
  * of content distributed away, and past it, appends. **Re-slotting keeps that answer**: a node
  * whose `slot` attribute changes has not moved in the light tree, so it rejoins by a rank taken
  * when it was first captured rather than by arrival — otherwise an item toggled into a "pinned"
- * slot jumped to the end of the pinned list instead of holding its place. One residue, stated so
- * this cannot overclaim: hand-edits interleaved among SEVERAL `${…}` parts' content in one host
- * order approximately — membership is always right. And one parity note: whitespace appended to a
+ * slot jumped to the end of the pinned list instead of holding its place.
+ *
+ * **What remains is reach, not order** — the earlier note here said hand-edits among several
+ * `${…}` parts' content ordered "approximately", which measurement does not support: every
+ * position a user can actually reach orders exactly as the platform does, and every order light
+ * produces is one a shadow root also produces. What light has FEWER of is positions. A distributed
+ * child is no longer a direct child of the host, so `host.insertBefore(node, thatChild)` throws
+ * `NotFoundError` where a shadow host accepts it, and positions among an already-distributed
+ * group cannot be named at the host's top level at all. `child.before(node)` / `child.after(node)`
+ * go through the node's current parent and work identically in both modes; that is what the README
+ * teaches, and `tests/renderer-slots.test.mjs` pins both the throw and the answer. And one parity note: whitespace appended to a
  * light host now suppresses the default fallback, because it does exactly that in a shadow root
  * (measured). `tests/slots-transition-parity.test.mjs` holds the matrix.
  *

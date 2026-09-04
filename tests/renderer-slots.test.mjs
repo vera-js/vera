@@ -576,6 +576,59 @@ test('re-slotting places a node by light-tree order, not arrival order', async (
 });
 
 /**
+ * **`host.insertBefore(node, myChild)` throws once `myChild` has been distributed — and the modern
+ * spelling does not.**
+ *
+ * This is the sharpest consequence of light-DOM slots, and the most ordinary thing to hit: a light
+ * host's children are physically MOVED into the slot's region, so a node the user appended and kept
+ * a reference to is no longer a direct child of the host. `insertBefore` requires its reference node
+ * to be a child of the node it is called on, so the platform throws `NotFoundError`. In a shadow
+ * root the same code works, because there the child never moves.
+ *
+ * There is no fixing it from inside the module — the node has to move for light DOM to render it,
+ * and nothing can intercept a native `insertBefore`. What there is instead is an answer that works
+ * in BOTH modes: `myChild.before(node)` and `myChild.after(node)` route through the node's own
+ * current parent, wherever that is. So the guidance is not "light DOM is different here, cope" but
+ * "use the spelling that is correct in both", which is also the modern one.
+ *
+ * Both halves are pinned because the docs now teach exactly this, and a promise about a workaround
+ * is worth less than the failure it works around if only the failure is tested.
+ */
+test('insertBefore against a distributed child throws — before()/after() are the answer', async () => {
+  const element = host();
+  const mine = doc.createElement('b');
+  mine.textContent = 'MINE';
+  element.append(mine);
+
+  let slot = null;
+  renderInto(html`<div class="box"><slot &ref=${(node) => { slot = node; }}></slot></div>`, element);
+  await settle();
+
+  assert.equal(mine.parentNode === element, false,
+    'CONTROL: the distributed child is no longer a DIRECT child of the host — the whole cause');
+  assert.throws(
+    () => element.insertBefore(doc.createElement('u'), mine),
+    /NotFoundError|not a child/i,
+    'so the platform refuses the insert, where a shadow host would accept it'
+  );
+
+  const head = doc.createElement('u');
+  head.textContent = 'NEW';
+  mine.before(head);
+  await settle();
+  assert.deepEqual(slot.assignedNodes().map((n) => n.textContent), ['NEW', 'MINE'],
+    'before() goes through the node\'s CURRENT parent, so it works — and lands in the right place');
+
+  const tail = doc.createElement('u');
+  tail.textContent = 'TAIL';
+  mine.after(tail);
+  await settle();
+  assert.deepEqual(slot.assignedNodes().map((n) => n.textContent), ['NEW', 'MINE', 'TAIL'],
+    'and so does after()');
+  element.remove();
+});
+
+/**
  * **The slot element is an API object, not a position — now a published claim, so pinned.**
  *
  * The README and `llms.txt` tell a shadow user migrating here to reach the slot through `&ref` or
