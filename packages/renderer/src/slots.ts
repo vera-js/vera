@@ -972,7 +972,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
    * slot receives content at all) — one rule here removes the class instead of handling members of
    * it. React emits the same 7 bytes for the same reason.
    */
-  for (const { parent, first, last, count } of marked) {
+  for (const { first, last } of marked) {
     const doc = host.ownerDocument!;
     const ahead = first.previousSibling;
     if (ahead !== null && ahead.nodeType === 3 && first.nodeType === 3)
@@ -980,17 +980,6 @@ const serverDistribute = (host: Element, source: Node[]) => {
     const behind = last.nextSibling;
     if (behind !== null && behind.nodeType === 3 && last.nodeType === 3)
       last.parentNode!.insertBefore(doc.createComment(''), behind);
-    /**
-     * **The mark is written HERE, once, after the nodes have stopped moving.** Computing the offset
-     * in the loop above and inserting separators afterwards put the two out of step: a leading
-     * separator shifts the user's content one place right, so the recorded offset addressed the
-     * separator instead — and the rescue, which is the only reader of the offset, then kept nothing
-     * and the page fell back to the component's own fallback with the user's content gone. Position
-     * has exactly one place that computes it, and it is downstream of everything that moves.
-     */
-    let offset = 0;
-    for (let n = parent.firstChild; n !== null && n !== first; n = n.nextSibling) offset++;
-    parent.setAttribute(SLOTTED_ATTR, `${offset},${count}`);
   }
 
   let carrier: Element | null = null;
@@ -1003,6 +992,25 @@ const serverDistribute = (host: Element, source: Node[]) => {
     for (const node of bucket) carrier.appendChild(node);
   }
   if (carrier !== null) host.appendChild(carrier);
+
+  /**
+   * **The mark is written LAST, because it records a POSITION and position is only true once
+   * nothing else will move.** Computing it in the slot loop and then inserting separators put the
+   * two out of step by exactly one node: the recorded offset addressed the separator rather than
+   * the content, and the rescue — the only reader of the offset — kept nothing, so a hydration
+   * bail showed the component's own fallback with the user's content gone. Every hydration test
+   * still passed, because adoption reads only the count.
+   *
+   * Writing it here rather than merely after the separators is the difference between a fix and a
+   * rule: the carrier append above, and anything added below it later, cannot silently reintroduce
+   * the same defect. One place computes position, and it is downstream of every pass that moves a
+   * node — which is a property of the ORDER, not of remembering to check.
+   */
+  for (const { parent, first, count } of marked) {
+    let offset = 0;
+    for (let n = parent.firstChild; n !== null && n !== first; n = n.nextSibling) offset++;
+    parent.setAttribute(SLOTTED_ATTR, `${offset},${count}`);
+  }
 };
 
 
