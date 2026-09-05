@@ -151,9 +151,10 @@ for (const [label, values] of CASES) {
  * demanded. The rule demanded it because ownership was unknowable; it is stamped now, so the
  * attribute requirement is retired and bare text appends land in the default slot, as native.
  *
- * The residue, stated so this comment cannot overclaim: hand-edits interleaved among SEVERAL
- * `${…}` parts' content in one host order approximately (membership always right). That is the
- * whole remaining gap between light and shadow.
+ * The residue this comment once stated — several-part hand-edits ordering "approximately" — was
+ * overturned by measurement when the rank work landed: every reachable position orders exactly,
+ * and the real gap is REACH (a distributed child is not a direct child, so some positions cannot
+ * be named at the host). Kept as history because this file's cases were the evidence both times.
  */
 test('a late light-region insertion takes its document position, as native', async () => {
   const page = D.createElement('div');

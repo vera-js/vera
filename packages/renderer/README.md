@@ -370,8 +370,9 @@ host's children after the first render are also the component's own rendered out
 in the DOM to tell them apart. Ownership is written down now rather than inferred from position,
 so the ambiguity — and the rule — are gone. Two things remain worth knowing: whitespace appended
 to a light host suppresses the default fallback, which is parity (a shadow root does the same), and
-hand-edits interleaved among SEVERAL `${…}` expressions' content in one host order approximately,
-with membership always correct.
+re-slotting a node (`slot="a"` → `"b"`) rejoins in light-tree order rather than arrival order.
+Every position you can reach orders exactly as the platform does — what light has fewer of is
+positions you can name, since a distributed child is no longer a direct child of the host.
 
 **Cloning a RENDERED light component does not work, and cannot.** `cloneNode(true)` copies a
 light host's children — which after a render are the component's own output with the user's slotted

@@ -84,6 +84,25 @@ const RETIRED_RULES = {
     'post-render additions are native; `slot=""` still routes but is not required',
   'need to name their slot':
     'post-render additions are native; `slot=""` still routes but is not required',
+  /**
+   * The rank work overturned this one — every reachable position orders exactly as the platform
+   * does; what light has fewer of is POSITIONS, never worse ordering — and the correction was
+   * applied to slots.ts and the feature doc while a third copy stood in llms.txt for days. The
+   * copies are the reason this table exists.
+   */
+  'order approximately':
+    'every reachable position orders exactly; light has fewer POSITIONS to name, not worse ordering',
+  'orders approximately':
+    'every reachable position orders exactly; light has fewer POSITIONS to name, not worse ordering',
+  /**
+   * False since the text-merge separator: server output may carry a `<!---->` where two text runs
+   * would merge, plus the unassigned-content `<template>` carrier. The honest sentence is the
+   * three-part conditional handoff, consumed on adoption.
+   */
+  'no framework comments in server':
+    'the handoff is one offset attribute, one inert carrier <template>, and a rare <!----> separator — each conditional, each consumed on adoption',
+  'the only handoff is one':
+    'three conditional handoff shapes — attribute, carrier template, merge separator — see docs/features/light-dom-slots.md',
 };
 
 /**
