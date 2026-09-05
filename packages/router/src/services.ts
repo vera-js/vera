@@ -147,7 +147,7 @@ const normalizeBase = (path: string): string => {
  * Read per navigation rather than cached, because `<base>` can be rewritten at runtime and a stale
  * mount point is the same class of bug. One `querySelector` per navigation, which is user-paced.
  */
-const basePath = (): string => {
+export const currentBase = (): string => {
   if (explicitBase !== null) return explicitBase;
   /**
    * **No document, no base** — and, more to the point, no thrown `ReferenceError`. `resolve()` was
@@ -166,6 +166,19 @@ const basePath = (): string => {
    * `window` is touched.
    */
   if (typeof document === 'undefined') return '';
+  /**
+   * **The tempting one-liner here is wrong, so it is written down.** Every no-base shape — no
+   * element, `target` only, `href=""` — happens to satisfy `document.baseURI === document.URL`,
+   * which reads like the whole rule in one comparison. Its false negative is the most common URL an
+   * app has: landing exactly on `<base href="/app/">`'s own `/app/`, where the two are equal and a
+   * REAL base would be read as none — every URL written from then on missing its mount. The gate
+   * has to be the element and its value, with `baseURI` used only for the resolved answer.
+   *
+   * Placement is deliberately not checked: engines honor the first `base[href]` in tree order
+   * wherever it sits, `<body>` included — measured in all three, `tests/browser/
+   * base-element-matrix.test.js` — so `querySelector` and `baseURI` cannot disagree about WHICH
+   * element governs.
+   */
   const element = document.querySelector('base[href]');
   /**
    * A base has to actually NAME somewhere. `<base target="_blank">` carries no URL and
@@ -188,8 +201,12 @@ const basePath = (): string => {
  * Browser path → route path. A path outside the base is returned UNCHANGED rather than mangled:
  * it is not ours, no route should match it, and quietly rewriting it would invent a match.
  */
-export const stripBase = (path: string): string => {
-  const base = basePath();
+/**
+ * `base` is a parameter with the obvious default so that a LOOP can pay for it once. The active-link
+ * walk strips per link, and reading the base means a `querySelector` and two `URL` constructions —
+ * fine per navigation, absurd forty times per navigation. Every other caller omits it.
+ */
+export const stripBase = (path: string, base = currentBase()): string => {
   if (base === '' || !path.startsWith(base)) return path;
   const rest = path.slice(base.length);
   if (rest === '') return '/';
@@ -197,12 +214,9 @@ export const stripBase = (path: string): string => {
 };
 
 /** The mount point, for the diagnostic in `methods.ts`. Empty means the origin root. */
-export const currentBase = (): string => basePath();
-
 /** Route path → browser path, for the one place the router writes to history. */
-export const addBase = (path: string): string => {
-  const base = basePath();
-  return base === '' ? path : `${base}${path === '/' ? '' : path}` || '/';
+export const addBase = (path: string, base = currentBase()): string => {
+  return base === '' ? path : `${base}${path === '/' ? '' : path}`;
 };
 
 /**
@@ -867,6 +881,8 @@ const routeChange = async (
 };
 
 const updateActiveLink = (element: HTMLElement, path: string) => {
+  /** Once for the walk, not once per link — reading it is a query plus two URL constructions. */
+  const base = currentBase();
   (element.shadowRoot ?? element).querySelectorAll('[route]').forEach((link) => {
     /**
      * Pathname only (a link may carry its own query or hash), stripped on both sides so
@@ -879,8 +895,11 @@ const updateActiveLink = (element: HTMLElement, path: string) => {
      *
      * The resolution goes through `document.baseURI`, the same source the link-click handler uses,
      * so a link is judged active by exactly the URL clicking it would go to. An absolute path skips
-     * the `URL` construction entirely, which is what almost every href is and keeps a forty-link
-     * nav bar allocation-free per navigation.
+     * the `URL` construction, which is what almost every href is — so with the base hoisted above
+     * the loop, a forty-link nav bar of absolute hrefs costs zero URL constructions and zero
+     * queries per navigation. (This sentence once said "allocation-free" while `stripBase` was
+     * quietly re-deriving the base per link, two constructions and a query each — the claim
+     * outlived the code it described by a day. Comments state costs; measurements set them.)
      */
     const raw = (link.getAttribute('href') ?? '').split(/[?#]/)[0];
     let resolved = raw;
@@ -889,7 +908,7 @@ const updateActiveLink = (element: HTMLElement, path: string) => {
       /** Another origin is never the current route, and its pathname could collide with one. */
       resolved = url.origin === window.location.origin ? url.pathname : '';
     }
-    const href = stripBase(stripTrailingSlash(resolved));
+    const href = stripBase(stripTrailingSlash(resolved), base);
 
     const exact = href === path;
     /**

@@ -95,3 +95,34 @@ it('the first <base> WITH an href wins, and querySelector agrees with the platfo
   expect(two.href, 'querySelector returns the first in tree order').to.equal('/first/');
   expect(two.pathname, 'and the platform used the same one').to.equal('/first/');
 });
+
+/**
+ * **Placement does not matter, and the mount-point code RELIES on that.** `basePath` gates on
+ * `document.querySelector('base[href]')` — which searches the whole tree — and then reads
+ * `document.baseURI` for the value. If an engine ignored a `<base>` outside `<head>` while the
+ * selector still matched it, the gate would open with `baseURI` still equal to the document: the
+ * mount point would silently become the current page, the recurring bug through yet another door.
+ * All three engines honor the first `base[href]` in tree order wherever it sits, so the two reads
+ * cannot disagree about which element governs.
+ */
+it('a <base> in <body> governs, and head-before-body is just tree order', () => {
+  const inBody = document.createElement('base');
+  inBody.setAttribute('href', '/from-body/');
+  document.body.appendChild(inBody);
+  try {
+    expect(new URL(document.baseURI).pathname, 'the engine honors it outside <head>').to.equal('/from-body/');
+    expect(document.querySelector('base[href]'), 'and the selector finds the same element').to.equal(inBody);
+
+    const inHead = document.createElement('base');
+    inHead.setAttribute('href', '/from-head/');
+    document.head.appendChild(inHead);
+    try {
+      expect(new URL(document.baseURI).pathname, 'an earlier element in tree order takes over').to.equal('/from-head/');
+      expect(document.querySelector('base[href]'), 'and the selector agrees again').to.equal(inHead);
+    } finally {
+      inHead.remove();
+    }
+  } finally {
+    inBody.remove();
+  }
+});
