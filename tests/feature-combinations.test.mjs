@@ -188,3 +188,64 @@ test('slots + hold: a held subtree keeps its slot binding and the node inside it
   assert.equal(host.querySelector('b'), node, 'the held subtree kept the very same slotted node');
   host.remove();
 });
+
+/**
+ * autoloader + slots: a lazy tag that enters the world inside DISPLACED slot content. Parking
+ * moves the user's nodes into a detached fragment outside every observed tree, so nothing may
+ * load while displaced — and the restore re-enters the autoloader's subtree, where discovery MUST
+ * fire or a lazy component in a toggled-away branch never appears. Discovery in jsdom needs the
+ * suite-standard `:not(:defined)` emulation (jsdom lacks the selector; the browser autoloader
+ * suite owns real discovery) and the `autoloader` attribute on the host (`watch()` returns early
+ * without it — both are the recorded probe traps, walked into again finding this).
+ */
+test('autoloader + slots: parked content stays dormant, restored content loads', async () => {
+  const origQSA = dom.window.Element.prototype.querySelectorAll;
+  dom.window.Element.prototype.querySelectorAll = function (sel) {
+    if (sel === ':not(:defined)')
+      return [...origQSA.call(this, '*')].filter(
+        (el) => el.localName.includes('-') && !dom.window.customElements.get(el.localName)
+      );
+    return origQSA.call(this, sel);
+  };
+  try {
+    const { autoloader } = await load('autoloader');
+    const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
+
+    const host = div();
+    host.setAttribute('autoloader', '');
+    dom.window.document.body.append(host);
+    autoloader(rootDir, 'components')(host);
+
+    const drawSlot = () => html`<div><slot name="o">fall</slot></div>`;
+    const drawAway = () => html`<p>away</p>`;
+
+    const early = dom.window.document.createElement('u');
+    early.setAttribute('slot', 'o');
+    early.innerHTML = '<probe-widget></probe-widget>';
+    host.append(early);
+    renderInto(drawSlot(), host);
+    await tick();
+    assert.ok((globalThis.__loads ?? 0) >= 1 && dom.window.customElements.get('probe-widget'),
+      'CONTROL: assigned slot content autoloads at all');
+
+    renderInto(drawAway(), host);
+    await tick();
+    const holder = dom.window.document.createElement('b');
+    holder.innerHTML = '<lazy-widget></lazy-widget>';
+    early.append(holder);
+    await tick();
+    assert.equal(early.isConnected, false, 'CONTROL: the content is genuinely parked');
+    assert.equal(globalThis.__lazyLoads ?? 0, 0, 'nothing may load from a detached fragment');
+
+    renderInto(drawSlot(), host);
+    await tick();
+    await tick();
+    assert.equal(globalThis.__lazyLoads, 1, 'the restore was discovered and loaded exactly once');
+    assert.equal(host.querySelector('lazy-widget')?.textContent, 'lazy-loaded',
+      'defined, upgraded, and rendered after the roundtrip');
+    host.remove();
+  } finally {
+    dom.window.Element.prototype.querySelectorAll = origQSA;
+  }
+});
