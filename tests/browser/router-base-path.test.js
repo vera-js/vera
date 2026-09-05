@@ -132,3 +132,42 @@ it('a link whose href carries the base is marked active on the stripped route', 
   expect(link.classList.contains('active'), 'the comparison crosses the base').to.equal(true);
   expect(link.getAttribute('aria-current')).to.equal('page');
 });
+
+/**
+ * The development diagnostic for a routed href written in route space, watched actually firing in
+ * a real engine rather than trusted from jsdom. The click is a genuine engine click — dispatched on
+ * an anchor the router intercepts — so this also proves interception and the warning share one code
+ * path: if the router declined the click for any earlier reason, no warning could fire and the
+ * navigation assertion would fail with it.
+ */
+it('a route-space href is diagnosed in development, once, and still navigates', async () => {
+  const { el } = makeApp();
+  setBasePath('/app');
+  await reset();
+
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => {
+    said.push(args.join(' '));
+    original.apply(console, args);
+  };
+  try {
+    const link = document.createElement('a');
+    link.setAttribute('route', '');
+    link.setAttribute('href', '/users');
+    el.appendChild(link);
+    link.click();
+    await settle();
+    link.click();
+    await settle();
+  } finally {
+    console.warn = original;
+  }
+
+  expect(location.pathname, 'the click still navigates — the diagnosis is advice, not a refusal')
+    .to.equal('/app/users');
+  const warnings = said.filter((line) => line.includes('points outside'));
+  expect(warnings.length, 'exactly one warning for two clicks of the same href').to.equal(1);
+  expect(warnings[0]).to.include('[vera]');
+  expect(warnings[0], 'and it names the href the author should have written').to.include('/app/users');
+});

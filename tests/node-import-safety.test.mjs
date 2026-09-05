@@ -105,3 +105,39 @@ test('the entries that need a DOM still say so, rather than failing later', () =
       `${specifier} fails for a reason other than the missing DOM`
     );
 });
+
+/**
+ * **Import-safety is the weak half of the router's promise — `resolve()` has to be CALLABLE too.**
+ *
+ * Building an `href` for server-rendered markup is what a named-route resolver is for, so an SSR
+ * pass calls `resolve()` where there is no DOM. It was pure string work until the base-path feature
+ * routed it through the `<base>` lookup, at which point a function the docs implicitly bless for
+ * the server reached for `document.querySelector` — a regression no import test can see, because
+ * the module still imports cleanly and only the CALL throws. Caught by re-review the same day, and
+ * pinned here so it stays a property rather than an accident.
+ *
+ * `setBasePath` is exercised in the same breath deliberately: it is the documented way to give a
+ * server-side pass a mount point, since there is no document to carry a `<base>` there.
+ */
+test('resolve() and setBasePath() run where there is no DOM', () => {
+  const script = `
+    const { setBasePath, resolve } = await import('@verajs/router');
+    setBasePath('/app');
+    /** No routes are registered in a bare process, so '' is the contract — the point is no throw. */
+    if (resolve('missing', {}) !== '') throw new Error('unexpected resolve result');
+    setBasePath(null);
+  `;
+  const result = (() => {
+    try {
+      execFileSync(
+        process.execPath,
+        ['--conditions', condition, '--input-type=module', '-e', script],
+        { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+      );
+      return null;
+    } catch (error) {
+      return String(error.stderr ?? error.message).slice(0, 300);
+    }
+  })();
+  assert.equal(result, null, `calling the router's URL builder without a DOM threw:\n${result}`);
+});

@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-04",
+  "taken": "2026-09-05",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -11,8 +11,8 @@
       "gzip": 4419
     },
     "router": {
-      "raw": 9249,
-      "gzip": 3905
+      "raw": 9380,
+      "gzip": 3942
     },
     "autoloader": {
       "raw": 2734,

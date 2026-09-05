@@ -165,8 +165,23 @@ const basePath = (): string => {
    * done the work, including for a relative `href="app/"` — so nothing is re-resolved here and no
    * `window` is touched.
    */
-  if (typeof document === 'undefined' || document.querySelector('base[href]') === null) return '';
-  return normalizeBase(new URL(document.baseURI).pathname);
+  if (typeof document === 'undefined') return '';
+  const element = document.querySelector('base[href]');
+  /**
+   * A base has to actually NAME somewhere. `<base target="_blank">` carries no URL and
+   * `<base href="">` carries an empty one, and the platform resolves against the document itself in
+   * both cases — so either one, taken as a mount point, yields the CURRENT ROUTE and the address bar
+   * grows a segment per navigation. That is one bug with three doors; it arrived first through no
+   * element at all, then through a bare `<base>`, and the matrix found the third before it shipped.
+   */
+  if (element === null || element.getAttribute('href') === '') return '';
+  const url = new URL(document.baseURI);
+  /**
+   * A cross-origin base — `<base href="https://cdn.example/x/">`, which pages do use to point asset
+   * URLs elsewhere — resolves to a pathname on ANOTHER origin. Stripping `/x` from this origin's
+   * paths would be nonsense, and the router cannot route somewhere it is not served from.
+   */
+  return url.origin === new URL(document.URL).origin ? normalizeBase(url.pathname) : '';
 };
 
 /**

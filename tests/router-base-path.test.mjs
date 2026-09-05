@@ -180,28 +180,120 @@ test('a RELATIVE href is marked active — it is resolved, not compared as writt
   setBasePath(null);
 });
 
-test('the <base> element supplies the base when nothing is set explicitly', async () => {
-  setBasePath(null);
-  const base = doc.createElement('base');
-  base.setAttribute('href', '/app/');
-  doc.head.appendChild(base);
 
+/**
+ * **Every shape a `<base>` can take, against one table.**
+ *
+ * The mount point has been derived wrongly three times in this feature's first day, and all three
+ * were one bug: *the base silently became the current page*. It arrived through no `<base>` at all,
+ * then through `<base target="_blank">` (valid, carries no URL), then through `<base href="">`
+ * (matches `base[href]`, resolves to the document). Each spot fix closed one door and left the
+ * others open, and a test pinning one spelling did not protect against the next.
+ *
+ * So this is a table rather than three tests. It is the guard that actually generalises: any future
+ * change to how the base is read has to answer for every shape at once, and a new door added to the
+ * platform is one row here rather than a rediscovery.
+ *
+ * **Measured, not reasoned.** `tests/browser/base-element-matrix.test.js` asserts these same answers
+ * in Chromium, Firefox and WebKit, and jsdom agrees with all three on every row — checked before
+ * this file was written, because jsdom is the regression net and never the oracle for a rule the
+ * platform owns.
+ *
+ * The document is at `http://localhost/app/start`, so a RELATIVE base resolves against `/app/`.
+ */
+/** A row whose navigation the router should decline outright. */
+const REFUSED = Symbol('refused');
+const BASE_SHAPES = [
+  ['no <base> at all',            '',                                    '/users'],
+  ['<base> with no href',         '<base target="_blank">',              '/users'],
+  ['<base href=""> — empty',      '<base href="">',                      '/users'],
+  ['absolute, trailing slash',    '<base href="/mount/">',               '/mount/users'],
+  ['absolute, no trailing slash', '<base href="/mount">',                '/mount/users'],
+  ['relative to the document',    '<base href="sub/">',                  '/app/sub/users'],
+  ['first <base> has no href',    '<base target="_top"><base href="/mount/">', '/mount/users'],
+  ['two with href — first wins',  '<base href="/first/"><base href="/second/">', '/first/users'],
+  /**
+   * A cross-origin base is not "no base" — it is a page whose URLs all point somewhere else, which
+   * is what the PLATFORM says too: under `<base href="https://other.test/x/">` the browser takes
+   * `<a href="/users">` to `https://other.test/users`. So the router declines the navigation rather
+   * than pretending, exactly as it declines a cross-origin link, and says so. The mount point is
+   * empty either way, which is why asserting only the derived base would have missed this.
+   */
+  ['cross-origin, absolute',      '<base href="https://other.test/x/">', REFUSED],
+  ['cross-origin, protocol-rel',  '<base href="//other.test/x/">',       REFUSED],
+];
+
+test('the base is read correctly from every shape a <base> element can take', async () => {
+  setBasePath(null);
+  mount([...ROUTES, { path: '/users/:id', name: 'matrix-user', component: () => { hit = 'one user'; return ''; } }]);
+  const wrong = [];
+
+  try {
+    for (const [label, markup, expected] of BASE_SHAPES) {
+      /**
+       * Three-step setup, and the ORDER is the point. Every row navigates to the same route, and
+       * navigating to the route the router is already on is a no-op — the exact trap `reset()`
+       * exists for, which the first version of this loop fell into per row: row one passed and
+       * every later row silently tested nothing. So: clear the head and reset the router to `/`
+       * FIRST (with no base in effect), then park the URL at `/app/start` so a RELATIVE base
+       * resolves from one known place, then install the row's `<base>`.
+       */
+      doc.head.innerHTML = '';
+      await reset();
+      window.history.replaceState(null, '', '/app/start');
+      doc.head.innerHTML = markup;
+      await navigate('/users', 'navigate');
+      await tick();
+      const actual = window.location.pathname;
+      if (expected === REFUSED) {
+        if (actual !== '/app/start') wrong.push({ label, markup, expected: 'refused, URL unchanged', actual });
+        /**
+         * The half `navigate` cannot cover for. Its own origin guard refuses these navigations
+         * before the derived base is ever consulted — so dropping `basePath`'s origin check
+         * changed NOTHING the rows above can see, and the mutation survived. `resolve()` is the
+         * path with no guard in front: it hands its pattern straight to `addBase`, and with the
+         * check gone it built hrefs on another origin's pathname. This is the assertion that
+         * failed for that mutation once it existed, and it lives inside the row so a new
+         * cross-origin shape is covered by construction.
+         */
+        const built = resolve('matrix-user', { id: 7 });
+        if (built !== '/users/7')
+          wrong.push({ label, markup, note: 'resolve() built an href from a foreign base', built });
+      } else if (actual !== expected) wrong.push({ label, markup, expected, actual });
+      else if (hit !== 'users') wrong.push({ label, markup, note: 'URL right, route did not match', hit });
+    }
+  } finally {
+    /** A leaked `<base>` re-points every later test in the file — the cross-origin rows made three
+     *  of them fail in ways that read as unrelated defects. */
+    doc.head.innerHTML = '';
+    window.history.replaceState(null, '', '/app/start');
+  }
+
+  assert.deepEqual(wrong, [], 'every <base> shape must produce the mount point the platform implies');
+});
+
+/**
+ * The control for the table above: without it, a `basePath` returning `''` unconditionally would
+ * pass eight of ten rows and look broadly healthy.
+ */
+test('CONTROL: the table distinguishes a real base from none', async () => {
+  setBasePath(null);
   mount(ROUTES);
+  try {
+    doc.head.innerHTML = '';
+    await reset();
+    window.history.replaceState(null, '', '/app/start');
+    doc.head.innerHTML = '<base href="/mount/">';
+    await navigate('/users', 'navigate');
+    await tick();
+    assert.equal(window.location.pathname, '/mount/users', 'a real base moves the URL');
+  } finally {
+    doc.head.innerHTML = '';
+  }
   await reset();
-  await navigate('/users', 'navigate');
+  await navigate('/users/5', 'navigate');
   await tick();
-  assert.equal(window.location.pathname, '/app/users', 'read from the document, with no API call at all');
-  assert.equal(hit, 'users');
-
-  /** And the explicit setter wins over it, which is the whole reason the setter exists. */
-  setBasePath('/other');
-  await reset();
-  await navigate('/users', 'navigate');
-  await tick();
-  assert.equal(window.location.pathname, '/other/users', 'setBasePath overrides the document');
-
-  setBasePath(null);
-  base.remove();
+  assert.equal(window.location.pathname, '/users/5', 'and removing it moves the URL back');
 });
 
 /**
@@ -218,6 +310,13 @@ test('the <base> element supplies the base when nothing is set explicitly', asyn
  */
 test('a cold load on a mounted URL routes, with params intact', async () => {
   setBasePath('/app');
+  /**
+   * Third appearance of the same-route no-op trap in this file: the test before this one happens
+   * to END on `/users/5`, so `handleInitial`'s own navigation to `/users/5` was a no-op and this
+   * read as "cold load broken" when it meant "nothing ran". Reset to `/` first, so the cold load
+   * is genuinely a navigation.
+   */
+  await reset();
   window.history.replaceState(null, '', '/app/users/5');
 
   let params = null;
@@ -302,24 +401,3 @@ test('a routed href pointing outside the base is diagnosed', { skip: isProductio
   setBasePath(null);
 });
 
-/**
- * **`<base target="_blank">` is a valid element carrying no URL.**
- *
- * The platform ignores a `<base>` without an `href` when computing `baseURI`, so matching a bare
- * `base` selector would read the DOCUMENT'S OWN URL as the mount point — the same failure the first
- * implementation had, arriving by a different door. The selector is `base[href]` for this reason.
- */
-test('a <base> without an href is not a mount point', async () => {
-  setBasePath(null);
-  const bare = doc.createElement('base');
-  bare.setAttribute('target', '_blank');
-  doc.head.appendChild(bare);
-
-  mount(ROUTES);
-  await reset();
-  await navigate('/users', 'navigate');
-  await tick();
-  assert.equal(window.location.pathname, '/users', 'no href means no base, not the current page');
-  assert.equal(hit, 'users');
-  bare.remove();
-});
