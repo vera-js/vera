@@ -223,7 +223,7 @@ const EXPECTED_RECIPES = {
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
   'packages/reactivity/README.md': 1,
-  'packages/renderer/README.md': 5,
+  'packages/renderer/README.md': 6,
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
 };

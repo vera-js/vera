@@ -433,6 +433,87 @@ render(() => html`<header>
 - **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
   re-routes if it changes between renders.
 
+### Keeping the `<slot>` in the tree — a strategy you can own
+
+Every boundary above has one cause: the shipped strategy removes the `<slot>` element so your
+markup stays exactly what you wrote. The seam it registers through is public, single-registrant,
+and takes whole strategies — so if you would rather have the *shadow tree's own structure* (the
+slot element present, selectable, `:first-child`-countable, made layout-invisible by the same
+`display: contents` the UA stylesheet gives real slots), you can wire a strategy that keeps it.
+This one is complete enough to run — and it runs, in CI, as written:
+
+<!-- recipe -->
+```js
+import { init, render, wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+
+/** Distribution that KEEPS the <slot>: content moves INSIDE it, fallback shows when it is empty. */
+const slotsInTree = {
+  name: 'my-app/slots-in-tree',
+  on: 'slot',
+  priority: 50,
+  fn(slot, root, name) {
+    if (root.nodeType !== 1) return null; // a shadow root keeps native slotting
+    const host = root;
+    const fallback = [...slot.childNodes];
+    const isMine = (n) =>
+      n.nodeType === 1 ? (n.getAttribute('slot') ?? '') === name
+        : name === '' && n.nodeType === 3 && n.data.trim() !== '';
+    let shown = -1;
+    const fill = () => {
+      for (const n of [...host.childNodes]) if (isMine(n)) slot.append(n);
+      const assigned = [...slot.childNodes].filter((n) => !fallback.includes(n));
+      for (const n of fallback) (assigned.length ? n.remove() : slot.append(n));
+      observer.takeRecords(); // our own moves are not the user's
+      if (assigned.length !== shown) {
+        shown = assigned.length;
+        slot.dispatchEvent(new Event('slotchange', { bubbles: true })); // real ancestors — it CLIMBS
+      }
+    };
+    const observer = new MutationObserver(fill);
+    fill();
+    observer.observe(host, { childList: true, subtree: true });
+    return { _$park$: () => { observer.disconnect(); for (const n of [...slot.childNodes]) if (!fallback.includes(n)) host.append(n); } };
+  },
+};
+
+wire([renderer, slotsInTree]);
+document.head.insertAdjacentHTML('beforeend', '<style>slot{display:contents}</style>');
+
+customElements.define('tree-card', class extends HTMLElement {
+  connectedCallback() {
+    init(this);
+    render(() => html`<article><slot name="header">Untitled</slot></article>`);
+  }
+});
+
+const card = document.createElement('tree-card');
+card.innerHTML = '<h2 slot="header">Hello</h2>';
+document.body.append(card);
+await new Promise((resolve) => requestAnimationFrame(resolve));
+
+/** Every documented boundary of the shipped strategy, working: */
+let heard = 0;
+card.addEventListener('slotchange', () => heard++); // a HOST-level listener — bubbling exists here
+if (!card.querySelector('slot')) throw new Error('querySelector finds the slot');
+if (card.querySelector('h2').parentElement.localName !== 'slot') throw new Error('reverse lookup');
+card.querySelector('h2').remove();
+await new Promise((resolve) => setTimeout(resolve, 0));
+if (card.querySelector('article').textContent !== 'Untitled') throw new Error('fallback returns');
+if (heard !== 1) throw new Error('slotchange bubbled to the host');
+```
+
+The trade is the one the platform itself makes: this is the shadow tree's structure, so the
+`<slot>` now appears in your host's serialized markup (as it appears in a `shadowRoot`'s), your
+component CSS can select it — and structural selectors written against the template see it as the
+child it is, because selectors follow the tree, not layout. Wire it *instead of* `slots` — the
+seam is single-registrant, and wiring both says so in development, by name.
+
+What this recipe deliberately does not do is the audited module's territory: light-tree ordering
+under re-slots and prepends, duplicate-name handover, nested slots in fallbacks, dynamic
+`name=${…}`, SSR and hydration. It is a starting point you own, not a drop-in peer — the measured
+design for a full sibling lives with the maintainers.
+
 **The one thing a light-DOM slot cannot carry is presentation** — `class`, `style`, `id` and other
 plain attributes. A light host has no second tree, so the slot element is not rendered and there is
 nothing for them to apply to, while in a shadow root they do apply. Put them on a real element
