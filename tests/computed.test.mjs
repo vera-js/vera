@@ -89,6 +89,12 @@ const mount = () => {
   check('derives from a reactive Map', sum.value === 5);
   state.items.set('c', 4);
   check('and a Map mutation re-evaluates', sum.value === 9 && evaluations === 2);
+  state.items.delete('a');
+  check('delete re-evaluates too', sum.value === 7 && evaluations === 3);
+  state.nested.deep = 5;
+  check('an unrelated write does not — the computed never read it', evaluations === 3);
+  state.items.clear();
+  check('clear re-evaluates to the empty answer', sum.value === 0 && evaluations === 4);
 
   const deep = computed(() => state.nested.deep + 1);
   state.nested.deep = 10;
