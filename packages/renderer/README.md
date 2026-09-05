@@ -407,6 +407,10 @@ render(() => html`<header>
   `assignedNodes()` are asserted against real shadow DOM, which is the oracle for this. It fires
   for a slot whose rendering is currently displaced too (assignment is independent of rendering),
   exactly as native does for a slot that is not on screen.
+- **`node.assignedSlot` answers `null` — ask the slot, not the node.** The reverse lookup is a
+  platform accessor tied to real shadow assignment, and overriding it on YOUR nodes is an intrusion
+  this module refuses. The forward reads carry the same fact: `slot.assignedNodes().includes(node)`
+  through a `&ref`, or `slotted(host, name)` from outside.
 - **Bind `slotchange` directly — it does not bubble to the host.** In a shadow root one listener on
   the root hears every slot by bubbling; here the slot handles are deliberately out of the document,
   so there is no tree for the event to climb and `host.addEventListener('slotchange', …)` hears

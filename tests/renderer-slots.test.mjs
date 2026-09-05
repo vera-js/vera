@@ -24,11 +24,17 @@ for (const key of [
 const { wire, html, init, render, createStore } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { slots, slotted } = await load('renderer/slots');
+const { spread } = await load('renderer/spread');
+const { keyed } = await load('renderer/keyed');
 wire([renderer, slots]);
 
 const doc = dom.window.document;
 /** Observer callbacks are microtasks; a macrotask hop settles any pending batch. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+/** For STORE-driven re-renders: the scheduler rides requestAnimationFrame, and under
+ *  `pretendToBeVisual` a frame is a ~16 ms timer — `settle`'s setTimeout(0) resolves before it.
+ *  Every renderInto-driven test commits synchronously and never needs this. */
+const nextFrame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 const host = (innerHTML = '') => {
   const element = doc.createElement('div');
@@ -227,6 +233,85 @@ test('three-level slot chains survive a branch-away round trip, displaced or ren
   assert.equal(view(tripB.el), view(freshB.el));
   assert.equal(slotted(tripB.el, 'x')[0], tripB.nodes.x, 'deepest-level identity survives too');
   for (const h of [trip.el, fresh.el, tripB.el, freshB.el]) h.remove();
+});
+
+/**
+ * **`spread()` driving a slot's NAME, and keyed rows wearing `slot` attributes — the module
+ * seams meeting capture, measured clean before pinning.** A spread rename lands on the ghost
+ * element like any attribute write, the name observer sees it (observers are not tree-bound), and
+ * the slot re-routes with the capture map agreeing. Keyed rows are the component's own stamped
+ * output, so a `slot` attribute on a row must not get it captured (the output-eaten class), must
+ * survive reorder, and must not block a real user node from routing past it.
+ */
+/**
+ * **`assignedSlot` stays `null` — the boundary family's fourth member, pinned.** The reverse lookup
+ * is a platform accessor tied to real shadow assignment; overriding it would mean defining a
+ * platform property on the USER'S nodes, which this module refuses (its stamps are sigil-named
+ * non-enumerables precisely to never collide with anyone's surface). The fact is still available,
+ * from the forward direction: the slot handle and `slotted()` both answer it.
+ */
+test('assignedSlot is null in light mode; the forward reads carry the fact', async () => {
+  const element = host('<u slot="h">X</u>');
+  const node = element.querySelector('u');
+  let handle = null;
+  renderInto(html`<div><slot name="h" &ref=${(s) => { handle = s; }}></slot></div>`, element);
+  await settle();
+  assert.equal(node.assignedSlot, null, 'the platform accessor answers for real shadow trees only');
+  assert.equal(handle.assignedNodes()[0], node, 'the slot handle answers forward');
+  assert.deepEqual(slotted(element, 'h'), [node], 'and slotted() answers from outside');
+  element.remove();
+});
+
+test('a spread-driven slot name routes and re-routes', async () => {
+  customElements.define('sp-host', class extends dom.window.HTMLElement {
+    connectedCallback() {
+      init(this);
+      this.state = createStore({ attrs: { name: 'a' } });
+      render(() => html`<div class="box"><slot ${spread(this.state.attrs)}>FB</slot></div>`);
+    }
+  });
+  const el = doc.createElement('sp-host');
+  const a = doc.createElement('u'); a.setAttribute('slot', 'a'); a.textContent = 'A';
+  const b = doc.createElement('u'); b.setAttribute('slot', 'b'); b.textContent = 'B';
+  el.append(a, b);
+  doc.body.append(el);
+  await nextFrame();
+  await settle();
+  assert.equal(el.querySelector('.box').textContent, 'A', 'spread name=a routes a');
+  el.state.attrs = { name: 'b' };
+  await nextFrame();
+  await settle();
+  assert.equal(el.querySelector('.box').textContent, 'B', 'a spread rename re-routes');
+  assert.deepEqual(slotted(el, 'b').map((n) => n.textContent), ['B'], 'and the capture map agrees');
+  el.remove();
+});
+
+test('keyed rows carrying slot attributes are own output — never captured, reorder intact', async () => {
+  customElements.define('ky-host', class extends dom.window.HTMLElement {
+    connectedCallback() {
+      init(this);
+      this.state = createStore({ order: ['1', '2', '3'] });
+      render(() => html`<section>${this.state.order.map((id) => keyed(id, html`<p slot="x">row${id}</p>`))}</section><div class="out"><slot name="x">none</slot></div>`);
+    }
+  });
+  const el = doc.createElement('ky-host');
+  doc.body.append(el);
+  await nextFrame();
+  await settle();
+  assert.equal(el.querySelector('section').textContent, 'row1row2row3', 'stamped rows stay put');
+  assert.equal(el.querySelector('.out').textContent, 'none', 'the slot shows fallback — no user content');
+  el.state.order = ['3', '1', '2'];
+  await nextFrame();
+  await settle();
+  assert.equal(el.querySelector('section').textContent, 'row3row1row2', 'reorder holds');
+  const user = doc.createElement('u');
+  user.setAttribute('slot', 'x');
+  user.textContent = 'USER';
+  el.append(user);
+  await nextFrame();
+  await settle();
+  assert.equal(el.querySelector('.out').textContent, 'USER', 'a user node routes past the stamped rows');
+  el.remove();
 });
 
 test('nested hosts: capture takes direct children only', () => {
