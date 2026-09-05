@@ -271,5 +271,34 @@ const makeApp = (routes) => {
   }
 }
 
+// ── before-leave: the documented event nothing tested (run-2 claim sweep) ─────────────────────
+/**
+ * The README's contract: `before-leave` fires "before leaving the current route", ahead of
+ * `before-route`, with the same (to, from) snapshots, and returning `false` cancels — leaving
+ * view AND URL exactly where they were. The order half matters because a leave guard that fires
+ * after `before-route` has already let the destination decide first.
+ */
+{
+  const { view, r } = makeApp([
+    { path: '/bl-a', component: () => '<p>A</p>' },
+    { path: '/bl-b', component: () => '<p>B</p>' },
+    { path: '/bl-locked', component: () => '<p>L</p>' },
+  ]);
+  const order = [];
+  r.on('before-leave', (to, from) => {
+    order.push(`leave:${from?.path ?? 'none'}->${to.path}`);
+    if (to.path === '/bl-locked') return false;
+  });
+  r.on('before-route', (to) => { order.push(`route:${to.path}`); });
+  await navigate('/bl-a', 'navigate');
+  await navigate('/bl-b', 'navigate');
+  check('before-leave fires ahead of before-route, with from/to snapshots',
+    order.join('|') === 'leave:none->/bl-a|route:/bl-a|leave:/bl-a->/bl-b|route:/bl-b');
+  const refused = await navigate('/bl-locked', 'navigate');
+  check('before-leave returning false cancels: navigate reports it', refused === false);
+  check('the view stays', view.textContent === 'B');
+  check('and so does the URL', window.location.pathname === '/bl-b');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

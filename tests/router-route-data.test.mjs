@@ -197,5 +197,37 @@ const app = (routes, options = {}) => {
   check('without re-running the component', seen === rendersBefore, 'component re-ran');
 }
 
+// ── `title` and `action`: the two documented route keys nothing tested ────────────────────────
+/**
+ * Both had implementations and README rows and ZERO tests (found by the run-2 claim sweep). The
+ * claims: `title` is "a string, or a function of the params — sets document.title"; `action`
+ * "runs before the component; load data here. May be async." The ordering half matters most — an
+ * action that merely STARTS before the component is useless for loading data, so the async action
+ * must be AWAITED before the component runs, and it receives the same (params, to, from)
+ * snapshots guards do.
+ */
+{
+  const order = [];
+  app([
+    { path: '/titled', title: 'Static Title', component: () => 'T' },
+    { path: '/u/:id', title: (p) => `User ${p.id}`, component: () => 'U' },
+    {
+      path: '/act',
+      action: async (params, to, from) => {
+        await new Promise((r) => setTimeout(r, 20));
+        order.push(`action:${to.path} from:${from?.path ?? 'none'}`);
+      },
+      component: () => { order.push('component'); return 'A'; },
+    },
+  ]);
+  await navigate('/titled', 'navigate');
+  check('title: a string sets document.title', window.document.title === 'Static Title', window.document.title);
+  await navigate('/u/7', 'navigate');
+  check('title: a function of the params', window.document.title === 'User 7', window.document.title);
+  await navigate('/act', 'navigate');
+  check('an async action is AWAITED before the component, with the guard snapshots',
+    order.join('|') === 'action:/act from:/u/7|component', order.join('|'));
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
