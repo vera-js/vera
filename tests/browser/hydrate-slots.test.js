@@ -85,3 +85,38 @@ it('recovers the content the server parked for a slot this template does not hav
     'the round trip completes: server-parked content survives into a later render');
   host.remove();
 });
+
+/**
+ * **The adopted-seam park, on the engine.** Run 3's defect: adoption never declared its removal
+ * work, so branch-away skipped teardown and destroyed the user's server-rendered slotted nodes
+ * inside the discarded subtree. The jsdom pin holds the mechanics; this holds the engine's half —
+ * real parser-built markup, real observer timing, and state only a browser has (the typed value
+ * asserts the restored input is live, not a lookalike).
+ */
+it('adopted content parks on branch-away and returns on branch-back, state intact', async () => {
+  const host = mount();
+  const header = host.querySelector('h2');
+  renderInto(card(), host);
+  await settle();
+  expect(host.querySelector('h2')).to.equal(header, 'CONTROL: adoption kept the server node');
+
+  /** State only the page can hold: an input typed into after hydration, slotted by the user. */
+  const field = document.createElement('input');
+  field.setAttribute('slot', 'header');
+  host.appendChild(field);
+  await settle();
+  field.value = 'typed after hydration';
+
+  renderInto(html`<p>away</p>`, host);
+  await settle();
+  expect(header.isConnected).to.equal(false, 'branched away: parked, not on the page');
+  expect(host.textContent).to.equal('away');
+
+  renderInto(card(), host);
+  await settle();
+  expect(host.querySelector('h2')).to.equal(header, 'the SAME server node returned');
+  expect(host.querySelector('input')).to.equal(field, 'and the user\'s own node');
+  expect(host.querySelector('input').value).to.equal('typed after hydration',
+    'with the state only the real element carries');
+  host.remove();
+});
