@@ -69,6 +69,16 @@ ordinary HTML attribute — **write those exactly as they appear in HTML**, not 
 Boolean attributes: `disabled`, `hidden`, `readonly`, `required`, `open`, `selected`, `multiple`,
 `autofocus`, `autoplay`, `controls`, `loop`, `muted`, `playsinline`, `inert`, `reversed`.
 
+**One precedence difference from React, on purpose.** A spread key overwrites a *static* attribute
+of the same name wherever the spread sits — `<i {...bag} title="x" />` renders the bag's `title`,
+where React's later-wins rule would render `"x"`. Statics are parsed into the template before any
+binding runs, and a spread commits at render time; the renderer's rule (a spread key *replaces* a
+static, identically on client and server — see `@verajs/renderer`'s spread docs) is
+position-independent by construction. Every dynamic-vs-dynamic order works as in React: a later
+spread beats an earlier one, and a later *written binding* like `disabled={false}` beats an
+earlier spread's `true`. When a static must win, write it as a binding — `title={"x"}` — or drop
+the key from the bag.
+
 ### The renderer's sigils work too
 
 `.prop=`, `?bool=`, `@event=` and `&ref=` mean in JSX exactly what they mean in `html`, and a name

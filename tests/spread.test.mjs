@@ -488,3 +488,27 @@ test('a refused key does not destabilize removal semantics', () => {
     console.warn = original;
   }
 });
+
+/* ── precedence: the position-independent rule the docs promise ──────────────────────────────── */
+
+/**
+ * A spread key REPLACES a static attribute wherever the spread sits — statics are parse-time,
+ * bindings are render-time, so source position cannot decide between them (the renderer README
+ * documents the rule; the jsx README documents the one difference from React it produces). Between
+ * two dynamics, document order decides: a later spread beats an earlier one, and a later written
+ * binding beats an earlier spread. Pinned together so an edit that makes one true and another
+ * false fails here rather than shipping three inconsistent answers.
+ */
+test('precedence: spread over statics regardless of position; document order between dynamics', () => {
+  renderInto(html`<p title="x" ${spread({ title: 'y' })}>a</p>`, host);
+  assert.equal(host.querySelector('p').getAttribute('title'), 'y', 'spread after static: spread wins');
+
+  renderInto(html`<i ${spread({ title: 'y' })} title="x">b</i>`, host);
+  assert.equal(host.querySelector('i').getAttribute('title'), 'y', 'spread BEFORE static: spread still wins — position-independent');
+
+  renderInto(html`<b ${spread({ title: 'y' })} ${spread({ title: 'z' })}>c</b>`, host);
+  assert.equal(host.querySelector('b').getAttribute('title'), 'z', 'two spreads: the later one wins');
+
+  renderInto(html`<u ${spread({ '?disabled': true })} ?disabled=${false}>d</u>`, host);
+  assert.equal(host.querySelector('u').hasAttribute('disabled'), false, 'a later written binding beats an earlier spread');
+});
