@@ -72,6 +72,10 @@ const specifiersReachableFrom = (page, text, map = {}) => {
     for (const [, specifier] of source.matchAll(/from\s*['"](@verajs\/[a-z/-]+)['"]/g)) bare.add(specifier);
     /** `import '@verajs/x'` and `import './y.js'` — a side-effect import resolves through the map too. */
     for (const [, specifier] of source.matchAll(/import\s*['"](@verajs\/[a-z/-]+)['"]/g)) bare.add(specifier);
+    /** And `await import('@verajs/x')` — the DYNAMIC spelling, which is how both broken example
+     *  pages actually loaded their component: a page can be dead on arrival through an import the
+     *  static patterns never see. */
+    for (const [, specifier] of source.matchAll(/import\s*\(\s*['"](@verajs\/[a-z/-]+)['"]\s*\)/g)) bare.add(specifier);
     for (const specifier of bare) {
       specifiers.add(specifier);
       /**
