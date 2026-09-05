@@ -366,7 +366,10 @@ which route through the node's current parent and are correct in both modes.
 
 The `<slot>` ELEMENT is also still the component's handle on the slot, and means what it means in a
 shadow root: **`@slotchange`** fires on first assignment and on every change (verified against real
-shadow DOM, event for event); **`assignedNodes()`/`assignedElements()`** answer from the live
+shadow DOM, event for event — including for a slot whose rendering is currently displaced, since
+assignment is independent of rendering). ⚠️ Bind it DIRECTLY (`@slotchange` on the slot): the
+handles are out of the document, so the event cannot bubble and a host-level listener hears
+silence; **`assignedNodes()`/`assignedElements()`** answer from the live
 assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the SLOTTABLES of
 the fallback currently on screen (a comment in fallback content is not one; a nested slot flattens
 through to what it is showing); and **`name` may be a binding** — `<slot name=${section}>` routes by

@@ -404,7 +404,14 @@ render(() => html`<header>
 
 - **`@slotchange`** fires on first assignment and on every change after it — and only then, so a
   child added without a `slot` attribute fires nothing. The sequence and each event's
-  `assignedNodes()` are asserted against real shadow DOM, which is the oracle for this.
+  `assignedNodes()` are asserted against real shadow DOM, which is the oracle for this. It fires
+  for a slot whose rendering is currently displaced too (assignment is independent of rendering),
+  exactly as native does for a slot that is not on screen.
+- **Bind `slotchange` directly — it does not bubble to the host.** In a shadow root one listener on
+  the root hears every slot by bubbling; here the slot handles are deliberately out of the document,
+  so there is no tree for the event to climb and `host.addEventListener('slotchange', …)` hears
+  silence. Use `@slotchange` on each slot, which also hands you the right `event.target`. (The same
+  boundary as `querySelector('slot')`: fewer places to listen, not fewer events.)
 - **`assignedNodes(options)` / `assignedElements(options)`** answer from the live assignment,
   through `event.target` or a `&ref`. With nothing assigned, `{ flatten: true }` gives the fallback
   actually on screen — slottables only, so a comment you wrote into fallback content is not in it,

@@ -629,6 +629,55 @@ test('insertBefore against a distributed child throws — before()/after() are t
 });
 
 /**
+ * **`slotchange` is delivered, never propagated — the boundary, stated and pinned both ways.**
+ *
+ * In a shadow root the slot elements form a tree, so one listener on the root hears every slot's
+ * `slotchange` by bubbling — the canonical pattern — and a slot nested in another slot's fallback
+ * bubbles through the outer slot element on its way up. A light host's slot handles are
+ * deliberately detached (they are API objects, not positions — see below), so there is no tree for
+ * the event to climb: `host.addEventListener('slotchange', …)` hears silence, with no error, which
+ * is exactly the shape a migrating shadow user writes first. The event is dispatched with
+ * `bubbles: true`, faithfully — it simply has nowhere to go.
+ *
+ * Simulating the climb was considered and refused: re-dispatching on the host forges
+ * `event.target`, which is the property every canonical handler reads (`e.target.assignedNodes()`),
+ * and a forged target is worse than a stated boundary. Same family as `querySelector('slot')` and
+ * `host.insertBefore`: fewer PLACES to listen, not fewer events.
+ *
+ * The half that holds is pinned first, because it is the half that matters: DIRECT binding —
+ * `@slotchange` or a listener on the handle — hears every event, including on a slot whose
+ * rendering is currently DISPLACED (assignment is independent of rendering, and native fires for a
+ * hidden slot's assignment change too — measured).
+ */
+test('slotchange reaches a direct listener even while the slot is displaced — and never the host', async () => {
+  const element = host('<u slot="o">OWN</u>');
+  let inner = null;
+  const onInner = [];
+  const onHost = [];
+  element.addEventListener('slotchange', () => onHost.push('heard'));
+  renderInto(
+    html`<div><slot name="o"><em>E</em><slot name="i" &ref=${(node) => { inner = node; }} @slotchange=${(e) => onInner.push(e.target.assignedNodes().map((n) => n.textContent).join(','))}>D</slot></slot></div>`,
+    element
+  );
+  await settle();
+
+  /** The outer slot is assigned, so the inner slot is parked in the outer's fallback fragment. */
+  const late = doc.createElement('b');
+  late.setAttribute('slot', 'i');
+  late.textContent = 'IN';
+  element.append(late);
+  await settle();
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.deepEqual(onInner, ['IN'],
+    'the DISPLACED slot fired with the right payload — assignment is independent of rendering, as native');
+  assert.equal(inner.assignedNodes()[0], late, 'and the payload is the live node');
+  assert.deepEqual(onHost, [],
+    'the host heard nothing: detached handles have no tree to bubble through — the stated boundary');
+  element.remove();
+});
+
+/**
  * **The slot element is an API object, not a position — now a published claim, so pinned.**
  *
  * The README and `llms.txt` tell a shadow user migrating here to reach the slot through `&ref` or
