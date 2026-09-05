@@ -157,3 +157,22 @@ console.log('hydrate ok — markerless adoption, identity preserved, fallback sa
     console.warn = originalWarn;
   }
 }
+
+// N+1. "After the first render, this IS the base render" — the documented idempotence, pinned
+//      (run-3 claim sweep found it untested). The second and third calls must be ordinary in-place
+//      updates on the ADOPTED node: same element, one element, latest value — a re-adoption or a
+//      duplicate would each pass a lone textContent read.
+{
+  const host = dom.window.document.createElement('div');
+  host.innerHTML = '<p>server</p>';
+  dom.window.document.body.appendChild(host);
+  const server = host.querySelector('p');
+  const draw = (v) => renderInto(html`<p>${v}</p>`, host);
+  draw('server');
+  assert.equal(host.querySelector('p'), server, 'CONTROL: the first render adopted');
+  draw('two');
+  draw('three');
+  assert.equal(host.querySelector('p'), server, 'later renders keep the adopted element');
+  assert.equal(host.textContent, 'three', 'and land the latest value');
+  assert.equal(host.querySelectorAll('p').length, 1, 'exactly one element — no duplicate from re-adoption');
+}
