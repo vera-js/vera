@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.92 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.97 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -232,7 +232,7 @@ Every relative gesture, from a component that has no idea where it is mounted:
 | a sibling — `/users/5/profile` → `/users/5/settings` | `navigate('settings')` — a relative path resolves like a relative href: the last segment is replaced |
 | the same place, a different view | `navigate({ name: 'user-settings' })` — params fill from here |
 | a child — `/users/5` → `/users/5/edit` | `navigate({ name: 'user-edit' })`, or `` navigate(`${currentRoute().path}/edit`) `` |
-| anything else | `currentRoute()` gives `{ path, params }` — the rest is string work |
+| anything else | `currentRoute()` gives `{ path, query, hash, params }` — the rest is string work |
 
 One resolution rule, deliberately: a relative `navigate()` goes exactly where the same string in an
 `<a href>` would, so there is no second grammar to learn and links and calls can never disagree. The
@@ -408,7 +408,7 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 | --- | --- |
 | `setRouterRenderer(fn)` | what draws a route's template into its outlet |
 | `resolve(name, params)` | build a named route's URL — `href`-ready, `navigate()` takes it too, and missing params fill from the current route |
-| `currentRoute()` | where the page is: `{ path, params }`, params merged across every router that matched |
+| `currentRoute()` | where the page is: `{ path, query, hash, params }` — pathname, `URLSearchParams`, fragment, and params merged across every router that matched |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
 | `setBasePath(path)` | the path prefix the app is served under; `null` returns to reading `<base href>` |
 | `router` | hand this router core's insert registry — pass it to `wire` |

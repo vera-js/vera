@@ -231,10 +231,25 @@ export const addBase = (path: string, base = currentBase()): string => {
  * no DOM is touched, so a server pass may call it (it answers `{ path: '', params: {} }` before
  * anything commits, which is also the honest answer).
  */
-export const currentRoute = (): { path: string; params: RouteParams } => ({
-  path: state.currentPath,
-  params: { ...state.params },
-});
+export const currentRoute = (): { path: string; query: URLSearchParams; hash: string; params: RouteParams } => {
+  /**
+   * Decomposed, because `state.currentPath` is the INTERNAL encoding — pathname, search and hash
+   * in one string — and handing that out as "path" made the documented child recipe,
+   * `currentRoute().path + '/edit'`, build `/users/5?tab=x#top/edit` the moment a query was
+   * present. Every probe that shaped the first version fed it clean pathnames, so the leak looked
+   * like a design. The fields match the per-element snapshot's types (`query` a `URLSearchParams`,
+   * `hash` with its `#`), so the two views of "where am I" never teach different habits.
+   */
+  const raw = state.currentPath;
+  const [withoutHash, hashIndex] = removeHashFragment(raw);
+  const queryIndex = withoutHash.indexOf('?');
+  return {
+    path: queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex),
+    query: new URLSearchParams(queryIndex === -1 ? '' : withoutHash.slice(queryIndex)),
+    hash: hashIndex > 0 ? raw.slice(hashIndex) : '',
+    params: { ...state.params },
+  };
+};
 
 /**
  * The history stack, by the names the other routers use. `go(-1)` and `back()` are the same call;

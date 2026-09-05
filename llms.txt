@@ -604,8 +604,10 @@ Semantics worth stating:
   relative path — `navigate('settings')` from `/users/5/profile` — resolving exactly as
   `href="settings"` would (last segment replaced). The same place with a different view, or a
   CHILD, is `navigate({ name })` with params filled from here. Everything else composes from
-  **`currentRoute()`**, which returns `{ path, params }` page-wide (params merged across every
-  matched router; a copy, callable under Node, `{ path: '', params: {} }` before anything commits).
+  **`currentRoute()`**, which returns `{ path, query, hash, params }` page-wide — the pathname
+  alone, a `URLSearchParams`, the `#fragment`, and params merged across every matched router; a
+  copy, callable under Node, empty before anything commits — so `currentRoute().path + '/edit'`
+  composes even when the current URL carries a query.
   One resolution rule, deliberately: relative `navigate()` and a relative href can never disagree.
   The one surprise — a relative word from a path ENDING in a param replaces it (`navigate('edit')`
   from `/users/5` is the sibling `/users/edit`, not the child) — is warned about in development,

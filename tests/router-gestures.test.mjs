@@ -55,6 +55,7 @@ router.addRoutes([
   { path: '/users/:id/profile', name: 'user-profile', component: () => { hit = 'profile'; return ''; } },
   { path: '/users/:id/settings', name: 'user-settings', component: () => { hit = 'settings'; return ''; } },
   { path: '/users/:id/edit/:tab?', name: 'user-edit', component: () => { hit = 'edit'; return ''; } },
+  { path: '/users/:id/profile/edit', component: () => { hit = 'edit-child'; return ''; } },
 ]);
 
 /** The same-route no-op trap, avoided by construction: every test leaves from a known route. */
@@ -104,14 +105,37 @@ test('a <base> ELEMENT re-points relative navigation to the mount root — the p
   }
 });
 
-test('currentRoute() answers page-wide, and hands out a copy', async () => {
+test('currentRoute() answers page-wide, decomposed, and hands out a copy', async () => {
   await from('/users/5/profile');
   const here = currentRoute();
   assert.equal(here.path, '/users/5/profile');
   assert.deepEqual(here.params, { id: '5' });
+  assert.equal(here.query.size, 0);
+  assert.equal(here.hash, '');
 
   here.params.id = 'corrupted';
   assert.deepEqual(currentRoute().params, { id: '5' }, 'mutating the answer must not poison later fills');
+});
+
+/**
+ * **The shape regression this API shipped with, for one hour.** `state.currentPath` is the internal
+ * encoding — pathname, search and hash in one string — and the first `currentRoute()` handed it out
+ * as `path`. Every probe that shaped it fed clean pathnames, so the leak read as a design, and the
+ * README's own child recipe built `/users/5/profile?tab=x#top/edit` for anyone whose URL carried a
+ * query. `path` is the pathname alone now, with `query` and `hash` as their own fields typed like
+ * the per-element snapshot's, and the recipe is asserted here IN a query-bearing context, because a
+ * recipe only tested where it happens to work is how this got out the door.
+ */
+test('with a query and hash on the URL, path stays composable and each part is its own field', async () => {
+  await from('/users/5/profile?tab=activity#top');
+  const here = currentRoute();
+  assert.equal(here.path, '/users/5/profile', 'the pathname alone — no internal encoding leaks');
+  assert.equal(here.query.get('tab'), 'activity');
+  assert.equal(here.hash, '#top');
+  assert.deepEqual(here.params, { id: '5' });
+
+  assert.deepEqual(await go(`${here.path}/edit`), { hit: 'edit-child', url: '/users/5/profile/edit' },
+    "the README's child recipe survives a query on the current URL");
 });
 
 test('SAME PLACE, DIFFERENT VIEW: navigate({ name }) fills params from the current route', async () => {
