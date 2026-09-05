@@ -30,13 +30,45 @@ const withDir = (dir) => {
  * to make. `autoload-dir="//evil.test"` reaches a different **origin**.
  */
 test('url() refuses a directory that escapes the base', () => {
-  for (const dir of ['//evil.test', '../../evil', '..', '../']) {
+  for (const dir of ['//evil.test', '../../evil', '..', '../', 'https://evil.test/x', 'HTTPS://evil.test/x']) {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
       /resolves outside https:\/\/x\.test\/app\//,
       `autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
+});
+
+/**
+ * The URL parser is the first line here, and these pin what it does: backslashes normalize to
+ * slashes in special schemes and `%2e` segments are dot segments, so every literal traversal
+ * spelling resolves outside the base and dies on the prefix test — no code of ours needed.
+ */
+test('backslash and encoded-dot traversals normalize into refusals', () => {
+  for (const dir of ['a\\..\\..', '..\\', '\\evil.test', '%2e%2e/']) {
+    assert.throws(
+      () => instance.url('my-card', withDir(dir)),
+      /resolves outside/,
+      `autoload-dir=${JSON.stringify(dir)} must be refused`
+    );
+  }
+});
+
+/**
+ * `%2F`/`%5C` survive resolution as data inside a segment, so the URL is textually inside the
+ * base while naming the exact traversal a decode-then-resolve server turns real — the one
+ * spelling the prefix test cannot see, refused at the same choke point as `?`/`#`.
+ */
+test('url() refuses an encoded path separator', () => {
+  for (const dir of ['..%2F', '..%2f', '%2e%2e%2f', 'a/..%2F..', 'a%5Cb']) {
+    assert.throws(
+      () => instance.url('my-card', withDir(dir)),
+      /encoded path separator/,
+      `autoload-dir=${JSON.stringify(dir)} must be refused`
+    );
+  }
+  /** CONTROL for the whole family: percent alone is not a separator and still builds. */
+  assert.equal(instance.url('my-card', withDir('v%202')), 'https://x.test/app/v%202/my-card.js');
 });
 
 test('url() still builds the ordinary cases', () => {

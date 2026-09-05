@@ -175,6 +175,26 @@ export const autoloader = (
       throw refusal;
     }
     /**
+     * **An encoded separator is refused the way a real one is caught.**
+     *
+     * The URL parser handles every literal form: `..`, `..\\` and `%2e%2e/` all normalize into
+     * genuine traversals that resolve outside `base` and fail the prefix test below — measured,
+     * all three. But `%2F` and `%5C` survive resolution as DATA inside one path segment, so
+     * `autoload-dir="..%2F..%2Fuploads"` is textually inside the prefix while naming the exact
+     * traversal a decode-then-resolve server turns real — and on a page whose markup is partly
+     * authored elsewhere, that is an attacker importing an uploaded file as a same-origin module.
+     * The URL standard is on the server's side here; principle #8 is not interested — this module
+     * bounds what markup can turn into a module URL, and a directory whose name needs an encoded
+     * slash has no honest reading. Same family as the `?`/`#` refusal above, same scope: the
+     * default path only, since `resolve` owns its own URL building and a `%2F` in a query it adds
+     * is legitimately its business.
+     */
+    if (!resolve && /%2f|%5c/i.test(dir)) {
+      const refusal = new Error(`[vera] autoloader: refused ${href} for <${tag}> — encoded path separator in "${dir}"`);
+      (refusal as Error & { href: string }).href = href;
+      throw refusal;
+    }
+    /**
      * **Containment belongs here, not only at the fetch.**
      *
      * `autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
