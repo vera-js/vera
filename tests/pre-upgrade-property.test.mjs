@@ -18,6 +18,19 @@
  * `init()` runs in `connectedCallback` the value is already gone.
  *
  * Detection covers both spellings and costs production nothing.
+ *
+ * The complementary case — the definition ALREADY EXISTS at render time — is the second half of
+ * this file, and it must behave completely differently: the renderer stamps instances with
+ * `importNode`, whose cloning steps upgrade defined elements at clone time, so the commit goes
+ * through the class. A setter fires (no own property ever shadows it), a field initializer runs
+ * BEFORE the commit so the bound value wins, and both match what hydration always did, since
+ * server-parsed elements upgrade at parse. Before the `importNode` fix all three were wrong in the
+ * same direction — `cloneNode` copies of template content stay un-upgraded until insertion, so a
+ * defined accessor never fired (a dead own property shadowed it permanently, on every Lit-style
+ * element), a defined field initializer clobbered the bound value at insert with no warning (the
+ * `whenDefined` detector above only watches definitions that arrive late), and CSR disagreed with
+ * hydration about the same template. Verified against all three engines: `.probe/` fa4b–fa4f,
+ * 2026-09-05.
  */
 import { JSDOM } from 'jsdom';
 import { readFile } from 'node:fs/promises';
@@ -101,6 +114,33 @@ customElements.define('preup-clean', class extends HTMLElement {});   // what `d
 await frame();
 check('a `declare`d field keeps the bound value', clean.item === store);
 check('and warns about nothing', took().length === 0, took().join(' | '));
+
+/* ── defined FIRST: the commit goes through the class, not past it ────────────────────────────── */
+let setterRuns = 0;
+customElements.define('preup-accessor', class extends HTMLElement {
+  set item(v) { setterRuns++; this._held = v; }
+  get item() { return this._held; }
+});
+host = mount();
+took = since();
+renderInto(html`<preup-accessor .item=${store}></preup-accessor>`, host);
+await frame();
+const accessor = host.querySelector('preup-accessor');
+check('a defined accessor FIRES — the clone upgrades before the commit', setterRuns === 1,
+  `setter ran ${setterRuns}×`);
+check('so no own property shadows it', !Object.getOwnPropertyDescriptor(accessor, 'item'));
+check('and the getter answers with the bound value', accessor.item === store);
+check('quietly', took().length === 0, took().join(' | '));
+
+customElements.define('preup-fielded', class extends HTMLElement { count = 0; });
+host = mount();
+took = since();
+renderInto(html`<preup-fielded .count=${5}></preup-fielded>`, host);
+await frame();
+check('a defined field initializer runs BEFORE the commit, so the binding wins',
+  host.querySelector('preup-fielded').count === 5,
+  `got ${JSON.stringify(host.querySelector('preup-fielded').count)}`);
+check('with nothing to warn about', took().length === 0, took().join(' | '));
 
 console.warn = realWarn;
 

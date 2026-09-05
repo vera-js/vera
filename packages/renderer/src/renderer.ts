@@ -1103,8 +1103,23 @@ class Instance {
   declare _slotStates?: SlotSeamState[];
   declare _pendingSlots?: Element[];
   constructor(template: Template) {
-    /** cloneNode over importNode: same document, and it measures slightly cheaper. */
-    this._fragment = template._element.content.cloneNode(true) as DocumentFragment;
+    /**
+     * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
+     * Template content lives in the inert template document, so `cloneNode` copies stay
+     * un-upgraded until insertion; a `.prop` committed in that window lands as an OWN property
+     * that permanently shadows a defined class's setter (the setter never fires — every
+     * accessor-based element, Lit's included, receives a dead value) and a bound value on a
+     * class-field element is clobbered by the field initializer at insert, silently, because the
+     * `whenDefined` detector below only watches definitions that arrive LATE. Hydration commits
+     * onto server-parsed, already-upgraded elements, so the two render paths disagreed about the
+     * same template. `importNode`'s cloning steps upgrade defined elements at clone time — in
+     * every engine and in jsdom — which makes the commit order match hydration and the platform.
+     * Undefined elements are untouched: nothing can upgrade them, and the pre-upgrade posture
+     * (own property, clobber on define, development warning) stands as pinned in
+     * `tests/pre-upgrade-property.test.mjs`. Measured cost of losing `cloneNode`: ~2–7% of the
+     * raw clone operation across the three engines — nanoseconds per instance.
+     */
+    this._fragment = doc.importNode(template._element.content, true);
     const templateParts = template._parts;
     /** Shared walker, ELEMENT | TEXT — child anchors are the primed text nodes themselves. */
     instanceWalker.currentNode = this._fragment;

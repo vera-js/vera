@@ -74,7 +74,13 @@ const OPS = [
   ['title property', "el.title = 'T'; return el.getAttribute('title') + '|' + el.title;"],
   ['tabIndex', "el.setAttribute('tabindex','3'); return String(el.tabIndex);"],
   ['removeAttribute missing', "el.removeAttribute('nope'); return 'ok';"],
-  ['empty class', "el.className=''; return JSON.stringify(el.getAttribute('class'));"]
+  ['empty class', "el.className=''; return JSON.stringify(el.getAttribute('class'));"],
+  /** `importNode` must COPY — the shim returned the node itself for a while, and a caller mutating
+   *  the "copy" corrupted the original (for the renderer, a template's canonical content). */
+  ['importNode is a copy', "const c = el.ownerDocument.importNode(el, false); return String(c !== el) + ':' + c.localName;"],
+  ['importNode deep carries children', "el.innerHTML = '<p>x</p>'; const c = el.ownerDocument.importNode(el, true); return String(c.childNodes.length) + ':' + String(c.firstElementChild !== el.firstElementChild);"],
+  ['importNode shallow drops children', "el.innerHTML = '<p>x</p>'; return String(el.ownerDocument.importNode(el, false).childNodes.length);"],
+  ['importNode copy is detached from the original', "el.setAttribute('a','1'); const c = el.ownerDocument.importNode(el, false); c.setAttribute('a','2'); return el.getAttribute('a') + ':' + c.getAttribute('a');"]
 ];;
 
 const TAGS = ['div', 'span', 'input', 'a', 'my-widget'];

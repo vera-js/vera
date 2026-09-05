@@ -1053,6 +1053,14 @@ constructor body or `connectedCallback` can look. `declare` is the rule, not a s
 
 `npx eslint` flags it too, if you use the config in this repo.
 
+All of the above is about a definition that arrives **late**. When the element is already defined
+at render time, the binding goes through the class: the renderer stamps instances with
+`importNode`, whose cloning steps upgrade defined elements at clone time, so a class **setter
+fires** with the bound value (nothing shadows it) and a field initializer runs **before** the
+commit, so the binding wins over the default — the same order hydration always had, since
+server-rendered elements upgrade at parse. `declare` remains the rule because you do not control
+when a consumer's module graph defines your element.
+
 ## Repository
 
 - `packages/*` — the modules. `packages/*/dist/development/*.d.ts` is the source of truth for types.

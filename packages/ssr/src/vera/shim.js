@@ -486,8 +486,17 @@ export const installShims = () => {
      * defensive code that bailed out of a render that was in fact perfectly connected.
      */
     contains: (node) => node?.isConnected === true,
-    /** Nothing here owns another document, so importing and adopting are the identity. */
-    importNode: (node) => node,
+    /**
+     * `importNode` CLONES — the spec's "import" is a copy into this document, never the node
+     * itself. The identity it used to return was a lie with teeth: a caller mutates the "copy"
+     * and corrupts the original (for the renderer's Instance, the template's canonical content —
+     * every later render of that template starts from the corrupted tree). Element, text and
+     * comment shims clone for real; a kind without `cloneNode` (a fragment) refuses loudly, which
+     * is this DOM's posture — decline what cannot be reproduced, never hand back an alias.
+     * `adoptNode` stays the identity: adopting MOVES a node and nothing here owns another
+     * document, so the node itself is the correct answer there.
+     */
+    importNode: (node, deep) => node.cloneNode(deep === true),
     adoptNode: (node) => node,
     get defaultView() {
       return globalThis.window;

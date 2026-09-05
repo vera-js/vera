@@ -89,3 +89,38 @@ it('leaves plain built-in elements alone', async () => {
   expect(host.querySelector('input').value).to.equal('typed');
   expect(warnings.length).to.equal(0, warnings.join(' | '));
 });
+
+/**
+ * The defined-FIRST half: instances are stamped with `importNode`, whose cloning steps upgrade
+ * defined elements at clone time, so a `.prop` commit goes through the class — in the engine's own
+ * words, not jsdom's. Before the fix a `cloneNode` fragment stayed un-upgraded until insertion:
+ * the setter below fired zero times with a dead own property shadowing it forever, and the field
+ * case silently read back its initializer.
+ */
+it('a defined accessor fires — the clone upgrades before the commit', async () => {
+  let setterRuns = 0;
+  customElements.define('x-preup-accessor', class extends HTMLElement {
+    set item(v) { setterRuns++; this._held = v; }
+    get item() { return this._held; }
+  });
+  const host = mount();
+  const store = { message: 'through the class' };
+
+  renderInto(html`<x-preup-accessor .item=${store}></x-preup-accessor>`, host);
+  const el = host.querySelector('x-preup-accessor');
+  expect(setterRuns).to.equal(1, 'the class setter received the commit');
+  expect(Object.getOwnPropertyDescriptor(el, 'item')).to.equal(undefined, 'no own property shadows it');
+  expect(el.item === store).to.equal(true);
+  await settle();
+  expect(warnings.length).to.equal(0, warnings.join(' | '));
+});
+
+it('a defined field initializer runs before the commit, so the binding wins', async () => {
+  customElements.define('x-preup-fielded', class extends HTMLElement { count = 0; });
+  const host = mount();
+
+  renderInto(html`<x-preup-fielded .count=${5}></x-preup-fielded>`, host);
+  await settle();
+  expect(host.querySelector('x-preup-fielded').count).to.equal(5);
+  expect(warnings.length).to.equal(0, warnings.join(' | '));
+});
