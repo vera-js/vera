@@ -21,7 +21,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 }
 
-const { wire, html, init, render } = await load('core');
+const { wire, html, init, render, createStore } = await load('core');
 const { renderer, renderInto, hold } = await load('renderer');
 const { slots, slotted } = await load('renderer/slots');
 wire([renderer, slots]);
@@ -161,6 +161,72 @@ test('branch-away parks user nodes; the branch returning restores them (same ide
   assert.equal(h.querySelector('em'), em, 'the SAME node returned from parking');
   assert.equal(h.querySelector('p').textContent, 'precious');
   h.remove();
+});
+
+/**
+ * **A three-level park chain: branch away, come back, and the chain reassembles.** `takeOverSlot`
+ * chains nested seams so parking the outer slot parks the ones living in its fallback — and under
+ * fragment parking that means the inner binding's anchors and even its DISTRIBUTED content sit
+ * inside the outer's fragment when the park fires. The risk being pinned: double-handling (a node
+ * rescued by two parks) or a stale chain after restore. The oracle is a FRESH host given the same
+ * children — round-tripped and fresh must agree on view, on membership, and on node IDENTITY, in
+ * both starting states (outer assigned, so the chain is displaced; outer unassigned, so the chain
+ * is rendered). Measured clean before pinning.
+ */
+test('three-level slot chains survive a branch-away round trip, displaced or rendered', async () => {
+  customElements.define('pk-host', class extends dom.window.HTMLElement {
+    connectedCallback() {
+      init(this);
+      this.state = createStore({ shape: 'slots' });
+      render(() => this.state.shape === 'slots'
+        ? html`<div class="box"><slot name="o"><em>E</em><slot name="i"><i>F</i><slot name="x">X</slot></slot></slot></div>`
+        : html`<div class="gone">nothing</div>`);
+    }
+  });
+  const make = async (assignO) => {
+    const el = doc.createElement('pk-host');
+    const nodes = {};
+    for (const [name, text] of [['o', 'O1'], ['i', 'I1'], ['x', 'X1']]) {
+      if (name === 'o' && !assignO) continue;
+      const n = doc.createElement('u');
+      n.setAttribute('slot', name);
+      n.textContent = text;
+      nodes[name] = n;
+      el.append(n);
+    }
+    doc.body.append(el);
+    await settle();
+    return { el, nodes };
+  };
+  const view = (el) => (el.querySelector('.box')?.textContent ?? '?').replace(/\s+/g, '');
+  const membership = (el) => ['o', 'i', 'x'].map((n) => `${n}:${slotted(el, n).map((x) => x.textContent).join('+') || '-'}`).join(' ');
+
+  /** Displaced chain: outer assigned, so i and x live inside o's park fragment when the park fires. */
+  const trip = await make(true);
+  const fresh = await make(true);
+  trip.el.state.shape = 'plain';
+  await settle();
+  assert.equal(membership(trip.el), membership(fresh.el), 'membership survives while branched away');
+  trip.el.state.shape = 'slots';
+  await settle();
+  assert.equal(view(trip.el), view(fresh.el), 'round-tripped view equals a fresh host');
+  assert.equal(membership(trip.el), membership(fresh.el), 'membership too');
+  assert.equal(slotted(trip.el, 'o')[0], trip.nodes.o, 'and the node came back by IDENTITY, not by copy');
+  trip.nodes.o.remove();
+  fresh.nodes.o.remove();
+  await settle();
+  assert.equal(view(trip.el), view(fresh.el), 'the displaced chain renders correctly after the round trip');
+
+  /** Rendered chain: outer unassigned, all three levels on screen through their fallbacks. */
+  const tripB = await make(false);
+  const freshB = await make(false);
+  tripB.el.state.shape = 'plain';
+  await settle();
+  tripB.el.state.shape = 'slots';
+  await settle();
+  assert.equal(view(tripB.el), view(freshB.el));
+  assert.equal(slotted(tripB.el, 'x')[0], tripB.nodes.x, 'deepest-level identity survives too');
+  for (const h of [trip.el, fresh.el, tripB.el, freshB.el]) h.remove();
 });
 
 test('nested hosts: capture takes direct children only', () => {
