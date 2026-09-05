@@ -634,3 +634,32 @@ test('adopted content survives a branch-away and returns on branch-back', async 
   assert.equal(host.querySelector('header').textContent, 'Mine', 'into its slot');
   host.remove();
 });
+
+/**
+ * The fallback warning promises "other containers on the page hydrate independently and are
+ * unaffected" — and mismatch cleanup parks THROUGH the module-level `_adoptedSlots` array, which
+ * is exactly the shape that could park another container's seams if its reset discipline slipped.
+ * A adopts clean; B (same server markup, poisoned with trailing junk) mismatches AFTER its slot
+ * adopted. B's own user content must survive its fallback (the rescue), and A must stay assigned
+ * AND live — the post-cleanup write is the half a static read cannot see.
+ */
+test('a mismatching container parks only its own seams', async () => {
+  const hostA = hostFromServer(server('<u slot="header">A-mine</u>'));
+  const itemA = hostA.querySelector('u');
+  renderInto(card(), hostA);
+  await settle();
+  assert.ok(hostA.querySelector('header').contains(itemA), 'CONTROL: A adopted');
+
+  const hostB = hostFromServer(server('<u slot="header">B-mine</u>'));
+  hostB.appendChild(dom.window.document.createElement('table'));
+  renderInto(card(), hostB);
+  await settle();
+  assert.ok(hostB.querySelector('header').textContent.includes('B-mine'),
+    'B fell back and its user content survived the rebuild');
+
+  assert.ok(hostA.querySelector('header').contains(itemA), 'A untouched by B\'s cleanup');
+  itemA.textContent = 'A-live';
+  await settle();
+  assert.ok(hostA.querySelector('header').textContent.includes('A-live'), 'and A is still LIVE');
+  hostA.remove(); hostB.remove();
+});
