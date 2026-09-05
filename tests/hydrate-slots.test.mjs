@@ -4,7 +4,7 @@
  * distributed DOM SURVIVES (node identity preserved — no re-render), and the slot system comes
  * alive (fallback returns on removal, re-slotting works) exactly as a fresh client render.
  */
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 import { execFileSync } from 'node:child_process';
 import { JSDOM } from 'jsdom';
 import assert from 'node:assert/strict';
@@ -480,3 +480,127 @@ const SHAPES = {
   named: () => html`<article><main><slot>fb</slot><slot name="x">XF</slot></main></article>`,
   dup: () => html`<article><main><slot>FIRST-FB</slot><slot>SECOND-FB</slot></main></article>`,
 };
+
+/**
+ * **Deploy skew preserves EVERYTHING — unnamed content and bare text included, not just the named
+ * nodes the older mismatch tests used.** The client's template changed since the server rendered
+ * (the realistic mismatch: a deploy between render and load), adoption bails, and the rescue reads
+ * the `data-vera-slotted` marks — which is why it can save content that carries no `slot`
+ * attribute and could never be told apart from template output by inspection. Identity is asserted,
+ * not just text: a rescue that re-created equivalent nodes would pass a textContent check while
+ * breaking every reference the page holds.
+ */
+test('AUDIT — a template-changed mismatch preserves unnamed content and bare text, with identity', async () => {
+  const serverHtml = server('<h2 slot="header">named</h2><span>plain</span>bare text');
+  const host = hostFromServer(serverHtml);
+  const h2 = host.querySelector('h2');
+  const span = host.querySelector('span');
+  const changed = () => html`<article class="v2"><header><slot name="header"><em>fallback header</em></slot></header><main><slot>default fallback</slot></main></article>`;
+  renderInto(changed(), host);
+  await settle();
+
+  assert.equal(host.querySelector('h2'), h2, 'the named node survived, same identity');
+  assert.equal(host.querySelector('span'), span, 'the UNNAMED element survived, same identity');
+  assert.equal(host.querySelector('main').textContent.replace(/\s+/g, ' ').trim(), 'plainbare text'.replace(/\s+/g, ' ').trim(),
+    'and the bare text is on screen, not parked or gone');
+  assert.deepEqual(slotted(host).map((n) => n.textContent), ['plain', 'bare text'],
+    'the capture map holds the default slot — the system is live, not just visually right');
+
+  /** Live after the skew: the whole point of the rescue is a working first client render. */
+  host.querySelector('h2').remove();
+  await settle();
+  assert.equal(host.querySelector('header').textContent, 'fallback header');
+  host.remove();
+});
+
+/**
+ * **The one shape where content IS lost, and the warning that now says so.** A container holding
+ * children that were never server output — no `data-vera-slotted`, no carrier — hands the rescue
+ * nothing to prove ownership with: an unnamed `<span>` is structurally indistinguishable from the
+ * stale template markup being discarded, so it goes with it. That line is deliberate (the
+ * alternative is resurrecting stale server DOM as slot content), but the old message promised "the
+ * page is correct" unconditionally, which was false exactly here. The absence of marks is the
+ * discriminator, and the message pivots on it: it must name the loss and the fix (client-only
+ * containers belong to the plain renderer). Named nodes still survive — a `slot` attribute IS
+ * proof of ownership.
+ */
+test('AUDIT — non-server children: named survive, and the warning names the possible loss', { skip: isProduction }, async () => {
+  const host = dom.window.document.createElement('mm-host');
+  host.innerHTML = '<h2 slot="header">named</h2><span>plain</span>';
+  dom.window.document.getElementById('root').appendChild(host);
+  const h2 = host.querySelector('h2');
+
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  try {
+    renderInto(card(), host);
+    await settle();
+  } finally {
+    console.warn = original;
+  }
+
+  assert.equal(host.querySelector('h2'), h2, 'the slot attribute is proof of ownership — the named node survives');
+  const warning = said.find((line) => line.includes('fell back'));
+  assert.ok(warning, 'the fallback said so');
+  assert.match(warning, /carried none of the marks/, 'and named the discriminator');
+  assert.match(warning, /cannot be told apart from the stale markup/, 'stated the loss instead of promising correctness');
+  assert.match(warning, /renderInto instead/, 'and named the fix');
+  host.remove();
+});
+
+/** The behavioural half of the test above, valid in BOTH builds: a `slot` attribute is proof of
+ *  ownership, so a named node survives the bail even when nothing else can. */
+test('AUDIT — non-server children: the named node survives the bail in any build', async () => {
+  const host = dom.window.document.createElement('mm-host-prod');
+  host.innerHTML = '<h2 slot="header">named</h2>';
+  dom.window.document.getElementById('root').appendChild(host);
+  const h2 = host.querySelector('h2');
+  renderInto(card(), host);
+  await settle();
+  assert.equal(host.querySelector('h2'), h2, 'same identity, distributed');
+  assert.equal(host.querySelector('header').textContent, 'named');
+  host.remove();
+});
+
+/**
+ * **The fallback-fragment lifecycle, post-hydration, through multiple round trips.** The CSR
+ * mutation fuzz found three defects in this lifecycle client-side; hydration builds the same
+ * bindings on its own branch (`adoptSlot`), where the invariant splits: an ASSIGNED slot's
+ * fallback is clones, displaced from birth into the fragment, while an unassigned slot's fallback
+ * is live server output the fragment must not touch. Measured against a genuine CSR control under
+ * nine identical mutation steps — remove/re-add twice over, re-slot out and back, empty both —
+ * with zero divergence; this pins the double round trip, which is the step that exercises
+ * restore-after-REdisplacement, where a stale restore list would show its age.
+ */
+test('AUDIT — hydrated fallback survives repeated displacement round trips and re-slotting', async () => {
+  const serverHtml = server('<h2 slot="header">Hi</h2><span>body</span>');
+  const host = hostFromServer(serverHtml);
+  renderInto(card(), host);
+  await settle();
+
+  const header = () => host.querySelector('header').textContent;
+  host.querySelector('h2').remove();
+  await settle();
+  assert.equal(header(), 'fallback header', 'round trip 1: restore');
+
+  const again = dom.window.document.createElement('h2');
+  again.setAttribute('slot', 'header');
+  again.textContent = 'Back';
+  host.appendChild(again);
+  await settle();
+  assert.equal(header(), 'Back', 'round trip 2: displace again');
+
+  again.remove();
+  await settle();
+  assert.equal(header(), 'fallback header', 'round trip 3: restore from the SECOND displacement');
+
+  again.textContent = 'Again';
+  host.appendChild(again);
+  await settle();
+  again.setAttribute('slot', '');
+  await settle();
+  assert.equal(header(), 'fallback header', 're-slot away: named fallback holds');
+  assert.ok(host.querySelector('main').textContent.includes('Again'), 'and the node joined the default slot');
+  host.remove();
+});

@@ -691,14 +691,38 @@ export const renderInto = (result: unknown, container: Node) => {
      * It also said the markup was discarded, full stop; `clearPreservingStyles` keeps
      * `<style vera-styles>`, which is the whole reason that function exists.
      */
-    if (__DEV__)
+    if (__DEV__) {
+      /**
+       * **"The page is correct" is a promise this message must not make blindly.** The bail rescue
+       * preserves everything it can PROVE is the user's: content inside `data-vera-slotted` marks,
+       * the `data-vera-unassigned` carrier, and elements carrying a `slot` attribute. Real server
+       * output always marks its distributed default-slot content, so on genuine deploy skew the
+       * rescue is complete and the promise holds — measured, named and unnamed and bare text alike.
+       * But a container holding CLIENT-side markup that was never server output has no marks, and
+       * its unnamed slottables are structurally indistinguishable from the stale template output
+       * being discarded — so they go with it, under a message that said everything was fine. The
+       * marks are the discriminator: their total absence is exactly the shape where the promise
+       * can fail, so that is when the message changes.
+       */
+      const unmarked =
+        container.nodeType === 1 &&
+        (container as Element).querySelector('[data-vera-slotted],[data-vera-unassigned]') === null;
       console.warn(
         `[vera] hydration fell back to a client render: ${why}. This container's server markup was ` +
-          `discarded and rebuilt (its SSR <style> is kept), so the page is correct but the server's ` +
-          `work on this part of it was wasted. Other containers on the page hydrate independently ` +
-          `and are unaffected. The two renders have to agree exactly — check for markup the template ` +
-          `does not describe, or state settled after the server render.`
+          `discarded and rebuilt (its SSR <style> is kept), ` +
+          (unmarked
+            ? `and it carried none of the marks server output carries. If its children were ` +
+              `CLIENT-side markup rather than this template's server output, unnamed light-slot ` +
+              `content (bare text, elements without a \`slot\` attribute) cannot be told apart ` +
+              `from the stale markup and was discarded with it — hydrate adopts existing children ` +
+              `AS server output; render client-only containers with @verajs/renderer's renderInto ` +
+              `instead. `
+            : `so the page is correct but the server's work on this part of it was wasted. `) +
+          `Other containers on the page hydrate independently and are unaffected. The two renders ` +
+          `have to agree exactly — check for markup the template does not describe, or state ` +
+          `settled after the server render.`
       );
+    }
     /**
      * **Un-distribute before discarding.** A light host's slotted content lives INSIDE the markup
      * about to be thrown away, so clearing destroyed it: the slots fell back and the user's nodes
