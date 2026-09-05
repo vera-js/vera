@@ -48,10 +48,15 @@ That file asks the three questions directly. Does the SERVER produce what the CL
 the server's markup ADOPT into that, without discarding it? And is a SHADOW component — one not
 using the feature at all — completely untouched by the module being wired?
 
-Server output is markerless: each `<slot>` is unwrapped to its assigned nodes or its fallback, and
-the only handoff is one `data-vera-slotted="offset,count"` attribute where the default slot took
-content, which hydration reads and strips. Adoption is in place, so node identity survives and with
-it focus, input values and scroll position — asserted in a real browser, on three engines:
+Server output carries no wrapper elements: each `<slot>` is unwrapped to its assigned nodes or
+its fallback, in place. The handoff to hydration is three small things, each present only when the
+markup needs it and each consumed on adoption — measured, not assumed: a
+`data-vera-slotted="offset,count"` attribute where the default slot took content; one inert
+`<template data-vera-unassigned>` holding children no slot claimed, so content meant for a slot
+that only appears in another state survives the round trip instead of vanishing from the HTML; and
+a `<!---->` separator where two text runs would otherwise merge in the parser and corrupt the
+offset. Adoption is in place, so node identity survives and with it focus, input values and scroll
+position — asserted in a real browser, on three engines:
 
 ```sh
 npm run test:browser:all                                # includes hydration from real server markup
