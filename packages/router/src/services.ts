@@ -347,6 +347,14 @@ let pendingScroll: [number, number] | undefined;
 let navigationId = 0;
 
 /**
+ * The ticket of the navigation that last COMMITTED (`state.currentPath` flipped to it). What it
+ * distinguishes: a navigation that is FINISHING — committed, now applying its hash and scroll,
+ * whose own synchronous `popstate` re-entry must not cancel it — from one still in flight, which
+ * a same-path arrival must supersede. The early return below is the only reader.
+ */
+let committedId = 0;
+
+/**
  * Applies the fragment of a full path+hash navigation, after the path's own history write.
  *
  * For user navigation under `pushHash`, `location.replace('#…')` is the trick: a same-document
@@ -576,7 +584,22 @@ export const navigate = async (
       }
     }
   }
-  if (path === state.currentPath) return true;
+  /**
+   * "Already there" has two cases, and they used to be one. With nothing in flight, arriving at
+   * the committed path is a no-op — and the synchronous `popstate` re-entry that `applyHash`
+   * fires DEPENDS on that no-op staying silent, or the navigation still applying its scroll and
+   * focus would cancel itself (its ticket is already committed, so it passes the test below).
+   * But with a DIFFERENT navigation in flight, "already there" is a decision: the user clicked
+   * back to the page they are on while a slower route was still loading, and returning quietly
+   * left that navigation un-superseded — it landed later, view and URL, on a page the user had
+   * chosen to leave. Same defect the ticket system exists for, entered through its own early
+   * return. Bumping the ticket supersedes the in-flight pass at its next checkpoint; nothing
+   * here is committed, so there is nothing else to undo.
+   */
+  if (path === state.currentPath) {
+    if (navigationId !== committedId) navigationId++;
+    return true;
+  }
   const id = ++navigationId;
   /** A fresh staging area per navigation — routers merge params in as they commit, and the pair
    *  `currentPath`/`params` flips to it only at the commit below, so a cancelled navigation
@@ -692,6 +715,9 @@ export const navigate = async (
   /** The staged params commit in the same breath — the synchronous `popstate` re-entry described
    *  above must see the new path WITH its params, never one navigation's path and another's ids. */
   state.params = state.pendingParams;
+  /** This ticket is now the committed one, which is what lets the re-entry's same-path early
+   *  return stay a no-op instead of cancelling the scroll and focus work still to come. */
+  committedId = id;
 
   /**
    * History first (hashless path, query kept), fragment second: `applyHash` needs the routed

@@ -73,6 +73,33 @@ const app = (routes, options = {}) => {
   check('a slow guard cannot resurrect its navigation', view.textContent === 'PLAIN', view.textContent);
 }
 
+/**
+ * The race that enters through the SAME-PATH early return: the user is on a page, clicks a slow
+ * route, changes their mind and clicks back to the page they are on (or presses Back to it). That
+ * arrival used to answer "already there" without superseding, so the abandoned navigation landed
+ * later — view AND URL — on a page the user had chosen to stay on. The fix bumps the ticket only
+ * when the newest navigation has NOT committed, which is what keeps `applyHash`'s synchronous
+ * popstate re-entry (a same-path arrival by design) from cancelling its own navigation's scroll
+ * and focus work — router-hash and router-scroll hold that side of the line.
+ */
+{
+  const finished = [];
+  const { view } = app([
+    { path: '/home', component: () => { finished.push('home'); return 'HOME'; } },
+    { path: '/lazy', component: async () => { await new Promise((r) => setTimeout(r, 50)); finished.push('lazy'); return 'LAZY'; } },
+  ]);
+  await navigate('/home', 'navigate');
+  const inFlight = navigate('/lazy', 'navigate');
+  await new Promise((r) => setTimeout(r, 5));
+  const stay = navigate('/home', 'navigate');   // "no, stay here" — the same-path arrival
+  await Promise.all([inFlight, stay]);
+  await new Promise((r) => setTimeout(r, 80));
+  check('the race was real — the slow component still finished last',
+    finished[finished.length - 1] === 'lazy', finished.join(','));
+  check('a same-path arrival supersedes the in-flight navigation: the view', view.textContent === 'HOME', view.textContent);
+  check('and the URL', window.location.pathname === '/home', window.location.pathname);
+}
+
 // ── params are percent-decoded ────────────────────────────────────────────────────────────────
 {
   let name, rest;
