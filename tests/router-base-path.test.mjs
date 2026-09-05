@@ -401,3 +401,37 @@ test('a routed href pointing outside the base is diagnosed', { skip: isProductio
   setBasePath(null);
 });
 
+
+/**
+ * The base composed with supersession (run-2's committedId fix): the same-path early return and
+ * the ticket bump must both operate on the SAME normalization of the path, or under a base one of
+ * two things breaks — "already there" false-negatives (an extra render, harmless) or
+ * false-positives (a swallowed navigation, the R2P3 defect resurrected one layer up). Both halves
+ * pinned: same-path stays a no-op under a base, and a stay-here click during a slower in-flight
+ * navigation supersedes it, view-model and URL both carrying the base.
+ */
+test('the same-path no-op and the in-flight supersession both hold under a base', async () => {
+  setBasePath('/app');
+  const finished = [];
+  const { view } = mount([
+    { path: '/home', component: () => { finished.push('home'); return 'HOME'; } },
+    { path: '/lazy', component: async () => { await new Promise((r) => setTimeout(r, 50)); finished.push('lazy'); return 'LAZY'; } },
+  ]);
+  await navigate('/home', 'navigate');
+  await tick();
+  assert.equal(window.location.pathname, '/app/home', 'CONTROL: the based navigation landed');
+  const runs = finished.length;
+  await navigate('/home', 'navigate');
+  await tick();
+  assert.equal(finished.length, runs, 'same path under a base: a no-op, not a re-render');
+
+  const inFlight = navigate('/lazy', 'navigate');
+  await new Promise((r) => setTimeout(r, 5));
+  const stay = navigate('/home', 'navigate');
+  await Promise.all([inFlight, stay]);
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(finished[finished.length - 1], 'lazy', 'CONTROL: the race was real — the slow component finished last');
+  assert.equal(window.location.pathname, '/app/home', 'the abandoned navigation never took the URL');
+  void view;
+  setBasePath(null);
+});
