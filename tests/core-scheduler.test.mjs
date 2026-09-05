@@ -86,6 +86,51 @@ test('the exported microtask scheduler renders', async () => {
 });
 
 /**
+ * The EFFECTS table is documented without a scheduler qualifier — coalescing, the sync/layout/
+ * effect split and their order are the contract wherever renders are scheduled — so it must hold
+ * under the swapped scheduler too, where "after render" means after a microtask-timed render
+ * rather than a frame. Only "renders at all" was pinned; this holds the rest of the table.
+ */
+test('the effects contract survives the microtask scheduler', async () => {
+  const previous = core.setRenderScheduler(core.microtask);
+  try {
+    const order = [];
+    let renders = 0;
+    const element = counter();
+    await macrotask();
+    const tag = `x-sched-${seq++}`;
+    customElements.define(tag, class extends HTMLElement {
+      connectedCallback() {
+        core.init(this, { mode: 'open' });
+        const state = core.createStore({ n: 0 });
+        this._state = state;
+        core.useSyncEffect(() => { order.push(`sync:${state.n}`); });
+        core.useLayoutEffect(() => { void state.n; order.push('layout'); });
+        core.useEffect(() => { void state.n; order.push('effect'); });
+        core.render(() => { renders++; return core.html`<p>${state.n}</p>`; });
+      }
+    });
+    const probe = dom.window.document.createElement(tag);
+    dom.window.document.body.appendChild(probe);
+    await macrotask();
+    assert.equal(renders, 1, 'CONTROL: the probe rendered at all');
+    order.length = 0;
+
+    probe._state.n = 1; probe._state.n = 2; probe._state.n = 3;
+    await macrotask();
+    assert.equal(renders, 2, 'a triple write coalesced to ONE render under microtask timing');
+    assert.deepEqual(order.filter((entry) => entry.startsWith('sync')), ['sync:1', 'sync:2', 'sync:3'],
+      'useSyncEffect stays unbatched and sees every value');
+    assert.deepEqual(order.filter((entry) => !entry.startsWith('sync')), ['layout', 'effect'],
+      'layout then effect, once each');
+    assert.equal(probe.shadowRoot.textContent, '3');
+    void element;
+  } finally {
+    core.setRenderScheduler(previous);
+  }
+});
+
+/**
  * The defect pass 92 found. A scheduler that throws left the coalescing flag raised, so every later
  * write returned early and the component never rendered again — measured frozen at its initial value
  * for the rest of the page, and *not* revived by restoring the default scheduler.
