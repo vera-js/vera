@@ -1430,6 +1430,19 @@ const builtIns: ValueHandler[] = [];
 let notifyOnRemoval = false;
 
 /**
+ * The hydrate entry's way to raise the flag. Every CLIENT path that creates removal work sets
+ * `notifyOnRemoval` where the work is created (a ref committing, a slot mounting, a directive
+ * declaring `_$detach$`) — but hydration ADOPTS its seams through its own walk in `hydrate.ts`,
+ * a different module compiled into the same bundle, and a page whose only seams were adopted
+ * left the flag down. `_clear` then skipped `_detach` entirely: no `_teardown`, no `_$park$`,
+ * and the user's server-adopted slotted content was destroyed on the first branch-away — the
+ * exact content-loss class the seam's park exists to prevent, reintroduced one entry over.
+ */
+export const declareRemovalWork = (): void => {
+  notifyOnRemoval = true;
+};
+
+/**
  * Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it.
  *
  * `@__PURE__` is load-bearing. Every read sits behind `__DEV__`, but a bare `new WeakMap()` at module

@@ -604,3 +604,33 @@ test('AUDIT — hydrated fallback survives repeated displacement round trips and
   assert.ok(host.querySelector('main').textContent.includes('Again'), 'and the node joined the default slot');
   host.remove();
 });
+
+/**
+ * **Branch-away after adoption parks the user's content; branch-back restores it.** The defect
+ * this pins: every CLIENT path that creates removal work raises `notifyOnRemoval` where the work
+ * is created, and the ADOPTION walk did not — so a page whose only seams were adopted never ran
+ * `_teardown` on clear, `_$park$` never rescued, and the user's server-rendered slotted node was
+ * destroyed inside the discarded card on the FIRST branch-away (found run 3 pass 1, by finally
+ * building the true-adoption park probe the register asked for). The template swap goes through
+ * the same call sites an app's conditional render uses; identity is asserted at every step
+ * because a rebuilt lookalike passes every textContent read.
+ */
+test('adopted content survives a branch-away and returns on branch-back', async () => {
+  const serverHtml = server('<h2 slot="header">Mine</h2>');
+  const host = hostFromServer(serverHtml);
+  const item = host.querySelector('h2');
+  renderInto(card(), host);
+  await settle();
+  assert.equal(host.querySelector('h2'), item, 'CONTROL: adoption kept the server node');
+
+  renderInto(html`<p>away</p>`, host);
+  await settle();
+  assert.equal(item.isConnected, false, 'branched away: the node is parked, not in the page');
+  assert.equal(host.textContent, 'away', 'and the branch actually rendered');
+
+  renderInto(card(), host);
+  await settle();
+  assert.equal(host.querySelector('h2'), item, 'branch-back restored the SAME node');
+  assert.equal(host.querySelector('header').textContent, 'Mine', 'into its slot');
+  host.remove();
+});

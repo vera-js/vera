@@ -37,6 +37,7 @@ import {
   slotSeam,
   renderInto as baseRender,
   renderer as baseRenderer,
+  declareRemovalWork,
 } from './renderer.js';
 import type { Template, Part, Item, TemplateResult, KeyedResult } from './renderer.js';
 
@@ -316,6 +317,10 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     const seam = seamAdopt(_adoptHost!, name, assigned, fallback, parent, before, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
     (state._slotStates ??= []).push(seam as never);
+    /** An adopted seam is removal work exactly as a mounted one is — without this, a page whose
+     *  only seams were adopted never ran `_teardown`, and branch-away destroyed the user's
+     *  server-adopted content instead of parking it. See `declareRemovalWork`. */
+    declareRemovalWork();
   } else {
     /** Unassigned: the server rendered this slot's fallback children — adopt them in lockstep
      *  (they ARE the canonical children), then bind them as the shown fallback. */
@@ -328,6 +333,8 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
     (state._slotStates ??= []).push(seam as never);
+    /** Same as the assigned branch: an unassigned seam still unregisters and re-routes at park. */
+    declareRemovalWork();
   }
 };
 
