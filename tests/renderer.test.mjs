@@ -392,6 +392,26 @@ test('hold() updates values in place when the template does not change', () => {
   assert.equal(b.textContent, 'y');
 });
 
+/**
+ * The README's no-eviction claim, as a standing test rather than a remembered probe: "fifty
+ * distinct shapes cycled through one hold and the first still re-adopted its own nodes." A cache
+ * with silent eviction passes every two-shape toggle — only a wide cycle where EVERY shape must
+ * come back as its own node can see one — and the first shape is the one an LRU would evict.
+ */
+test('hold() evicts nothing — fifty shapes through one call site all re-adopt their own nodes', () => {
+  const draws = Array.from({ length: 50 }, (_, i) => {
+    const strings = Object.assign([`<i class="s${i}">`, `</i>`], { raw: [`<i class="s${i}">`, `</i>`] });
+    return () => ({ _$litType$: 1, strings, values: ['x'] });
+  });
+  const draw = (i) => renderInto(html`<div>${hold(draws[i]())}</div>`, el);
+  const firsts = [];
+  for (let i = 0; i < 50; i++) { draw(i); firsts[i] = el.querySelector(`.s${i}`); }
+  assert.ok(firsts.every(Boolean), 'CONTROL: every shape rendered its element on first pass');
+  const strays = [];
+  for (let i = 0; i < 50; i++) { draw(i); if (el.querySelector(`.s${i}`) !== firsts[i]) strays.push(i); }
+  assert.deepEqual(strays, [], 'these shapes came back as rebuilt nodes, not their own');
+});
+
 // ── React-shaped event bindings: onClick ≡ @click, buildless ───────────────────────────────────
 test('onClick-style bindings attach listeners; onclick stays an attribute', () => {
   let clicks = 0;
