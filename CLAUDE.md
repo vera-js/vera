@@ -56,6 +56,11 @@ code, so they are not re-litigated.
   always reports one survivor — the loop's final binding, not a leak — and it survives arbitrary
   further churn, which makes it look like a bounded framework hold rather than an artefact. That
   reading cost a bisect across six component shapes before a plain-object control settled it.
+  **Moving the loop body into a function is not the cure either** — measured 2026-09-05, an async
+  per-cycle function still leaves the LAST call's objects alive (the artefact rides the await
+  chain, not just the `const`), and it survives an unrelated later render, which reads exactly like
+  a bounded framework hold. Only the no-framework control settles it: the same harness with plain
+  `innerHTML` and no vera at all reports the same lone survivor.
   **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
   `--expose-gc` made the old behaviour look correct); keep gc measurement in `.probe/`.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
