@@ -29,8 +29,11 @@ What to look at, in order:
    card styles `[slot='title'] em` and the shadow card renders the identical rule against nothing.
    This is the clearest reason to choose light mode, and the page shows both halves rather than
    asserting it.
-5. **Section 5 — `@slotchange`.** Moving a node between named slots tells the component, in both
-   modes, under the platform's own event name.
+5. **Section 5 — `@slotchange`.** Moving the badge between the footer slot and the DEFAULT slot
+   tells the component, in both modes, under the platform's own event name — the counter is bound
+   to the default slot, which is why the toggle crosses it. (The first version moved the badge
+   between two named slots, so the assignment the counter watches never changed and the advertised
+   counter sat frozen; the browser suite now clicks this button and requires the number to move.)
 6. **Section 6 — `<vera-select light>`.** `@verajs/ui`'s select declares four slots; in light mode
    they are inert unless the app wires the module. This page does, so the slotted trigger is
    captured, positioned and wired with the same ARIA and handlers the built-in one gets. The page

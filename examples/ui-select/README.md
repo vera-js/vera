@@ -30,10 +30,13 @@ What to look at, in order:
 
 ## What this page deliberately does not wire
 
-Its import map has no `@verajs/renderer/slots` entry, so in the **Light DOM** section the
-component's four slots are inert: they show their fallbacks, and slotted content would sit beside
-the component rather than filling it. That is a real supported configuration — light mode without
-light slots — and it is what this page demonstrates.
+It never calls `wire([…, slots])`, so in the **Light DOM** section the component's four slots are
+inert: they show their fallbacks, and slotted content would sit beside the component rather than
+filling it. That is a real supported configuration — light mode without light slots — and it is
+what this page demonstrates. (The import map does carry a `@verajs/renderer/slots` entry, because
+`@verajs/ui`'s bundle keeps it external and the module graph must RESOLVE either way — mapping a
+specifier and wiring a module are different acts, and this page is the demonstration that only the
+second one changes behaviour.)
 
 The other half is [`../light-slots/`](../light-slots/), which wires the module and shows the same
 select in light mode *with* a slotted trigger. Wiring is page-global, which is why it is a separate

@@ -96,7 +96,7 @@
 import { renderer } from '@verajs/renderer';
 import { slots } from '@verajs/renderer/slots';
 
-wire([renderer, slots]);</pre>
+wire([renderer, slots, styles]);</pre>
     <p class="note">
       Wire it at the app entry, <strong>before anything renders</strong>. A template resolves this
       once, at construction, and is interned for the life of the page — so a component that rendered
