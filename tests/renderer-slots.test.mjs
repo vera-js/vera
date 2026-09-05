@@ -262,6 +262,32 @@ test('assignedSlot is null in light mode; the forward reads carry the fact', asy
   element.remove();
 });
 
+/**
+ * **The IDL property spellings, closing the platform-surface list.** `element.slot = 'b'` and
+ * `handle.name = 'z'` are the property halves of the attribute writes everything else tests — and
+ * they work here for a reason worth stating: the ghost is a REAL `HTMLSlotElement` (parsed from
+ * the template), so IDL reflection writes the attribute, and the observers watch attributes on
+ * detached nodes as well as attached ones. Nothing special-cases properties; parity is inherited
+ * from reflection, which is exactly how it should be — but "should" is why this is pinned.
+ */
+test('IDL property writes — element.slot and slotHandle.name — route like their attributes', async () => {
+  const element = host('<u slot="a">A</u><u slot="zzz">B</u>');
+  const [a] = element.querySelectorAll('u');
+  let hb = null;
+  renderInto(html`<p class="pa"><slot name="a">FA</slot></p><p class="pb"><slot name="b" &ref=${(s) => { hb = s; }}>FB</slot></p>`, element);
+  await settle();
+
+  a.slot = 'b';
+  await settle();
+  assert.equal(element.querySelector('.pb').textContent, 'A', 'the .slot property re-routes the node');
+
+  hb.name = 'zzz';
+  await settle();
+  assert.equal(element.querySelector('.pb').textContent, 'B', 'and .name on the detached ghost re-routes the slot');
+  assert.equal(hb.getAttribute('name'), 'zzz', 'because IDL reflection wrote the attribute the observer watches');
+  element.remove();
+});
+
 test('a spread-driven slot name routes and re-routes', async () => {
   customElements.define('sp-host', class extends dom.window.HTMLElement {
     connectedCallback() {

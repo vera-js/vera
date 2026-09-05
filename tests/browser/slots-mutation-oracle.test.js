@@ -192,3 +192,38 @@ it('a prepended node precedes distributed content — light-tree order on the en
   await settle();
   expect(read(li), 'it comes back AHEAD — light-tree order, not arrival order').to.equal(read(sh));
 });
+
+/**
+ * **`assign()` exists on the light handle and is inert — closing the HTMLSlotElement surface.**
+ * jsdom cannot answer this one (it has not implemented `assign` at all), but in engines the ghost
+ * is a real `HTMLSlotElement`, so the method is on its prototype — and the spec makes it a no-op
+ * for any slot whose root is not a manual-assignment shadow tree, which a detached handle never
+ * is. That is the same inertness a named-assignment shadow slot has, so it is parity, not a gap.
+ * (`slotAssignment: 'manual'` itself is an `attachShadow` option: a shadow component passes it
+ * through `init(this, { mode, slotAssignment })` and native slotting owns it; light has no
+ * counterpart by construction.)
+ */
+it('assign() is present and inert on the light handle, as on any named-assignment slot', async () => {
+  const { light, li } = await pair();
+  const owned = document.createElement('u');
+  owned.setAttribute('slot', 'o');
+  owned.textContent = 'OWN';
+  light.appendChild(owned);
+  await settle();
+  expect(typeof li.o.assign, 'the ghost is a real HTMLSlotElement').to.equal('function');
+  /**
+   * The stray is appended and CAPTURE settles first — an unnamed element is a legitimate
+   * default-slot slottable, and the first version of this test appended it inside the
+   * before/after window, then read capture's correct routing as assign() acting. The engines
+   * were asserting native semantics against a probe that misattributed them.
+   */
+  const stray = document.createElement('b');
+  stray.textContent = 'STRAY';
+  light.appendChild(stray);
+  await settle();
+  const before = read(li);
+  li.o.assign(stray);
+  await settle();
+  expect(read(li), 'assign() changed nothing — inert outside manual mode, exactly as in shadow').to.equal(before);
+  stray.remove();
+});
