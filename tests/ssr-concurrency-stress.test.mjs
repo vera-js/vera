@@ -191,3 +191,31 @@ test('a synchronous render during an asynchronous one damages neither', async ()
   assert.equal((await renderToStringAsync(slow)).html, slowAlone, 'a later asynchronous render is wrong');
   assert.equal((await renderToString(quick)).html, quickAlone, 'a later synchronous render is wrong');
 });
+
+/**
+ * The composition of this file's concern with `ssr-render-failure`'s: a FAILURE in the suspension
+ * window. `renderErrors` is module-level like the rest of the bookkeeping, so a throwing render
+ * overlapping a suspended one is exactly the shape that could hand one request another's error —
+ * or hand the suspended render a poisoned error list and fail it retroactively. The throw must
+ * still name its component, and every healthy render — during, suspended, and after — must be
+ * byte-identical to its serial baseline.
+ */
+test('a throwing render inside the suspension window contaminates nothing', async () => {
+  const slow = fixture('slow-lifecycle-ssr.js');
+  const quick = fixture('hello-ssr.js');
+  const bad = fixture('throws-ssr.js');
+
+  const slowAlone = (await renderToStringAsync(slow)).html;
+  const quickAlone = (await renderToString(quick)).html;
+
+  const inFlight = renderToStringAsync(slow);
+  await assert.rejects(
+    () => renderToString(bad, { tag: 'throws-ssr' }),
+    /<throws-ssr> threw while rendering/,
+    'the failure still names its component while another render is suspended'
+  );
+  assert.equal((await renderToString(quick)).html, quickAlone, 'a healthy render right after the failure');
+  assert.equal((await inFlight).html, slowAlone, 'the suspended render survived a failure in its window');
+  assert.equal((await renderToString(quick)).html, quickAlone, 'a later synchronous render');
+  assert.equal((await renderToStringAsync(slow)).html, slowAlone, 'a later asynchronous render');
+});
