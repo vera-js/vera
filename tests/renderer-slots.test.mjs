@@ -629,6 +629,44 @@ test('insertBefore against a distributed child throws — before()/after() are t
 });
 
 /**
+ * **A `<slot name=${…}>` renames while DISPLACED, and the rename is honored — measured against
+ * shadow.** The ghost slot element is detached (an API object), and its binding is parked inside
+ * the outer slot's fallback fragment; the rename is seen by the observer that watches the ghost
+ * itself (`attributeFilter: ['name']` — observers are not tree-bound), the held node for the NEW
+ * name assigns immediately (assignment is independent of rendering), and when the outer slot later
+ * falls back, the renamed slot renders its assignment rather than its stale fallback. Every clause
+ * is a fragment-era path nothing else exercises.
+ */
+test('renaming a displaced slot re-routes it, and the fallback renders the new assignment', async () => {
+  const element = host();
+  const own = doc.createElement('u');
+  own.setAttribute('slot', 'o');
+  own.textContent = 'OWN';
+  const held = doc.createElement('b');
+  held.setAttribute('slot', 'z');
+  held.textContent = 'Z';
+  element.append(own, held);
+
+  let inner = null;
+  renderInto(
+    html`<div class="box"><slot name="o"><em>E</em><slot name="i" &ref=${(node) => { inner = node; }}>D</slot></slot></div>`,
+    element
+  );
+  await settle();
+
+  inner.setAttribute('name', 'z');
+  await settle();
+  assert.deepEqual(inner.assignedNodes().map((n) => n.textContent), ['Z'],
+    'the held node for the NEW name assigned while the slot was displaced');
+
+  own.remove();
+  await settle();
+  assert.equal(element.querySelector('.box').textContent.replace(/\s+/g, ''), 'EZ',
+    'and the restored fallback renders the renamed slot\'s assignment — E then Z, no stale D');
+  element.remove();
+});
+
+/**
  * **`slotchange` is delivered, never propagated — the boundary, stated and pinned both ways.**
  *
  * In a shadow root the slot elements form a tree, so one listener on the root hears every slot's
