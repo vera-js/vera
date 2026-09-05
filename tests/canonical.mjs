@@ -69,10 +69,18 @@ export const canonical = (node) => {
       .sort();
     const properties = mirrored.map((name) => `${name}:${JSON.stringify(child[name])}`);
     const shadow = shadowOf(child);
+    /**
+     * Namespace is part of the name, because `localName` alone cannot tell an `SVGRectElement`
+     * from an `HTMLUnknownElement` named "rect" — both sides could put a shape in the wrong
+     * namespace and every parity suite would still pass. XHTML is the unmarked case so that the
+     * overwhelming majority of comparisons read as before; anything else carries its URI.
+     */
+    const ns = child.namespaceURI;
+    const name = ns === null || ns === 'http://www.w3.org/1999/xhtml' ? child.localName : `{${ns}}${child.localName}`;
     out +=
-      `<${child.localName} ${[...attributes, ...properties].join(' ')}>` +
+      `<${name} ${[...attributes, ...properties].join(' ')}>` +
       (shadow ? `#shadow(${canonical(shadow)})` : '') +
-      `${VALUE_IS_CONTENT.has(child.localName) ? '' : canonical(child)}</${child.localName}>`;
+      `${VALUE_IS_CONTENT.has(child.localName) ? '' : canonical(child)}</${name}>`;
   }
   return out;
 };
