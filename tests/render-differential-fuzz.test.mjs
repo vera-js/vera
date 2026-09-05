@@ -26,6 +26,7 @@ import { load, isProduction } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of [
@@ -106,7 +107,7 @@ const canonical = (host) => {
   return out.join('\n');
 };
 
-const SEEDS = [1, 7, 13, 42, 99, 12345];
+const SEEDS = extendSeeds([1, 7, 13, 42, 99, 12345]);
 const ROUNDS = 60;
 
 test('generated templates hydrate to what the client renders, without falling back', () => {

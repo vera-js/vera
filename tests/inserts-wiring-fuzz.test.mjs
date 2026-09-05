@@ -29,6 +29,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
+
+const SEEDS = extendSeeds([9, 27, 63, 118, 240, 7777]);
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const k of ['window','document','HTMLElement','customElements','CSSStyleSheet','Node','Element','DocumentFragment','Text','Comment','requestAnimationFrame','cancelAnimationFrame','Event','CustomEvent'])
   globalThis[k] = dom.window[k];
@@ -47,7 +50,7 @@ let registrations = 0;
 
 
 test('every chain runs in priority order, replaces duplicates, and stays isolated', () => {
-  for (const seed of [9, 27, 63, 118, 240, 7777]) {
+  for (const seed of SEEDS) {
     const random = rng(seed);
 
     for (let round = 0; round < 8; round++) {
@@ -107,7 +110,8 @@ test('every chain runs in priority order, replaces duplicates, and stays isolate
       failures.push(`the busy chain holds ${(inserts.get('x-busy') ?? []).length} entries, expected 40`);
   }
 
-  assert.equal(configurations, 48, `expected 48 configurations, ran ${configurations}`);
+  /** Derived — see the note in collections-differential-fuzz. */
+  assert.equal(configurations, SEEDS.length * 8, `expected ${SEEDS.length * 8} configurations, ran ${configurations}`);
   assert.ok(registrations > 150, `only ${registrations} registrations were generated`);
   assert.deepEqual(
     failures.slice(0, 8),

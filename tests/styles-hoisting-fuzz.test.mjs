@@ -29,6 +29,7 @@ import { load } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><head></head><body><div id="host"></div></body>', { pretendToBeVisual: true });
 for (const key of [
@@ -53,7 +54,7 @@ const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), 
 /** Everything this page has hoisted, as text. */
 const hoisted = () => [...D.querySelectorAll('style')].map((node) => node.textContent ?? '').join('\n');
 
-const SEEDS = [7, 19, 41, 83, 167, 2718];
+const SEEDS = extendSeeds([7, 19, 41, 83, 167, 2718]);
 const ROUNDS = 5;
 let nextTag = 0;
 

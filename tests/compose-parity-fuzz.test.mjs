@@ -36,6 +36,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { canonical } from './canonical.mjs';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
@@ -70,7 +71,7 @@ const buildTree = (random, prefix) => {
   return { root, source: `import { init, createStore, render, html } from '@verajs/core';\n${parts.join('\n')}\n` };
 };
 
-const SEEDS = [5, 21, 47, 88, 150, 1618];
+const SEEDS = extendSeeds([5, 21, 47, 88, 150, 1618]);
 const ROUNDS = 3;
 
 const trees = [];

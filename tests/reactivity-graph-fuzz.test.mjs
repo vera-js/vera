@@ -32,6 +32,7 @@ import { load } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of [
@@ -48,7 +49,7 @@ const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), 
 
 const KEYS = ['a', 'b', 'c'];
 const NUMBERS = [0, 1, 2, 3, -1, 42];
-const SEEDS = [3, 9, 21, 55, 101, 7777];
+const SEEDS = extendSeeds([3, 9, 21, 55, 101, 7777]);
 const ROUNDS = 40;
 
 test('every computed matches a direct evaluation after any sequence of writes', () => {

@@ -6,6 +6,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Seed rotation: every CI run walks fuzz seeds no run has walked before, ON TOP of the
+    # standing arrays (additive — the regression net always runs first, and volume controls that
+    # scale with SEEDS.length keep working). tests/fuzz-seeds.mjs derives the extras from the run
+    # id and prints them at the top of each fuzz file's output, so a red run's log names its exact
+    # seeds; replaying anywhere is `VERA_FUZZ_SEEDS=<those seeds> npm test`. A failure on a
+    # rotated seed is usually a FIND that predates the commit under test — the audit arc's
+    # highest-yield instrument (it caught the shim's same-parent prepend duplication), made
+    # continuous. Investigate it as a find; never re-run until green. Local runs set neither
+    # variable and stay byte-for-byte deterministic.
+    env:
+      VERA_FUZZ_ROTATE: 1
+      VERA_FUZZ_KEY: ${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
         with:

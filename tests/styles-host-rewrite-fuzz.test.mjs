@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { rotateScalar } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
 for (const key of [
@@ -45,7 +46,7 @@ const DECLARATIONS = ['color: red', 'content: ":host"', 'background: url(/x/:hos
 const VALUE_HOST = /content: ":host"|url\(\/x\/:host\.png\)/g;
 
 test('the :host rewrite never touches a value, an escaped identifier, or the rule count', async () => {
-  let seed = 424242;
+  let seed = rotateScalar(424242);
   const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const pick = (list) => list[Math.floor(random() * list.length)];
 

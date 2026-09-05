@@ -33,6 +33,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
 for (const key of [
@@ -49,7 +50,7 @@ const { slots } = await load('renderer/slots');
 wire([renderer, slots]);
 const doc = dom.window.document;
 
-const SEEDS = [20260904, 5, 313, 88888];
+const SEEDS = extendSeeds([20260904, 5, 313, 88888]);
 let seed = 0;
 const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];

@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { rotateScalar } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>');
 for (const k of ['document', 'Node', 'Element', 'HTMLElement', 'DocumentFragment', 'Text', 'Comment'])
@@ -20,7 +21,7 @@ for (const k of ['document', 'Node', 'Element', 'HTMLElement', 'DocumentFragment
 const { parseMarkdown, serializeHtml, buildDom } = await load('cms/content');
 const doc = dom.window.document;
 
-let seed = 60606;
+let seed = rotateScalar(60606);
 const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 

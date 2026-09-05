@@ -30,6 +30,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
+
+const SEEDS = extendSeeds([6, 23, 47, 88, 191, 5309]);
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const k of ['window','document','HTMLElement','customElements','CSSStyleSheet','Node','Element','DocumentFragment','Text','Comment','requestAnimationFrame','cancelAnimationFrame','Event','CustomEvent'])
   globalThis[k] = dom.window[k];
@@ -69,7 +72,7 @@ const { computed } = await load('reactivity');
 
 test('a reactive Map and Set behave like plain ones, and notify exactly when they change', () => {
   for (const kind of ['Map', 'Set']) {
-    for (const seed of [6, 23, 47, 88, 191, 5309]) {
+    for (const seed of SEEDS) {
       const random = rng(seed);
       /** The subject: a collection inside a store, so every access goes through the insert. */
       const state = createStore({ c: kind === 'Map' ? new Map() : new Set() });
@@ -157,7 +160,10 @@ test('a reactive Map and Set behave like plain ones, and notify exactly when the
     }
   }
 
-  assert.equal(steps, 360, `expected 360 operations, ran ${steps}`);
+  /** Derived, not hard-coded: seed rotation ADDS seeds, and an exact literal count was the
+   * one volume control in the tree that could not scale — the maiden rotated sweep tripped
+   * exactly it (and its twin in inserts-wiring), on the harness, not the framework. */
+  assert.equal(steps, SEEDS.length * 60, `expected ${SEEDS.length * 60} operations, ran ${steps}`);
   assert.ok(notifications > 50, `only ${notifications} operations actually changed the collection`);
   assert.deepEqual(
     failures.slice(0, 8),

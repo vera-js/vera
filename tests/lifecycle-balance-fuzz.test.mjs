@@ -43,6 +43,7 @@ import { load } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body><div id="one"></div><div id="two"></div></body>', {
   pretendToBeVisual: true,
@@ -66,7 +67,7 @@ const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(()
 
 const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
-const SEEDS = [4, 17, 31, 66, 123, 9001];
+const SEEDS = extendSeeds([4, 17, 31, 66, 123, 9001]);
 const ROUNDS = 12;
 let nextTag = 0;
 

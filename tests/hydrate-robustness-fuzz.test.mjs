@@ -30,6 +30,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load, isProduction } from './dist.mjs';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of [
@@ -76,7 +77,7 @@ const MUTATORS = [
 ];
 
 const VALUES = ['v', '', 0, null, undefined, false, 'multi word', '<i>', 42];
-const SEEDS = [8, 24, 51, 96, 175, 4096];
+const SEEDS = extendSeeds([8, 24, 51, 96, 175, 4096]);
 const ROUNDS = 40;
 
 test('hydration adopts or falls back for any markup, and never throws', () => {

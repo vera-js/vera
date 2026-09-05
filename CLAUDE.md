@@ -402,6 +402,17 @@ and `@scope` are emulated or absent under a fake DOM, so for this framework a pa
 is weak evidence — and so is a pass on one engine. The jsdom suites are the regression net; browser
 suites are the release gate.
 
+**The fuzzes walk fresh territory in CI, deterministically everywhere else.** Every seeded fuzz
+suite takes its seeds through `tests/fuzz-seeds.mjs`: locally the standing arrays run untouched;
+CI sets `VERA_FUZZ_ROTATE=1` with the run id as key, ADDING derived seeds on top (never replacing —
+the regression net always runs, and `SEEDS.length`-scaled volume controls keep working). The extras
+are printed at the top of each fuzz file's output; a red run replays anywhere with
+`VERA_FUZZ_SEEDS=<those seeds> npm test`. **A failure on a rotated seed is usually a FIND that
+predates the commit under test, not a regression** — the virgin-seed sweep caught the shim's
+same-parent `prepend` duplication after three audit runs had walked past it. Investigate it as a
+find; never re-run CI until green. `release.yml` runs no tests, so a find can never block a
+release mid-cut.
+
 **Documented code is executed, not just written.** `tests/docs-recipes.test.mjs` runs the root
 README's quick-starts and every block marked `<!-- recipe -->` in any README, each in its own
 process. Isolation is per-process rather than per-import because under the `development` condition

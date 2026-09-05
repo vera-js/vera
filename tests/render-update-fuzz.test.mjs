@@ -31,6 +31,7 @@ import { load } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of [
@@ -91,7 +92,7 @@ const canonical = (host) => {
   return out.join('\n');
 };
 
-const SEEDS = [1, 5, 11, 23, 77, 2024];
+const SEEDS = extendSeeds([1, 5, 11, 23, 77, 2024]);
 const ROUNDS = 80;
 
 test('a sequence of updates ends where a fresh render of the last value starts', () => {

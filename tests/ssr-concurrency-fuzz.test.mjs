@@ -38,6 +38,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToString, renderToStringAsync } from '@verajs/ssr';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const asyncFixture = new URL('./fixtures/ssr/concurrent-async-ssr.js', import.meta.url);
 const syncFixture = new URL('./fixtures/ssr/concurrent-sync-ssr.js', import.meta.url);
@@ -50,7 +51,7 @@ const renderOne = (marker, depth, isAsync) =>
     ? renderToStringAsync(asyncFixture, { attributes: { marker, depth: String(depth) } })
     : renderToString(syncFixture, { attributes: { marker, depth: String(depth) } });
 
-const SEEDS = [12, 34, 56, 78, 90, 3141];
+const SEEDS = extendSeeds([12, 34, 56, 78, 90, 3141]);
 const ROUNDS = 6;
 
 test('concurrent renders produce exactly what serial renders produce', async () => {

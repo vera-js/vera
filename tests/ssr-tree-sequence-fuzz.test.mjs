@@ -36,6 +36,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>');
 const realDocument = dom.window.document;
@@ -76,7 +77,7 @@ const build = (D) => {
 };
 
 const OPERATIONS = ['appendChild', 'insertBefore', 'replaceChild', 'removeChild', 'prepend', 'before', 'after', 'replaceWith', 'remove'];
-const SEEDS = [2, 13, 29, 61, 137, 999];
+const SEEDS = extendSeeds([2, 13, 29, 61, 137, 999]);
 const STEPS = 25;
 
 test('the shim and jsdom build the same tree through any sequence of mutations', () => {

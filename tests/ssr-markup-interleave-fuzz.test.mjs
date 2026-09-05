@@ -23,6 +23,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>');
 const realDocument = dom.window.document;
@@ -71,7 +72,7 @@ const OPERATIONS = [
   'innerHTML', 'textContent', 'appendChild', 'insertFirst', 'removeSpare',
   'setAttribute', 'removeAttribute', 'classAdd', 'classRemove', 'classToggle', 'className', 'appendText',
 ];
-const SEEDS = [3, 17, 44, 91, 202, 1234];
+const SEEDS = extendSeeds([3, 17, 44, 91, 202, 1234]);
 const STEPS = 30;
 
 test('markup, node and attribute writes interleave the same way as in a real DOM', () => {

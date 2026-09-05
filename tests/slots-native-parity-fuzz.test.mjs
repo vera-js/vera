@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true });
 for (const key of [
@@ -38,7 +39,7 @@ const template = (markup) => ({ strings: Object.assign([markup], { raw: [markup]
  * it forever; a handful cover meaningfully more for the same wall-clock, and each is still fixed, so
  * a failure names the seed and the run that produced it and bisects to exactly that case.
  */
-const SEEDS = [20260903, 11, 4242, 99991, 7777777];
+const SEEDS = extendSeeds([20260903, 11, 4242, 99991, 7777777]);
 let seed = 0;
 const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];

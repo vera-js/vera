@@ -34,6 +34,7 @@ import { load } from './dist.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const key of [
@@ -50,7 +51,7 @@ const D = dom.window.document;
 const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
 const click = (element) => element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
-const SEEDS = [6, 15, 28, 73, 190, 5150];
+const SEEDS = extendSeeds([6, 15, 28, 73, 190, 5150]);
 const ROUNDS = 15;
 
 test('a click runs the last-bound handler exactly once, through any swap sequence', () => {

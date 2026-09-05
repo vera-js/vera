@@ -29,6 +29,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { transformJsx } from '../packages/jsx/src/index.js';
+import { extendSeeds } from './fuzz-seeds.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
@@ -170,7 +171,7 @@ const build = (random, depth) => {
   };
 };
 
-const SEEDS = [11, 22, 33, 44, 55, 606];
+const SEEDS = extendSeeds([11, 22, 33, 44, 55, 606]);
 const ROUNDS = 12;
 
 const cases = {};
