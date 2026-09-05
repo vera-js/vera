@@ -58,15 +58,34 @@ test('every import map is valid JSON', () => {
  * Local relative imports are followed; a bare specifier is the thing being checked and is where the
  * walk stops.
  */
-const specifiersReachableFrom = (page, text) => {
+const specifiersReachableFrom = (page, text, map = {}) => {
   const specifiers = new Set();
   const seen = new Set();
   const visit = (file, source) => {
     if (seen.has(file)) return;
     seen.add(file);
-    for (const [, specifier] of source.matchAll(/from ['"](@verajs\/[a-z/-]+)['"]/g)) specifiers.add(specifier);
+    const bare = new Set();
+    /** `\s*`, not a literal space: production bundles are minified — `from"@verajs/core"` — and
+     *  the spaced pattern read every dist file as importing nothing. That held this test blind
+     *  while a page loaded `@verajs/ui`, whose bundle keeps five workspace deps external, with a
+     *  map covering three: the page died on load and this guard passed. */
+    for (const [, specifier] of source.matchAll(/from\s*['"](@verajs\/[a-z/-]+)['"]/g)) bare.add(specifier);
     /** `import '@verajs/x'` and `import './y.js'` — a side-effect import resolves through the map too. */
-    for (const [, specifier] of source.matchAll(/import ['"](@verajs\/[a-z/-]+)['"]/g)) specifiers.add(specifier);
+    for (const [, specifier] of source.matchAll(/import\s*['"](@verajs\/[a-z/-]+)['"]/g)) bare.add(specifier);
+    for (const specifier of bare) {
+      specifiers.add(specifier);
+      /**
+       * FOLLOW the map into the bundle. A production bundle is a module like any other: what it
+       * keeps external resolves against the SAME map as the page's own imports, so its bare
+       * specifiers are part of the graph this function promises to walk. Stopping at the page's
+       * own level is how `@verajs/ui`'s externals went unchecked.
+       */
+      const target = map[specifier];
+      if (typeof target === 'string' && target.startsWith('/')) {
+        const resolved = join(root, target);
+        if (existsSync(resolved) && statSync(resolved).isFile()) visit(resolved, readFileSync(resolved, 'utf8'));
+      }
+    }
     const locals = [
       ...[...source.matchAll(/from ['"](\.[^'"]+)['"]/g)].map(([, path]) => path),
       ...[...source.matchAll(/<script[^>]+type=["']module["'][^>]+src=["']([^"']+)["']/g)].map(([, path]) => path),
@@ -90,12 +109,14 @@ test('every @verajs specifier a page loads has an entry', () => {
     const found = MAP.exec(text);
     if (!found) continue;
     let declared;
+    let imports;
     try {
-      declared = new Set(Object.keys(JSON.parse(found[1]).imports ?? {}));
+      imports = JSON.parse(found[1]).imports ?? {};
+      declared = new Set(Object.keys(imports));
     } catch {
       continue; // the parse test above owns this failure
     }
-    for (const specifier of specifiersReachableFrom(page, text)) {
+    for (const specifier of specifiersReachableFrom(page, text, imports)) {
       checked++;
       if (!declared.has(specifier))
         problems.push(`${relative(root, page)}: loads ${specifier}, which its import map does not declare`);

@@ -20,6 +20,8 @@
           "@verajs/core": "/packages/core/dist/vera.min.js",
           "@verajs/renderer": "/packages/renderer/dist/vera-renderer.min.js",
           "@verajs/renderer/slots": "/packages/renderer/dist/vera-renderer-slots.min.js",
+          "@verajs/renderer/keyed": "/packages/renderer/dist/vera-renderer-keyed.min.js",
+          "@verajs/renderer/spread": "/packages/renderer/dist/vera-renderer-spread.min.js",
           "@verajs/styles": "/packages/styles/dist/vera-styles.min.js",
           "@verajs/hooks": "/packages/hooks/dist/vera-hooks.min.js",
           "@verajs/ui": "/packages/ui/dist/vera-ui.min.js"
@@ -280,10 +282,17 @@ wire([renderer, slots]);</pre>
       }
       customElements.define('info-card', InfoCard);
 
-      /** Section 5 — moving a node between named slots is all it takes. */
+      /**
+       * Section 5 — moving a node between slots is all it takes. The toggle is footer ↔ DEFAULT
+       * deliberately: the counter above binds `@slotchange` on the default slot, so the badge
+       * visibly jumps between body and footer AND the counter ticks. (The first version toggled
+       * between two NAMED slots — footer and title — so the default slot's assignment never
+       * changed and the counter this section advertises sat frozen at 1, in both modes alike.
+       * A demo whose caption promises motion has to move.)
+       */
       document.querySelector('#mover').addEventListener('click', () => {
         const badge = document.querySelector('#badge');
-        badge.setAttribute('slot', badge.getAttribute('slot') === 'footer' ? 'title' : 'footer');
+        badge.setAttribute('slot', badge.getAttribute('slot') === 'footer' ? '' : 'footer');
       });
 
       /**
