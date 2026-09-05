@@ -249,3 +249,41 @@ test('autoloader + slots: parked content stays dormant, restored content loads',
     dom.window.Element.prototype.querySelectorAll = origQSA;
   }
 });
+
+/**
+ * keyed + spread: rows whose element carries a runtime bag, through a reorder and a removal. The
+ * two features claim the same node from different directions — keyed moves it by identity, spread
+ * keys its Binding map on the part — so the cells worth pinning are the ones where a stale
+ * mapping would show: attributes riding along a move, a handler still routed AFTER the move, a
+ * bag update landing on a moved row, and removal taking the row's bindings with the row. (A
+ * detached row's listener still firing on a direct dispatch is the platform's own rule and the
+ * documented parity with written `@event` — not asserted as a defect here.)
+ */
+test('keyed + spread: bags ride reorders, update in place, and leave with their row', () => {
+  const host = div();
+  dom.window.document.body.append(host);
+  const clicks = [];
+  const row = (r) => keyed(r.id, html`<li ${spread({ 'data-k': r.id, title: r.t, '@click': () => clicks.push(r.id) })}>${r.id}</li>`);
+  const draw = (rows) => renderInto(html`<ul>${rows.map(row)}</ul>`, host);
+
+  draw([{ id: 'a', t: '1' }, { id: 'b', t: '2' }, { id: 'c', t: '3' }]);
+  const [ea, eb, ec] = host.querySelectorAll('li');
+  assert.ok(ea.getAttribute('data-k') === 'a' && ec.title === '3', 'CONTROL: the bags landed at all');
+  ea.dispatchEvent(new dom.window.Event('click'));
+  assert.equal(clicks.join(), 'a', 'CONTROL: the handler fires at all');
+
+  draw([{ id: 'c', t: '3' }, { id: 'a', t: '1' }, { id: 'b', t: '2' }]);
+  const after = [...host.querySelectorAll('li')];
+  assert.ok(after[0] === ec && after[1] === ea && after[2] === eb, 'the reorder moved nodes, never rebuilt');
+  assert.equal(after.map((n) => n.getAttribute('data-k')).join(), 'c,a,b', 'attributes rode their rows');
+  after[1].dispatchEvent(new dom.window.Event('click'));
+  assert.equal(clicks.join(), 'a,a', 'the handler is still routed to the MOVED row');
+
+  draw([{ id: 'c', t: '9' }, { id: 'a', t: '1' }, { id: 'b', t: '2' }]);
+  assert.equal(host.querySelector('li').title, '9', 'a bag update lands on a moved row');
+
+  draw([{ id: 'c', t: '9' }, { id: 'b', t: '2' }]);
+  assert.equal(host.contains(ea), false, 'removal took the row');
+  assert.equal(host.querySelectorAll('li').length, 2);
+  host.remove();
+});
