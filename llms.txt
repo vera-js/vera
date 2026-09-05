@@ -385,7 +385,7 @@ nothing and `isConnected` is `false`.
 html`<slot name=${section} @slotchange=${(e) => wire(e.target.assignedElements())}>Nothing yet</slot>`
 ```
 
-Three differences worth knowing, all deliberate:
+The differences worth knowing, all deliberate:
 
 - After distribution a slotted node's `parentNode` is inside the component's rendered tree rather
   than the host. That is what light DOM *is*, and it is exactly why the user's own CSS and Tailwind
@@ -399,8 +399,10 @@ Three differences worth knowing, all deliberate:
   a light host's top level with a hidden non-enumerable property, so an unstamped node there is
   knowably yours; `slot=""`/`slot="name"` still route, they are simply no longer required. Two
   notes: whitespace you append suppresses the default fallback, exactly as it does in a shadow
-  root; and hand-edits interleaved among SEVERAL `${…}` expressions' content in one host order
-  approximately (membership is always right).
+  root; and re-slotting a node (`slot="a"` → `"b"`) rejoins in LIGHT-TREE order, not arrival
+  order — an item toggled into a "pinned" slot holds its place. What light has fewer of is
+  POSITIONS you can name (a distributed child is no longer a direct child — see the insertBefore
+  warning above), never worse ordering of the ones you can.
 - `slotchange` only ever fires for a slot that HAS an assignment — here and in a shadow root alike.
   A component that must wire itself even when given nothing should do that once from a `useEffect`
   as well.
@@ -539,8 +541,11 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - Hydration is a drop-in entry: SSR apps import from `'@verajs/renderer/hydrate'`
   (or point the CDN importmap's `@verajs/renderer` at `vera-renderer-hydrate.min.js`) — its
   `renderer` wirable binds the adopting render, so `wire([renderer])` stays the only wiring — and the
-  first render ADOPTS server-rendered children — markerless (no framework comments in server
-  HTML), node identity preserved, listeners attached, keyed updates move adopted nodes. Any
+  first render ADOPTS server-rendered children — no per-part marker comments in server HTML
+  (with light slots wired, the handoff is one offset attribute, one inert unassigned-content
+  `<template>`, and a rare `<!---->` where two text runs would merge — each present only when
+  needed, each consumed on adoption), node identity preserved, listeners attached, keyed updates
+  move adopted nodes. Any
   mismatch is **repaired**: the result is always exactly what the template describes, and nothing the
   server sent survives that it does not — a stale attribute, a leftover element, corrected text.
   (It adopts and corrects where it can rather than clearing wholesale, so a partial mismatch still
