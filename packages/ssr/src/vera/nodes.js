@@ -580,6 +580,16 @@ export class ContainerShim extends EventTarget {
     return dispatch(this, event);
   }
   get innerHTML() {
+    /**
+     * A void element's children exist in the DOM but never in its serialization — the HTML
+     * serialization algorithm skips them, so engines answer `""` here even with children attached
+     * (measured, Chromium and jsdom agreeing; `childNodes` still reports them, and `textContent`
+     * still reads their text, because those are DOM questions, not serialization ones).
+     * `serializeElement` already knew this for `outerHTML`; the getter did not, so a component
+     * reading its own `innerHTML` got a different answer server-side. `localName` is undefined on
+     * a fragment or shadow root, so the guard cannot fire off an element.
+     */
+    if (VOID_ELEMENTS.has(/** @type {{ localName?: string }} */ (this).localName ?? '')) return '';
     let out = '';
     for (const entry of this._entries) out += serializeEntry(entry);
     return out;
@@ -1905,11 +1915,14 @@ export class ElementShim extends ContainerShim {
   scrollBy() {}
 
   /**
-   * `insertAdjacent*` at the two positions that do not need a parent.
-   *
-   * `beforebegin` and `afterend` place content *beside* this element, which requires the parent
-   * this element does not have. They are refused rather than silently dropped — putting content
-   * nowhere is the failure this whole file keeps being audited for.
+   * All four positions. `beforebegin`/`afterend` used to be refused outright on the claim that
+   * this element has no parent — true for a component root, and FALSE for everything inside one:
+   * `_parent` is live for any nested element (the `outerHTML` setter below runs on it), so a
+   * component doing `this.querySelector(…).insertAdjacentHTML('afterend', …)` worked in the
+   * browser and took the whole server render down. The two positions now splice into the parent's
+   * entries exactly as `outerHTML=` does, and only a genuine orphan refuses — with the platform's
+   * own answer, `NoModificationAllowedError`, measured on jsdom and Chromium (the spec raises it
+   * for a null or Document parent; a bare `Error` here was a second divergence inside the first).
    *
    * **A markup sink, deliberately** (CODE-PRINCIPLES #8). It writes what it is given, exactly as
    * the DOM's own `insertAdjacentHTML` does, because a component calling it has already decided
@@ -1931,11 +1944,17 @@ export class ElementShim extends ContainerShim {
           `('${position}') is not one of 'beforeBegin', 'afterBegin', 'beforeEnd', or 'afterEnd'.`,
         'SyntaxError'
       );
-    else
-      throw new Error(
-        `ssr: insertAdjacentHTML('${position}') needs a parent element, and a server-rendered ` +
-          `component has none. Use 'afterbegin' or 'beforeend'.`
-      );
+    else {
+      const parent = this._parent;
+      if (!parent)
+        throw new DOMException(
+          `Failed to execute 'insertAdjacentHTML' on 'Element': The element has no parent.`,
+          'NoModificationAllowedError'
+        );
+      const index = parent._entries.indexOf(this);
+      parent._entries.splice(where === 'beforebegin' ? index : index + 1, 0, `${markup}`);
+      parent._parsed = false;
+    }
   }
   insertAdjacentText(position, text) {
     this.insertAdjacentHTML(position, escapeHtml(text));
