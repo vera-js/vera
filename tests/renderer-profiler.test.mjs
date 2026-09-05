@@ -113,6 +113,21 @@ test('profiling is off by default and reports nothing after stopping', { skip },
   assert.equal(second.frames, 0);
 });
 
+/**
+ * The README's and the source's shared promise, previously pinned by neither: "formatReport says
+ * so when it observed nothing", because a zero report is what a healthy idle app looks like AND
+ * what profiling the wrong renderer copy looks like — the one result that cannot be read without
+ * the explanation. The message must also say WHY (a different copy of the renderer), or it is a
+ * shrug rather than guidance.
+ */
+test('a zero report explains itself instead of printing zeros', { skip }, () => {
+  const { report } = profile(() => {});
+  assert.equal(report.frames, 0, 'CONTROL: nothing was rendered, so nothing was observed');
+  const text = formatReport(report);
+  assert.match(text, /No renders observed/);
+  assert.match(text, /different copy of the renderer/, 'names the likely cause, not just the fact');
+});
+
 test('the report reads as guidance, not just numbers', { skip }, () => {
   const swap = (on) => (on ? html`<a>on</a>` : html`<b>off</b>`);
   const { report } = profile(() => {
