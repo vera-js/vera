@@ -43,5 +43,8 @@ What to look at, in order:
 The same component **without** the wiring is [`../ui-select/`](../ui-select/), which is why that
 page's light section slots nothing — worth opening both.
 
-Server-rendered slots are a separate story with its own round trip: see
-[`../ssr-node/`](../ssr-node/) and `docs/features/light-dom-slots.md`.
+Server-rendered slots are a separate story with its own round trip: the working demonstration is
+[`../kitchen-sink/`](../kitchen-sink/) (its `sink-slots` component renders on the server and
+hydrates in place — the browser suite drives that handoff), and the contract is in
+`docs/features/light-dom-slots.md`. `../ssr-node/` is the minimal SSR example and deliberately
+contains no slots.
