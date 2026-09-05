@@ -220,6 +220,23 @@ export const addBase = (path: string, base = currentBase()): string => {
 };
 
 /**
+ * **Where the page is, readable from anywhere** — `{ path, params }`, with `params` merged across
+ * every router that matched (they all describe one URL; on a nested page the inner router's params
+ * arrive last). This is the primitive that puts every navigation gesture within reach of plain
+ * string work: a child is `currentRoute().path + '/edit'`, "same place, new tab param" is a spread,
+ * and a deeply nested component reads `:id` without anyone threading it down. `resolve()` uses the
+ * same state to fill missing params, so the common gestures never need this directly.
+ *
+ * A copy, deliberately — handing out live state would let any caller corrupt every later fill. And
+ * no DOM is touched, so a server pass may call it (it answers `{ path: '', params: {} }` before
+ * anything commits, which is also the honest answer).
+ */
+export const currentRoute = (): { path: string; params: RouteParams } => ({
+  path: state.currentPath,
+  params: { ...state.params },
+});
+
+/**
  * The history stack, by the names the other routers use. `go(-1)` and `back()` are the same call;
  * both are here because a component that already imports `navigate` should not have to reach for
  * `window.history` to undo it.
@@ -266,7 +283,15 @@ export const resolve = (name: string, params: RouteParams = {}) => {
     return '';
   }
   return addBase(pattern.replace(/\/?[:*]([^/:|?]+)\??/g, (token, key: string) => {
-    const value = params[key];
+    /**
+     * **A missing param fills from the CURRENT route, so "the same place, different view" is one
+     * call.** `navigate({ name: 'user-settings' })` from `/users/5/profile` should not force a
+     * component to know or thread the `5` — the page already knows it. Explicit params always win,
+     * and `key in params` rather than `??` so that an EXPLICIT `undefined` still means "omit this
+     * optional segment" instead of silently refilling it. With no committed navigation (a server
+     * pass, a fresh page) the fill finds nothing and behaviour is exactly what it always was.
+     */
+    const value = key in params ? params[key] : state.params[key];
     /** An absent optional param takes its segment with it; an absent required one is left visible. */
     if (value === undefined) return token.endsWith('?') ? '' : token;
     return `/${(Array.isArray(value) ? value : [value]).map(encodeURIComponent).join('/')}`;
@@ -384,6 +409,9 @@ export const attachWindowListeners = () => {
  * @param origin The router element that initiated it, when one did (link clicks)
  * @return true if the page routed (or the change was hash-only)
  */
+/** Relative navigations already warned about swallowing a param — one word per spelling. */
+const warnedSwallow = new Set<string>();
+
 export const navigate = async (
   target: RouteTarget,
   trigger: RouteTrigger = 'navigate',
@@ -492,9 +520,44 @@ export const navigate = async (
       return false;
     }
     if (resolved) path = stripBase(resolved.pathname) + resolved.search + resolved.hash;
+    /**
+     * **A relative word that swallowed a param gets named, because it is the one URL rule that
+     * reads as a router bug.** `navigate('edit')` from `/users/5` resolves to `/users/edit` — a
+     * SIBLING, replacing the last segment, exactly as `<a href="edit">` would — but when that
+     * segment was a `:param`, the author almost always meant the child `/users/5/edit`. The
+     * semantics stay the platform's (one resolution rule for links and calls alike); this warning
+     * exists so the surprise costs one console read instead of a debugging session, and it names
+     * both correct spellings. Development only, once per input.
+     */
+    if (__DEV__ && typeof target === 'string' && !/^[/?#]/.test(target) && !warnedSwallow.has(target)) {
+      const prior = state.currentPath.split(/[?#]/)[0];
+      const cut = prior.lastIndexOf('/') + 1;
+      const last = prior.slice(cut);
+      const bare = path.split(/[?#]/)[0];
+      if (
+        last !== '' &&
+        bare !== prior &&
+        bare.startsWith(prior.slice(0, cut)) &&
+        !bare.slice(cut).includes('/') &&
+        Object.values(state.params).some((value) => value === last)
+      ) {
+        warnedSwallow.add(target);
+        console.warn(
+          `[vera] router: navigate("${target}") from "${prior}" resolved to "${bare}" — a relative ` +
+            `path replaces the last segment, like a relative href, and here that segment was a route ` +
+            `param ("${last}"). For the SIBLING "${bare}" this is right. For the child ` +
+            `"${prior}/${target}", use a named route — \`navigate({ name })\` fills params from the ` +
+            `current route — or the absolute path.`
+        );
+      }
+    }
   }
   if (path === state.currentPath) return true;
   const id = ++navigationId;
+  /** A fresh staging area per navigation — routers merge params in as they commit, and the pair
+   *  `currentPath`/`params` flips to it only at the commit below, so a cancelled navigation
+   *  leaves the committed pair exactly as it was. */
+  state.pendingParams = {};
 
   const strippedHref = stripTrailingSlash(path);
   const [newPath, hashIndex] = removeHashFragment(strippedHref);
@@ -602,6 +665,9 @@ export const navigate = async (
    * Setting it first makes the re-entry recognise where it already is and return at once.
    */
   state.currentPath = path;
+  /** The staged params commit in the same breath — the synchronous `popstate` re-entry described
+   *  above must see the new path WITH its params, never one navigation's path and another's ids. */
+  state.params = state.pendingParams;
 
   /**
    * History first (hashless path, query kept), fragment second: `applyHash` needs the routed
@@ -861,6 +927,7 @@ const routeChange = async (
 
   /** Route has changed so we updated currentRoute */
   elementData.currentRoute = currentRoute;
+  Object.assign(state.pendingParams, params);
 
   /** Change title to either the title string or the result of the title function if it's a function */
   const title = route.title;

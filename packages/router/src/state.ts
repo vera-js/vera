@@ -1,4 +1,4 @@
-import { ElementsData, Route, RouteEventHandler, RouterSettings } from './types.js';
+import { ElementsData, Route, RouteEventHandler, RouteParams, RouterSettings } from './types.js';
 
 import { getMatch } from './utils.js';
 
@@ -13,7 +13,21 @@ export const routers = new WeakMap<HTMLElement, Route[]>();
 export const elements = new Set<WeakRef<HTMLElement>>();
 export const elementsData = new WeakMap<HTMLElement, ElementsData>();
 export const handlers = new WeakMap<HTMLElement | Document, Map<string, Set<RouteEventHandler>>>();
-export const state = { currentPath: '' };
+/**
+ * `params` is the page-wide view of the committed navigation's parameters — every router that
+ * matched merged its own in, which is coherent because they all describe ONE url. It stages in
+ * `pendingParams` while routers run and commits in the same breath as `currentPath`, because the
+ * two must never describe different navigations — and because routing precedes the path commit, a
+ * clear AT the commit wiped every merge that had just happened, which read as "the fill never
+ * works" while every piece looked right alone. A cancelled navigation discards its staging and the
+ * committed pair is untouched, exactly as `currentPath` behaves. `resolve()` fills missing tokens
+ * from here; `currentRoute()` hands it to components.
+ */
+export const state: { currentPath: string; params: RouteParams; pendingParams: RouteParams } = {
+  currentPath: '',
+  params: {},
+  pendingParams: {},
+};
 
 /**
  * `name` → the route's complete pattern. Page-wide rather than per-router, because a name is a

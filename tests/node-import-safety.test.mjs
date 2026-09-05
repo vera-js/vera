@@ -121,10 +121,13 @@ test('the entries that need a DOM still say so, rather than failing later', () =
  */
 test('resolve() and setBasePath() run where there is no DOM', () => {
   const script = `
-    const { setBasePath, resolve } = await import('@verajs/router');
+    const { setBasePath, resolve, currentRoute } = await import('@verajs/router');
     setBasePath('/app');
     /** No routes are registered in a bare process, so '' is the contract — the point is no throw. */
     if (resolve('missing', {}) !== '') throw new Error('unexpected resolve result');
+    /** Nothing has committed, so the honest empty answer — and no DOM reach on the way to it. */
+    const here = currentRoute();
+    if (here.path !== '' || Object.keys(here.params).length !== 0) throw new Error('unexpected currentRoute');
     setBasePath(null);
   `;
   const result = (() => {

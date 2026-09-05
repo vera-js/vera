@@ -1,6 +1,6 @@
 # @verajs/router
 
-SPA routing for web components — <!--size:router.gzip-->3.85 KB<!--/size:router.gzip--> gzipped, no
+SPA routing for web components — <!--size:router.gzip-->3.92 KB<!--/size:router.gzip--> gzipped, no
 build step required.
 
 Params and wildcards, redirects, cancellable route events, query strings, hash fragments,
@@ -216,6 +216,30 @@ resolve('user-edit', { id: 5 });            //  /users/5/edit       — an omitt
 Under a base these carry it — `/app/users/5` — so the result goes straight into an `href`, and
 `navigate()` still accepts it. See *Serving the app from a subdirectory*.
 
+**A missing param fills from the current route.** From `/users/5/profile`, `resolve('user-settings')`
+is `/users/5/settings` and `navigate({ name: 'user-settings' })` goes there — the page already knows
+the `5`, so no component has to know it or thread it down. Explicit params always win, and an
+explicit `undefined` still means "omit this optional segment" rather than "fill it for me". With
+nothing routed yet (a server pass, a fresh page) the fill finds nothing and a missing required param
+stays visible in the output, exactly as before.
+
+### Moving around
+
+Every relative gesture, from a component that has no idea where it is mounted:
+
+| you want | you write |
+| --- | --- |
+| a sibling — `/users/5/profile` → `/users/5/settings` | `navigate('settings')` — a relative path resolves like a relative href: the last segment is replaced |
+| the same place, a different view | `navigate({ name: 'user-settings' })` — params fill from here |
+| a child — `/users/5` → `/users/5/edit` | `navigate({ name: 'user-edit' })`, or `` navigate(`${currentRoute().path}/edit`) `` |
+| anything else | `currentRoute()` gives `{ path, params }` — the rest is string work |
+
+One resolution rule, deliberately: a relative `navigate()` goes exactly where the same string in an
+`<a href>` would, so there is no second grammar to learn and links and calls can never disagree. The
+one place that rule surprises — a relative word from a path *ending in a param* replaces the param
+(`navigate('edit')` from `/users/5` is the sibling `/users/edit`, not the child) — is diagnosed in
+development, naming both correct spellings.
+
 Names are page-wide, because a name is a handle on a URL and every router shares one URL. A child
 route registers its complete path, so `resolve('child')` gives `/parent/child`. Two routes claiming
 one name warn in development.
@@ -383,7 +407,8 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 | | |
 | --- | --- |
 | `setRouterRenderer(fn)` | what draws a route's template into its outlet |
-| `resolve(name, params)` | build a named route's URL — `href`-ready, and `navigate()` takes it too |
+| `resolve(name, params)` | build a named route's URL — `href`-ready, `navigate()` takes it too, and missing params fill from the current route |
+| `currentRoute()` | where the page is: `{ path, params }`, params merged across every router that matched |
 | `setMatchFunction(fn)` | replace pattern matching entirely — the signature is path-to-regexp's `match`, so that library drops straight in |
 | `setBasePath(path)` | the path prefix the app is served under; `null` returns to reading `<base href>` |
 | `router` | hand this router core's insert registry — pass it to `wire` |
@@ -392,24 +417,20 @@ names. `deleteRouter()` removes everything: the routes, the handlers and the lin
 
 Write your routes as if the app were at the origin's root — `/users`, not `/app/users`. The base is
 a deployment fact, not part of the route table, so the router adds it when it writes to the address
-bar and strips it when it reads one back. Links carry it, because the browser has to be able to
-follow them:
-
-```html
-<base href="/app/">
-```
-
-That is all it takes: the `<base>` element is the platform's own answer to "what do relative URLs
-resolve against", every deployment tool that serves from a subdirectory already emits it, and the
-router reads it. Note that `<base>` also rebases every *other* relative URL on the page — assets and
-form actions included — which is usually what you want and occasionally not.
-
-When it is not, say so directly instead, and the router ignores the document:
+bar and strips it when it reads one back.
 
 ```js
 import { setBasePath } from '@verajs/router';
 setBasePath('/app');
 ```
+
+That is all it takes, and it changes nothing else about the page — which is why it comes first. The
+alternative is the platform's own `<base href="/app/">`, which the router also reads and which every
+deployment tool that serves from a subdirectory can emit. But a `<base>` re-points every relative
+URL on the page — assets, form actions, **and relative navigation**: with one installed,
+`navigate('settings')` and `href="settings"` alike mean `/app/settings` from anywhere, not the
+sibling of where you are (measured; `tests/router-gestures.test.mjs` pins it). That is the correct
+platform behaviour and occasionally even what you want; `setBasePath` is mounting with none of it.
 
 Either way, `navigate('/users')` means the route `/users` and puts `/app/users` in the address bar,
 and a link written `href="/app/users"` is marked active on that route. `navigate` accepts the mounted

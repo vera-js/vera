@@ -596,7 +596,20 @@ links with a `route` attribute: `<a route href="/user/1">`. Render the outlet as
 Semantics worth stating:
 - **Named routes**: give a route a `name` and build its URL with `resolve(name, params)` — values
   are encoded, an omitted `:tab?` takes its segment, a wildcard takes an array. `navigate({ name,
-  params })` is the same call. Names are page-wide; a child registers its complete path.
+  params })` is the same call. Names are page-wide; a child registers its complete path. **A missing
+  param fills from the current route**: from `/users/5/profile`, `navigate({ name: 'user-settings' })`
+  goes to `/users/5/settings` with nothing threaded down. Explicit params win; an explicit
+  `undefined` still omits an optional segment; with nothing routed yet the fill finds nothing.
+- **Moving relatively** (a component that does not know where it is mounted): a SIBLING is a bare
+  relative path — `navigate('settings')` from `/users/5/profile` — resolving exactly as
+  `href="settings"` would (last segment replaced). The same place with a different view, or a
+  CHILD, is `navigate({ name })` with params filled from here. Everything else composes from
+  **`currentRoute()`**, which returns `{ path, params }` page-wide (params merged across every
+  matched router; a copy, callable under Node, `{ path: '', params: {} }` before anything commits).
+  One resolution rule, deliberately: relative `navigate()` and a relative href can never disagree.
+  The one surprise — a relative word from a path ENDING in a param replaces it (`navigate('edit')`
+  from `/users/5` is the sibling `/users/edit`, not the child) — is warned about in development,
+  with both correct spellings named.
 - `navigate(path)` is programmatic navigation — the trigger defaults to `'navigate'`. All routers
   on a page share the URL and all follow every navigation; history gets one entry per user
   navigation, none for back/forward or initial load.
@@ -630,11 +643,14 @@ Semantics worth stating:
   `href="edit"` is `/docs/edit`, NOT React Router's `/docs/intro/edit`. A cross-origin href is left
   to the browser. Resolution goes through `document.baseURI`, which is what the platform uses, so a
   `<base href>` on the page moves routed links exactly as it moves every other link.
-- **Serving from a subdirectory:** write routes at the root (`/users`, not `/app/users`) and add
-  `<base href="/app/">`. The router reads it, adds the base when writing to the address bar and
-  strips it when reading one back, and marks a link written `href="/app/users"` active on `/users`.
-  `setBasePath('/app')` says it directly instead, for an app that does not want `<base>` rebasing
-  its assets too; `setBasePath(null)` returns to reading the document. `navigate` accepts either
+- **Serving from a subdirectory:** write routes at the root (`/users`, not `/app/users`) and call
+  `setBasePath('/app')`. The router adds the base when writing to the address bar, strips it when
+  reading one back, and marks a link written `href="/app/users"` active on `/users` — and nothing
+  else about the page changes. A `<base href="/app/">` element works too (the router reads it;
+  `setBasePath(null)` returns to reading the document), but a `<base>` re-points EVERY relative URL
+  on the page — assets, form actions, and relative `navigate()` alike — so `'settings'` then means
+  `/app/settings` from anywhere rather than the sibling of where you are. Platform-correct, and why
+  `setBasePath` is the default advice. `navigate` accepts either
   spelling. **Write hrefs relative or with the base** — a route-space `href="/users"` works when
   clicked (the router re-bases it) and is a broken URL in a new tab or when copied; development
   builds warn and name the href you should have written. `resolve(name, params)` returns the MOUNTED
