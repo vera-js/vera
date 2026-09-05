@@ -62,6 +62,33 @@ test('useDismiss: outside pointerdown dismisses, inside does not, Escape passes 
   assert.equal(calls.length, 2, 'deactivated means silent');
 });
 
+/**
+ * The README's sharpest dismissal claim, pinned: "recognizes the element's own subtree through
+ * `composedPath()` (correct across shadow boundaries)." The hard case is the element living inside
+ * ANOTHER component's shadow root — at the document listener the event has retargeted to the outer
+ * host, so a naive `element.contains(event.target)` calls the element's own clicks outside and
+ * dismisses on them. `composedPath()` still carries the real path.
+ */
+test('useDismiss: own presses through a shadow boundary are not outside', () => {
+  const wrapper = dom.window.document.createElement('div');
+  dom.window.document.body.append(wrapper);
+  const root = wrapper.attachShadow({ mode: 'open' });
+  const element = dom.window.document.createElement('div');
+  const innerButton = dom.window.document.createElement('button');
+  element.append(innerButton);
+  root.append(element);
+
+  const calls = [];
+  useDismiss(element, () => calls.push('dismiss')).activate();
+
+  innerButton.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true, composed: true }));
+  assert.deepEqual(calls, [], 'a press on the element, retargeted by the boundary, is still inside');
+
+  dom.window.document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }));
+  assert.deepEqual(calls, ['dismiss'], 'CONTROL: a genuinely-outside press still dismisses');
+  wrapper.remove();
+});
+
 test('useDismiss: unmount releases the document listeners through the _cleanups contract', () => {
   const element = host();
   const calls = [];
