@@ -445,6 +445,15 @@ export const navigate = async (
     );
   /** `navigate({ name, params })` is the same call through `resolve` — Vue Router's shape. */
   let path = typeof target === 'string' ? target : resolve(target.name, target.params);
+  /**
+   * **An unknown name must not claim success.** `resolve` answers `''` for a name it does not know
+   * (a real pattern is always at least `/`), and an empty string then resolves to the CURRENT page —
+   * which met the same-path early return and came back `true`. So a typo'd name reported a
+   * successful navigation to the very code the README tells people to trust: "await navigate() and
+   * handle the failure". `resolve` has already said which name is unknown in development; this is
+   * the behavioural half, and it holds in production too.
+   */
+  if (typeof target !== 'string' && path === '') return false;
 
   /**
    * **A path that names an origin is checked against this one**, exactly as a routed link is.
