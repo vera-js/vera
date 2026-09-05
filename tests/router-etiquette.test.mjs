@@ -67,5 +67,36 @@ window.history.replaceState(null, '', '/B');
 window.dispatchEvent(new window.PopStateEvent('popstate')); await tick();
 check('popstate restores (top when entry carries no position)', hits.B === 2 && scrollCalls.length === 1 && scrollCalls[0][0] === 0 && scrollCalls[0][1] === 0);
 
+// 6. scheme links: browser wins. `javascript:`, `mailto:`, `tel:` and `data:` all fail the
+//    same-origin test (their origin is not this page's), so the router leaves them native —
+//    a `route` attribute on one is the author's mistake, not a navigation. The silencer records
+//    what the ROUTER decided, then prevents, because jsdom otherwise tries to follow the link
+//    and prints a not-implemented stack for every case.
+{
+  const decided = [];
+  const silencer = (ev) => { decided.push(ev.defaultPrevented); ev.preventDefault(); };
+  window.document.addEventListener('click', silencer);
+  const before = { B: hits.B, U: hits.U };
+  for (const href of ['javascript:alert(1)', 'mailto:x@y.z', 'tel:+15551234567', 'data:text/html,x']) {
+    const a = window.document.createElement('a');
+    a.setAttribute('route', ''); a.setAttribute('href', href);
+    el.appendChild(a);
+    a.dispatchEvent(mkClick()); await tick();
+    a.remove();
+  }
+  window.document.removeEventListener('click', silencer);
+  check('scheme links never hijacked', decided.every((d) => d === false));
+  check('scheme links never routed', hits.B === before.B && hits.U === before.U);
+  /** CONTROL: the same dispatch path still routes an ordinary link, so the silences above were
+   *  the router declining, not a dead harness. `/users`, not `/B` — the page already stands on
+   *  `/B` from the popstate case, and a click to the current URL is not a navigation. */
+  const a = window.document.createElement('a');
+  a.setAttribute('route', ''); a.setAttribute('href', '/users?tag=ctl');
+  el.appendChild(a);
+  const evC = mkClick(); a.dispatchEvent(evC); await tick();
+  a.remove();
+  check('control link still routes after the scheme sweep', evC.defaultPrevented && hits.U === before.U + 1);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
