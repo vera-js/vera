@@ -174,7 +174,10 @@ test('branch-away parks user nodes; the branch returning restores them (same ide
  * chains nested seams so parking the outer slot parks the ones living in its fallback — and under
  * fragment parking that means the inner binding's anchors and even its DISTRIBUTED content sit
  * inside the outer's fragment when the park fires. The risk being pinned: double-handling (a node
- * rescued by two parks) or a stale chain after restore. The oracle is a FRESH host given the same
+ * rescued by two parks) or a stale chain after restore. STORE-driven shape swaps, so every wait is
+ * `nextFrame()` THEN `settle()` per this file's own header rule — the first version awaited bare
+ * `settle()`, which resolves before the ~16 ms rAF timer, and read '?' under full-suite CPU load
+ * (caught by a red gate, run 3 pass 11).  The oracle is a FRESH host given the same
  * children — round-tripped and fresh must agree on view, on membership, and on node IDENTITY, in
  * both starting states (outer assigned, so the chain is displaced; outer unassigned, so the chain
  * is rendered). Measured clean before pinning.
@@ -211,9 +214,11 @@ test('three-level slot chains survive a branch-away round trip, displaced or ren
   const trip = await make(true);
   const fresh = await make(true);
   trip.el.state.shape = 'plain';
+  await nextFrame();
   await settle();
   assert.equal(membership(trip.el), membership(fresh.el), 'membership survives while branched away');
   trip.el.state.shape = 'slots';
+  await nextFrame();
   await settle();
   assert.equal(view(trip.el), view(fresh.el), 'round-tripped view equals a fresh host');
   assert.equal(membership(trip.el), membership(fresh.el), 'membership too');
@@ -227,8 +232,10 @@ test('three-level slot chains survive a branch-away round trip, displaced or ren
   const tripB = await make(false);
   const freshB = await make(false);
   tripB.el.state.shape = 'plain';
+  await nextFrame();
   await settle();
   tripB.el.state.shape = 'slots';
+  await nextFrame();
   await settle();
   assert.equal(view(tripB.el), view(freshB.el));
   assert.equal(slotted(tripB.el, 'x')[0], tripB.nodes.x, 'deepest-level identity survives too');
