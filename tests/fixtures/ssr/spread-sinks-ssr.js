@@ -15,7 +15,16 @@ export default class SpreadSinksSsr extends HTMLElement {
         srcdoc: '<script>1</script>',
         onclick: 'alert(1)',
         '.innerHTML': '<b>pwn</b>',
-      })}>safe</p>`
+      })}>safe</p><p class="names" ${spread({
+        'data-sane': 'kept',
+        'a b': 'sp',
+        'a=b': 'eq',
+        'a"b': 'qu',
+        'a>b': 'gt',
+        'data-x="1" onmouseover="alert(2)" y': 'inj',
+        'a\u0003b': 'ctl',
+        '': 'empty',
+      })}>named</p>`
     );
   }
 }

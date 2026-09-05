@@ -186,3 +186,21 @@ test('refused sinks never reach server markup', () => {
   assert.ok(!sinks.includes('onclick'), 'inline handler absent from the tag');
   assert.ok(!sinksMarkup.includes('pwn'), 'the innerHTML payload is nowhere in the whole document');
 });
+
+/**
+ * The other half-guard the serializer must keep: UNSAFE names. The client's rule lives in
+ * `spread.ts` (`UNSAFE_NAME`) and the server's in `serializer.js` (`UNSAFE_ATTRIBUTE_NAME`) —
+ * deliberately twinned across the package boundary, each comment naming the other, because spread
+ * returns data and escaping stays in one package per principle #8. Both claim "the two sides agree
+ * on every key"; this is the pin that makes an edit to ONE copy fail somewhere. A name carrying
+ * space/`=`/`"` is refused client-side but would be ATTRIBUTE INJECTION in markup — the key
+ * `data-x="1" onmouseover=…` smuggles a live handler through a "value" no escaper ever sees,
+ * because escaping guards values and this payload is a NAME.
+ */
+test('unsafe names never reach server markup — the twin of the client refusal', () => {
+  const names = sinksMarkup.match(/<p class="names"[^>]*>/)[0];
+  assert.match(names, /\bdata-sane="kept"/, 'CONTROL: the sane key on the same element serialized');
+  assert.equal(names, '<p class="names" data-sane="kept">',
+    'and it is the ONLY thing that did — no space/equals/quote/gt/control/empty name survives');
+  assert.ok(!sinksMarkup.includes('onmouseover'), 'the smuggled handler is nowhere in the document');
+});
