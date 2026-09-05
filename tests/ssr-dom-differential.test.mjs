@@ -101,6 +101,10 @@ const OPS = [
    *  is placement. */
   ['insertAdjacentText beside a nested element', "el.innerHTML='<p>1</p>'; el.firstElementChild.insertAdjacentText('beforebegin','t1'); return el.innerHTML;"],
   ['insertAdjacentHTML orphan refuses as the platform does', "try { el.insertAdjacentHTML('afterend','<b>x</b>'); return 'accepted'; } catch(e){ return 'THREW ' + e.name; }"],
+  /** The run-3 virgin-seed find: prepending an element ALREADY a child of the same parent is a
+   *  move-to-front, and the shim's entry swap hid the child from append's detach — [a,b,c]
+   *  answered [b,a,b,c]. Same-parent moves through every other op were already right. */
+  ['prepend an existing child moves it', "el.innerHTML='<p>a</p><i>b</i><u>c</u>'; el.prepend(el.children[1]); return [...el.children].map(n=>n.localName).join(',');"],
   ['dispatch, bubbling and non-bubbling', "el.innerHTML='<p>1</p>'; let hits=0; el.addEventListener('x',()=>hits++); const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.firstElementChild.dispatchEvent(new E('x',{bubbles:true})); el.firstElementChild.dispatchEvent(new E('x')); return String(hits);"],
   ['remove/once/dedupe listeners', "let hits=0; const f=()=>hits++; const E = el.ownerDocument.defaultView?.Event ?? globalThis.Event; el.addEventListener('x',f); el.addEventListener('x',f); el.dispatchEvent(new E('x')); el.removeEventListener('x',f); el.addEventListener('y',()=>hits+=10,{once:true}); el.dispatchEvent(new E('y')); el.dispatchEvent(new E('y')); return String(hits);"]
 ];;

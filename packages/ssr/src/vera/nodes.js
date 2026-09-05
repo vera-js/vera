@@ -1048,7 +1048,18 @@ export class ContainerShim extends EventTarget {
     try {
       this.append(...nodes);
     } finally {
-      this._entries.push(...existing);
+      /**
+       * **Minus the arguments themselves.** Prepending a node that is ALREADY a child of this
+       * element is a move-to-front, and `append`'s detach cannot see it: the child's entry sits
+       * in this local array while `_entries` is swapped empty, so nothing was removed and pushing
+       * `existing` back restored a second copy — `prepend(b)` on `[a,b,c]` answered `[b,a,b,c]`
+       * where every engine answers `[b,a,c]`. Found by the virgin-seed tree fuzz (three sequences,
+       * one signature, all ending in a same-parent prepend); every other move op detaches through
+       * the live `_entries` and was already right. Strings are always kept — they are text
+       * entries, never arguments' identities.
+       */
+      for (const entry of existing)
+        if (typeof entry === 'string' || !nodes.includes(entry)) this._entries.push(entry);
     }
   }
   /**

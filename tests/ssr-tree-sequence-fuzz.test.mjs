@@ -140,10 +140,18 @@ test('the shim and jsdom build the same tree through any sequence of mutations',
     }
   }
 
-  assert.ok(mutations >= SEEDS.length * STEPS, `only ${mutations} mutations ran — a sequence stopped early without reporting`);
+  /**
+   * Divergences FIRST. A recorded divergence breaks its sequence, so `mutations` comes up short
+   * too — and with the volume assert in front, the report a red run printed was the useless
+   * volume line while the actual divergences sat unread in `failures`. Measured on the run-3
+   * virgin-seed sweep: three real shim divergences masked behind "only 116 mutations ran". The
+   * volume control keeps its job — catching a sequence that stopped early WITHOUT recording —
+   * it just cannot be allowed to speak first.
+   */
   assert.deepEqual(
     failures.slice(0, 6),
     [],
     `${failures.length} sequence(s) diverged from jsdom:\n\n  ${failures.slice(0, 6).join('\n\n  ')}`
   );
+  assert.ok(mutations >= SEEDS.length * STEPS, `only ${mutations} mutations ran — a sequence stopped early without reporting`);
 });
