@@ -428,7 +428,14 @@ render(() => html`<header>
   root the same line works, because there nothing moves. `before()`/`after()` route through the
   node's own current parent, so they are correct in both modes, and the content lands in the order
   you asked for. This is the sharpest difference between the two modes and the easiest to hit.
-- **`&ref` or `event.target` is how you reach the slot — `querySelector('slot')` will not find it.**
+- **A displaced node is *disconnected* here; native slotting never disconnects it.** Shadow
+  distribution is virtual — a slottable no slot names stays in the light tree, connected, merely
+  unrendered. Light slots park it physically, so a custom element inside displaced content runs its
+  `disconnectedCallback` (and a Vera component's effect cleanups) on the way out, and
+  `connectedCallback` again when its slot returns — with its element identity, stores and typed-in
+  state intact, and reactivity re-established by the re-init. Component authors already handle this
+  pair for any `appendChild` move; the difference is only *when* it happens: a component that
+  pauses a video on disconnect pauses while displaced here and keeps playing in a shadow root.
   The slot element is deliberately not in your DOM (see below), so it is unreachable by selector and
   reports `isConnected === false`. It is a live API object, not a position in the tree.
 - **`name` can be a binding.** `<slot name=${section}>` routes by the name it actually has, and
