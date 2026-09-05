@@ -126,10 +126,17 @@ type HostState = {
    * host are a handful — a rich component has three or four.
    *
    * **Measured rather than assumed**, since a scan invites the question: against the map-keyed
-   * version, at 10, 50 and even an absurd 200 slots on one host, mount is within noise (48.4 vs
-   * 48.8 ms at 200), and live mutations and `slotted()` reads are FLAT in the number of slots.
-   * Mount is mildly superlinear at that size in both versions, so it belongs to the DOM work and
-   * not to this.
+   * version, at 10, 50 and even an absurd 200 slots on one host, mount was within noise, and live
+   * mutations and `slotted()` reads are FLAT in the number of slots (re-verified 2026-09-05:
+   * re-slot cost moves ~3% from 10 to 200 slots; reads sub-microsecond throughout).
+   *
+   * Mount is mildly superlinear and it belongs to the DOM work, not to this — a sentence that has
+   * now been checked the hard way. Re-measured under jsdom after the fragment/rank work, mount
+   * looked QUADRATIC (400/100 ratio ~14) and three times its old absolute, which reads as an
+   * algorithmic regression in this file. Chromium, same probe, same build: 0.8/1.8/3.2/7.6 ms at
+   * 50/100/200/400 slots — ratio 4.2, mildly superlinear, fifty times faster than jsdom at the top
+   * end. The scare was jsdom-as-oracle, the exact mistake this project's rules exist to prevent,
+   * aimed for once at this very comment. Benchmark this module on an engine or not at all.
    */
   _bindings: Binding[];
   /** Captured nodes that are not currently displayed wait here — out of the document, exactly
