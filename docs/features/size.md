@@ -126,8 +126,8 @@ describing the bytes honestly.)*
 | `@verajs/router` | 4 073 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 353 B | lazy component discovery |
 | `@verajs/styles` | 757 B | `static styles` adoption, shadow and light DOM |
-| `@verajs/renderer/spread` | 883 B | `${spread(props)}` — runtime-named bindings |
-| `@verajs/renderer/tag` | 1 481 B | `<${tag}>` — runtime tag names, in templates and JSX |
+| `@verajs/renderer/spread` | 1 232 B | `${spread(props)}` — runtime-named bindings |
+| `@verajs/renderer/tag` | 1 818 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
 | `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |

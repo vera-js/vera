@@ -35,12 +35,12 @@
       "gzip": 3294
     },
     "spread": {
-      "raw": 1714,
-      "gzip": 883
+      "raw": 2417,
+      "gzip": 1232
     },
     "tag": {
-      "raw": 2920,
-      "gzip": 1481
+      "raw": 3623,
+      "gzip": 1818
     },
     "computed": {
       "raw": 298,

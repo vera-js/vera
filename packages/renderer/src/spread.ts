@@ -43,6 +43,44 @@ const REF = 5;
 // eslint-disable-next-line no-control-regex
 const UNSAFE_NAME = /^$|[\s"'>/=<`]|[\u0000-\u001f\u007f]/;
 
+/**
+ * **Sinks spread refuses, because spread is the one place the template security model breaks.**
+ *
+ * The renderer's posture on `.innerHTML` (README, "security") rests on three properties of the
+ * template spelling: greppable, obviously yours, reviewable as the decision it is. A spread key
+ * arrives at RUNTIME inside a props object — often built from data — and has none of the three:
+ * `spread(fromJson)` carrying `.innerHTML` or an inline `onclick` attribute is markup or code
+ * injection through a door no grep can see. So spread refuses the sinks and points at the template
+ * spelling, which remains fully available to an author who means it.
+ *
+ * The list, deliberately minimal and named: `innerHTML`/`outerHTML` as property or live-property
+ * keys; `srcdoc` as an attribute (an iframe's inline document); and any attribute whose name the
+ * browser would treat as an inline handler (`on…` in any casing) — EXCEPT the documented event
+ * spelling `on` + Capital, which the constructor converts to a real listener and which therefore
+ * never becomes an attribute. The exemption mirrors the constructor's test byte for byte, because
+ * `ONCLICK` must not slip through as "looks like the event spelling": the constructor only
+ * converts a lowercase `on`, so only that exact shape is exempt.
+ *
+ * Returns the hint for the diagnostic, or null for a permitted key.
+ */
+const refusedSink = (key: string): string | null => {
+  const first = key[0];
+  if (first === '.' || first === '!') {
+    const name = key.slice(1);
+    if (name === 'innerHTML' || name === 'outerHTML')
+      return 'write it in the template — html`<div .innerHTML=${trusted}>` — sanitized first (renderer README, security note)';
+    return null;
+  }
+  if (first === '?' || first === '@' || first === '&') return null;
+  /** The event spelling the constructor converts: `on` + Capital, lowercase `on` only. */
+  if (first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) return null;
+  const lower = key.toLowerCase();
+  if (lower === 'srcdoc') return 'an inline iframe document is markup injection by definition — bind it in the template if you truly mean it';
+  if (lower.length > 2 && lower.startsWith('on'))
+    return 'an inline handler attribute is code from data — pass a function as `on` + Capital (onClick) or `@click` instead';
+  return null;
+};
+
 /** Module-local: one identity comparison, not a global symbol-registry lookup per binding. */
 const UNSET = Symbol();
 
@@ -74,7 +112,8 @@ class Binding {
                 ? LIVE
                 : ATTR;
     let name = kind ? key.slice(1) : key;
-    /** `on` + a capital: `onClick` ≡ `@click`. All-lowercase `onclick` stays a plain attribute. */
+    /** `on` + a capital: `onClick` ≡ `@click`. All-lowercase `onclick` never reaches here — it is
+     *  an inline-handler attribute, which `refusedSink` rejects before a binding exists. */
     if (kind === ATTR && first === 'o' && key.charCodeAt(1) === 110 && key.charCodeAt(2) > 64 && key.charCodeAt(2) < 91) {
       kind = EVENT;
       name = key.slice(2).toLowerCase();
@@ -222,6 +261,16 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
         );
       continue;
     }
+    /** Counted above for the same reason the unsafe skip is. */
+    const refused = refusedSink(key);
+    if (refused !== null) {
+      if (__DEV__)
+        console.warn(
+          `[vera] spread: refusing ${JSON.stringify(key)} — spread names arrive at runtime, which is ` +
+            `exactly the property that makes this sink unreviewable; ${refused}.`
+        );
+      continue;
+    }
     let binding = bindings.get(key);
     if (binding === undefined) bindings.set(key, (binding = new Binding(element, key)));
     write(binding, props[key]);
@@ -258,6 +307,9 @@ function apply(this: { _props: Record<string, unknown> }, element: Element, part
 function attributes(this: { _props: Record<string, unknown> }): [string, string, unknown][] {
   const out: [string, string, unknown][] = [];
   for (const key in this._props) {
+    /** The client refusal, applied at the serializer boundary too — one predicate, both renders.
+     *  Without this, a refused key was merely inert in the browser and LIVE in server markup. */
+    if (refusedSink(key) !== null) continue;
     const first = key[0];
     /** `!` reports as a property: the server has nothing to re-read, so it serializes as `.` does. */
     const kind =

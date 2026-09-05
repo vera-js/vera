@@ -26,6 +26,7 @@ import { JSDOM } from 'jsdom';
  */
 const { html: markup } = await renderToString(new URL('./fixtures/ssr/spread-ssr.js', import.meta.url));
 const { html: shadowMarkup } = await renderToString(new URL('./fixtures/ssr/shadow-ssr.js', import.meta.url));
+const { html: sinksMarkup } = await renderToString(new URL('./fixtures/ssr/spread-sinks-ssr.js', import.meta.url));
 const input = markup.match(/<input[^>]*>/)[0];
 
 /**
@@ -170,4 +171,18 @@ test('server and client render the same attributes for a shadowing spread', asyn
 
   const read = (element) => [...element.attributes].map((a) => `${a.name}=${a.value}`).sort();
   assert.deepEqual(read(serverEl), read(host.querySelector('input')));
+});
+
+/**
+ * The client refuses the injection sinks (`tests/spread.test.mjs`); this pins the SERIALIZER half
+ * of the same predicate. Without it, a refused key was inert in the browser and LIVE in server
+ * markup — the asymmetry that makes half-guards worse than none, because the tested render is the
+ * safe one and the shipped HTML is not.
+ */
+test('refused sinks never reach server markup', () => {
+  const sinks = sinksMarkup.match(/<p class="sinks"[^>]*>/)[0];
+  assert.match(sinks, /\btitle="kept"/, 'CONTROL: the benign key on the same element serialized');
+  assert.ok(!sinks.includes('srcdoc'), 'srcdoc absent from the tag');
+  assert.ok(!sinks.includes('onclick'), 'inline handler absent from the tag');
+  assert.ok(!sinksMarkup.includes('pwn'), 'the innerHTML payload is nowhere in the whole document');
 });

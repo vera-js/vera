@@ -74,7 +74,7 @@ public and both are documented, so a reader who knew one misread the other.
 | `<p ?hidden=${value}>` | boolean attribute, present when truthy |
 | `<input !checked=${value}>` | property written from the **live DOM** rather than from what the binding last wrote — see below |
 | `<button @click=${fn}>` | event listener. An object with a `handleEvent` method works too — `addEventListener` takes both |
-| `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — `onclick` stays a plain attribute |
+| `<button onClick=${fn}>` | the same thing, React-style. Strictly `on` + a capital — a template-written `onclick` stays a plain attribute (yours, greppable); **spread refuses it** (see the spread section's security note) |
 | `<input ${fn}>` | element ref: a function is called with the element |
 | `<input ${obj}>` | element ref: an object gets the element assigned to `.value`, so core's `ref()` works here |
 | `<input ${spread(props)}>` | names resolved at runtime — see [`/spread`](#verajsrendererspread) |
@@ -677,7 +677,7 @@ a pair of totals — the totals move with every change to this package and the d
 which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
 for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
 dated; re-measure the same way if it matters.
-The entry itself is **<!--size:spread.gzip-->883 B<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->1.20 KB<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -741,6 +741,16 @@ Greppable, obviously yours, reviewable as the security decision it is. Sanitize 
 (`DOMPurify.sanitize`) unless the markup is genuinely your own, and put it on an element whose
 children nothing else binds — the renderer owns the content of elements it renders into.
 
+**Security: spread refuses the injection sinks.** The `.innerHTML` posture above rests on the
+template spelling being greppable, obviously yours, and reviewable — three properties a spread key
+does not have, because spread names arrive at runtime inside a props object that is often built
+from data. So `spread()` refuses `.innerHTML`/`!outerHTML` property keys, the `srcdoc` attribute,
+and any inline-handler attribute name (`onclick` and friends, any casing — `on` + Capital with a
+function remains the documented event spelling and still works), on the client AND in the SSR
+serializer alike. Development builds name each refused key and the sanctioned template spelling.
+If you genuinely need one of these dynamically, write the binding in the template where a reviewer
+can see it.
+
 ## `@verajs/renderer/tag`
 
 An element whose **tag name** is decided at runtime — a heading whose level comes from data, a
@@ -791,7 +801,7 @@ attribute `hidden="false"` and any value at all applies it.
   writing tests for it.
 - HTML only. There is no `svg`/`mathml` equivalent yet.
 
-<!--size:tag.gzip-->1.45 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+<!--size:tag.gzip-->1.78 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 

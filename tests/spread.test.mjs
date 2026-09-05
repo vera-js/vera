@@ -86,10 +86,23 @@ test('an object with handleEvent listens, as the platform allows', () => {
   assert.equal(fired, 1, 'the object bound but never listened');
 });
 
-test('all-lowercase `onclick` stays a plain attribute', () => {
-  /** Legal inline-handler HTML; the same rule the renderer applies to written names. */
-  renderInto(html`<button ${spread({ onclick: 'noop()' })}></button>`, host);
-  assert.equal(host.querySelector('button').getAttribute('onclick'), 'noop()');
+test('all-lowercase `onclick` is REFUSED — the old pin documented the vulnerability', () => {
+  /**
+   * This test used to assert the opposite: that `onclick` landed as a plain inline-handler
+   * attribute, "the same rule the renderer applies to written names". The framework audit's
+   * render-boundary pass overturned it: a template-WRITTEN name is greppable and reviewable, a
+   * spread key arrives at runtime inside data — the same string is a security decision in one
+   * place and an injection vector in the other. The rule the renderer applies to written names is
+   * exactly what spread must NOT extend to runtime names.
+   */
+  const original = console.warn;
+  console.warn = () => {};
+  try {
+    renderInto(html`<button ${spread({ onclick: 'noop()' })}></button>`, host);
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(host.querySelector('button').getAttribute('onclick'), null, 'never becomes an attribute');
 });
 
 test('a null attribute value removes the attribute', () => {
@@ -405,6 +418,72 @@ test('a props bag that is not a plain object applies nothing, in either build', 
         `spread(${String(bad)}) applied attributes; a string is iterated by character index`
       );
     }
+  } finally {
+    console.warn = original;
+  }
+});
+
+/**
+ * **The sinks spread refuses — because spread is where the template security model would break.**
+ *
+ * The renderer permits `.innerHTML=${trusted}` in a TEMPLATE on three stated properties: greppable,
+ * obviously yours, reviewable as the decision it is (README, security note). A spread key has none
+ * of them — it arrives at runtime inside a props object, often built from data, so
+ * `spread(fromJson)` carrying `.innerHTML`, `srcdoc` or an inline `onclick` attribute is markup or
+ * code injection through a door no grep can see. Found by the framework audit's render-boundary
+ * pass: before this guard, all three landed live, while the docs' whole justification for the sink
+ * assumed the template spelling. One predicate covers CLIENT dispatch and the SSR tuple serializer
+ * alike — without the second site, a refused key was inert in the browser and LIVE in server markup.
+ */
+test('spread refuses the injection sinks: .innerHTML, srcdoc, inline on* attributes', () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (...a) => said.push(a.join(' '));
+  let host;
+  try {
+    host = document.createElement('div');
+    renderInto(
+      html`<div ${spread({ '.innerHTML': '<b>pwn</b>', '!outerHTML': '<i>x</i>', srcdoc: '<script>1</script>', SRCDOC: 'x', onclick: 'alert(1)', ONMOUSEOVER: 'alert(2)', title: 'kept' })}>safe</div>`,
+      host
+    );
+  } finally {
+    console.warn = original;
+  }
+  const el = host.querySelector('div');
+  assert.equal(el.innerHTML, 'safe', 'the .innerHTML property sink never fired');
+  assert.deepEqual(
+    [...el.attributes].map((a) => a.name),
+    ['title'],
+    'srcdoc and inline handlers, any casing, never became attributes — the benign key survived as the control'
+  );
+  if (!isProduction) {
+    assert.equal(said.filter((t) => t.includes('refusing')).length, 6, 'each refused key was named once');
+    assert.ok(said.every((t) => !t.includes('refusing') || t.includes('[vera]')), 'house prefix');
+  }
+});
+
+test('the documented event spelling still works — refusal must not eat onClick functions', () => {
+  let fired = 0;
+  renderInto(html`<button ${spread({ onClick: () => fired++ })}>go</button>`, host);
+  click(host.querySelector('button'));
+  assert.equal(fired, 1, 'on+Capital converts to a real listener, exactly as documented');
+  assert.equal(host.querySelector('button').attributes.length, 0, 'and no attribute was written');
+});
+
+test('a refused key does not destabilize removal semantics', () => {
+  /** The count idiom counts refused keys like unsafe ones; shrinking the bag by a LEGIT key must
+   *  still restore, and the refused key's disappearance must not read as a second removal. */
+  const host = document.createElement('div');
+  const draw = (props) => renderInto(html`<p ${spread(props)}>x</p>`, host);
+  const original = console.warn;
+  console.warn = () => {};
+  try {
+    draw({ title: 'a', onclick: 'alert(1)' });
+    draw({ title: 'a' });
+    const el = host.querySelector('p');
+    assert.equal(el.getAttribute('title'), 'a', 'the legit key survived the refused key leaving');
+    draw({});
+    assert.equal(el.getAttribute('title'), null, 'and removal still restores when the legit key goes');
   } finally {
     console.warn = original;
   }
