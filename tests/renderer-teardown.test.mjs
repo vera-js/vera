@@ -1,7 +1,7 @@
 /**
  * A subtree on its way out tells what asked to be told.
  *
- * Two clients, one walk: an element ref is released, and a child directive that declared
+ * Two clients, one walk: an element ref is released, and a child applier that declared
  * `_$detach$` is notified. Both are gated on a **process-wide** flag — nothing has asked, nothing
  * walks — because a directive arrives as a *value* and no template shape predicts it, so the finer
  * per-template gate a ref could use cannot serve both. Measured: with one unrelated ref on the page,

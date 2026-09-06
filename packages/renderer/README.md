@@ -210,8 +210,8 @@ the element that had focus is the same element when it comes back.
 
 **A scroll offset does not survive, and cannot.** Every engine resets `scrollTop` to zero the moment
 an element leaves the document — measured on Chromium, Firefox and WebKit, which report `0` while
-parked, `0` on return, and `0` even for a node moved directly between two attached parents. Nothing a
-directive does with the nodes can hold it, and lit's `cache()` cannot either. If a scroll position
+parked, `0` on return, and `0` even for a node moved directly between two attached parents. Nothing an
+applier does with the nodes can hold it, and lit's `cache()` cannot either. If a scroll position
 matters, read it before the toggle and restore it after.
 
 Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write.
@@ -228,7 +228,7 @@ strip of twelve panels holds twelve, and each comes back exactly as it was left 
 with no eviction, so `hold` over an unbounded set of templates retains an unbounded amount of DOM.
 Verified: fifty distinct shapes cycled through one `hold` and the first still re-adopted its own
 nodes. lit's `cache()` behaves the same way, and for the same reason — evicting would silently throw
-away the state the directive exists to preserve, which is worse than holding it. Use `hold` for a
+away the state the applier exists to preserve, which is worse than holding it. Use `hold` for a
 set you can name, and let an unbounded one rebuild.
 
 ## Write stable shapes
@@ -840,7 +840,7 @@ returned last time **at that part**, and calls `part._$commit$(value)` to render
 the whole surface: `until()` is nine lines against it.
 
 ```js
-/** Hoisted — the applier's identity is the directive's identity. */
+/** Hoisted — the applier's identity is its own continuity key. */
 function applyUntil(part, previous) {
   if (previous && previous.promise === this.promise) return previous;
   if (previous) previous.live = false;
@@ -858,26 +858,26 @@ Three rules, each of which is a real trap:
 
 - **Hoist the applier.** Written as an object-literal method it is a new function per call, so the
   part can never recognise it and `previous` is always `undefined`. Its identity is what keeps two
-  directives at one part from reading each other's state.
-- **Continuity lives in the return value**, not in a directive instance. That is what makes this a
+  appliers at one part from reading each other's state.
+- **Continuity lives in the return value**, not in an applier instance. That is what makes this a
   protocol rather than a framework — no base class, no `directive()` factory, no lifecycle.
 - **Teardown is opt-in, on the applier.** `applyThing._$detach$ = (previous) => …` is called with
-  whatever the directive last returned, when the subtree holding it is removed — replaced, dropped
-  from a keyed list, or shrunk out of an unkeyed one. Declaring it is what arms the walk; a directive
-  that does not declare it costs nothing, and neither does an app with no such directive anywhere.
+  whatever the applier last returned, when the subtree holding it is removed — replaced, dropped
+  from a keyed list, or shrunk out of an unkeyed one. Declaring it is what arms the walk; an applier
+  that does not declare it costs nothing, and neither does an app with no such applier anywhere.
 
   It **notifies, it does not defer**. The nodes are already going. To hold content on screen while it
-  animates out, do not remove it: a directive owns what it commits, so it can simply not commit the
+  animates out, do not remove it: an applier owns what it commits, so it can simply not commit the
   removal until it is ready — see *Deferring a removal* below.
 - **Why declaring `_$detach$` is what arms it:** `_clear` bulk-removes DOM — when the part owns
   its parent, one `parent.textContent = ''`, which is what makes clearing a 1 000-row table ~5 ms
-  against lit-html's ~22 ms. Notifying nested directives means walking the part tree on removal,
+  against lit-html's ~22 ms. Notifying nested appliers means walking the part tree on removal,
   which is exactly the per-node work that fast path exists to skip — so the walk runs only once
   something, anywhere, has declared teardown, and an app with none pays nothing.
 
 ### Deferring a removal
 
-A directive owns the content it commits, so an exit animation needs nothing from the renderer — it
+An applier owns the content it commits, so an exit animation needs nothing from the renderer — it
 just does not commit the removal until the animation has finished:
 
 ```js
@@ -901,10 +901,10 @@ not match it. `tests/minification-contracts.test.mjs` holds that.
 
 The check costs the hot path nothing: it sits after the template branch, and a template — the
 common object at a child position — returns before ever reading it, so only arrays, nodes and
-directives pay a property read. Measured with no runtime difference distinguishable from noise.
+appliers pay a property read. Measured with no runtime difference distinguishable from noise.
 
-The whole protocol is **116 B gzipped** — the check, the two fields holding a directive's state and
-whose it is, the save/restore in `_$commit$` that stops a directive's own rendering from destroying
+The whole protocol is **116 B gzipped** — the check, the two fields holding an applier's state and
+whose it is, the save/restore in `_$commit$` that stops an applier's own rendering from destroying
 its continuity, and the `_$detach$` call. It was 94 B before teardown existed.
 
 ## Animating things in and out

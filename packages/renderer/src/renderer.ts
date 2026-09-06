@@ -370,7 +370,7 @@ type TemplatePart = {
  * app's single registry, so a CDN page loading separate bundles still meets ONE seam (the same
  * architecture the `'value'` point rides). All member names are `$`-sigiled: the mangle regex
  * cannot match them, so the contract survives production across bundle boundaries (the child-
- * directive precedent). An app that never wires it pays one registry lookup per template
+ * applier precedent). An app that never wires it pays one registry lookup per template
  * CONSTRUCTION (once per shape) and nothing per render.
  */
 /** The state a taken-over slot hands back; `_$park$` (sigiled, mangle-safe) is called before the
@@ -381,7 +381,7 @@ export type SlotSeamState = { _$park$?: () => void };
 type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
 /**
  * The seam function plus the members it carries for callers that are not committing a slot —
- * sigil-named, so they survive property mangling across bundle boundaries (the child-directive
+ * sigil-named, so they survive property mangling across bundle boundaries (the child-applier
  * precedent). `_$capture$` lifts a light host's children on its first render; `_$rescue$` puts
  * them back when hydration has to discard the server's markup; `_$server$`/`_$adopt$` belong to
  * SSR and the hydrate entry and are reached off the same object.
@@ -1077,7 +1077,7 @@ const stampOwn = (node: Node, value: true | object = true) => {
   Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
 };
 
-/** A row is either an element-mode instance or a markered part; both can hold directives. */
+/** A row is either an element-mode instance or a markered part; both can hold appliers. */
 const detachItem = (item: Item) => {
   item._instance?._teardown();
   item._part?._detach();
@@ -1229,20 +1229,20 @@ class Instance {
   }
 
   /**
-   * One walk, both jobs: release the element refs in this instance and tell any child directive
+   * One walk, both jobs: release the element refs in this instance and tell any child applier
    * under it that it is going away.
    *
-   * They were two walks over the same array — `_release` for refs, `_detach` for directives — which
+   * They were two walks over the same array — `_release` for refs, `_detach` for appliers — which
    * is the same tree traversed twice for two answers that arrive at the same moment. Merged, the
    * per-part cost is one `_kind` compare and one `_upgraded` read.
    *
-   * Reached only when this instance's template holds a ref, or some directive somewhere declared
+   * Reached only when this instance's template holds a ref, or some applier somewhere declared
    * teardown. An app with neither never runs it: this is the per-node work the bulk removal exists
    * to skip, and the gate is what keeps it out of the path.
    *
    * Through `_upgraded`, not just `_parts`. A child position is instantiated as a `TextPart` and
    * **upgrades** to a `ChildPart` the first time it takes an object — so the part holding a
-   * directive is almost never the one in this array, it is the one that array's entry points at.
+   * applier is almost never the one in this array, it is the one that array's entry points at.
    * Walking `_parts` alone found nothing at all.
    */
   _teardown() {
@@ -1370,16 +1370,16 @@ class TextPart implements Part {
 /**
  * A value at a child position that applies itself — see `ChildPart._set`.
  *
- * `previous` is whatever this directive returned at this part on the last render, which is where a
- * directive keeps its continuity. Returning nothing is fine for one that has none.
+ * `previous` is whatever this applier returned at this part on the last render, which is where a
+ * applier keeps its continuity. Returning nothing is fine for one that has none.
  */
-export type ChildDirective = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
+export type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
   /**
    * Optional teardown, hung on the **applier** rather than on the value.
    *
    * The applier is already required to be hoisted — a fresh function per render breaks continuity —
    * so it is the one stable object in the protocol and the natural place for a second half. It
-   * receives whatever the directive last returned, which is where its state lives.
+   * receives whatever the applier last returned, which is where its state lives.
    */
   _$detach$?: (previous: unknown) => void;
 };
@@ -1445,10 +1445,10 @@ const builtIns: ValueHandler[] = [];
 
 /**
  * Whether anything in this process has asked to be told when a subtree is removed — an element ref
- * to release, or a child directive that declared `_$detach$`.
+ * to release, or a child applier that declared `_$detach$`.
  *
  * **One flag for both, and it is process-wide.** Teardown cannot be discovered from the template the
- * way a ref can — a ref is a `&` part the scan sees, while a directive arrives as a *value* and no
+ * way a ref can — a ref is a `&` part the scan sees, while an applier arrives as a *value* and no
  * template shape predicts it — so the coarser gate is the only one that serves both.
  *
  * The finer, per-template gate for refs was measured and dropped: it saved 34 B less than nothing,
@@ -1461,7 +1461,7 @@ let notifyOnRemoval = false;
 
 /**
  * The hydrate entry's way to raise the flag. Every CLIENT path that creates removal work sets
- * `notifyOnRemoval` where the work is created (a ref committing, a slot mounting, a directive
+ * `notifyOnRemoval` where the work is created (a ref committing, a slot mounting, an applier
  * declaring `_$detach$`) — but hydration ADOPTS its seams through its own walk in `hydrate.ts`,
  * a different module compiled into the same bundle, and a page whose only seams were adopted
  * left the flag down. `_clear` then skipped `_detach` entirely: no `_teardown`, no `_$park$`,
@@ -1480,7 +1480,7 @@ export const declareRemovalWork = (): void => {
  * with its binding dropped — a literal `new WeakMap;` statement building an object nothing could ever
  * reach. The annotation is what lets the dead branch take it along.
  */
-const _directiveSwaps = /* @__PURE__ */ new WeakMap<object, number>();
+const _applierSwaps = /* @__PURE__ */ new WeakMap<object, number>();
 
 /** What a ChildPart currently contains. */
 const EMPTY = 0;
@@ -1525,9 +1525,9 @@ class ChildPart implements Part {
   /** Held instances by template identity; survives clears so state outlives interim content. */
   _held: Map<TemplateStringsArray, Instance> | null = null;
   /** Whatever the last `_$child$` at this part returned — its continuity across renders. */
-  _directive: unknown = undefined;
-  /** Which directive that state belongs to, so two of them at one part cannot read each other's. */
-  _directiveFn: unknown = undefined;
+  _applierState: unknown = undefined;
+  /** Which applier that state belongs to, so two of them at one part cannot read each other's. */
+  _applier: unknown = undefined;
 
   constructor(start: Comment, end: Node | null) {
     this._start = start;
@@ -1573,7 +1573,7 @@ class ChildPart implements Part {
    *
    * The VALUE is structural, not temporal. `_end === null` is true of root parts alone (see
    * `_clear`), and a root part's inserts are by definition the render's own output — a fact that
-   * stays true for a directive committing from a microtask hours after `renderInto` returned,
+   * stays true for an applier committing from a microtask hours after `renderInto` returned,
    * where the earlier `parent === _slotRoot` test read null and left ASYNC output unstamped for
    * the flipped capture rule to eat. Everything else inserting into a host is placing content
    * INTO it from outside, stamped with the part — the ordering group.
@@ -1586,17 +1586,17 @@ class ChildPart implements Part {
   }
 
   /**
-   * Tells every child directive under this part that it is going away.
+   * Tells every child applier under this part that it is going away.
    *
-   * Reached only when some directive somewhere declared teardown — see `notifyOnRemoval` — because
+   * Reached only when some applier somewhere declared teardown — see `notifyOnRemoval` — because
    * this is the per-node walk the bulk removal exists to skip. **Every** removal path calls it, not
    * just `_clear`: a keyed row is dropped by moving its nodes to a scratch fragment and an index-mode
    * list shrinks by removing nodes directly, so a version that only hooked `_clear` notified a
-   * directive when its container was replaced and stayed silent when its row was deleted — told
+   * applier when its container was replaced and stayed silent when its row was deleted — told
    * sometimes, which is a worse contract than never.
    */
   _detach() {
-    if (this._directiveFn !== undefined) (this._directiveFn as ChildDirective)._$detach$?.(this._directive);
+    if (this._applier !== undefined) (this._applier as Applier)._$detach$?.(this._applierState);
     this._instance?._teardown();
     const items = this._items;
     if (items != null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
@@ -1605,7 +1605,7 @@ class ChildPart implements Part {
   _clear() {
     /**
      * One gate, two jobs. A template that holds an element ref must release it; a subtree holding a
-     * directive that declared teardown must be told. Both are found by the same walk, and an app
+     * applier that declared teardown must be told. Both are found by the same walk, and an app
      * with neither reads two booleans and walks nothing.
      */
     if (notifyOnRemoval) this._detach();
@@ -1674,28 +1674,28 @@ class ChildPart implements Part {
     this._instance = null;
     this._items = null;
     this._shape = null;
-    this._directive = undefined;
-    this._directiveFn = undefined;
+    this._applierState = undefined;
+    this._applier = undefined;
   }
 
   /**
-   * How a child-position directive renders. Named to survive property mangling — `/^_[a-z]/` is the
+   * How a child-position applier renders. Named to survive property mangling — `/^_[a-z]/` is the
    * pattern, and `_$…$` does not match it — because this is the half of the protocol that third
    * parties call.
    */
   _$commit$(value: unknown) {
     /**
-     * The directive's own state survives its own rendering. Committing different content usually
+     * The applier's own state survives its own rendering. Committing different content usually
      * runs `_clear`, which drops the state so a part that was emptied by *anything else* cannot
-     * hand a directive continuity it no longer has — but a directive rendering its own next value
+     * hand an applier continuity it no longer has — but an applier rendering its own next value
      * has not gone away, and losing continuity there made `until()` fall back to its placeholder on
      * the render after it resolved.
      */
-    const directive = this._directive;
-    const directiveFn = this._directiveFn;
+    const applierState = this._applierState;
+    const applier = this._applier;
     this._set(value);
-    this._directive = directive;
-    this._directiveFn = directiveFn;
+    this._applierState = applierState;
+    this._applier = applier;
   }
 
   _set(value: unknown) {
@@ -1772,42 +1772,42 @@ class ChildPart implements Part {
      *
      * `_$child$(part, previous)` is handed the part and whatever it returned last time at this
      * part, and calls `part._$commit$(value)` to render content. Keeping continuity in the return
-     * value rather than in a directive *instance* is what keeps this a protocol rather than a
-     * framework: there is no base class, no factory and no lifecycle to learn, and a directive is
+     * value rather than in an applier *instance* is what keeps this a protocol rather than a
+     * framework: there is no base class, no factory and no lifecycle to learn, and an applier is
      * an object literal.
      *
      * Placed **after** the template check on purpose. A template is overwhelmingly the common
      * object at a child position, and it returns above without ever reading this property — so the
-     * check costs the hot path nothing and only arrays, nodes and directives pay for it. Measured:
+     * check costs the hot path nothing and only arrays, nodes and appliers pay for it. Measured:
      * +22 B gzipped, and no runtime difference distinguishable from noise.
      *
      * There is deliberately no teardown hook. `_clear` bulk-removes DOM and, when the part owns its
      * parent, does `parent.textContent = ''` — the thing that makes clearing a 1 000-row table ~5 ms
-     * against lit-html's ~22 ms. Calling teardown on a nested directive would mean walking the part
+     * against lit-html's ~22 ms. Calling teardown on a nested applier would mean walking the part
      * tree on every removal, which is precisely the per-node work that fast path exists to skip. So
-     * a directive here can render, and cannot yet be told it has gone away.
+     * an applier here can render, and cannot yet be told it has gone away.
      */
-    const applyChild = (value as { _$child$?: ChildDirective })._$child$;
+    const applyChild = (value as { _$child$?: Applier })._$child$;
     if (applyChild !== undefined) {
-      /** `previous` belongs to *this* directive; a different one at the same part starts fresh. */
-      const previous = this._directiveFn === applyChild ? this._directive : undefined;
+      /** `previous` belongs to *this* applier; a different one at the same part starts fresh. */
+      const previous = this._applier === applyChild ? this._applierState : undefined;
       /**
        * The un-hoisted applier, named. Writing `_$child$` as an object-literal method makes a new
        * function per render, so the part never recognises it and `previous` is `undefined` forever —
-       * the directive silently restarts on every pass. It is the first rule in the README and it
-       * fails without a symptom, so development counts the swaps: a genuine directive change at one
+       * the applier silently restarts on every pass. It is the first rule in the README and it
+       * fails without a symptom, so development counts the swaps: a genuine applier change at one
        * part happens once or twice, not on every render.
        *
        * The counter is a module-scope `WeakMap` rather than a field, so production carries neither
        * it nor a per-part slot to hold it — but only because it is marked `@__PURE__` at its
        * declaration. Without that it said the same thing and was untrue.
        */
-      if (__DEV__ && this._directiveFn !== undefined && this._directiveFn !== applyChild) {
-        const swaps = (_directiveSwaps.get(this) ?? 0) + 1;
-        _directiveSwaps.set(this, swaps);
+      if (__DEV__ && this._applier !== undefined && this._applier !== applyChild) {
+        const swaps = (_applierSwaps.get(this) ?? 0) + 1;
+        _applierSwaps.set(this, swaps);
         if (swaps === 3) {
           console.warn(
-            `[vera] a child directive changed identity ${swaps} times at one part, so \`previous\` ` +
+            `[vera] a child applier changed identity ${swaps} times at one part, so \`previous\` ` +
               `is always undefined and it restarts every render.\n` +
               `Hoist the applier — written as an object-literal method it is a new function per ` +
               `call:\n\n` +
@@ -1816,9 +1816,9 @@ class ChildPart implements Part {
           );
         }
       }
-      this._directiveFn = applyChild;
+      this._applier = applyChild;
       if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
-      this._directive = applyChild.call(value, this, previous);
+      this._applierState = applyChild.call(value, this, previous);
       return;
     }
     if ((value as Node).nodeType !== undefined) {
