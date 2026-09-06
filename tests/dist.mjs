@@ -47,6 +47,7 @@ const ENTRY = {
   'renderer/spread': ['renderer', 'vera-renderer-spread'],
   'renderer/tag': ['renderer', 'vera-renderer-tag'],
   styles: ['styles', 'vera-styles'],
+  directives: ['directives', 'vera-directives'],
   'reactivity/collections': ['reactivity', 'vera-reactivity-collections'],
   hooks: ['hooks', 'vera-hooks'],
   ui: ['ui', 'vera-ui'],

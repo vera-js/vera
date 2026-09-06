@@ -33,6 +33,7 @@
       "dependencies": [
         "./packages/autoloader:build",
         "./packages/cms:build",
+        "./packages/directives:build",
         "./packages/hooks:build",
         "./packages/core:build",
         "./packages/inserts:build",
