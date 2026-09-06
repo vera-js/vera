@@ -585,3 +585,48 @@ test('spread + hold: bags update, departed keys release, handlers swap — acros
   assert.equal(clicks, 111, 'and the handler still routed');
   host.remove();
 });
+
+/**
+ * ref() + element refs + effects: the bindings table says core's ref() doubles as an element ref
+ * ("an object gets the element assigned to .value"), and ref() is REACTIVE — so the composition's
+ * promise is that an effect reading box.value tracks the element's lifecycle: it sees the land,
+ * sees the release when the subtree renders away (the README's release contract, observed
+ * reactively rather than polled), and sees the fresh element on return. The trace is the
+ * assertion: ["input", null, "input"], one effect run per transition.
+ */
+test('a ref box drives effects through land, release, and re-land', async () => {
+  const { init, render, ref, useEffect, createStore } = core;
+  const hadRaf = 'requestAnimationFrame' in globalThis;
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
+  globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
+  const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+  try {
+    const seen = [];
+    customElements.define('fc-ref-view', class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this);
+        this.box = ref(null);
+        this.state = createStore({ show: true });
+        useEffect(() => { seen.push(this.box.value?.localName ?? null); });
+        render(() => html`<div>${this.state.show ? html`<input ${this.box} />` : 'gone'}</div>`);
+      }
+    });
+    const el = dom.window.document.createElement('fc-ref-view');
+    dom.window.document.body.append(el);
+    await frame(); await frame();
+    assert.deepEqual(seen, ['input'], 'CONTROL: the ref landed and the effect saw it reactively');
+
+    el.state.show = false;
+    await frame(); await frame();
+    assert.equal(el.box.value, null, 'branch-away released the box');
+    assert.equal(seen[seen.length - 1], null, 'and the effect observed the release');
+
+    el.state.show = true;
+    await frame(); await frame();
+    assert.equal(el.box.value?.localName, 'input', 'branch-back refilled it');
+    assert.deepEqual(seen, ['input', null, 'input'], 'one effect run per transition — the whole lifecycle, reactively');
+    el.remove();
+  } finally {
+    if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+  }
+});
