@@ -75,3 +75,35 @@ test('CONTROL — the comparison catches a corrupted side', () => {
   b.querySelector('h1').textContent = 'corrupted';
   assert.notEqual(a.innerHTML, b.innerHTML);
 });
+
+/**
+ * The run-28 hostile set, pinned: shapes chosen to break the parser rather than exercise it —
+ * raw script blocks (pass through BY DESIGN: the author's own repository, no sanitizer, stated in
+ * markdown.ts/dom.ts/serialize.ts), seven hashes (not a heading — the regex stops at 6, so
+ * h${depth} can never make an invalid element), an unterminated fence, CRLF endings, a 50k-char
+ * line, emphasis chaos, empty input. Invariants: parse never throws, the twins still agree, and
+ * the deliberate depth cap is the ONLY throw in the family.
+ */
+test('hostile markdown never throws, and the twins agree on it', () => {
+  const HOSTILE = [
+    '<script>alert(1)</script>',
+    'before <script>x</script> after',
+    '####### not a heading',
+    '```js\nlet x = 1;',
+    'line1\r\nline2\r\n\r\n# H\r\n',
+    '***a**b*c***d**',
+    'a'.repeat(50000),
+    '',
+    '   \n  \n',
+    '- a\n  1. b\n    - c\n1. d\n- e',
+  ];
+  for (const md of HOSTILE) {
+    const root = parseMarkdown(md);
+    const built = viaBuilder(root);
+    const parsed = viaString(root);
+    assert.equal(built.innerHTML, parsed.innerHTML, `twins split on ${JSON.stringify(md.slice(0, 30))}`);
+  }
+  assert.ok(parseMarkdown('####### x').children[0].type !== 'heading', 'seven hashes is prose, not h7');
+  assert.throws(() => parseMarkdown('> '.repeat(65) + 'x'),
+    /nesting deeper/, 'CONTROL: the depth cap (64) is real and names itself');
+});
