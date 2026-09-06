@@ -1353,6 +1353,14 @@ const adoptSlot = (
     for (const node of assigned!) {
       bucketOf(state, name).push(node);
       state._names.set(node, name);
+      /**
+       * RANKED, like every captured node — the adoption walk visits slots in document order and
+       * the server preserved within-name order, so sequential ranks reproduce the light tree.
+       * Without this, adopted nodes had NO rank: every later rank-ordered merge (a re-slot's
+       * splice, take's interpolation) compared against `undefined` and misplaced them — found by
+       * the run-18 adopted-seam storms as membership-right, ORDER-wrong divergences from native.
+       */
+      state._rank.set(node, state._next++);
     }
   const binding: Binding = {
     _start: start,

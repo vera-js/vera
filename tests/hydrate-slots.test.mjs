@@ -663,3 +663,29 @@ test('a mismatching container parks only its own seams', async () => {
   assert.ok(hostA.querySelector('header').textContent.includes('A-live'), 'and A is still LIVE');
   hostA.remove(); hostB.remove();
 });
+
+/**
+ * Adopted seams are RANKED, so a re-slot after hydration lands in light-tree order — not the
+ * arrival order an unranked adopted node produced. Run 18 found adopted nodes carried no rank
+ * (only the client capture path ranked), so every later rank-ordered merge compared against
+ * undefined. Settled sequence here; the same regime under a same-frame STORM has a known residual
+ * recorded in the portal register.
+ */
+test('a re-slot after hydration keeps light-tree order among adopted and added nodes', async () => {
+  const serverHtml = server('<u slot="header">H0</u>');
+  const host = hostFromServer(serverHtml);
+  const h0 = host.querySelector('u');
+  renderInto(card(), host);
+  await settle();
+  const add = (t) => { const u = dom.window.document.createElement('u'); u.setAttribute('slot', 'header'); u.textContent = t; host.appendChild(u); return u; };
+  const x1 = add('x1'); await settle();
+  add('x2'); await settle();
+  assert.deepEqual(slotted(host, 'header').map((n) => n.textContent), ['H0', 'x1', 'x2'], 'CONTROL: adopted + added, in order');
+  x1.setAttribute('slot', 'z'); await settle();
+  x1.setAttribute('slot', 'header'); await settle();
+  assert.deepEqual(slotted(host, 'header').map((n) => n.textContent), ['H0', 'x1', 'x2'],
+    'the re-slotted node returned to its light-tree position, not the tail');
+  assert.equal(host.querySelector('header').textContent.replace(/\s+/g, ''), 'H0x1x2');
+  void h0;
+  host.remove();
+});
