@@ -287,3 +287,54 @@ test('keyed + spread: bags ride reorders, update in place, and leave with their 
   assert.equal(host.querySelectorAll('li').length, 2);
   host.remove();
 });
+
+/**
+ * styles + hold: a component with `static styles` parked and restored, five cycles. The two
+ * features share once-per-class bookkeeping from different directions — hold preserves the
+ * element (so connectedCallback re-runs on every restore) while styles must adopt a shadow
+ * sheet once and hoist a light sheet once — so the cells worth pinning are the counters after
+ * churn: one sheet in the root, one hoisted style in the head, however many times the branch
+ * toggles. Content is read off the inner <p>, never the root — under jsdom the root carries the
+ * <style> ELEMENT and textContent would include the CSS (the probe artifact that found this
+ * test its shape).
+ */
+test('styles + hold: five park/restore cycles adopt once and hoist once', async () => {
+  const { css, init, render } = core;
+  const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+  const realWarn = console.warn;
+  console.warn = () => {};
+  try {
+    core.wire([await load('styles').then((m) => m.styles)]);
+    customElements.define('fc-styled-shadow', class extends dom.window.HTMLElement {
+      static styles = css`.inner { color: rgb(1, 2, 3); }`;
+      connectedCallback() { init(this, { mode: 'open' }); render(() => html`<p class="inner">shadow</p>`); }
+    });
+    customElements.define('fc-styled-light', class extends dom.window.HTMLElement {
+      static styles = css`.lt { color: rgb(4, 5, 6); }`;
+      connectedCallback() { init(this); render(() => html`<p class="lt">light</p>`); }
+    });
+    const host = div();
+    dom.window.document.body.append(host);
+    const branch = (on) => renderInto(
+      html`<div>${hold(on ? html`<fc-styled-shadow></fc-styled-shadow><fc-styled-light></fc-styled-light>` : html`<p>away</p>`)}</div>`, host);
+
+    branch(true); await frame();
+    const shadowEl = host.querySelector('fc-styled-shadow');
+    const lightEl = host.querySelector('fc-styled-light');
+    const sheets = () => shadowEl.shadowRoot.adoptedStyleSheets?.length || shadowEl.shadowRoot.querySelectorAll('style').length;
+    const hoisted = () => dom.window.document.head.querySelectorAll('style').length;
+    const s0 = sheets(); const h0 = hoisted();
+    assert.ok(s0 >= 1 && shadowEl.shadowRoot.querySelector('p').textContent === 'shadow', 'CONTROL: styled and rendered');
+
+    for (let i = 0; i < 5; i++) { branch(false); await frame(); branch(true); await frame(); }
+    assert.equal(host.querySelector('fc-styled-shadow'), shadowEl, 'hold kept the shadow element');
+    assert.equal(host.querySelector('fc-styled-light'), lightEl, 'and the light one');
+    assert.equal(sheets(), s0, 'the shadow sheet was adopted once, not per restore');
+    assert.equal(hoisted(), h0, 'the light hoist happened once, not per restore');
+    assert.equal(shadowEl.shadowRoot.querySelector('p').textContent, 'shadow');
+    assert.equal(lightEl.querySelector('p').textContent, 'light');
+    host.remove();
+  } finally {
+    console.warn = realWarn;
+  }
+});

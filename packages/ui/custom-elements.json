@@ -381,6 +381,9 @@
             },
             {
               "name": "--vera-focus"
+            },
+            {
+              "name": "--vera-shadow"
             }
           ],
           "vera-states": [

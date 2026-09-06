@@ -190,7 +190,7 @@ export const SELECT_STYLES = /* css */ `
     border-radius: min(var(--vera-radius, 6px), 14px);
     background: var(--vera-surface, #fff);
     color: var(--vera-fg, #18181b);
-    box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--vera-shadow, #000) 18%, transparent);
     overflow: hidden;
   }
   :where([part='menu'][data-state='closed']) {
