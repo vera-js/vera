@@ -398,3 +398,41 @@ test('collections + keyed: map mutations move rows by identity, batches coalesce
   el.remove();
   if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
 });
+
+/**
+ * hold + keyed: every row of a list shares hold's CALL SITE, which is the phrase the README keys
+ * adoption on — so the cell worth pinning is that rows never adopt each other's parked state.
+ * The cache rides each row's own part; this is what makes that fact enforced rather than
+ * incidental. Typed values name their owner, so a cross-adoption cannot pass as a lookalike, and
+ * the reorder-while-parked step is included because moving rows is exactly when part↔row pairing
+ * could slip.
+ */
+test('hold + keyed: rows share the call site and never each other\'s parked state', () => {
+  const row = (r) => keyed(r.id, html`<li>${hold(r.editing ? html`<input class="ed" data-row=${r.id} />` : html`<span>view-${r.id}</span>`)}</li>`);
+  const host = div();
+  dom.window.document.body.append(host);
+  const draw = (rows) => renderInto(html`<ul>${rows.map(row)}</ul>`, host);
+
+  draw([{ id: 'A', editing: true }, { id: 'B', editing: true }]);
+  const [inA, inB] = host.querySelectorAll('input');
+  inA.value = 'typed-in-A'; inB.value = 'typed-in-B';
+
+  draw([{ id: 'A', editing: false }, { id: 'B', editing: true }]);
+  assert.ok(host.textContent.includes('view-A'), 'CONTROL: A really toggled away');
+  assert.equal(host.querySelector('input'), inB, 'B kept its own editor while A parked');
+
+  draw([{ id: 'A', editing: true }, { id: 'B', editing: true }]);
+  const eds = [...host.querySelectorAll('input')];
+  assert.equal(eds[0], inA, 'A re-adopted ITS editor, not B\'s');
+  assert.equal(eds[0].value, 'typed-in-A', 'with A\'s typed state');
+  assert.equal(eds[1].value, 'typed-in-B', 'and B\'s untouched');
+
+  draw([{ id: 'A', editing: false }, { id: 'B', editing: true }]);
+  draw([{ id: 'B', editing: true }, { id: 'A', editing: false }]);
+  draw([{ id: 'B', editing: true }, { id: 'A', editing: true }]);
+  const after = [...host.querySelectorAll('input')];
+  assert.deepEqual(after.map((e) => `${e.getAttribute('data-row')}:${e.value}`),
+    ['B:typed-in-B', 'A:typed-in-A'],
+    'a reorder while one row was parked still returns each state to its owner');
+  host.remove();
+});

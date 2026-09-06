@@ -217,7 +217,11 @@ matters, read it before the toggle and restore it after.
 Anything that is not a template passes straight through — there is nothing to park for a string, a list, `null` or `false` — so `hold(editing && editor())` is safe to write.
 
 It only re-adopts a template it has seen at **that same call site** — two `hold()` calls in
-different templates are two different templates, and neither adopts the other's DOM.
+different templates are two different templates, and neither adopts the other's DOM. The other
+direction is also safe, and reads less obviously from "call site": every keyed **row** of a list
+shares one call site, and each still holds its own state — the cache rides the row's own part, so
+two rows toggling through the same `hold` never adopt each other's parked DOM, including through a
+reorder while one is parked. Measured, and pinned in the combination matrix.
 
 **It keeps every shape it has parked, for as long as the part lives.** That is the point — a tab
 strip of twelve panels holds twelve, and each comes back exactly as it was left — but it is a cache
