@@ -195,3 +195,25 @@ console.log('parser edges ok');
 
   console.log('jsx spread ok');
 }
+
+// ── member-expression components: a dotted tag is a call, whatever its first segment's case ──
+// `<Foo.Bar/>` always worked; `<motion.div/>` and `<styled.button/>` — the lowercase-namespace
+// member components the React ecosystem writes — were silently emitted as broken host tags
+// `<motion.div>` because the component test looked only at the first character (run 25). A host
+// HTML tag can never contain a dot, so any dotted tag is a component call.
+{
+  assert.ok(T('const v = <motion.div a={1}>k</motion.div>;').includes('motion.div({'),
+    'lowercase-namespace member component becomes a call');
+  assert.ok(T('const v = <styled.button>go</styled.button>;').includes('styled.button({'),
+    'and another');
+  assert.ok(T('const v = <Foo.Bar a={1} />;').includes('Foo.Bar({'), 'capitalised member still a call');
+  assert.ok(T('const v = <Deep.Namespace.Comp />;').includes('Deep.Namespace.Comp({'), 'deep member too');
+  // host elements and hyphenated custom elements are NOT calls — they stay literal tags
+  const host = T('const v = <div>plain</div>;');
+  assert.ok(host.includes('html`<div>') && !host.includes('div({'), 'a bare host tag stays a literal element');
+  assert.ok(T('const v = <my-el a="1" />;').includes('html`<my-el'), 'a hyphenated custom element stays literal');
+  // nested member component inline in a template
+  assert.ok(T('const v = <p><motion.span>x</motion.span></p>;').includes('motion.span({'),
+    'a member component nested in host markup is called inline');
+  console.log('jsx member-component ok');
+}

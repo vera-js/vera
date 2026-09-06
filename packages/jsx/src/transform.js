@@ -80,8 +80,19 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
   };
 
   /** One JSX root -> one `html\`…\`` (or a component call), optionally wrapped in `keyed()`. */
+  /**
+   * A JSX tag is a COMPONENT (a function call) rather than a host element when it is capitalised
+   * OR a member expression. A host HTML tag name is always a bare lowercase identifier and can
+   * never contain a dot, so `.` cleanly marks both the member components React writes as
+   * `<Foo.Bar/>` and the lowercase-namespace ones the ecosystem writes as `<motion.div/>` /
+   * `<styled.button/>`. Before this, only the first character was tested: `<Foo.Bar/>` became the
+   * call `Foo.Bar({…})` but `<motion.div/>` was silently emitted as the broken host tag
+   * `<motion.div>` — a wrong-answer-not-error hazard (run 25).
+   */
+  const isComponentTag = (node) => !node.fragment && (!/^[a-z]/.test(node.tag) || node.tag.includes('.'));
+
   const emitRoot = (node) => {
-    if (!node.fragment && !/^[a-z]/.test(node.tag)) return emitComponent(node);
+    if (isComponentTag(node)) return emitComponent(node);
     const parts = [''];
     const exprs = [];
     let key = null;
@@ -109,7 +120,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
       for (const child of node.children) emitChild(child, tpl);
       return;
     }
-    if (!/^[a-z]/.test(node.tag)) {
+    if (isComponentTag(node)) {
       tpl.expr(emitComponent(node));
       return;
     }
