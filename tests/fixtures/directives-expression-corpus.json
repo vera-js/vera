@@ -1,0 +1,442 @@
+{
+ "_comment": "Two corpora. `compat` is omniwp's interactivity-expression corpus (briangrider/omniwp, feature/flat-file), imported as compatibility EVIDENCE per the design doctrine \u2014 the tier was designed fresh, and these prove the shared grammar ground answers identically. `adversarial` is vera's own: the shapes the audit arcs taught us to throw (prototype spellings, depth bombs, hostile characters, calm-math edges).",
+ "compat": [
+  {
+   "name": "a bare path is boolean-coerced",
+   "expression": "open",
+   "context": {
+    "open": true
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2026and a false one is false",
+   "expression": "open",
+   "context": {
+    "open": false
+   },
+   "expected": false
+  },
+  {
+   "name": "negation",
+   "expression": "!open",
+   "context": {
+    "open": false
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2605 string equality \u2014 the tab-panel pattern this exists for",
+   "expression": "tab == 'pricing'",
+   "context": {
+    "tab": "pricing"
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2026and a non-match",
+   "expression": "tab == 'pricing'",
+   "context": {
+    "tab": "intro"
+   },
+   "expected": false
+  },
+  {
+   "name": "inequality",
+   "expression": "tab != 'intro'",
+   "context": {
+    "tab": "pricing"
+   },
+   "expected": true
+  },
+  {
+   "name": "double quotes work the same as single",
+   "expression": "tab == \"pricing\"",
+   "context": {
+    "tab": "pricing"
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2605 a number and its STRING form are loosely equal (both numeric-ish)",
+   "expression": "count == '2'",
+   "context": {
+    "count": 2
+   },
+   "expected": true,
+   "veraStrict": {
+    "expected": false
+   },
+   "_divergence": "DESIGNED: vera equality is strict (\u00a719.2) \u2014 typed data, no coercion; omniwp is loose here."
+  },
+  {
+   "name": "\u2605 \u2026but STRICT equality distinguishes them",
+   "expression": "count === '2'",
+   "context": {
+    "count": 2
+   },
+   "expected": false,
+   "veraThrows": "strict-spelling",
+   "_divergence": "DESIGNED: one spelling per meaning \u2014 == is already strict; === gets a teaching refusal."
+  },
+  {
+   "name": "ordering: greater than",
+   "expression": "count > 1",
+   "context": {
+    "count": 2
+   },
+   "expected": true
+  },
+  {
+   "name": "ordering: greater or equal, on the boundary",
+   "expression": "count >= 2",
+   "context": {
+    "count": 2
+   },
+   "expected": true
+  },
+  {
+   "name": "ordering: less than",
+   "expression": "count < 10",
+   "context": {
+    "count": 2
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2605 1 and 1.0 are equal by VALUE, not by type",
+   "expression": "count == 1.0",
+   "context": {
+    "count": 1
+   },
+   "expected": true
+  },
+  {
+   "name": "conjunction",
+   "expression": "open && ready",
+   "context": {
+    "open": true,
+    "ready": true
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2026short of both",
+   "expression": "open && ready",
+   "context": {
+    "open": true,
+    "ready": false
+   },
+   "expected": false
+  },
+  {
+   "name": "disjunction",
+   "expression": "open || ready",
+   "context": {
+    "open": false,
+    "ready": true
+   },
+   "expected": true
+  },
+  {
+   "name": "parentheses group",
+   "expression": "(open || ready) && !busy",
+   "context": {
+    "open": true,
+    "ready": false,
+    "busy": false
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2026and the group changes the answer",
+   "expression": "open || ready && busy",
+   "context": {
+    "open": false,
+    "ready": true,
+    "busy": false
+   },
+   "expected": false
+  },
+  {
+   "name": "\u2605\u2605 the STRING \"0\" is FALSE \u2014 PHP's truthiness, not JavaScript's",
+   "expression": "count",
+   "context": {
+    "count": "0"
+   },
+   "expected": false,
+   "veraStrict": {
+    "expected": true
+   },
+   "_divergence": "DESIGNED: vera truthiness is JavaScript's \u2014 typed data, a quoted '0' is a string someone meant. omniwp kept PHP truthiness for WP-data compatibility."
+  },
+  {
+   "name": "an empty string is false",
+   "expression": "label",
+   "context": {
+    "label": ""
+   },
+   "expected": false
+  },
+  {
+   "name": "a non-empty string is true",
+   "expression": "label",
+   "context": {
+    "label": "hello"
+   },
+   "expected": true
+  },
+  {
+   "name": "zero is false",
+   "expression": "count",
+   "context": {
+    "count": 0
+   },
+   "expected": false
+  },
+  {
+   "name": "\u2605 an UNDECLARED key reads as null (falsy), never as an error",
+   "expression": "missing",
+   "context": {
+    "open": true
+   },
+   "expected": false
+  },
+  {
+   "name": "\u2026and null equals null",
+   "expression": "missing == null",
+   "context": {},
+   "expected": true,
+   "veraStrict": {
+    "expected": false
+   },
+   "_divergence": "DESIGNED: an unknown key reads undefined (calm math), and strict equality means undefined is not null. The absence idiom here is !missing \u2014 truthiness covers null, undefined and false in one spelling."
+  },
+  {
+   "name": "\u2605 null is NOT equal to an empty string",
+   "expression": "missing == ''",
+   "context": {},
+   "expected": false
+  },
+  {
+   "name": "a literal true",
+   "expression": "flag == true",
+   "context": {
+    "flag": true
+   },
+   "expected": true
+  },
+  {
+   "name": "\u2605 a bool compares as a BOOL against anything \u2014 a non-empty string is truthy",
+   "expression": "flag == 'yes'",
+   "context": {
+    "flag": true
+   },
+   "expected": true,
+   "veraStrict": {
+    "expected": false
+   },
+   "_divergence": "DESIGNED: vera equality is strict (\u00a719.2) \u2014 typed data, no coercion; omniwp is loose here."
+  },
+  {
+   "name": "string ordering falls back to a string comparison",
+   "expression": "tab > 'a'",
+   "context": {
+    "tab": "b"
+   },
+   "expected": true
+  },
+  {
+   "name": "\u00a7A49 a FLOAT zero is falsy, as it is in JS (0 === 0.0 is false in PHP)",
+   "expression": "n",
+   "context": {
+    "n": 0.0
+   },
+   "expected": false
+  },
+  {
+   "name": "\u00a7A49 negative float zero is falsy too \u2014 JS has one number type",
+   "expression": "n",
+   "context": {
+    "n": -0.0
+   },
+   "expected": false
+  },
+  {
+   "name": "\u00a7A49 a NON-zero float stays truthy \u2014 the fix must not over-hide",
+   "expression": "n",
+   "context": {
+    "n": 0.5
+   },
+   "expected": true
+  },
+  {
+   "name": "\u00a7A49 an INTEGER zero is falsy (unchanged, pins the pair together)",
+   "expression": "n",
+   "context": {
+    "n": 0
+   },
+   "expected": false
+  }
+ ],
+ "adversarial": [
+  {
+   "name": "proto path refuses at parse",
+   "expression": "__proto__",
+   "throws": "name-forbidden"
+  },
+  {
+   "name": "proto as a segment refuses",
+   "expression": "user.__proto__.x",
+   "throws": "name-forbidden"
+  },
+  {
+   "name": "constructor refuses",
+   "expression": "a.constructor",
+   "throws": "name-forbidden"
+  },
+  {
+   "name": "proto as an object key refuses",
+   "expression": "{ __proto__: 1 }",
+   "throws": "name-forbidden"
+  },
+  {
+   "name": "unknown function names the pure set",
+   "expression": "alert(1)",
+   "throws": "unknown-function"
+  },
+  {
+   "name": "call on a path is not a call surface",
+   "expression": "a.b(1)",
+   "context": {
+    "a": {}
+   },
+   "expected": null,
+   "_note": "a dotted word before ( is a path read; the ( is trailing junk",
+   "throws": "expr-trailing"
+  },
+  {
+   "name": "depth bomb refuses",
+   "expression": "((((((((((((((((((((((((((1))))))))))))))))))))))))))",
+   "throws": "expr-too-deep"
+  },
+  {
+   "name": "unterminated string refuses",
+   "expression": "'abc",
+   "throws": "string-unterminated"
+  },
+  {
+   "name": "calm math: unknown key is undefined, plus is NaN",
+   "expression": "missing + 1",
+   "context": {},
+   "expectedNaN": true
+  },
+  {
+   "name": "calm math: divide by zero is Infinity",
+   "expression": "1 / 0",
+   "context": {},
+   "expected": null,
+   "expectedInfinity": true
+  },
+  {
+   "name": "strict equality: number never equals its string",
+   "expression": "n == '1'",
+   "context": {
+    "n": 1
+   },
+   "expected": false
+  },
+  {
+   "name": "strict inequality agrees",
+   "expression": "n != '1'",
+   "context": {
+    "n": 1
+   },
+   "expected": true
+  },
+  {
+   "name": "ternary with comparisons and parens",
+   "expression": "(qty * price) > 100 ? 'bulk' : 'unit'",
+   "context": {
+    "qty": 6,
+    "price": 20
+   },
+   "expected": "bulk"
+  },
+  {
+   "name": "pure functions compose",
+   "expression": "upper(name) == 'ADA'",
+   "context": {
+    "name": "ada"
+   },
+   "expected": true
+  },
+  {
+   "name": "len over arrays",
+   "expression": "len(items) > 2",
+   "context": {
+    "items": [
+     1,
+     2,
+     3
+    ]
+   },
+   "expected": true
+  },
+  {
+   "name": "array literal with expressions",
+   "expression": "[n, n + 1, n * 2]",
+   "context": {
+    "n": 2
+   },
+   "expected": [
+    2,
+    3,
+    4
+   ]
+  },
+  {
+   "name": "object literal values evaluate",
+   "expression": "{ total: qty * price }",
+   "context": {
+    "qty": 2,
+    "price": 5
+   },
+   "expectedObject": {
+    "total": 10
+   }
+  },
+  {
+   "name": "precedence: and binds tighter than or",
+   "expression": "a || b && c",
+   "context": {
+    "a": false,
+    "b": true,
+    "c": false
+   },
+   "expected": false
+  },
+  {
+   "name": "precedence: arithmetic over comparison",
+   "expression": "1 + 2 * 3 == 7",
+   "context": {},
+   "expected": true
+  },
+  {
+   "name": "unary minus",
+   "expression": "-n + 10",
+   "context": {
+    "n": 4
+   },
+   "expected": 6
+  },
+  {
+   "name": "modulo",
+   "expression": "n % 3 == 1",
+   "context": {
+    "n": 7
+   },
+   "expected": true
+  }
+ ]
+}

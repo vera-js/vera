@@ -31,8 +31,32 @@ let attrsDirty = true;
 
 const VALUE_CLASSES = new Set(['literal', 'expression', 'object', 'none']);
 
-export const wireDirectives = (item: Directive | Directive[]) => {
+/**
+ * A CONNECTOR — the same second shape core's `wire` accepts. The expressions tier (and any future
+ * first-party tier) ships as a standalone additive bundle that imports nothing from the engine;
+ * wiring hands it the seams instead, so the CDN two-bundle case cannot create a second engine
+ * (the renderer's additive-entry rule, applied here).
+ */
+export type EngineConnector = (seams: {
+  /** Replace the attribute-value parser (a superset grammar keeps ParsedObject's shape). */
+  setParse: (parse: (source: string) => Parsed) => void;
+  /** Evaluate hook for values the base grammar does not know — `{ kind: 'expr' }` nodes. */
+  setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
+}) => void;
+
+export const wireDirectives = (item: Directive | EngineConnector | Array<Directive | EngineConnector>) => {
   for (const d of Array.isArray(item) ? item : [item]) {
+    if (typeof d === 'function') {
+      d({
+        setParse: (parse) => {
+          parseAttr = parse;
+        },
+        setEvalExpr: (evalExpr) => {
+          tierEval = evalExpr;
+        },
+      });
+      continue;
+    }
     if (__DEV__) {
       if (!d || (typeof d.name !== 'string' && typeof (d.name as { match?: unknown })?.match !== 'function'))
         throw new Error('wireDirectives: a directive needs a `name` string or a { match } family.');
@@ -151,8 +175,41 @@ const writeKey = (el: Element, key: string, value: unknown) => {
   owner[key] = value;
 };
 
-/** Evaluate a phase-1 value against an element's context. Phase 2 swaps richer expressions in here. */
-const evaluate = (el: Element, v: Parsed): unknown => (isPath(v) ? readPath(el, v) : v);
+/** The attribute-value parser — the expressions tier replaces it with the superset grammar. */
+let parseAttr: (source: string) => Parsed = parseValue;
+/** The tier's evaluator for `{ kind: 'expr' }` nodes; null until the tier is wired. */
+let tierEval: ((node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) | null = null;
+
+/**
+ * Read for the tier: head resolves by owner, tails walk own properties — one rule, both tiers.
+ * The OVERLAY serves exactly one caller: `state` initials evaluate in declaration order against
+ * ancestors PLUS the keys already built, before any carrier exists (design §20.6).
+ */
+const readSegments = (el: Element, overlay?: Record<string, unknown>) => (segments: string[], global: boolean): unknown => {
+  if (!global && overlay && Object.prototype.hasOwnProperty.call(overlay, segments[0])) {
+    let v: unknown = overlay[segments[0]];
+    for (const seg of segments.slice(1)) {
+      if (v !== null && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, seg)) v = (v as Record<string, unknown>)[seg];
+      else return undefined;
+    }
+    return v;
+  }
+  return readPath(el, { kind: 'path', negate: false, global, segments });
+};
+
+/** Evaluate a parsed value against an element's context (overlay: see `readSegments`). */
+const evaluate = (el: Element, v: Parsed, overlay?: Record<string, unknown>): unknown => {
+  if (isPath(v)) {
+    if (overlay && !v.global && Object.prototype.hasOwnProperty.call(overlay, v.segments[0])) {
+      const got = readSegments(el, overlay)(v.segments, false);
+      return v.negate ? !got : got;
+    }
+    return readPath(el, v);
+  }
+  if (v !== null && typeof v === 'object' && (v as { kind?: string }).kind === 'expr')
+    return tierEval ? tierEval(v, readSegments(el, overlay), el) : undefined;
+  return v;
+};
 
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
 const runAssignments = (el: Element, obj: ParsedObject) => {
@@ -193,7 +250,7 @@ const activateDirective = (el: Element, attr: string, directive: Directive, sele
   let parsed: Parsed = null;
   if (directive.value !== 'none') {
     try {
-      parsed = parseValue(raw ?? '');
+      parsed = parseAttr(raw ?? '');
     } catch (error) {
       const ve = error as ValueError;
       reject(el, attr, ve.code ?? 'value-bad', `could not parse "${raw}": ${ve.message}`);
@@ -264,7 +321,7 @@ export const stateDirective: Directive = {
     const raw = el.getAttribute(PREFIX + 'state') ?? '';
     let parsed: Parsed;
     try {
-      parsed = parseValue(raw);
+      parsed = parseAttr(raw);
     } catch (error) {
       ctx.reject((error as ValueError).code ?? 'value-bad', `could not parse "${raw}"`);
       return;
@@ -279,16 +336,14 @@ export const stateDirective: Directive = {
       return;
     }
     const initial: Record<string, unknown> = {};
-    /** Initials evaluate IN DECLARATION ORDER against ancestors + earlier keys (design §20.6). */
+    /** Initials evaluate IN DECLARATION ORDER against ancestors + earlier keys (design §20.6) —
+     *  the overlay IS the object being built, so `total: price * qty` sees its siblings. */
     for (const key of Object.keys(parsed)) {
       if (key.startsWith('_vd')) {
         ctx.reject('state-reserved-key', `"${key}" is reserved.`);
         continue;
       }
-      const v = parsed[key];
-      initial[key] = isPath(v) && !v.global && v.segments[0] in initial && v.segments.length === 1 && !v.negate
-        ? initial[v.segments[0]]
-        : evaluate(el, v);
+      initial[key] = evaluate(el, parsed[key], initial);
     }
     carriers.set(el, createStore(initial));
     return () => carriers.delete(el);
@@ -326,7 +381,7 @@ const dispatch = (root: Node, event: Event) => {
     if (raw === null) continue;
     if (node !== root && (root as ParentNode).contains && !(root as ParentNode).contains(el)) continue;
     try {
-      const parsed = parseValue(raw);
+      const parsed = parseAttr(raw);
       if (isObject(parsed)) runAssignments(el, parsed);
       else reject(el, attr, 'handler-not-object', 'an on-* value is a braced assignments object.');
     } catch (error) {
