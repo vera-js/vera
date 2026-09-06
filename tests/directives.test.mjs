@@ -3,6 +3,11 @@
  * per-key owner resolution, delegated events, churn (add/remove/change), rejections, cloak, and
  * settled(). The engine's reactive half is core's createHook, so state writes re-run reflections
  * on core's scheduler — every wait here is settled(), never a sleep-and-hope.
+ *
+ * **This file is also the STANDALONE certification.** It imports nothing but the directives
+ * bundle — no core, no renderer — so the production run (min bundle, every dependency inlined)
+ * proves one script tag works on a page with zero other vera code. Do not add a vera import to
+ * this file; a case needing one belongs in a separate interop suite.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
