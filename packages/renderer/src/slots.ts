@@ -251,7 +251,7 @@ const bucketOf = (state: HostState, name: string): Node[] => {
  *  capture walk and the server-park recovery — both iterate host order), so placement is a plain
  *  append: O(1), and immune to the fact that earlier-taken siblings are already in holding and
  *  can no longer be position-compared. */
-const take = (state: HostState, node: Node, ordered = false): string | null => {
+const take = (state: HostState, node: Node, ordered = false, atTail = false): string | null => {
   const name = slotNameOf(node);
   if (name === null) return null;
   const bucket = bucketOf(state, name);
@@ -310,11 +310,26 @@ const take = (state: HostState, node: Node, ordered = false): string | null => {
     const home = node.parentNode;
     const last = bucket[bucket.length - 1];
     const sentinel = state._sentinel;
+    /**
+     * **The record is the light-tree truth; the sentinel is only a proxy for it.**
+     *
+     * `front` is "this node precedes everything already distributed" — inferred here from the
+     * node preceding the `_sentinel` in the LIVE DOM. That inference holds when the host is
+     * settled, and BREAKS mid-storm on an adopted seam: `flushPending` can process a genuine
+     * tail-append while the sentinel is transiently positioned AFTER it, so the append reads as
+     * front and takes a negative rank, sorting before the adopted nodes (run-18 residual, root
+     * cause). The observer path knows better: a childList record whose `nextSibling` is null was
+     * an APPEND at the light-tree tail, immune to any later churn — so `atTail` overrides the
+     * proxy outright. A non-null `nextSibling` (prepend, insertBefore) is left to the existing
+     * inference, which the settled and client-storm paths already exercise.
+     */
     front =
+      !atTail &&
       sentinel.parentNode === home &&
       // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
       (node.compareDocumentPosition(sentinel) & 4) !== 0;
     if (
+      !atTail &&
       sentinel.parentNode === home &&
       // eslint-disable-next-line no-bitwise -- the node precedes the boundary: the light region
       (node.compareDocumentPosition(sentinel) & 4) !== 0 &&
@@ -819,7 +834,10 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
         (node as { _$own$?: unknown })._$own$ !== true &&
         !state._names.has(node)
       ) {
-        const name = take(state, node);
+        /** `nextSibling === null` in the record means an APPEND at the host's end — the
+         *  light-tree tail, snapshotted at mutation time. `take` uses it to override the
+         *  sentinel proxy that misfires mid-storm. See the front-detection note there. */
+        const name = take(state, node, false, record.nextSibling === null);
         if (name !== null) touched.add(name);
       } else if (!state._names.has(node) && (node as { _$own$?: unknown })._$own$ !== true) {
         /**
