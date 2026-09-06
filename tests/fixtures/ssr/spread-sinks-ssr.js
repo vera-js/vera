@@ -15,6 +15,7 @@ export default class SpreadSinksSsr extends HTMLElement {
         srcdoc: '<script>1</script>',
         onclick: 'alert(1)',
         '.innerHTML': '<b>pwn</b>',
+        '.__proto__': { hacked: 'yes' },
       })}>safe</p><p class="names" ${spread({
         'data-sane': 'kept',
         'a b': 'sp',

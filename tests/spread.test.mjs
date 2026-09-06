@@ -512,3 +512,34 @@ test('precedence: spread over statics regardless of position; document order bet
   renderInto(html`<u ${spread({ '?disabled': true })} ?disabled=${false}>d</u>`, host);
   assert.equal(host.querySelector('u').hasAttribute('disabled'), false, 'a later written binding beats an earlier spread');
 });
+
+/**
+ * The run-14 payload probe's find: `'.__proto__'` in a bag is not a property write — it hits the
+ * `__proto__` ACCESSOR and replaces the element's own prototype, stripping every DOM method. The
+ * element bricks and the crash lands LATER, in whatever binding next touches it, with a stack
+ * naming the renderer and not the data. Refused like the sinks (both sigil forms), and the
+ * later-render assertion is the point: pre-fix, this test's last line threw
+ * `element.removeAttribute is not a function`.
+ */
+test('spread refuses .__proto__ — the element keeps its prototype and later renders survive', () => {
+  const original = console.warn;
+  const warned = [];
+  console.warn = (...args) => warned.push(args.join(' '));
+  try {
+    const draw = (bag) => renderInto(html`<p ${spread(bag)}>x</p>`, host);
+    draw({ '.__proto__': { hacked: 'yes' }, title: 'kept' });
+    const el = host.querySelector('p');
+    assert.ok(el instanceof dom.window.HTMLElement, 'the prototype survived');
+    assert.equal(typeof el.removeAttribute, 'function', 'DOM methods intact');
+    assert.equal(el.title, 'kept', 'the benign sibling key landed');
+    if (!isProduction) assert.ok(warned.some((w) => w.includes('__proto__')), 'development names the refusal');
+
+    draw({ '!__proto__': null });
+    assert.ok(el instanceof dom.window.HTMLElement, 'the !-form is refused too');
+
+    draw({ title: 'still-alive' });
+    assert.equal(host.querySelector('p').title, 'still-alive', 'later renders survive — the pre-fix crash site');
+  } finally {
+    console.warn = original;
+  }
+});

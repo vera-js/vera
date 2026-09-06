@@ -69,6 +69,16 @@ const refusedSink = (key: string): string | null => {
     const name = key.slice(1);
     if (name === 'innerHTML' || name === 'outerHTML')
       return 'write it in the template — html`<div .innerHTML=${trusted}>` — sanitized first (renderer README, security note)';
+    /**
+     * `element.__proto__ = value` is not a property write — it hits Object.prototype's
+     * `__proto__` ACCESSOR and replaces the element's prototype, stripping every DOM method it
+     * has. The element is bricked, and the crash lands LATER, in whatever binding next calls
+     * `removeAttribute` on it — a data-driven render-kill with a stack that names the renderer
+     * and not the data. Found by the run-14 payload probe; there is no legitimate use, so unlike
+     * `.innerHTML` there is no template spelling to point at.
+     */
+    if (name === '__proto__')
+      return "assigning __proto__ replaces the element's own prototype and destroys it — no property write does this, and no use of it is legitimate";
     return null;
   }
   if (first === '?' || first === '@' || first === '&') return null;

@@ -185,6 +185,10 @@ test('refused sinks never reach server markup', () => {
   assert.ok(!sinks.includes('srcdoc'), 'srcdoc absent from the tag');
   assert.ok(!sinks.includes('onclick'), 'inline handler absent from the tag');
   assert.ok(!sinksMarkup.includes('pwn'), 'the innerHTML payload is nowhere in the whole document');
+  /** run-14's find refused at the shared predicate: the server render neither crashed on the
+   *  de-prototyped element (it would have — the fixture renders MORE after this bag) nor leaked
+   *  the key anywhere. */
+  assert.ok(!sinksMarkup.includes('__proto__') && !sinksMarkup.includes('hacked'), '.__proto__ reaches no markup');
 });
 
 /**

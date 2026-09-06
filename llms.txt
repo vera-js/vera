@@ -122,8 +122,9 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 | `deps` | `(...values) => void` | Explicitly touch values to register them as dependencies. |
 
 **Use `shallowRef` for lists.** Putting 1 000 row objects in `createStore` proxies all of them and
-costs roughly 60x more per render than a plain array. If rows are replaced rather than mutated,
-`shallowRef` is the right tool.
+reading them back measures 20-30x the cost of a plain array (measured 2026-09-05; an earlier pass
+said 60x, which the store has outgrown). If rows are replaced rather than mutated, `shallowRef` is
+the right tool.
 
 ### Rendering
 
@@ -437,7 +438,7 @@ thing — including `&ref` for an element ref. A key that cannot be written into
 (whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
 those and markup cannot carry them, so both sides refuse them rather than disagreeing.
 `@verajs/renderer` costs 5 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->1.20 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+is <!--size:spread.gzip-->1.29 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
