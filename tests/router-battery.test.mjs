@@ -228,3 +228,63 @@ test('a lazy route component loads in the outlet, survives the away-race, return
     window.Element.prototype.querySelectorAll = origQSA;
   }
 });
+
+/**
+ * slots + router (run-10 matrix cell): PERSISTENT user content as a child of the OUTLET,
+ * distributed into whatever route renders a slot for it. The story is app chrome that survives
+ * navigation: route A shows the badge through its slot, route B has no slot so the badge PARKS
+ * (detached, never destroyed), returning to A restores the SAME node with edits intact, a child
+ * added while routed distributes live, and both survive a second round trip in light-tree order.
+ * The router renderer must hand TEMPLATES to renderInto — a stringifying renderer would flatten
+ * the slot markup and none of this could work, which is why the cell wires its own.
+ */
+test('outlet children slot into routes, park across slotless ones, and return by identity', async () => {
+  for (const key of ['DocumentFragment', 'Text', 'Comment', 'CSSStyleSheet', 'cancelAnimationFrame'])
+    globalThis[key] = window[key] ?? globalThis[key];
+  const core = await load('core');
+  const { renderer, renderInto } = await load('renderer');
+  const { slots, slotted } = await load('renderer/slots');
+  core.wire([renderer, slots]);
+  setRouterRenderer((template, target) => renderInto(template, target));
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+  const shell = doc.createElement('div');
+  const outlet = doc.createElement('main');
+  shell.appendChild(outlet);
+  doc.body.appendChild(shell);
+  const badge = doc.createElement('u');
+  badge.setAttribute('slot', 'aside');
+  badge.textContent = 'persistent-badge';
+  outlet.appendChild(badge);
+
+  const { addRoutes } = initRouter(shell, { view: outlet, focusView: false, handleInitial: false });
+  addRoutes([
+    { path: '/with-slot', component: () => core.html`<article><slot name="aside">no badge</slot><p>A</p></article>` },
+    { path: '/no-slot', component: () => core.html`<p>just B</p>` },
+  ]);
+
+  await navigate('/with-slot', 'navigate'); await settle();
+  assert.ok(outlet.querySelector('article').contains(badge), 'CONTROL: the outlet child distributed');
+
+  badge.textContent = 'edited-badge';
+  await navigate('/no-slot', 'navigate'); await settle();
+  assert.equal(outlet.textContent, 'just B', 'the slotless route shows only itself');
+  assert.equal(badge.isConnected, false, 'the badge parked rather than being destroyed');
+
+  await navigate('/with-slot', 'navigate'); await settle();
+  assert.ok(outlet.querySelector('article').contains(badge), 'the SAME node returned');
+  assert.equal(badge.textContent, 'edited-badge', 'with its edit');
+
+  const extra = doc.createElement('b');
+  extra.setAttribute('slot', 'aside');
+  extra.textContent = '+extra';
+  outlet.appendChild(extra);
+  await settle();
+  assert.ok(outlet.querySelector('article').contains(extra), 'a live addition distributes on a routed view');
+
+  await navigate('/no-slot', 'navigate'); await settle();
+  await navigate('/with-slot', 'navigate'); await settle();
+  assert.deepEqual(slotted(outlet, 'aside').map((n) => n.textContent), ['edited-badge', '+extra'],
+    'both survive a second round trip, in light-tree order');
+  shell.remove();
+});
