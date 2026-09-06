@@ -47,5 +47,14 @@ window.history.replaceState(null, '', '/B');
 window.dispatchEvent(new window.PopStateEvent('popstate')); await tick();
 check('unstamped entry lands at top', scrollCalls.some((a) => a[0] === 0 && a[1] === 0));
 
+/**
+ * The README's stated mechanism, pinned: manual scroll restoration is what lets the router stamp
+ * the offset on the way out and restore it after the content renders (the browser's own auto
+ * restoration fires before the routed content exists). initRouter set it at module load above;
+ * conditional on support, mirroring the router's own `'scrollRestoration' in history` guard.
+ */
+if ('scrollRestoration' in window.history)
+  check('initRouter set scrollRestoration to manual', window.history.scrollRestoration === 'manual');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
