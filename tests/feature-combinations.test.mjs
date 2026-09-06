@@ -543,3 +543,45 @@ test('shallowRef + keyed: replace reconciles by identity, inner mutation stays i
     if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
   }
 });
+
+/**
+ * spread + hold: a runtime bag riding a park/restore. Spread keys its Binding map on the PART and
+ * hold re-adopts the same part's instance, so the cells that could disagree are all on the
+ * restore side: a changed bag value must land, a DEPARTED key must release (restore is a render,
+ * and release-on-departure is spread's contract wherever a render happens), the swapped handler
+ * must fire exactly once, and the element — typed value included — must be the parked one. Two
+ * roundtrips, because the first restore exercises adopt-after-park and the second exercises
+ * park-after-restore.
+ */
+test('spread + hold: bags update, departed keys release, handlers swap — across park/restore', () => {
+  const host = div();
+  dom.window.document.body.append(host);
+  let clicks = 0;
+  const editor = (bag) => html`<input class="ed" ${spread(bag)} />`;
+  const draw = (editing, bag) => renderInto(html`<div>${hold(editing ? editor(bag) : html`<p>view</p>`)}</div>`, host);
+
+  draw(true, { title: 't1', 'data-k': 'v1', '@click': () => clicks++ });
+  const input = host.querySelector('input');
+  input.value = 'typed';
+  input.dispatchEvent(new dom.window.Event('click'));
+  assert.ok(input.title === 't1' && clicks === 1, 'CONTROL: the bag landed and the handler fires');
+
+  draw(false, {});
+  assert.equal(input.isConnected, false, 'parked');
+
+  draw(true, { title: 't2', '@click': () => { clicks += 10; } });
+  assert.equal(host.querySelector('input'), input, 'the SAME node returned');
+  assert.equal(input.value, 'typed', 'with its typed value');
+  assert.equal(input.title, 't2', 'the changed bag value landed on restore');
+  assert.equal(input.getAttribute('data-k'), null, 'the departed key released');
+  input.dispatchEvent(new dom.window.Event('click'));
+  assert.equal(clicks, 11, 'the swapped handler fires exactly once');
+
+  draw(false, {});
+  draw(true, { '@click': () => { clicks += 100; } });
+  assert.equal(input.getAttribute('title'), null, 'second roundtrip: title released too');
+  assert.equal(host.querySelector('input'), input, 'identity still held');
+  input.dispatchEvent(new dom.window.Event('click'));
+  assert.equal(clicks, 111, 'and the handler still routed');
+  host.remove();
+});
