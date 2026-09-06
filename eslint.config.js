@@ -75,7 +75,19 @@ export default [
      * above with the package's own repo-wide glob, widening the browser globals to everything and
      * failing the suites that violate both rules deliberately in order to test them.
      */
-    rules: { ...vera[0].rules },
+    rules: {
+      ...vera[0].rules,
+      /**
+       * Slots.ts carries nine sanctioned `compareDocumentPosition(...) & 4` reads, each with a
+       * disable comment naming the platform flag — written assuming this rule was active, which
+       * it never was, so every directive reported as unused (found by the 2026-09 audit arc).
+       * Activating the rule is the fix that keeps the documentation meaningful: the directives
+       * become real exceptions, and an accidental `&` where `&&` was meant — the mistake the rule
+       * exists for — errors everywhere else in library source. Tests stay exempt: every seeded
+       * fuzz's LCG works in `& 0x7fffffff`.
+       */
+      'no-bitwise': 'error',
+    },
   },
 
   /**

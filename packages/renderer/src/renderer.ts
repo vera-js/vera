@@ -93,6 +93,7 @@ export const hold = <T>(result: T): T | { $h: TemplateResult } =>
  * Unique per module load, so user text can never collide with it. Randomness here cannot break
  * template caching — the marker only ever pairs a scan with its own Template construction.
  */
+// eslint-disable-next-line no-bitwise -- >>> 0 is the integer truncation, not arithmetic
 const MARKER = '$v' + ((Math.random() * 1e9) >>> 0).toString(36) + '$';
 /** `<?xyz>` parses as a bogus comment whose data is `?xyz`. */
 const MARKER_COMMENT_DATA = '?' + MARKER;

@@ -111,6 +111,7 @@ const windowEvents = new EventTarget();
 const makeWalker = (root, whatToShow = 0xffffffff, filter, isWalker = true) => {
   const accepts = (node) => {
     const bit = node.nodeType === 1 ? 1 : node.nodeType === 3 ? 4 : node.nodeType === 8 ? 128 : 0;
+    // eslint-disable-next-line no-bitwise -- whatToShow is the platform's own NodeFilter bitmask
     if (!(whatToShow & bit)) return false;
     const verdict = typeof filter === 'function' ? filter(node) : filter?.acceptNode?.(node);
     return verdict === undefined || verdict === 1;
