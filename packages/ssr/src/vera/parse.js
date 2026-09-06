@@ -27,7 +27,14 @@ import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from './escaping.js';
 const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 const ENTITY = /&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([a-zA-Z]+));/g;
 
-const decode = (text) =>
+/**
+ * **Character references, decoded — owned here and shared.** Decimal, hex and the named refs this
+ * package can emit. `index.js` kept a lesser copy (decimal only, and `String.fromCharCode`, which
+ * TRUNCATES above U+FFFF) that was safe only while `escapeHtml`'s table stayed decimal and BMP —
+ * an invariant no test held. One decoder instead, so a change to what this package escapes cannot
+ * silently outrun what it can decode (arc-2 run 3).
+ */
+export const decode = (text) =>
   text.includes('&')
     ? text.replace(ENTITY, (match, decimal, hex, name) =>
         decimal

@@ -43,7 +43,7 @@ import {
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
 /** The attribute-name charset, from the parser that owns it — see `ATTRIBUTE` below. */
-import { ATTRIBUTE_NAME } from './parse.js';
+import { ATTRIBUTE_NAME, decode as decodeEntities } from './parse.js';
 
 installShims();
 const { wire, inserts, setStaticStores } = await import('@verajs/core');
@@ -180,19 +180,16 @@ const tagEnd = (markup, start) => {
  */
 const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?`, 'g');
 
-/** Numeric and the five named references — everything `escapeHtml` can emit, plus what authors write. */
-const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-
 /**
  * Attribute values arrive **escaped**, because they were read back out of markup this module just
  * wrote. Handing that to `setAttribute` gave a nested component `Tom &#38; Jerry` where the parent
  * had passed `Tom & Jerry`, and re-escaping on the way out produced `Tom &#38;#38; Jerry` — entity
  * codes visible on the page, and a mismatch against whatever the client computes on hydration.
+ *
+ * The decoder is `parse.js`'s, which owns it. This file kept a lesser copy — decimal only, and
+ * `String.fromCharCode`, which truncates above U+FFFF — correct only while `escapeHtml`'s table
+ * stayed decimal and BMP, an invariant nothing enforced. Same fact, one place (arc-2 run 3).
  */
-const decodeEntities = (value) =>
-  value.replace(/&#(\d+);|&([a-zA-Z]+);/g, (match, code, name) =>
-    code ? String.fromCharCode(Number(code)) : (NAMED_ENTITIES[name] ?? match)
-  );
 
 /**
  * **How deep a component tree may nest before the server calls it a cycle.**
