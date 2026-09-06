@@ -1,10 +1,16 @@
 /**
- * The phase-1 interaction pack: `state`, `show`, `class`, and the `on-*` event family. Each row
- * of the catalog gets its full §12 design pass as it lands; these four are the vertical slice.
+ * The interaction catalog — DESIGN-DIRECTIVES §10, each row built after its §12 pass (the passes
+ * are recorded compactly in the doc's BUILD LOG; the settled decisions they execute are §20's).
+ *
+ * The cost model holds throughout: plain events are pure delegation (zero per-element work);
+ * reflections are one engine-owned hook each; `state`/`every`/`sync`/`persist`/focus are
+ * setup-only or setup+apply. Nothing here touches the renderer — adjectives, never nouns.
  */
-import { stateDirective, onFamily } from './engine.js';
+import { stateDirective, runAttrAssignments } from './engine.js';
 import { isObject } from './parse.js';
 import type { Directive } from './types.js';
+
+/* ── reflections ─────────────────────────────────────────────────────────────────────────── */
 
 /** `show` reflects to `hidden`; the engine's adopted base rule makes `hidden` unbeatable (§20.2). */
 const show: Directive = {
@@ -16,7 +22,6 @@ const show: Directive = {
   },
 };
 
-/** `class` toggles one class per key — an object of `name: expression` (design §10). */
 const classDirective: Directive = {
   name: 'class',
   value: 'object',
@@ -27,18 +32,437 @@ const classDirective: Directive = {
       return;
     }
     const entries = value as Record<string, unknown>;
-    /** classList, never className — SVG's className is an SVGAnimatedString (design §16). Every
-     *  entry evaluates inside this one engine-owned hook, so one state change re-toggles the lot. */
+    /** classList, never className — SVG's className is an SVGAnimatedString (design §16). */
     for (const name of Object.keys(entries)) el.classList.toggle(name, !!ctx.eval(entries[name]));
   },
 };
 
-/** The event family — registry-declarative; the engine's delegation does all the work (§3E). */
+/** `style` sets properties from an object of prop: expression — custom properties included. */
+const style: Directive = {
+  name: 'style',
+  value: 'object',
+  docs: { summary: 'Sets style properties from an object of prop: expression.', example: 'data-vd-style="{ opacity: open ? 1 : 0 }"' },
+  apply(el, value, ctx) {
+    if (!isObject(value as never)) {
+      ctx.reject('style-not-object', 'data-vd-style takes a braced object of prop: expression.');
+      return;
+    }
+    const entries = value as Record<string, unknown>;
+    const styles = (el as HTMLElement).style;
+    for (const prop of Object.keys(entries)) {
+      const v = ctx.eval(entries[prop]);
+      if (v === null || v === undefined || v === false) styles.removeProperty(prop);
+      else styles.setProperty(prop, String(v));
+    }
+  },
+};
+
+/** `text` writes textContent — never markup, and it REPLACES all children (design §20, minor). */
+const text: Directive = {
+  name: 'text',
+  value: 'expression',
+  docs: { summary: 'Sets the element text from the expression. textContent, never markup.', example: 'data-vd-text="total"' },
+  apply(el, value) {
+    el.textContent = value === null || value === undefined ? '' : String(value);
+  },
+};
+
+/**
+ * `bind-*` — LIST-FREE semantics by VALUE TYPE (§20.4): false/null/undefined removes, true is
+ * present-empty, anything else writes the string. `aria-*` always stringifies (aria-expanded
+ * needs the literal word "false"). The form four (value/checked/selected/open) write the LIVE
+ * property, because the attribute form is only the default. The refuse-list guards the sinks:
+ * href/src/srcdoc and any on* are navigation and script; style and class each have their one door.
+ */
+const FORM_PROPS = new Set(['value', 'checked', 'selected', 'open']);
+const REFUSED_BIND = new Set(['href', 'src', 'srcdoc', 'style', 'class']);
+const bind: Directive = {
+  name: {
+    match: (suffix: string) => (suffix.startsWith('bind-') ? { target: suffix.slice(5) } : null),
+  },
+  value: 'expression',
+  docs: { summary: 'Binds one attribute (or form property) to an expression.', example: 'data-vd-bind-aria-expanded="open"' },
+  setup(_el, ctx) {
+    const target = (ctx.selection as { target: string }).target;
+    if (REFUSED_BIND.has(target) || target.startsWith('on')) {
+      ctx.reject('bind-refused-target', `"${target}" is not bindable — it is a navigation/script sink or has its own directive.`,
+        'Use the class/style directives, or a real link written in markup.');
+      return;
+    }
+    return {
+      apply: (element: Element, value: unknown) => {
+        if (FORM_PROPS.has(target)) {
+          (element as unknown as Record<string, unknown>)[target] =
+            target === 'value' ? String(value ?? '') : !!value;
+          return;
+        }
+        if (target.startsWith('aria-')) {
+          if (value === null || value === undefined) element.removeAttribute(target);
+          else element.setAttribute(target, String(value));
+          return;
+        }
+        if (value === false || value === null || value === undefined) element.removeAttribute(target);
+        else if (value === true) element.setAttribute(target, '');
+        else element.setAttribute(target, String(value));
+      },
+    };
+  },
+};
+
+/* ── timers ──────────────────────────────────────────────────────────────────────────────── */
+
+/** `every` — an object of interval: assignments (names select, values configure; §20.7's cousin). */
+const every: Directive = {
+  name: 'every',
+  value: 'object',
+  docs: { summary: 'Runs assignments on an interval: { ms: { writes } }.', example: 'data-vd-every="{ 3000: { tick: tick + 1 } }"' },
+  setup(_el, ctx) {
+    const timers: ReturnType<typeof setInterval>[] = [];
+    return {
+      apply: (_element: Element, value: unknown) => {
+        /** Re-parse on value change: clear the old timers, start the new set. */
+        for (const t of timers.splice(0)) clearInterval(t);
+        if (!isObject(value as never)) {
+          ctx.reject('every-not-object', 'data-vd-every takes { interval: { assignments } }.');
+          return;
+        }
+        const entries = value as Record<string, unknown>;
+        for (const key of Object.keys(entries)) {
+          const ms = Number(key);
+          if (!Number.isInteger(ms) || ms <= 0) {
+            ctx.reject('every-bad-interval', `"${key}" is not a positive whole number of milliseconds.`);
+            continue;
+          }
+          const body = entries[key];
+          if (!isObject(body as never)) {
+            ctx.reject('every-not-object', `the value for ${ms} must be a braced assignments object.`);
+            continue;
+          }
+          timers.push(setInterval(() => ctx.run(body as never), ms));
+        }
+      },
+      teardown: () => {
+        for (const t of timers.splice(0)) clearInterval(t);
+      },
+    };
+  },
+};
+
+/* ── two-way + persistence ───────────────────────────────────────────────────────────────── */
+
+/**
+ * `sync` — control-aware two-way binding on ONE key. State wins at activation, events win after
+ * (§20.5). Checkbox rides checked/change, select rides value/change, text rides value/input
+ * (change on a text field only fires at blur, which makes typing feel dead — the omniwp lesson).
+ */
+const sync: Directive = {
+  name: 'sync',
+  value: 'literal',
+  docs: { summary: 'Two-way binds a form control to one state key.', example: 'data-vd-sync="draft"' },
+  setup(el, ctx) {
+    const control = el as HTMLInputElement;
+    if (control.type === 'radio') {
+      ctx.reject('sync-radio-unsupported', 'radio groups need group semantics — not in v1.', 'Bind on-change + bind-checked per radio.');
+      return;
+    }
+    const isCheckbox = control.type === 'checkbox';
+    const isSelect = control.localName === 'select';
+    if (!isCheckbox && !isSelect && !('value' in control)) {
+      ctx.reject('sync-not-a-control', 'data-vd-sync needs a form control with a value.', 'Put it on an input, select or textarea.');
+      return;
+    }
+    let key = '';
+    const event = isCheckbox || isSelect ? 'change' : 'input';
+    const write = () => ctx.set(key, isCheckbox ? control.checked : control.value);
+    el.addEventListener(event, write);
+    return {
+      apply: (_element: Element, value: unknown) => {
+        key = String(value ?? '');
+        const current = ctx.get(key);
+        if (isCheckbox) control.checked = !!current;
+        else control.value = current === null || current === undefined ? '' : String(current);
+      },
+      teardown: () => el.removeEventListener(event, write),
+    };
+  },
+};
+
+/**
+ * `persist` — BOTH halves owned here so forgetting one is impossible (§10): setup restores, the
+ * reflection saves. Storage failures (private mode) degrade to live-only with a note; keys are
+ * author-global by design, prefixed `vd:`.
+ */
+const persist: Directive = {
+  name: 'persist',
+  value: 'literal',
+  docs: { summary: 'Persists one state key to localStorage — restores on setup, saves on change.', example: 'data-vd-persist="theme"' },
+  setup(_el, ctx) {
+    let key = '';
+    return {
+      apply: (_element: Element, value: unknown) => {
+        const next = String(value ?? '');
+        if (next !== key) {
+          key = next;
+          try {
+            const stored = localStorage.getItem(`vd:${key}`);
+            if (stored !== null) ctx.set(key, JSON.parse(stored));
+          } catch {
+            ctx.reject('persist-unavailable', 'storage is unavailable — running live-only.');
+            return;
+          }
+        }
+        try {
+          localStorage.setItem(`vd:${key}`, JSON.stringify(ctx.get(key)));
+        } catch {
+          /* saving best-effort; the restore note already told the story */
+        }
+      },
+    };
+  },
+};
+
+/* ── focus ───────────────────────────────────────────────────────────────────────────────── */
+
+const FOCUSABLE = 'a[href],button,input,select,textarea,[tabindex]';
+const focusables = (root: Element): HTMLElement[] =>
+  [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((n) => !n.hasAttribute('disabled') && !(n as HTMLElement).hidden);
+
+/** `focus-on` — focus follows STATE, so click, Escape and outside-click behave identically. */
+const focusOn: Directive = {
+  name: 'focus-on',
+  value: 'expression',
+  docs: { summary: 'Focuses the element (or its first focusable) when the expression turns truthy.', example: 'data-vd-focus-on="open"' },
+  setup() {
+    let was = false;
+    return {
+      apply: (el: Element, value: unknown) => {
+        const now = !!value;
+        if (now && !was) {
+          const target = (el as HTMLElement).tabIndex >= 0 || focusables(el).length === 0 ? (el as HTMLElement) : focusables(el)[0];
+          target.focus?.();
+        }
+        was = now;
+      },
+    };
+  },
+};
+
+/** The trap STACK — nested modals: last trap wins, teardown restores the one before (§20 minor). */
+const trapStack: Array<{ el: Element; before: HTMLElement | null }> = [];
+
+const focusTrap: Directive = {
+  name: 'focus-trap',
+  value: 'none',
+  docs: { summary: 'Traps Tab inside the element; teardown restores prior focus. Traps stack.', example: 'data-vd-focus-trap' },
+  setup(el, ctx) {
+    const items = () => focusables(el);
+    if (items().length === 0) ctx.reject('focus-trap-empty', 'nothing focusable to trap.', 'Add a focusable child, or remove the trap.');
+    const before = (el.ownerDocument.activeElement as HTMLElement) ?? null;
+    trapStack.push({ el, before });
+    const onKey = (event: Event) => {
+      const key = (event as KeyboardEvent).key;
+      if (key !== 'Tab') return;
+      const list = items();
+      if (list.length === 0) return;
+      const active = el.ownerDocument.activeElement;
+      const at = list.indexOf(active as HTMLElement);
+      const next = (event as KeyboardEvent).shiftKey
+        ? at <= 0 ? list[list.length - 1] : list[at - 1]
+        : at === list.length - 1 ? list[0] : list[Math.max(at, 0) + 1];
+      event.preventDefault();
+      next.focus();
+    };
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('keydown', onKey);
+      const idx = trapStack.findIndex((t) => t.el === el);
+      if (idx !== -1) {
+        const [popped] = trapStack.splice(idx, 1);
+        /** Prefer a marked return target, else the element focused before the trap. */
+        const marked = popped.before?.closest?.('[data-vd-focus-return]') ?? null;
+        ((marked as HTMLElement) ?? popped.before)?.focus?.();
+      }
+    };
+  },
+};
+
+/** `focus-return` is a MARKER the trap's teardown prefers — presence is the whole message. */
+const focusReturn: Directive = {
+  name: 'focus-return',
+  value: 'none',
+  docs: { summary: 'Marks the element focus should return to when a trap tears down.', example: 'data-vd-focus-return' },
+};
+
+/* ── page-level helpers ──────────────────────────────────────────────────────────────────── */
+
+const docClass: Directive = {
+  name: 'doc-class',
+  value: 'object',
+  docs: { summary: 'Toggles classes on <html> from an object of name: expression.', example: 'data-vd-doc-class="{ no-scroll: open }"' },
+  apply(el, value, ctx) {
+    if (!isObject(value as never)) {
+      ctx.reject('doc-class-not-object', 'data-vd-doc-class takes a braced object.');
+      return;
+    }
+    const entries = value as Record<string, unknown>;
+    const root = el.ownerDocument.documentElement;
+    for (const name of Object.keys(entries)) root.classList.toggle(name, !!ctx.eval(entries[name]));
+  },
+};
+
+/** Ref-counted — two open drawers must not fight over one overflow style. */
+let locks = 0;
+const scrollLock: Directive = {
+  name: 'scroll-lock',
+  value: 'expression',
+  docs: { summary: 'Locks page scroll while the expression is truthy. Locks stack.', example: 'data-vd-scroll-lock="open"' },
+  setup(el) {
+    let holding = false;
+    const set = (on: boolean) => {
+      if (on === holding) return;
+      holding = on;
+      locks += on ? 1 : -1;
+      el.ownerDocument.documentElement.style.overflow = locks > 0 ? 'hidden' : '';
+    };
+    return {
+      apply: (_element: Element, value: unknown) => {
+        set(!!value);
+      },
+      teardown: () => set(false),
+    };
+  },
+};
+
+const copy: Directive = {
+  name: 'copy',
+  value: 'literal',
+  docs: { summary: 'Copies the value (or the element text) to the clipboard on click.', example: 'data-vd-copy' },
+  setup(el, ctx) {
+    const onClick = () => {
+      const textToCopy = el.getAttribute('data-vd-copy') || el.textContent || '';
+      const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
+      if (!clip?.writeText) {
+        ctx.reject('copy-unavailable', 'the Clipboard API is unavailable here.');
+        return;
+      }
+      clip.writeText(textToCopy).catch(() => ctx.reject('copy-refused', 'the clipboard write was refused.'));
+    };
+    el.addEventListener('click', onClick);
+    return () => el.removeEventListener('click', onClick);
+  },
+};
+
+const scrollTo: Directive = {
+  name: 'scroll-to',
+  value: 'literal',
+  docs: { summary: 'Scrolls to the selector target on click.', example: 'data-vd-scroll-to="#top"' },
+  setup(el, ctx) {
+    const onClick = () => {
+      const target = el.ownerDocument.querySelector(String(el.getAttribute('data-vd-scroll-to') ?? ''));
+      if (!target) {
+        ctx.reject('scroll-to-missing', 'the scroll target matched nothing.');
+        return;
+      }
+      (target as { scrollIntoView?: (o: object) => void }).scrollIntoView?.({ behavior: 'smooth' });
+    };
+    el.addEventListener('click', onClick);
+    return () => el.removeEventListener('click', onClick);
+  },
+};
+
+/* ── the event family, complete ──────────────────────────────────────────────────────────── */
+
+const KEYED = new Set(['keydown', 'keyup']);
+const SPECIAL = new Set(['outside-click', 'load', 'escape', 'submit', 'submit-native']);
+
+/**
+ * Suffix grammar (§6): `click` · `keydown-enter` · `window-scroll` · `document-keydown-escape` ·
+ * the four specials an author cannot spell as listeners. Split by DECLARED bases, longest first —
+ * nothing about `window-scroll` vs `keydown-enter`'s shape says which is which (the omniwp
+ * subtlety, kept as a constraint).
+ */
+export const onFamilyFull = {
+  match: (suffix: string): unknown | null => {
+    if (!suffix.startsWith('on-')) return null;
+    const rest = suffix.slice(3);
+    if (SPECIAL.has(rest)) return { special: true, kind: rest };
+    for (const target of ['window', 'document'])
+      if (rest.startsWith(target + '-')) {
+        const inner = rest.slice(target.length + 1);
+        for (const keyed of KEYED)
+          if (inner.startsWith(keyed + '-'))
+            return { special: true, kind: 'target', target, type: keyed, key: inner.slice(keyed.length + 1) };
+        return { special: true, kind: 'target', target, type: inner };
+      }
+    for (const keyed of KEYED) if (rest.startsWith(keyed + '-')) return { type: keyed, key: rest.slice(keyed.length + 1) };
+    return { type: rest };
+  },
+};
+
+const keyMatches = (event: KeyboardEvent, want: string | undefined): boolean => {
+  if (!want) return true;
+  const key = event.key === ' ' ? 'space' : event.key.length === 1 ? event.key.toLowerCase() : event.key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+  return key === want;
+};
+
 const on: Directive = {
-  name: onFamily,
+  name: onFamilyFull,
   value: 'object',
   priority: 70,
   docs: { summary: 'Runs an assignments object when the event fires.', example: 'data-vd-on-click="{ open: !open }"' },
+  setup(el, ctx) {
+    const sel = ctx.selection as { special?: boolean; kind?: string; target?: string; type?: string; key?: string };
+    if (!sel?.special) return;
+    const attr = `data-vd-on-${sel.kind === 'target' ? `${sel.target}-${sel.type}${sel.key ? `-${sel.key}` : ''}` : sel.kind}`;
+    const run = () => runAttrAssignments(el, attr);
+
+    if (sel.kind === 'load') {
+      /** `on-load` means AT ACTIVATION — deterministic whether the pack arrived early or late (§20). */
+      run();
+      return;
+    }
+    if (sel.kind === 'escape') {
+      const onKey = (event: Event) => {
+        if ((event as KeyboardEvent).key === 'Escape') run();
+      };
+      el.ownerDocument.addEventListener('keydown', onKey);
+      return () => el.ownerDocument.removeEventListener('keydown', onKey);
+    }
+    if (sel.kind === 'outside-click') {
+      /** On the CONTAINER (the constraint set): a click composed-outside the element runs it. */
+      const onClick = (event: Event) => {
+        const path = event.composedPath();
+        if (!path.includes(el)) run();
+      };
+      el.ownerDocument.addEventListener('click', onClick);
+      return () => el.ownerDocument.removeEventListener('click', onClick);
+    }
+    if (sel.kind === 'submit' || sel.kind === 'submit-native') {
+      const native = sel.kind === 'submit-native';
+      const onSubmit = (event: Event) => {
+        /** Prevent by default; `-native` is the day-one opt-out, a MEMBER because it selects (§20.7). */
+        if (!native) event.preventDefault();
+        run();
+      };
+      el.addEventListener('submit', onSubmit);
+      return () => el.removeEventListener('submit', onSubmit);
+    }
+    if (sel.kind === 'target') {
+      const target: EventTarget = sel.target === 'window' ? el.ownerDocument.defaultView! : el.ownerDocument;
+      const onEvent = (event: Event) => {
+        if (KEYED.has(sel.type!) && !keyMatches(event as KeyboardEvent, sel.key)) return;
+        run();
+      };
+      target.addEventListener(sel.type!, onEvent);
+      return () => target.removeEventListener(sel.type!, onEvent);
+    }
+    return undefined;
+  },
 };
 
-export const interaction: Directive[] = [stateDirective, show, classDirective, on];
+export { onFamilyFull as onFamily };
+
+export const interaction: Directive[] = [
+  stateDirective, show, classDirective, style, text, bind, every, sync, persist,
+  focusOn, focusTrap, focusReturn, docClass, scrollLock, copy, scrollTo, on,
+];

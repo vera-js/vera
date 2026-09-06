@@ -165,6 +165,33 @@ export const parseValue = (source: string): Parsed => {
   return out;
 };
 
+/**
+ * The LITERAL class parser — used for `value: 'literal'` directives directly, in BOTH tiers, so a
+ * bare word is a string and never a path to resolve: `sync="draft"` names the key, it does not
+ * read it. Numbers and the three keywords parse; everything else is the trimmed text itself.
+ */
+export const parseLiteral = (source: string): string | number | boolean | null => {
+  const text = source.trim();
+  if (text === 'true') return true;
+  if (text === 'false') return false;
+  if (text === 'null') return null;
+  /** Hand-rolled numeric shape (the file's no-regex rule): -?digits(.digits)? and nothing else. */
+  const j = text[0] === '-' ? 1 : 0;
+  const digitsFrom = (k: number) => {
+    const start = k;
+    while (k < text.length && text[k] >= '0' && text[k] <= '9') k++;
+    return k > start ? k : -1;
+  };
+  let k = digitsFrom(j);
+  if (k !== -1) {
+    if (k < text.length && text[k] === '.') k = digitsFrom(k + 1);
+    if (k === text.length) return Number(text);
+  }
+  if (text.length >= 2 && ((text[0] === "'" && text.endsWith("'")) || (text[0] === '"' && text.endsWith('"'))))
+    return text.slice(1, -1);
+  return text;
+};
+
 export const isPath = (v: Parsed): v is Path =>
   typeof v === 'object' && v !== null && (v as Path).kind === 'path';
 

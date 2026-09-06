@@ -13,7 +13,7 @@
  * region's buttons work the instant the HTML lands). See DESIGN-DIRECTIVES §3/§6.
  */
 import { createHook, createStore } from '@verajs/core';
-import { parseValue, isPath, isObject } from './parse.js';
+import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
 import type { Ctx, Directive, Rejection } from './types.js';
@@ -218,6 +218,19 @@ const runAssignments = (el: Element, obj: ParsedObject) => {
 
 export const stateOf = (el: Element): Readonly<Record<string, unknown>> | null => nearestCarrier(el);
 
+/** For the pack's SPECIAL event members: parse an attribute's object and run it as assignments. */
+export const runAttrAssignments = (el: Element, attr: string): void => {
+  const raw = el.getAttribute(attr);
+  if (raw === null) return;
+  try {
+    const parsed = parseAttr(raw);
+    if (isObject(parsed)) runAssignments(el, parsed);
+    else reject(el, attr, 'handler-not-object', 'an on-* value is a braced assignments object.');
+  } catch (error) {
+    reject(el, attr, (error as ValueError).code ?? 'value-bad', `could not parse "${raw}"`);
+  }
+};
+
 /* ── instances (the reactive half) ────────────────────────────────────────────────────────── */
 
 type Instance = {
@@ -248,7 +261,15 @@ const activateDirective = (el: Element, attr: string, directive: Directive, sele
   if (map.has(attr)) return; // already live — attribute changes come through deactivate first
   const raw = el.getAttribute(attr);
   let parsed: Parsed = null;
-  if (directive.value !== 'none') {
+  if (directive.value === 'literal') {
+    /**
+     * LITERAL means literal, in BOTH tiers: it never goes through `parseAttr` at all, so a bare
+     * word is a string and no tier can turn it into something that resolves — `sync="draft"`
+     * names the key "draft", it does not read it. (Found when the expressions tier compiled the
+     * key to a thunk and persist restored under the key's VALUE.)
+     */
+    parsed = parseLiteral(raw ?? '');
+  } else if (directive.value !== 'none') {
     try {
       parsed = parseAttr(raw ?? '');
     } catch (error) {
@@ -398,16 +419,6 @@ const listen = (root: Node, type: string) => {
   root.addEventListener(type, (event) => dispatch(root, event));
 };
 
-export const onFamily = {
-  match: (suffix: string): unknown | null => {
-    if (!suffix.startsWith('on-')) return null;
-    const rest = suffix.slice(3);
-    for (const keyed of KEYED)
-      if (rest.startsWith(keyed + '-')) return { type: keyed, key: rest.slice(keyed.length + 1) };
-    return { type: rest };
-  },
-};
-
 /* ── activation ───────────────────────────────────────────────────────────────────────────── */
 
 const roots = new Set<Node>();
@@ -466,9 +477,14 @@ const activateElement = (el: Element, root: Node) => {
   }
   found.sort((a, b) => (a.directive.priority ?? 50) - (b.directive.priority ?? 50));
   for (const f of found) {
-    /** Event members register interest and cost nothing per-element (design §3E). */
-    const sel = f.selection as { type?: string } | null;
-    if (sel?.type) {
+    /**
+     * Event members: a plain bubbling type is PURE DELEGATION — one root listener, zero
+     * per-element cost (design §3E). A member marked `special` (outside-click, window-/document-
+     * targets, load, submit's prevent) needs per-element wiring too, so it ALSO takes the
+     * instance path and the directive's setup reads `ctx.selection` to do its work.
+     */
+    const sel = f.selection as { type?: string; special?: boolean } | null;
+    if (sel?.type && !sel.special) {
       wantedTypes.add(sel.type);
       listen(root, sel.type);
       continue;
@@ -508,8 +524,8 @@ const onMutations = (root: Node, records: MutationRecord[]) => {
       deactivateDirective(el, attr);
       if (el.hasAttribute(attr)) {
         const hit = directiveFor(attr.slice(PREFIX.length));
-        if (hit && !(hit.selection as { type?: string } | null)?.type)
-          activateDirective(el, attr, hit.directive, hit.selection);
+        const sel = hit?.selection as { type?: string; special?: boolean } | null;
+        if (hit && (!sel?.type || sel.special)) activateDirective(el, attr, hit.directive, hit.selection);
       }
       continue;
     }
