@@ -27,6 +27,11 @@
       "types": "./dist/development/vera-directives-expressions.d.ts",
       "development": "./dist/development/vera-directives-expressions.js",
       "default": "./dist/vera-directives-expressions.min.js"
+    },
+    "./engine": {
+      "types": "./dist/development/vera-directives-engine.d.ts",
+      "development": "./dist/development/vera-directives-engine.js",
+      "default": "./dist/vera-directives-engine.min.js"
     }
   },
   "files": [

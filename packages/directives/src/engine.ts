@@ -84,7 +84,9 @@ const byElement = new WeakMap<Element, Rejection[]>();
 const warned = new Set<string>();
 
 export const reject = (element: Element | null, directive: string, code: string, message: string, fix?: string) => {
-  const entry: Rejection = { element, directive, code, message, fix };
+  /** Prod keeps the DATA (code, element, directive); the prose is a development feature — the
+   *  strings are real bytes on every page, and the code is what tooling matches on anyway. */
+  const entry: Rejection = { element, directive, code, message: __DEV__ ? message : '', fix: __DEV__ ? fix : undefined };
   allRejections.push(entry);
   if (element) {
     let list = byElement.get(element);
@@ -234,12 +236,12 @@ export const runAttrAssignments = (el: Element, attr: string): void => {
 /* ── instances (the reactive half) ────────────────────────────────────────────────────────── */
 
 type Instance = {
-  directive: Directive;
-  attr: string;
+  _directive: Directive;
+  _attr: string;
   /** Bumping `_gen` makes the createHook permanently inert — core's own stale-guard as teardown. */
-  owner: { _gen?: number };
-  teardown?: () => void;
-  cleanup?: () => void;
+  _owner: { _gen?: number };
+  _teardown?: () => void;
+  _cleanup?: () => void;
 };
 
 const instances = new WeakMap<Element, Map<string, Instance>>();
@@ -278,7 +280,7 @@ const activateDirective = (el: Element, attr: string, directive: Directive, sele
       return;
     }
   }
-  const instance: Instance = { directive, attr, owner: {} };
+  const instance: Instance = { _directive: directive, _attr: attr, _owner: {} };
   map.set(attr, instance);
   const ctx = ctxFor(el, attr, selection);
   try {
@@ -287,21 +289,21 @@ const activateDirective = (el: Element, attr: string, directive: Directive, sele
     let apply = directive.apply;
     if (directive.setup) {
       const out = directive.setup(el, ctx);
-      if (typeof out === 'function') instance.teardown = out;
+      if (typeof out === 'function') instance._teardown = out;
       else if (out && typeof out === 'object') {
-        instance.teardown = out.teardown;
+        instance._teardown = out.teardown;
         if (out.apply) apply = out.apply;
       }
     }
     if (apply) {
       const run = createHook({
-        element: instance.owner as unknown as HTMLElement,
+        element: instance._owner as unknown as HTMLElement,
         priority: APPLY_PRIORITY,
         callback: () => {
           try {
-            instance.cleanup?.();
+            instance._cleanup?.();
             const out = apply(el, directive.value === 'none' ? undefined : evaluate(el, parsed), ctx);
-            instance.cleanup = typeof out === 'function' ? out : undefined;
+            instance._cleanup = typeof out === 'function' ? out : undefined;
           } catch (error) {
             /** QUARANTINE: this instance only — sibling directives on the element keep working. */
             reject(el, attr, 'directive-threw', String((error as Error)?.message ?? error));
@@ -322,10 +324,10 @@ const deactivateDirective = (el: Element, attr: string) => {
   const instance = map?.get(attr);
   if (!instance || !map) return;
   map.delete(attr);
-  instance.owner._gen = (instance.owner._gen ?? 0) + 1; // the kill switch
+  instance._owner._gen = (instance._owner._gen ?? 0) + 1; // the kill switch
   try {
-    instance.cleanup?.();
-    instance.teardown?.();
+    instance._cleanup?.();
+    instance._teardown?.();
   } catch (error) {
     reject(el, attr, 'teardown-threw', String((error as Error)?.message ?? error));
   }

@@ -49,6 +49,7 @@ const ENTRY = {
   styles: ['styles', 'vera-styles'],
   directives: ['directives', 'vera-directives'],
   'directives/expressions': ['directives', 'vera-directives-expressions'],
+  'directives/engine': ['directives', 'vera-directives-engine'],
   'reactivity/collections': ['reactivity', 'vera-reactivity-collections'],
   hooks: ['hooks', 'vera-hooks'],
   ui: ['ui', 'vera-ui'],
