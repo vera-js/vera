@@ -34,7 +34,7 @@ globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
 const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
 
-const { initRouter, navigate, currentRoute, setBasePath } = await load('router');
+const { initRouter, navigate, currentRoute, setBasePath, setRouterRenderer } = await load('router');
 const doc = window.document;
 
 setBasePath('/app');
@@ -168,4 +168,63 @@ test('a cold load with query and fragment routes, mounted, with everything intac
   assert.equal(currentRoute().query.get('tab'), 'x');
   assert.equal(currentRoute().hash, '#pin');
   host3.remove();
+});
+
+/**
+ * autoloader + router (run-9 matrix cell): a lazy tag inside a routed view, and the race between
+ * its import and a navigation away. The composition's cells: discovery fires in the OUTLET
+ * (routed markup is autoloaded like any other), a round trip re-imports nothing, and — the race —
+ * leaving the route while the import is in flight lets the late definition land WITHOUT touching
+ * the new route's view, defined for an instant return. jsdom needs the suite-standard
+ * `:not(:defined)` emulation and the `autoloader` attribute (both recorded traps).
+ */
+test('a lazy route component loads in the outlet, survives the away-race, returns instantly', async () => {
+  for (const key of ['customElements', 'MutationObserver', 'Element', 'Node', 'DocumentFragment', 'Text', 'Comment'])
+    globalThis[key] = window[key];
+  const origQSA = window.Element.prototype.querySelectorAll;
+  window.Element.prototype.querySelectorAll = function (sel) {
+    if (sel === ':not(:defined)')
+      return [...origQSA.call(this, '*')].filter((n) => n.localName.includes('-') && !window.customElements.get(n.localName));
+    return origQSA.call(this, sel);
+  };
+  try {
+    /** This file wires no renderer (its tests assert `hit`, not DOM); this cell asserts the
+     *  OUTLET, so it wires the plain innerHTML renderer — last test in the file, nothing after. */
+    setRouterRenderer((template, target) => { target.innerHTML = String(template); });
+    const { autoloader } = await load('autoloader');
+    const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
+    const shell = doc.createElement('div');
+    shell.setAttribute('autoloader', '');
+    const outlet = doc.createElement('main');
+    shell.appendChild(outlet);
+    doc.body.appendChild(shell);
+    autoloader(rootDir, 'components')(shell);
+    const { addRoutes } = initRouter(shell, { view: outlet, focusView: false, handleInitial: false });
+    addRoutes([
+      { path: '/lazy-widget', component: () => '<race-widget></race-widget>' },
+      { path: '/plain-stop', component: () => '<p>plain</p>' },
+    ]);
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 80));
+
+    /** The race first, while the tag is genuinely undefined. */
+    await navigate('/lazy-widget', 'navigate');
+    await navigate('/plain-stop', 'navigate');
+    await settle();
+    assert.equal(outlet.textContent, 'plain', 'the late definition never touched the new route');
+    assert.equal(globalThis.__raceWidgetLoads, 1, 'the abandoned route still cost exactly one import');
+    assert.ok(window.customElements.get('race-widget'), 'and defined for the future');
+
+    await navigate('/lazy-widget', 'navigate');
+    await settle();
+    assert.equal(outlet.textContent, 'race-widget-live', 'the return upgrades instantly');
+    assert.equal(globalThis.__raceWidgetLoads, 1, 'with no second import');
+
+    await navigate('/plain-stop', 'navigate');
+    await navigate('/lazy-widget', 'navigate');
+    await settle();
+    assert.equal(globalThis.__raceWidgetLoads, 1, 'round trips never re-import');
+    shell.remove();
+  } finally {
+    window.Element.prototype.querySelectorAll = origQSA;
+  }
 });
