@@ -14,6 +14,13 @@ export type Ctx = {
   set: (key: string, value: unknown) => void;
   /** Run a parsed assignments object — every write goes through the store. */
   run: (assignments: ParsedObject) => void;
+  /**
+   * Re-read a `data-vd-*` attribute on this element NOW and run it as an assignments object —
+   * the dispatch-time primitive for event directives (delegation reads fresh text at fire time,
+   * so swapped-in markup behaves from its first event). Unparseable or non-object values become
+   * rejections, never throws.
+   */
+  runAttr: (attr: string) => void;
   /** Evaluate one parsed value against this element's context (paths resolve, literals pass). */
   eval: (value: unknown) => unknown;
   /** The family match result, when this directive was claimed through a `{ match }` name. */

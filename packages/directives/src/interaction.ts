@@ -6,7 +6,6 @@
  * reflections are one engine-owned hook each; `state`/`every`/`sync`/`persist`/focus are
  * setup-only or setup+apply. Nothing here touches the renderer — adjectives, never nouns.
  */
-import { stateDirective, runAttrAssignments } from './engine.js';
 import { isObject } from './parse.js';
 import type { Directive } from './types.js';
 
@@ -414,7 +413,7 @@ const on: Directive = {
     const sel = ctx.selection as { special?: boolean; kind?: string; target?: string; type?: string; key?: string };
     if (!sel?.special) return;
     const attr = `data-vd-on-${sel.kind === 'target' ? `${sel.target}-${sel.type}${sel.key ? `-${sel.key}` : ''}` : sel.kind}`;
-    const run = () => runAttrAssignments(el, attr);
+    const run = () => ctx.runAttr(attr);
 
     if (sel.kind === 'load') {
       /** `on-load` means AT ACTIVATION — deterministic whether the pack arrived early or late (§20). */
@@ -462,7 +461,12 @@ const on: Directive = {
 
 export { onFamilyFull as onFamily };
 
+/**
+ * `state` is not in this list — it is ENGINE-OWNED and always registered (the context layer is
+ * the engine's, not a pack's). That absence is also what keeps this module importing nothing
+ * from the engine, which is what makes the additive single-file build possible at all.
+ */
 export const interaction: Directive[] = [
-  stateDirective, show, classDirective, style, text, bind, every, sync, persist,
+  show, classDirective, style, text, bind, every, sync, persist,
   focusOn, focusTrap, focusReturn, docClass, scrollLock, copy, scrollTo, on,
 ];

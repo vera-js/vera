@@ -3,7 +3,8 @@
  * separately: `export type *` costs no runtime code, and the insert callback types are the
  * documented way to write an extension.
  */
-export { wire, inserts } from '@verajs/inserts';
+export { wire } from './modules/wire.js';
+export { inserts } from '@verajs/inserts';
 export type * from '@verajs/inserts';
 export type * from './types.js';
 export { allowRenderLoop } from './modules/allowRenderLoop.js';

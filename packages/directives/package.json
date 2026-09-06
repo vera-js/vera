@@ -23,15 +23,25 @@
       "development": "./dist/development/vera-directives.js",
       "default": "./dist/vera-directives.min.js"
     },
+    "./core": {
+      "types": "./dist/development/vera-directives-core.d.ts",
+      "development": "./dist/development/vera-directives-core.js",
+      "default": "./dist/vera-directives-core.min.js"
+    },
+    "./standalone": {
+      "types": "./dist/development/vera-directives-standalone.d.ts",
+      "development": "./dist/development/vera-directives-standalone.js",
+      "default": "./dist/vera-directives-standalone.min.js"
+    },
+    "./interaction": {
+      "types": "./dist/development/vera-directives-interaction.d.ts",
+      "development": "./dist/development/vera-directives-interaction.js",
+      "default": "./dist/vera-directives-interaction.min.js"
+    },
     "./expressions": {
       "types": "./dist/development/vera-directives-expressions.d.ts",
       "development": "./dist/development/vera-directives-expressions.js",
       "default": "./dist/vera-directives-expressions.min.js"
-    },
-    "./engine": {
-      "types": "./dist/development/vera-directives-engine.d.ts",
-      "development": "./dist/development/vera-directives-engine.js",
-      "default": "./dist/vera-directives-engine.min.js"
     }
   },
   "files": [

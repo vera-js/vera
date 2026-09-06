@@ -96,10 +96,13 @@ export default [
    * `export * from '@verajs/inserts'` is what makes `insert` available *from core* and *from
    * router* — each bundle re-exporting its own inlined copy is precisely the thing the rule exists
    * to steer consumers toward. ESLint counts a star re-export as importing every restricted name,
-   * which is right for consumer code and wrong for the two modules defining the API.
+   * which is right for consumer code and wrong for the two modules defining the API. Core's
+   * `wire.ts` is the third exception for the same reason one level up: it IS core's `wire` — the
+   * wrapper that stamps the substrate — so it is the one module that must reach inserts'
+   * registrar directly; it is what everyone else's rule points at.
    */
   {
-    files: ['packages/core/src/index.ts', 'packages/router/src/index.ts'],
+    files: ['packages/core/src/index.ts', 'packages/core/src/modules/wire.ts', 'packages/router/src/index.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
 

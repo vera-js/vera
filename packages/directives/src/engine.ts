@@ -12,7 +12,29 @@
  * listener per event type, matching by attribute at dispatch time (which is why a swapped-in
  * region's buttons work the instant the HTML lands). See DESIGN-DIRECTIVES §3/§6.
  */
-import { createHook, createStore } from '@verajs/core';
+import { createHook as bakedCreateHook, createStore as bakedCreateStore } from '@verajs/core';
+
+/* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
+
+/**
+ * The engine never hard-binds to the copy of core it was bundled with. Core's `wire` stamps
+ * `Symbol.for('vera.core')` with the copy the app actually uses — only a wired core can stamp,
+ * so a baked copy inside this bundle can never impersonate it — and resolution here is LAZY and
+ * SNAPSHOTS once, at the first store or hook this engine creates. On a vera page that means the
+ * stamped core wins and components and directives share one store registry; on a page with no
+ * vera at all nothing ever stamps, and the baked copy serves. A stamp missing either function is
+ * not core's stamp and is ignored (with a dev note), which is also the forward seam for a
+ * version gate when the release tooling can bake a compatible range in.
+ */
+type Substrate = { createStore: typeof bakedCreateStore; createHook: typeof bakedCreateHook };
+let substrate: Substrate | null = null;
+const core = (): Substrate => {
+  if (substrate) return substrate;
+  const stamp = (globalThis as Record<symbol, unknown>)[Symbol.for('vera.core')] as Substrate | undefined;
+  if (stamp && typeof stamp.createStore === 'function' && typeof stamp.createHook === 'function') return (substrate = stamp);
+  if (__DEV__ && stamp) console.warn('[vera] the vera.core stamp is not a usable substrate — the engine is using its own copy.');
+  return (substrate = { createStore: bakedCreateStore, createHook: bakedCreateHook });
+};
 import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
@@ -112,7 +134,7 @@ export const rejections = (element?: Element): readonly Rejection[] =>
 const carriers = new WeakMap<Element, Record<string, unknown>>();
 /** The page-global store, lazily created — `@key` addresses it. */
 let pageStore: Record<string, unknown> | null = null;
-const page = () => (pageStore ??= createStore({} as Record<string, unknown>));
+const page = () => (pageStore ??= core().createStore({} as Record<string, unknown>));
 
 /**
  * PER-KEY OWNER RESOLUTION (design §4): a read of `open` walks to the nearest carrier that OWNS
@@ -252,6 +274,7 @@ const ctxFor = (el: Element, attr: string, selection: unknown): Ctx => ({
   get: (key) => readPath(el, { kind: 'path', negate: false, global: key.startsWith('@'), segments: (key.startsWith('@') ? key.slice(1) : key).split('.') }),
   set: (key, value) => writeKey(el, key, value),
   run: (obj) => runAssignments(el, obj as ParsedObject),
+  runAttr: (name) => runAttrAssignments(el, name),
   eval: (v) => evaluate(el, v as Parsed),
   selection,
   reject: (code, message, fix) => reject(el, attr, code, message, fix),
@@ -296,7 +319,7 @@ const activateDirective = (el: Element, attr: string, directive: Directive, sele
       }
     }
     if (apply) {
-      const run = createHook({
+      const run = core().createHook({
         element: instance._owner as unknown as HTMLElement,
         priority: APPLY_PRIORITY,
         callback: () => {
@@ -368,10 +391,18 @@ export const stateDirective: Directive = {
       }
       initial[key] = evaluate(el, parsed[key], initial);
     }
-    carriers.set(el, createStore(initial));
+    carriers.set(el, core().createStore(initial));
     return () => carriers.delete(el);
   },
 };
+
+/**
+ * `state` is ENGINE-OWNED, registered here rather than shipped in a pack: the per-key owner walk,
+ * the carriers map, `stateOf` — the engine's whole context layer only functions when something
+ * can declare a carrier, so a page wiring nothing but custom directives still gets
+ * `data-vd-state`. This is also what lets the packs import nothing from the engine.
+ */
+byName.set('state', stateDirective);
 
 /* ── delegated events ─────────────────────────────────────────────────────────────────────── */
 
