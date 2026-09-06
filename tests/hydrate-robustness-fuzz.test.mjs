@@ -74,6 +74,12 @@ const MUTATORS = [
   ['only whitespace', () => '   \n  '],
   ['a lone close tag', (m) => `${m}</div>`],
   ['duplicated', (m) => m + m],
+  /** Run-16 tamper classes, generalized from the middlebox probe: every one adopt-and-corrects
+   *  or falls back, and the invariants below hold either way. */
+  ['an attribute value tampered', (m) => m.replace(/="([^"]+)"/, '="TAMPERED"')],
+  ['a duplicate attribute injected', (m) => m.replace(/<(\w+)/, '<$1 dup="FIRST-WINS" dup="second"')],
+  ['tag case changed', (m) => m.replace(/<(\w+)/, (all, t) => `<${t.toUpperCase()}`)],
+  ['an element inserted mid-children', (m) => m.replace(/>/, '><i class="mitm">x</i>')],
 ];
 
 const VALUES = ['v', '', 0, null, undefined, false, 'multi word', '<i>', 42];
