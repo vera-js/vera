@@ -644,6 +644,8 @@ const BOOLEAN = 2; // ?name
  */
 const LIVE = 3;
 const EVENT = 4; // @name
+/** A binding that must never write — see the `__proto__` refusal in the constructor. */
+const REFUSED = -1;
 /**
  * Calls an element ref, and survives one that throws.
  *
@@ -698,6 +700,31 @@ class AttrPart implements Part {
                 ? LIVE
                 : ATTR;
     let realName = kind ? name.slice(1) : name;
+    /**
+     * **`__proto__` is not a property write, so no property binding may make one.**
+     *
+     * `element.__proto__ = value` hits `Object.prototype`'s `__proto__` ACCESSOR and replaces the
+     * element's prototype, stripping every DOM method it has. `.__proto__=${x}` crashed out of the
+     * commit with an unreadable internal error; `!__proto__=${x}` bricked the element silently and
+     * the wreckage surfaced in a LATER render, naming the renderer rather than the binding. There
+     * is no legitimate use, so unlike `.innerHTML` there is no spelling to point at — the binding
+     * is refused and never writes.
+     *
+     * **The deliberate twin of `refusedSink` in `./spread.ts`**, which refuses the same name for
+     * the same reason. The two entries are independent bundles and neither imports the other, so
+     * the rule is copied on purpose (the repo's standing note: sigil rules live in both AttrPart
+     * and spread, and a fix has to visit every copy). `tests/dangerous-binding-matrix.test.mjs`
+     * fails if one of them starts refusing something the other allows.
+     */
+    if ((kind === PROPERTY || kind === LIVE) && realName === '__proto__') {
+      kind = REFUSED;
+      if (__DEV__)
+        console.warn(
+          `[vera] <${element.localName}> binds \`${name}\`, which would replace the element's own ` +
+            `prototype and destroy it — no property write does this, and no use of it is legitimate. ` +
+            `The binding is ignored.`
+        );
+    }
     /**
      * React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a capital —
      * all-lowercase `onclick` stays a plain attribute (legal inline-handler HTML).
@@ -794,6 +821,8 @@ class AttrPart implements Part {
    */
   _commit(values: unknown[], index: number, adopting?: boolean): number {
     const kind = this._kind;
+    /** Refused in the constructor and never writes — it still has to consume its slots. */
+    if (kind === REFUSED) return index + this._slots;
     let value: unknown;
     if (this._isFullValue || kind >= EVENT) {
       value = values[index]; // raw and uncoerced — events and refs receive the actual value

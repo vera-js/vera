@@ -77,6 +77,10 @@ const refusedSink = (key: string): string | null => {
      * and not the data. Found by the run-14 payload probe; there is no legitimate use, so unlike
      * `.innerHTML` there is no template spelling to point at.
      */
+    /** The deliberate twin of the same refusal in `AttrPart`'s constructor (`./renderer.ts`), for
+     *  the template spellings `.name` / `!name`. Independent bundles, neither imports the other, so
+     *  the rule is copied — and a fix visits both. `tests/dangerous-binding-matrix.test.mjs` holds
+     *  the two spellings to the same answer. */
     if (name === '__proto__')
       return "assigning __proto__ replaces the element's own prototype and destroys it — no property write does this, and no use of it is legitimate";
     return null;

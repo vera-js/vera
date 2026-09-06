@@ -9,7 +9,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
 | `@verajs/core` | 6.84 KB | **3.00 KB** |
-| `@verajs/renderer` | 11.19 KB | 4.32 KB |
+| `@verajs/renderer` | 11.25 KB | 4.35 KB |
 | `@verajs/router` | 9.54 KB | 4.00 KB |
 | `@verajs/autoloader` | 2.81 KB | 1.36 KB |
 | `@verajs/styles` | 1.39 KB | 757 B |
