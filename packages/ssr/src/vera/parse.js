@@ -114,7 +114,20 @@ const FOREIGN = new Set(['svg', 'math']);
 const OPAQUE = new Set([...FOREIGN, 'template']);
 
 const TAG_NAME = /^[a-zA-Z][^\s/>]*/;
-const ATTRIBUTE = /^([^\s/>="'<]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]*)))?/;
+/**
+ * **The attribute-name charset, owned here and shared.** Everything a start tag can carry as a
+ * name: anything that is not whitespace, `/`, `>`, `=`, a quote, or `<`. Deliberately WIDE — every
+ * real engine accepts `a.b`, `a(b)`, `a|b` and `a?b` (recorded in the repo's conventions), so a
+ * narrower charset does not reject those names, it MIS-PARSES them.
+ *
+ * Exported because `index.js` scans the same grammar when it rebuilds a nested component from the
+ * open tag this module wrote. It kept its own `[\w:-]+` copy, which split `data-a.b="v"` into
+ * `data-a=""` and `b="v"` — the child then read the wrong attributes, server-side only (arc-2
+ * run 2). Same fact, two spellings, one of them wrong: CODE-PRINCIPLES #5, and the same fix
+ * `RAW_TEXT_ELEMENTS` already got in this package.
+ */
+export const ATTRIBUTE_NAME = "[^\\s/>=\"'<]+";
+const ATTRIBUTE = new RegExp(`^(${ATTRIBUTE_NAME})(?:\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]*)))?`);
 
 /**
  * Parse a fragment into entries — elements and raw text.

@@ -42,6 +42,8 @@ import {
   LOCATION_PARTS,
 } from './shim.js';
 import { serializeTemplate, serializeValue } from './serializer.js';
+/** The attribute-name charset, from the parser that owns it — see `ATTRIBUTE` below. */
+import { ATTRIBUTE_NAME } from './parse.js';
 
 installShims();
 const { wire, inserts, setStaticStores } = await import('@verajs/core');
@@ -169,8 +171,14 @@ const tagEnd = (markup, start) => {
  * Only the double-quoted form used to be recognised. `<x-y a='one' b=two>` gave the child three
  * empty attributes *and invented two more*, because the value text fell through to the next
  * iteration and matched as a name.
+ *
+ * **The NAME charset comes from `parse.js`, which owns it.** This file kept its own `[\w:-]+`,
+ * which is narrower than what a start tag may carry: `data-a.b="v"` split at the dot into
+ * `data-a=""` and `b="v"`, so a nested component was rebuilt with attributes its author never
+ * wrote and read `null` for the one they did — server-side only, silently (arc-2 run 2). The same
+ * single-fact-two-copies shape as `RAW_TEXT_ELEMENTS` above, and the same fix.
  */
-const ATTRIBUTE = /([\w:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+const ATTRIBUTE = new RegExp(`(${ATTRIBUTE_NAME})(?:=(?:"([^"]*)"|'([^']*)'|([^\\s>]+)))?`, 'g');
 
 /** Numeric and the five named references — everything `escapeHtml` can emit, plus what authors write. */
 const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
