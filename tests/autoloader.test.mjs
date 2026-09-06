@@ -289,5 +289,20 @@ clearHosts();
 clearHosts();
 
 console.error = oe;
+// N. one instance, one undefined tag in several hosts AT ONCE — imports exactly once
+//    (the memo is per-instance; this pins cross-host dedup under simultaneous discovery, the
+//    run-22 concurrency angle. Repeated-tag single-host dedup is case 3; this is the multi-host
+//    concurrent case, which reaches the requested-set guard rather than the URL memo.)
+{
+  const auto = autoloader(rootDir, 'components');
+  const many = [];
+  for (let i = 0; i < 4; i++) { const h = host('<probe-concurrent></probe-concurrent>'); auto(h); many.push(h); }
+  await tick();
+  check('CONTROL: the concurrent tag loaded', globalThis.__concurrentLoads >= 1);
+  check('four concurrent hosts import one undefined tag exactly once',
+    globalThis.__concurrentLoads === 1 && !!customElements.get('probe-concurrent'));
+  for (const h of many) h.remove();
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
