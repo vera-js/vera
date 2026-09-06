@@ -491,3 +491,55 @@ test('computed + untrack: one render per dep write, none per untracked write', a
     if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
   }
 });
+
+/**
+ * shallowRef + keyed: the documented list-data recipe, composed. The README says use shallowRef
+ * for rows and REPLACE rather than mutate; keyed says rows move by identity. The composition's
+ * cells: one .value swap costs one render and reconciles by key (a move, an update, an add and a
+ * removal in one swap); an INNER mutation renders nothing — shallow means shallow, the screen
+ * holds stale by design; and the reassignment escape hatch shows it while identity still holds.
+ */
+test('shallowRef + keyed: replace reconciles by identity, inner mutation stays invisible', async () => {
+  const { init, render, shallowRef } = core;
+  const hadRaf = 'requestAnimationFrame' in globalThis;
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
+  globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
+  const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+  try {
+    let renders = 0;
+    customElements.define('fc-rows-view', class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this);
+        this.rows = shallowRef([{ id: 'a', v: 1 }, { id: 'b', v: 2 }, { id: 'c', v: 3 }]);
+        render(() => { renders++; return html`<ul>${this.rows.value.map((r) => keyed(r.id, html`<li>${r.id}:${r.v}</li>`))}</ul>`; });
+      }
+    });
+    const el = dom.window.document.createElement('fc-rows-view');
+    dom.window.document.body.append(el);
+    await frame();
+    const [la, lb, lc] = el.querySelectorAll('li');
+    assert.equal(el.textContent, 'a:1b:2c:3', 'CONTROL: rendered at all');
+
+    el.rows.value = [{ id: 'c', v: 3 }, { id: 'a', v: 10 }, { id: 'd', v: 4 }];
+    await frame();
+    const after = [...el.querySelectorAll('li')];
+    assert.equal(renders, 2, 'one render for the whole swap');
+    assert.equal(el.textContent, 'c:3a:10d:4');
+    assert.ok(after[0] === lc && after[1] === la, 'surviving rows moved by identity');
+    assert.equal(la.textContent, 'a:10', 'and updated in place');
+    assert.ok(!el.contains(lb), 'the departed row left');
+
+    el.rows.value[0].v = 99;
+    await frame();
+    assert.equal(renders, 2, 'shallow means shallow: an inner mutation renders nothing');
+    assert.ok(el.textContent.includes('c:3'), 'the screen holds the stale value by design');
+
+    el.rows.value = [...el.rows.value];
+    await frame();
+    assert.ok(el.textContent.includes('c:99'), 'the reassignment escape hatch shows it');
+    assert.equal(el.querySelector('li'), lc, 'with identity still held');
+    el.remove();
+  } finally {
+    if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+  }
+});
