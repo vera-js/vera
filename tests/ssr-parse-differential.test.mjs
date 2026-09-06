@@ -239,6 +239,18 @@ test('the unparsed-markup warning fires only for markup this DOM declines', () =
   const declined = warnsFor('<p>x</b>');
   assert.equal(declined.warned, true, 'a mismatched close should be declined and reported');
   assert.equal(declined.children, 0);
+
+  /**
+   * A MALFORMED TAG NAME declines too — it must not throw. `TAG_NAME` is loose enough that
+   * `<p<div>` yields the name `p<div`, which createElement refuses with a DOMException; before the
+   * guard that took the whole render down naming createElement, not the component (run-26). Now it
+   * lands on the same decline-and-warn path as a stray close tag.
+   */
+  for (const bad of ['<p<div>x</p>', '<div=>x</div>', '<p<>x']) {
+    const r = warnsFor(bad);
+    assert.equal(r.warned, true, `${bad} should decline-and-warn, not throw`);
+    assert.equal(r.children, 0, `${bad} should produce no children`);
+  }
 });
 
 test('and the warning does not claim markup is never parsed', () => {

@@ -246,7 +246,21 @@ export const parseFragment = (markup, create) => {
      */
     if ((name === 'tr' || name === 'td' || name === 'th') && open().localName === 'table') return null;
 
-    const element = create.element(name);
+    /**
+     * **A name the DOM rejects is a DECLINE, never a throw.** `TAG_NAME` is deliberately loose
+     * (`[a-zA-Z][^\s/>]*`) so recovery can see odd names, but that lets a malformed start tag
+     * like `<p<div>` yield the name `p<div`, which `createElement` refuses with a DOMException —
+     * and an uncaught throw here takes the whole server render down, naming createElement rather
+     * than the component. This file's contract is "match a real parser or decline (return null)";
+     * a throw is neither. So a rejected name declines the fragment, landing on the same
+     * "could not be parsed" path a stray close tag does. Found by the run-26 adversarial probe.
+     */
+    let element;
+    try {
+      element = create.element(name);
+    } catch {
+      return null;
+    }
     for (const [attributeName, value] of attributes) element.setAttribute(attributeName, value);
     element._sourceOpenTag = openTag;
     /**
