@@ -74,7 +74,9 @@ await import('./components/app.js');   // correct - evaluated after
 ```
 
 (`setHtml` is not part of the setup — core's own `html` produces the shape `@verajs/renderer`
-accepts. It exists for swapping the tag, e.g. to lit-html.)
+accepts. It exists for swapping the tag; the seam is asserted by `tests/foreign-renderer.test.mjs`
+rather than offered as a supported mode — see the 2026-09-04 decision that retired the lit-html
+offer from the docs.)
 
 ---
 

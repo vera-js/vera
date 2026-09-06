@@ -436,3 +436,58 @@ test('hold + keyed: rows share the call site and never each other\'s parked stat
     'a reorder while one row was parked still returns each state to its owner');
   host.remove();
 });
+
+/**
+ * computed + untrack inside one component render: the two subscription MODIFIERS composing with
+ * per-key render granularity. The cells that could disagree: a dep write must cost exactly one
+ * re-render and one re-evaluation (a computed that subscribes the component to its inputs twice
+ * doubles either count); an untracked read must cost zero re-renders when written — while still
+ * refreshing INCIDENTALLY on the next legitimate render, which is untrack's documented meaning
+ * ("read without subscribing", not "freeze"); and an unrelated key stays free. Store-driven, so
+ * the frame scheduler is installed for the test's duration (this file's globals omit rAF).
+ */
+test('computed + untrack: one render per dep write, none per untracked write', async () => {
+  const { init, render, createStore, untrack } = core;
+  const { computed } = await load('reactivity');
+  const hadRaf = 'requestAnimationFrame' in globalThis;
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
+  globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
+  const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+  try {
+    let renders = 0, evals = 0;
+    customElements.define('fc-calc-view', class extends dom.window.HTMLElement {
+      connectedCallback() {
+        init(this);
+        this.store = createStore({ items: [3, 4], noise: 0, unrelated: 'x' });
+        this.total = computed(() => { evals++; return this.store.items.reduce((n, v) => n + v, 0); });
+        render(() => {
+          renders++;
+          const n = untrack(() => this.store.noise);
+          return html`<b>total=${this.total.value} noise=${n}</b>`;
+        });
+      }
+    });
+    const el = dom.window.document.createElement('fc-calc-view');
+    dom.window.document.body.append(el);
+    await frame();
+    assert.equal(el.textContent, 'total=7 noise=0', 'CONTROL: rendered at all');
+
+    el.store.items.push(5); await frame();
+    assert.ok(renders === 2 && evals === 2 && el.textContent.includes('total=12'),
+      'a dep write costs exactly one render and one evaluation');
+
+    el.store.noise = 99; await frame();
+    assert.equal(renders, 2, 'an untracked write costs nothing');
+    assert.ok(el.textContent.includes('noise=0'), 'and the screen holds the stale read, by design');
+
+    el.store.unrelated = 'y'; await frame();
+    assert.ok(renders === 2 && evals === 2, 'an unrelated key stays free');
+
+    el.store.items[0] = 10; await frame();
+    assert.ok(renders === 3 && el.textContent.includes('total=19') && el.textContent.includes('noise=99'),
+      'the next legitimate render refreshes the untracked value incidentally');
+    el.remove();
+  } finally {
+    if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+  }
+});

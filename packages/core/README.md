@@ -15,9 +15,10 @@ npm i @verajs/core @verajs/renderer
 Core does not write to the DOM itself — a renderer does, and it is a separate install. That is the
 one piece of wiring VeraJS asks for: `wire([renderer])`, once, at your app entry.
 
-It is also what makes the renderer replaceable — a string renderer for tests, lit-html for an app
-already written against it, or your own — but that is a door, not a step. `@verajs/renderer` and
-core's `html` need nothing configured between them.
+It is also what makes the renderer replaceable — a string renderer for tests, or your own — but
+that is a door, not a step. `@verajs/renderer` and core's `html` need nothing configured between
+them. (The seam is real and continuously asserted — `tests/foreign-renderer.test.mjs` drives a
+foreign renderer through it — but no alternative renderer is offered as a supported mode.)
 
 ## A component, whole
 
