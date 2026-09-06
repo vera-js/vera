@@ -236,7 +236,19 @@ const LANDMARKS = new WeakMap<Node, Node>();
  */
 const WATCHING = { childList: true, subtree: true, attributes: true, attributeFilter: ['slot'] };
 
-/** Slottables are elements and text nodes — comments and the rest are never assigned. */
+/**
+ * Slottables are elements and text nodes — comments and the rest are never assigned (`null`).
+ *
+ * **A deliberate twin of `slotNameOf` in `@verajs/ssr`'s `vera/nodes.js`**, which must spell the
+ * same rule: independent packages, ssr does not import this one at runtime, so the rule is copied
+ * rather than shared. A deliberate duplication is a fix's second address — change one and the
+ * other needs the same change. `tests/ssr-slot-assignment-parity.test.mjs` fails if they diverge.
+ *
+ * `null` here means "not slottable", and callers must decide what that implies for THEM: the read
+ * path filters those nodes out of `assignedNodes()`, while `serverDistribute` skips them, which
+ * leaves them where they are on the client and drops them on a server that has already re-rendered
+ * the host. Two different consequences from one answer — see `serverDistribute`.
+ */
 const slotNameOf = (node: Node): string | null =>
   node.nodeType === 3 ? '' : node.nodeType === 1 ? ((node as Element).getAttribute('slot') ?? '') : null;
 

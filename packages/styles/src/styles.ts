@@ -11,6 +11,12 @@ import type { CSSResultGroup, StyledElement } from './types.js';
  * `<\/style` is valid CSS and renders identically, so escaping costs nothing. Done here at the
  * sink rather than in core's `css`, which must stay unescaped for the constructed-stylesheet path.
  */
+/**
+ * **A deliberate twin of `escapeStyleText` in `@verajs/ssr`'s `vera/escaping.js`** — the same one
+ * line, copied because the packages are independent and neither may import the other at runtime
+ * (CODE-PRINCIPLES #6), the same reasoning `@verajs/cms`'s `escapeHtml` records. Recorded so a
+ * future hardening of one is known to need the other; both are the sink for the same hole.
+ */
 const escapeStyleText = (value: string) => value.replace(/<\/(style)/gi, '<\\/$1');
 
 /** One warning per page for the `@scope` fallback below — the engine's answer cannot change. */

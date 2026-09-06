@@ -144,9 +144,21 @@ const isNode = (value) => typeof value?.markup === 'function';
  * The slot a node asks for. Text has no attributes, so it can only take the default slot.
  * A free function so neither caller has to alias `this` — see `equalNodes` for the same reason.
  *
+ * **`null` means NOT SLOTTABLE, and that is the platform's own line.** Only elements and text are
+ * slottables; a comment is never assigned to a slot (native `assignedNodes()` omits it, measured).
+ * This answered `''` for everything that was not an element, which put COMMENTS in the default
+ * slot's assignment — a server answering a question the client and the platform answer differently.
+ *
+ * **A deliberate twin of `slotNameOf` in `@verajs/renderer/slots`, byte-for-byte the same rule.**
+ * Independent packages (CODE-PRINCIPLES #6) and ssr must not import the renderer at runtime, so
+ * the rule is copied rather than shared — recorded here, as `@verajs/cms`'s `escapeHtml` records
+ * the same choice, so nobody "fixes" it into a dependency and so a change to one is known to need
+ * the other. `tests/ssr-slot-assignment-parity.test.mjs` fails if they ever disagree.
+ *
  * @param {any} node
  */
-const slotNameOf = (node) => (node.nodeType === 1 ? (node.getAttribute('slot') ?? '') : '');
+const slotNameOf = (node) =>
+  node.nodeType === 3 ? '' : node.nodeType === 1 ? (node.getAttribute('slot') ?? '') : null;
 
 /**
  * **What a `<slot>` projects.** A slot shows the host's light-DOM children whose `slot` attribute
@@ -164,6 +176,7 @@ const assignedTo = (slot, options) => {
   const host = root?._host;
   if (!host) return options?.flatten ? nodesOf(slot) : [];
   const name = slot.getAttribute('name') ?? '';
+  /** `slotNameOf` answers `null` for a non-slottable, which matches no name — comments out. */
   const assigned = nodesOf(host).filter((node) => slotNameOf(node) === name);
   return assigned.length || !options?.flatten ? assigned : nodesOf(slot);
 };
