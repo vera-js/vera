@@ -219,3 +219,36 @@ test('a throwing render inside the suspension window contaminates nothing', asyn
   assert.equal((await renderToString(quick)).html, quickAlone, 'a later synchronous render');
   assert.equal((await renderToStringAsync(slow)).html, slowAlone, 'a later asynchronous render');
 });
+
+/**
+ * Many ASYNC renders overlapping EACH OTHER — not just one async with sync woven in. The existing
+ * interleave uses a synchronous `render` (SUBJECTS are all sync-renderable by construction), and
+ * the suspension-window tests hold ONE async in flight. This holds N concurrent
+ * renderToStringAsync of awaiting components (slow + async lifecycle) racing each other, with
+ * synchronous throws woven through, every result checked against its serial baseline — the
+ * async-vs-async density the run-24 revisit measured and this file did not yet pin.
+ */
+test('many concurrent async renders, with failures woven in, each match their serial baseline', async () => {
+  const slow = fixture('slow-lifecycle-ssr.js');
+  const asyncFx = fixture('async-lifecycle-ssr.js');
+  const quick = fixture('hello-ssr.js');
+  const slowBase = (await renderToStringAsync(slow)).html;
+  const asyncBase = (await renderToStringAsync(asyncFx)).html;
+  const quickBase = (await renderToString(quick)).html;
+
+  const jobs = [];
+  const expected = [];
+  for (let i = 0; i < 20; i++) {
+    const kind = i % 4;
+    if (kind === 0) { jobs.push(renderToStringAsync(slow).then((r) => r.html)); expected.push(slowBase); }
+    else if (kind === 1) { jobs.push(renderToStringAsync(asyncFx).then((r) => r.html)); expected.push(asyncBase); }
+    else if (kind === 2) { jobs.push(renderToString(quick).then((r) => r.html)); expected.push(quickBase); }
+    else { jobs.push(renderToString(fixture('throws-ssr.js'), { tag: 'throws-ssr' }).then(() => 'NO-THROW', (e) => (/threw while rendering/.test(e.message) ? 'THREW' : 'WRONG'))); expected.push('THREW'); }
+  }
+  const results = await Promise.all(jobs);
+  const wrong = results.map((r, i) => (r === expected[i] ? null : i)).filter((i) => i !== null);
+  assert.deepEqual(wrong, [], 'a concurrent async render diverged from its serial baseline');
+
+  assert.equal((await renderToStringAsync(slow)).html, slowBase, 'the shared state is usable after the async storm');
+  assert.equal((await renderToString(quick)).html, quickBase);
+});
