@@ -114,6 +114,10 @@ type Binding = {
 };
 
 type HostState = {
+  /** The host this state belongs to — `flushPending` hands it to the record handler. */
+  _host: Element;
+  /** True while `flushPending` is processing, so the fills it causes do not recurse into it. */
+  _flushing: boolean;
   /** Assignment by slot name ('' is the default slot). Arrays are the live membership. */
   _map: Map<string, Node[]>;
   /**
@@ -415,10 +419,41 @@ const pull = (state: HostState, node: Node, name: string) => {
   if (at !== -1) bucket.splice(at, 1);
 };
 
-/** Discard the observer records our own DOM moves just produced — the callback must only ever
- *  see the USER'S mutations. Synchronous, so nothing of the user's can slip into the drain. */
+/**
+ * Discard the records the module's own DOM moves just produced. Wholesale discard is CORRECT here
+ * for exactly one reason, and `flushPending` is that reason: every mutating operation flushes the
+ * user's queued records BEFORE it moves anything, so by the time this runs the queue holds only
+ * our own. (The first fix for the run-17 storms re-fed the taken records through the handler
+ * instead — and our holding-fragment churn then flowed through arms never designed for it,
+ * breaking real re-fallback. Process-then-move is the design that holds: user records are
+ * processed while the queue is provably pure-user, ours are discarded while it is provably
+ * pure-ours.)
+ */
 const drain = (state: HostState) => {
   state._observer.takeRecords();
+};
+
+/**
+ * Process the USER's queued records before the module mutates anything — the run-17 fix.
+ *
+ * Observer delivery is asynchronous, so a user mutation made earlier in the same task (an append,
+ * a `slot` rename, a removal) is still queued when a mount, fill or park starts moving nodes.
+ * The old code drained that queue wholesale afterwards, under a comment claiming nothing of the
+ * user's could be in it — wrong direction of time: seven deterministic storm divergences, one
+ * root cause. At operation ENTRY the queue holds only user records (every previous operation
+ * ended by draining its own), so processing here is exactly the observer callback running early.
+ * Re-entrant-safe: processing refills, refills fill, and the inner fill's flush must not recurse.
+ */
+const flushPending = (state: HostState) => {
+  if (state._flushing) return;
+  const records = state._observer.takeRecords();
+  if (records.length === 0) return;
+  state._flushing = true;
+  try {
+    processRecords(state._host, state, records);
+  } finally {
+    state._flushing = false;
+  }
 };
 
 /** The binding that OWNS a name — the first in tree order, as the platform picks the first
@@ -485,6 +520,8 @@ const same = (a: Node[], b: Node[]): boolean => {
  * it always would, and restoring carries the result back. One call, no list, no re-fill pass.
  */
 const fill = (state: HostState, binding: Binding) => {
+  /** The user's queued mutations first — see `flushPending`. Re-entrant fills skip via the flag. */
+  flushPending(state);
   const parent = binding._start.parentNode;
   if (parent === null) return; // anchors already discarded mid-teardown — nothing to show
   /**
@@ -581,6 +618,8 @@ const bind = (state: HostState, binding: Binding): SeamState => {
   }
   return {
     _$park$: () => {
+      /** A rename or removal queued in this same task decides WHAT gets parked — process it first. */
+      flushPending(state);
       if (binding._assigned) {
         let node = binding._start.nextSibling;
         while (node !== null && node !== binding._end) {
@@ -678,8 +717,26 @@ const warnedInert = new Set<string>();
  * identity. Template-caused records match nothing here: its nodes were never captured, and our
  * own moves were drained before they could arrive.
  */
-const onMutations = (host: Element, records: MutationRecord[]) => {
-  const state = HOSTS.get(host)!;
+/**
+ * Is this node currently sitting inside one of OUR runs — between some binding's anchors, in the
+ * host or in a not-yet-inserted instance fragment alike? The user-took removal arm needs it: a
+ * mount's `fill` moves a captured node into the instance's DETACHED fragment before the fragment
+ * enters the host, so at drain time the node is in neither the host nor the holding — exactly the
+ * signature the arm reads as "the user took it". Position between anchors is the fact that holds
+ * in both worlds, and it is the same test the nested-addition arm already trusts.
+ */
+const inAnyRun = (state: HostState, node: Node): boolean => {
+  for (const binding of state._bindings) {
+    const parent = binding._start.parentNode;
+    if (parent === null || parent !== node.parentNode) continue;
+    // eslint-disable-next-line no-bitwise -- DOCUMENT_POSITION_FOLLOWING, as in the nested-add arm
+    if ((binding._start.compareDocumentPosition(node) & 4) !== 0 && (node.compareDocumentPosition(binding._end) & 4) !== 0)
+      return true;
+  }
+  return false;
+};
+
+const processRecords = (host: Element, state: HostState, records: MutationRecord[]) => {
   const touched = new Set<string>();
   const moved: Binding[] = [];
   for (const record of records) {
@@ -825,7 +882,8 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
       if (
         name !== undefined &&
         node.parentNode !== state._holding &&
-        !host.contains(node)
+        !host.contains(node) &&
+        !inAnyRun(state, node)
       ) {
         pull(state, node, name);
         state._names.delete(node);
@@ -835,6 +893,11 @@ const onMutations = (host: Element, records: MutationRecord[]) => {
   }
   for (const name of touched) refill(state, name);
   for (const binding of moved) fill(state, binding);
+};
+
+const onMutations = (host: Element, records: MutationRecord[]) => {
+  const state = HOSTS.get(host)!;
+  processRecords(host, state, records);
   drain(state);
 };
 
@@ -844,6 +907,8 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
   if (state !== undefined) return state;
   const doc = host.ownerDocument!;
   const created: HostState = (state = {
+    _host: host,
+    _flushing: false,
     _map: new Map(),
     _bindings: [],
     _holding: doc.createDocumentFragment(),
