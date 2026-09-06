@@ -689,3 +689,29 @@ test('a re-slot after hydration keeps light-tree order among adopted and added n
   void h0;
   host.remove();
 });
+
+/**
+ * The run-27 deterministic regression: a reslot from one slot to another, on an adopted seam,
+ * where the destination slot's fill runs while the node is still PHYSICALLY in its old slot's
+ * run. fill's "user took this node" purge misread that other-run position as a user adoption and
+ * dropped the node (the storm fuzz found it via concurrent DOM churn shifting observer delivery;
+ * this is the minimal deterministic form). The node must survive a default→header round trip made
+ * across the storm's timing. Reads only at the end — a mid-sequence read masks it by settling.
+ */
+test('a node reslotted between slots on an adopted seam is placed, never purged', async () => {
+  const host = hostFromServer(server('<u slot="header">H0</u>'));
+  const h0 = host.querySelector('u');
+  renderInto(card(), host);
+  await settle();
+  renderInto(html`<p>away</p>`, host); await settle();   // park
+  h0.setAttribute('slot', ''); await settle();            // reslot H0 -> default (while parked)
+  const x1 = dom.window.document.createElement('u'); x1.setAttribute('slot', 'header'); x1.textContent = 'x1'; host.append(x1); await settle();
+  renderInto(card(), host); await settle();               // back
+  x1.setAttribute('slot', ''); await settle();            // reslot x1 -> default
+  renderInto(card(), host); await settle();
+  h0.setAttribute('slot', 'header'); await settle();      // reslot H0 -> header: must NOT be purged
+  assert.deepEqual(slotted(host, 'header').map((n) => n.textContent), ['H0'],
+    'the reslotted node landed in its new slot, not dropped by the purge guard');
+  assert.equal(host.querySelector('header').textContent.replace(/\s+/g, ''), 'H0');
+  host.remove();
+});

@@ -583,7 +583,13 @@ const fill = (state: HostState, binding: Binding) => {
   for (let i = 0; i < bucket.length; i++) {
     const candidate = bucket[i];
     const home = candidate.parentNode;
-    if (home !== state._holding && home !== null && home !== parent && !state._parks.has(home)) {
+    if (
+      home !== state._holding &&
+      home !== null &&
+      home !== parent &&
+      !state._parks.has(home) &&
+      !inAnyRun(state, candidate)
+    ) {
       /**
        * The user took this node for themselves while it was unassigned — respect that.
        *
@@ -592,6 +598,14 @@ const fill = (state: HostState, binding: Binding) => {
        * as a user adoption it was purged from the bucket instead of being placed, so re-slotting
        * such a node to an outer slot dropped it — visible content, gone, in a sequence a shadow
        * root handles without comment.
+       *
+       * `!inAnyRun` is the run-27 completion of that same idea: a node RESLOTTED from one slot to
+       * another has its bucket moved by the attribute arm but is still PHYSICALLY in its old
+       * slot's run when this fill for the NEW slot runs — its parent is that other run's region,
+       * which is a location WE control, not a user adoption. Without this the reslot's own fill
+       * purged the node it was about to place, and the node vanished (run-27 adopted-seam storm
+       * node-loss: concurrent DOM churn shifted delivery so the new-slot fill ran before the node
+       * was physically relocated). Another run is the last of our regions the guard did not name.
        */
       bucket.splice(i--, 1);
       state._names.delete(candidate);
