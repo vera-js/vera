@@ -338,3 +338,63 @@ test('styles + hold: five park/restore cycles adopt once and hoist once', async 
     console.warn = realWarn;
   }
 });
+
+/**
+ * collections + keyed: a keyed list driven straight off a reactive Map. The Map notifies through
+ * the 'collection' insert while keyed moves rows by identity, so the cells worth pinning are the
+ * mutations where those two accounts of "what changed" could disagree: a value set updates the
+ * row IN PLACE, a delete removes exactly its row, an add appends without touching siblings, and a
+ * clear-plus-reinsert in reversed order MOVES the surviving rows (identity held) — with the whole
+ * clear+reinsert batch coalescing to one render, which is the scheduler's promise carried through
+ * the collection trap.
+ */
+test('collections + keyed: map mutations move rows by identity, batches coalesce', async () => {
+  const { init, render, createStore } = core;
+  core.wire([await load('reactivity/collections').then((m) => m.collections)]);
+  /**
+   * This file's globals deliberately omit `requestAnimationFrame`, so the scheduler runs its
+   * synchronous fallback — under which a clear() RENDERS the empty list before the reinserts
+   * land, and the rebuild that follows is correct behavior, not a keyed defect. This test is
+   * ABOUT coalescing, so it installs the frame scheduler for its own duration (CLAUDE.md's first
+   * probe rule, met from the other side: the probe had the global, the suite did not, and the
+   * disagreement read exactly like an identity bug for one bisect).
+   */
+  const hadRaf = 'requestAnimationFrame' in globalThis;
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
+  globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
+  const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
+  let renders = 0;
+  customElements.define('fc-map-list', class extends dom.window.HTMLElement {
+    connectedCallback() {
+      init(this);
+      this.store = createStore({ rows: new Map([['a', 1], ['b', 2], ['c', 3]]) });
+      render(() => { renders++; return html`<ul>${[...this.store.rows.entries()].map(([k, v]) => keyed(k, html`<li>${k}=${v}</li>`))}</ul>`; });
+    }
+  });
+  const el = dom.window.document.createElement('fc-map-list');
+  dom.window.document.body.append(el);
+  await frame();
+  const [la, lb, lc] = el.querySelectorAll('li');
+  assert.equal(el.textContent, 'a=1b=2c=3', 'CONTROL: the map rendered at all');
+
+  el.store.rows.set('b', 9); await frame();
+  assert.ok(el.querySelectorAll('li')[1] === lb && lb.textContent === 'b=9', 'a set updates its row in place');
+
+  el.store.rows.delete('a'); await frame();
+  assert.ok(!el.contains(la) && el.contains(lb) && el.contains(lc), 'a delete removes exactly its row');
+
+  el.store.rows.set('d', 4); await frame();
+  assert.equal(el.textContent, 'b=9c=3d=4', 'an add appends');
+
+  const before = renders;
+  const entries = [...el.store.rows.entries()].reverse();
+  el.store.rows.clear();
+  for (const [k, v] of entries) el.store.rows.set(k, v);
+  await frame();
+  const after = [...el.querySelectorAll('li')];
+  assert.equal(el.textContent, 'd=4c=3b=9', 'clear + reversed reinsert lands the new order');
+  assert.ok(after[1] === lc && after[2] === lb, 'and the surviving rows MOVED — identity, not rebuild');
+  assert.equal(renders, before + 1, 'the whole clear+reinsert batch coalesced to one render');
+  el.remove();
+  if (!hadRaf) { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; }
+});

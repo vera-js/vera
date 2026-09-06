@@ -242,3 +242,24 @@ test('a third party can implement the slot insert against the documented contrac
   host.remove();
   armed = false;
 });
+
+/**
+ * The 'value' table row's exclusion, pinned: "strings, numbers, null and undefined never reach
+ * it — those take a fast path — so this cannot be used to intercept text." insert-failure-contract
+ * works AROUND this fact (its comment says so) and nothing held it, which is the shape that lets
+ * a fast-path removal ship silently: every existing 'value' test uses objects, so nothing goes
+ * red when primitives suddenly start reaching user code. Booleans fast-path too — measured, and
+ * asserted here as the wider truth the doc's narrower claim sits inside.
+ */
+test("the 'value' chain never sees primitives — the fast path is the security line", () => {
+  const seen = [];
+  core.wire({ on: 'value', fn: (part, value) => { seen.push(typeof value); return true; }, priority: 40 });
+  const host = dom.window.document.createElement('div');
+  dom.window.document.body.appendChild(host);
+  for (const value of ['text', 42, 0, null, undefined, false, true])
+    renderInto(core.html`<p>${value}</p>`, host);
+  assert.deepEqual(seen, [], 'a primitive reached the value chain');
+  renderInto(core.html`<p>${{ custom: 1 }}</p>`, host);
+  assert.equal(seen.length, 1, 'CONTROL: an object still reaches it');
+  host.remove();
+});
