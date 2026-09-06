@@ -55,6 +55,35 @@ test('a `set-handler` that throws surfaces at the assignment', () => {
   assert.equal(state.count, 2, 'and the store still works afterwards');
 });
 
+test('an `init` insert that throws surfaces at init() — and the chain STOPS there', () => {
+  /**
+   * The README says `'init'` and `'render'` "run inside `init()` and the render, so a throw
+   * surfaces there". True, and it is only half of what a person needs: the chain is not isolated
+   * either, so every insert AFTER the failing one is skipped. `'init'` is where `@verajs/styles`,
+   * `@verajs/autoloader` and anything else with per-element setup hooks in, so one throwing module
+   * silently prevents the rest from initialising at all. Pinned so the consequence is a decision
+   * rather than a discovery (arc-2 run 4).
+   */
+  const ran = [];
+  wire([
+    { on: 'init', fn: () => ran.push('before'), priority: 11, name: 'a2-init-before' },
+    { on: 'init', fn: () => { throw new Error('from the init insert'); }, priority: 12, name: 'a2-init-throws' },
+    { on: 'init', fn: () => ran.push('after'), priority: 13, name: 'a2-init-after' },
+  ]);
+  let caught = null;
+  mount(function () {
+    try { init(this); } catch (error) { caught = /** @type {Error} */ (error).message; }
+  });
+  assert.match(caught ?? '', /from the init insert/, 'the throw surfaces at init(), where the element is');
+  assert.deepEqual(ran, ['before'], 'the chain stops: the insert after the failing one never ran');
+
+  /** Taken back out the documented way, so the rest of this file is unaffected. */
+  wire([{ on: 'init', fn: () => {}, priority: 12, name: 'a2-init-restore' }]);
+  ran.length = 0;
+  mount(function () { init(this); });
+  assert.deepEqual(ran, ['before', 'after'], 'and with the thrower replaced, the whole chain runs again');
+});
+
 test('a hook that throws does not, and the hooks beside it still run', async () => {
   const ran = [];
   const reported = [];
