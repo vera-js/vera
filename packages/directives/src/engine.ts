@@ -185,12 +185,29 @@ export const wireDirectives = (item: Directive | EngineConnector | Array<Directi
   boot();
 };
 
-export const describeDirectives = () =>
-  [...byName.values()].map((d) => ({
+/**
+ * The live vocabulary — what a GUI panel, `llms.txt` and an agent all read instead of a
+ * hand-written list.
+ *
+ * **Families are included**, and were not: `on-*` and `bind-*` live in `families[]` rather than
+ * `byName`, so the two most-typed attributes in the whole system were invisible to every consumer
+ * of the vocabulary. A family declares a `pattern` (`'on-*'`) because a matcher function cannot be
+ * shown to a reader, and `kind` distinguishes the two so a generator can render them differently.
+ */
+export const describeDirectives = () => [
+  ...[...byName.values()].map((d) => ({
+    kind: 'name' as const,
     name: d.name as string,
     value: d.value,
     ...(d.docs ?? {}),
-  }));
+  })),
+  ...families.map(({ directive }) => ({
+    kind: 'family' as const,
+    name: (directive.name as { pattern?: string }).pattern ?? '(unnamed family)',
+    value: directive.value,
+    ...(directive.docs ?? {}),
+  })),
+];
 
 /* ── rejections ───────────────────────────────────────────────────────────────────────────── */
 
@@ -278,6 +295,21 @@ const readPath = (el: Element, path: Path): unknown => {
 };
 
 const writeKey = (el: Element, key: string, value: unknown) => {
+  /**
+   * **A dotted key is readable and NOT writable, and the two used to disagree silently.**
+   *
+   * `readPath` resolves `user.name` by walking own properties, while a write did
+   * `owner['user.name'] = value` — creating a literal property of that name, which no read will
+   * ever find. A global made it worse: the `@` branch returns before the undeclared-write check,
+   * so `@cart.count: 1` was accepted in total silence. Refused rather than implemented, because
+   * writing through a path means mutating a nested object, and a nested mutation does not notify
+   * the store's subscribers — so the "working" version would be a second silent failure.
+   */
+  if (key.includes('.')) {
+    reject(el, 'context', 'key-not-writable', `"${key}" is a path, and a path can be read but not written.`,
+      'Write the whole object under its own key, or use a flat key.');
+    return;
+  }
   if (key.startsWith('@')) {
     (page() as Record<string, unknown>)[key.slice(1)] = value;
     return;
@@ -716,10 +748,23 @@ export const activate = (root: Document | ShadowRoot | Element) => {
   else for (let c = (target as unknown as ParentNode).firstElementChild; c; c = c.nextElementSibling) walk(c, root);
 };
 
+/**
+ * The symmetric half of `activate`, and it must TEAR DOWN — not merely stop watching.
+ *
+ * It used to disconnect the observer and forget the root, which reads as "deactivate" and is not:
+ * every `every` interval kept ticking, every `sync`/`copy`/`scroll-to` listener stayed attached,
+ * every `focus-trap` stayed on the module-level stack and every `scroll-lock` stayed counted. The
+ * constraint set says it plainly — *timers leak without teardown, and the ENGINE owns teardown* —
+ * and this was the one door that did not. Nothing caught it because the export had no caller and
+ * no test; found in the pre-publication API audit.
+ */
 export const deactivate = (root: Document | ShadowRoot | Element) => {
   if (!roots.delete(root)) return;
   observers.get(root)?.disconnect();
   observers.delete(root);
+  const target: Node = isDocument(root as Node) ? (root as Document).documentElement : (root as Node);
+  if (target.nodeType === 1) unwalk(target);
+  else for (let c = (target as unknown as ParentNode).firstElementChild; c; c = c.nextElementSibling) unwalk(c);
 };
 
 /* ── server rendering (design §9) ─────────────────────────────────────────────────────────── */

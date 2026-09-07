@@ -7,7 +7,7 @@
  * setup-only or setup+apply. Nothing here touches the renderer — adjectives, never nouns.
  */
 import { isObject } from './parse.js';
-import type { Directive } from './types.js';
+import type { Ctx, Directive } from './types.js';
 
 /* ── reflections ─────────────────────────────────────────────────────────────────────────── */
 
@@ -19,7 +19,22 @@ const show: Directive = {
   /** Declarative: the server writes this reflection, so it is right before any JS runs. */
   ssr: true,
   apply(el, value) {
-    (el as HTMLElement).hidden = !value;
+    /**
+     * **`hidden` is an HTMLElement IDL property, so on an SVG child it sets an inert expando** —
+     * no attribute is written, the base sheet's `[hidden]` rule never matches, and the element
+     * stays visible in silence. §16's ledger promised this fallback ("`show` falls back to
+     * `display:none` where `hidden` has no effect") and the code did not have it. The namespace
+     * is the realm-safe test — `instanceof` asks about THIS realm's HTMLElement, which is wrong
+     * for an adopted node.
+     */
+    if (el.namespaceURI === 'http://www.w3.org/1999/xhtml') {
+      (el as HTMLElement).hidden = !value;
+      return;
+    }
+    const style = (el as unknown as { style?: CSSStyleDeclaration }).style;
+    if (!style) return;
+    if (value) style.removeProperty('display');
+    else style.setProperty('display', 'none');
   },
 };
 
@@ -82,7 +97,19 @@ const text: Directive = {
  * href/src/srcdoc and any on* are navigation and script; style and class each have their one door.
  */
 const FORM_PROPS = new Set(['value', 'checked', 'selected', 'open']);
-const REFUSED_BIND = new Set(['href', 'src', 'srcdoc', 'style', 'class']);
+/**
+ * Sinks a bound expression may never reach. Three groups, and the middle one was MISSING:
+ * navigation and script (`href`, `src`, `srcdoc`, `on*`); **the submit and fetch sinks a form
+ * can carry** — `formaction`/`action` redirect a POST, `srcset`/`poster`/`data`/`background`
+ * fetch, `ping` beacons — which an attribute an author or a CMS writes must not be able to aim;
+ * and the two that simply have their own door (`style`, `class`). `hidden` joins them for the
+ * same one-door reason: it is `show` with inverted polarity.
+ */
+const REFUSED_BIND = new Set([
+  'href', 'src', 'srcdoc', 'style', 'class',
+  'action', 'formaction', 'srcset', 'ping', 'poster', 'data', 'background',
+  'hidden',
+]);
 const bind: Directive = {
   name: {
     match: (suffix: string) => (suffix.startsWith('bind-') ? { target: suffix.slice(5) } : null),
@@ -304,18 +331,54 @@ const focusReturn: Directive = {
 
 /* ── page-level helpers ──────────────────────────────────────────────────────────────────── */
 
+/** How many live elements are holding each document class — the `scroll-lock` discipline. */
+const docClassHolders = new Map<string, number>();
+
 const docClass: Directive = {
   name: 'doc-class',
   value: 'object',
   docs: { summary: 'Toggles classes on <html> from an object of name: expression.', example: 'data-vd-doc-class="{ no-scroll: open }"' },
-  apply(el, value, ctx) {
-    if (!isObject(value as never)) {
-      ctx.reject('doc-class-not-object', 'data-vd-doc-class takes a braced object.');
-      return;
-    }
-    const entries = value as Record<string, unknown>;
-    const root = el.ownerDocument.documentElement;
-    for (const name of Object.keys(entries)) root.classList.toggle(name, !!ctx.eval(entries[name]));
+  /**
+   * REF-COUNTED and torn down, exactly as `scroll-lock` is — they are siblings that write to the
+   * one document, and only one of them used to behave. A bare `apply` meant an element removed
+   * while its class was on left `<html>` wearing it for the life of the page, and two elements
+   * toggling one name fought with last-writer-wins. The count is per NAME, so the class comes off
+   * when the last holder lets go and not before.
+   */
+  setup(el) {
+    const held = new Set<string>();
+    const release = (name: string) => {
+      if (!held.delete(name)) return;
+      const left = (docClassHolders.get(name) ?? 1) - 1;
+      if (left > 0) docClassHolders.set(name, left);
+      else {
+        docClassHolders.delete(name);
+        el.ownerDocument.documentElement.classList.remove(name);
+      }
+    };
+    return {
+      apply: (element: Element, value: unknown, context: Ctx) => {
+        if (!isObject(value as never)) {
+          context.reject('doc-class-not-object', 'data-vd-doc-class takes a braced object.');
+          return;
+        }
+        const entries = value as Record<string, unknown>;
+        const root = element.ownerDocument.documentElement;
+        for (const name of Object.keys(entries)) {
+          const wanted = !!context.eval(entries[name]);
+          if (wanted && !held.has(name)) {
+            held.add(name);
+            docClassHolders.set(name, (docClassHolders.get(name) ?? 0) + 1);
+            root.classList.add(name);
+          } else if (!wanted) {
+            release(name);
+          }
+        }
+      },
+      teardown: () => {
+        for (const name of [...held]) release(name);
+      },
+    };
   },
 };
 

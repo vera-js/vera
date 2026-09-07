@@ -876,9 +876,21 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
     const position = parsePosition(trimmed.slice(0, cut));
     if (!position) {
       /**
-       * A position, not a value — its rules are the library's rather than the
-       * property's, so the reason names them instead of the declaration.
+       * **The first token is not a position — so this is probably a MULTI-TOKEN VALUE.**
+       *
+       * The lone-value sugar ("animate TO this") only ever worked for single-token values,
+       * because any whitespace commits the entry to the position branch. So
+       * `shadow: '0 2px 8px rgba(0,0,0,.3)'` — the most natural way anyone writes a box-shadow —
+       * was refused, and refused with a message about POSITIONS, which names the wrong half of
+       * the value. Retrying the whole entry as a value restores the sugar for exactly the
+       * properties that need it most (a module's own parser can accept any CSS value), and only
+       * falls through to the position diagnostic when nothing reads the entry at all.
        */
+      const whole = parseMeasure(trimmed, property);
+      if (whole) {
+        keyframes.push({ position: 100, positionUnit: '%', value: whole.value, unit: whole.unit });
+        continue;
+      }
       rejected.push(__DEV__
         ? `${trimmed} — the position must be ${MIN_PERCENT} to ${MAX_PERCENT}% or a length in vh, vw, px or rem`
         : `${trimmed} — bad position`);
