@@ -246,7 +246,7 @@ const EXPECTED_RECIPES = {
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
   /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */
-  'llms.txt': 1,
+  'llms.txt': 2,
 };
 
 /**

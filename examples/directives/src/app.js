@@ -9,8 +9,8 @@
  * DIRECTIVE's store through ordinary component hooks — one registry, two paradigms.
  */
 import { wire, html, init, useEffect } from '@verajs/core';
-import { renderInto, renderer } from '@verajs/renderer';
-import { initRouter, setRouterRenderer, setBasePath, router } from '@verajs/router';
+import { renderer } from '@verajs/renderer';
+import { initRouter, setBasePath, router } from '@verajs/router';
 import { directiveLoader } from '@verajs/autoloader';
 import {
   wireDirectives, directives, interaction, expressions,
@@ -20,7 +20,8 @@ import {
 } from '@verajs/directives';
 
 setBasePath('/examples/directives');
-setRouterRenderer(renderInto);
+/** `wire([renderer, router])` is the whole wiring — the router renders through whatever is on
+ *  core's `'render'` insert, so `setRouterRenderer` is only for a router used WITHOUT core. */
 wire([renderer, router, directives, directiveLoader(import.meta.url, '../directives')]);
 wireDirectives([
   expressions,

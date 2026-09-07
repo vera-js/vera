@@ -595,14 +595,41 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 
 ### Router
 
+Three pieces make a routed app: an **outlet** (`<main view="main">`), **routed links** (a bare
+`route` attribute), and the route list. `wire([renderer, router])` hands the router core's
+registry, which is what makes it render — the router itself does not depend on core.
+
+<!-- recipe -->
 ```js
-const router = initRouter(this, { view: 'main' });   // 'main' matches [view="main"]
-router.addRoutes([
-  { path: '/', title: 'Home', component: () => html`<p>Home</p>` },
-  { path: '/user/:id', component: (params) => html`<p>${params.id}</p>` },
-  { path: '/*rest', title: '404', component: (params) => html`<p>${params.rest}</p>` },
-]);
-router.on('before-route', (params) => {});
+import { wire, html } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { router, initRouter, navigate, currentRoute, resolve } from '@verajs/router';
+
+wire([renderer, router]);
+
+customElements.define('app-shell', class extends HTMLElement {
+  connectedCallback() {
+    this.innerHTML = `
+      <nav><a route href="/">Home</a> <a route href="/users/7">A user</a></nav>
+      <main view="main"></main>`;
+
+    const appRouter = initRouter(this, { view: 'main' });   // 'main' matches [view="main"]
+    appRouter.addRoutes([
+      { path: '/', title: 'Home', component: () => html`<p>Home</p>` },
+      { path: '/users/:id', name: 'user', title: (params) => `User ${params.id}`,
+        component: (params) => html`<p>User ${params.id}</p>` },
+      { path: '/*rest', title: 'Not found', component: (params) => html`<p>No ${params.rest}</p>` },
+    ]);
+    /** Guards run before the component; return false to cancel the navigation. */
+    appRouter.on('before-route', () => true);
+  }
+});
+
+document.body.innerHTML = '<app-shell></app-shell>';
+
+await navigate('/users/7');
+console.log(document.querySelector('[view="main"]').textContent);  // "User 7"
+console.log(currentRoute().params.id, resolve('user', { id: 9 }));  // "7"  "/users/9"
 ```
 
 Routes support `path`, `name`, `title`, `component`, `action`, `children`, `view`, `redirect` and
