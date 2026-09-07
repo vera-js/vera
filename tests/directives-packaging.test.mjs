@@ -96,5 +96,9 @@ test('shaking: naming only the engine and interaction drops the expression tier 
   const full = await bundleOf(`import { wireDirectives, interaction, expressions } from '@verajs/directives'; wireDirectives([expressions, ...interaction]);`);
   assert.ok(full.includes('strict-spelling'), 'the control: the marker exists when expressions IS imported');
   assert.ok(!lean.includes('strict-spelling'), 'the claim: unimported packs cost nothing under Rollup');
+  /** Motion is the pack with real stakes — 18KB of the root when it rides along. */
+  const withMotion = await bundleOf(`import { wireDirectives, motion } from '@verajs/directives'; wireDirectives([motion]);`);
+  assert.ok(withMotion.includes('vd:motion'), 'the control: motion marks its bundle when imported');
+  assert.ok(!lean.includes('vd:motion'), 'and costs nothing when it is not');
   assert.ok(lean.includes('data-vd-'), 'and the engine itself was retained');
 });

@@ -27,6 +27,12 @@ import {
 import type { Range, WirableTree } from './schema.js';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
+import { resolveEasing } from './easings.js';
+import { paintRows } from './paint.js';
+import { pathRows } from './path.js';
+import { sequenceRows } from './sequence.js';
+import type { SequenceOptions } from './sequence.js';
+import { splitDirective } from './split.js';
 
 const CONFIG_ATTR = 'data-vd-motion-config';
 
@@ -270,6 +276,21 @@ const regionFor = (el: Element, reject: (code: string, message: string) => void)
   return region;
 };
 
+/**
+ * Per-element reason dedup — the old rejections registry's Set-per-node
+ * semantics, kept because a refusal returned from a per-frame `apply` (a
+ * refused canvas, scrolling) would otherwise append to the engine's
+ * registry once per changed value.
+ */
+const said = new WeakMap<Element, Set<string>>();
+const dedupedReject = (el: Element, ctx: Ctx) => (reason: string): void => {
+  let seen = said.get(el);
+  if (!seen) said.set(el, (seen = new Set()));
+  if (seen.has(reason)) return;
+  seen.add(reason);
+  ctx.reject('motion-refused', reason);
+};
+
 /* ── the run-once latch, carried across engine rebuilds ───────────────────── */
 /**
  * `run-once` means once EVER, and an attribute edit rebuilds the whole
@@ -322,8 +343,15 @@ const motionDirective: Directive = {
     example: 'data-vd-motion="{ opacity: \'0% 0, 100% 1\', translate-y: \'0% 40px, 100% 0px\', inertia: 0.2 }"',
   },
   setup(el, ctx) {
+    /**
+     * A split container's motion value is the pieces' TEMPLATE, not its own
+     * animation — the split directive (priority 40, before this) rewrites
+     * the subtree and each piece activates with the filtered value. The
+     * container still hosts `stagger` through the raw-attribute walk.
+     */
+    if (el.hasAttribute('data-vd-split')) return;
     const raw = el.getAttribute(MOTION_ATTR) ?? '';
-    const rejectFor = (reason: string): void => ctx.reject('motion-refused', reason);
+    const rejectFor = dedupedReject(el, ctx);
     const region = regionFor(el, (code, message) => ctx.reject(code, message));
 
     forgetStagger();
@@ -349,6 +377,19 @@ const motionDirective: Directive = {
 
     if (element.when) observeWhen(el, region);
 
+    /**
+     * Properties that need more than a write path wire here — `path`
+     * resolves its offset-path, `frame` owns its drawer teardown. The
+     * engine's rebuild-on-edit is their staleness story.
+     */
+    const propertyTeardowns: Array<() => void> = [];
+    for (const animation of parsed.animations) {
+      const wire = animation.property.setup;
+      if (!wire) continue;
+      const out = wire(el as HTMLElement, parsed.settings, rejectFor);
+      if (typeof out === 'function') propertyTeardowns.push(out);
+    }
+
     /** A member joining shifts its group's indices; refresh is a curve refill. */
     const group = staggerHost(el);
     if (group) region.refreshGroup(group);
@@ -356,6 +397,8 @@ const motionDirective: Directive = {
     return () => {
       if (element.runOnceRan) latched.set(el, element.timelinePosition);
       whenElements.delete(el);
+      said.delete(el);
+      for (const off of propertyTeardowns) off();
       region.remove(el);
       const host = staggerHost(el);
       if (host) region.refreshGroup(host);
@@ -420,6 +463,22 @@ export const vocabularyConnector = (rows: WirableTree): EngineConnector => (seam
   setProblemReporter((code, message) => seams.reject(null, 'motion', code, message));
   registerVocabulary(rows);
 };
+
+/**
+ * The add-on vocabulary, each a connector: `wireDirectives([motion, paint,
+ * easings, path, sequence({ allowedOrigins }), split])`. `sequence` is a
+ * factory whose call is optional, the same dual `motion` is; `split` is a
+ * DIRECTIVE — it rewrites DOM rather than adding keys.
+ */
+export const easings: EngineConnector = vocabularyConnector({ on: 'easing', fn: resolveEasing });
+export const paint: EngineConnector = vocabularyConnector(paintRows);
+export const path: EngineConnector = vocabularyConnector(pathRows);
+export const sequence: ((options?: SequenceOptions) => EngineConnector) & EngineConnector = ((arg?: unknown) =>
+  arg && (arg as { _$seams$?: true })._$seams$ === true
+    ? vocabularyConnector(sequenceRows())(arg as EngineSeams)
+    : vocabularyConnector(sequenceRows(arg as SequenceOptions | undefined))) as ((options?: SequenceOptions) => EngineConnector) & EngineConnector;
+export const split = splitDirective;
+export { parsePathData } from './path.js';
 
 export { enableMotion, disableMotion, runInserts };
 export { MOTION_ATTR } from './parse.js';

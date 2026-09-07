@@ -835,5 +835,35 @@ const staggerFor = (
   return parsed ? { position: parsed.position * index, positionUnit: parsed.positionUnit } : null;
 };
 
+/**
+ * Serializes a parsed motion object back to attribute text, dropping the
+ * named keys — split's pieces inherit the container's animation minus the
+ * container-only keys (`stagger` stays on the host; `pin` cannot mean
+ * anything on a piece). Values are the base grammar's own: strings quoted
+ * with the quote the text does not contain, numbers and booleans bare, the
+ * nested `{ frames, ease }` form recursed. Round-trips through `parseValue`
+ * by construction — the piece's activation re-parses what this writes.
+ */
+export const serializeMotion = (
+  object: Readonly<Record<string, unknown>>,
+  omit: ReadonlySet<string>
+): string => {
+  const value = (v: unknown): string => {
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (typeof v === 'object' && v !== null) {
+      const entries = Object.entries(v as Record<string, unknown>).map(([k, inner]) => `${k}: ${value(inner)}`);
+      return `{ ${entries.join(', ')} }`;
+    }
+    const text = String(v);
+    return text.includes("'") ? `"${text}"` : `'${text}'`;
+  };
+  const parts: string[] = [];
+  for (const [key, v] of Object.entries(object)) {
+    if (omit.has(key)) continue;
+    parts.push(`${key}: ${value(v)}`);
+  }
+  return `{ ${parts.join(', ')} }`;
+};
+
 /** Re-exported for the runtime's use alongside the parse it feeds. */
 export type { Easing };

@@ -83,6 +83,21 @@ export const runInserts = (point: keyof InsertMap, ...args: readonly unknown[]):
 let liveRegions = 0;
 
 /**
+ * And how many ELEMENTS, page-wide: when the last one leaves, no curve can
+ * hold a paint slot, so page-level module state is safe to drop. The old
+ * semantics fired `forget` on the last instance's destroy(), which an
+ * engine-driven page never calls — an editor emptying and refilling the
+ * page recovers automatically now, which is strictly more often.
+ */
+let liveElements = 0;
+const elementJoined = (): void => {
+  liveElements++;
+};
+const elementLeft = (): void => {
+  if (--liveElements === 0) runInserts('forget');
+};
+
+/**
  * The page's animation switch: explicit calls win over the watched
  * preferences, exactly as the instance API's enable()/disable() did. PAGE
  * level rather than per region, because prefers-reduced-motion is a fact
@@ -388,6 +403,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
       const element = createRuntimeElement(parsed, runtimeSettings, rejectFor);
       elements.push(element);
       byNode.set(parsed.node, element);
+      elementJoined();
       boxes?.observe(element.node);
       /**
        * A new element can animate further outside the viewport than the
@@ -406,6 +422,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
       if (!element) return;
       byNode.delete(node);
       elements = elements.filter((e) => e !== element);
+      elementLeft();
       visible?.unobserve(element);
       boxes?.unobserve(node);
       announced.delete(element);
@@ -473,6 +490,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
       /** By containment, so a module does not reach another region's state. */
       const nodes = new Set<Node>(elements.map((e) => e.node));
       runInserts('teardown', (node: Node) => nodes.has(node));
+      for (const _ of elements) elementLeft();
       elements = [];
       byNode.clear();
       dropped.length = 0;

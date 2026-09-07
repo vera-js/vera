@@ -123,6 +123,21 @@ export interface PropertyDef {
    * slots, and `Math.floor` of that is somebody else's.
    */
   readonly discrete?: boolean;
+  /**
+   * Per-element wiring for a property that needs more than a write path —
+   * `path` resolves its `<path>` into an `offset-path` here, `frame` owns its
+   * drawer teardown. Runs at the motion directive's activation for every
+   * element whose object carries this property; a returned function is the
+   * teardown, and the engine's rebuild-on-edit is what replaced the whole
+   * `prepare`-insert staleness machinery: an edited selector or frame-url
+   * re-resolves because the element re-activates. The fold-in's replacement
+   * for three of the five insert points.
+   */
+  readonly setup?: (
+    node: HTMLElement,
+    settings: Readonly<Record<string, string | number | boolean>>,
+    reject: (reason: string) => void
+  ) => void | (() => void);
 }
 
 const LENGTH_UNITS = ['px', 'rem', 'em', '%', 'vh', 'vw'] as const;
