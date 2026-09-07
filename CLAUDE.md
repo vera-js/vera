@@ -153,6 +153,19 @@ rest of this file.
   qualified when the registry is not core's (`wireDirectives`), and that parallel is deliberate:
   the same idea carries the same verb. Recipes and prose write the array form, `wire([renderer])`,
   even for one module — `wire` accepts a bare descriptor too, but the docs teach one shape.
+- **What a wireable module LOOKS like follows from whether it has options** (surveyed 2026-09-07;
+  the rule was already in force unwritten, and a new module should not have to re-derive it):
+  **no options → a bare descriptor** (`renderer`, `styles`, `collections`, `slots` — plain objects;
+  a factory there would be ceremony); **required options → a factory that must be called**
+  (`autoloader(import.meta.url, …)`, `directiveLoader(…)` — `rootDir` has no sensible default);
+  **optional options → a DUAL**, usable bare or called (`motion`, `sequence`, `remote` in
+  directives). `wire`'s branch is what allows it: a function whose `on` is `undefined` is a
+  CONNECTOR and is handed the registry, so a returned function carrying `on` reads as a descriptor.
+  **The discriminator differs per registry** — the directives packs test the sigiled `_$seams$`
+  mark because `wireDirectives` passes seams, while a core-level dual would have to recognise the
+  registry itself. Copy the pattern, never the check. (`@verajs/router` is the one published module
+  that might plausibly want optional config — `router({ base })` against today's imperative
+  `setBasePath` — which is a deliberate minor bump, not a drive-by.)
 - **`vera.min.js` is the one bundle not named after its package** (`vera-core.min.js` would be
   symmetric) — deliberate: core is the framework's namesake and that filename is the product's
   front door on a CDN page. Every other package's `filename` matches `vera-<name>`.
