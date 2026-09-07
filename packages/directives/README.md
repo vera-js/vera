@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 614 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->1 690 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 304 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 191 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->17 772 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 

@@ -12,12 +12,12 @@
  * one Studio inspector row wrong for both refusals at once. Splitting them was a consequence of
  * writing this file, not of reading the code.
  *
- * **`motion/*` is deliberately exempt and the exemption is asserted**, not assumed. That pack came
- * from the retired `@verajs/motion` with a different convention: a few coarse codes carrying
- * runtime-composed sentences as arguments (`ctx.reject('split-refused', reason)`), so its words
- * cannot become table entries without giving its internal reporter codes of its own. Naming ~10
- * new public codes is a deliberate act, not a side effect of this pass. Pinning the exemption here
- * means the day someone does it, this test tells them to finish the job.
+ * **No pack is exempt.** `motion/*` was, briefly and deliberately: it arrived from the retired
+ * `@verajs/motion` funnelling every refusal through one `motion-refused` code carrying a composed
+ * sentence, which is why its prose shipped to production when no other pack's did and why not one
+ * of its refusals could be addressed by a docs page or an inspector row. It now names 73 of its
+ * own, and the test that pinned the exemption has been replaced by one asserting there is none —
+ * on the instruction its own control carried, which was to delete it the day motion joined.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -118,6 +118,25 @@ for (const path of files(new URL('../packages/directives/src', import.meta.url).
   }
 
   /**
+   * Motion raises through routes of its own — `pageProblem('code')`, a `{ code }` object pushed
+   * onto the refusal pipeline, a lookup in its settings-type map. Rather than teach the scanner
+   * three more shapes, every `motion-*`/`split-*` literal in that directory counts as a raise:
+   * those strings are only ever codes there, and the alternative is a scanner that silently misses
+   * a route and reports live prose as orphaned.
+   */
+  if (rel.startsWith('motion/')) {
+    /** A directive's own NAME looks exactly like a code — `data-vd-motion-region` declares
+     *  `name: 'motion-region'` — so the names are subtracted rather than reported as codes with
+     *  no prose, which is what the broad scan first did. */
+    const names = new Set([...text.matchAll(/name:\s*'([a-z][a-z0-9-]*)'/g)].map((m) => m[1]));
+    for (const match of text.matchAll(/'((?:motion|split)-[a-z0-9-]+)'/g)) {
+      if (names.has(match[1])) continue;
+      if (!raised.has(match[1])) raised.set(match[1], new Set());
+      raised.get(match[1]).add(rel);
+    }
+  }
+
+  /**
    * The parser reaches the registry by a SECOND route, and missing it made twelve live codes look
    * like orphaned prose. `parse.ts` throws a `ValueError` carrying its own code, and the engine
    * rejects under that code rather than a literal of its own — so `fail('object-missing-colon', …)`
@@ -129,11 +148,9 @@ for (const path of files(new URL('../packages/directives/src', import.meta.url).
   }
 }
 
-const fromMotion = (code) => [...(raised.get(code) ?? [])].every((f) => f.startsWith('motion/'));
-
-test('every code raised outside motion has an entry — no refusal without words', () => {
+test('every code raised has an entry — no refusal without words', () => {
   const missing = [...raised.keys()]
-    .filter((code) => !(code in PROSE) && !fromMotion(code))
+    .filter((code) => !(code in PROSE))
     .map((code) => `${code} (raised in ${[...raised.get(code)].join(', ')})`);
   assert.deepEqual(missing, [],
     'a code with no table entry records a refusal that cannot explain itself, in dev or in the docs');
@@ -145,14 +162,18 @@ test('every entry is actually raised — no orphan prose', () => {
     'an entry nothing raises is prose that ships to the docs describing a refusal that cannot happen');
 });
 
-test('the motion exemption is real, and bounded to motion', () => {
+/**
+ * **The motion exemption is GONE, and this is what replaced it.**
+ *
+ * That test asserted motion was the only pack raising codes with no table entry, and its control
+ * said in as many words: *if motion ever joins the table this is measuring nothing — delete it
+ * then*. It joined. So the claim inverts — no pack is exempt now — and the two tests above already
+ * enforce it in both directions for every file, motion included.
+ */
+test('no pack is exempt: every code raised anywhere has an entry', () => {
   const exempt = [...raised.keys()].filter((code) => !(code in PROSE));
-  assert.ok(exempt.length > 0,
-    'THE CONTROL: if motion ever joins the table this test is measuring nothing — delete it then');
-  for (const code of exempt) {
-    assert.ok(fromMotion(code),
-      `${code} is raised outside motion/ with no table entry — the exemption does not extend there`);
-  }
+  assert.deepEqual(exempt, [],
+    'the last exemption was motion, folded in deliberately — a new one is a regression, not a choice');
 });
 
 test('no entry is empty, and a fix never repeats its message', () => {

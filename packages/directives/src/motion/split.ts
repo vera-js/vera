@@ -54,11 +54,11 @@ const CONTAINER_KEYS: ReadonlySet<string> = new Set(['stagger', 'pin']);
  */
 const pieceValue = (
   node: Element,
-  reject: (reason: string) => void
+  reject: (code: string, args?: readonly string[]) => void
 ): string | null => {
   const raw = node.getAttribute(MOTION_ATTR);
   if (raw === null || raw.trim() === '') {
-    reject('split needs an animation to give the pieces — put a data-vd-motion on this element.');
+    reject('split-no-animation');
     return null;
   }
   const text = raw.trim();
@@ -68,8 +68,7 @@ const pieceValue = (
     if (!isObject(parsed)) return text;
     const object = parsed as ParsedObject;
     if (object['pin'] !== undefined) {
-      reject('pin would move to each piece when the text is split, and a piece cannot hold the ' +
-        'container — put it on a wrapper around this element instead. It is dropped here.');
+      reject('split-pin-dropped');
     }
     return serializeMotion(object, CONTAINER_KEYS);
   } catch {
@@ -142,10 +141,12 @@ export const splitDirective: Directive = {
   },
   setup(el, ctx) {
     const node = el as HTMLElement;
-    const reject = (reason: string): void => ctx.reject('split-refused', reason);
+    /** Codes, like every other pack: the words live in `diagnostics.ts` and fold out of
+     *  production, and each refusal gets a name a docs page and Studio can address. */
+    const reject = (code: string, args?: readonly string[]): void => ctx.reject(code, args ?? []);
     const mode = (el.getAttribute(SPLIT_ATTR) ?? '').trim();
     if (!MODES.includes(mode)) {
-      reject(`split takes chars, words or lines — not "${mode}".`);
+      reject('split-bad-mode', [mode]);
       return;
     }
 
@@ -158,8 +159,9 @@ export const splitDirective: Directive = {
      */
     for (let i = 0; i < node.childNodes.length; i++) {
       if (node.childNodes[i]!.nodeType === 3) continue;
-      const kind = node.childNodes[i]!.nodeType === 8 ? 'comments' : 'nested markup';
-      reject(`split needs plain text, not ${kind}.`);
+      /** Two codes rather than one with a word for an argument: the word WAS the prose, so
+       *  passing it kept the strings in the bundle the table exists to empty. */
+      reject(node.childNodes[i]!.nodeType === 8 ? 'split-has-comments' : 'split-has-markup');
       return;
     }
 
@@ -180,9 +182,7 @@ export const splitDirective: Directive = {
     const rtlBase = getComputedStyle(node).direction === 'rtl';
     const opposing = rtlBase ? /[A-Za-z\u00C0-\u024F]/ : /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
     if (opposing.test(original)) {
-      reject("split: this text runs against the paragraph's direction, and split pieces keep " +
-        'source order — the bidi reordering that makes it read correctly is lost. Split an ' +
-        'element whose direction matches the text instead.');
+      reject('split-bidi-opposed');
       return;
     }
 
@@ -196,7 +196,7 @@ export const splitDirective: Directive = {
         ? characters(original.replace(/\s+/g, '')).length
         : tokenise(original).filter((part) => !isSpace(part)).length;
     if (count > MAX_PIECES) {
-      reject(`split="${mode}" would make ${count} pieces, over the ${MAX_PIECES} limit.`);
+      reject('split-too-many', [mode, String(count), String(MAX_PIECES)]);
       return;
     }
 

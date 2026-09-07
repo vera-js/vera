@@ -62,7 +62,7 @@ test('paint refuses the image-sourcing family even where CSS.supports is absent'
   const host = await mount(
     `<div data-vd-motion="{ background: '0% red, 100% image-set(&quot;https://evil.test/x&quot; 1x)' }">x</div>`);
   const el = host.querySelector('div');
-  assert.ok(rejections(el).some((r) => r.code === 'motion-refused'), 'the fetching value was dropped');
+  assert.ok(rejections(el).some((r) => r.code === 'motion-bad-value'), 'the fetching value was dropped');
   assert.equal(el.style.getPropertyValue('background'), 'red', 'the clean keyframe survived alone');
   host.remove();
   await settled();
@@ -72,7 +72,7 @@ test('path wired: a selector matching nothing is refused with which way it faile
   const host = await mount(
     `<div data-vd-motion="{ path: '0% 0, 100% 100', path-selector: '#nope' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'refused');
+  assert.ok(reasons.some((r) => r.code === 'motion-path-selector-bad'), 'refused');
   if (!isProduction) assert.ok(reasons.some((r) => /matched no element/.test(r.message)));
   host.remove();
   await settled();
@@ -81,7 +81,7 @@ test('path wired: a selector matching nothing is refused with which way it faile
 test('path without path-selector says so instead of travelling along nothing', async () => {
   const host = await mount(`<div data-vd-motion="{ path: '0% 0, 100% 100' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-path-no-selector'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs path-selector/.test(r.message)));
   host.remove();
   await settled();
@@ -93,7 +93,7 @@ test('sequence wired: the whole validation chain runs — a real canvas fails at
   const el = host.querySelector('canvas');
   const reasons = rejections(el);
   /** url passed policy, count parsed — jsdom's context-less canvas is the stop. */
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'));
   if (!isProduction) assert.ok(reasons.some((r) => /no 2D context/.test(r.message)), 'reached createSequence');
   host.remove();
   await settled();
@@ -103,7 +103,7 @@ test('sequence: frame on a non-canvas is the first refusal', async () => {
   const host = await mount(
     `<div data-vd-motion="{ frame: '0% 0, 100% 10', frame-url: '/seq/', frame-count: 10 }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs a <canvas>/.test(r.message)));
   host.remove();
   await settled();
@@ -113,7 +113,7 @@ test('sequence: a cross-origin frame-url is refused by the default policy', asyn
   const host = await mount(
     `<canvas data-vd-motion="{ frame: '0% 0, 100% 10', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
   const reasons = rejections(host.querySelector('canvas'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'same-origin unless the FACTORY allows');
+  assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'), 'same-origin unless the FACTORY allows');
   host.remove();
   await settled();
 });
@@ -149,10 +149,12 @@ test('split refuses nested markup and comments by name, and leaves the text alon
   const host = await mount(
     `<p id="m" data-vd-split="words" data-vd-motion="fade">has <strong>bold</strong></p>
      <p id="c" data-vd-split="chars" data-vd-motion="fade">has <!-- anchor --> comment</p>`);
-  for (const [id, kind] of [['m', 'nested markup'], ['c', 'comments']]) {
+  /** Two codes, not one with the word as an argument: the word WAS the prose, so passing it kept
+   *  the strings in the production bundle the diagnostics table exists to empty. */
+  for (const [id, kind, code] of [['m', 'nested markup', 'split-has-markup'], ['c', 'comments', 'split-has-comments']]) {
     const p = host.querySelector(`#${id}`);
     const reasons = rejections(p);
-    assert.ok(reasons.some((r) => r.code === 'split-refused'), `${id} refused`);
+    assert.ok(reasons.some((r) => r.code === code), `${id} refused`);
     if (!isProduction) assert.ok(reasons.some((r) => r.message.includes(kind)), `named ${kind}`);
     assert.equal(p.querySelectorAll('span').length, 0, 'nothing was rewritten');
   }

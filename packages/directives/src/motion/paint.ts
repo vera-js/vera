@@ -96,9 +96,7 @@ const define = (key: string, cssProperty: string): PropertyDef => ({
          */
         if (!warnedAboutCount) {
           warnedAboutCount = true;
-          pageProblem('paint-slots-full',
-            `more than ${MAX_VALUES} distinct paint values on this page; ` +
-            'later ones are ignored. A slot cannot be reclaimed, so the table is capped.');
+          pageProblem('motion-paint-slots-full', [String(MAX_VALUES)]);
         }
         return null;
       }
@@ -143,7 +141,7 @@ export const paintRows: WirableTree = [
       /** Or a page that filled the table once would exhaust it again in silence. */
       if (warnedAboutCount) {
         warnedAboutCount = false;
-        pageProblem('paint-slots-recovered', 'the paint table was emptied; earlier cap refusals no longer apply.');
+        pageProblem('motion-paint-slots-recovered');
       }
     },
   },

@@ -65,7 +65,7 @@ const distance: PropertyDef = {
      * case would be forgetting the key altogether, so that one is said too.
      */
     if (typeof selector !== 'string') {
-      reject('path needs path-selector — offset-distance travels along nothing without it.');
+      reject('motion-path-no-selector');
       return;
     }
 
@@ -98,7 +98,7 @@ const distance: PropertyDef = {
         : data === null
           ? 'matched an element with no d attribute'
           : 'matched a path whose d attribute is not usable';
-      reject(`path-selector '${selector}' ${why}${__DEV__ ? '; path does nothing.' : ''}`);
+      reject('motion-path-selector-bad', [selector, why]);
       return;
     }
 

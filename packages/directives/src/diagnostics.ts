@@ -121,4 +121,186 @@ export const PROSE: Record<string, Prose> = {
     declined ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.',
   ],
   'unknown-key': (head: string) => [`no ancestor state declares "${head}".`, `Reads answer undefined.`],
+  /* ── the motion pack ────────────────────────────────────────────────────────────────────── */
+  /**
+   * Motion arrived from the retired motion package with a different convention: every refusal
+   * funnelled through one `motion-refused` code carrying a composed sentence, with a shortened
+   * production variant beside it that still shipped. So its words could not fold and none of them
+   * could be addressed — one docs page and one inspector row for the whole pack. `where` is the key
+   * path a nested refusal accumulates (`opacity`, then `opacity: [0 50%]`), rendered here so no
+   * caller composes the prefix itself.
+   */
+  'motion-no-value': () => ['motion: no value — name a preset or write an object.'],
+  'motion-not-object': () => ['motion: the braced form must be an object of keys.'],
+  'motion-not-html': (tag) => [
+    `motion is on a <${tag}>, which this library cannot measure — it reads offsetTop and ` +
+    'offsetHeight, which only HTML elements have.',
+    'Animate a wrapper around it instead.',
+  ],
+  'motion-parse-failed': (detail) => [
+    `motion: could not parse — ${detail}.`,
+    'If a value is text (keyframes, lengths, easings) it has to be quoted.',
+  ],
+  'motion-preset-unknown': (where, text, near) => [
+    `${where ? `${where}: ` : ''}"${text}" is not a preset this library has.`,
+    near ? `Did you mean "${near}"?` : 'Check the spelling.',
+  ],
+  'motion-no-such-key': (where, meant) => [
+    `${where}: no such key.`,
+    meant ? `Did you mean ${meant}?` : 'Check the spelling, or wire the module that provides it.',
+  ],
+  'motion-unusable-value': (where) => [`${where}: not a value this key can use.`],
+  'motion-quote-the-value': (where, key) => [
+    `${where}: quote the value — keyframe strings are text.`,
+    `Like ${key}: '0% 0, 100% 1'.`,
+  ],
+  'motion-nested-needs-frames': (where) => [
+    `${where}: the nested form needs frames.`,
+    "Like { frames: '0% 0, 100% 1', ease: 'ease-in' }.",
+  ],
+  'motion-nested-unknown': (where) => [`${where}: not part of the nested form.`],
+  'motion-ease-on-band': (where) => [
+    `${where}: a per-property ease goes on the unsuffixed key — a band shares its property's curve shaper.`,
+  ],
+  'motion-setting-not-plain': (where) => [`${where}: a setting takes a plain value.`],
+  'motion-setting-boolean': (where) => [`${where}: must be true or false.`],
+  'motion-setting-easing': (where) => [`${where}: is not an easing name or a cubic-bezier().`],
+  'motion-setting-origin': (where) => [`${where}: is not a transform-origin.`],
+  'motion-setting-offset': (where) => [`${where}: is not a length or a percentage.`],
+  'motion-setting-selector': (where) => [
+    `${where}: is not a selector this library will use — :has() and a few others are refused.`,
+  ],
+  'motion-setting-length': (where) => [`${where}: is not a length — use px, rem, em, %, vh or vw.`],
+  'motion-setting-module-refused': (where) => [`${where}: was refused by the module that owns it.`],
+  'motion-band-outside': (where, min, max, rangeMin, rangeMax) => [
+    `${where}: [${min}-${max}] is outside [${rangeMin}-${rangeMax}], the range this key names; it can never apply.`,
+  ],
+  'motion-band-bad': (where, segment) => [`${where ? `${where}: ` : ''}${segment} is not a usable band.`],
+  'motion-second-base': (where, segment) => [
+    `${where ? `${where}: ` : ''}${segment} — an unbracketed segment is the base, and there is already one.`,
+  ],
+  'motion-mixed-units': (where, first, used) => [
+    `${where}: ${first} and ${used} in one animation; ${used} is used throughout.`,
+  ],
+  'motion-bad-position': (where, segment, min, max) => [
+    `${where ? `${where}: ` : ''}${segment} — the position must be ${min} to ${max}% or a length in vh, vw, px or rem.`,
+  ],
+  'motion-bad-unit': (where, segment, key, unit, takes) => [
+    `${where ? `${where}: ` : ''}${segment} — ${key} does not take ${unit}.`,
+    `It takes ${takes || 'a plain number'}.`,
+  ],
+  'motion-out-of-range': (where, segment, key, low, high) => [
+    `${where ? `${where}: ` : ''}${segment} — ${key} takes ${low} to ${high}.`,
+  ],
+  'motion-past-bound': (where, segment, value, bound) => [
+    `${where ? `${where}: ` : ''}${segment} — ${value} is past the bound this library writes; values stop at ${bound}.`,
+  ],
+  'motion-bad-value': (where, segment) => [
+    `${where ? `${where}: ` : ''}${segment} is not a value this property can use.`,
+  ],
+  'motion-no-keyframes': (where) => [`${where ? `${where}: ` : ''}no keyframes.`],
+  'motion-too-many-bands': (where, cap) => [`${where ? `${where}: ` : ''}more than ${cap} bands.`],
+  'motion-too-many-keyframes': (where, cap) => [`${where ? `${where}: ` : ''}more than ${cap} keyframes.`],
+  'motion-apply-threw': (key) => [`${key}: this module's apply threw.`],
+  'motion-apply-refused': (key, why) => [`${key}: ${why}`],
+  'motion-perspective-bad': (perspective) => [
+    `perspective: "${perspective}" is not a length CSS will take — it must not be negative or a percentage.`,
+    'An invalid perspective() drops the whole transform, so nothing on this element would animate.',
+  ],
+  'motion-when-blind': (when, blind) => [
+    `when: "${when}" uses ${blind}, which this library cannot be told about — it re-reads a ` +
+    'selector when an attribute changes, and that state is not an attribute.',
+    'Use CSS for it. This element animates on scroll instead.',
+  ],
+  'motion-ease-with-when': () => [
+    'ease does nothing on a `when` element — it shapes the curve between keyframes, and `when` ' +
+    'holds the element at one end or the other.',
+    'Use inertia-ease to shape the change.',
+  ],
+  'motion-inertia-ease-at-zero': () => [
+    'inertia-ease does nothing at inertia: 0 — it shapes the catch-up, and 0 means the values ' +
+    'track scroll exactly with no transition to shape.',
+    'Raise inertia, or use ease.',
+  ],
+  'motion-stagger-with-when': () => [
+    'stagger does nothing on a `when` element — it offsets a scroll timeline, and `when` replaces the scroll driver.',
+  ],
+  'motion-stagger-no-descendants': () => [
+    'stagger needs animated descendants — it goes on the parent.',
+  ],
+  'motion-region-on-member': () => [
+    'motion-region configures a REGION for descendants; the element carrying it animates in the region above.',
+  ],
+  'motion-region-not-object': () => ['motion-region takes a braced object.'],
+  'motion-region-parse-failed': (detail) => [`motion-region could not parse: ${detail}`],
+  'motion-region-axis': (key) => [`motion-region ${key}: is 'vertical' or 'horizontal'.`],
+  'motion-region-scroller': (key) => [`motion-region ${key}: is a selector matching one element on the page.`],
+  'motion-region-duration': (key) => [`motion-region ${key}: must be a number from 0 to 3600.`],
+  'motion-breakpoint-unusable': (name) => [`breakpoint ${name} is not a usable [min, max]; ignoring it.`],
+  'motion-unknown-option': (key) => [`motion() was given "${key}", which is not an option this pack has.`],
+  'motion-option-not-boolean': (key, given) => [`${key} must be true or false, not ${given}; using the default.`],
+  'motion-option-unusable': (name, given, fallback) => [
+    `${name} ${given} is not usable; ${fallback ? `using ${fallback}.` : 'ignoring it.'}`,
+  ],
+  'motion-onprogress-not-fn': () => ['onProgress is not a function; ignoring it.'],
+  'motion-onprogress-threw': () => ['onProgress threw, so it is being ignored from here on.'],
+  'motion-module-threw': (point) => [`a wired module threw in ${point}; the rest of the chain still ran.`],
+  'motion-not-a-module': (given) => [`wiring was given something that is not a vocabulary module: ${given}`],
+  'motion-vocabulary-replaced': (key, kind) => [
+    `wiring replaced the "${key}" ${kind}, which was already registered.`,
+    'The earlier one is gone, for every element on the page.',
+  ],
+  'motion-vocabulary-factory-threw': (detail) => [`a module factory threw while wiring: ${detail}`],
+  'motion-setting-and-property': (key) => [
+    `wiring was given "${key}" with both a type and a category.`,
+    'A setting declares a type and a property declares a category; one descriptor cannot be both.',
+  ],
+  'motion-property-writes-nothing': (key) => [
+    `wiring was given the property "${key}" with no cssProperty, cssFunction or apply, so it has no way to write anything.`,
+  ],
+  'motion-paint-slots-full': (cap) => [
+    `more than ${cap} distinct paint values on this page; later ones are ignored.`,
+    'A slot cannot be reclaimed, so the table is capped.',
+  ],
+  'motion-paint-slots-recovered': () => ['the paint table was emptied; earlier cap refusals no longer apply.'],
+  'motion-unsupported': () => ['required APIs unavailable, animation disabled.'],
+  'motion-sequence-origins-not-list': (kind) => [
+    `sequence allowedOrigins must be a list, not ${kind}; ignoring it.`,
+    'Write one origin as a list of one, for example ["https://cdn.example"].',
+  ],
+  'motion-sequence-origin-not-url': (entry) => [
+    `sequence allowedOrigins entry ${entry} is not a url; ignoring it.`,
+    'Write the full origin, for example "https://cdn.example".',
+  ],
+  'motion-easing-threw': (named) => [`${named}: the easing module threw; the curve is linear.`],
+  'motion-easings-module-missing': (named) => [
+    `${named} needs the easings module; the curve is linear.`,
+    "Wire it: wireDirectives([motion({ easings })]).",
+  ],
+  'motion-path-no-selector': () => [
+    'path needs path-selector — offset-distance travels along nothing without it.',
+  ],
+  'motion-path-selector-bad': (selector, why) => [`path-selector '${selector}' ${why}`, 'path does nothing.'],
+  'split-no-animation': () => [
+    'split needs an animation to give the pieces.',
+    'Put a data-vd-motion on this element.',
+  ],
+  'split-pin-dropped': () => [
+    'pin would move to each piece when the text is split, and a piece cannot hold the container.',
+    'Put it on a wrapper around this element instead. It is dropped here.',
+  ],
+  'split-bad-mode': (mode) => [`split takes chars, words or lines — not "${mode}".`],
+  'split-has-comments': () => [
+    'split needs plain text, not comments.',
+    'A comment is how other libraries anchor themselves in a page, so splitting would destroy it.',
+  ],
+  'split-has-markup': () => ['split needs plain text, not nested markup.'],
+  'split-bidi-opposed': () => [
+    "split: this text runs against the paragraph's direction, and split pieces keep source order — " +
+    'the bidi reordering that makes it read correctly is lost.',
+    'Split an element whose direction matches the text instead.',
+  ],
+  'split-too-many': (mode, count, cap) => [
+    `split="${mode}" would make ${count} pieces, over the ${cap} limit.`,
+  ],
 };

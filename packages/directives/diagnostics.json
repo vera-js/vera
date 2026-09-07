@@ -201,6 +201,496 @@
       "fix": "The module must call wireDirectives with a matching directive."
     },
     {
+      "code": "motion-apply-refused",
+      "params": [
+        "key",
+        "why"
+      ],
+      "message": "{key}: {why}"
+    },
+    {
+      "code": "motion-apply-threw",
+      "params": [
+        "key"
+      ],
+      "message": "{key}: this module's apply threw."
+    },
+    {
+      "code": "motion-bad-position",
+      "params": [
+        "where",
+        "segment",
+        "min",
+        "max"
+      ],
+      "message": "{where}: {segment} — the position must be {min} to {max}% or a length in vh, vw, px or rem."
+    },
+    {
+      "code": "motion-bad-unit",
+      "params": [
+        "where",
+        "segment",
+        "key",
+        "unit",
+        "takes"
+      ],
+      "message": "{where}: {segment} — {key} does not take {unit}.",
+      "fix": "It takes {takes}."
+    },
+    {
+      "code": "motion-bad-value",
+      "params": [
+        "where",
+        "segment"
+      ],
+      "message": "{where}: {segment} is not a value this property can use."
+    },
+    {
+      "code": "motion-band-bad",
+      "params": [
+        "where",
+        "segment"
+      ],
+      "message": "{where}: {segment} is not a usable band."
+    },
+    {
+      "code": "motion-band-outside",
+      "params": [
+        "where",
+        "min",
+        "max",
+        "rangeMin",
+        "rangeMax"
+      ],
+      "message": "{where}: [{min}-{max}] is outside [{rangeMin}-{rangeMax}], the range this key names; it can never apply."
+    },
+    {
+      "code": "motion-breakpoint-unusable",
+      "params": [
+        "name"
+      ],
+      "message": "breakpoint {name} is not a usable [min, max]; ignoring it."
+    },
+    {
+      "code": "motion-ease-on-band",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: a per-property ease goes on the unsuffixed key — a band shares its property's curve shaper."
+    },
+    {
+      "code": "motion-ease-with-when",
+      "params": [],
+      "message": "ease does nothing on a `when` element — it shapes the curve between keyframes, and `when` holds the element at one end or the other.",
+      "fix": "Use inertia-ease to shape the change."
+    },
+    {
+      "code": "motion-easing-threw",
+      "params": [
+        "named"
+      ],
+      "message": "{named}: the easing module threw; the curve is linear."
+    },
+    {
+      "code": "motion-easings-module-missing",
+      "params": [
+        "named"
+      ],
+      "message": "{named} needs the easings module; the curve is linear.",
+      "fix": "Wire it: wireDirectives([motion({ easings })])."
+    },
+    {
+      "code": "motion-inertia-ease-at-zero",
+      "params": [],
+      "message": "inertia-ease does nothing at inertia: 0 — it shapes the catch-up, and 0 means the values track scroll exactly with no transition to shape.",
+      "fix": "Raise inertia, or use ease."
+    },
+    {
+      "code": "motion-mixed-units",
+      "params": [
+        "where",
+        "first",
+        "used"
+      ],
+      "message": "{where}: {first} and {used} in one animation; {used} is used throughout."
+    },
+    {
+      "code": "motion-module-threw",
+      "params": [
+        "point"
+      ],
+      "message": "a wired module threw in {point}; the rest of the chain still ran."
+    },
+    {
+      "code": "motion-nested-needs-frames",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: the nested form needs frames.",
+      "fix": "Like { frames: '0% 0, 100% 1', ease: 'ease-in' }."
+    },
+    {
+      "code": "motion-nested-unknown",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: not part of the nested form."
+    },
+    {
+      "code": "motion-no-keyframes",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: no keyframes."
+    },
+    {
+      "code": "motion-no-such-key",
+      "params": [
+        "where",
+        "meant"
+      ],
+      "message": "{where}: no such key.",
+      "fix": "Did you mean {meant}?"
+    },
+    {
+      "code": "motion-no-value",
+      "params": [],
+      "message": "motion: no value — name a preset or write an object."
+    },
+    {
+      "code": "motion-not-a-module",
+      "params": [
+        "given"
+      ],
+      "message": "wiring was given something that is not a vocabulary module: {given}"
+    },
+    {
+      "code": "motion-not-html",
+      "params": [
+        "tag"
+      ],
+      "message": "motion is on a <{tag}>, which this library cannot measure — it reads offsetTop and offsetHeight, which only HTML elements have.",
+      "fix": "Animate a wrapper around it instead."
+    },
+    {
+      "code": "motion-not-object",
+      "params": [],
+      "message": "motion: the braced form must be an object of keys."
+    },
+    {
+      "code": "motion-onprogress-not-fn",
+      "params": [],
+      "message": "onProgress is not a function; ignoring it."
+    },
+    {
+      "code": "motion-onprogress-threw",
+      "params": [],
+      "message": "onProgress threw, so it is being ignored from here on."
+    },
+    {
+      "code": "motion-option-not-boolean",
+      "params": [
+        "key",
+        "given"
+      ],
+      "message": "{key} must be true or false, not {given}; using the default."
+    },
+    {
+      "code": "motion-option-unusable",
+      "params": [
+        "name",
+        "given",
+        "fallback"
+      ],
+      "message": "{name} {given} is not usable; using {fallback}."
+    },
+    {
+      "code": "motion-out-of-range",
+      "params": [
+        "where",
+        "segment",
+        "key",
+        "low",
+        "high"
+      ],
+      "message": "{where}: {segment} — {key} takes {low} to {high}."
+    },
+    {
+      "code": "motion-paint-slots-full",
+      "params": [
+        "cap"
+      ],
+      "message": "more than {cap} distinct paint values on this page; later ones are ignored.",
+      "fix": "A slot cannot be reclaimed, so the table is capped."
+    },
+    {
+      "code": "motion-paint-slots-recovered",
+      "params": [],
+      "message": "the paint table was emptied; earlier cap refusals no longer apply."
+    },
+    {
+      "code": "motion-parse-failed",
+      "params": [
+        "detail"
+      ],
+      "message": "motion: could not parse — {detail}.",
+      "fix": "If a value is text (keyframes, lengths, easings) it has to be quoted."
+    },
+    {
+      "code": "motion-past-bound",
+      "params": [
+        "where",
+        "segment",
+        "value",
+        "bound"
+      ],
+      "message": "{where}: {segment} — {value} is past the bound this library writes; values stop at {bound}."
+    },
+    {
+      "code": "motion-path-no-selector",
+      "params": [],
+      "message": "path needs path-selector — offset-distance travels along nothing without it."
+    },
+    {
+      "code": "motion-path-selector-bad",
+      "params": [
+        "selector",
+        "why"
+      ],
+      "message": "path-selector '{selector}' {why}",
+      "fix": "path does nothing."
+    },
+    {
+      "code": "motion-perspective-bad",
+      "params": [
+        "perspective"
+      ],
+      "message": "perspective: \"{perspective}\" is not a length CSS will take — it must not be negative or a percentage.",
+      "fix": "An invalid perspective() drops the whole transform, so nothing on this element would animate."
+    },
+    {
+      "code": "motion-preset-unknown",
+      "params": [
+        "where",
+        "text",
+        "near"
+      ],
+      "message": "{where}: \"{text}\" is not a preset this library has.",
+      "fix": "Did you mean \"{near}\"?"
+    },
+    {
+      "code": "motion-property-writes-nothing",
+      "params": [
+        "key"
+      ],
+      "message": "wiring was given the property \"{key}\" with no cssProperty, cssFunction or apply, so it has no way to write anything."
+    },
+    {
+      "code": "motion-quote-the-value",
+      "params": [
+        "where",
+        "key"
+      ],
+      "message": "{where}: quote the value — keyframe strings are text.",
+      "fix": "Like {key}: '0% 0, 100% 1'."
+    },
+    {
+      "code": "motion-region-axis",
+      "params": [
+        "key"
+      ],
+      "message": "motion-region {key}: is 'vertical' or 'horizontal'."
+    },
+    {
+      "code": "motion-region-duration",
+      "params": [
+        "key"
+      ],
+      "message": "motion-region {key}: must be a number from 0 to 3600."
+    },
+    {
+      "code": "motion-region-not-object",
+      "params": [],
+      "message": "motion-region takes a braced object."
+    },
+    {
+      "code": "motion-region-on-member",
+      "params": [],
+      "message": "motion-region configures a REGION for descendants; the element carrying it animates in the region above."
+    },
+    {
+      "code": "motion-region-parse-failed",
+      "params": [
+        "detail"
+      ],
+      "message": "motion-region could not parse: {detail}"
+    },
+    {
+      "code": "motion-region-scroller",
+      "params": [
+        "key"
+      ],
+      "message": "motion-region {key}: is a selector matching one element on the page."
+    },
+    {
+      "code": "motion-second-base",
+      "params": [
+        "where",
+        "segment"
+      ],
+      "message": "{where}: {segment} — an unbracketed segment is the base, and there is already one."
+    },
+    {
+      "code": "motion-sequence-origin-not-url",
+      "params": [
+        "entry"
+      ],
+      "message": "sequence allowedOrigins entry {entry} is not a url; ignoring it.",
+      "fix": "Write the full origin, for example \"https://cdn.example\"."
+    },
+    {
+      "code": "motion-sequence-origins-not-list",
+      "params": [
+        "kind"
+      ],
+      "message": "sequence allowedOrigins must be a list, not {kind}; ignoring it.",
+      "fix": "Write one origin as a list of one, for example [\"https://cdn.example\"]."
+    },
+    {
+      "code": "motion-setting-and-property",
+      "params": [
+        "key"
+      ],
+      "message": "wiring was given \"{key}\" with both a type and a category.",
+      "fix": "A setting declares a type and a property declares a category; one descriptor cannot be both."
+    },
+    {
+      "code": "motion-setting-boolean",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: must be true or false."
+    },
+    {
+      "code": "motion-setting-easing",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not an easing name or a cubic-bezier()."
+    },
+    {
+      "code": "motion-setting-length",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a length — use px, rem, em, %, vh or vw."
+    },
+    {
+      "code": "motion-setting-module-refused",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: was refused by the module that owns it."
+    },
+    {
+      "code": "motion-setting-not-plain",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: a setting takes a plain value."
+    },
+    {
+      "code": "motion-setting-offset",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a length or a percentage."
+    },
+    {
+      "code": "motion-setting-origin",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a transform-origin."
+    },
+    {
+      "code": "motion-setting-selector",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a selector this library will use — :has() and a few others are refused."
+    },
+    {
+      "code": "motion-stagger-no-descendants",
+      "params": [],
+      "message": "stagger needs animated descendants — it goes on the parent."
+    },
+    {
+      "code": "motion-stagger-with-when",
+      "params": [],
+      "message": "stagger does nothing on a `when` element — it offsets a scroll timeline, and `when` replaces the scroll driver."
+    },
+    {
+      "code": "motion-too-many-bands",
+      "params": [
+        "where",
+        "cap"
+      ],
+      "message": "{where}: more than {cap} bands."
+    },
+    {
+      "code": "motion-too-many-keyframes",
+      "params": [
+        "where",
+        "cap"
+      ],
+      "message": "{where}: more than {cap} keyframes."
+    },
+    {
+      "code": "motion-unknown-option",
+      "params": [
+        "key"
+      ],
+      "message": "motion() was given \"{key}\", which is not an option this pack has."
+    },
+    {
+      "code": "motion-unsupported",
+      "params": [],
+      "message": "required APIs unavailable, animation disabled."
+    },
+    {
+      "code": "motion-unusable-value",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: not a value this key can use."
+    },
+    {
+      "code": "motion-vocabulary-factory-threw",
+      "params": [
+        "detail"
+      ],
+      "message": "a module factory threw while wiring: {detail}"
+    },
+    {
+      "code": "motion-vocabulary-replaced",
+      "params": [
+        "key",
+        "kind"
+      ],
+      "message": "wiring replaced the \"{key}\" {kind}, which was already registered.",
+      "fix": "The earlier one is gone, for every element on the page."
+    },
+    {
+      "code": "motion-when-blind",
+      "params": [
+        "when",
+        "blind"
+      ],
+      "message": "when: \"{when}\" uses {blind}, which this library cannot be told about — it re-reads a selector when an attribute changes, and that state is not an attribute.",
+      "fix": "Use CSS for it. This element animates on scroll instead."
+    },
+    {
       "code": "name-forbidden",
       "params": [
         "raw",
@@ -323,6 +813,51 @@
       ],
       "message": "state was still changing after {limit} server passes, so the markup may not be final.",
       "fix": "A directive is writing a different value every run — compare before writing."
+    },
+    {
+      "code": "split-bad-mode",
+      "params": [
+        "mode"
+      ],
+      "message": "split takes chars, words or lines — not \"{mode}\"."
+    },
+    {
+      "code": "split-bidi-opposed",
+      "params": [],
+      "message": "split: this text runs against the paragraph's direction, and split pieces keep source order — the bidi reordering that makes it read correctly is lost.",
+      "fix": "Split an element whose direction matches the text instead."
+    },
+    {
+      "code": "split-has-comments",
+      "params": [],
+      "message": "split needs plain text, not comments.",
+      "fix": "A comment is how other libraries anchor themselves in a page, so splitting would destroy it."
+    },
+    {
+      "code": "split-has-markup",
+      "params": [],
+      "message": "split needs plain text, not nested markup."
+    },
+    {
+      "code": "split-no-animation",
+      "params": [],
+      "message": "split needs an animation to give the pieces.",
+      "fix": "Put a data-vd-motion on this element."
+    },
+    {
+      "code": "split-pin-dropped",
+      "params": [],
+      "message": "pin would move to each piece when the text is split, and a piece cannot hold the container.",
+      "fix": "Put it on a wrapper around this element instead. It is dropped here."
+    },
+    {
+      "code": "split-too-many",
+      "params": [
+        "mode",
+        "count",
+        "cap"
+      ],
+      "message": "split=\"{mode}\" would make {count} pieces, over the {cap} limit."
     },
     {
       "code": "state-not-object",

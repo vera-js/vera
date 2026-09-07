@@ -20,6 +20,8 @@
  * a block can set these values, so every one is checked against the schema
  * and a failure drops that animation rather than guessing.
  */
+import type { Refusal } from './schema.js';
+import { at } from './schema.js';
 import {
   PRESETS, getSetting, getProperty, isPreset,
   parseKeyName, parseBandedList, parseSelector, parseEasing, parseOrigin,
@@ -93,7 +95,7 @@ export interface ParseContext {
  */
 export interface RejectedElement {
   readonly node: Element | null;
-  readonly rejected: readonly string[];
+  readonly rejected: readonly Refusal[];
 }
 
 /** The same, for an element rather than for the configuration. */
@@ -114,7 +116,7 @@ export interface ParsedElement {
    */
   readonly stagger?: { readonly position: number; readonly positionUnit: PositionUnit };
   /** Values the schema could not accept, for diagnostics. Empty on a clean parse. */
-  readonly rejected: readonly string[];
+  readonly rejected: readonly Refusal[];
 }
 
 let staggerGeneration = 0;
@@ -237,20 +239,18 @@ const probablyMeant = (name: string): string | null => {
  * `string` are absent on purpose: their reasons quote the range and the
  * allowed list, so they are built where those are in scope.
  */
-const WHY: Record<string, string> = __DEV__ ? {
-  boolean: 'must be true or false',
-  easing: 'is not an easing name or a cubic-bezier()',
-  origin: 'is not a transform-origin',
-  offset: 'is not a length or a percentage',
-  selector: 'is not a selector this library will use — :has() and a few others are refused',
-  length: 'is not a length — use px, rem, em, %, vh or vw',
-} : {
-  boolean: 'not a boolean',
-  easing: 'not an easing',
-  origin: 'not an origin',
-  offset: 'not an offset',
-  selector: 'not a usable selector',
-  length: 'not a length',
+/**
+ * A setting's type → the CODE for "that is not one of those". The words moved to `diagnostics.ts`
+ * with every other pack's, so the `__DEV__`/production pair of fragment tables this used to be —
+ * the short one still shipping — is gone.
+ */
+const WHY: Record<string, string> = {
+  boolean: 'motion-setting-boolean',
+  easing: 'motion-setting-easing',
+  origin: 'motion-setting-origin',
+  offset: 'motion-setting-offset',
+  selector: 'motion-setting-selector',
+  length: 'motion-setting-length',
 };
 
 /**
@@ -271,7 +271,7 @@ const readSetting = (
     /** A throw is the same answer as `null` — see `parseMeasure`. */
     let parsed: string | number | boolean | null = null;
     try { parsed = def.parse(String(value)); } catch { /* refused */ }
-    if (parsed === null) no(WHY[def.type] ?? (__DEV__ ? 'was refused by the module that owns it' : 'refused'));
+    if (parsed === null) no(WHY[def.type] ?? 'motion-setting-module-refused');
     else out[key] = parsed;
     return;
   }
@@ -409,7 +409,7 @@ const bound = (max: number): string => (max === Infinity ? '+' : String(max));
 const buildAnimation = (
   property: PropertyDef,
   collected: Collected,
-  rejected: string[]
+  rejected: Refusal[]
 ): ElementMotion | null => {
   /**
    * No base at all is a shape, not a mistake — "only animate on small
@@ -419,13 +419,13 @@ const buildAnimation = (
   const { base, bands, rejected: bad } = collected.base === undefined && collected.named.length
     ? { base: { keyframes: [], rejected: [], geometryDependent: false }, bands: [], rejected: [] }
     : parseBandedList(collected.base ?? '', property);
-  for (const entry of bad) rejected.push(`${property.key}: ${entry}`);
+  for (const entry of bad) rejected.push(at(property.key, entry));
 
   const all: Band[] = [...bands];
   /** A `-name` key is one more band, with the range that name registered. */
   for (const { range, raw } of collected.named) {
     const parsed = parseBandedList(raw, property);
-    for (const entry of parsed.rejected) rejected.push(`${property.key}: ${entry}`);
+    for (const entry of parsed.rejected) rejected.push(at(property.key, entry));
     if (parsed.base.keyframes.length) {
       all.push({ ...range, keyframes: parsed.base.keyframes, geometryDependent: parsed.base.geometryDependent });
     }
@@ -440,10 +440,8 @@ const buildAnimation = (
        * reader has to think about.
        */
       if (min > max) {
-        rejected.push(__DEV__
-          ? `${property.key}: [${band.min}-${bound(band.max)}] is outside ` +
-            `[${range.min}-${bound(range.max)}], the range this key names; it can never apply.`
-          : `${property.key}: band never applies`);
+        rejected.push({ code: 'motion-band-outside', where: property.key,
+                  args: [String(band.min), String(bound(band.max)), String(range.min), String(bound(range.max))] });
         continue;
       }
       all.push({ ...band, min, max });
@@ -469,9 +467,7 @@ const buildAnimation = (
    */
   for (const keyframe of [...base.keyframes, ...all.flatMap((b) => b.keyframes)]) {
     if (keyframe.unit !== '' && keyframe.unit !== unit) {
-      rejected.push(__DEV__
-        ? `${property.key}: ${keyframe.unit} and ${unit} in one animation; ${unit} is used throughout`
-        : `${property.key}: ${keyframe.unit} vs ${unit}`);
+      rejected.push({ code: 'motion-mixed-units', where: property.key, args: [keyframe.unit, unit] });
       break;
     }
   }
@@ -498,7 +494,7 @@ export const parseMotion = (
   raw: string,
   context: ParseContext
 ): ParsedElement | null => {
-  const rejected: string[] = [];
+  const rejected: Refusal[] = [];
 
   /**
    * An element this library cannot measure. Every geometry reading is
@@ -511,11 +507,7 @@ export const parseMotion = (
    * realm caveat rides `instanceof`, recorded in the fold-in source.)
    */
   if (typeof HTMLElement === 'function' && !(node instanceof HTMLElement)) {
-    rejected.push(__DEV__
-      ? `motion is on a <${node.tagName.toLowerCase()}>, which this library cannot measure — it ` +
-        'reads offsetTop and offsetHeight, which only HTML elements have. Animate a wrapper ' +
-        'around it instead.'
-      : 'motion: not an HTML element');
+    rejected.push({ code: 'motion-not-html', args: [node.tagName.toLowerCase()] });
     context.dropped?.push({ node, rejected });
     return null;
   }
@@ -528,18 +520,25 @@ export const parseMotion = (
     /** The literal form: a preset name, with the misspelling suggestion the
      *  marker attribute always had. An empty value has nothing to say. */
     if (text === '') {
-      rejected.push('motion: no value — name a preset or write an object');
+      rejected.push({ code: 'motion-no-value', args: [] });
     } else if (isPreset(text)) {
       applyPreset(text, collected);
-    } else if (__DEV__) {
-      const flat = text.replace(/[^a-z0-9]/gi, '').toLowerCase();
-      const near = Object.keys(PRESETS)
-        .find((one) => one.replace(/[^a-z0-9]/gi, '').toLowerCase() === flat);
-      rejected.push(near
-        ? `motion="${text}": not a preset this library has — did you mean "${near}"?`
-        : `motion="${text}": not a preset this library has — check the spelling`);
     } else {
-      rejected.push(`motion="${text}": unknown preset`);
+      /**
+       * **One code in both builds.** This branched on `__DEV__` to choose between a message with
+       * a spelling suggestion and a terser one — which was fine while the message WAS the refusal,
+       * and became a defect the moment the code became the identifier: the same mistake would have
+       * reported `motion-preset-unknown` in development and something else in production, so a
+       * test, a docs link and Studio's inspector would each be right in only one build.
+       *
+       * Only the SUGGESTION is dev-only now, because scanning the preset table to compute it is
+       * real work for a string production has no way to print.
+       */
+      const flat = __DEV__ ? text.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+      const near = __DEV__
+        ? Object.keys(PRESETS).find((one) => one.replace(/[^a-z0-9]/gi, '').toLowerCase() === flat)
+        : undefined;
+      rejected.push({ code: 'motion-preset-unknown', args: [text, near ?? ''] });
     }
   } else {
     /** The object form, through the base grammar — never the expression tier. */
@@ -554,14 +553,12 @@ export const parseMotion = (
        * because the false-positive cost is one clause in a message already
        * being read by someone whose element is not animating.
        */
-      rejected.push(__DEV__
-        ? `motion: could not parse — ${String((error as Error).message ?? error)}. If a value is text (keyframes, lengths, easings, selectors), quote it: pin: '120px'.`
-        : `motion: could not parse`);
+      rejected.push({ code: 'motion-parse-failed', args: [String((error as Error).message ?? error)] });
       context.dropped?.push({ node, rejected });
       return null;
     }
     if (!isObject(parsed as Parsed)) {
-      rejected.push('motion: the braced form must be an object of keys');
+      rejected.push({ code: 'motion-not-object', args: [] });
       context.dropped?.push({ node, rejected });
       return null;
     }
@@ -570,17 +567,17 @@ export const parseMotion = (
       /** `preset:` inside the object merges exactly as the literal form does. */
       if (key === 'preset') {
         if (typeof value === 'string' && isPreset(value)) applyPreset(value, collected);
-        else rejected.push(__DEV__ ? `preset: "${String(value)}" is not a preset this library has` : 'preset: unknown');
+        else rejected.push({ code: 'motion-preset-unknown', where: 'preset', args: [String(value), ''] });
         continue;
       }
 
       const settingDef = getSetting(key);
       if (settingDef) {
         if (typeof value === 'object' && value !== null) {
-          rejected.push(`${key}: a setting takes a plain value`);
+          rejected.push({ code: 'motion-setting-not-plain', args: [], where: key });
           continue;
         }
-        const no = (why: string): void => { rejected.push(`${key}: ${why}`); };
+        const no = (code: string, args: readonly string[] = []): void => { rejected.push({ code, args, where: key }); };
         readSetting(key, settingDef, value as string | number | boolean, no, settings);
         continue;
       }
@@ -599,14 +596,10 @@ export const parseMotion = (
          * make the page hold, and the hostile-surface bound is 120
          * characters per reason.
          */
-        if (__DEV__) {
-          const meant = probablyMeant(key);
-          rejected.push(meant
-            ? `${key}: no such key — did you mean ${meant}?`
-            : `${key}: no such key — check the spelling, or wire the module that provides it.`);
-        } else {
-          rejected.push(`${key}: unknown key`);
-        }
+        /** One code in both builds — see the preset branch above; only the SUGGESTION is dev-only,
+         *  because computing it is a scan for a string production cannot print. */
+        const meant = __DEV__ ? probablyMeant(key) : undefined;
+        rejected.push({ code: 'motion-no-such-key', where: key, args: [meant ?? ''] });
         continue;
       }
 
@@ -619,9 +612,7 @@ export const parseMotion = (
        * too and the nested branch would misread it as one missing frames.
        */
       if (isPath(value as Parsed)) {
-        rejected.push(__DEV__
-          ? `${key}: quote the value — keyframe strings are text, like ${key}: '0% 0, 100% 1'`
-          : `${key}: quote the value`);
+        rejected.push({ code: 'motion-quote-the-value', where: key, args: [key] });
         continue;
       }
 
@@ -635,21 +626,17 @@ export const parseMotion = (
         const nested = value as ParsedObject;
         const frames = nested['frames'];
         if (typeof frames !== 'string' && typeof frames !== 'number') {
-          rejected.push(__DEV__
-            ? `${key}: the nested form needs frames — { frames: '0% 0, 100% 1', ease: 'ease-in' }`
-            : `${key}: nested form needs frames`);
+          rejected.push({ code: 'motion-nested-needs-frames', where: key, args: [] });
           continue;
         }
         for (const extra of Object.keys(nested)) {
-          if (extra !== 'frames' && extra !== 'ease') rejected.push(`${key}.${extra}: not part of the nested form`);
+          if (extra !== 'frames' && extra !== 'ease') rejected.push({ code: 'motion-nested-unknown', args: [], where: `${key}.${extra}` });
         }
         const ease = nested['ease'];
         if (ease !== undefined) {
           const valid = typeof ease === 'string' ? parseEasing(ease) : null;
-          if (valid === null) rejected.push(`${key}.ease: ${WHY['easing']}`);
-          else if (named.range) rejected.push(__DEV__
-            ? `${key}.ease: a per-property ease goes on the unsuffixed key — a band shares its property's curve shaper`
-            : `${key}.ease: not on a band key`);
+          if (valid === null) rejected.push({ code: 'motion-setting-easing', args: [], where: `${key}.ease` });
+          else if (named.range) rejected.push({ code: 'motion-ease-on-band', where: `${key}.ease`, args: [] });
           else slot.ease = valid;
         }
         if (named.range) slot.named.push({ range: named.range, raw: String(frames) });
@@ -658,7 +645,7 @@ export const parseMotion = (
       }
 
       if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
-        rejected.push(`${key}: not a value this key can use`);
+        rejected.push({ code: 'motion-unusable-value', where: key, args: [] });
         continue;
       }
 
@@ -701,7 +688,7 @@ export const parseMotion = (
     !node.hasAttribute('data-vd-split') &&
     !node.querySelector(`[${MOTION_ATTR}]`)
   ) {
-    rejected.push(__DEV__ ? 'stagger needs animated descendants — it goes on the parent' : 'stagger: no animated descendants');
+    rejected.push({ code: 'motion-stagger-no-descendants', args: [] });
   }
 
   const stagger = staggerFor(node, rejected);
@@ -719,11 +706,7 @@ export const parseMotion = (
   const perspective = settings['perspective'];
   if (typeof perspective === 'string' && (perspective.startsWith('-') || perspective.endsWith('%'))) {
     delete settings['perspective'];
-    rejected.push(__DEV__
-      ? `perspective: "${perspective}" is not a length CSS will take — it must not be negative ` +
-        'or a percentage. An invalid perspective() drops the whole transform, so nothing on ' +
-        'this element would animate.'
-      : `perspective: "${perspective}" not usable`);
+    rejected.push({ code: 'motion-perspective-bad', args: [perspective] });
   }
 
   /**
@@ -742,11 +725,7 @@ export const parseMotion = (
     const blind = /:(hover|active|focus-within|focus-visible|focus|target|checked|visited)\b/i.exec(when);
     if (blind) {
       delete settings['when'];
-      rejected.push(__DEV__
-        ? `when: "${when}" uses ${blind[0]}, which this library cannot be told about — it ` +
-          're-reads a selector when an attribute changes, and that state is not an attribute. ' +
-          'Use CSS for it. This element animates on scroll instead.'
-        : `when: ${blind[0]} is not an attribute`);
+      rejected.push({ code: 'motion-when-blind', args: [when, String(blind[0])] });
     }
   }
 
@@ -758,10 +737,7 @@ export const parseMotion = (
    * as to a scrolled one.
    */
   if (typeof settings['ease'] === 'string' && typeof settings['when'] === 'string') {
-    rejected.push(__DEV__
-      ? 'ease does nothing on a `when` element — it shapes the curve between keyframes, and ' +
-        '`when` holds the element at one end or the other. Use inertia-ease to shape the change'
-      : 'ease does nothing with when');
+    rejected.push({ code: 'motion-ease-with-when', args: [] });
   }
 
   /**
@@ -777,10 +753,7 @@ export const parseMotion = (
       (name) => name.endsWith('-inertia') && Number(settings[name]) > 0
     );
     if (!rescued) {
-      rejected.push(__DEV__
-        ? 'inertia-ease does nothing at inertia: 0 — it shapes the catch-up, and 0 means the ' +
-          'values track scroll exactly with no transition to shape. Raise inertia, or use ease'
-        : 'inertia-ease does nothing at inertia 0');
+      rejected.push({ code: 'motion-inertia-ease-at-zero', args: [] });
     }
   }
 
@@ -791,10 +764,7 @@ export const parseMotion = (
    * scroll-driven and state-driven children.
    */
   if (stagger && typeof settings['when'] === 'string') {
-    rejected.push(__DEV__
-      ? 'stagger does nothing on a `when` element — it offsets a scroll timeline, and `when` ' +
-        'replaces the scroll driver'
-      : 'stagger does nothing with when');
+    rejected.push({ code: 'motion-stagger-with-when', args: [] });
   }
 
   return {
@@ -816,7 +786,7 @@ export const parseMotion = (
  */
 const staggerFor = (
   node: Element,
-  rejected: string[]
+  rejected: Refusal[]
 ): { position: number; positionUnit: PositionUnit } | null => {
   const host = staggerHost(node);
   if (!host) return null;
@@ -824,7 +794,7 @@ const staggerFor = (
   const step = parseOffset(declaresStagger(host) ?? '');
   if (step === null) {
     /** The offset sentence `readSetting` uses, because that is what the step is. */
-    rejected.push('stagger: is not a length or a percentage');
+    rejected.push({ code: 'motion-setting-offset', where: 'stagger', args: [] });
     return null;
   }
 

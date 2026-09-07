@@ -68,7 +68,7 @@ export const runInserts = (point: keyof InsertMap, ...args: readonly unknown[]):
     } catch (error) {
       if (!warnedInsert) {
         warnedInsert = true;
-        pageProblem('module-threw', __DEV__ ? `a wired module threw in ${point}; the rest of the chain still ran.` : `module threw in ${point}`);
+        pageProblem('motion-module-threw', [point]);
         console.warn('[vera] motion: the module exception was:', error);
       }
     }
@@ -309,7 +309,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
   const start = (): void => {
     if (started || destroyed) return;
     if (!supports()) {
-      pageProblem('unsupported', 'required APIs unavailable, animation disabled.');
+      pageProblem('motion-unsupported');
       return;
     }
     started = true;

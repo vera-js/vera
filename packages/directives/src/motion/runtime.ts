@@ -171,7 +171,7 @@ export interface RuntimeElement {
    * imports nothing from the engine; the fold-in's replacement for the old
    * module-level rejections map.
    */
-  readonly reject: (reason: string) => void;
+  readonly reject: (code: string, args?: readonly string[]) => void;
 }
 
 export interface RuntimeSettings {
@@ -756,7 +756,7 @@ let warnedAboutEasing = false;
  * `rejected` per element, because a GUI reads one of those and not the other.
  * Failing loudly beats a curve that is quietly the wrong shape.
  */
-const resolveCurveEasing = (rejectFor: (reason: string) => void, value: string, declared: boolean): Easing | null => {
+const resolveCurveEasing = (rejectFor: (code: string, args?: readonly string[]) => void, value: string, declared: boolean): Easing | null => {
   /**
    * How to name the value in a diagnostic.
    *
@@ -797,7 +797,7 @@ const resolveCurveEasing = (rejectFor: (reason: string) => void, value: string, 
     }
   }
   if (threw) {
-    rejectFor(__DEV__ ? `${named}: the easing module threw; the curve is linear.` : `${named}: easing threw`);
+    rejectFor('motion-easing-threw', [named]);
     return null;
   }
   if (insert('easing').length) return null;
@@ -809,7 +809,7 @@ const resolveCurveEasing = (rejectFor: (reason: string) => void, value: string, 
    * does nothing, appeared there not at all. One line in a console the GUI
    * cannot read is not a report.
    */
-  rejectFor(__DEV__ ? `${named} needs the easings module; the curve is linear.` : `${named}: needs easings module`);
+  rejectFor('motion-easings-module-missing', [named]);
   if (!warnedAboutEasing) {
     warnedAboutEasing = true;
     console.warn(
@@ -836,7 +836,7 @@ const resolveCurveEasing = (rejectFor: (reason: string) => void, value: string, 
 export const createRuntimeElement = (
   parsed: ParsedElement,
   settings: RuntimeSettings,
-  rejectFor: (reason: string) => void
+  rejectFor: (code: string, args?: readonly string[]) => void
 ): RuntimeElement => {
   const node = parsed.node as HTMLElement;
 
@@ -1006,13 +1006,15 @@ export const animateElement = (element: RuntimeElement): void => {
      * does not call `apply` again: a throwing module costs one call per new
      * value, not one per frame.
      */
-    let refusal: void | string;
+    let refusal: void | string = undefined;
+    let threw = false;
     try {
       refusal = applyProperty(element.node, animation.property, animation.unit, value);
     } catch {
-      refusal = `${animation.property.key}: this module's apply threw.`;
+      threw = true;
     }
-    if (refusal) element.reject(refusal);
+    if (threw) element.reject('motion-apply-threw', [animation.property.key]);
+    else if (refusal) element.reject('motion-apply-refused', [animation.property.key, refusal]);
   }
 };
 

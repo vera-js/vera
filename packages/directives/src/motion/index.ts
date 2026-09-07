@@ -91,7 +91,7 @@ const usableBreakpoints = (
     const min = pair ? Number(pair[0]) : NaN;
     const max = pair && pair[1] !== null && pair[1] !== undefined ? Number(pair[1]) : Infinity;
     if (!pair || !Number.isFinite(min) || Number.isNaN(max) || min > max) {
-      pageProblem('breakpoint-unusable', __DEV__ ? `breakpoint ${JSON.stringify(name)} is not a usable [min, max]; ignoring it.` : `breakpoint ${JSON.stringify(name)}: not [min, max]`);
+      pageProblem('motion-breakpoint-unusable', [JSON.stringify(name)]);
       continue;
     }
     out.set(name, { min, max });
@@ -106,7 +106,7 @@ const guarded = (
   fn: ((node: HTMLElement, progress: number) => void) | undefined
 ): ((node: HTMLElement, progress: number) => void) | undefined => {
   if (typeof fn !== 'function') {
-    if (fn !== undefined) pageProblem('onprogress-not-fn', 'onProgress is not a function; ignoring it.');
+    if (fn !== undefined) pageProblem('motion-onprogress-not-fn');
     return undefined;
   }
   let live = true;
@@ -116,7 +116,7 @@ const guarded = (
       fn(node, progress);
     } catch (error) {
       live = false;
-      pageProblem('onprogress-threw', 'onProgress threw, so it is being ignored from here on.');
+      pageProblem('motion-onprogress-threw');
       console.warn('[vera] motion: the onProgress exception was:', error);
     }
   };
@@ -137,7 +137,7 @@ const resolveOptions = (options: MotionOptions): void => {
   }
   for (const key of Object.keys(options)) {
     if (!KNOWN_OPTIONS.has(key)) {
-      pageProblem('unknown-option', __DEV__ ? `motion() was given "${key}", which is not an option this pack has.` : `"${key}": unknown option`);
+      pageProblem('motion-unknown-option', [key]);
     }
   }
   /** Boolean options that are not booleans invert accessibility switches silently. */
@@ -145,22 +145,22 @@ const resolveOptions = (options: MotionOptions): void => {
     if (typeof fallback !== 'boolean') continue;
     const given = (options as Record<string, unknown>)[key];
     if (given === undefined || typeof given === 'boolean') continue;
-    pageProblem('option-not-boolean', __DEV__ ? `${key} must be true or false, not ${JSON.stringify(given)}; using ${fallback}.` : `${key}: not a boolean`);
+    pageProblem('motion-option-not-boolean', [key, JSON.stringify(given)]);
     (merged as unknown as Record<string, unknown>)[key] = fallback;
   }
   /** The same checks the object keys of the same names get. */
   for (const name of ['ease', 'inertiaEase'] as const) {
     if (parseEasing(String(merged[name])) === null) {
-      pageProblem('option-unusable', `${name} ${JSON.stringify(merged[name])} is not usable; using ${DEFAULTS[name]}.`);
+      pageProblem('motion-option-unusable', [name, JSON.stringify(merged[name]), String(DEFAULTS[name])]);
       (merged as unknown as Record<string, unknown>)[name] = DEFAULTS[name];
     }
   }
   if (!Number.isFinite(merged.inertia) || merged.inertia < 0 || merged.inertia > 3600) {
-    pageProblem('option-unusable', `inertia ${String(merged.inertia)} is not usable; using ${DEFAULTS.inertia}.`);
+    pageProblem('motion-option-unusable', ['inertia', String(merged.inertia), String(DEFAULTS.inertia)]);
     merged.inertia = DEFAULTS.inertia;
   }
   if (merged.transformOrigin && parseOrigin(merged.transformOrigin) === null) {
-    pageProblem('option-unusable', `transformOrigin ${JSON.stringify(merged.transformOrigin)} is not usable; ignoring it.`);
+    pageProblem('motion-option-unusable', ['transformOrigin', JSON.stringify(merged.transformOrigin), '']);
     merged.transformOrigin = '';
   }
   defaults = merged;
@@ -175,12 +175,12 @@ const resolveOptions = (options: MotionOptions): void => {
 const regions = new WeakMap<Element, Region>();
 let pageRegion: Region | null = null;
 
-const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (key: string, why: string) => void): RegionOptions => {
+const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (key: string, code: string) => void): RegionOptions => {
   let axis: 'vertical' | 'horizontal' = 'vertical';
   const axisGiven = config['axis'];
   if (axisGiven !== undefined) {
     if (axisGiven === 'vertical' || axisGiven === 'horizontal') axis = axisGiven;
-    else reportKey('axis', "is 'vertical' or 'horizontal'");
+    else reportKey('axis', 'motion-region-axis');
   }
   let scrollElement: Window | HTMLElement = window;
   const scrollerGiven = config['scroller'];
@@ -188,14 +188,14 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
     const selector = typeof scrollerGiven === 'string' ? parseSelector(scrollerGiven) : null;
     const found = selector ? document.querySelector(selector) : null;
     if (found instanceof HTMLElement) scrollElement = found;
-    else reportKey('scroller', 'is a selector matching one element on the page');
+    else reportKey('scroller', 'motion-region-scroller');
   }
   const number = (key: 'inertia', fallback: number): number => {
     const given = config[key];
     if (given === undefined) return fallback;
     const n = Number(given);
     if (Number.isFinite(n) && n >= 0 && n <= 3600) return n;
-    reportKey(key, 'must be a number from 0 to 3600');
+    reportKey(key, 'motion-region-duration');
     return fallback;
   };
   const easing = (key: 'inertia-ease' | 'ease', fallback: string): string => {
@@ -203,7 +203,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
     if (given === undefined) return fallback;
     const valid = typeof given === 'string' ? parseEasing(given) : null;
     if (valid !== null) return valid;
-    reportKey(key, 'is not an easing name or a cubic-bezier()');
+    reportKey(key, 'motion-setting-easing');
     return fallback;
   };
   return {
@@ -226,10 +226,10 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
  * matters. The config text is parsed through the base grammar's cache, so
  * asking per member re-parses nothing.
  */
-const regionFor = (el: Element, reject: (code: string, message: string) => void): Region => {
+const regionFor = (el: Element, reject: (code: string, args?: readonly string[]) => void): Region => {
   const host = el.closest(`[${CONFIG_ATTR}]`);
   if (!host || host === el) {
-    if (host === el) reject('config-on-member', 'motion-region configures a REGION for descendants; the element carrying it animates in the region above.');
+    if (host === el) reject('motion-region-on-member');
     return (pageRegion ??= createRegion(regionOptions({}, () => {}), breakpoints));
   }
   const existing = regions.get(host);
@@ -241,13 +241,13 @@ const regionFor = (el: Element, reject: (code: string, message: string) => void)
     try {
       const parsed = parseValue(raw) as Parsed;
       if (isObject(parsed)) config = parsed as ParsedObject;
-      else reject('config-not-object', 'motion-region takes a braced object.');
+      else reject('motion-region-not-object');
     } catch (error) {
-      reject('config-bad-parse', `motion-region could not parse: ${String((error as Error).message ?? error)}`);
+      reject('motion-region-parse-failed', [String((error as Error).message ?? error)]);
     }
   }
   const region = createRegion(
-    regionOptions(config, (key, why) => reject('config-refused', `motion-region ${key}: ${why}`)),
+    regionOptions(config, (key, code) => reject(code, [key])),
     breakpoints
   );
   regions.set(host, region);
@@ -261,12 +261,22 @@ const regionFor = (el: Element, reject: (code: string, message: string) => void)
  * registry once per changed value.
  */
 const said = new WeakMap<Element, Set<string>>();
-const dedupedReject = (el: Element, ctx: Ctx) => (reason: string): void => {
+/**
+ * **Codes, like every other pack.** This funnelled every motion refusal through one
+ * `motion-refused` code carrying a composed sentence, which meant its words shipped to production
+ * and neither a docs page nor Studio's inspector could address any of them individually. Each
+ * refusal now names itself and its prose lives in `diagnostics.ts`.
+ *
+ * Deduplicated on the code AND its arguments, so a per-property refusal still reports once per
+ * property rather than once per element — the same grain the composed sentence gave for free.
+ */
+const dedupedReject = (el: Element, ctx: Ctx) => (code: string, args: readonly string[] = []): void => {
   let seen = said.get(el);
   if (!seen) said.set(el, (seen = new Set()));
-  if (seen.has(reason)) return;
-  seen.add(reason);
-  ctx.reject('motion-refused', reason);
+  const key = args.length ? `${code}\u0000${args.join('\u0000')}` : code;
+  if (seen.has(key)) return;
+  seen.add(key);
+  ctx.reject(code, args);
 };
 
 /* ── the run-once latch, carried across engine rebuilds ───────────────────── */
@@ -330,15 +340,15 @@ const motionDirective: Directive = {
     if (el.hasAttribute('data-vd-split')) return;
     const raw = el.getAttribute(MOTION_ATTR) ?? '';
     const rejectFor = dedupedReject(el, ctx);
-    const region = regionFor(el, (code, message) => ctx.reject(code, message));
+    const region = regionFor(el, (code, args) => ctx.reject(code, args ?? []));
 
     forgetStagger();
     const parsed: ParsedElement | null = parseMotion(el, raw, region.parseContext);
     /** Parse-time reasons flow to the engine's registry — dropped elements' too. */
-    if (parsed) for (const reason of parsed.rejected) rejectFor(reason);
+    if (parsed) for (const r of parsed.rejected) rejectFor(r.code, [r.where ?? '', ...r.args]);
     else {
       for (const entry of region.parseContext.dropped) {
-        if (entry.node === el) for (const reason of entry.rejected) rejectFor(reason);
+        if (entry.node === el) for (const r of entry.rejected) rejectFor(r.code, [r.where ?? '', ...r.args]);
       }
       return;
     }
@@ -416,7 +426,7 @@ const configDirective: Directive = {
 
 const connect = (options?: MotionOptions): EngineConnector => (seams) => {
   /** Page problems land in the engine's registry like every other refusal. */
-  setProblemReporter((code, message) => seams.reject(null, 'motion', code, message));
+  setProblemReporter((code, args) => seams.reject(null, 'motion', code, args));
   resolveOptions(options ?? {});
   seams.directive(motionDirective);
   seams.directive(configDirective);
@@ -435,7 +445,7 @@ export const motion = dual<MotionOptions>(connect);
  * body registers its rows. Exported so third parties write the same shape.
  */
 export const vocabularyConnector = (rows: WirableTree): EngineConnector => (seams) => {
-  setProblemReporter((code, message) => seams.reject(null, 'motion', code, message));
+  setProblemReporter((code, args) => seams.reject(null, 'motion', code, args));
   registerVocabulary(rows);
 };
 

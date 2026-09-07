@@ -136,17 +136,13 @@ export const sequenceRows = (options: SequenceOptions = {}): WirableTree => {
    */
   const declared = options.allowedOrigins;
   if (declared !== undefined && !Array.isArray(declared)) {
-    pageProblem('sequence-origins-not-list',
-      `sequence allowedOrigins must be a list, not ${typeof declared}; ignoring it. ` +
-      'Write one origin as a list of one, for example ["https://cdn.example"].');
+    pageProblem('motion-sequence-origins-not-list', [typeof declared]);
   }
   const allowedOrigins = (Array.isArray(declared) ? declared : []).flatMap((entry) => {
     try {
       return [new URL(entry).origin];
     } catch {
-      pageProblem('sequence-origin-not-url',
-        `sequence allowedOrigins entry ${JSON.stringify(entry)} is not a url; ignoring it. ` +
-        'Write the full origin, for example "https://cdn.example".');
+      pageProblem('motion-sequence-origin-not-url', [JSON.stringify(entry)]);
       return [];
     }
   });

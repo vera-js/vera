@@ -71,19 +71,21 @@ test('refusals are sentences in the engine registry: unknown preset, unknown key
     <div id="c" data-vd-motion="{ opacity: '0% 5' }">c</div>`);
   /** Prod keeps the DATA (code, element); the prose is a development feature. */
   const a = rejections(host.querySelector('#a'));
-  assert.ok(a.some((r) => r.code === 'motion-refused'), 'preset misspelling reported');
+  assert.ok(a.some((r) => r.code === 'motion-preset-unknown'), 'preset misspelling reported');
   if (!isProduction) {
     assert.ok(a.some((r) => /fadeUp/.test(r.message)), 'named what was written');
-    assert.ok(a.some((r) => /did you mean "fade-up"/.test(r.message)), 'and suggested');
+    /** The suggestion is the FIX now, not the message — which is what the field is for, and what
+     *  lets a tool render "what happened" and "what to do" apart. */
+    assert.ok(a.some((r) => /Did you mean "fade-up"/.test(r.fix ?? '')), 'and suggested');
   }
   const b = rejections(host.querySelector('#b'));
-  assert.ok(b.some((r) => r.code === 'motion-refused'), 'unknown key reported');
+  assert.ok(b.some((r) => r.code === 'motion-no-such-key'), 'unknown key reported');
   if (!isProduction) {
     assert.ok(b.some((r) => /opacity_/.test(r.message)));
-    assert.ok(b.some((r) => /did you mean opacity/.test(r.message)));
+    assert.ok(b.some((r) => /Did you mean opacity/.test(r.fix ?? '')), 'the suggestion is the fix');
   }
   const c = rejections(host.querySelector('#c'));
-  assert.ok(c.some((r) => r.code === 'motion-refused'), 'out-of-range value reported');
+  assert.ok(c.some((r) => r.code === 'motion-out-of-range'), 'out-of-range value reported');
   if (!isProduction) assert.ok(c.some((r) => /opacity/.test(r.message)), 'with the property named');
   host.remove();
   await settled();
@@ -92,7 +94,7 @@ test('refusals are sentences in the engine registry: unknown preset, unknown key
 test('a bare word where a string belongs is refused with the fix, never resolved as state', async () => {
   const host = await mount(`<div data-vd-motion="{ opacity: fade }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-quote-the-value'));
   if (!isProduction) assert.ok(reasons.some((r) => /quote the value/.test(r.message)));
   host.remove();
   await settled();
@@ -107,8 +109,8 @@ test('an unquoted text value fails the whole element LOUDLY, with the quote hint
   const el = host.querySelector('div');
   assert.equal(el.style.filter, '', 'nothing half-applied: the element rests natural');
   const reasons = rejections(el);
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'refused, not ignored');
-  if (!isProduction) assert.ok(reasons.some((r) => /quote it: pin: '120px'/.test(r.message)), 'and the hint names the fix');
+  assert.ok(reasons.some((r) => r.code === 'motion-parse-failed'), 'refused, not ignored');
+  if (!isProduction) assert.ok(reasons.some((r) => /quoted/.test(r.fix ?? '')), 'and the hint names the fix');
   host.remove();
   await settled();
 });
@@ -134,7 +136,7 @@ test('the when driver: a selector match walks the element to its other end', asy
 test('when refuses the pseudo-classes the observer cannot see, and drops the setting', async () => {
   const host = await mount(`<div data-vd-motion="{ opacity: '0% 0, 100% 1', when: ':hover' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'refused');
+  assert.ok(reasons.some((r) => r.code === 'motion-when-blind'), 'refused');
   if (!isProduction) assert.ok(reasons.some((r) => /:hover/.test(r.message)), 'named the pseudo-class');
   host.remove();
   await settled();
@@ -145,7 +147,7 @@ test('per-property ease without the easings module is a refusal per element, and
     `<div data-vd-motion="{ opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } }">x</div>`);
   const el = host.querySelector('div');
   const reasons = rejections(el);
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'refused');
+  assert.ok(reasons.some((r) => r.code === 'motion-easings-module-missing'), 'refused');
   if (!isProduction) assert.ok(reasons.some((r) => /needs the easings module/.test(r.message)), 'told what to wire');
   assert.match(el.style.filter, /opacity\(1\)/, 'and the element still animates, straight');
   host.remove();
@@ -156,7 +158,7 @@ test('the nested form refuses junk keys and a band key carrying its own ease', a
   const host = await mount(
     `<div data-vd-motion="{ opacity: { frames: '0% 0, 100% 1', wobble: 3 } }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-nested-unknown'));
   if (!isProduction) assert.ok(reasons.some((r) => /opacity\.wobble/.test(r.message)));
   host.remove();
   await settled();
@@ -170,7 +172,7 @@ test('motion-config: a bad axis is refused with the region still working on defa
   const el = host.querySelector('div');
   assert.match(el.style.filter, /opacity\(1\)/, 'the member still animates');
   const reasons = rejections(el);
-  assert.ok(reasons.some((r) => r.code === 'config-refused'), 'the config refusal recorded');
+  assert.ok(reasons.some((r) => r.code === 'motion-region-axis'), 'the config refusal recorded');
   if (!isProduction) assert.ok(reasons.some((r) => /axis/.test(r.message)), 'and names the key');
   host.remove();
   await settled();
@@ -180,7 +182,7 @@ test('settings arrive as authored types: numbers, booleans, and their refusals',
   const host = await mount(
     `<div data-vd-motion="{ opacity: '0% 0, 100% 1', inertia: 0.5, run-once: true, pin: 'sideways' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'pin refused');
+  assert.ok(reasons.some((r) => r.code === 'motion-setting-length'), 'pin refused');
   if (!isProduction) {
     assert.ok(reasons.some((r) => /pin/.test(r.message) && /length/.test(r.message)), 'with the grammar');
     assert.ok(!reasons.some((r) => /inertia/.test(r.message)), 'a good number passes');

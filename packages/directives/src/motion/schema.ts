@@ -50,13 +50,14 @@ export type { Easing } from './timing.js';
  * `reject` arrives through the connector's seams at wiring time. Before
  * wiring, the fallback still speaks — a problem is never dropped.
  */
-let report: (code: string, message: string) => void = (code, message) => {
-  console.warn(`[vera] motion: ${message} (${code})`);
+let report: (code: string, args: readonly string[]) => void = (code, args) => {
+  console.warn(`[vera] motion: ${code}${args.length ? ` (${args.join(', ')})` : ''}`);
 };
 export const setProblemReporter = (fn: typeof report): void => {
   report = fn;
 };
-export const pageProblem = (code: string, message: string): void => report(code, message);
+/** A page-level problem — no element to hang it on. Codes, like everything else here. */
+export const pageProblem = (code: string, args: readonly string[] = []): void => report(code, args);
 
 /** Timeline bounds, as percentages. */
 export const MIN_PERCENT = -300;
@@ -136,9 +137,29 @@ export interface PropertyDef {
   readonly setup?: (
     node: HTMLElement,
     settings: Readonly<Record<string, string | number | boolean>>,
-    reject: (reason: string) => void
+    reject: (code: string, args?: readonly string[]) => void
   ) => void | (() => void);
 }
+
+/**
+ * A refusal, on its way to the engine's registry: a CODE and the runtime values its sentence needs.
+ *
+ * Motion used to pass composed sentences instead, which is why its prose shipped to production
+ * while every other pack's folded away — and why no docs page or inspector row could address one
+ * of its refusals, since they all arrived under a single `motion-refused` code. `where` is the key
+ * path a nested refusal accumulates (`opacity`, then `opacity: 40%`), carried separately so the
+ * table can render it without every caller composing the prefix itself.
+ */
+export type Refusal = {
+  readonly code: string;
+  readonly args: readonly string[];
+  /** The key path a NESTED refusal accumulates — `opacity`, then `opacity: [0 50%]`. Carried apart
+   *  from `args` so one place renders the prefix instead of every caller composing it. */
+  readonly where?: string;
+};
+
+/** Prefix a nested refusal with the key that contained it. */
+export const at = (key: string, r: Refusal): Refusal => ({ ...r, where: r.where ? `${key}: ${r.where}` : key });
 
 const LENGTH_UNITS = ['px', 'rem', 'em', '%', 'vh', 'vw'] as const;
 const NO_UNITS = [''] as const;
@@ -402,13 +423,7 @@ export const parseKeyName = (
  */
 const clash = (prior: unknown, next: unknown, kind: string): void => {
   if (prior && prior !== next) {
-    pageProblem(
-      'vocabulary-replaced',
-      __DEV__
-        ? `wiring replaced the "${(next as { key: string }).key}" ${kind}, which was already ` +
-          'registered. The earlier one is gone, for every element on the page.'
-        : `replaced "${(next as { key: string }).key}"`
-    );
+    pageProblem('motion-vocabulary-replaced', [(next as { key: string }).key, kind]);
   }
 };
 
@@ -432,7 +447,7 @@ export const registerVocabulary = (item: WirableTree): void => {
       try {
         registerVocabulary((one as WirableFactory)());
       } catch (error) {
-        pageProblem('vocabulary-factory-threw', `a module factory threw while wiring: ${String(error)}`);
+        pageProblem('motion-vocabulary-factory-threw', [String(error)]);
       }
       continue;
     }
@@ -440,7 +455,7 @@ export const registerVocabulary = (item: WirableTree): void => {
     /** Something that is not a descriptor at all — a default import of a named
      *  export is `undefined`, which is the ordinary way to get this wrong. */
     if (!one || typeof one !== 'object' || !('on' in one || 'key' in one)) {
-      pageProblem('not-a-module', __DEV__ ? `wiring was given something that is not a vocabulary module: ${String(one)}` : `not a module: ${String(one)}`);
+      pageProblem('motion-not-a-module', [String(one)]);
       continue;
     }
 
@@ -462,13 +477,7 @@ export const registerVocabulary = (item: WirableTree): void => {
      * comes first is the worst of the three options.
      */
     else if ('type' in one && 'category' in one) {
-      pageProblem(
-        'setting-and-property',
-        __DEV__
-          ? `wiring was given "${one.key}" with both a type and a category. A setting declares a ` +
-            'type and a property declares a category; one descriptor cannot be both.'
-          : `"${one.key}": type and category`
-      );
+      pageProblem('motion-setting-and-property', [one.key]);
     }
     else if ('type' in one) {
       clash(BY_SETTING.get(one.key), one, 'setting');
@@ -480,13 +489,7 @@ export const registerVocabulary = (item: WirableTree): void => {
      * the key is accepted, nothing is reported, and nothing moves.
      */
     else if (!('cssProperty' in one) && !('cssFunction' in one) && !('apply' in one)) {
-      pageProblem(
-        'property-writes-nothing',
-        __DEV__
-          ? `wiring was given the property "${one.key}" with no cssProperty, cssFunction or apply, ` +
-            'so it has no way to write anything.'
-          : `"${one.key}": nothing to write`
-      );
+      pageProblem('motion-property-writes-nothing', [one.key]);
     }
     else {
       clash(BY_KEY.get(one.key), one, 'property');
@@ -632,7 +635,7 @@ export interface KeyframeList {
   /** True if any position uses a unit that depends on geometry (anything but `%`). */
   readonly geometryDependent: boolean;
   /** Entries that failed validation, for diagnostics. */
-  readonly rejected: readonly string[];
+  readonly rejected: readonly Refusal[];
 }
 
 /**
@@ -693,7 +696,7 @@ export const parseOffset = (raw: string): string | null => {
 export const parseBandedList = (
   raw: string,
   property: PropertyDef
-): { base: KeyframeList; bands: readonly Band[]; rejected: readonly string[] } => {
+): { base: KeyframeList; bands: readonly Band[]; rejected: readonly Refusal[] } => {
   if (!raw.includes('[')) {
     /**
      * A trailing `;` is the band separator with no band after it — one
@@ -706,13 +709,13 @@ export const parseBandedList = (
     return { base, bands: [], rejected: base.rejected };
   }
 
-  const rejected: string[] = [];
+  const rejected: Refusal[] = [];
   const bands: Band[] = [];
   let base: KeyframeList | null = null;
 
   for (const chunk of raw.split(';')) {
     if (bands.length >= MAX_BANDS) {
-      rejected.push(`more than ${MAX_BANDS} bands`);
+      rejected.push({ code: 'motion-too-many-bands', args: [String(MAX_BANDS)] });
       break;
     }
     const trimmed = chunk.trim();
@@ -720,7 +723,7 @@ export const parseBandedList = (
 
     if (!trimmed.startsWith('[')) {
       /** An unbracketed segment is the base. A second one is a mistake. */
-      if (base) rejected.push(trimmed);
+      if (base) rejected.push({ code: 'motion-second-base', args: [trimmed] });
       else {
         base = parseKeyframeList(trimmed, property);
         rejected.push(...base.rejected);
@@ -738,7 +741,7 @@ export const parseBandedList = (
      * When in doubt, reject.
      */
     if (!range || trimmed.slice(close + 1, colon).trim() !== '') {
-      rejected.push(trimmed);
+      rejected.push({ code: 'motion-band-bad', args: [trimmed] });
       continue;
     }
 
@@ -791,29 +794,29 @@ const splitTopLevel = (raw: string): string[] => {
  * `parseMeasure` reads, so a bound that changes cannot leave a hint behind
  * saying the old one.
  */
-const whyRefused = (raw: string, property: PropertyDef): string => {
+/**
+ * Why a measure was refused, as a CODE and its values — the words live in `diagnostics.ts` like
+ * every other pack's. This returned a composed sentence with a `__DEV__` short form beside it,
+ * which is the shape the table replaces: the short form still shipped, and neither form could be
+ * addressed by a docs page.
+ */
+const whyRefused = (raw: string, property: PropertyDef): Refusal => {
   const measure = /^\s*(-?(?:\d+\.?\d*|\.\d+))(px|deg|%|rem|em|vh|vw)?\s*$/.exec(raw);
   const unit = (measure?.[2] ?? '') as Unit;
   if (measure && unit !== '' && !property.units.includes(unit)) {
     const takes = property.units.filter(Boolean);
-    return __DEV__
-      ? `${property.key} does not take ${unit} — it takes ${takes.length ? takes.join(', ') : 'a plain number'}`
-      : `bad unit ${unit}`;
+    return { code: 'motion-bad-unit', args: [property.key, unit, takes.length ? takes.join(', ') : ''] };
   }
   const value = measure ? Number(measure[1]) : NaN;
   if (Number.isFinite(value) && (
     (property.min !== undefined && value < property.min) ||
     (property.max !== undefined && value > property.max))) {
-    const low = property.min ?? '−∞';
-    const high = property.max ?? '∞';
-    return __DEV__ ? `${property.key} takes ${low} to ${high}` : 'out of range';
+    return { code: 'motion-out-of-range', args: [property.key, String(property.min ?? '\u2212\u221E'), String(property.max ?? '\u221E')] };
   }
   if (Number.isFinite(value) && Math.abs(value) > MAX_MEASURE) {
-    return __DEV__
-      ? `${value} is past the bound this library writes — values stop at ${MAX_MEASURE}`
-      : 'too large';
+    return { code: 'motion-past-bound', args: [String(value), String(MAX_MEASURE)] };
   }
-  return __DEV__ ? 'is not a value this property can use' : 'bad value';
+  return { code: 'motion-bad-value', args: [] };
 };
 
 /**
@@ -825,7 +828,7 @@ const whyRefused = (raw: string, property: PropertyDef): string => {
  */
 export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeList => {
   const keyframes: RawKeyframe[] = [];
-  const rejected: string[] = [];
+  const rejected: Refusal[] = [];
   let geometryDependent = false;
 
   /**
@@ -834,12 +837,12 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
    * value reported the empty string, a complaint with no text in it.
    */
   if (raw.trim() === '') {
-    return { keyframes, rejected: ['no keyframes'], geometryDependent };
+    return { keyframes, rejected: [{ code: 'motion-no-keyframes', args: [] }], geometryDependent };
   }
 
   for (const entry of splitTopLevel(raw)) {
     if (keyframes.length >= MAX_KEYFRAMES) {
-      rejected.push(`more than ${MAX_KEYFRAMES} keyframes`);
+      rejected.push({ code: 'motion-too-many-keyframes', args: [String(MAX_KEYFRAMES)] });
       break;
     }
     const trimmed = entry.trim();
@@ -863,7 +866,8 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
     const rawValue = hasPosition ? trimmed.slice(cut + 1).trim() : trimmed;
     const measure = parseMeasure(rawValue, property);
     if (!measure) {
-      rejected.push(`${trimmed} — ${whyRefused(rawValue, property)}`);
+      /** The measure's own refusal, with the segment it came from carried alongside. */
+      { const why = whyRefused(rawValue, property); rejected.push({ code: why.code, args: [trimmed, ...why.args] }); }
       continue;
     }
     const { value, unit } = measure;
@@ -891,9 +895,7 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
         keyframes.push({ position: 100, positionUnit: '%', value: whole.value, unit: whole.unit });
         continue;
       }
-      rejected.push(__DEV__
-        ? `${trimmed} — the position must be ${MIN_PERCENT} to ${MAX_PERCENT}% or a length in vh, vw, px or rem`
-        : `${trimmed} — bad position`);
+      rejected.push({ code: 'motion-bad-position', args: [trimmed, String(MIN_PERCENT), String(MAX_PERCENT)] });
       continue;
     }
     if (position.positionUnit !== '%') geometryDependent = true;
@@ -905,7 +907,7 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
    * separator: `translate-y: ','` carries no keyframe, refuses nothing, and
    * so reported nothing at all.
    */
-  if (!keyframes.length && !rejected.length) rejected.push('no keyframes');
+  if (!keyframes.length && !rejected.length) rejected.push({ code: 'motion-no-keyframes', args: [] });
 
   return { keyframes, geometryDependent, rejected };
 };
