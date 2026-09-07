@@ -106,3 +106,37 @@ it('ui-select: ten selects upgrade, the unwired-light card operates, the slotted
   await until(() => doc.querySelector("#slotted [slot='value']")?.getAttribute('data-label'),
     'data-label lands on the value span, for content: attr(data-label)');
 });
+
+it('directives showcase: routes render, the hello-world taps, motion clamps, the diagnostics gallery refuses without breaking', async () => {
+  const { doc, win } = await openPage('/examples/directives/index.html');
+
+  /** Dead-page detector: the router rendered the overview, and demo-block restructured. */
+  await until(() => doc.querySelector('main h1')?.textContent.includes('Every directive'),
+    'the overview route rendered');
+  await until(() => doc.querySelector('demo-block .demo-live'), 'demo-block built its live/source split');
+  await until(() => doc.querySelector('vocab-table tbody tr'), 'describeDirectives filled the vocabulary');
+
+  /** The hello world: a directive click advances directive state on screen. */
+  const tapPill = () => doc.querySelector('.demo-live .pill')?.textContent ?? '';
+  await until(() => tapPill() === '0', 'the tap counter activated at 0');
+  doc.querySelector('.demo-live button[data-vd-on-click]').click();
+  await until(() => tapPill() === '1', 'the tap advanced');
+
+  /** Route to Motion: presets activate and CLAMP — below the fold means the FIRST keyframe. */
+  doc.querySelector('a[route][href$="/motion"]').click();
+  await until(() => doc.querySelector('[data-vd-motion="fade-up"]'), 'the motion route rendered');
+  await until(() => {
+    const hero = doc.querySelector('[data-vd-motion="fade-up"]');
+    return /opacity\(0\)/.test(hero?.style.filter ?? '');
+  }, 'a below-the-fold preset clamps to its start');
+
+  /** Route to Diagnostics: the deliberate mistakes are ALIVE as refusals, page intact. */
+  doc.querySelector('a[route][href$="/diagnostics"]').click();
+  await until(() => doc.querySelector('rejections-panel li'), 'the refusal panel filled');
+  const panel = () => doc.querySelector('rejections-panel')?.textContent ?? '';
+  await until(() => /unknown-directive/.test(panel()), 'the unknown directive earned its code');
+  await until(() => /strict-spelling/.test(panel()), 'and === earned the teaching refusal');
+  await settleFrames(win);
+  expect(doc.querySelector('main h1').textContent, 'the page survived its own mistake gallery')
+    .to.include('Diagnostics');
+});
