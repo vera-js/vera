@@ -47,6 +47,11 @@
       "types": "./dist/development/vera-directives-motion.d.ts",
       "development": "./dist/development/vera-directives-motion.js",
       "default": "./dist/vera-directives-motion.min.js"
+    },
+    "./remote": {
+      "types": "./dist/development/vera-directives-remote.d.ts",
+      "development": "./dist/development/vera-directives-remote.js",
+      "default": "./dist/vera-directives-remote.min.js"
     }
   },
   "files": [

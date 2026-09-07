@@ -10,6 +10,8 @@ export { wireDirectives, activate, deactivate, settled, rejections, describeDire
 export { interaction } from './interaction.js';
 export { expressions, compileExpression } from './expressions.js';
 export { motion, easings, paint, path, sequence, split, enableMotion, disableMotion } from './motion/index.js';
+export { remote } from './remote.js';
+export type { RemoteOptions } from './remote.js';
 export type { MotionOptions } from './motion/index.js';
 export { parseValue } from './parse.js';
 export type { Directive, Ctx, Rejection, Teardown, Cleanup } from './types.js';
