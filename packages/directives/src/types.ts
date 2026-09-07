@@ -49,6 +49,25 @@ export type Directive = {
   priority?: number;
   /** Introspectable documentation — REQUIRED on shipped packs; feeds describeDirectives(). */
   docs?: { summary: string; example: string };
+  /**
+   * What this directive does during a SERVER render (design §9), where there is markup and state
+   * but no events, no timers and no client.
+   *
+   * Absent — the safe default — means BEHAVIORAL: nothing to say before an event exists. That is
+   * not a limitation for handlers, which need no server pass at all: the handler lives in the
+   * attribute and delegation matches it at dispatch, so a server-rendered page is interactive the
+   * moment the engine boots, with no per-element hydration.
+   *
+   * `true` means DECLARATIVE and server-safe: the engine resolves this directive's apply exactly
+   * as it does in a browser (a plain `apply`, or the one a `setup` returns) and calls it ONCE, so
+   * the reflection is already correct in the HTML and the client's first pass re-derives the same
+   * answer. Declaring it asserts that `setup` touches nothing a server cannot own — no listeners,
+   * no observers, no timers.
+   *
+   * A FUNCTION is the escape hatch for a directive whose client path is not server-safe but which
+   * still has a server truth to write: it receives the evaluated value and writes the markup.
+   */
+  ssr?: boolean | ((el: Element, value: unknown, ctx: Ctx) => void);
 };
 
 export type Rejection = {

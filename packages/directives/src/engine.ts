@@ -403,12 +403,15 @@ const ctxFor = (el: Element, attr: string, selection: unknown): Ctx => ({
   reject: (code, message, fix) => reject(el, attr, code, message, fix),
 });
 
-const activateDirective = (el: Element, attr: string, directive: Directive, selection: unknown) => {
-  const map = instances.get(el) ?? new Map<string, Instance>();
-  instances.set(el, map);
-  if (map.has(attr)) return; // already live — attribute changes come through deactivate first
+/**
+ * The value a directive sees, parsed by its declared class. Factored out of activation because
+ * the SERVER path evaluates the same attributes, and two copies of this decision is exactly the
+ * "two implementations of truth" §9 refuses. `REFUSED` is the parse failure — already recorded.
+ */
+const REFUSED = Symbol('refused');
+
+const parseFor = (el: Element, attr: string, directive: Directive): Parsed | typeof REFUSED => {
   const raw = el.getAttribute(attr);
-  let parsed: Parsed = null;
   if (directive.value === 'literal') {
     /**
      * LITERAL means literal, in BOTH tiers: it never goes through `parseAttr` at all, so a bare
@@ -416,16 +419,24 @@ const activateDirective = (el: Element, attr: string, directive: Directive, sele
      * names the key "draft", it does not read it. (Found when the expressions tier compiled the
      * key to a thunk and persist restored under the key's VALUE.)
      */
-    parsed = parseLiteral(raw ?? '');
-  } else if (directive.value !== 'none') {
-    try {
-      parsed = parseAttr(raw ?? '');
-    } catch (error) {
-      const ve = error as ValueError;
-      reject(el, attr, ve.code ?? 'value-bad', `could not parse "${raw}": ${ve.message}`);
-      return;
-    }
+    return parseLiteral(raw ?? '');
   }
+  if (directive.value === 'none') return null;
+  try {
+    return parseAttr(raw ?? '');
+  } catch (error) {
+    const ve = error as ValueError;
+    reject(el, attr, ve.code ?? 'value-bad', `could not parse "${raw}": ${ve.message}`);
+    return REFUSED;
+  }
+};
+
+const activateDirective = (el: Element, attr: string, directive: Directive, selection: unknown) => {
+  const map = instances.get(el) ?? new Map<string, Instance>();
+  instances.set(el, map);
+  if (map.has(attr)) return; // already live — attribute changes come through deactivate first
+  const parsed = parseFor(el, attr, directive);
+  if (parsed === REFUSED) return;
   const instance: Instance = { _directive: directive, _attr: attr, _owner: {} };
   map.set(attr, instance);
   const ctx = ctxFor(el, attr, selection);
@@ -717,6 +728,13 @@ const adopt = (root: Document | ShadowRoot) => {
 };
 
 export const activate = (root: Document | ShadowRoot | Element) => {
+  /** On a server there is nothing to observe and no event to wait for: evaluate once and stop.
+   *  Delegating rather than refusing is what makes `wire([directives])` correct in both runtimes
+   *  — the app says what it wants, and where it runs decides what that means. */
+  if (onServer()) {
+    renderDirectives(root);
+    return;
+  }
   if (roots.has(root)) return;
   roots.add(root);
   adopt(root.nodeType === 1 ? ((root as Element).getRootNode() as Document | ShadowRoot) : (root as Document | ShadowRoot));
@@ -732,6 +750,129 @@ export const deactivate = (root: Document | ShadowRoot | Element) => {
   if (!roots.delete(root)) return;
   observers.get(root)?.disconnect();
   observers.delete(root);
+};
+
+/* ── server rendering (design §9) ─────────────────────────────────────────────────────────── */
+
+/**
+ * **One evaluator, two runtimes.** The server runs the SAME parse, the SAME context resolution
+ * and the SAME `apply` the browser runs — it simply runs them ONCE and attaches nothing. That is
+ * the whole anti-drift argument of §9: a separate server-side guesser (WP's `initial_truth`) is
+ * two implementations of one truth, and they diverge. Here the attribute IS the state source on
+ * both sides, so hydration has nothing to reconcile — the client re-derives the same answer,
+ * idempotently, and a mismatch is structurally impossible rather than merely tested for.
+ *
+ * What runs here and what does not follows the directive's own `ssr` declaration (see the
+ * contract): absent means behavioral — handlers, timers, focus, clipboard — and behavioral means
+ * nothing to say before an event exists. `state` is the exception the ENGINE owns rather than a
+ * pack: context has to be seeded or every reflection reads undefined, and its setup is a store
+ * and nothing else.
+ *
+ * Handlers are the interesting non-case: they need no server pass at all, because they are not
+ * hydrated in the first place. `data-vd-on-click="{ open: !open }"` IS the handler, delegation
+ * matches it at dispatch, and one root listener serves every element the server ever wrote —
+ * so a server-rendered page is interactive the moment the engine boots, at a cost independent
+ * of how much markup arrived.
+ */
+
+/** The shim's own published marker — the same signal `boot()` already trusts. */
+const onServer = (): boolean => (globalThis as { __veraSsrShimmed?: boolean }).__veraSsrShimmed === true;
+
+/**
+ * Every directive NAME this process has rendered, unclaimed ones included — unclaimed is
+ * precisely the interesting set, because those are the lazily-loadable packs whose modules a
+ * server should preload. Drained by `takeDirectiveNames()`, so a caller reads one render's worth:
+ * `renderToString` serializes its renders, which is what makes a module-level set correct here.
+ */
+const seenNames = new Set<string>();
+
+/**
+ * The names seen since the last call, and clears them. Hand them to
+ * `directiveLoader(...).url(name)` to emit `<link rel="modulepreload">` — the server sees every
+ * attribute, so the discover-then-fetch waterfall never has to happen for first paint.
+ */
+export const takeDirectiveNames = (): string[] => {
+  const names = [...seenNames];
+  seenNames.clear();
+  return names;
+};
+
+const renderElement = (el: Element): void => {
+  const found: Array<{ attr: string; directive: Directive; selection: unknown }> = [];
+  for (const { name } of el.attributes) {
+    if (!name.startsWith(PREFIX)) continue;
+    const suffix = name.slice(PREFIX.length);
+    if (suffix === 'cloak') continue;
+    seenNames.add(suffix);
+    const hit = directiveFor(suffix);
+    /** No refusal for an unknown name here: the client asks its loader chain, and a server that
+     *  rejected would record a refusal about a pack the browser is about to fetch. */
+    if (hit) found.push({ attr: name, ...hit });
+  }
+  found.sort((a, b) => (a.directive.priority ?? 50) - (b.directive.priority ?? 50));
+
+  for (const f of found) {
+    const ctx = ctxFor(el, f.attr, f.selection);
+    try {
+      /** Context first, and engine-owned: `state`'s setup is a store and a teardown, nothing else. */
+      if (f.directive === stateDirective) {
+        stateDirective.setup?.(el, ctx);
+        continue;
+      }
+      const mode = f.directive.ssr;
+      if (!mode) continue;
+      const parsed = parseFor(el, f.attr, f.directive);
+      if (parsed === REFUSED) continue;
+      const value = f.directive.value === 'none' ? undefined : evaluate(el, parsed);
+      if (typeof mode === 'function') {
+        mode(el, value, ctx);
+        continue;
+      }
+      /** `ssr: true` — resolve the apply exactly as activation does, then call it ONCE: no hook,
+       *  no subscription, nothing retained past this render. */
+      let apply = f.directive.apply;
+      if (f.directive.setup) {
+        const out = f.directive.setup(el, ctx);
+        if (out && typeof out === 'object' && out.apply) apply = out.apply;
+      }
+      apply?.(el, value, ctx);
+    } catch (error) {
+      /** Quarantined per instance, exactly as the client quarantines — a refusal is a sentence in
+       *  the registry, never a failed page. */
+      reject(el, f.attr, 'directive-threw', String((error as Error)?.message ?? error));
+    }
+  }
+
+  /**
+   * And the cloak comes off. It exists to hide markup whose reflections have not run yet — and
+   * they have now, so leaving it would hide CORRECT content until the client booted, which is
+   * the very flash it was written to prevent, inverted.
+   */
+  if (el.hasAttribute(CLOAK)) el.removeAttribute(CLOAK);
+};
+
+const serverWalk = (node: Node): void => {
+  if (node.nodeType !== 1) return;
+  const el = node as Element;
+  if (el.localName === 'template') return;
+  renderElement(el);
+  for (let child = el.firstElementChild; child; child = child.nextElementSibling) serverWalk(child);
+};
+
+/**
+ * Evaluates a subtree's declarative directives into the markup, once. Called automatically for
+ * every component root during an `@verajs/ssr` render (the `'init'` connector detects the shim),
+ * so an app that wires directives is correct when server-rendered with no server-specific setup
+ * at all. Exported for a root the connector never sees — a hand-built shell, a test.
+ *
+ * @returns the directive names found in this subtree, unclaimed ones included.
+ */
+export const renderDirectives = (root: Document | ShadowRoot | Element): string[] => {
+  const before = new Set(seenNames);
+  const target: Node = isDocument(root as Node) ? (root as Document).documentElement : (root as Node);
+  if (target.nodeType === 1) serverWalk(target);
+  else for (let c = (target as unknown as ParentNode).firstElementChild; c; c = c.nextElementSibling) serverWalk(c);
+  return [...seenNames].filter((name) => !before.has(name));
 };
 
 /* ── boot + settled ───────────────────────────────────────────────────────────────────────── */
@@ -764,10 +905,27 @@ export const settled = (): Promise<void> =>
 
 /** The core-connector: `wire([directives])` in core registers component roots — open OR closed. */
 export const directives = {
-  on: 'init' as const,
+  /**
+   * **The point differs by runtime, and that is why one wiring is correct in both.**
+   *
+   * In a browser, `'init'` — after the shadow root exists and before the first render, so an
+   * observer is watching by the time anything is rendered into it.
+   *
+   * On a server there is no observer, and `'init'` fires before the first render: a one-shot pass
+   * there would walk an EMPTY root and evaluate nothing (measured — it is how this was found).
+   * `'settle'` is the moment @verajs/ssr publishes for exactly this: lifecycle run, frames
+   * drained, markup about to be serialized. Chosen at module evaluation because the shim is
+   * installed before the app is imported (the SSR package's own documented rule, and the same
+   * marker `boot()` already trusts), so the descriptor is simply *the right one* rather than a
+   * branch taken at every element.
+   */
+  on: (onServer() ? 'settle' : 'init') as 'init',
   priority: 40,
   fn: (element: HTMLElement) => {
-    const root = (element as unknown as Record<string, ShadowRoot | null | undefined>)['_root'] ?? element.shadowRoot;
-    if (root) activate(root);
+    const el = element as unknown as Record<string, ShadowRoot | null | undefined>;
+    /** `_shadowRoot` is the server's own field — a CLOSED root is null on `shadowRoot` in both
+     *  runtimes, and the server still serializes it, so it must still be evaluated. */
+    const root = el['_root'] ?? el['_shadowRoot'] ?? element.shadowRoot ?? element;
+    activate(root as ShadowRoot | Element);
   },
 };

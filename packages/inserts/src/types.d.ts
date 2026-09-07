@@ -130,6 +130,19 @@ export type SlotInsert = (
  */
 export type LoaderInsert = (name: string, element: Element) => boolean | Promise<unknown> | void;
 
+/**
+ * Runs during a SERVER render, once a component's tree is FINAL — its lifecycle has run, its
+ * frames are drained, and the markup is about to be serialized. The last honest moment to write
+ * to a server-rendered tree, and the only one that exists: a server has no observer and no second
+ * pass, so `'init'` (which fires before the first render) is too early for anything that reads
+ * rendered content.
+ *
+ * `@verajs/directives` is the first consumer — it evaluates declarative directives into the
+ * markup here, so reflections are correct before any JavaScript reaches the browser. Anything
+ * that needs to transform a finished server tree belongs here too.
+ */
+export type SettleInsert = (element: HTMLElement) => void;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
@@ -140,6 +153,7 @@ export type InsertFunctionMap = {
   'value': ValueInsert;
   'slot': SlotInsert;
   'loader': LoaderInsert;
+  'settle': SettleInsert;
 };
 
 export type Inserts = Map<
@@ -154,5 +168,6 @@ export type Inserts = Map<
     | ValueInsert
     | SlotInsert
     | LoaderInsert
+    | SettleInsert
   )[]
 >;

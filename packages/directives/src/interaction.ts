@@ -16,6 +16,8 @@ const show: Directive = {
   name: 'show',
   value: 'expression',
   docs: { summary: 'Shows the element while the expression is truthy.', example: 'data-vd-show="open"' },
+  /** Declarative: the server writes this reflection, so it is right before any JS runs. */
+  ssr: true,
   apply(el, value) {
     (el as HTMLElement).hidden = !value;
   },
@@ -25,6 +27,8 @@ const classDirective: Directive = {
   name: 'class',
   value: 'object',
   docs: { summary: 'Toggles classes from an object of name: expression.', example: 'data-vd-class="{ is-open: open }"' },
+  /** Declarative: the server writes this reflection, so it is right before any JS runs. */
+  ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
       ctx.reject('class-not-object', 'data-vd-class takes a braced object of name: expression.');
@@ -41,6 +45,8 @@ const style: Directive = {
   name: 'style',
   value: 'object',
   docs: { summary: 'Sets style properties from an object of prop: expression.', example: 'data-vd-style="{ opacity: open ? 1 : 0 }"' },
+  /** Declarative: the server writes this reflection, so it is right before any JS runs. */
+  ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
       ctx.reject('style-not-object', 'data-vd-style takes a braced object of prop: expression.');
@@ -61,6 +67,8 @@ const text: Directive = {
   name: 'text',
   value: 'expression',
   docs: { summary: 'Sets the element text from the expression. textContent, never markup.', example: 'data-vd-text="total"' },
+  /** Declarative: the server writes this reflection, so it is right before any JS runs. */
+  ssr: true,
   apply(el, value) {
     el.textContent = value === null || value === undefined ? '' : String(value);
   },
@@ -81,6 +89,8 @@ const bind: Directive = {
   },
   value: 'expression',
   docs: { summary: 'Binds one attribute (or form property) to an expression.', example: 'data-vd-bind-aria-expanded="open"' },
+  /** Declarative: the server writes this reflection, so it is right before any JS runs. */
+  ssr: true,
   setup(_el, ctx) {
     const target = (ctx.selection as { target: string }).target;
     if (REFUSED_BIND.has(target) || target.startsWith('on')) {

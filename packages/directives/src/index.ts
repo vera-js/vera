@@ -6,7 +6,7 @@
  * what you pay for) — verified by the gate's shaking test, because tree-shakeability is a claim
  * like a size claim. CDN granularity is the per-concern dist files, addressed by path.
  */
-export { wireDirectives, activate, deactivate, settled, rejections, describeDirectives, stateOf, directives } from './engine.js';
+export { wireDirectives, activate, deactivate, settled, rejections, describeDirectives, stateOf, directives, renderDirectives, takeDirectiveNames } from './engine.js';
 export { interaction } from './interaction.js';
 export { expressions, compileExpression } from './expressions.js';
 export { motion, easings, paint, path, sequence, split, enableMotion, disableMotion } from './motion/index.js';

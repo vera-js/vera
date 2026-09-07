@@ -608,6 +608,24 @@ const distributeLightSlots = (element) => {
   /** @type {any} */ (inserts).get('slot')?.[0]?._$server$?.(element, source);
 };
 
+/**
+ * The `'settle'` insert: this element's tree is final — lifecycle run, frames drained — and is
+ * about to be serialized. The only moment a server can offer for reading RENDERED content, since
+ * `'init'` fires before the first render and there is no observer here to catch what follows.
+ *
+ * `@verajs/directives` uses it to evaluate declarative directives into the markup, which is what
+ * makes a server-rendered page correct before any JavaScript arrives. A throwing handler is a
+ * render failure like any other — collected and reported against the tag rather than swallowed,
+ * because there is no next render to recover in.
+ *
+ * @param {any} element
+ */
+const settleInstance = (element) => {
+  const chain = /** @type {any} */ (inserts).get('settle');
+  if (!chain) return;
+  for (const fn of chain) fn(element);
+};
+
 /** Runs the lifecycle on an element that is already built, and serializes it. */
 const renderInstance = (element, tag, depth, props, children) => {
   prepareInstance(element, tag, props, children);
@@ -618,6 +636,7 @@ const renderInstance = (element, tag, depth, props, children) => {
   const pending = element.connectedCallback?.();
   /** Inside the rendering tag, so a re-render's styles are still hoisted against this component. */
   flushFrames((error) => renderErrors.push({ error, tag }));
+  settleInstance(element);
   setRenderingTag(previousTag);
 
   /**
@@ -720,6 +739,7 @@ const renderInstanceAsync = async (element, tag, depth, props, children) => {
    */
   await element.connectedCallback?.();
   await flushFramesAsync((error) => renderErrors.push({ error, tag }));
+  settleInstance(element);
   setRenderingTag(previousTag);
 
   distributeLightSlots(element);
