@@ -156,8 +156,7 @@ const same = (a: Record<string, number | boolean>, b: Record<string, number | bo
 const keyFor = (el: Element, attr: string, ctx: Ctx): string | null => {
   const key = (el.getAttribute(attr) ?? '').trim();
   if (key === '') {
-    ctx.reject('sensor-no-key', `${attr} needs the name of a state key to write.`,
-      `Write ${attr}="seen" and read it with data-vd-show="seen".`);
+    ctx.reject('sensor-no-key', [attr]);
     return null;
   }
   return key;
@@ -385,7 +384,7 @@ const swipe: Directive = {
        */
       apply: (_element: Element, value: unknown, context: Ctx) => {
         if (!isObject(value as never)) {
-          context.reject('swipe-not-object', 'data-vd-swipe takes { left: { … }, right: { … } }.');
+          context.reject('swipe-not-object');
           programs = {};
           return;
         }
@@ -393,11 +392,11 @@ const swipe: Directive = {
         const next: Record<string, unknown> = {};
         for (const name of Object.keys(entries)) {
           if (!(DIRECTIONS as readonly string[]).includes(name)) {
-            context.reject('swipe-bad-direction', `"${name}" is not a direction — use left, right, up or down.`);
+            context.reject('swipe-bad-direction', [name]);
             continue;
           }
           if (!isObject(entries[name] as never)) {
-            context.reject('swipe-not-object', `the value for "${name}" must be a braced assignments object.`);
+            context.reject('swipe-entry-not-object', [name]);
             continue;
           }
           next[name] = entries[name];

@@ -149,8 +149,7 @@ const queryDirective: Directive = {
       .split(/[\s,]+/)
       .filter(Boolean);
     if (!keys.length) {
-      ctx.reject('query-no-keys', 'data-vd-query needs one or more state keys.',
-        'Write data-vd-query="q tag page".');
+      ctx.reject('query-no-keys');
       return;
     }
 
@@ -217,8 +216,7 @@ const region: Directive = {
   ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
-      ctx.reject('region-not-object', 'data-vd-region takes a braced object.',
-        "Write data-vd-region=\"{ items: '.card', search: 'q' }\".");
+      ctx.reject('region-not-object');
       return;
     }
     const cfg = value as Record<string, unknown>;
@@ -231,7 +229,7 @@ const region: Directive = {
       try {
         items = [...el.querySelectorAll(selector)];
       } catch {
-        ctx.reject('region-bad-selector', `"${selector}" is not a selector.`);
+        ctx.reject('region-bad-selector', [selector]);
         return;
       }
     } else {

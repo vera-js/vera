@@ -1,0 +1,504 @@
+{
+  "url": "https://docs.verajs.dev/e/",
+  "entries": [
+    {
+      "code": "array-unterminated",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "bind-refused-target",
+      "params": [
+        "target"
+      ],
+      "message": "\"{target}\" is not bindable — it is a navigation/script sink or has its own directive.",
+      "fix": "Use the class/style directives, or a real link written in markup."
+    },
+    {
+      "code": "call-unterminated",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "class-not-object",
+      "params": [],
+      "message": "data-vd-class takes a braced object of name: expression."
+    },
+    {
+      "code": "copy-refused",
+      "params": [],
+      "message": "the clipboard write was refused."
+    },
+    {
+      "code": "copy-unavailable",
+      "params": [],
+      "message": "the Clipboard API is unavailable here."
+    },
+    {
+      "code": "directive-threw",
+      "params": [
+        "detail"
+      ],
+      "message": "{detail}"
+    },
+    {
+      "code": "doc-class-not-object",
+      "params": [],
+      "message": "data-vd-doc-class takes a braced object."
+    },
+    {
+      "code": "every-bad-interval",
+      "params": [
+        "key"
+      ],
+      "message": "\"{key}\" is not a positive whole number of milliseconds."
+    },
+    {
+      "code": "every-entry-not-object",
+      "params": [
+        "ms"
+      ],
+      "message": "the value for {ms} must be a braced assignments object."
+    },
+    {
+      "code": "every-not-object",
+      "params": [],
+      "message": "data-vd-every takes { interval: { assignments } }."
+    },
+    {
+      "code": "expr-empty",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "expr-too-deep",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "expr-trailing",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "expr-unclosed-paren",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "expr-unexpected",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "fetch-failed",
+      "params": [
+        "url",
+        "status"
+      ],
+      "message": "{url} answered {status}."
+    },
+    {
+      "code": "fetch-foreign-markup",
+      "params": [],
+      "message": "a cross-origin response may only be JSON — markup is never swapped from another origin.",
+      "fix": "Return application/json, or serve the fragment from this origin."
+    },
+    {
+      "code": "fetch-json-not-object",
+      "params": [],
+      "message": "a JSON response must be an object of state keys."
+    },
+    {
+      "code": "fetch-not-object",
+      "params": [],
+      "message": "data-vd-fetch takes a braced object.",
+      "fix": "Write data-vd-fetch=\"{ url: '/path', on: 'click' }\"."
+    },
+    {
+      "code": "fetch-target-missing",
+      "params": [
+        "detail"
+      ],
+      "message": "\"{detail}\" matched no element to swap into."
+    },
+    {
+      "code": "fetch-threw",
+      "params": [
+        "detail"
+      ],
+      "message": "{detail}"
+    },
+    {
+      "code": "fetch-url-refused",
+      "params": [
+        "detail"
+      ],
+      "message": "\"{detail}\" is not a URL this page may request.",
+      "fix": "It must be http(s) and same-origin, unless the origin is in remote({ allowedOrigins })."
+    },
+    {
+      "code": "focus-trap-empty",
+      "params": [],
+      "message": "nothing focusable to trap.",
+      "fix": "Add a focusable child, or remove the trap."
+    },
+    {
+      "code": "handler-not-object",
+      "params": [],
+      "message": "an on-* value is a braced assignments object."
+    },
+    {
+      "code": "key-not-writable",
+      "params": [
+        "key"
+      ],
+      "message": "\"{key}\" is a path, and a path can be read but not written.",
+      "fix": "Write the whole object under its own key, or use a flat key."
+    },
+    {
+      "code": "loader-failed",
+      "params": [
+        "suffix",
+        "detail"
+      ],
+      "message": "the loader claimed \"{suffix}\" but the import failed: {detail}"
+    },
+    {
+      "code": "loader-loaded-nothing",
+      "params": [
+        "suffix"
+      ],
+      "message": "a module loaded for \"{suffix}\" but registered nothing by that name.",
+      "fix": "The module must call wireDirectives with a matching directive."
+    },
+    {
+      "code": "name-forbidden",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "no-carrier",
+      "params": [
+        "key"
+      ],
+      "message": "a write to \"{key}\" found no data-vd-state ancestor.",
+      "fix": "Add one, or use an @page key."
+    },
+    {
+      "code": "number-bad",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "object-bad-key",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "object-duplicate-key",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "object-missing-colon",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "object-unterminated",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "origin-not-url",
+      "params": [
+        "detail"
+      ],
+      "message": "allowedOrigins entry {detail} is not a url; ignoring it.",
+      "fix": "Write the full origin, for example \"https://api.example\"."
+    },
+    {
+      "code": "path-bad",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "persist-unavailable",
+      "params": [],
+      "message": "storage is unavailable — running live-only."
+    },
+    {
+      "code": "query-no-keys",
+      "params": [],
+      "message": "data-vd-query needs one or more state keys.",
+      "fix": "Write data-vd-query=\"q tag page\"."
+    },
+    {
+      "code": "region-bad-selector",
+      "params": [
+        "selector"
+      ],
+      "message": "\"{selector}\" is not a selector."
+    },
+    {
+      "code": "region-not-object",
+      "params": [],
+      "message": "data-vd-region takes a braced object.",
+      "fix": "Write data-vd-region=\"{ items: '.card', search: 'q' }\"."
+    },
+    {
+      "code": "scroll-to-missing",
+      "params": [],
+      "message": "the scroll target matched nothing."
+    },
+    {
+      "code": "sensor-no-key",
+      "params": [
+        "attr"
+      ],
+      "message": "{attr} needs the name of a state key to write.",
+      "fix": "Write {attr}=\"seen\" and read it with data-vd-show=\"seen\"."
+    },
+    {
+      "code": "server-unsettled",
+      "params": [
+        "limit"
+      ],
+      "message": "state was still changing after {limit} server passes, so the markup may not be final.",
+      "fix": "A directive is writing a different value every run — compare before writing."
+    },
+    {
+      "code": "state-not-object",
+      "params": [],
+      "message": "data-vd-state takes a braced object.",
+      "fix": "Write data-vd-state=\"{ open: false }\"."
+    },
+    {
+      "code": "state-reseed-ignored",
+      "params": [],
+      "message": "the state declaration changed after activation; live state kept."
+    },
+    {
+      "code": "state-reserved-key",
+      "params": [
+        "key"
+      ],
+      "message": "\"{key}\" is reserved."
+    },
+    {
+      "code": "strict-spelling",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "string-unterminated",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "style-not-object",
+      "params": [],
+      "message": "data-vd-style takes a braced object of prop: expression."
+    },
+    {
+      "code": "swipe-bad-direction",
+      "params": [
+        "name"
+      ],
+      "message": "\"{name}\" is not a direction — use left, right, up or down."
+    },
+    {
+      "code": "swipe-entry-not-object",
+      "params": [
+        "name"
+      ],
+      "message": "the value for \"{name}\" must be a braced assignments object."
+    },
+    {
+      "code": "swipe-not-object",
+      "params": [],
+      "message": "data-vd-swipe takes { left: { … }, right: { … } }."
+    },
+    {
+      "code": "sync-not-a-control",
+      "params": [],
+      "message": "data-vd-sync needs a form control with a value.",
+      "fix": "Put it on an input, select or textarea."
+    },
+    {
+      "code": "sync-radio-unsupported",
+      "params": [],
+      "message": "radio groups need group semantics — not in v1.",
+      "fix": "Bind on-change + bind-checked per radio."
+    },
+    {
+      "code": "teardown-threw",
+      "params": [
+        "detail"
+      ],
+      "message": "{detail}"
+    },
+    {
+      "code": "ternary-missing-colon",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "undeclared-write",
+      "params": [
+        "key"
+      ],
+      "message": "\"{key}\" was not declared by the state it landed in.",
+      "fix": "Declare it in data-vd-state."
+    },
+    {
+      "code": "unknown-directive",
+      "params": [
+        "suffix",
+        "declined"
+      ],
+      "message": "nothing wired provides \"{suffix}\".",
+      "fix": "The loader declined it — check the name, or its alias map."
+    },
+    {
+      "code": "unknown-function",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "unknown-key",
+      "params": [
+        "head"
+      ],
+      "message": "no ancestor state declares \"{head}\".",
+      "fix": "Reads answer undefined."
+    },
+    {
+      "code": "value-bad",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "value-empty",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "value-too-deep",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "value-too-long",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "value-trailing",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "value-unexpected",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    }
+  ]
+}

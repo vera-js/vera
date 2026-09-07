@@ -101,8 +101,7 @@ const fetchDirective: Directive = {
        */
       apply: (element: Element, value: unknown, context: Ctx) => {
         if (!isObject(value as never)) {
-          context.reject('fetch-not-object', 'data-vd-fetch takes a braced object.',
-            "Write data-vd-fetch=\"{ url: '/path', on: 'click' }\".");
+          context.reject('fetch-not-object');
           return;
         }
         /**
@@ -125,9 +124,7 @@ const fetchDirective: Directive = {
         };
         const target = resolveUrl(read('url'));
         if (!target) {
-          context.reject('fetch-url-refused',
-            `"${String(read('url'))}" is not a URL this page may request.`,
-            'It must be http(s) and same-origin, unless the origin is in remote({ allowedOrigins }).');
+          context.reject('fetch-url-refused', [String(read('url'))]);
           return;
         }
 
@@ -165,7 +162,7 @@ const fetchDirective: Directive = {
 
             if (!response.ok) {
               if (status) context.set(status, 'error');
-              context.reject('fetch-failed', `${target.href} answered ${response.status}.`);
+              context.reject('fetch-failed', [target.href, String(response.status)]);
               return;
             }
 
@@ -181,7 +178,7 @@ const fetchDirective: Directive = {
                   context.set(key, patch);
                 }
               } else {
-                context.reject('fetch-json-not-object', 'a JSON response must be an object of state keys.');
+                context.reject('fetch-json-not-object');
               }
             } else {
               /**
@@ -192,14 +189,12 @@ const fetchDirective: Directive = {
                */
               if (!target.sameOrigin) {
                 if (status) context.set(status, 'error');
-                context.reject('fetch-foreign-markup',
-                  'a cross-origin response may only be JSON — markup is never swapped from another origin.',
-                  'Return application/json, or serve the fragment from this origin.');
+                context.reject('fetch-foreign-markup');
                 return;
               }
               const into = swapTarget(element, read('into'));
               if (!into) {
-                context.reject('fetch-target-missing', `"${String(read('into'))}" matched no element to swap into.`);
+                context.reject('fetch-target-missing', [String(read('into'))]);
                 return;
               }
               /**
@@ -214,7 +209,7 @@ const fetchDirective: Directive = {
             /** An abort is this pack's own doing — the successor request owns the outcome. */
             if ((error as Error)?.name === 'AbortError') return;
             if (status) context.set(status, 'error');
-            context.reject('fetch-threw', String((error as Error)?.message ?? error));
+            context.reject('fetch-threw', [String((error as Error)?.message ?? error)]);
           } finally {
             if (inflight === controller) inflight = null;
           }
@@ -246,9 +241,7 @@ const connect = (options?: RemoteOptions): EngineConnector => (seams) => {
     try {
       allowedOrigins.push(new URL(entry).origin);
     } catch {
-      seams.reject(null, 'remote', 'origin-not-url',
-        `allowedOrigins entry ${JSON.stringify(entry)} is not a url; ignoring it.`,
-        'Write the full origin, for example "https://api.example".');
+      seams.reject(null, 'remote', 'origin-not-url', [JSON.stringify(entry)]);
     }
   }
   headers = { ...(options?.headers ?? {}) };

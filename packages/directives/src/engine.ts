@@ -17,6 +17,11 @@ import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
 import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnector } from './types.js';
+/**
+ * Referenced ONLY inside `__DEV__` branches, which is what lets the whole module leave the
+ * production bundle: once those fold, nothing names `PROSE` and rollup drops the import with it.
+ */
+import { PROSE } from './diagnostics.js';
 
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
@@ -69,7 +74,7 @@ const loaderChain = (): LoaderFn[] =>
 
 const discover = (el: Element, attr: string, suffix: string): void => {
   if (undiscoverable.has(suffix)) {
-    reject(el, attr, 'unknown-directive', `nothing wired provides "${suffix}".`, 'Wire its pack, or check the name.');
+    reject(el, attr, 'unknown-directive', [suffix]);
     return;
   }
   const queued = loadingNames.get(suffix);
@@ -94,8 +99,7 @@ const discover = (el: Element, attr: string, suffix: string): void => {
 
   if (!claim) {
     undiscoverable.add(suffix);
-    reject(el, attr, 'unknown-directive', `nothing wired provides "${suffix}".`,
-      loaderChain().length ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.');
+    reject(el, attr, 'unknown-directive', [suffix, loaderChain().length ? 'y' : '']);
     return;
   }
 
@@ -108,9 +112,7 @@ const discover = (el: Element, attr: string, suffix: string): void => {
       if (!hit) {
         undiscoverable.add(suffix);
         for (const entry of waiting) {
-          reject(entry.el, entry.attr, 'loader-loaded-nothing',
-            `a module loaded for "${suffix}" but registered nothing by that name.`,
-            'The module must call wireDirectives with a matching directive.');
+          reject(entry.el, entry.attr, 'loader-loaded-nothing', [suffix]);
         }
         return;
       }
@@ -123,8 +125,7 @@ const discover = (el: Element, attr: string, suffix: string): void => {
       loadingNames.delete(suffix);
       undiscoverable.add(suffix);
       for (const entry of waiting) {
-        reject(entry.el, entry.attr, 'loader-failed',
-          `the loader claimed "${suffix}" but the import failed: ${String((error as Error)?.message ?? error)}`);
+        reject(entry.el, entry.attr, 'loader-failed', [suffix, String((error as Error)?.message ?? error)]);
       }
     }
   );
@@ -240,10 +241,36 @@ const allRejections: Rejection[] = [];
 const byElement = new WeakMap<Element, Rejection[]>();
 const warned = new Set<string>();
 
-export const reject = (element: Element | null, directive: string, code: string, message: string, fix?: string) => {
-  /** Prod keeps the DATA (code, element, directive); the prose is a development feature — the
-   *  strings are real bytes on every page, and the code is what tooling matches on anyway. */
-  const entry: Rejection = { element, directive, code, message: __DEV__ ? message : '', fix: __DEV__ ? fix : undefined };
+/**
+ * Record a refusal.
+ *
+ * **The fourth argument decides where the prose comes from, and that is the whole design.** An
+ * ARRAY (or nothing) asks `diagnostics.ts` for the sentence this code always carries, filling in
+ * the array as its arguments; a STRING is used verbatim, which is how a third-party directive
+ * writes its own words for a code this package has never heard of.
+ *
+ * Prod kept the DATA (code, element, directive) and dropped the prose even before — but the fold
+ * lived HERE, inside the function, so every caller still constructed its string and shipped it to
+ * be discarded. Moving the words into a table that only `__DEV__` reads is what finally makes the
+ * intent true: 1,030 B gzipped that no production page has any use for.
+ */
+export const reject = (
+  element: Element | null,
+  directive: string,
+  code: string,
+  messageOrArgs?: string | readonly unknown[],
+  fix?: string
+) => {
+  let message = '';
+  if (__DEV__) {
+    if (typeof messageOrArgs === 'string') message = messageOrArgs;
+    else {
+      const [text, suggested] = PROSE[code]?.(...((messageOrArgs ?? []) as string[])) ?? [`(${code})`];
+      message = text;
+      fix ??= suggested;
+    }
+  }
+  const entry: Rejection = { element, directive, code, message, fix: __DEV__ ? fix : undefined };
   allRejections.push(entry);
   if (element) {
     let list = byElement.get(element);
@@ -330,7 +357,7 @@ const readPath = (el: Element, path: Path): unknown => {
   } else {
     const owner = ownerOf(el, head);
     if (!owner) {
-      if (__DEV__) reject(el, 'context', 'unknown-key', `no ancestor state declares "${head}".`, 'Reads answer undefined.');
+      if (__DEV__) reject(el, 'context', 'unknown-key', [head]);
       value = undefined;
     } else value = owner[head];
   }
@@ -355,8 +382,7 @@ const writeKey = (el: Element, key: string, value: unknown) => {
    * the store's subscribers — so the "working" version would be a second silent failure.
    */
   if (key.includes('.')) {
-    reject(el, 'context', 'key-not-writable', `"${key}" is a path, and a path can be read but not written.`,
-      'Write the whole object under its own key, or use a flat key.');
+    reject(el, 'context', 'key-not-writable', [key]);
     return;
   }
   if (key.startsWith('@')) {
@@ -367,11 +393,11 @@ const writeKey = (el: Element, key: string, value: unknown) => {
   }
   const owner = ownerOf(el, key) ?? nearestCarrier(el);
   if (!owner) {
-    reject(el, 'context', 'no-carrier', `a write to "${key}" found no data-vd-state ancestor.`, 'Add one, or use an @page key.');
+    reject(el, 'context', 'no-carrier', [key]);
     return;
   }
   if (__DEV__ && !(key in owner))
-    reject(el, 'context', 'undeclared-write', `"${key}" was not declared by the state it landed in.`, 'Declare it in data-vd-state.');
+    reject(el, 'context', 'undeclared-write', [key]);
   if (onServer() && !sameValue(owner[key], value)) serverWrites++;
   owner[key] = value;
 };
@@ -505,9 +531,9 @@ export const runAttrAssignments = (el: Element, attr: string): void => {
   try {
     const parsed = parseAttr(raw);
     if (isObject(parsed)) runAssignments(el, parsed);
-    else reject(el, attr, 'handler-not-object', 'an on-* value is a braced assignments object.');
+    else reject(el, attr, 'handler-not-object');
   } catch (error) {
-    reject(el, attr, (error as ValueError).code ?? 'value-bad', `could not parse "${raw}"`);
+    reject(el, attr, (error as ValueError).code ?? 'value-bad', [raw, (error as ValueError).message]);
   }
 };
 
@@ -533,7 +559,7 @@ const ctxFor = (el: Element, attr: string, selection: unknown): Ctx => ({
   runAttr: (name) => runAttrAssignments(el, name),
   eval: (v) => evaluate(el, v as Parsed),
   selection,
-  reject: (code, message, fix) => reject(el, attr, code, message, fix),
+  reject: (code, messageOrArgs, fix) => reject(el, attr, code, messageOrArgs, fix),
 });
 
 /**
@@ -559,7 +585,7 @@ const parseFor = (el: Element, attr: string, directive: AnyDirective): Parsed | 
     return parseAttr(raw ?? '');
   } catch (error) {
     const ve = error as ValueError;
-    reject(el, attr, ve.code ?? 'value-bad', `could not parse "${raw}": ${ve.message}`);
+    reject(el, attr, ve.code ?? 'value-bad', [raw, ve.message]);
     return REFUSED;
   }
 };
@@ -596,7 +622,7 @@ const activateDirective = (el: Element, attr: string, directive: AnyDirective, s
             instance._cleanup = typeof out === 'function' ? out : undefined;
           } catch (error) {
             /** QUARANTINE: this instance only — sibling directives on the element keep working. */
-            reject(el, attr, 'directive-threw', String((error as Error)?.message ?? error));
+            reject(el, attr, 'directive-threw', [String((error as Error)?.message ?? error)]);
             deactivateDirective(el, attr);
           }
         },
@@ -604,7 +630,7 @@ const activateDirective = (el: Element, attr: string, directive: AnyDirective, s
       run?.(undefined, true);
     }
   } catch (error) {
-    reject(el, attr, 'directive-threw', String((error as Error)?.message ?? error));
+    reject(el, attr, 'directive-threw', [String((error as Error)?.message ?? error)]);
     deactivateDirective(el, attr);
   }
 };
@@ -619,7 +645,7 @@ const deactivateDirective = (el: Element, attr: string) => {
     instance._cleanup?.();
     instance._teardown?.();
   } catch (error) {
-    reject(el, attr, 'teardown-threw', String((error as Error)?.message ?? error));
+    reject(el, attr, 'teardown-threw', [String((error as Error)?.message ?? error)]);
   }
 };
 
@@ -636,16 +662,16 @@ export const stateDirective: AnyDirective = {
     try {
       parsed = parseAttr(raw);
     } catch (error) {
-      ctx.reject((error as ValueError).code ?? 'value-bad', `could not parse "${raw}"`);
+      ctx.reject((error as ValueError).code ?? 'value-bad', [raw, (error as ValueError).message]);
       return;
     }
     if (!isObject(parsed)) {
-      ctx.reject('state-not-object', 'data-vd-state takes a braced object.', 'Write data-vd-state="{ open: false }".');
+      ctx.reject('state-not-object');
       return;
     }
     if (carriers.has(el)) {
       /** The declaration was the SEED; live state is data (design §16). */
-      ctx.reject('state-reseed-ignored', 'the state declaration changed after activation; live state kept.');
+      ctx.reject('state-reseed-ignored');
       return;
     }
     const initial: Record<string, unknown> = {};
@@ -653,7 +679,7 @@ export const stateDirective: AnyDirective = {
      *  the overlay IS the object being built, so `total: price * qty` sees its siblings. */
     for (const key of Object.keys(parsed)) {
       if (key.startsWith('_vd')) {
-        ctx.reject('state-reserved-key', `"${key}" is reserved.`);
+        ctx.reject('state-reserved-key', [key]);
         continue;
       }
       initial[key] = evaluate(el, parsed[key], initial);
@@ -719,9 +745,9 @@ const dispatch = (root: Node, event: Event) => {
     try {
       const parsed = parseAttr(raw);
       if (isObject(parsed)) runAssignments(el, parsed);
-      else reject(el, attr, 'handler-not-object', 'an on-* value is a braced assignments object.');
+      else reject(el, attr, 'handler-not-object');
     } catch (error) {
-      reject(el, attr, (error as ValueError).code ?? 'value-bad', `could not parse "${raw}"`);
+      reject(el, attr, (error as ValueError).code ?? 'value-bad', [raw, (error as ValueError).message]);
     }
   }
 };
@@ -1003,7 +1029,7 @@ const renderElement = (el: Element): void => {
     } catch (error) {
       /** Quarantined per instance, exactly as the client quarantines — a refusal is a sentence in
        *  the registry, never a failed page. */
-      reject(el, f.attr, 'directive-threw', String((error as Error)?.message ?? error));
+      reject(el, f.attr, 'directive-threw', [String((error as Error)?.message ?? error)]);
     }
   }
 
@@ -1065,9 +1091,7 @@ export const renderDirectives = (root: Document | ShadowRoot | Element): void =>
     walk();
     if (serverWrites === mark) break;
     if (++passes >= LIMIT) {
-      reject(target as Element, 'render', 'server-unsettled',
-        `state was still changing after ${LIMIT} server passes, so the markup may not be final.`,
-        'A directive is writing a different value every run — compare before writing.');
+      reject(target as Element, 'render', 'server-unsettled', [String(LIMIT)]);
       break;
     }
   }

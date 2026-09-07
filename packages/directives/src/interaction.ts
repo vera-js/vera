@@ -46,7 +46,7 @@ const classDirective: Directive = {
   ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
-      ctx.reject('class-not-object', 'data-vd-class takes a braced object of name: expression.');
+      ctx.reject('class-not-object');
       return;
     }
     const entries = value as Record<string, unknown>;
@@ -64,7 +64,7 @@ const style: Directive = {
   ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
-      ctx.reject('style-not-object', 'data-vd-style takes a braced object of prop: expression.');
+      ctx.reject('style-not-object');
       return;
     }
     const entries = value as Record<string, unknown>;
@@ -121,8 +121,7 @@ const bind: Directive = {
   setup(_el, ctx) {
     const target = (ctx.selection as { target: string }).target;
     if (REFUSED_BIND.has(target) || target.startsWith('on')) {
-      ctx.reject('bind-refused-target', `"${target}" is not bindable — it is a navigation/script sink or has its own directive.`,
-        'Use the class/style directives, or a real link written in markup.');
+      ctx.reject('bind-refused-target', [target]);
       return;
     }
     return {
@@ -178,19 +177,19 @@ const every: Directive = {
         /** Re-parse on value change: clear the old timers, start the new set. */
         for (const t of timers.splice(0)) clearInterval(t);
         if (!isObject(value as never)) {
-          ctx.reject('every-not-object', 'data-vd-every takes { interval: { assignments } }.');
+          ctx.reject('every-not-object');
           return;
         }
         const entries = value as Record<string, unknown>;
         for (const key of Object.keys(entries)) {
           const ms = Number(key);
           if (!Number.isInteger(ms) || ms <= 0) {
-            ctx.reject('every-bad-interval', `"${key}" is not a positive whole number of milliseconds.`);
+            ctx.reject('every-bad-interval', [key]);
             continue;
           }
           const body = entries[key];
           if (!isObject(body as never)) {
-            ctx.reject('every-not-object', `the value for ${ms} must be a braced assignments object.`);
+            ctx.reject('every-entry-not-object', [ms]);
             continue;
           }
           timers.push(setInterval(() => ctx.run(body as never), ms));
@@ -217,13 +216,13 @@ const sync: Directive = {
   setup(el, ctx) {
     const control = el as HTMLInputElement;
     if (control.type === 'radio') {
-      ctx.reject('sync-radio-unsupported', 'radio groups need group semantics — not in v1.', 'Bind on-change + bind-checked per radio.');
+      ctx.reject('sync-radio-unsupported');
       return;
     }
     const isCheckbox = control.type === 'checkbox';
     const isSelect = control.localName === 'select';
     if (!isCheckbox && !isSelect && !('value' in control)) {
-      ctx.reject('sync-not-a-control', 'data-vd-sync needs a form control with a value.', 'Put it on an input, select or textarea.');
+      ctx.reject('sync-not-a-control');
       return;
     }
     let key = '';
@@ -262,7 +261,7 @@ const persist: Directive = {
             const stored = localStorage.getItem(`vd:${key}`);
             if (stored !== null) ctx.set(key, JSON.parse(stored));
           } catch {
-            ctx.reject('persist-unavailable', 'storage is unavailable — running live-only.');
+            ctx.reject('persist-unavailable');
             return;
           }
         }
@@ -311,7 +310,7 @@ const focusTrap: Directive = {
   docs: { summary: 'Traps Tab inside the element; teardown restores prior focus. Traps stack.', example: 'data-vd-focus-trap' },
   setup(el, ctx) {
     const items = () => focusables(el);
-    if (items().length === 0) ctx.reject('focus-trap-empty', 'nothing focusable to trap.', 'Add a focusable child, or remove the trap.');
+    if (items().length === 0) ctx.reject('focus-trap-empty');
     const before = (el.ownerDocument.activeElement as HTMLElement) ?? null;
     trapStack.push({ el, before });
     const onKey = (event: Event) => {
@@ -378,7 +377,7 @@ const docClass: Directive = {
     return {
       apply: (element: Element, value: unknown, context: Ctx) => {
         if (!isObject(value as never)) {
-          context.reject('doc-class-not-object', 'data-vd-doc-class takes a braced object.');
+          context.reject('doc-class-not-object');
           return;
         }
         const entries = value as Record<string, unknown>;
@@ -433,10 +432,10 @@ const copy: Directive = {
       const textToCopy = el.getAttribute('data-vd-copy') || el.textContent || '';
       const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
       if (!clip?.writeText) {
-        ctx.reject('copy-unavailable', 'the Clipboard API is unavailable here.');
+        ctx.reject('copy-unavailable');
         return;
       }
-      clip.writeText(textToCopy).catch(() => ctx.reject('copy-refused', 'the clipboard write was refused.'));
+      clip.writeText(textToCopy).catch(() => ctx.reject('copy-refused'));
     };
     el.addEventListener('click', onClick);
     return () => el.removeEventListener('click', onClick);
@@ -451,7 +450,7 @@ const scrollTo: Directive = {
     const onClick = () => {
       const target = el.ownerDocument.querySelector(String(el.getAttribute('data-vd-scroll-to') ?? ''));
       if (!target) {
-        ctx.reject('scroll-to-missing', 'the scroll target matched nothing.');
+        ctx.reject('scroll-to-missing');
         return;
       }
       (target as { scrollIntoView?: (o: object) => void }).scrollIntoView?.({ behavior: 'smooth' });

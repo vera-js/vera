@@ -91,11 +91,18 @@ test('shaking: naming only the engine and interaction drops the expression tier 
     return output[0].code;
   };
 
-  /** 'strict-spelling' is the `===` teaching refusal — it exists only in the expression tier. */
+  /**
+   * `parseTier` is a FUNCTION NAME declared only in `expressions.ts`, and the marker is an
+   * identifier rather than a string for a reason worth keeping: this test used to look for
+   * `'strict-spelling'`, that tier's `===` teaching refusal, until the diagnostics table moved
+   * every code into one module the ENGINE imports — so the string appeared in a bundle that
+   * contains none of the tier's code, and the proxy failed while the claim it stands for was still
+   * true. A code is now shared vocabulary; only the implementation is exclusive.
+   */
   const lean = await bundleOf(`import { wireDirectives, interaction } from '@verajs/directives'; wireDirectives(interaction);`);
   const full = await bundleOf(`import { wireDirectives, interaction, expressions } from '@verajs/directives'; wireDirectives([expressions, ...interaction]);`);
-  assert.ok(full.includes('strict-spelling'), 'the control: the marker exists when expressions IS imported');
-  assert.ok(!lean.includes('strict-spelling'), 'the claim: unimported packs cost nothing under Rollup');
+  assert.ok(full.includes('parseTier'), 'the control: the marker exists when expressions IS imported');
+  assert.ok(!lean.includes('parseTier'), 'the claim: unimported packs cost nothing under Rollup');
   /** Motion is the pack with real stakes — 18KB of the root when it rides along. */
   const withMotion = await bundleOf(`import { wireDirectives, motion } from '@verajs/directives'; wireDirectives([motion]);`);
   assert.ok(withMotion.includes('vd:motion'), 'the control: motion marks its bundle when imported');

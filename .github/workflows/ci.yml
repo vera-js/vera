@@ -61,6 +61,10 @@ jobs:
       # only — this never writes, and it tolerates a dirty tree so it is safe in CI.
       - run: node scripts/tag-release.mjs --check
       - run: node scripts/sync-size-claims.mjs --check
+      # diagnostics.json is what turns a rejection CODE into a docs page and into a full sentence
+      # in Vera Studio's inspector, which runs a production bundle where the prose has folded away.
+      # Generated from the table in the package, so it drifts the moment nothing checks it.
+      - run: node scripts/sync-diagnostics.mjs --check
       # The browser suite hydrates a committed snapshot of real @verajs/ssr output, because the
       # browser cannot run the server pipeline. Unverified, that snapshot drifts and hydration is
       # validated against markup no server emits — passing green.

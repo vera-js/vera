@@ -38,6 +38,7 @@ const steps = [
   ['typecheck', 'npm', ['run', 'typecheck']],
   ['eslint', 'npx', ['eslint', '.']],
   ['size claims', 'node', ['scripts/sync-size-claims.mjs', '--check']],
+  ['diagnostics', 'node', ['scripts/sync-diagnostics.mjs', '--check']],
   ['hydration fixture', 'node', ['scripts/build-hydration-fixture.mjs', '--check']],
   /**
    * **Its sibling was in this list and it was not, and it had drifted.** The browser suite compares

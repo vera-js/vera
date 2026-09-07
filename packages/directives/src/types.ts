@@ -25,8 +25,15 @@ export type Ctx = {
   eval: (value: unknown) => unknown;
   /** The family match result, when this directive was claimed through a `{ match }` name. */
   selection: unknown;
-  /** Record a refusal in the rejections registry (dev prints once per code×directive). */
-  reject: (code: string, message: string, fix?: string) => void;
+  /**
+   * Record a refusal in the rejections registry (dev prints once per code×directive).
+   *
+   * Pass an ARRAY (or nothing) for a code this package documents, and the engine supplies the
+   * sentence from its diagnostics table — that is how the shipped packs do it, so their prose
+   * folds out of production entirely. Pass a STRING to write your own words, which is the path a
+   * third-party directive takes: its codes are not in that table and its bytes are its own.
+   */
+  reject: (code: string, messageOrArgs?: string | readonly unknown[], fix?: string) => void;
 };
 
 /** How the engine parses an attribute's text before the directive sees it. */
@@ -149,7 +156,7 @@ export type EngineSeams = {
   setParse: (parse: (source: string) => Parsed) => void;
   setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
   directive: (d: Directive) => void;
-  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
+  reject: (element: Element | null, directive: string, code: string, messageOrArgs?: string | readonly unknown[], fix?: string) => void;
 };
 
 export type EngineConnector = (seams: EngineSeams) => void;
