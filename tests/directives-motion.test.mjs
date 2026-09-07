@@ -98,6 +98,21 @@ test('a bare word where a string belongs is refused with the fix, never resolved
   await settled();
 });
 
+test('an unquoted text value fails the whole element LOUDLY, with the quote hint', async () => {
+  /** `pin: 120px` is the most natural thing to type and the sharpest paper cut —
+   *  Brian's call (2026-09-06): whole-element refusal beats a silently missing
+   *  property, because visible breakage gets investigated and content rests
+   *  readable either way. The hint is what turns loud into teachable. */
+  const host = await mount(`<div data-vd-motion="{ opacity: '0% 0, 100% 1', pin: 120px }">x</div>`);
+  const el = host.querySelector('div');
+  assert.equal(el.style.filter, '', 'nothing half-applied: the element rests natural');
+  const reasons = rejections(el);
+  assert.ok(reasons.some((r) => r.code === 'motion-refused'), 'refused, not ignored');
+  if (!isProduction) assert.ok(reasons.some((r) => /quote it: pin: '120px'/.test(r.message)), 'and the hint names the fix');
+  host.remove();
+  await settled();
+});
+
 test('the when driver: a selector match walks the element to its other end', async () => {
   const host = await mount(
     `<div data-vd-motion="{ opacity: '0% 0, 100% 1', when: '.open', inertia: 0 }">x</div>`);

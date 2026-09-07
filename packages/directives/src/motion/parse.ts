@@ -547,7 +547,16 @@ export const parseMotion = (
     try {
       parsed = parseValue(text);
     } catch (error) {
-      rejected.push(`motion: could not parse — ${String((error as Error).message ?? error)}`);
+      /**
+       * The likeliest cause by far is an unquoted text value — `pin: 120px`,
+       * `ease: ease-in` — and the grammar's own error ("expected , or }")
+       * teaches nothing about that. The hint rides every syntax failure
+       * because the false-positive cost is one clause in a message already
+       * being read by someone whose element is not animating.
+       */
+      rejected.push(__DEV__
+        ? `motion: could not parse — ${String((error as Error).message ?? error)}. If a value is text (keyframes, lengths, easings, selectors), quote it: pin: '120px'.`
+        : `motion: could not parse`);
       context.dropped?.push({ node, rejected });
       return null;
     }

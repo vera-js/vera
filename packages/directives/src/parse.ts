@@ -33,7 +33,14 @@ export type ParsedObject = { [key: string]: Parsed };
 const cache = new Map<string, Parsed>();
 const CACHE_MAX = 2000;
 
-const SOURCE_MAX = 4096;
+/**
+ * Sized for the biggest legitimate value: a motion object carries EVERY property's keyframes,
+ * bands included, in one attribute — the budget one `data-vm-*` attribute used to have, times
+ * the element. The parser is linear and the cache is entry-bounded, so the cost of headroom is
+ * nothing; the cap exists so a hostile attribute cannot make the page hold megabytes, not to
+ * ration authors.
+ */
+const SOURCE_MAX = 16384;
 const DEPTH_MAX = 8;
 
 const isIdStart = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_' || c === '$';
