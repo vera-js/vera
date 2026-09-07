@@ -52,6 +52,14 @@ const PACKAGES = {
    * it" — which is a message nobody sees until they try to mark a profiler recipe. */
   '@verajs/renderer/profiler': 'renderer/profiler',
   '@verajs/ssr': 'ssr',
+  /** Unpublished, and documented anyway — llms.txt is the most-copied file in the project, so a
+   *  directives recipe there is exactly the code that must be proven to run. */
+  '@verajs/directives': 'directives',
+  '@verajs/directives/interaction': 'directives/interaction',
+  '@verajs/directives/expressions': 'directives/expressions',
+  '@verajs/directives/motion': 'directives/motion',
+  '@verajs/directives/query': 'directives/query',
+  '@verajs/directives/remote': 'directives/remote',
 };
 
 /**
@@ -202,7 +210,18 @@ const RECIPE = /<!--\s*recipe\s*-->\s*\n```(\w+)\n([\s\S]*?)```/g;
 
 const repoRoot = new URL('..', import.meta.url).pathname;
 const readmes = ['README.md', ...globSync('packages/*/README.md').sort()];
-const recipes = readmes.flatMap((path) => {
+/**
+ * **`llms.txt` is executed here too, and it was not.**
+ *
+ * The orphan guard below allows a marker there on the grounds that `tests/llms-recipes.test.mjs`
+ * covers the file — but that suite runs only its `<script type="text/vera-jsx">` blocks. A
+ * `<!-- recipe -->` block in `llms.txt` was therefore PERMITTED and RUN BY NOTHING: the precise
+ * shape of the failure both suites exist to prevent, hiding in the seam between them. Adding it to
+ * the source list is what makes the one rule — a marker anywhere in these files is executed,
+ * anywhere else the gate refuses — actually true.
+ */
+const recipeSources = [...readmes, 'llms.txt'];
+const recipes = recipeSources.flatMap((path) => {
   const text = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
   return [...text.matchAll(RECIPE)].map(([, lang, body], i) => ({ path, lang, body, index: i + 1 }));
 });
@@ -226,6 +245,8 @@ const EXPECTED_RECIPES = {
   'packages/renderer/README.md': 6,
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
+  /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */
+  'llms.txt': 1,
 };
 
 /**

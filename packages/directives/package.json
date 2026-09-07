@@ -52,6 +52,11 @@
       "types": "./dist/development/vera-directives-remote.d.ts",
       "development": "./dist/development/vera-directives-remote.js",
       "default": "./dist/vera-directives-remote.min.js"
+    },
+    "./query": {
+      "types": "./dist/development/vera-directives-query.d.ts",
+      "development": "./dist/development/vera-directives-query.js",
+      "default": "./dist/vera-directives-query.min.js"
     }
   },
   "files": [

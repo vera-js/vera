@@ -25,5 +25,6 @@ export default [
   defaultRollupConfig(`${pkg.filename}-interaction`, [], /^_[a-z]/, { input: 'src/interaction.ts' }),
   defaultRollupConfig(`${pkg.filename}-motion`, [], /^_[a-z]/, { input: 'src/motion/index.ts' }),
   defaultRollupConfig(`${pkg.filename}-remote`, [], /^_[a-z]/, { input: 'src/remote.ts' }),
+  defaultRollupConfig(`${pkg.filename}-query`, [], /^_[a-z]/, { input: 'src/query.ts' }),
   defaultRollupConfig(`${pkg.filename}-expressions`, [], /^_[a-z]/, { input: 'src/expressions.ts' }),
 ];

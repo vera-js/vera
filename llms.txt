@@ -795,6 +795,110 @@ NOT work without `wire(collections)`):
 
 ---
 
+## `@verajs/directives` — behavior as attributes
+
+Attribute-activated behavior for markup nobody writes JavaScript for: the adjectives to the
+component system's nouns. Prefix `data-vd-`. **Nothing is wired by default** — the engine ships no
+vocabulary, and each pack is additive and imports nothing from the engine.
+
+Not published yet (`private: true`, 0.0.0). Entries: `@verajs/directives` (everything, wires
+nothing) · `/core` (engine, core external) · `/standalone` (engine + its own store, for pages with
+no vera) · `/interaction` `/expressions` `/motion` `/query` `/remote` (packs).
+
+```js
+import { wire } from '@verajs/core';
+import { renderer } from '@verajs/renderer';
+import { wireDirectives, directives, interaction, expressions } from '@verajs/directives';
+
+wire([renderer, directives]);          // `directives` is core's connector — activation per component
+wireDirectives([expressions, ...interaction]);
+```
+
+`wire([directives])` is correct in a browser AND under `@verajs/ssr`: the connector chooses its
+insert point per runtime (`'init'` in a browser, `'settle'` on a server). Guard your RENDERER
+wiring for SSR, never your directives wiring.
+
+**Engine API.** `wireDirectives(descriptorOrConnector | array)` · `activate(root)` /
+`deactivate(root)` (any root, shadow roots included — closed ones too, via a component's `init`) ·
+`settled(): Promise<void>` (test/e2e primitive) · `rejections(el?)` (every refusal:
+`{ element, directive, code, message, fix }`) · `describeDirectives()` (the live vocabulary — build
+GUI panels from this, never a hand-written list) · `stateOf(el)` · `renderDirectives(root)` and
+`takeDirectiveNames()` (server; the names include unclaimed ones, which are what to preload).
+
+**Value classes**, declared per directive and applied BEFORE the directive sees the value:
+`literal` (raw text; a bare word is a string, never a state read) · `expression` · `object` (a
+braced object whose VALUES stay lazy — evaluate them with `ctx.eval`, which is what lets a config
+key read state) · `none`.
+
+**interaction pack.** `state` (engine-owned; seeds a subtree store, initials are expressions in
+declaration order) · `show` · `class` · `style` · `text` · `bind-*` (false/null/undefined removes,
+true is present-empty; `value`/`checked`/`selected`/`open` write the live property; `href`/`src`/
+`srcdoc`/`style`/`class`/`on*` are refused) · `on-*` (delegated: one root listener per event type,
+so swapped-in markup works from its first event; members `on-keydown-enter`, `on-outside-click`,
+`on-escape`, `on-window-*`, `on-document-*`, `on-load`, `on-submit`, `on-submit-native`) · `sync` ·
+`persist` · `every` · `focus-on` / `focus-trap` / `focus-return` · `doc-class` · `scroll-lock` ·
+`copy` · `scroll-to`.
+
+**expressions pack** — optional tier, CSP-safe (no `eval`, no `Function`). Comparisons (`==` is
+STRICT; writing `===` is refused with a teaching message), arithmetic, ternaries, `!`, and PURE
+functions only: `abs min max round floor ceil len upper lower`. Calm math: `undefined`, `NaN` and
+division by zero render rather than throw, and `!missing` is the absence idiom.
+
+**State addressing.** A read resolves to the NEAREST ancestor that OWNS the key (crossing shadow
+boundaries host-ward); `@key` is the page-global store. `@route` is published by the query pack.
+
+**motion pack** — one attribute, `data-vd-motion`, taking a preset name (`fade-up`, `zoom-in`, …)
+or an object of properties and settings: `data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y:
+'0% 40px, 100% 0px', inertia: 0.2 }"`. Keyframes are `'position value'` pairs; a lone value is the
+end. Per-property easing uses the nested form `{ frames: '…', ease: '…' }`. Width bands merge over
+the base (`'…; [0-560]: …'`). `stagger` goes on the PARENT. `when: '.selector'` replaces the scroll
+driver. `data-vd-motion-config` on a container makes a region (own axis, scroller, defaults).
+Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
+(background/color/border-color/shadow/text-shadow), `path`, `sequence` (`frame-*`), plus
+`data-vd-split` (chars/words/lines; pieces inherit the motion minus `stagger`).
+
+**remote pack** — `data-vd-fetch="{ url, on, into, body, method, status }"`. **The response
+decides**: JSON is a state patch (existing reflections update themselves), anything else is markup
+swapped into `into` — and swapped markup is live immediately, because directives are never
+hydrated. Same-origin by default (`remote({ allowedOrigins, headers })` is the only way to widen,
+and it is JavaScript, never an attribute); **markup is swapped same-origin ONLY, always**. A later
+request aborts an earlier one.
+
+**query pack** — `data-vd-route` publishes `@route` (`path`, `query`, `hash`) · `data-vd-query="q
+page"` binds state keys to the URL query string, and the URL WINS at activation so a shared link
+reproduces what the sender saw · `data-vd-region` filters, sorts and paginates the items ALREADY
+INSIDE it. `region` renders nothing and templates nothing: the server sends the list, the directive
+writes `hidden`. There is no `each` — client templating is the renderer's job.
+
+<!-- recipe -->
+```js
+import { wire } from '@verajs/core';
+import { wireDirectives, directives, interaction, expressions, query, settled } from '@verajs/directives';
+
+wire([directives]);
+wireDirectives([expressions, ...interaction, query]);
+
+/**
+ * A filterable, paginated, SHAREABLE list — and the markup is complete without JavaScript:
+ * the items are already here, so the page reads and indexes with the engine absent.
+ * `data-vd-query` keeps `q` and `page` in the URL, so this view is a link.
+ */
+document.body.innerHTML = `
+  <div data-vd-state="{ q: '', page: 1, counts: {} }" data-vd-query="q page">
+    <input data-vd-sync="q" placeholder="filter" />
+    <ul data-vd-region="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
+      <li data-tag="fruit">apple</li>
+      <li data-tag="fruit">banana</li>
+      <li data-tag="tool">chisel</li>
+    </ul>
+    <p data-vd-text="counts.matched"></p>
+    <button data-vd-on-click="{ page: page + 1 }" data-vd-show="page < counts.pages">next</button>
+  </div>`;
+
+await settled();
+console.log(document.querySelectorAll('li:not([hidden])').length, 'shown of 3');
+```
+
 ## CDN / buildless
 
 ```html

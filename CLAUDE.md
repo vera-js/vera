@@ -395,9 +395,26 @@ same-parent `prepend` duplication after three audit runs had walked past it. Inv
 find; never re-run CI until green. `release.yml` runs no tests, so a find can never block a
 release mid-cut.
 
-**Documented code is executed, not just written.** `tests/docs-recipes.test.mjs` runs the root
-README's quick-starts and every block marked `<!-- recipe -->` in any README, each in its own
-process. Isolation is per-process rather than per-import because under the `development` condition
+**Documented code is executed, not just written — and there is ONE recipe rule.**
+
+> **Every runnable example in the docs is a `<!-- recipe -->` block, and it lives in exactly one of
+> two places: a README (`README.md` or `packages/*/README.md`) or `llms.txt`.** Both are executed by
+> `tests/docs-recipes.test.mjs` — each block in its own process, under a fresh jsdom, and it must
+> finish without throwing AND without a `console.warn`/`console.error`, because that is how this
+> framework reports real misuse. A marker anywhere else fails the gate (*"no recipe marker sits
+> outside the files that execute them"*), the per-file counts in `EXPECTED_RECIPES` are pinned so
+> adding or losing one is a deliberate edit, and a specifier a recipe imports must be in that
+> suite's `PACKAGES` map. A block WITHOUT the marker is documentation only — which is what lets a
+> README show the wrong way to do something.
+
+`llms.txt` is the file most likely to be copied, so it is in that set on purpose. It was
+*permitted* there long before it was *run*: the orphan guard allowed a marker on the grounds that
+`tests/llms-recipes.test.mjs` covered the file, and that suite reads only its
+`<script type="text/vera-jsx">` blocks — so a `<!-- recipe -->` block in `llms.txt` would have been
+allowed and executed by nothing, which is precisely the failure both suites exist to prevent,
+living in the seam between them. Fixed 2026-09-07 by adding it to the runner's sources.
+
+Isolation is per-process rather than per-import because under the `development` condition
 workspace deps stay external, so every copy of core shares one `@verajs/inserts` — a recipe that
 never wired a renderer otherwise passes on one an earlier recipe registered.
 
