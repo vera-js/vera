@@ -59,35 +59,68 @@ const VALUE_CLASSES = new Set(['literal', 'expression', 'object', 'none']);
  * wiring hands it the seams instead, so the CDN two-bundle case cannot create a second engine
  * (the renderer's additive-entry rule, applied here).
  */
-export type EngineConnector = (seams: {
+export type EngineSeams = {
+  /** The mark `pack()` duals dispatch on. Sigiled, so it survives mangling across bundles. */
+  _$seams$: true;
   /** Replace the attribute-value parser (a superset grammar keeps ParsedObject's shape). */
   setParse: (parse: (source: string) => Parsed) => void;
   /** Evaluate hook for values the base grammar does not know — `{ kind: 'expr' }` nodes. */
   setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
-}) => void;
+  /** Register a directive — what lets a connector CONTRIBUTE behaviors, not only replace seams. */
+  directive: (d: Directive) => void;
+  /** The engine's rejections registry, so an additive pack's diagnostics land where every
+   *  other refusal does. `element: null` is a page-level problem. */
+  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
+};
+
+export type EngineConnector = (seams: EngineSeams) => void;
+
+const register = (d: Directive): void => {
+  if (__DEV__) {
+    if (!d || (typeof d.name !== 'string' && typeof (d.name as { match?: unknown })?.match !== 'function'))
+      throw new Error('wireDirectives: a directive needs a `name` string or a { match } family.');
+    if (!VALUE_CLASSES.has(d.value))
+      throw new Error(`wireDirectives: \`value\` must be literal | expression | object | none — got ${String(d.value)}.`);
+  }
+  if (typeof d.name === 'string') byName.set(d.name, d);
+  else families.push({ match: d.name.match, directive: d });
+  attrsDirty = true;
+};
+
+const seams = (): EngineSeams => ({
+  _$seams$: true,
+  setParse: (parse) => {
+    parseAttr = parse;
+  },
+  setEvalExpr: (evalExpr) => {
+    tierEval = evalExpr;
+  },
+  directive: register,
+  reject,
+});
+
+/**
+ * Wraps a configurable pack so BOTH spellings work: `wireDirectives([motion])` uses the
+ * defaults, `wireDirectives([motion({ inertia: 0.2 })])` configures — the function-and-
+ * descriptor allowance core's own modules make, expressed for connectors. The dual dispatches
+ * on the seams mark: called by the engine it builds with defaults and connects; called by the
+ * author it closes over the options and returns the connector.
+ */
+export const pack = <O>(build: (options?: O) => EngineConnector): ((options?: O) => EngineConnector) & EngineConnector => {
+  const dual = (arg?: unknown) =>
+    arg && (arg as { _$seams$?: true })._$seams$ === true
+      ? build()(arg as EngineSeams)
+      : build(arg as O | undefined);
+  return dual as ((options?: O) => EngineConnector) & EngineConnector;
+};
 
 export const wireDirectives = (item: Directive | EngineConnector | Array<Directive | EngineConnector>) => {
   for (const d of Array.isArray(item) ? item : [item]) {
     if (typeof d === 'function') {
-      d({
-        setParse: (parse) => {
-          parseAttr = parse;
-        },
-        setEvalExpr: (evalExpr) => {
-          tierEval = evalExpr;
-        },
-      });
+      d(seams());
       continue;
     }
-    if (__DEV__) {
-      if (!d || (typeof d.name !== 'string' && typeof (d.name as { match?: unknown })?.match !== 'function'))
-        throw new Error('wireDirectives: a directive needs a `name` string or a { match } family.');
-      if (!VALUE_CLASSES.has(d.value))
-        throw new Error(`wireDirectives: \`value\` must be literal | expression | object | none — got ${String(d.value)}.`);
-    }
-    if (typeof d.name === 'string') byName.set(d.name, d);
-    else families.push({ match: d.name.match, directive: d });
-    attrsDirty = true;
+    register(d);
   }
   boot();
 };

@@ -42,6 +42,11 @@
       "types": "./dist/development/vera-directives-expressions.d.ts",
       "development": "./dist/development/vera-directives-expressions.js",
       "default": "./dist/vera-directives-expressions.min.js"
+    },
+    "./motion": {
+      "types": "./dist/development/vera-directives-motion.d.ts",
+      "development": "./dist/development/vera-directives-motion.js",
+      "default": "./dist/vera-directives-motion.min.js"
     }
   },
   "files": [

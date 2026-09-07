@@ -23,5 +23,6 @@ export default [
   defaultRollupConfig(`${pkg.filename}-core`, ['@verajs/core'], /^_[a-z]/, { input: 'src/engine.ts', alwaysExternal: ['@verajs/core'] }),
   defaultRollupConfig(`${pkg.filename}-standalone`, ['@verajs/core'], /^_[a-z]/, { input: 'src/engine.ts' }),
   defaultRollupConfig(`${pkg.filename}-interaction`, [], /^_[a-z]/, { input: 'src/interaction.ts' }),
+  defaultRollupConfig(`${pkg.filename}-motion`, [], /^_[a-z]/, { input: 'src/motion/index.ts' }),
   defaultRollupConfig(`${pkg.filename}-expressions`, [], /^_[a-z]/, { input: 'src/expressions.ts' }),
 ];

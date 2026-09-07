@@ -26,7 +26,7 @@ import {
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
 import type { PropertyDef, Unit, RawKeyframe, PositionUnit, Band, Range, Easing } from './schema.js';
-import { parseValue, isObject } from '../parse.js';
+import { parseValue, isObject, isPath } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 
 /** The one attribute. Exported so runtime walks (`stagger`) select by it. */
@@ -157,9 +157,10 @@ const declaresStagger = (el: Element): string | null => {
   return null;
 };
 
-/** The nearest ancestor whose motion value staggers, or null. */
+/** The nearest ancestor whose motion value staggers, or null. Exported for the
+ *  pack's group-churn handling — a member joining or leaving refreshes its host's group. */
 const above = (el: Element): Element | null => el.parentElement?.closest(`[${MOTION_ATTR}]`) ?? null;
-const staggerHost = (node: Element): Element | null => {
+export const staggerHost = (node: Element): Element | null => {
   for (let host = above(node); host; host = above(host)) {
     if (declaresStagger(host) !== null) return host;
   }
@@ -603,6 +604,19 @@ export const parseMotion = (
       const slot = slotFor(collected, named.property.key);
 
       /**
+       * A bare word parses as a PATH in the base grammar — `opacity: fade`
+       * instead of `opacity: 'fade'` — and motion's values are never state
+       * reads. Checked BEFORE the nested form, because a Path is an object
+       * too and the nested branch would misread it as one missing frames.
+       */
+      if (isPath(value as Parsed)) {
+        rejected.push(__DEV__
+          ? `${key}: quote the value — keyframe strings are text, like ${key}: '0% 0, 100% 1'`
+          : `${key}: quote the value`);
+        continue;
+      }
+
+      /**
        * The nested value form — `{ frames: '…', ease: '…' }` — is the
        * per-property tier. Anything else nested is refused with the shape
        * spelled out, because "object where a string goes" has no other
@@ -634,15 +648,8 @@ export const parseMotion = (
         continue;
       }
 
-      /**
-       * A bare word parses as a PATH in the base grammar — `opacity: fade`
-       * instead of `opacity: 'fade'` — and motion's values are never state
-       * reads. Named for what it is, with the fix.
-       */
       if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
-        rejected.push(__DEV__
-          ? `${key}: quote the value — keyframe strings are text, like ${key}: '0% 0, 100% 1'`
-          : `${key}: quote the value`);
+        rejected.push(`${key}: not a value this key can use`);
         continue;
       }
 
