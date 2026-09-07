@@ -43,26 +43,12 @@ const PACKAGES = {
   '@verajs/reactivity/computed': 'reactivity/computed',
   /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
   '@verajs/jsx': 'jsx',
-  /** Unpublished (`private: true`) like motion below, and held to the same bar for the same reason. */
-  /** Unpublished (`private: true`) like cms and motion, and held to the same bar. */
+  /** Unpublished (`private: true`) like cms below, and held to the same bar for the same reason. */
   '@verajs/hooks': 'hooks',
   '@verajs/ui': 'ui',
   '@verajs/ui/elements': 'ui/elements',
   '@verajs/cms/content': 'cms/content',
   '@verajs/cms/publish': 'cms/publish',
-  /**
-   * Unpublished (`private: true` until its audits land), but its README is in this repository and
-   * a reader will act on it — so its documented imports are held to the same bar. Import-safe
-   * outside a browser by its own audit rule 9, which is why loading the bundles here just works.
-   */
-  '@verajs/motion': 'motion',
-  '@verajs/motion/scroll-to': 'motion/scroll-to',
-  '@verajs/motion/paint': 'motion/paint',
-  '@verajs/motion/path': 'motion/path',
-  '@verajs/motion/easings': 'motion/easings',
-  '@verajs/motion/sequence': 'motion/sequence',
-  '@verajs/motion/split': 'motion/split',
-  '@verajs/motion/vera': 'motion/vera',
 };
 
 /** Packages resolved from source rather than a bundle — see below. */

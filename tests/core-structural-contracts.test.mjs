@@ -2,12 +2,12 @@
  * The structural properties other packages read off a live component element.
  *
  * Two packages reach into core's elements without importing core: `@verajs/styles` falls back to
- * `element._root` for a closed shadow root, and `@verajs/motion`'s vera adapter reads `_root` for
- * the root to observe and `_cleanups` for the matching release on unmount. Neither can survive
- * core's production property-mangling renaming those fields — and `_cleanups` was missing from the
- * mangle exemptions until 2026-09-01, so every production build drained a renamed set while the
- * adapter registered its cleanup on a property nothing read: roots were never unobserved, in
- * production only, silently (the adapter's read is optional-chained by design).
+ * `element._root` for a closed shadow root, and `@verajs/directives`' init connector reads
+ * `_root` for the root to activate (the retired `@verajs/motion` adapter read both names, and
+ * `_cleanups` was missing from the mangle exemptions until 2026-09-01 — every production build
+ * drained a renamed set while cleanups registered on a property nothing read, silently). Neither
+ * name can survive core's production property-mangling renaming it; `_cleanups` stays asserted
+ * because it is the release half of the same contract and the next consumer should find it live.
  *
  * This suite runs against both artifacts, so the production run is the one that would fail if the
  * exemption list rots again. Asserted on a live element rather than by grepping the bundle: the

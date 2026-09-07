@@ -2,7 +2,7 @@
  * URL validation for attribute-supplied urls.
  *
  * Its own module because the only setting that needs it — `frame-url` — moved
- * to `@verajs/motion/sequence`, and 109 bytes of origin policy has no business
+ * to the sequence module, and 109 bytes of origin policy has no business
  * in the runtime of a page that fetches nothing.
  */
 /**

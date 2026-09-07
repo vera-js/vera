@@ -57,14 +57,6 @@ const ENTRY = {
   hooks: ['hooks', 'vera-hooks'],
   ui: ['ui', 'vera-ui'],
   'ui/elements': ['ui', 'vera-ui-elements'],
-  motion: ['motion', 'vera-motion'],
-  'motion/scroll-to': ['motion', 'vera-motion-scroll-to'],
-  'motion/paint': ['motion', 'vera-motion-paint'],
-  'motion/path': ['motion', 'vera-motion-path'],
-  'motion/easings': ['motion', 'vera-motion-easings'],
-  'motion/sequence': ['motion', 'vera-motion-sequence'],
-  'motion/split': ['motion', 'vera-motion-split'],
-  'motion/vera': ['motion', 'vera-motion-vera'],
 };
 
 /**

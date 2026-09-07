@@ -1,7 +1,7 @@
 /**
  * Turns one `data-vd-motion` value into an animation object.
  *
- * Ported from `@verajs/motion`'s element parser in the phase-4 fold-in. The
+ * Ported from what was `@verajs/motion`'s element parser in the phase-4 fold-in. The
  * input changed shape — an element's whole animation is ONE value now, a
  * preset literal (`"fade-up"`) or a braced object — and everything else
  * survives: the validation rules, the diagnostic sentences, the measured

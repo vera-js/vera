@@ -750,7 +750,7 @@ let warnedAboutEasing = false;
  * Resolves an `ease` value, or leaves the curve straight.
  *
  * `linear` needs nothing, which is why it stays the fast path and why the
- * solver is a separate import. Anything else needs `@verajs/motion/easings`
+ * solver is a separate import. Anything else needs the easings module
  * wired, and if it is not, the element still animates — on a straight line —
  * and the page is told exactly what to import — in the console once, and in
  * `rejected` per element, because a GUI reads one of those and not the other.
