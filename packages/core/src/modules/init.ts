@@ -5,6 +5,35 @@ import { reportHookError } from './createHook.js';
 
 /** Dev-only, and once per page: a missing `@verajs/styles` is silent otherwise. */
 let warnedAboutStyles = false;
+/** The same, for markup asking for a module nothing wired. */
+let warnedAboutClaims = false;
+
+/**
+ * **The attribute prefixes wired modules CLAIM — development only, on both sides.**
+ *
+ * A component pasted from a demo brings its markup with it, and markup addressed to a module the
+ * app never wired does nothing at all: no error, no warning, an attribute that reads as supported
+ * and is inert. `@verajs/directives` is the case that matters — `data-vd-on-click` on an app that
+ * only wired the renderer is silent, because the thing that would have complained is the very
+ * thing that is missing.
+ *
+ * Core cannot ask a module that was never loaded, so a loaded module says so instead: it adds its
+ * prefix here when wired, and core warns about markup carrying a prefix nobody claimed. Kept on a
+ * `Symbol.for` registry rather than an import because the two packages share no runtime — the
+ * production bundles inline everything, so an import would be a second copy rather than a channel.
+ *
+ * **Both the write and the read sit inside `__DEV__`, so production carries neither**, which is
+ * what makes the coupling acceptable: it exists only in the program where the diagnostic exists.
+ *
+ * The `Symbol.for` is INSIDE the function rather than a module-level constant, and that is the
+ * difference between costing nothing and costing something: a top-level `Symbol.for('vera.claims')`
+ * is a call with effects terser cannot prove away, so it survived into the production bundle even
+ * though every reader of it had folded. Kept inside, the whole function goes unreferenced once the
+ * `__DEV__` branches collapse and rollup drops it entire — verified, not assumed.
+ */
+const claimed = (prefix: string): boolean =>
+  ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.claims')] as Set<string> | undefined)
+    ?.has(prefix) === true;
 
 /**
  * Inits the component, setting up an instanceInit reference in the instanceInit array,
@@ -65,6 +94,38 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
    */
   if (__DEV__) {
     queueMicrotask(() => {
+      /**
+       * Checked here rather than beside the `static styles` warning below, and the difference is
+       * the whole reason this is a microtask: `static styles` is a class property and exists before
+       * anything renders, while directives live in markup that `init()` runs BEFORE. Deferring to
+       * the end of the synchronous `connectedCallback` means the first render has committed and
+       * there is a subtree to look at — the same timing the setup-not-committed check relies on.
+       *
+       * Scoped to this element's own root, never the document: bounded work per component, and it
+       * keeps catching markup that arrives later from an async component or CMS content, which a
+       * one-shot page scan at boot would miss entirely.
+       */
+      if (!warnedAboutClaims && !claimed('data-vd-')) {
+        const root = element.shadowRoot ?? element._root ?? element;
+        for (const node of (root as ParentNode).querySelectorAll('*')) {
+          const hit = [...node.attributes].find((a) => a.name.startsWith('data-vd-'));
+          if (!hit) continue;
+          warnedAboutClaims = true;
+          console.warn(
+            `[vera] <${element.localName}> renders \`${hit.name}\`, but no directives engine is wired, ` +
+              `so that attribute does nothing.\n` +
+              `Wire it once at your app entry:\n\n` +
+              `  import { wire } from '@verajs/core';\n` +
+              `  import { directives } from '@verajs/directives';\n` +
+              `  wire([renderer, directives]);\n\n` +
+              `Then wire the packs the markup uses, e.g.:\n\n` +
+              `  import { wireDirectives, expressions, interaction } from '@verajs/directives';\n` +
+              `  wireDirectives([expressions, ...interaction]);\n`
+          );
+          break;
+        }
+      }
+
       if (currentInstance.element?.deref() === element && element._hooks?.length) {
         console.warn(
           `[vera] <${element.localName}> registered ${element._hooks.length} hook(s) but its setup ` +

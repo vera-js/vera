@@ -133,6 +133,28 @@ const discover = (el: Element, attr: string, suffix: string): void => {
 const PREFIX = 'data-vd-';
 const CLOAK = 'data-vd-cloak';
 
+/**
+ * **Tell core this engine is here — development only, and it is the whole missing-import story.**
+ *
+ * Markup addressed to a module the app never wired is inert and SILENT: `data-vd-on-click` on a
+ * page that wired only the renderer does nothing, and the thing that would have complained about it
+ * is the thing that is missing. So core watches for `data-vd-` attributes with no claimant, and
+ * this is how a wired engine stops that warning firing.
+ *
+ * Claimed from BOTH doors — `wireDirectives(...)` and core's `wire([directives])` — because either
+ * one alone means the markup is going to be handled, and warning at a page that works is far worse
+ * than staying quiet at one that does not.
+ *
+ * `Symbol.for` rather than an import: the two packages share no runtime, so an import would be a
+ * second copy rather than a channel. Inside `__DEV__` on both sides, so production carries nothing.
+ */
+const claim = () => {
+  if (!__DEV__) return;
+  const key = Symbol.for('vera.claims');
+  const g = globalThis as Record<symbol, unknown>;
+  ((g[key] as Set<string> | undefined) ?? (g[key] = new Set<string>()) as Set<string>).add(PREFIX);
+};
+
 /* ── registry ─────────────────────────────────────────────────────────────────────────────── */
 
 const byName = new Map<string, AnyDirective>();
@@ -177,6 +199,7 @@ const seams = (): EngineSeams => ({
 });
 
 export const wireDirectives = (item: Directive | EngineConnector | Array<Directive | EngineConnector>) => {
+  claim();
   for (const d of Array.isArray(item) ? item : [item]) {
     if (typeof d === 'function') {
       d(seams());
@@ -1097,6 +1120,7 @@ export const directives = {
   on: (onServer() ? 'settle' : 'init') as 'init',
   priority: 40,
   fn: (element: HTMLElement) => {
+    claim();
     const el = element as unknown as Record<string, ShadowRoot | null | undefined>;
     /** `_shadowRoot` is the server's own field — a CLOSED root is null on `shadowRoot` in both
      *  runtimes, and the server still serializes it, so it must still be evaluated. */
