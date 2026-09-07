@@ -104,16 +104,26 @@ const NOT_IMPORTABLE = {
   '@verajs/tsconfig': 'config, not a module',
 };
 
+/**
+ * **One list now, where there were two.** `sync-size-claims.mjs` and `bench/size.mjs --snapshot`
+ * each wrote out the claimed bundles, and they had to agree exactly — the staleness check compares
+ * every claimed module against the snapshot, so one that is claimed and unsnapshotted reads as
+ * stale on every run and NO REBUILD CLEARS IT. Enrolling `@verajs/directives` added eight entries
+ * to one copy and produced exactly that: a permanent, unexplained staleness failure.
+ *
+ * So both now import `scripts/size-modules.mjs`, and this test checks the one list rather than
+ * checking two against each other. The redundancy it used to police cannot recur.
+ */
 test('every entry that ships a bundle has its size tracked and claimed', () => {
-  const claimed = bundlePathsIn('scripts/sync-size-claims.mjs', 10);
-  const snapshotted = bundlePathsIn('bench/size.mjs', 10);
+  const claimed = bundlePathsIn('scripts/size-modules.mjs', 10);
   const missing = [];
   for (const { specifier, bundle } of entryPoints()) {
     if (bundle === null || specifier in NO_SIZE_CLAIM) continue;
-    if (!claimed.has(bundle)) missing.push(`${specifier} — not in sync-size-claims.mjs`);
-    if (!snapshotted.has(bundle)) missing.push(`${specifier} — not in bench/size.mjs`);
+    if (!claimed.has(bundle)) missing.push(`${specifier} — not in scripts/size-modules.mjs`);
   }
   assert.deepEqual(missing, [], 'a shipped bundle whose size nothing generates will drift, and silently');
+  /** THE CONTROL: a scan that matched nothing would report every entry, or none. */
+  assert.ok(claimed.size >= 12, `the scan found only ${claimed.size} bundles — it is broken, not the list`);
 });
 
 test('every entry point is on exactly one side of the Node-safety list', () => {
@@ -171,7 +181,8 @@ test('every importable entry is exercised by the strict TypeScript consumer', ()
  * not read cannot disagree with it.
  */
 test('every document that carries a size claim is one the sync script reads', () => {
-  const script = read('scripts/sync-size-claims.mjs');
+  /** The module table moved to its own file; the script still names the literal targets. */
+  const script = read('scripts/sync-size-claims.mjs') + read('scripts/size-modules.mjs');
   /**
    * The script's list has two halves and both have to be read: files it names literally (including
    * `llms.txt`, which is why this is not `.md`-only), and the per-package READMEs it DERIVES from

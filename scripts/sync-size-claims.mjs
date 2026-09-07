@@ -30,20 +30,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 const CHECK = process.argv.includes('--check');
 
 /** Shipped standalone bundles, in the order they are presented publicly. */
-const MODULES = [
-  { pkg: 'core', dist: 'packages/core/dist/vera.min.js', what: 'state (incl. Map and Set), hooks, lifecycle, render' },
-  { pkg: 'renderer', dist: 'packages/renderer/dist/vera-renderer.min.js', what: 'keyed template renderer, refs, `hold`' },
-  { pkg: 'router', dist: 'packages/router/dist/vera-router.min.js', what: 'nested routes, params, wildcards, redirects, scroll memory' },
-  { pkg: 'autoloader', dist: 'packages/autoloader/dist/vera-autoloader.min.js', what: 'lazy component discovery' },
-  { pkg: 'styles', dist: 'packages/styles/dist/vera-styles.min.js', what: '`static styles` adoption, shadow and light DOM' },
-  { pkg: 'spread', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-spread.min.js', what: '`${spread(props)}` — runtime-named bindings' },
-  { pkg: 'tag', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-tag.min.js', what: '`<${tag}>` — runtime tag names, in templates and JSX' },
-  { pkg: 'computed', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-computed.min.js', what: 'memoised derived values' },
-  { pkg: 'collections', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
-  { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
-  { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },
-  { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
-];
+import { MODULES } from './size-modules.mjs';
+
 
 /** Files whose claims this script owns. */
 const TARGETS = [
@@ -132,7 +120,9 @@ const blocks = {
     '| Module | gzip | |',
     '| --- | ---: | --- |',
     ...MODULES.map(
-      (m) => `| \`@verajs/${m.dir ? `${m.dir}/${m.pkg}` : m.pkg}\` | ${bytes(modules[m.pkg].gzip)} | ${m.what} |`
+      /** `label` when the PUBLISHED name is not the claim key — several entries of one package
+       *  share a directory, so `dir/pkg` would read `directives/directives-motion`. */
+      (m) => `| \`@verajs/${m.label ?? (m.dir ? `${m.dir}/${m.pkg}` : m.pkg)}\` | ${bytes(modules[m.pkg].gzip)} | ${m.what} |`
     ),
   ].join('\n'),
 };

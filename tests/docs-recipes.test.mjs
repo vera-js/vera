@@ -239,6 +239,7 @@ const EXPECTED_RECIPES = {
    * quick start is executed rather than merely printed. */
   'packages/autoloader/README.md': 1,
   'packages/core/README.md': 1,
+  'packages/directives/README.md': 1,
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
   'packages/reactivity/README.md': 1,

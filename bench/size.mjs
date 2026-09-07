@@ -304,24 +304,17 @@ if (process.argv.includes('--json')) {
  */
 if (process.argv.includes('--snapshot')) {
   const { readFileSync, writeFileSync } = await import('node:fs');
-  const DIST = {
-    core: 'packages/core/dist/vera.min.js',
-    renderer: 'packages/renderer/dist/vera-renderer.min.js',
-    router: 'packages/router/dist/vera-router.min.js',
-    autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
-    styles: 'packages/styles/dist/vera-styles.min.js',
-    collections: 'packages/reactivity/dist/vera-reactivity-collections.min.js',
-    keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
-    slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
-    spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
-    tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
-    computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',
-    inserts: 'packages/inserts/dist/vera-inserts.min.js',
-  };
+  /**
+   * Taken from `scripts/size-modules.mjs` rather than restated here. The two lists must match exactly —
+   * that script's staleness check compares every module it claims against this snapshot, so one it
+   * claims and this omits reads as stale on every run, which no rebuild can clear. It was written
+   * out twice until enrolling `@verajs/directives` added eight entries to one copy.
+   */
+  const { MODULES } = await import('../scripts/size-modules.mjs');
   const modules = {};
-  for (const [pkg, file] of Object.entries(DIST)) {
-    const buf = readFileSync(file);
-    modules[pkg] = { raw: buf.length, gzip: gzipSync(buf).length };
+  for (const m of MODULES) {
+    const buf = readFileSync(m.dist);
+    modules[m.pkg] = { raw: buf.length, gzip: gzipSync(buf).length };
   }
   /**
    * Transitive runtime dependency count per contender. Walks `dependencies` only — devDependencies

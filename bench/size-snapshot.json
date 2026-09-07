@@ -22,18 +22,6 @@
       "raw": 1420,
       "gzip": 757
     },
-    "collections": {
-      "raw": 1097,
-      "gzip": 576
-    },
-    "keyed": {
-      "raw": 2008,
-      "gzip": 923
-    },
-    "slots": {
-      "raw": 9199,
-      "gzip": 3426
-    },
     "spread": {
       "raw": 2572,
       "gzip": 1316
@@ -46,9 +34,53 @@
       "raw": 298,
       "gzip": 241
     },
+    "collections": {
+      "raw": 1097,
+      "gzip": 576
+    },
+    "keyed": {
+      "raw": 2008,
+      "gzip": 923
+    },
+    "slots": {
+      "raw": 9199,
+      "gzip": 3426
+    },
     "inserts": {
       "raw": 486,
       "gzip": 357
+    },
+    "directives": {
+      "raw": 13537,
+      "gzip": 5246
+    },
+    "directives-standalone": {
+      "raw": 17118,
+      "gzip": 6563
+    },
+    "directives-expressions": {
+      "raw": 5271,
+      "gzip": 2241
+    },
+    "directives-interaction": {
+      "raw": 8845,
+      "gzip": 3256
+    },
+    "directives-query": {
+      "raw": 3716,
+      "gzip": 1614
+    },
+    "directives-sensors": {
+      "raw": 4284,
+      "gzip": 1690
+    },
+    "directives-remote": {
+      "raw": 2624,
+      "gzip": 1304
+    },
+    "directives-motion": {
+      "raw": 52452,
+      "gzip": 18191
     }
   },
   "apps": [
