@@ -16,7 +16,7 @@ import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts
 import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
-import type { Ctx, Directive, Rejection, EngineSeams, EngineConnector } from './types.js';
+import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnector } from './types.js';
 
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
@@ -135,8 +135,8 @@ const CLOAK = 'data-vd-cloak';
 
 /* ── registry ─────────────────────────────────────────────────────────────────────────────── */
 
-const byName = new Map<string, Directive>();
-const families: Array<{ match: (suffix: string) => unknown | null; directive: Directive }> = [];
+const byName = new Map<string, AnyDirective>();
+const families: Array<{ match: (suffix: string) => unknown | null; directive: AnyDirective }> = [];
 /** Every exact name the registry knows — the observer's attributeFilter is built from this. */
 let knownAttrs: string[] = [];
 let attrsDirty = true;
@@ -151,14 +151,16 @@ const VALUE_CLASSES = new Set(['literal', 'expression', 'object', 'none']);
  * erased — one declaration, no runtime edge, no four copies to keep in step.
  */
 const register = (d: Directive): void => {
+  /** Widened once, here: see `AnyDirective`. Every author-facing path above keeps the union. */
+  const held = d as AnyDirective;
   if (__DEV__) {
     if (!d || (typeof d.name !== 'string' && typeof (d.name as { match?: unknown })?.match !== 'function'))
       throw new Error('wireDirectives: a directive needs a `name` string or a { match } family.');
     if (!VALUE_CLASSES.has(d.value))
       throw new Error(`wireDirectives: \`value\` must be literal | expression | object | none — got ${String(d.value)}.`);
   }
-  if (typeof d.name === 'string') byName.set(d.name, d);
-  else families.push({ match: d.name.match, directive: d });
+  if (typeof d.name === 'string') byName.set(d.name, held);
+  else families.push({ match: d.name.match, directive: held });
   attrsDirty = true;
 };
 
@@ -418,7 +420,60 @@ const runAssignments = (el: Element, obj: ParsedObject) => {
   for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key]));
 };
 
-export const stateOf = (el: Element): Readonly<Record<string, unknown>> | null => nearestCarrier(el);
+/** One view per element, so `stateOf(el) === stateOf(el)` and a reference can be kept. */
+const views = new WeakMap<Element, Record<string, unknown>>();
+
+/**
+ * **What this element can SEE — resolved per key, exactly as its directives resolve.**
+ *
+ * It used to return the nearest carrier, which is a different question and quietly a wrong one.
+ * Context resolves PER KEY (design §4): a `<li>` inside `data-vd-state="{ q: '' }"` inside
+ * `data-vd-state="{ user: … }"` reads both, and every directive on it does. `stateOf` handed back
+ * only the inner store, so `stateOf(li).user` was `undefined` while `data-vd-text="user.name"` on
+ * the same element rendered the name — the introspection door disagreeing with the engine it exists
+ * to introspect, silently, in the direction of "there is nothing there".
+ *
+ * A merged snapshot would fix reading and break writing, which is half of what this is for. So the
+ * view is live: a read resolves the owner chain, and a write goes through the SAME path a directive
+ * takes — landing on the key's owner rather than the nearest carrier, and picking up the
+ * undeclared-key and dotted-key refusals with it.
+ */
+export const stateOf = (el: Element): Record<string, unknown> | null => {
+  if (!nearestCarrier(el)) return null;
+  const cached = views.get(el);
+  if (cached) return cached;
+  const view = new Proxy({} as Record<string, unknown>, {
+    get: (_t, key) => (typeof key === 'string' ? readKey(el, key) : undefined),
+    set: (_t, key, value) => {
+      if (typeof key === 'string') writeKey(el, key, value);
+      return true;
+    },
+    has: (_t, key) => typeof key === 'string' && ownerOf(el, key) !== null,
+    /** The union of every key in scope, nearest first — so `Object.keys` and spread see what a
+     *  directive on this element sees, not what one store happens to hold. */
+    ownKeys: () => {
+      const keys = new Set<string>();
+      for (let n: Element | null = el; n !== null; n = flatParent(n))
+        for (const key of Object.keys(carriers.get(n) ?? {})) keys.add(key);
+      return [...keys];
+    },
+    getOwnPropertyDescriptor: (_t, key) =>
+      typeof key === 'string' && ownerOf(el, key) !== null
+        ? { configurable: true, enumerable: true, value: readKey(el, key) }
+        : undefined,
+  });
+  views.set(el, view);
+  return view;
+};
+
+/** A bare key read through the owner chain — `stateOf`'s reads and `Ctx.get` ask the same way. */
+const readKey = (el: Element, key: string): unknown =>
+  readPath(el, {
+    kind: 'path',
+    negate: false,
+    global: key.startsWith('@'),
+    segments: (key.startsWith('@') ? key.slice(1) : key).split('.'),
+  });
 
 /** For the pack's SPECIAL event members: parse an attribute's object and run it as assignments. */
 export const runAttrAssignments = (el: Element, attr: string): void => {
@@ -436,7 +491,7 @@ export const runAttrAssignments = (el: Element, attr: string): void => {
 /* ── instances (the reactive half) ────────────────────────────────────────────────────────── */
 
 type Instance = {
-  _directive: Directive;
+  _directive: AnyDirective;
   _attr: string;
   /** Bumping `_gen` makes the createHook permanently inert — core's own stale-guard as teardown. */
   _owner: { _gen?: number };
@@ -465,7 +520,7 @@ const ctxFor = (el: Element, attr: string, selection: unknown): Ctx => ({
  */
 const REFUSED = Symbol('refused');
 
-const parseFor = (el: Element, attr: string, directive: Directive): Parsed | typeof REFUSED => {
+const parseFor = (el: Element, attr: string, directive: AnyDirective): Parsed | typeof REFUSED => {
   const raw = el.getAttribute(attr);
   if (directive.value === 'literal') {
     /**
@@ -486,7 +541,7 @@ const parseFor = (el: Element, attr: string, directive: Directive): Parsed | typ
   }
 };
 
-const activateDirective = (el: Element, attr: string, directive: Directive, selection: unknown) => {
+const activateDirective = (el: Element, attr: string, directive: AnyDirective, selection: unknown) => {
   const map = instances.get(el) ?? new Map<string, Instance>();
   instances.set(el, map);
   if (map.has(attr)) return; // already live — attribute changes come through deactivate first
@@ -547,7 +602,7 @@ const deactivateDirective = (el: Element, attr: string) => {
 
 /* ── the built-in `state` carrier (priority 10, before anything reads it) ─────────────────── */
 
-export const stateDirective: Directive = {
+export const stateDirective: AnyDirective = {
   name: 'state',
   value: 'object',
   priority: 10,
@@ -688,7 +743,7 @@ const observe = (observer: MutationObserver, target: Node) => {
   observer.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: attributeFilter() });
 };
 
-const directiveFor = (suffix: string): { directive: Directive; selection: unknown } | null => {
+const directiveFor = (suffix: string): { directive: AnyDirective; selection: unknown } | null => {
   const exact = byName.get(suffix);
   if (exact) return { directive: exact, selection: null };
   for (const f of families) {
@@ -705,7 +760,7 @@ const directiveFor = (suffix: string): { directive: Directive; selection: unknow
  * cost (design §3E). A member marked `special` needs per-element wiring too, so it takes the
  * instance path and the directive's setup reads `ctx.selection`.
  */
-const applyHit = (el: Element, attr: string, hit: { directive: Directive; selection: unknown }, root: Node): void => {
+const applyHit = (el: Element, attr: string, hit: { directive: AnyDirective; selection: unknown }, root: Node): void => {
   const sel = hit.selection as { type?: string; special?: boolean } | null;
   if (sel?.type && !sel.special) {
     wantedTypes.add(sel.type);
@@ -717,7 +772,7 @@ const applyHit = (el: Element, attr: string, hit: { directive: Directive; select
 
 const activateElement = (el: Element, root: Node) => {
   /** Collect first, then sort by priority — `state` (10) must exist before reflections read it. */
-  const found: Array<{ attr: string; directive: Directive; selection: unknown }> = [];
+  const found: Array<{ attr: string; directive: AnyDirective; selection: unknown }> = [];
   for (const { name } of el.attributes) {
     if (!name.startsWith(PREFIX)) continue;
     const suffix = name.slice(PREFIX.length);
@@ -881,7 +936,7 @@ export const takeDirectiveNames = (): string[] => {
 };
 
 const renderElement = (el: Element): void => {
-  const found: Array<{ attr: string; directive: Directive; selection: unknown }> = [];
+  const found: Array<{ attr: string; directive: AnyDirective; selection: unknown }> = [];
   for (const { name } of el.attributes) {
     if (!name.startsWith(PREFIX)) continue;
     const suffix = name.slice(PREFIX.length);
@@ -951,10 +1006,13 @@ const serverWalk = (node: Node): void => {
  * so an app that wires directives is correct when server-rendered with no server-specific setup
  * at all. Exported for a root the connector never sees — a hand-built shell, a test.
  *
- * @returns the directive names found in this subtree, unclaimed ones included.
+ * **Returns nothing: `takeDirectiveNames()` is the one door to the names.** It used to also return
+ * the names new to this subtree, which is a second, subtly different answer to the same question —
+ * per-root and per-render disagree the moment a page has two components, and a preload list wants
+ * the page. Keeping both meant computing both, and the cost was not theoretical: the subtree answer
+ * needed a snapshot of every name seen so far, allocated per component root per render.
  */
-export const renderDirectives = (root: Document | ShadowRoot | Element): string[] => {
-  const before = new Set(seenNames);
+export const renderDirectives = (root: Document | ShadowRoot | Element): void => {
   const target: Node = isDocument(root as Node) ? (root as Document).documentElement : (root as Node);
   const walk = () => {
     if (target.nodeType === 1) serverWalk(target);
@@ -990,7 +1048,6 @@ export const renderDirectives = (root: Document | ShadowRoot | Element): string[
       break;
     }
   }
-  return [...seenNames].filter((name) => !before.has(name));
 };
 
 /* ── boot + settled ───────────────────────────────────────────────────────────────────────── */

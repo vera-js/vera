@@ -849,13 +849,21 @@ wiring for SSR, never your directives wiring.
 `deactivate(root)` (any root, shadow roots included — closed ones too, via a component's `init`) ·
 `settled(): Promise<void>` (test/e2e primitive) · `rejections(el?)` (every refusal:
 `{ element, directive, code, message, fix }`) · `describeDirectives()` (the live vocabulary — build
-GUI panels from this, never a hand-written list) · `stateOf(el)` · `renderDirectives(root)` and
-`takeDirectiveNames()` (server; the names include unclaimed ones, which are what to preload).
+GUI panels from this, never a hand-written list) · `stateOf(el)` (what this element can SEE,
+resolved per key up the carrier chain exactly as its directives resolve — live, and writable
+through the same owner rules) · `renderDirectives(root)` (server; returns nothing) and
+`takeDirectiveNames()` (server; the one door to the names, unclaimed ones included, which are what
+to preload).
 
 **Value classes**, declared per directive and applied BEFORE the directive sees the value:
 `literal` (raw text; a bare word is a string, never a state read) · `expression` · `object` (a
 braced object whose VALUES stay lazy — evaluate them with `ctx.eval`, which is what lets a config
 key read state) · `none`.
+
+The class TYPES what `apply` and `ssr` receive: `Directive` is discriminated on `value`, so
+`value: 'object'` gives `apply` a `ParsedObject` of unevaluated entries and using one as a finished
+string is a compile error, not a bug report. `ValueOf<K>` is exported for a helper that needs to
+name one.
 
 **interaction pack.** `state` (engine-owned; seeds a subtree store, initials are expressions in
 declaration order) · `show` · `class` · `style` · `text` · `bind-*` (false/null/undefined removes,

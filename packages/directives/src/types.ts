@@ -29,22 +29,52 @@ export type Ctx = {
   reject: (code: string, message: string, fix?: string) => void;
 };
 
-export type Directive = {
+/** How the engine parses an attribute's text before the directive sees it. */
+export type ValueClass = 'literal' | 'expression' | 'object' | 'none';
+
+/**
+ * What `apply` and `ssr` RECEIVE for a given value class — the design's §17.11 promise, made real.
+ *
+ * The one that earns this on its own is `object`. An object-valued attribute arrives with its
+ * entries STILL PARSED: `{ url: endpoint, method: 'GET' }` hands over a path node and a string, not
+ * two strings, because the whole point is that each entry may be evaluated against context at the
+ * moment it is used — that is what lets a fetch's configuration be built from state. Typed as
+ * `unknown` it read as an ordinary object and `remote` used it as one, sending the literal text of
+ * an expression as a URL. `ParsedObject` makes the compiler ask for `ctx.eval` instead of a code
+ * reviewer noticing.
+ *
+ * `expression` stays `unknown` honestly: an expression evaluates to whatever it evaluates to.
+ */
+export type ValueOf<K extends ValueClass> =
+  K extends 'literal' ? string
+  : K extends 'object' ? ParsedObject
+  : K extends 'none' ? undefined
+  : unknown;
+
+type DirectiveOf<K extends ValueClass> = {
   /** The suffix after `data-vd-`, or a family matcher returning parsed selection args or null. */
   name: string | { match: (suffix: string) => unknown | null };
   /** How the engine parses the attribute text BEFORE the directive sees it. */
-  value: 'literal' | 'expression' | 'object' | 'none';
+  value: K;
   /**
    * Once per element×directive: wiring that is not value-dependent. May return a teardown, or
    * `{ apply, teardown }` — an apply returned here closes over setup's locals, so per-instance
    * state is ordinary closure variables.
    */
-  setup?: (el: Element, ctx: Ctx) => void | Teardown | { apply?: Directive['apply']; teardown?: Teardown };
+  setup?: (el: Element, ctx: Ctx) => void | Teardown | {
+    apply?(el: Element, value: ValueOf<K>, ctx: Ctx): void | Cleanup;
+    teardown?: Teardown;
+  };
   /**
    * The reactive half. Runs INSIDE AN ENGINE-OWNED HOOK: reading context state subscribes, a
    * write re-runs it on core's scheduler, and a returned function is the per-run cleanup.
+   *
+   * **Declared as a METHOD, not a property, and that is load-bearing.** Method parameters are
+   * checked bivariantly, which is what lets the engine hold every directive in one collection and
+   * call one `apply` over the union — a property-typed callback would make the union's shared call
+   * signature `never` and force a cast at exactly the boundary the types exist to protect.
    */
-  apply?: (el: Element, value: unknown, ctx: Ctx) => void | Cleanup;
+  apply?(el: Element, value: ValueOf<K>, ctx: Ctx): void | Cleanup;
   /** Order among directives on ONE element. Lower first: state=10, reflections=50, events=70. */
   priority?: number;
   /** Introspectable documentation — REQUIRED on shipped packs; feeds describeDirectives(). */
@@ -67,8 +97,32 @@ export type Directive = {
    * A FUNCTION is the escape hatch for a directive whose client path is not server-safe but which
    * still has a server truth to write: it receives the evaluated value and writes the markup.
    */
-  ssr?: boolean | ((el: Element, value: unknown, ctx: Ctx) => void);
+  ssr?: boolean | ((el: Element, value: ValueOf<K>, ctx: Ctx) => void);
 };
+
+/**
+ * A directive, DISCRIMINATED BY ITS VALUE CLASS — so `value: 'object'` types its own `apply`, with
+ * no type argument at the call site and no annotation an author has to remember. Writing the union
+ * out rather than exposing `DirectiveOf<K>` generically is deliberate: it is what makes an object
+ * literal narrow on the `value` property, which is the entire ergonomic point.
+ */
+export type Directive =
+  | DirectiveOf<'literal'>
+  | DirectiveOf<'expression'>
+  | DirectiveOf<'object'>
+  | DirectiveOf<'none'>;
+
+/**
+ * What the ENGINE holds — the union widened to its most permissive member.
+ *
+ * Bivariant method parameters let every `Directive` be STORED as one of these, but a union cannot
+ * be CALLED: TypeScript intersects the members' parameters and `string & ParsedObject & undefined`
+ * is `never`, so `d.apply(el, value, ctx)` is rejected on a value nothing can produce. Widening at
+ * the registry boundary keeps the engine's single dispatch path and confines the looseness to the
+ * one place that legitimately does not know which class it is holding — an author never sees this
+ * type, and an author is who the discrimination is for.
+ */
+export type AnyDirective = Omit<DirectiveOf<'expression'>, 'value'> & { value: ValueClass };
 
 export type Rejection = {
   element: Element | null;

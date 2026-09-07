@@ -147,3 +147,62 @@ router.addRoutes([
 
 export type { _plainParam, _twoParams, _optionalParam, _wildcardIsSegments, _staticPathHasNoParams };
 export type { _nonLiteralIsLoose };
+
+/* ── @verajs/directives: the value class types its own apply ──────────────────────────────── */
+
+/**
+ * DESIGN-DIRECTIVES §17.11 promised that a directive's declared `value` decides what `apply`
+ * receives. It did not, and the gap had already cost a real defect: `remote` read an object-valued
+ * attribute as if its entries were finished values and sent the literal TEXT of an expression as a
+ * URL. These are the assertions that make the promise enforceable — the `@ts-expect-error` cases do
+ * the real work, because a type that permits everything passes every positive test.
+ *
+ * Parameters are annotated rather than inferred on purpose: `Directive` is a union, and a union's
+ * members do not contextually type a callback's parameters. Annotating asks the sharper question
+ * anyway — *is a wrong parameter type rejected* — which inference could never ask at all.
+ */
+import type { Directive, Ctx, ParsedObject, ValueOf } from '@verajs/directives';
+
+type _literalIsString = ValueOf<'literal'> extends string ? true : never;
+type _objectIsParsed = ValueOf<'object'> extends ParsedObject ? true : never;
+type _noneIsUndefined = ValueOf<'none'> extends undefined ? true : never;
+const _literalTrue: _literalIsString = true;
+const _objectTrue: _objectIsParsed = true;
+const _noneTrue: _noneIsUndefined = true;
+
+/** A literal arrives as the attribute's TEXT — a key name, never resolved. */
+const _tLiteral: Directive = {
+  name: 't-literal', value: 'literal',
+  apply: (_el: Element, key: string) => void key,
+};
+
+/**
+ * An object arrives PARSED, entry by entry — which is the whole point: each entry may be evaluated
+ * against context at the moment it is used, so a fetch's configuration can be built from state.
+ */
+const _tObject: Directive = {
+  name: 't-object', value: 'object',
+  apply: (_el: Element, value: ParsedObject, ctx: Ctx) => void String(ctx.eval(value.url)),
+};
+
+const _tNone: Directive = { name: 't-none', value: 'none', apply: (_el: Element, nothing: undefined) => void nothing };
+
+/**
+ * The refusals. Both directives sit above the DECLARATION rather than above `apply`, because a
+ * union mismatch is reported against the whole object literal — placed on the property they were
+ * silently unused, which is the same nothing-measured shape the engine's own probes guard against.
+ */
+// @ts-expect-error an object directive's entries are parsed, so its apply cannot take a plain string
+const _tObjectBad: Directive = {
+  name: 't-object-bad', value: 'object',
+  apply: (_el: Element, value: string) => void value.toUpperCase(),
+};
+
+// @ts-expect-error a literal directive receives text, not a parsed object
+const _tLiteralBad: Directive = {
+  name: 't-literal-bad', value: 'literal',
+  apply: (_el: Element, value: ParsedObject) => void value,
+};
+
+export type { _literalIsString, _objectIsParsed, _noneIsUndefined };
+export { _literalTrue, _objectTrue, _noneTrue, _tLiteral, _tObject, _tNone, _tObjectBad, _tLiteralBad };
