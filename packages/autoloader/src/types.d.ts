@@ -44,3 +44,23 @@ export type AutoloaderInstance = ((target?: Element | ShadowRoot | Document) => 
   /** Forget that this element's tag failed, and try it again. */
   retry: (element: Element) => void;
 };
+
+/** Options for `directiveLoader` — see loader.ts. `alias` and `resolve` are FACTORY-ONLY
+ *  JavaScript; markup contributes nothing here but the name, and the name is allowlisted. */
+export type DirectiveLoaderOptions = {
+  /** File extension appended to the name. Defaults to `.js`. */
+  extension?: string;
+  /** Name → module path (relative to rootDir), for grouped or self-hosted layouts. */
+  alias?: Readonly<Record<string, string>>;
+  /** Replaces path building entirely; containment against rootDir's directory still applies. */
+  resolve?: (name: string, dir: string) => string;
+};
+
+export type DirectiveLoaderInstance = ((name: string, element: Element) => boolean | Promise<unknown>) & {
+  /** The URL this loader would fetch for a name — for modulepreload warming and for asking
+   *  "why is it fetching that". Throws where `load` would decline. */
+  url: (name: string) => string;
+  on: 'loader';
+  fn: never;
+  priority: number;
+};

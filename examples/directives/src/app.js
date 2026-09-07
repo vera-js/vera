@@ -11,6 +11,7 @@
 import { wire, html, init, useEffect } from '@verajs/core';
 import { renderInto, renderer } from '@verajs/renderer';
 import { initRouter, setRouterRenderer, setBasePath, router } from '@verajs/router';
+import { directiveLoader } from '@verajs/autoloader';
 import {
   wireDirectives, directives, interaction, expressions,
   motion, easings, paint, path, split, sequence,
@@ -20,7 +21,7 @@ import {
 
 setBasePath('/examples/directives');
 setRouterRenderer(renderInto);
-wire([renderer, router, directives]);
+wire([renderer, router, directives, directiveLoader(import.meta.url, '../directives')]);
 wireDirectives([
   expressions,
   ...interaction,
@@ -159,7 +160,7 @@ import {
   motion, easings, paint, path, split, sequence,
 } from '@verajs/directives';
 
-wire([renderer, router, directives]);
+wire([renderer, router, directives, directiveLoader(import.meta.url, '../directives')]);
 wireDirectives([
   expressions,
   ...interaction,
@@ -550,6 +551,9 @@ const FUN = `
         hello
       </div>
     </div>
+  </demo-block>
+  <demo-block caption="LOADED ON DEMAND — data-vd-sparkle was NOT in this page's JavaScript. The engine asked the 'loader' chain, the autoloader fetched directives/sparkle.js by convention, the module wired itself, and this button activated late. Watch the network tab.">
+    <button data-vd-sparkle>click me — my directive arrived over the network</button>
   </demo-block>
   <demo-block caption="THE HONESTY MIRROR — this very block: demo-block renders its children and prints them. The code below built the box above, byte for byte.">
     <div data-vd-state="{ meta: true }">

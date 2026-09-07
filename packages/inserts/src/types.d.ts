@@ -117,6 +117,19 @@ export type SlotInsert = (
   name: string
 ) => { _$park$?: () => void } | null | undefined;
 
+/**
+ * Resolves a DIRECTIVE NAME nobody has wired to a module that provides it — the seam
+ * `@verajs/directives` asks (through the substrate stamp) before rejecting an unknown
+ * `data-vd-*` name, and `@verajs/autoloader`'s `directiveLoader` answers by convention
+ * (`{base}/{name}.js`). First claimer wins: return the `import()` promise (or any truthy) to
+ * claim, `false`/`undefined` to decline. A claimed module REGISTERS ITSELF by importing
+ * `wireDirectives` from the same specifier the page used — module caching makes that the same
+ * registry, the exact symmetry of an autoloaded component calling `customElements.define`.
+ * The asker re-checks its registry when the promise settles; loading is memoized by the
+ * answerer, refusal by the asker.
+ */
+export type LoaderInsert = (name: string, element: Element) => boolean | Promise<unknown> | void;
+
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
@@ -126,6 +139,7 @@ export type InsertFunctionMap = {
   'collection': CollectionInsert;
   'value': ValueInsert;
   'slot': SlotInsert;
+  'loader': LoaderInsert;
 };
 
 export type Inserts = Map<
@@ -139,5 +153,6 @@ export type Inserts = Map<
     | CollectionInsert
     | ValueInsert
     | SlotInsert
+    | LoaderInsert
   )[]
 >;

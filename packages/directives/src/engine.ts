@@ -12,7 +12,11 @@
  * listener per event type, matching by attribute at dispatch time (which is why a swapped-in
  * region's buttons work the instant the HTML lands). See DESIGN-DIRECTIVES §3/§6.
  */
-import { createHook as bakedCreateHook, createStore as bakedCreateStore } from '@verajs/core';
+import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts as bakedInserts } from '@verajs/core';
+import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
+import type { ValueError } from './parse.js';
+import type { Parsed, ParsedObject, Path } from './parse.js';
+import type { Ctx, Directive, Rejection } from './types.js';
 
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
@@ -26,19 +30,105 @@ import { createHook as bakedCreateHook, createStore as bakedCreateStore } from '
  * not core's stamp and is ignored (with a dev note), which is also the forward seam for a
  * version gate when the release tooling can bake a compatible range in.
  */
-type Substrate = { createStore: typeof bakedCreateStore; createHook: typeof bakedCreateHook };
+type LoaderFn = (name: string, element: Element) => boolean | Promise<unknown> | void;
+type Substrate = {
+  createStore: typeof bakedCreateStore;
+  createHook: typeof bakedCreateHook;
+  /** The PAGE's insert registry, when adopted — where the `'loader'` chain lives. */
+  inserts?: Map<string, unknown[]>;
+};
 let substrate: Substrate | null = null;
 const core = (): Substrate => {
   if (substrate) return substrate;
   const stamp = (globalThis as Record<symbol, unknown>)[Symbol.for('vera.core')] as Substrate | undefined;
   if (stamp && typeof stamp.createStore === 'function' && typeof stamp.createHook === 'function') return (substrate = stamp);
   if (__DEV__ && stamp) console.warn('[vera] the vera.core stamp is not a usable substrate — the engine is using its own copy.');
-  return (substrate = { createStore: bakedCreateStore, createHook: bakedCreateHook });
+  return (substrate = { createStore: bakedCreateStore, createHook: bakedCreateHook, inserts: bakedInserts as unknown as Map<string, unknown[]> });
 };
-import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
-import type { ValueError } from './parse.js';
-import type { Parsed, ParsedObject, Path } from './parse.js';
-import type { Ctx, Directive, Rejection } from './types.js';
+
+/* ── discovery: the 'loader' seam (design §7) ─────────────────────────────────────────────── */
+
+/**
+ * An unknown `data-vd-*` name is a QUESTION before it is a refusal: the engine asks the page's
+ * `'loader'` chain (autoloader's `directiveLoader`, by convention `{base}/{name}.js`), and a
+ * claimed module registers itself through `wireDirectives` — module caching guarantees the same
+ * registry, the exact symmetry of an autoloaded component calling `customElements.define`.
+ * Elements that asked are QUEUED per name and activated when the claim settles; only final
+ * outcomes are recorded, because the registry is append-only and "loading…" would be a stale
+ * entry the moment it stopped being true.
+ *
+ * `undiscoverable` memoizes the refusals (declined, failed, or loaded-nothing) so a page of a
+ * hundred unknown badges asks once — the same one-attempt-per-page-load posture the autoloader
+ * takes with URLs.
+ */
+const loadingNames = new Map<string, Array<{ el: Element; attr: string }>>();
+const undiscoverable = new Set<string>();
+
+const loaderChain = (): LoaderFn[] =>
+  ((core().inserts?.get('loader') as LoaderFn[] | undefined) ?? []);
+
+const discover = (el: Element, attr: string, suffix: string): void => {
+  if (undiscoverable.has(suffix)) {
+    reject(el, attr, 'unknown-directive', `nothing wired provides "${suffix}".`, 'Wire its pack, or check the name.');
+    return;
+  }
+  const queued = loadingNames.get(suffix);
+  if (queued) {
+    queued.push({ el, attr });
+    return;
+  }
+
+  /** First claimer wins; a link that throws declines (a broken loader costs its answer, not the page). */
+  let claim: Promise<unknown> | true | null = null;
+  for (const fn of loaderChain()) {
+    let answer: ReturnType<LoaderFn>;
+    try {
+      answer = fn(suffix, el);
+    } catch {
+      continue;
+    }
+    if (answer === true) claim = true;
+    else if (answer && typeof (answer as Promise<unknown>).then === 'function') claim = answer as Promise<unknown>;
+    if (claim) break;
+  }
+
+  if (!claim) {
+    undiscoverable.add(suffix);
+    reject(el, attr, 'unknown-directive', `nothing wired provides "${suffix}".`,
+      loaderChain().length ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.');
+    return;
+  }
+
+  const waiting: Array<{ el: Element; attr: string }> = [{ el, attr }];
+  loadingNames.set(suffix, waiting);
+  Promise.resolve(claim).then(
+    () => {
+      loadingNames.delete(suffix);
+      const hit = directiveFor(suffix);
+      if (!hit) {
+        undiscoverable.add(suffix);
+        for (const entry of waiting) {
+          reject(entry.el, entry.attr, 'loader-loaded-nothing',
+            `a module loaded for "${suffix}" but registered nothing by that name.`,
+            'The module must call wireDirectives with a matching directive.');
+        }
+        return;
+      }
+      for (const entry of waiting) {
+        if (!entry.el.isConnected) continue;
+        applyHit(entry.el, entry.attr, hit, entry.el.getRootNode());
+      }
+    },
+    (error) => {
+      loadingNames.delete(suffix);
+      undiscoverable.add(suffix);
+      for (const entry of waiting) {
+        reject(entry.el, entry.attr, 'loader-failed',
+          `the loader claimed "${suffix}" but the import failed: ${String((error as Error)?.message ?? error)}`);
+      }
+    }
+  );
+};
 
 const PREFIX = 'data-vd-';
 const CLOAK = 'data-vd-cloak';
@@ -527,6 +617,23 @@ const directiveFor = (suffix: string): { directive: Directive; selection: unknow
   return null;
 };
 
+/**
+ * Applies one matched directive to one element — the shared tail of activation, split out so a
+ * LATE match (a name the loader just fulfilled) takes exactly the path an eager one does.
+ * Event members: a plain bubbling type is PURE DELEGATION — one root listener, zero per-element
+ * cost (design §3E). A member marked `special` needs per-element wiring too, so it takes the
+ * instance path and the directive's setup reads `ctx.selection`.
+ */
+const applyHit = (el: Element, attr: string, hit: { directive: Directive; selection: unknown }, root: Node): void => {
+  const sel = hit.selection as { type?: string; special?: boolean } | null;
+  if (sel?.type && !sel.special) {
+    wantedTypes.add(sel.type);
+    listen(root, sel.type);
+    return;
+  }
+  activateDirective(el, attr, hit.directive, hit.selection);
+};
+
 const activateElement = (el: Element, root: Node) => {
   /** Collect first, then sort by priority — `state` (10) must exist before reflections read it. */
   const found: Array<{ attr: string; directive: Directive; selection: unknown }> = [];
@@ -536,27 +643,14 @@ const activateElement = (el: Element, root: Node) => {
     if (suffix === 'cloak') continue;
     const hit = directiveFor(suffix);
     if (!hit) {
-      reject(el, name, 'unknown-directive', `nothing wired provides "${suffix}".`, 'Wire its pack, or check the name.');
+      /** A question before a refusal — the loader seam. See `discover`. */
+      discover(el, name, suffix);
       continue;
     }
     found.push({ attr: name, ...hit });
   }
   found.sort((a, b) => (a.directive.priority ?? 50) - (b.directive.priority ?? 50));
-  for (const f of found) {
-    /**
-     * Event members: a plain bubbling type is PURE DELEGATION — one root listener, zero
-     * per-element cost (design §3E). A member marked `special` (outside-click, window-/document-
-     * targets, load, submit's prevent) needs per-element wiring too, so it ALSO takes the
-     * instance path and the directive's setup reads `ctx.selection` to do its work.
-     */
-    const sel = f.selection as { type?: string; special?: boolean } | null;
-    if (sel?.type && !sel.special) {
-      wantedTypes.add(sel.type);
-      listen(root, sel.type);
-      continue;
-    }
-    activateDirective(el, f.attr, f.directive, f.selection);
-  }
+  for (const f of found) applyHit(el, f.attr, { directive: f.directive, selection: f.selection }, root);
   if (el.hasAttribute(CLOAK)) el.removeAttribute(CLOAK);
 };
 

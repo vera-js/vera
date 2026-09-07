@@ -13,11 +13,14 @@
  * The property names are literal on purpose: this is a cross-bundle surface, and the mangler
  * must never touch it (the renderer's sigil rule, applied here).
  */
-import { wire as register } from '@verajs/inserts';
+import { wire as register, inserts } from '@verajs/inserts';
 import { createHook } from './createHook.js';
 import { createStore } from './createStore.js';
 
 export const wire: typeof register = (item) => {
-  (globalThis as Record<symbol, unknown>)[Symbol.for('vera.core')] = { createStore, createHook };
+  /** `inserts` rides along so an adopted consumer reads the PAGE's chains — the `'loader'`
+   *  seam is the first customer: a directives bundle with its own baked registry must still
+   *  find the autoloader the app wired through THIS copy. */
+  (globalThis as Record<symbol, unknown>)[Symbol.for('vera.core')] = { createStore, createHook, inserts };
   register(item);
 };

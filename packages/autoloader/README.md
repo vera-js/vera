@@ -1,6 +1,6 @@
 # @verajs/autoloader
 
-Lazy component loading by tag name — <!--size:autoloader.gzip-->1.36 KB<!--/size:autoloader.gzip-->
+Lazy component loading by tag name — <!--size:autoloader.gzip-->1.63 KB<!--/size:autoloader.gzip-->
 gzipped, no dependencies, no build step required.
 
 When an undefined custom element appears inside a component marked `autoloader`, its module is
@@ -258,3 +258,36 @@ mistakes that come up most. Its recipes are executed by the test suite, so they 
 ## License
 
 MIT
+
+
+## `directiveLoader` — lazy directives by convention
+
+The same idea as component autoloading, pointed at `@verajs/directives`: an unknown
+`data-vd-<name>` resolves to one module URL — `{base}/{dir}/{name}.js` — and the module
+registers itself, exactly as an autoloaded component calls `customElements.define`.
+
+```js
+import { wire } from '@verajs/core';
+import { directiveLoader } from '@verajs/autoloader';
+
+wire([directiveLoader(import.meta.url, 'directives')]);
+```
+
+A lazy module:
+
+```js
+// directives/sparkle.js
+import { wireDirectives } from '@verajs/directives';
+wireDirectives({ name: 'sparkle', value: 'none', setup(el) { /* … */ } });
+```
+
+Module caching is the contract: the bare `@verajs/directives` import resolves to the same URL
+the page loaded (bundler or import map), so the module wires the page's own registry.
+
+Options — all factory-only JavaScript, never markup: `extension` (default `.js`), `alias`
+(name → module path, for grouped layouts: `{ paint: 'motion.js', split: 'motion.js' }`), and
+`resolve` (replaces path building; containment against the entry's directory still applies).
+The name itself is markup input and is allowlisted to `[a-z][a-z0-9-]*` before any URL exists —
+a name outside the grammar is declined, never fetched. `directiveLoader(...).url(name)` returns
+the URL it would fetch, for `<link rel="modulepreload">` warming and for answering "why is it
+fetching that". One attempt per name per page load; the engine memoizes the refusals.
