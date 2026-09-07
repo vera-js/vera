@@ -244,7 +244,31 @@ export const rejections = (element?: Element): readonly Rejection[] =>
 const carriers = new WeakMap<Element, Record<string, unknown>>();
 /** The page-global store, lazily created — `@key` addresses it. */
 let pageStore: Record<string, unknown> | null = null;
-const page = () => (pageStore ??= core().createStore({} as Record<string, unknown>));
+/** The `location` the server's page store was created under — see below. */
+let pageEpoch: unknown;
+/**
+ * **On a server the page store is per-REQUEST, and a module-level one is not.**
+ *
+ * `pageStore` lives for the life of the module, which in a browser is the life of the page — right.
+ * On a server it is the life of the process, and `@key` then carries one request's data into the
+ * next: a page reading `@route.path` with no `route` directive of its own would render the
+ * PREVIOUS visitor's path. `@verajs/ssr` installs a fresh `location` object per render
+ * (`applyLocation`) and serialises renders, so that object's identity is the request boundary the
+ * engine can see without importing anything from the server.
+ *
+ * Residual, stated rather than hidden: a render given no `location` shares the ambient one, so two
+ * such renders share a page store. That is the pre-existing behaviour and it is the case where
+ * there is no request to leak between.
+ */
+const page = (): Record<string, unknown> => {
+  if (!onServer()) return (pageStore ??= core().createStore({} as Record<string, unknown>));
+  const epoch = (globalThis as { location?: unknown }).location;
+  if (pageStore === null || pageEpoch !== epoch) {
+    pageEpoch = epoch;
+    pageStore = {};
+  }
+  return pageStore;
+};
 
 /**
  * PER-KEY OWNER RESOLUTION (design §4): a read of `open` walks to the nearest carrier that OWNS
@@ -311,7 +335,9 @@ const writeKey = (el: Element, key: string, value: unknown) => {
     return;
   }
   if (key.startsWith('@')) {
-    (page() as Record<string, unknown>)[key.slice(1)] = value;
+    const global = page();
+    if (onServer() && !sameValue(global[key.slice(1)], value)) serverWrites++;
+    global[key.slice(1)] = value;
     return;
   }
   const owner = ownerOf(el, key) ?? nearestCarrier(el);
@@ -321,8 +347,35 @@ const writeKey = (el: Element, key: string, value: unknown) => {
   }
   if (__DEV__ && !(key in owner))
     reject(el, 'context', 'undeclared-write', `"${key}" was not declared by the state it landed in.`, 'Declare it in data-vd-state.');
+  if (onServer() && !sameValue(owner[key], value)) serverWrites++;
   owner[key] = value;
 };
+
+/**
+ * Did this write CHANGE anything — the question the server's fixed-point walk turns on.
+ *
+ * Identity alone is too strict: `route` republishes `{ path, query, hash }` and `region` its
+ * counts, both freshly built each pass, so an identity comparison would report a change for ever
+ * and the walk would never converge on a page that is in fact settled.
+ *
+ * **One level is not enough either, and the difference is not academic** — `@route.query` is
+ * itself a fresh object, so a shallow compare reported `@route` as changed on every pass and the
+ * walk hit its limit on the very first page that used it. So this recurses, bounded: the depth cap
+ * is what makes a cyclic or pathologically deep value cost a pass rather than a stack, and past it
+ * the answer is "changed", which is the safe direction.
+ */
+const sameValue = (a: unknown, b: unknown, depth = 0): boolean => {
+  if (Object.is(a, b)) return true;
+  if (depth > 4 || typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ak = Object.keys(a as object);
+  const bk = Object.keys(b as object);
+  return ak.length === bk.length
+    && ak.every((k) => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth + 1));
+};
+
+/** Writes made during the current server pass that actually changed a value. */
+let serverWrites = 0;
 
 /** The attribute-value parser — the expressions tier replaces it with the superset grammar. */
 let parseAttr: (source: string) => Parsed = parseValue;
@@ -527,7 +580,22 @@ export const stateDirective: Directive = {
       }
       initial[key] = evaluate(el, parsed[key], initial);
     }
-    carriers.set(el, core().createStore(initial));
+    /**
+     * **A server carrier is a PLAIN OBJECT, and that is what makes `static: true` honest.**
+     *
+     * A server render is one shot: the subscriptions a store builds are never fired, so the proxy
+     * is pure cost — which is exactly the reasoning behind `renderToString`'s `static` option. But
+     * that option also REFUSES writes, because in a reactive render a write that cannot propagate
+     * is a silent wrong answer. A directive that seeds state from the request (`query`, `route`,
+     * `in-view`) writes, so under `static` it was refused and the page rendered unfiltered — the
+     * markup differed between the two modes, breaking the one invariant static rests on.
+     *
+     * Not using a store here removes the collision at its root rather than negotiating with it:
+     * the server pass never depends on reactivity in EITHER mode, so the two render identically by
+     * construction, and the ordering reactivity used to provide is supplied explicitly by the
+     * fixed-point walk in `renderDirectives`.
+     */
+    carriers.set(el, onServer() ? initial : core().createStore(initial));
     return () => carriers.delete(el);
   },
 };
@@ -831,7 +899,10 @@ const renderElement = (el: Element): void => {
     try {
       /** Context first, and engine-owned: `state`'s setup is a store and a teardown, nothing else. */
       if (f.directive === stateDirective) {
-        stateDirective.setup?.(el, ctx);
+        /** The walk may run more than once (below); a carrier is seeded on the first pass only,
+         *  or the second would refuse itself with `state-reseed-ignored` and discard the writes
+         *  the first pass had just made. */
+        if (!carriers.has(el)) stateDirective.setup?.(el, ctx);
         continue;
       }
       const mode = f.directive.ssr;
@@ -885,8 +956,40 @@ const serverWalk = (node: Node): void => {
 export const renderDirectives = (root: Document | ShadowRoot | Element): string[] => {
   const before = new Set(seenNames);
   const target: Node = isDocument(root as Node) ? (root as Document).documentElement : (root as Node);
-  if (target.nodeType === 1) serverWalk(target);
-  else for (let c = (target as unknown as ParentNode).firstElementChild; c; c = c.nextElementSibling) serverWalk(c);
+  const walk = () => {
+    if (target.nodeType === 1) serverWalk(target);
+    else for (let c = (target as unknown as ParentNode).firstElementChild; c; c = c.nextElementSibling) serverWalk(c);
+  };
+
+  /**
+   * **A FIXED POINT, not a cascade.** On the client, a directive that seeds state and one that
+   * reads it are connected by the store: order does not matter because the reader re-runs when the
+   * value lands. The server has no store (see the carrier note), so the ordering has to be
+   * explicit — and document order is not it: `region` publishes `counts` that a `data-vd-text`
+   * ABOVE it reads, and no single traversal satisfies both directions.
+   *
+   * So the pass repeats while it is still changing state, which reaches the same answer the client
+   * reaches, from any starting order. Convergence is not an assumption: reflections compare before
+   * they write (the rule `region`'s own fixed-point test pins), so a settled page writes nothing on
+   * the following pass. A page that does not settle is a directive violating that rule, and it is
+   * told so rather than being allowed to spin — with the last pass's markup kept, because a
+   * partially-derived page is still a readable one.
+   *
+   * The cost is one extra walk on a page that seeds and none on a page that does not.
+   */
+  const LIMIT = 5;
+  let passes = 0;
+  for (;;) {
+    const mark = serverWrites;
+    walk();
+    if (serverWrites === mark) break;
+    if (++passes >= LIMIT) {
+      reject(target as Element, 'render', 'server-unsettled',
+        `state was still changing after ${LIMIT} server passes, so the markup may not be final.`,
+        'A directive is writing a different value every run — compare before writing.');
+      break;
+    }
+  }
   return [...seenNames].filter((name) => !before.has(name));
 };
 

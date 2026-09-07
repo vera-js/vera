@@ -862,7 +862,7 @@ declaration order) · `show` · `class` · `style` · `text` · `bind-*` (false/
 true is present-empty; `value`/`checked`/`selected`/`open` write the live property; `href`/`src`/
 `srcdoc`/`style`/`class`/`on*` are refused) · `on-*` (delegated: one root listener per event type,
 so swapped-in markup works from its first event; members `on-keydown-enter`, `on-outside-click`,
-`on-escape`, `on-window-*`, `on-document-*`, `on-load`, `on-submit`, `on-submit-native`) · `sync` ·
+`on-escape`, `on-window-*`, `on-document-*`, `init`, `on-submit`, `on-submit-native`) · `sync` ·
 `persist` · `every` · `focus-on` / `focus-trap` / `focus-return` · `doc-class` · `scroll-lock` ·
 `copy` · `scroll-to`.
 
@@ -879,7 +879,7 @@ or an object of properties and settings: `data-vd-motion="{ opacity: '0% 0, 100%
 '0% 40px, 100% 0px', inertia: 0.2 }"`. Keyframes are `'position value'` pairs; a lone value is the
 end. Per-property easing uses the nested form `{ frames: '…', ease: '…' }`. Width bands merge over
 the base (`'…; [0-560]: …'`). `stagger` goes on the PARENT. `when: '.selector'` replaces the scroll
-driver. `data-vd-motion-config` on a container makes a region (own axis, scroller, defaults).
+driver. `data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
 Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (`frame-*`), plus
 `data-vd-split` (chars/words/lines; pieces inherit the motion minus `stagger`).

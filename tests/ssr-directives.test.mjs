@@ -23,6 +23,16 @@ import assert from 'node:assert/strict';
 
 const { html: markup } = await renderToString(new URL('./fixtures/ssr/directives-ssr.js', import.meta.url));
 
+/**
+ * BOTH server renders happen here, before the differential deletes the shim marker — a fixture
+ * imported after that point takes the CLIENT path and wires a renderer over the server's, which
+ * @verajs/ssr's own guard then refuses. Order is the lesson, and it is the same one the fixtures
+ * teach: on a server the renderer is the server's.
+ */
+const filtered = await renderToString(new URL('./fixtures/ssr/query-ssr.js', import.meta.url), {
+  location: '/list?q=err&page=1',
+});
+
 assert.ok(markup.includes('<directives-ssr>'), 'the entry tag rendered at all (the dead-page detector)');
 
 /* ── the preload list (the phase-5 handoff) ──────────────────────────────────────────────── */
@@ -98,8 +108,16 @@ const { activate, settled, rejections } = await import('@verajs/directives');
 /**
  * The shim marker has to come off, or `activate` takes the server path again and the comparison
  * proves nothing — the exact shape of a probe that measures nothing and reports perfection.
+ *
+ * **And the marker is not the only thing the shim leaves behind.** It installs no-op `Observer`
+ * constructors so a component that builds an `IntersectionObserver` does not crash server-side, and
+ * those survive the render on `globalThis`. A client phase in the same process therefore inherits a
+ * DEAD observer: present, so `in-view` takes the observed path, and silent, so nothing is ever
+ * reported and the element stays unrevealed for ever. jsdom has none of these natively, so removing
+ * them restores the environment a browser actually presents and lets the degradation rule run.
  */
 delete globalThis.__veraSsrShimmed;
+for (const k of ['IntersectionObserver', 'ResizeObserver', 'PerformanceObserver']) delete globalThis[k];
 
 const before = region.outerHTML;
 activate(region);
@@ -123,3 +141,48 @@ assert.equal(region.querySelector('nav').hasAttribute('hidden'), false,
   'the server-rendered handler ran on its first click — the page was interactive at boot');
 
 console.log('ssr-directives: server evaluated, client agreed, nothing to reconcile');
+
+/* ── the query pack on the server: a shared link arrives already filtered ─────────────────── */
+
+/**
+ * The pack's premise is server-first — *"the server sends the list it was always going to send"* —
+ * and until the `ssr` declarations landed it was not true: every item rendered visible and the
+ * client hid the rest, which is a flash AND a hydration divergence in the system that claims
+ * divergence is structurally impossible. This is that claim, tested.
+ */
+
+const visible = [...filtered.html.matchAll(/<li([^>]*)>([a-z]+)<\/li>/g)]
+  .filter(([, attrs]) => !/hidden/.test(attrs)).map(([, , text]) => text);
+assert.deepEqual(visible, ['cherry', 'elderberry'],
+  'the SERVER filtered from the request URL — a shared link reproduces what the sender saw');
+assert.match(filtered.html, /<b[^>]*>2<\/b>/, 'and published the count the page renders its results line from');
+assert.match(filtered.html, /<i[^>]*>\/list<\/i>/, '@route reached expressions server-side');
+assert.match(filtered.html, /<em[^>]*class="[^"]*revealed/,
+  'in-view honoured DEGRADED-NEVER-DEAD: a server has no observer, so the content is revealed, ' +
+  'not hidden from a reader who will never run JavaScript');
+
+/** And the client agrees — the same differential the reflections get, on the pack that needed it most. */
+{
+  const dom2 = new JSDOM(`<!doctype html><body><div id="m">${filtered.html}</div></body>`, {
+    pretendToBeVisual: true, url: 'http://localhost/list?q=err&page=1',
+  });
+  for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element',
+    'DocumentFragment', 'Text', 'Comment', 'Event', 'CustomEvent', 'MouseEvent', 'KeyboardEvent',
+    'MutationObserver', 'CSSStyleSheet', 'location', 'history']) globalThis[k] = dom2.window[k];
+  globalThis.requestAnimationFrame = dom2.window.requestAnimationFrame.bind(dom2.window);
+  globalThis.cancelAnimationFrame = dom2.window.cancelAnimationFrame.bind(dom2.window);
+  delete globalThis.__veraSsrShimmed;
+  for (const k of ['IntersectionObserver', 'ResizeObserver', 'PerformanceObserver']) delete globalThis[k];
+
+  const mount2 = dom2.window.document.getElementById('m');
+  const region2 = mount2.querySelector('[data-vd-region]')?.closest('[data-vd-state]')
+    ?? mount2.querySelector('template')?.content?.querySelector('[data-vd-state]');
+  assert.ok(region2, 'the region survived into the client parse');
+  const before2 = region2.outerHTML;
+  activate(region2);
+  await settled();
+  assert.equal(region2.outerHTML, before2,
+    'THE CLAIM, for the query pack: the client re-derived the same filtered view and changed nothing');
+}
+
+console.log('ssr-directives: the query pack agrees too');

@@ -97,6 +97,15 @@ const route: Directive = {
    * itself: a page that never reads `@route` should not pay a listener, and a page that does
    * should be able to see where it was turned on.
    */
+  /**
+   * On a SERVER there is a location and no navigation, so publishing once is the whole job — and
+   * it must happen, because everything downstream reads `@route`. The shim provides a per-request
+   * `location`, which is exactly what the function form of `ssr` was added for and what nothing
+   * in the package used until now.
+   */
+  ssr: (_el, _value, ctx) => {
+    ctx.set('@route', { path: location.pathname, query: queryObject(), hash: location.hash.slice(1) });
+  },
   setup(_el, ctx) {
     const publish = () => {
       ctx.set('@route', {
@@ -119,6 +128,21 @@ const queryDirective: Directive = {
   docs: {
     summary: 'Binds state keys to the URL query string, so a filtered view is a shareable link.',
     example: 'data-vd-query="q tag page"',
+  },
+  /**
+   * The read half only. A server has the URL the reader asked for, and seeding from it is the
+   * whole reason a shared link reproduces what the sender saw — without this, the server renders
+   * the markup's SEED and the client corrects it after boot, which is the flash this pack exists
+   * to prevent. The write half (history) is meaningless here and is not run.
+   */
+  ssr: (el, _value, ctx) => {
+    const params = new URLSearchParams(location.search);
+    for (const key of (el.getAttribute('data-vd-query') ?? '').split(/[\s,]+/).filter(Boolean)) {
+      if (!params.has(key)) continue;
+      const raw = params.get(key) ?? '';
+      const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
+      ctx.set(key, numeric !== null ? numeric : raw);
+    }
   },
   setup(el, ctx) {
     const keys = (el.getAttribute('data-vd-query') ?? '')
@@ -183,6 +207,14 @@ const region: Directive = {
     summary: 'Filters, sorts and paginates the items already inside this element — no templating.',
     example: "data-vd-region=\"{ items: '.card', search: 'q', size: 12 }\"",
   },
+  /**
+   * **The pack's whole premise is server-first and it was not running on the server.** A shared
+   * `?q=foo&page=3` link served every item visible and let the client hide the rest — a flash of
+   * unfiltered content and a hydration divergence, in the system that claims divergence is
+   * structurally impossible rather than merely tested for. The apply is pure DOM reads and
+   * `hidden` writes, which the shim reflects, so the declaration is one word.
+   */
+  ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
       ctx.reject('region-not-object', 'data-vd-region takes a braced object.',

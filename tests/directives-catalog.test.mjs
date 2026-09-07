@@ -140,17 +140,17 @@ test('focus: trap cycles Tab, stacks, and teardown returns focus to the marked t
   host.remove();
 });
 
-test('outside-click lives on the CONTAINER; escape and window targets fire; on-load runs at activation', async () => {
+test('outside-click lives on the CONTAINER; escape and window targets fire; init runs at activation', async () => {
   const host = mount(`
     <div data-vd-state="{ open: true, loads: 0, scrolls: 0 }">
       <nav data-vd-on-outside-click="{ open: false }" data-vd-show="open"><b id="inside">in</b></nav>
-      <i data-vd-on-load="{ loads: loads + 1 }"></i>
+      <i data-vd-init="{ loads: loads + 1 }"></i>
       <u data-vd-on-window-scroll="{ scrolls: scrolls + 1 }"></u>
       <s data-vd-on-escape="{ open: true }"></s>
     </div>`);
   await settled();
   const carrier = host.firstElementChild;
-  assert.equal(stateOf(carrier).loads, 1, 'on-load ran once, at activation');
+  assert.equal(stateOf(carrier).loads, 1, 'init ran once, at activation');
 
   click(host.querySelector('#inside'));
   await settled();
@@ -217,4 +217,29 @@ test('doc-class and scroll-lock reflect on the document, and locks stack', async
   await settled();
   assert.equal(root.style.overflow, '', 'the last lock released on teardown');
   host.remove();
+});
+
+test('init runs at activation; on-load is the ELEMENT\'s load event, not the lifecycle', async () => {
+  /**
+   * These were one word until 2026-09-07, and the collision was live: `on-window-load` meant the
+   * real event while `on-load` meant activation, so `<img data-vd-on-load>` — which every author
+   * writes expecting the image — fired before the image had done anything.
+   */
+  const host = mount(`
+    <div data-vd-state="{ started: 0, loaded: 0 }">
+      <i data-vd-init="{ started: started + 1 }"></i>
+      <img data-vd-on-load="{ loaded: loaded + 1 }" />
+    </div>`);
+  await settled();
+  const carrier = host.querySelector('[data-vd-state]');
+  assert.equal(stateOf(carrier).started, 1, 'init ran once at activation');
+  assert.equal(stateOf(carrier).loaded, 0, 'and on-load has NOT fired — nothing has loaded');
+
+  /** `load` does not bubble, so this only works because the member is a per-element listener. */
+  host.querySelector('img').dispatchEvent(new dom.window.Event('load'));
+  await settled();
+  assert.equal(stateOf(carrier).loaded, 1, 'the element\'s own load event ran the program');
+  assert.equal(stateOf(carrier).started, 1, 'and init did not run again');
+  host.remove();
+  await settled();
 });

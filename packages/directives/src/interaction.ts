@@ -145,6 +145,25 @@ const bind: Directive = {
   },
 };
 
+/**
+ * `init` — assignments run ONCE when this element activates, deterministic whether the pack
+ * arrived with the page or over the network.
+ *
+ * Its own directive rather than an `on-*` member, because activation is not an event and pretending
+ * otherwise is what made `on-load` ambiguous. Alpine (`x-init`) and the WP Interactivity API
+ * (`data-wp-init`) both landed here independently, which is the strongest evidence available that
+ * it is what an author looks for.
+ */
+const init: Directive = {
+  name: 'init',
+  value: 'object',
+  priority: 70,
+  docs: { summary: 'Runs an assignments object once, when the element activates.', example: 'data-vd-init="{ ready: true }"' },
+  setup(_el, ctx) {
+    ctx.runAttr('data-vd-init');
+  },
+};
+
 /* ── timers ──────────────────────────────────────────────────────────────────────────────── */
 
 /** `every` — an object of interval: assignments (names select, values configure; §20.7's cousin). */
@@ -489,9 +508,19 @@ const on: Directive = {
     const run = () => ctx.runAttr(attr);
 
     if (sel.kind === 'load') {
-      /** `on-load` means AT ACTIVATION — deterministic whether the pack arrived early or late (§20). */
-      run();
-      return;
+      /**
+       * The element's OWN `load` event — an `<img>`, an `<iframe>`, a `<link>`. It is a special
+       * rather than pure delegation because `load` does not bubble, so a root listener can never
+       * see it.
+       *
+       * This used to mean "at activation", which put two meanings on one word: `on-window-load`
+       * was the real event while `on-load` was the lifecycle, and `<img data-vd-on-load="{ ready:
+       * true }">` — which every author writes expecting the image — silently fired before the
+       * image had done anything. Activation is `data-vd-init` now, out of the event family
+       * entirely, because activation is not an event.
+       */
+      el.addEventListener('load', run);
+      return () => el.removeEventListener('load', run);
     }
     if (sel.kind === 'escape') {
       const onKey = (event: Event) => {
@@ -540,6 +569,6 @@ export { onFamilyFull as onFamily };
  * from the engine, which is what makes the additive single-file build possible at all.
  */
 export const interaction: Directive[] = [
-  show, classDirective, style, text, bind, every, sync, persist,
+  show, classDirective, style, text, bind, init, every, sync, persist,
   focusOn, focusTrap, focusReturn, docClass, scrollLock, copy, scrollTo, on,
 ];

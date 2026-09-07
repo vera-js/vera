@@ -15,7 +15,7 @@
  * ```html
  * <img data-vd-in-view="seen" data-vd-class="{ 'is-revealed': seen }" />
  * <div data-vd-pointer="p" data-vd-style="{ '--tilt': (p.x - 0.5) * 20 }"></div>
- * <p data-vd-size="box" data-vd-show="box.width > 400">only when wide</p>
+ * <p data-vd-measure="box" data-vd-show="box.width > 400">only when wide</p>
  * ```
  *
  * **Three disciplines hold throughout**, and each is load-bearing rather than tidy:
@@ -173,6 +173,16 @@ const inView: Directive = {
     summary: 'Writes true to a state key while the element is on screen.',
     example: 'data-vd-in-view="seen"',
   },
+  /**
+   * DEGRADED, NEVER DEAD — this file's third discipline, applied where it matters most. A server
+   * has no observer, so by that rule the answer is `true`; writing nothing meant server markup
+   * rendered UNREVEALED, which is the exact failure the discipline exists to prevent, in the one
+   * place a reader can never recover from it: no JavaScript, ever.
+   */
+  ssr: (el, _value, ctx) => {
+    const key = (el.getAttribute('data-vd-in-view') ?? '').trim();
+    if (key) ctx.set(key, true);
+  },
   setup(el, ctx) {
     const key = keyFor(el, 'data-vd-in-view', ctx);
     if (!key) return;
@@ -186,10 +196,6 @@ const inView: Directive = {
       last = visible;
       ctx.set(key, visible);
     });
-    /**
-     * No observer means no way to know — and the honest answer there is VISIBLE, because the
-     * alternative hides content from a reader over a capability the page lacks.
-     */
     if (!stop) {
       ctx.set(key, true);
       return;
@@ -200,16 +206,16 @@ const inView: Directive = {
 
 /* ── size ────────────────────────────────────────────────────────────────────────────────── */
 
-const size: Directive = {
-  name: 'size',
+const measure: Directive = {
+  name: 'measure',
   value: 'literal',
   priority: 60,
   docs: {
     summary: "Writes the element's { width, height } to a state key as it changes.",
-    example: 'data-vd-size="box"',
+    example: 'data-vd-measure="box"',
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-size', ctx);
+    const key = keyFor(el, 'data-vd-measure', ctx);
     if (!key) return;
     let last = { width: -1, height: -1 };
     const measure = () => {
@@ -404,5 +410,5 @@ const swipe: Directive = {
 
 /** `wireDirectives([sensors])` — no options; each sensor is inert until an element names a key. */
 export const sensors: EngineConnector = (seams) => {
-  for (const directive of [inView, size, pointer, scrollProgress, swipe]) seams.directive(directive);
+  for (const directive of [inView, measure, pointer, scrollProgress, swipe]) seams.directive(directive);
 };

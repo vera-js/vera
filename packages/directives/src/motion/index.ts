@@ -1,5 +1,5 @@
 /**
- * The MOTION PACK — `data-vd-motion` and `data-vd-motion-config`, riding the
+ * The MOTION PACK — `data-vd-motion` and `data-vd-motion-region`, riding the
  * directives engine. Design §16b: motion is a directive set, not a parallel
  * system; this file is the whole of its structural existence.
  *
@@ -11,7 +11,7 @@
  *
  * Security boundary, kept from the design pass: `breakpoints` registration
  * and everything policy-shaped stay FACTORY-ONLY. An attribute is untrusted
- * input — `data-vd-motion-config` may set an axis or an inertia, never widen
+ * input — `data-vd-motion-region` may set an axis or an inertia, never widen
  * an allowlist.
  */
 import { dual } from '../dual.js';
@@ -36,7 +36,7 @@ import { sequenceRows } from './sequence.js';
 import type { SequenceOptions } from './sequence.js';
 import { splitDirective } from './split.js';
 
-const CONFIG_ATTR = 'data-vd-motion-config';
+const CONFIG_ATTR = 'data-vd-motion-region';
 
 
 /* ── factory options and page defaults ────────────────────────────────────── */
@@ -220,7 +220,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
 };
 
 /**
- * The region an element animates in: the nearest `data-vd-motion-config`
+ * The region an element animates in: the nearest `data-vd-motion-region`
  * ancestor's, else the page's. Members create their region lazily, so
  * activation order between a config container and its descendants never
  * matters. The config text is parsed through the base grammar's cache, so
@@ -229,7 +229,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
 const regionFor = (el: Element, reject: (code: string, message: string) => void): Region => {
   const host = el.closest(`[${CONFIG_ATTR}]`);
   if (!host || host === el) {
-    if (host === el) reject('config-on-member', 'motion-config configures a REGION for descendants; the element carrying it animates in the region above.');
+    if (host === el) reject('config-on-member', 'motion-region configures a REGION for descendants; the element carrying it animates in the region above.');
     return (pageRegion ??= createRegion(regionOptions({}, () => {}), breakpoints));
   }
   const existing = regions.get(host);
@@ -241,13 +241,13 @@ const regionFor = (el: Element, reject: (code: string, message: string) => void)
     try {
       const parsed = parseValue(raw) as Parsed;
       if (isObject(parsed)) config = parsed as ParsedObject;
-      else reject('config-not-object', 'motion-config takes a braced object.');
+      else reject('config-not-object', 'motion-region takes a braced object.');
     } catch (error) {
-      reject('config-bad-parse', `motion-config could not parse: ${String((error as Error).message ?? error)}`);
+      reject('config-bad-parse', `motion-region could not parse: ${String((error as Error).message ?? error)}`);
     }
   }
   const region = createRegion(
-    regionOptions(config, (key, why) => reject('config-refused', `motion-config ${key}: ${why}`)),
+    regionOptions(config, (key, why) => reject('config-refused', `motion-region ${key}: ${why}`)),
     breakpoints
   );
   regions.set(host, region);
@@ -385,12 +385,12 @@ const motionDirective: Directive = {
 };
 
 const configDirective: Directive = {
-  name: 'motion-config',
+  name: 'motion-region',
   value: 'literal',
   priority: 20,
   docs: {
     summary: 'Configures a motion REGION for this container\'s descendants: axis, scroller, defaults.',
-    example: 'data-vd-motion-config="{ axis: \'horizontal\', scroller: \'#pane\', inertia: 0 }"',
+    example: 'data-vd-motion-region="{ axis: \'horizontal\', scroller: \'#pane\', inertia: 0 }"',
   },
   setup(el) {
     /**

@@ -275,8 +275,8 @@ const EVENTS = `
       </p>
     </div>
   </demo-block>
-  <demo-block caption="on-load runs AT ACTIVATION — deterministic whether the pack loaded early or late. Route back and forth: it re-runs per activation, and the @ store remembers.">
-    <p data-vd-on-load="{ @visits: (@visits ? @visits : 0) + 1 }">
+  <demo-block caption="init runs AT ACTIVATION — deterministic whether the pack loaded early or late. Route back and forth: it re-runs per activation, and the @ store remembers.">
+    <p data-vd-init="{ @visits: (@visits ? @visits : 0) + 1 }">
       this paragraph has been activated <b data-vd-text="@visits ? @visits : 0"></b> time(s)
     </p>
   </demo-block>
@@ -439,7 +439,7 @@ const MOTION = `
   </demo-block>
   <h2>Regions — motion-config replaces instances</h2>
   <demo-block caption="A container with motion-config is its own scroll world: this rail is a HORIZONTAL region with its own scroller. Scroll it sideways.">
-    <div id="rail" class="gallery" data-vd-motion-config="{ axis: 'horizontal', scroller: '#rail', inertia: 0 }">
+    <div id="rail" class="gallery" data-vd-motion-region="{ axis: 'horizontal', scroller: '#rail', inertia: 0 }">
       <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">A</div>
       <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">B</div>
       <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">C</div>
@@ -544,8 +544,8 @@ const FUN = `
       <b data-vd-show="u > 0 ? d > 0 ? l > 0 ? r > 0 : false : false : false">— full compass! (Esc resets)</b>
     </div>
   </demo-block>
-  <demo-block caption="ENTRANCE TRANSITIONS — the on-load + when recipe: activation writes state, the selector matches, inertia eases it in. Route away and back to replay.">
-    <div data-vd-state="{ here: false }" data-vd-on-load="{ here: true }">
+  <demo-block caption="ENTRANCE TRANSITIONS — the init + when recipe: activation writes state, the selector matches, inertia eases it in. Route away and back to replay.">
+    <div data-vd-state="{ here: false }" data-vd-init="{ here: true }">
       <div class="hero-box" data-vd-class="{ lit: here }"
            data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px',
                              when: '.lit', inertia: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">

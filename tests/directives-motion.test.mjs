@@ -164,7 +164,7 @@ test('the nested form refuses junk keys and a band key carrying its own ease', a
 
 test('motion-config: a bad axis is refused with the region still working on defaults', async () => {
   const host = await mount(`
-    <section data-vd-motion-config="{ axis: 'diagonal' }">
+    <section data-vd-motion-region="{ axis: 'diagonal' }">
       <div data-vd-motion="fade">x</div>
     </section>`);
   const el = host.querySelector('div');
