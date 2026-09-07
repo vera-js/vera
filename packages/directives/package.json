@@ -57,6 +57,11 @@
       "types": "./dist/development/vera-directives-query.d.ts",
       "development": "./dist/development/vera-directives-query.js",
       "default": "./dist/vera-directives-query.min.js"
+    },
+    "./sensors": {
+      "types": "./dist/development/vera-directives-sensors.d.ts",
+      "development": "./dist/development/vera-directives-sensors.js",
+      "default": "./dist/vera-directives-sensors.min.js"
     }
   },
   "files": [

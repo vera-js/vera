@@ -54,6 +54,7 @@ const ENTRY = {
   'directives/motion': ['directives', 'vera-directives-motion'],
   'directives/remote': ['directives', 'vera-directives-remote'],
   'directives/query': ['directives', 'vera-directives-query'],
+  'directives/sensors': ['directives', 'vera-directives-sensors'],
   'directives/expressions': ['directives', 'vera-directives-expressions'],
   'reactivity/collections': ['reactivity', 'vera-reactivity-collections'],
   hooks: ['hooks', 'vera-hooks'],

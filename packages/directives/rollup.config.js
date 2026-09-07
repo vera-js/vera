@@ -26,5 +26,6 @@ export default [
   defaultRollupConfig(`${pkg.filename}-motion`, [], /^_[a-z]/, { input: 'src/motion/index.ts' }),
   defaultRollupConfig(`${pkg.filename}-remote`, [], /^_[a-z]/, { input: 'src/remote.ts' }),
   defaultRollupConfig(`${pkg.filename}-query`, [], /^_[a-z]/, { input: 'src/query.ts' }),
+  defaultRollupConfig(`${pkg.filename}-sensors`, [], /^_[a-z]/, { input: 'src/sensors.ts' }),
   defaultRollupConfig(`${pkg.filename}-expressions`, [], /^_[a-z]/, { input: 'src/expressions.ts' }),
 ];
