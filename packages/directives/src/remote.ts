@@ -33,16 +33,10 @@
  * the first, so a fast-typing search box cannot have an early response land after a late one and
  * write stale state — the bug every hand-rolled version of this has.
  */
+import { dual } from './dual.js';
 import { isObject } from './parse.js';
-import type { Directive, Ctx } from './types.js';
+import type { Directive, Ctx, EngineConnector } from './types.js';
 
-/* ── the pack's own connector shape (additive rule: nothing imported from the engine) ────── */
-type EngineSeams = {
-  _$seams$: true;
-  directive: (d: Directive) => void;
-  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
-};
-type EngineConnector = (seams: EngineSeams) => void;
 
 export interface RemoteOptions {
   /**
@@ -261,7 +255,4 @@ const connect = (options?: RemoteOptions): EngineConnector => (seams) => {
   seams.directive(fetchDirective);
 };
 
-export const remote: ((options?: RemoteOptions) => EngineConnector) & EngineConnector = ((arg?: unknown) =>
-  arg && (arg as { _$seams$?: true })._$seams$ === true
-    ? connect()(arg as EngineSeams)
-    : connect(arg as RemoteOptions | undefined)) as ((options?: RemoteOptions) => EngineConnector) & EngineConnector;
+export const remote = dual<RemoteOptions>(connect);

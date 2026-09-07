@@ -14,6 +14,7 @@
  * input — `data-vd-motion-config` may set an axis or an inertia, never widen
  * an allowlist.
  */
+import { dual } from '../dual.js';
 import { parseMotion, forgetStagger, staggerHost, MOTION_ATTR } from './parse.js';
 import type { ParsedElement } from './parse.js';
 import {
@@ -27,6 +28,7 @@ import {
 import type { Range, WirableTree } from './schema.js';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
+import type { Ctx, Directive, EngineConnector } from '../types.js';
 import { resolveEasing } from './easings.js';
 import { paintRows } from './paint.js';
 import { pathRows } from './path.js';
@@ -36,30 +38,6 @@ import { splitDirective } from './split.js';
 
 const CONFIG_ATTR = 'data-vd-motion-config';
 
-/* ── the directive contract, structurally (no engine import — additive rule) ── */
-type Ctx = {
-  reject: (code: string, message: string, fix?: string) => void;
-  selection: unknown;
-  get: (key: string) => unknown;
-  set: (key: string, value: unknown) => void;
-  run: (assignments: object) => void;
-  runAttr: (attr: string) => void;
-  eval: (value: unknown) => unknown;
-};
-type Directive = {
-  name: string | { match: (suffix: string) => unknown | null };
-  value: 'literal' | 'expression' | 'object' | 'none';
-  setup?: (el: Element, ctx: Ctx) => void | (() => void) | { apply?: unknown; teardown?: () => void };
-  apply?: (el: Element, value: unknown, ctx: Ctx) => void | (() => void);
-  priority?: number;
-  docs?: { summary: string; example: string };
-};
-type EngineSeams = {
-  _$seams$: true;
-  directive: (d: Directive) => void;
-  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
-};
-type EngineConnector = (seams: EngineSeams) => void;
 
 /* ── factory options and page defaults ────────────────────────────────────── */
 
@@ -449,10 +427,7 @@ const connect = (options?: MotionOptions): EngineConnector => (seams) => {
  * configured. The engine calls what it is handed with the sigiled seams
  * object; an author calls it with options. Ten lines, no engine import.
  */
-export const motion: ((options?: MotionOptions) => EngineConnector) & EngineConnector = ((arg?: unknown) =>
-  arg && (arg as { _$seams$?: true })._$seams$ === true
-    ? connect()(arg as EngineSeams)
-    : connect(arg as MotionOptions | undefined)) as ((options?: MotionOptions) => EngineConnector) & EngineConnector;
+export const motion = dual<MotionOptions>(connect);
 
 /**
  * A vocabulary module's registrar, for add-on packs written outside this
@@ -473,10 +448,7 @@ export const vocabularyConnector = (rows: WirableTree): EngineConnector => (seam
 export const easings: EngineConnector = vocabularyConnector({ on: 'easing', fn: resolveEasing });
 export const paint: EngineConnector = vocabularyConnector(paintRows);
 export const path: EngineConnector = vocabularyConnector(pathRows);
-export const sequence: ((options?: SequenceOptions) => EngineConnector) & EngineConnector = ((arg?: unknown) =>
-  arg && (arg as { _$seams$?: true })._$seams$ === true
-    ? vocabularyConnector(sequenceRows())(arg as EngineSeams)
-    : vocabularyConnector(sequenceRows(arg as SequenceOptions | undefined))) as ((options?: SequenceOptions) => EngineConnector) & EngineConnector;
+export const sequence = dual<SequenceOptions>((options) => vocabularyConnector(sequenceRows(options)));
 export const split = splitDirective;
 export { parsePathData } from './path.js';
 

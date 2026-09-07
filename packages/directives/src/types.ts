@@ -2,7 +2,7 @@
  * The directive contract — DESIGN-DIRECTIVES §2, as refined by §19.1. These words face every
  * directive author; keep them exactly as the design doc records them.
  */
-import type { ParsedObject } from './parse.js';
+import type { Parsed, ParsedObject } from './parse.js';
 
 export type Teardown = () => void;
 export type Cleanup = () => void;
@@ -77,3 +77,25 @@ export type Rejection = {
   message: string;
   fix?: string;
 };
+
+/**
+ * The seams an engine CONNECTOR receives — the pack-authoring contract.
+ *
+ * Declared here rather than in the engine, and imported by packs with `import type`, which is
+ * ERASED at build: a pack still emits no runtime import and still cannot reach engine state, so
+ * the additive rule holds exactly as before. That rule was always about shared mutable STATE —
+ * two bundles owning two registries — and never about types, which have no runtime existence.
+ * Four hand-maintained copies of this block is the drift it was costing: a new seam would have
+ * been added in one and silently missing from three.
+ */
+export type EngineSeams = {
+  /** The mark a `dual` pack tests to tell "the engine called me" from "the author configured me".
+   *  Sigiled, so property mangling cannot touch it across bundle boundaries. */
+  _$seams$: true;
+  setParse: (parse: (source: string) => Parsed) => void;
+  setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
+  directive: (d: Directive) => void;
+  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
+};
+
+export type EngineConnector = (seams: EngineSeams) => void;

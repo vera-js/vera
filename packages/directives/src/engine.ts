@@ -16,7 +16,7 @@ import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts
 import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
-import type { Ctx, Directive, Rejection } from './types.js';
+import type { Ctx, Directive, Rejection, EngineSeams, EngineConnector } from './types.js';
 
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
@@ -144,27 +144,12 @@ let attrsDirty = true;
 const VALUE_CLASSES = new Set(['literal', 'expression', 'object', 'none']);
 
 /**
- * A CONNECTOR — the same second shape core's `wire` accepts. The expressions tier (and any future
- * first-party tier) ships as a standalone additive bundle that imports nothing from the engine;
- * wiring hands it the seams instead, so the CDN two-bundle case cannot create a second engine
- * (the renderer's additive-entry rule, applied here).
+ * A CONNECTOR — the same second shape core's `wire` accepts. A pack ships as a standalone
+ * additive bundle that imports nothing from the engine at RUNTIME; wiring hands it the seams
+ * instead, so the CDN two-bundle case cannot create a second engine (the renderer's additive-entry
+ * rule, applied here). The contract itself lives in `types.ts` and is imported as a TYPE, which is
+ * erased — one declaration, no runtime edge, no four copies to keep in step.
  */
-export type EngineSeams = {
-  /** The mark `pack()` duals dispatch on. Sigiled, so it survives mangling across bundles. */
-  _$seams$: true;
-  /** Replace the attribute-value parser (a superset grammar keeps ParsedObject's shape). */
-  setParse: (parse: (source: string) => Parsed) => void;
-  /** Evaluate hook for values the base grammar does not know — `{ kind: 'expr' }` nodes. */
-  setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
-  /** Register a directive — what lets a connector CONTRIBUTE behaviors, not only replace seams. */
-  directive: (d: Directive) => void;
-  /** The engine's rejections registry, so an additive pack's diagnostics land where every
-   *  other refusal does. `element: null` is a page-level problem. */
-  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
-};
-
-export type EngineConnector = (seams: EngineSeams) => void;
-
 const register = (d: Directive): void => {
   if (__DEV__) {
     if (!d || (typeof d.name !== 'string' && typeof (d.name as { match?: unknown })?.match !== 'function'))
@@ -188,21 +173,6 @@ const seams = (): EngineSeams => ({
   directive: register,
   reject,
 });
-
-/**
- * Wraps a configurable pack so BOTH spellings work: `wireDirectives([motion])` uses the
- * defaults, `wireDirectives([motion({ inertia: 0.2 })])` configures — the function-and-
- * descriptor allowance core's own modules make, expressed for connectors. The dual dispatches
- * on the seams mark: called by the engine it builds with defaults and connects; called by the
- * author it closes over the options and returns the connector.
- */
-export const pack = <O>(build: (options?: O) => EngineConnector): ((options?: O) => EngineConnector) & EngineConnector => {
-  const dual = (arg?: unknown) =>
-    arg && (arg as { _$seams$?: true })._$seams$ === true
-      ? build()(arg as EngineSeams)
-      : build(arg as O | undefined);
-  return dual as ((options?: O) => EngineConnector) & EngineConnector;
-};
 
 export const wireDirectives = (item: Directive | EngineConnector | Array<Directive | EngineConnector>) => {
   for (const d of Array.isArray(item) ? item : [item]) {

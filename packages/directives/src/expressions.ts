@@ -21,7 +21,7 @@
  * `evalExpr`). Change one grammar's surface and visit the other.
  */
 import type { Parsed, ParsedObject } from './parse.js';
-import type { EngineConnector } from './engine.js';
+import type { EngineConnector } from './types.js';
 
 type Read = (segments: string[], global: boolean) => unknown;
 type Thunk = (read: Read) => unknown;

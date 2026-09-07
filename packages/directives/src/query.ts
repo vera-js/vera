@@ -25,15 +25,8 @@
  * work locally. One markup, both worlds, and a link to it always reproduces what the sender saw.
  */
 import { isObject } from './parse.js';
-import type { Directive, Ctx } from './types.js';
+import type { Directive, Ctx, EngineConnector } from './types.js';
 
-/* ── the pack's own connector shape (additive rule: nothing imported from the engine) ────── */
-type EngineSeams = {
-  _$seams$: true;
-  directive: (d: Directive) => void;
-  reject: (element: Element | null, directive: string, code: string, message: string, fix?: string) => void;
-};
-type EngineConnector = (seams: EngineSeams) => void;
 
 /**
  * One listener for the whole page, however many directives subscribe.
