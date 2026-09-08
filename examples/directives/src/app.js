@@ -532,30 +532,30 @@ const MOTION = `
   <p class="lede"><code>when</code> is a SELECTOR trigger, so the animation plays under its own
   time rather than scrubbing with the scroll position. Point it at a class, drive the class from
   sensors, and the four reveal behaviours fall out of pieces that already exist:
-  <code>scroll-progress</code> says how far through the viewport the element is (0 entering,
-  <b>0.5 centred</b>, 1 gone), <code>scroll-direction</code> says which way the reader is going,
-  and <code>watch</code> latches the ones that should never come back.</p>
-  <demo-block caption="The row waits until it is HALF WAY through the viewport, then each box plays through on its own time — the trigger is a threshold on scroll-progress, not the scroll position itself. Only the expression driving the class differs. Scroll down slowly, then back up.">
-    <div data-vd-state="{ p: 0, ever: false, dir: '' }"
-         data-vd-scroll-progress="p"
+  <code>in-view</code> takes a TRIGGER LINE — <code>"seen 0.3"</code> fires when the element
+  reaches 30% down the viewport — <code>scroll-direction</code> says which way the reader is
+  going, and <code>watch</code> latches the ones that should never come back.</p>
+  <demo-block caption="All four play through on their own time when the row reaches 30% DOWN THE VIEWPORT — data-vd-in-view=&quot;seen 0.3&quot;, a line on screen rather than a fraction of the row’s own travel, so a tall row and a short one cross it in the same place. Only the expression driving the class differs. Scroll down past them, then back up.">
+    <div data-vd-state="{ seen: false, ever: false, dir: '' }"
+         data-vd-in-view="seen 0.3"
          data-vd-scroll-direction="dir"
-         data-vd-watch="{ p: { ever: ever ? true : p > 0.5 } }">
+         data-vd-watch="{ seen: { ever: ever ? true : seen } }">
       <div class="reveal-row">
         <div class="hero-box" data-vd-class="{ lit: ever }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          1 · plays once at 50%, then holds
+          1 · once, then holds
         </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? dir != 'up' : false }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          2 · plays back out when you scroll up
+          2 · out when scrolling up
         </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? dir != 'down' : false }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          3 · plays back out when you scroll down
+          3 · out when scrolling down
         </div>
-        <div class="hero-box" data-vd-class="{ lit: p > 0.5 }"
+        <div class="hero-box" data-vd-class="{ lit: seen }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          4 · follows the threshold both ways
+          4 · out whenever it leaves
         </div>
       </div>
     </div>

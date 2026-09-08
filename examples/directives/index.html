@@ -179,8 +179,11 @@
       .dot.trailer { width: 54px; height: 54px; margin: -27px 0 0 -27px; opacity: 0.28;
         transition-duration: 900ms, 900ms, 200ms, 900ms; }
       .lag-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; align-items: start; }
-      .reveal-row { display: grid; gap: 0.8rem; }
-      .reveal-row .hero-box { margin: 0; }
+      /* Four ACROSS, not four stacked: stacked, the row was taller than the viewport, so its own
+         midpoint only arrived when it was nearly gone and you could never see two modes at once. */
+      .reveal-row { display: grid; gap: 0.8rem; grid-template-columns: repeat(4, 1fr); }
+      .reveal-row .hero-box { margin: 0; min-height: 8rem; font-size: 0.95rem; }
+      @media (max-width: 720px) { .reveal-row { grid-template-columns: repeat(2, 1fr); } }
       /**
        * The rider follows a CSS `offset-path`, whose coordinates are PIXELS in the element's own
        * containing block — while the curve is drawn in the SVG's viewBox units. With `width: 100%`
