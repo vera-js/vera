@@ -65,17 +65,18 @@ customElements.define('demo-block', class extends HTMLElement {
     if (this.dataset.built) return;
     this.dataset.built = '1';
     const source = readable(dedent(this.innerHTML));
-    const live = document.createElement('div');
+    const make = (tag) => this.ownerDocument.createElement(tag);
+    const live = make('div');
     live.className = 'demo-live';
     while (this.firstChild) live.append(this.firstChild);
-    const caption = document.createElement('div');
+    const caption = make('div');
     caption.className = 'demo-caption';
     caption.textContent = this.getAttribute('caption') ?? '';
-    const details = document.createElement('details');
-    const summary = document.createElement('summary');
+    const details = make('details');
+    const summary = make('summary');
     summary.textContent = 'the markup that built this';
-    const pre = document.createElement('pre');
-    const code = document.createElement('code');
+    const pre = make('pre');
+    const code = make('code');
     code.textContent = source;
     pre.append(code);
     details.append(summary, pre);
@@ -96,7 +97,10 @@ customElements.define('demo-block', class extends HTMLElement {
  */
 customElements.define('attr-mirror', class extends HTMLElement {
   connectedCallback() {
-    const target = document.querySelector(this.getAttribute('for'));
+    /** `ownerDocument`, not `document`: a component rendered into another window (a pop-out
+     *  editor preview, a printed frame) has a different document, and `document` would silently
+     *  resolve against the wrong one — or nothing at all. */
+    const target = this.ownerDocument.querySelector(this.getAttribute('for'));
     const names = (this.getAttribute('attrs') ?? '').split(/\s+/).filter(Boolean);
     if (!target) return;
     this.className = 'mirror';
@@ -162,7 +166,7 @@ customElements.define('churn-lab', class extends HTMLElement {
     const [addButton, removeButton] = this.querySelectorAll('button');
     const zone = this.querySelector('div');
     addButton.onclick = () => {
-      const row = document.createElement('div');
+      const row = this.ownerDocument.createElement('div');
       row.className = 'card';
       row.innerHTML = `<span data-vd-state="{ n: 0 }">
         <button data-vd-on-click="{ n: n + 1 }">+1</button>
