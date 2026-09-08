@@ -6,7 +6,7 @@
  * reflections are one engine-owned hook each; `state`/`every`/`sync`/`persist`/focus are
  * setup-only or setup+apply. Nothing here touches the renderer — adjectives, never nouns.
  */
-import { isObject } from './parse.js';
+import { isObject, sameValue } from './parse.js';
 import type { Ctx, Directive } from './types.js';
 
 /* ── reflections ─────────────────────────────────────────────────────────────────────────── */
@@ -196,16 +196,17 @@ const watch: Directive = {
   },
   setup(_el, ctx) {
     const previous = new Map<string, unknown>();
-    let seeded = false;
     /**
-     * **The run cap, per element per settle** (design §16). A watch that writes a key it also
-     * watches is a loop, and the honest failure is to break it and say so rather than let the page
-     * hang. Reset on a microtask so the cap is per settle rather than for the life of the element —
-     * a page legitimately changing a watched key a hundred times over a session must not fall
-     * silent after the tenth.
+     * **The run cap resets on a QUIET pass, not on a timer** (design §16: per element, per settle).
+     *
+     * It reset on a microtask first, which is not a settle and does not behave like one: core
+     * schedules re-runs on animation frames, and microtasks flush between them — so a watch writing
+     * once per frame reset its own counter every frame and would have looped for ever, while a
+     * burst inside one frame tripped correctly. A pass that fires NOTHING is the real settled
+     * signal, it needs no scheduling at all, and it deleted two variables and a `queueMicrotask`
+     * along with the bug.
      */
     let runs = 0;
-    let scheduled = false;
     return {
       apply: (_element: Element, value: unknown) => {
         if (!isObject(value as never)) {
@@ -213,29 +214,36 @@ const watch: Directive = {
           return;
         }
         const entries = value as Record<string, unknown>;
+        const keys = Object.keys(entries);
+        /**
+         * Baselines for keys no longer watched are DROPPED. An edited attribute that removes `q`
+         * and later restores it would otherwise compare against a baseline from before the edit and
+         * fire on a value that never changed while anything was watching it.
+         */
+        for (const key of previous.keys()) if (!keys.includes(key)) previous.delete(key);
+
         const firing: string[] = [];
-        for (const key of Object.keys(entries)) {
+        for (const key of keys) {
           /** Read through context — that IS the subscription, and why this re-runs at all. */
           const now = ctx.get(key);
-          const had = previous.has(key);
+          /**
+           * A key seen for the first time only establishes a baseline. `previous.has` carries that
+           * on its own; a separate `seeded` flag beside it said the same thing in a second way and
+           * could only ever drift from it.
+           */
+          const known = previous.has(key);
           const before = previous.get(key);
           previous.set(key, now);
-          /** A key seen for the first time only establishes the baseline. */
-          if (!seeded || !had) continue;
-          if (!Object.is(before, now)) firing.push(key);
+          if (known && !sameValue(before, now)) firing.push(key);
         }
-        seeded = true;
-        if (!firing.length) return;
+
+        if (!firing.length) {
+          runs = 0;
+          return;
+        }
         if (++runs > 10) {
           ctx.reject('watch-loop');
           return;
-        }
-        if (!scheduled) {
-          scheduled = true;
-          queueMicrotask(() => {
-            runs = 0;
-            scheduled = false;
-          });
         }
         for (const key of firing) {
           const body = entries[key];

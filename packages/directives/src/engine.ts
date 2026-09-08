@@ -13,7 +13,7 @@
  * region's buttons work the instant the HTML lands). See DESIGN-DIRECTIVES §3/§6.
  */
 import { createHook as bakedCreateHook, createStore as bakedCreateStore, inserts as bakedInserts } from '@verajs/core';
-import { parseValue, parseLiteral, isPath, isObject } from './parse.js';
+import { parseValue, parseLiteral, isPath, isObject, sameValue } from './parse.js';
 import type { ValueError } from './parse.js';
 import type { Parsed, ParsedObject, Path } from './parse.js';
 import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnector } from './types.js';
@@ -448,28 +448,7 @@ const writeKey = (el: Element, key: string, value: unknown) => {
   owner[key] = value;
 };
 
-/**
- * Did this write CHANGE anything — the question the server's fixed-point walk turns on.
- *
- * Identity alone is too strict: `route` republishes `{ path, query, hash }` and `region` its
- * counts, both freshly built each pass, so an identity comparison would report a change for ever
- * and the walk would never converge on a page that is in fact settled.
- *
- * **One level is not enough either, and the difference is not academic** — `@route.query` is
- * itself a fresh object, so a shallow compare reported `@route` as changed on every pass and the
- * walk hit its limit on the very first page that used it. So this recurses, bounded: the depth cap
- * is what makes a cyclic or pathologically deep value cost a pass rather than a stack, and past it
- * the answer is "changed", which is the safe direction.
- */
-const sameValue = (a: unknown, b: unknown, depth = 0): boolean => {
-  if (Object.is(a, b)) return true;
-  if (depth > 4 || typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  const ak = Object.keys(a as object);
-  const bk = Object.keys(b as object);
-  return ak.length === bk.length
-    && ak.every((k) => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth + 1));
-};
+
 
 /** Writes made during the current server pass that actually changed a value. */
 let serverWrites = 0;

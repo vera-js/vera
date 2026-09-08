@@ -217,3 +217,26 @@ export const isPath = (v: Parsed): v is Path =>
  */
 export const isObject = (v: Parsed): v is ParsedObject =>
   typeof v === 'object' && v !== null && (v as { kind?: string }).kind === undefined;
+
+
+/**
+ * **Did this value CHANGE?** — one notion, shared by the two places that ask.
+ *
+ * The server's fixed-point walk asks it to decide whether a pass wrote anything, and `watch` asks
+ * it to decide whether a key moved. They must agree, and they were about to disagree: `watch`
+ * compared with `Object.is`, so watching a key that holds an object — `counts`, `@route` — fired on
+ * every republish of an equal value, because the writer builds a fresh object each time.
+ *
+ * Identity first, then structure, bounded by depth. The cap is what makes a cyclic or absurdly deep
+ * value cost a comparison rather than a stack, and past it the answer is "changed", which is the
+ * safe direction: an unnecessary run, never a missed one.
+ */
+export const sameValue = (a: unknown, b: unknown, depth = 0): boolean => {
+  if (Object.is(a, b)) return true;
+  if (depth > 4 || typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ak = Object.keys(a as object);
+  const bk = Object.keys(b as object);
+  return ak.length === bk.length
+    && ak.every((k) => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth + 1));
+};

@@ -133,3 +133,50 @@ test('refusals: a watch that is not an object, and an entry that is not assignme
   host.remove();
   await settled();
 });
+
+test('an EQUAL object is not a change — identity is not the question', async () => {
+  url('/list');
+  const host = await mount(`
+    <div data-vd-state="{ box: {}, hits: 0 }" data-vd-watch="{ box: { hits: hits + 1 } }"></div>`);
+  const carrier = host.querySelector('[data-vd-state]');
+
+  stateOf(carrier).box = { a: 1 };
+  await settled();
+  assert.equal(stateOf(carrier).hits, 1, 'a real change fires');
+
+  /**
+   * `Object.is` was the comparison first, so watching a key holding an OBJECT fired on every
+   * republish of an equal value — and the writers that produce these build a fresh object each
+   * time (`counts` from `region`, `@route` from the query pack). `watch` now shares the structural
+   * comparison the server's fixed-point walk uses, because the two are asking the same question and
+   * were about to answer it differently.
+   */
+  stateOf(carrier).box = { a: 1 };
+  await settled();
+  assert.equal(stateOf(carrier).hits, 1, 'a NEW object holding the same thing is not a change');
+  host.remove();
+  await settled();
+});
+
+test('the loop cap recovers: a page settles, then works again', async () => {
+  url('/list');
+  const host = await mount(`
+    <div data-vd-state="{ n: 0, seen: 0 }" data-vd-watch="{ n: { seen: seen + 1 } }"></div>`);
+  const carrier = host.querySelector('[data-vd-state]');
+
+  /**
+   * The counter resets on a pass that fires NOTHING, which is the real settled signal — it reset on
+   * a microtask first, and microtasks flush between animation frames, so a watch writing once per
+   * frame reset its own counter every frame and could never trip. The consequence to pin is that a
+   * page changing a watched key many times over its life is never silenced.
+   */
+  for (let i = 1; i <= 30; i++) {
+    stateOf(carrier).n = i;
+    await settled();
+  }
+  assert.equal(stateOf(carrier).seen, 30, 'thirty separate changes each fired — no cap in sight');
+  assert.deepEqual(rejections(carrier).filter((r) => r.code === 'watch-loop'), [],
+    'and nothing was mistaken for a loop');
+  host.remove();
+  await settled();
+});
