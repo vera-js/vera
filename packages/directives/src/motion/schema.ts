@@ -353,7 +353,7 @@ export const SETTINGS = [
    *   anchor: '#section'    measure against a section instead, for a sticky child
    *   start: 'top top', end: 'bottom bottom'    the span a sticky element is pinned for
    */
-  { key: 'anchor', type: 'selector', parse: (raw) => parseSelector(raw, true) },
+  { key: 'anchor', type: 'selector', parse: (raw) => (raw.trim() === 'self' ? 'self' : parseSelector(raw, true)) },
   { key: 'start', type: 'alignment', parse: (raw) => parseAlignment(raw) },
   { key: 'end', type: 'alignment', parse: (raw) => parseAlignment(raw) },
   { key: 'run-once', type: 'boolean' },

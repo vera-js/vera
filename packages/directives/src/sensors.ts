@@ -261,17 +261,34 @@ const measure: Directive = {
   value: 'literal',
   priority: 60,
   docs: {
-    summary: "Writes the element's { width, height } to a state key as it changes.",
+    summary: "Writes { width, height, scrollWidth, scrollHeight, overflowX, overflowY } as the element resizes.",
     example: 'data-vd-measure="box"',
   },
   setup(el, ctx) {
     const key = keyFor(el, 'data-vd-measure', ctx);
     if (!key) return;
-    let last = { width: -1, height: -1 };
+    let last: Record<string, number | boolean> = { width: -1, height: -1 };
     const measure = () => {
-      const width = Math.round((el as HTMLElement).offsetWidth);
-      const height = Math.round((el as HTMLElement).offsetHeight);
-      const next = { width, height };
+      const node = el as HTMLElement;
+      const width = Math.round(node.offsetWidth);
+      const height = Math.round(node.offsetHeight);
+      /**
+       * **The scroll size and the overflow flags, because "is this overflowing" is the question
+       * people actually ask.** A width alone answers "how wide"; it cannot answer whether the
+       * content fits, which is what decides between a wrap, a scroller and a truncation. Both are
+       * free once the element is being measured anyway, and `overflowX` is the comparison everyone
+       * writes by hand and gets subtly wrong (`scrollWidth` is rounded, `clientWidth` is not).
+       */
+      const scrollWidth = Math.round(node.scrollWidth);
+      const scrollHeight = Math.round(node.scrollHeight);
+      const next = {
+        width,
+        height,
+        scrollWidth,
+        scrollHeight,
+        overflowX: scrollWidth > Math.round(node.clientWidth),
+        overflowY: scrollHeight > Math.round(node.clientHeight),
+      };
       if (same(last, next)) return;
       last = next;
       ctx.set(key, next);

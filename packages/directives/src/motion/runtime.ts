@@ -1128,6 +1128,21 @@ export const resolveRange = (
   let anchorSize = element.size;
 
   const selector = element.parsed.settings['anchor'];
+  /**
+   * `self` is the element's OWN transit, which is what a full-bleed section wants: measured against
+   * the viewport, a section taller than the screen finishes its animation while most of it is still
+   * visible. Spelled as a word rather than requiring the author to give their own element an id and
+   * point at it.
+   */
+  if (selector === 'self') {
+    const from = alignmentAt(
+      element.parsed.settings['start'] as string | undefined, [0, 1], element.start, element.size, win);
+    const to = alignmentAt(
+      element.parsed.settings['end'] as string | undefined, [1, 0], element.start, element.size, win);
+    element.rangeStart = from;
+    element.rangeSize = to - from;
+    return;
+  }
   if (typeof selector === 'string' && selector !== '') {
     /** Resolved in the element's OWN root, so a component can anchor to its own section without
      *  reaching into the page — the same rule `path-selector` follows. */
