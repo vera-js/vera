@@ -157,6 +157,15 @@ export type EngineSeams = {
   setEvalExpr: (evalExpr: (node: unknown, read: (segments: string[], global: boolean) => unknown, el: Element) => unknown) => void;
   directive: (d: Directive) => void;
   reject: (element: Element | null, directive: string, code: string, messageOrArgs?: string | readonly unknown[], fix?: string) => void;
+  /**
+   * Invoke a registered ACTION — the value tier's door to `wireActions`.
+   *
+   * The tier compiles a call to an unknown name into this rather than failing at parse, because a
+   * registry is dynamic and a parse-time snapshot of one is wrong. The engine resolves the name,
+   * builds the `Ctx` for the element the expression is being evaluated for, and refuses if the name
+   * is unregistered or if nothing is currently firing.
+   */
+  action: (name: string, args: readonly unknown[], element: Element | null) => unknown;
 };
 
 export type EngineConnector = (seams: EngineSeams) => void;

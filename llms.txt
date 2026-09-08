@@ -849,7 +849,8 @@ wiring for SSR, never your directives wiring.
 `deactivate(root)` (any root, shadow roots included — closed ones too, via a component's `init`) ·
 `settled(): Promise<void>` (test/e2e primitive) · `rejections(el?)` (every refusal:
 `{ element, directive, code, message, fix }`) · `describeDirectives()` (the live vocabulary — build
-GUI panels from this, never a hand-written list) · `describePayloads()` (the `$` vocabulary per
+GUI panels from this, never a hand-written list) · `wireActions({ name: fn })` /
+`describeActions()` · `describePayloads()` (the `$` vocabulary per
 event base — the other half of that list) · `wirePayloads({ base: { name: getter } })` · `stateOf(el)` (what this element can SEE,
 resolved per key up the carrier chain exactly as its directives resolve — live, and writable
 through the same owner rules) · `renderDirectives(root)` (server; returns nothing) and
@@ -892,6 +893,15 @@ so swapped-in markup works from its first event; members `on-keydown-enter`, `on
 `on-escape`, `on-window-*`, `on-document-*`, `init`, `on-submit`, `on-submit-native`) · `sync` ·
 `persist` · `every` · `focus-on` / `focus-trap` / `focus-return` · `doc-class` · `scroll-lock` ·
 `copy` · `scroll-to` · `watch`.
+
+**`wireActions({ name: fn })`** — the named escape hatch for the 1% the grammar cannot express.
+An action is INVOKED by name from a handler value, never written inline:
+`wireActions({ checkout: (ctx, event) => api.checkout(ctx.get('cart')) })` with
+`data-vd-on-click="{ res: checkout() }"`. It receives `(ctx, event, ...args)` — arguments come from
+the expression, so `slug(title)` passes state in and its RETURN is assigned. Actions run ONLY while
+a handler is firing: in a reflection they refuse (`action-outside-handler`), because a reflection
+re-runs whenever its inputs change and would fire the action every time. `describeActions()` lists
+the registry, which is what makes "what JavaScript can this page run" a question with an answer.
 
 `watch` (object) runs assignments when a state key CHANGES — `data-vd-watch="{ q: { page: 1 } }"`.
 It does not fire on the first pass, so a shared link's `?q=ber&page=3` survives; and it is for

@@ -58,9 +58,9 @@ an app using motion pays more than everything else combined.
 
 | entry | gzip | what it is |
 | --- | --- | --- |
-| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 813 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 129 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
-| `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 241 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
+| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 920 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 237 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 281 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 543 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->1 688 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
@@ -103,6 +103,22 @@ writing `undefined`.
 - **`remote`** — `data-vd-fetch`. A JSON response patches state; a markup response swaps a region,
   same-origin only, always.
 - **`motion`** — one `data-vd-motion` attribute taking a preset or an object.
+
+## Actions — the escape hatch
+
+The value grammar is bounded on purpose: no `eval`, no `Function`, no inline JavaScript. For the
+last one percent, register a named function and invoke it from a handler:
+
+```js
+wireActions({ checkout: (ctx, event) => api.checkout(ctx.get('cart')) });
+```
+```html
+<button data-vd-on-click="{ res: checkout() }">Buy</button>
+```
+
+The attribute names a function and never contains one; `describeActions()` enumerates every one a
+page can reach; and actions run only while a handler is firing, so a reflection cannot fire one on
+every render.
 
 ## Server rendering
 

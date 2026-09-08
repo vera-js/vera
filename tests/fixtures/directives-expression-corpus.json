@@ -301,9 +301,10 @@
    "throws": "name-forbidden"
   },
   {
-   "name": "unknown function names the pure set",
+   "name": "an unregistered call PARSES and refuses when it runs, not when it is read",
+   "note": "A registry is dynamic, so a parse-time snapshot of it is wrong: an autoloaded pack registering an action after a template was parsed would have found its own name permanently unknown. `alert` still cannot run -- nothing registers it -- but the refusal is unknown-action at call time.",
    "expression": "alert(1)",
-   "throws": "unknown-function"
+   "throws": "unknown-action"
   },
   {
    "name": "call on a path is not a call surface",

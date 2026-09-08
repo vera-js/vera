@@ -2,6 +2,21 @@
   "url": "https://docs.verajs.dev/e/",
   "entries": [
     {
+      "code": "action-no-element",
+      "params": [
+        "name"
+      ],
+      "message": "{name}() had no element to build a context from."
+    },
+    {
+      "code": "action-outside-handler",
+      "params": [
+        "name"
+      ],
+      "message": "{name}() ran where there is no event — actions run only while a handler is firing.",
+      "fix": "A reflection re-runs whenever its inputs change, so an action there would fire over and over."
+    },
+    {
       "code": "array-unterminated",
       "params": [
         "raw",
@@ -981,6 +996,15 @@
       "fix": "Declare it in data-vd-state."
     },
     {
+      "code": "unknown-action",
+      "params": [
+        "name",
+        "known"
+      ],
+      "message": "\"{name}\" is not a pure function or a registered action.",
+      "fix": "Registered actions: {known}. Add one with wireActions."
+    },
+    {
       "code": "unknown-directive",
       "params": [
         "suffix",
@@ -988,15 +1012,6 @@
       ],
       "message": "nothing wired provides \"{suffix}\".",
       "fix": "The loader declined it — check the name, or its alias map."
-    },
-    {
-      "code": "unknown-function",
-      "params": [
-        "raw",
-        "detail"
-      ],
-      "message": "could not parse \"{raw}\": {detail}.",
-      "fix": "Check the attribute value against the syntax for this directive."
     },
     {
       "code": "unknown-key",

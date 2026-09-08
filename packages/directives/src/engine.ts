@@ -201,6 +201,7 @@ const seams = (): EngineSeams => ({
   },
   directive: register,
   reject,
+  action: callAction,
 });
 
 export const wireDirectives = (item: Directive | EngineConnector | Array<Directive | EngineConnector>) => {
@@ -500,6 +501,61 @@ const evaluate = (el: Element, v: Parsed, overlay?: Record<string, unknown>): un
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
 const runAssignments = (el: Element, obj: ParsedObject) => {
   for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key]));
+};
+
+/* ── actions: the named escape hatch (design §17.4) ───────────────────────────────────────── */
+
+/**
+ * **The one place authored JavaScript enters — by NAME, never inline.**
+ *
+ * The value grammar is bounded on purpose: arithmetic, comparisons, a fixed set of pure functions,
+ * no `eval` and no `Function`. That is what lets a reader look at markup and know what it can do.
+ * The cost is the last one percent — call your API client, format with `Intl`, run a calculation
+ * the tier cannot express — and without a door for it the answer is "write a component", which
+ * throws away the whole vocabulary for one line of logic.
+ *
+ * ```js
+ * wireActions({ checkout: (ctx) => api.checkout(ctx.get('cart')) });
+ * ```
+ * ```html
+ * <button data-vd-on-click="{ status: checkout() }">Buy</button>
+ * ```
+ *
+ * Three properties make this an escape hatch rather than a hole. The attribute names a function, it
+ * never contains one. Every action a page can reach is in one registry, so "what JavaScript can
+ * this page run" has an answer a tool can print. And an action receives a `Ctx` rather than free
+ * rein, so its reads and writes go through the same door directives use and land in the same store.
+ *
+ * **They run only while a handler is firing**, which is the rule that keeps them from being the
+ * hole. `data-vd-text="checkout()"` would otherwise charge a card on every re-render — a reflection
+ * runs whenever its inputs change, and an author reaching for an action is thinking about an event.
+ * The same gate the `$` variables use, for the same reason.
+ */
+const actions = new Map<string, (ctx: Ctx, event: Event | null, ...args: unknown[]) => unknown>();
+
+/**
+ * Register named actions. Later registrations replace earlier ones under the same name, so a page
+ * may sharpen one a pack shipped.
+ */
+export const wireActions = (
+  map: Record<string, (ctx: Ctx, event: Event | null, ...args: unknown[]) => unknown>
+): void => {
+  for (const [name, fn] of Object.entries(map)) actions.set(name, fn);
+};
+
+/** The registered action names — beside `describeDirectives()`, and the point of a registry. */
+export const describeActions = (): string[] => [...actions.keys()].sort();
+
+const callAction = (name: string, args: readonly unknown[], element: Element | null): unknown => {
+  const fn = actions.get(name);
+  if (!fn) {
+    const known = __DEV__ ? [...actions.keys()] : [];
+    throw refusal('unknown-action', [name, known.join(', ')]);
+  }
+  /** A reflection has no event; running an action there is the mistake described above. */
+  if (!firing) throw refusal('action-outside-handler', [name]);
+  if (!element) throw refusal('action-no-element', [name]);
+  return fn(ctxFor(element, 'action', undefined), firing, ...args);
 };
 
 /* ── event payloads: the `$` namespace (design §20.1) ─────────────────────────────────────── */

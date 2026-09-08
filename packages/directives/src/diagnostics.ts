@@ -74,7 +74,6 @@ export const PROSE: Record<string, Prose> = {
   'name-forbidden': parseFailure,
   'strict-spelling': parseFailure,
   'ternary-missing-colon': parseFailure,
-  'unknown-function': parseFailure,
   'bind-refused-target': (target: string) => [`"${target}" is not bindable — it is a navigation/script sink or has its own directive.`, `Use the class/style directives, or a real link written in markup.`],
   'class-not-object': () => [`data-vd-class takes a braced object of name: expression.`],
   'copy-refused': () => [`the clipboard write was refused.`],
@@ -116,6 +115,15 @@ export const PROSE: Record<string, Prose> = {
   'sync-radio-unsupported': () => [`radio groups need group semantics — not in v1.`, `Bind on-change + bind-checked per radio.`],
   'teardown-threw': (detail: string) => [detail],
   'undeclared-write': (key: string) => [`"${key}" was not declared by the state it landed in.`, `Declare it in data-vd-state.`],
+  'unknown-action': (name, known) => [
+    `"${name}" is not a pure function or a registered action.`,
+    known ? `Registered actions: ${known}. Add one with wireActions.` : 'Register it with wireActions({ ' + name + ': fn }).',
+  ],
+  'action-outside-handler': (name) => [
+    `${name}() ran where there is no event — actions run only while a handler is firing.`,
+    'A reflection re-runs whenever its inputs change, so an action there would fire over and over.',
+  ],
+  'action-no-element': (name) => [`${name}() had no element to build a context from.`],
   'unknown-directive': (suffix: string, declined?: string) => [
     `nothing wired provides "${suffix}".`,
     declined ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.',

@@ -21,7 +21,7 @@
  * `evalExpr`). Change one grammar's surface and visit the other.
  */
 import type { Parsed, ParsedObject } from './parse.js';
-import type { EngineConnector } from './types.js';
+import type { EngineConnector, EngineSeams } from './types.js';
 
 type Read = (segments: string[], global: boolean) => unknown;
 type Thunk = (read: Read) => unknown;
@@ -175,8 +175,13 @@ const compile = (source: string, from = 0, stopAt: string | null = null): { thun
       /** A call — PURE functions only, with the names listed when one is unknown. */
       if (!global && peek() === '(' && !word.includes('.')) {
         const fn = PURE[word];
-        if (!fn)
-          fail('unknown-function', start, `"${word}" is not a pure function here. Available: ${Object.keys(PURE).join(', ')}.`);
+        /**
+         * **An unknown name is not a parse failure any more — it is an ACTION, resolved when it
+         * runs.** A registry is dynamic and a parse-time snapshot of one is wrong by construction:
+         * an autoloaded pack registering an action after a template was parsed would have found its
+         * own name permanently unknown. The refusal moved to call time, where it can also say
+         * whether the name is missing or merely used in a place actions may not run.
+         */
         i++;
         const args: Thunk[] = [];
         ws();
@@ -188,7 +193,9 @@ const compile = (source: string, from = 0, stopAt: string | null = null): { thun
             if (eat(')')) break;
             fail('call-unterminated', i, 'expected "," or ")"');
           }
-        return (read) => fn(...args.map((t) => t(read)));
+        return fn
+          ? (read) => fn(...args.map((t) => t(read)))
+          : (read) => runAction(word, args.map((t) => t(read)));
       }
       const segments = word.split('.');
       for (const seg of segments)
@@ -322,9 +329,45 @@ const parseObject = (source: string, from: number): { node: ParsedObject; end: n
 /* ── the connector ────────────────────────────────────────────────────────────────────────── */
 
 /** `wireDirectives([expressions])` — the tier installs through the engine's seams. */
+/**
+ * The engine's action resolver and the element an expression is being evaluated FOR.
+ *
+ * The tier cannot own actions: they receive a `Ctx`, which only the engine can build, and the
+ * additive rule means this file imports nothing from it at runtime. So the engine hands the
+ * resolver over at wiring time, and the element travels the same way the evaluator already does —
+ * ambient for the duration of one synchronous evaluation, exactly like the engine's own event
+ * trigger, rather than threaded through every thunk that will never look at it.
+ */
+let resolve: EngineSeams['action'];
+let evaluatingFor: Element | null = null;
+
+const runAction = (name: string, args: unknown[]): unknown => {
+  /**
+   * No resolver means this tier is being used on its own — `compileExpression` in a test or a tool.
+   * Answering `undefined` there would make `alert(1)` evaluate to nothing quietly, which is a worse
+   * answer than the parse failure this replaced.
+   */
+  if (!resolve) {
+    const error = new Error(name) as Error & { code?: string; args?: string[] };
+    error.code = 'unknown-action';
+    error.args = [name, ''];
+    throw error;
+  }
+  return resolve(name, args, evaluatingFor);
+};
+
 export const expressions: EngineConnector = (seams) => {
   seams.setParse(parseTier);
-  seams.setEvalExpr((node, read) => (node as ExprNode).thunk(read));
+  resolve = seams.action;
+  seams.setEvalExpr((node, read, el) => {
+    const outer = evaluatingFor;
+    evaluatingFor = el;
+    try {
+      return (node as ExprNode).thunk(read);
+    } finally {
+      evaluatingFor = outer;
+    }
+  });
 };
 
 /** Exported for the corpus and for anyone building tooling on the grammar. */

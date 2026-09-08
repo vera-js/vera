@@ -20,9 +20,9 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
 | `@verajs/inserts` | 486 B | 357 B |
-| `@verajs/directives` | 14.47 KB | 5.68 KB |
-| `@verajs/directives/directives-standalone` | 17.98 KB | 6.96 KB |
-| `@verajs/directives/directives-expressions` | 5.15 KB | 2.19 KB |
+| `@verajs/directives` | 14.82 KB | 5.78 KB |
+| `@verajs/directives/directives-standalone` | 18.33 KB | 7.07 KB |
+| `@verajs/directives/directives-expressions` | 5.24 KB | 2.23 KB |
 | `@verajs/directives/directives-interaction` | 9.49 KB | 3.46 KB |
 | `@verajs/directives/directives-query` | 3.63 KB | 1.58 KB |
 | `@verajs/directives/directives-sensors` | 4.18 KB | 1.65 KB |
