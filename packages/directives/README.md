@@ -58,8 +58,8 @@ an app using motion pays more than everything else combined.
 
 | entry | gzip | what it is |
 | --- | --- | --- |
-| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 942 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 271 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 782 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 099 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 241 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 257 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
@@ -79,9 +79,10 @@ $button`, keyboard `$key`, input and change `$value $checked`, and every base an
 ```
 
 They are primitives by construction rather than the event object: native event properties live on
-prototypes, so exposing them would mean handing attribute text the entire DOM API. Register your own
-base with `wirePayloads`, list the vocabulary with `describePayloads()`, and know that an unknown
-`$var` refuses the whole handler rather than quietly writing `undefined`.
+prototypes, so exposing them would mean handing attribute text the entire DOM API. Register your own base
+with `wirePayloads({ 'my:event': { n: (e) => e.detail.n } })`, list the vocabulary with
+`describePayloads()`, and know that an unknown `$var` refuses the whole handler rather than quietly
+writing `undefined`.
 
 ## The packs
 

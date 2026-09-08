@@ -120,6 +120,18 @@ export const PROSE: Record<string, Prose> = {
     `nothing wired provides "${suffix}".`,
     declined ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.',
   ],
+  'payload-not-walkable': (name) => [
+    `${name} is a single value, so it has no properties to read.`,
+    'Trigger variables are primitives on purpose — write the whole value, or compute from it.',
+  ],
+  'payload-outside-handler': (name) => [
+    `${name} has no event to read: trigger variables exist only while a handler is running.`,
+    'Write it in a data-vd-on-* handler, or put the value into state there and read the key here.',
+  ],
+  'payload-not-primitive': (name, base) => [
+    `a payload getter for ${name}${base ? ` on "${base}"` : ''} returned an object.`,
+    'Getters return primitives — a walkable value hands attribute text the DOM API they exist to keep out.',
+  ],
   'unknown-payload-var': (name, offered, near) => [
     `${name} is not something this event carries.`,
     `${near ? `Did you mean ${near}? ` : ''}This one offers ${offered}.`,

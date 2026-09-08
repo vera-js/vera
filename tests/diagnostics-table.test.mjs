@@ -142,6 +142,13 @@ for (const path of files(new URL('../packages/directives/src', import.meta.url).
    * rejects under that code rather than a literal of its own — so `fail('object-missing-colon', …)`
    * is a raise, even though no `reject(` call names it anywhere.
    */
+  /** A THIRD route: a refusal that travels as a throw names its code at the throw site, not in a
+   *  `reject(` call — `refusal('payload-not-walkable', …)` and `error.code = '…'` both count. */
+  for (const match of text.matchAll(/(?:refusal\(|\.code = )'([a-z][a-z0-9-]*)'/g)) {
+    if (!raised.has(match[1])) raised.set(match[1], new Set());
+    raised.get(match[1]).add(rel);
+  }
+
   for (const match of text.matchAll(/\bfail\('([a-z][a-z0-9-]*)'/g)) {
     if (!raised.has(match[1])) raised.set(match[1], new Set());
     raised.get(match[1]).add(rel);

@@ -244,8 +244,8 @@ export const describeDirectives = () => [
  * A picker that lists `data-vd-on-input` without saying it carries `$value` has told an author the
  * word and withheld the sentence. Sorted, so a generated page or a diff does not churn on Map order.
  */
-export const describePayloads = () => [...payloads.entries()]
-  .map(([base, payload]) => ({ base, vars: payload.vars.map((one) => `$${one}`) }))
+export const describePayloads = () => [...payloads.keys()]
+  .map((base) => ({ base, vars: [...Object.keys(payloads.get(base) ?? {}), 'type'].map((one) => `$${one}`) }))
   .sort((a, b) => (a.base < b.base ? -1 : 1));
 
 /* ── rejections ───────────────────────────────────────────────────────────────────────────── */
@@ -477,7 +477,7 @@ const readSegments = (el: Element, overlay?: Record<string, unknown>) => (segmen
    * trigger variable could not be in a `data-vd-state` however correct it was. The handler path
    * has already said the useful thing.
    */
-  if (!global && segments[0]!.startsWith('$')) return overlay?.[segments[0]!];
+  if (!global && segments[0]!.startsWith('$')) return payloadValue(segments[0]!.slice(1), segments.length - 1);
   if (!global && overlay && Object.prototype.hasOwnProperty.call(overlay, segments[0])) {
     let v: unknown = overlay[segments[0]];
     for (const seg of segments.slice(1)) {
@@ -504,8 +504,8 @@ const evaluate = (el: Element, v: Parsed, overlay?: Record<string, unknown>): un
 };
 
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
-const runAssignments = (el: Element, obj: ParsedObject, payload?: Record<string, unknown>) => {
-  for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key], payload));
+const runAssignments = (el: Element, obj: ParsedObject) => {
+  for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key]));
 };
 
 /* ── event payloads: the `$` namespace (design §20.1) ─────────────────────────────────────── */
@@ -517,127 +517,150 @@ const runAssignments = (el: Element, obj: ParsedObject, payload?: Record<string,
  * constants and re-read state, so the commonest interaction there is — type into a box, filter a
  * list — needed `data-vd-sync` and a state key whether or not the page wanted one.
  *
- * **It cannot be "just read the event", and that is the whole design.** Native event properties
- * live on PROTOTYPES, so the own-property walk every path resolution here does would read nothing
- * from a real event — and reaching through the prototype chain would hand attribute text the entire
- * DOM API, which is precisely the surface this grammar exists not to have. So each event base
- * declares an EXTRACTOR that returns primitives, and `$` resolves against that and nothing else:
- * the vocabulary is enumerable, the values are serializable, and an unknown `$var` is a refusal
- * rather than `undefined` (which reads as an empty box rather than a mistake).
+ * **It cannot be "just read the event", and that is the design.** Native event properties live on
+ * PROTOTYPES, so the own-property walk every path resolution here does would read nothing from a
+ * real event — and reaching through the prototype chain would hand attribute text the entire DOM
+ * API, which is precisely the surface this grammar exists not to have. A base declares GETTERS
+ * returning primitives, `$` resolves against those and nothing else, and an unknown name refuses.
+ *
+ * **A map of NAME → getter, not a name list beside a reader returning all of them.** The first
+ * version had `{ vars, read }`, which let the two disagree — a name declared and never read, or
+ * read and never declared — and repeated `type` nine times, once per mouse base. Here a base IS
+ * its vocabulary, `describePayloads()` reads the keys, and one shared object serves every base
+ * that behaves alike.
  */
-export type Payload = {
-  /** The `$` names this base offers, WITHOUT the sigil — feeds `describeDirectives()`. */
-  readonly vars: readonly string[];
-  /** Primitives only: deterministic, serializable, and safe to hand to an agent or a log. */
-  readonly read: (event: Event) => Record<string, string | number | boolean | null>;
-};
+export type Payload = Record<string, (event: Event) => string | number | boolean | null>;
 
 const payloads = new Map<string, Payload>();
 
 /**
- * Register payload extractors for event bases — the same door packs and users use.
- *
- * Later registrations win, so a page may sharpen a base the engine ships. Names are stored WITHOUT
- * the `$`; the sigil is grammar, not part of the variable.
+ * Register payload getters for event bases — the same door packs and pages use. Merged per base
+ * rather than replaced, so a page can add one name without restating the rest.
  */
 export const wirePayloads = (map: Record<string, Payload>): void => {
-  for (const [base, payload] of Object.entries(map)) payloads.set(base, payload);
-};
-
-/**
- * Every event answers `$type`, whatever else it offers. It costs one property and it is the honest
- * floor: a handler on a base nothing has described can still tell what ran it.
- */
-const GENERIC: Payload = { vars: ['type'], read: (event) => ({ type: event.type }) };
-
-wirePayloads({
-  /** Pointer geometry as the PAGE sees it — clientX/Y, not screen or offset, because a handler
-   *  writing coordinates into state is positioning something in the page. */
-  ...Object.fromEntries(['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'contextmenu',
-    'pointerdown', 'pointerup', 'pointermove'].map((base) => [base, {
-    vars: ['x', 'y', 'button', 'type'],
-    read: (event: Event) => ({
-      x: (event as MouseEvent).clientX ?? 0,
-      y: (event as MouseEvent).clientY ?? 0,
-      button: (event as MouseEvent).button ?? 0,
-      type: event.type,
-    }),
-  } as Payload])),
-  ...Object.fromEntries(['keydown', 'keyup', 'keypress'].map((base) => [base, {
-    vars: ['key', 'type'],
-    read: (event: Event) => ({ key: (event as KeyboardEvent).key ?? '', type: event.type }),
-  } as Payload])),
-  /**
-   * `$value` and `$checked` come from the TARGET, not the event — that is where a form control
-   * keeps them, and it is what makes `{ q: $value }` mean what an author expects on the element
-   * they wrote it on as well as on one it bubbled from.
-   */
-  ...Object.fromEntries(['input', 'change'].map((base) => [base, {
-    vars: ['value', 'checked', 'type'],
-    read: (event: Event) => {
-      const target = event.target as HTMLInputElement | null;
-      return { value: target?.value ?? '', checked: target?.checked ?? false, type: event.type };
-    },
-  } as Payload])),
-});
-
-/**
- * **A `$var` this event does not offer is a REFUSAL, not `undefined`.**
- *
- * Silence here is the worst available answer: `{ q: $vaule }` would write an empty string into `q`
- * and read on screen as a filter that matches everything, which is a working page with wrong
- * behaviour — the shape this grammar refuses everywhere else. The suggestion is worth its bytes
- * because the mistake is almost always a typo or the wrong base (`$value` on a click).
- *
- * **The handler is then SKIPPED ENTIRELY, in both builds.** Writing `undefined` under the author's
- * key is the half-applied state this engine refuses everywhere else, and doing it in production
- * while development refused would make the two programs disagree about what a page does — far worse
- * than the check costing something. It costs almost nothing: the walk runs only when the attribute
- * text contains a `$` at all, so a page with no trigger variables pays one `indexOf`.
- */
-const unknownVars = (
-  el: Element,
-  attr: string,
-  parsed: ParsedObject,
-  overlay: Record<string, unknown>,
-  vars: readonly string[]
-): string[] => {
-  const seen = new Set<string>();
-  const walk = (value: Parsed | unknown): void => {
-    if (isPath(value as Parsed)) {
-      const head = (value as Path).segments[0]!;
-      if (head.startsWith('$') && !(head in overlay)) seen.add(head);
-      return;
-    }
-    if (value && typeof value === 'object') {
-      const node = value as { kind?: string; src?: string };
-      /** An expression carries its source rather than a walkable tree here; the names inside it are
-       *  read the same way, so scan the text for `$` words. */
-      if (node.kind === 'expr') {
-        for (const hit of String(node.src ?? '').matchAll(/\$[A-Za-z_][\w-]*/g))
-          if (!(hit[0] in overlay)) seen.add(hit[0]);
-        return;
-      }
-      for (const inner of Object.values(value as Record<string, unknown>)) walk(inner);
-    }
-  };
-  for (const value of Object.values(parsed)) walk(value);
-
-  for (const name of seen) {
-    const bare = name.slice(1);
-    const near = vars.find((one) => one[0] === bare[0] && Math.abs(one.length - bare.length) <= 2)
-      ?? vars.find((one) => one.includes(bare) || bare.includes(one));
-    reject(el, attr, 'unknown-payload-var', [name, vars.map((one) => `$${one}`).join(', '), near ? `$${near}` : '']);
+  for (const [base, payload] of Object.entries(map)) {
+    payloads.set(base, { ...payloads.get(base), ...payload });
   }
-  return [...seen];
 };
 
-/** The `$`-prefixed overlay for one event, and the names it legitimately offers. */
-const payloadFor = (event: Event): { overlay: Record<string, unknown>; vars: readonly string[] } => {
-  const payload = payloads.get(event.type) ?? GENERIC;
-  const overlay: Record<string, unknown> = {};
-  for (const [name, value] of Object.entries(payload.read(event))) overlay[`$${name}`] = value;
-  return { overlay, vars: payload.vars };
+/** Every event answers `$type`, whatever else it offers — one getter, not one per base. */
+const TYPE: Payload = { type: (event) => event.type };
+
+/**
+ * Pointer geometry as the PAGE sees it — `clientX/Y` rather than screen or offset, because a
+ * handler writing coordinates into state is positioning something in the page.
+ */
+const POINTER: Payload = {
+  x: (event) => (event as MouseEvent).clientX ?? 0,
+  y: (event) => (event as MouseEvent).clientY ?? 0,
+  button: (event) => (event as MouseEvent).button ?? 0,
+};
+const KEYS: Payload = { key: (event) => (event as KeyboardEvent).key ?? '' };
+/**
+ * `$value` and `$checked` come from the TARGET, not the event — that is where a form control keeps
+ * them, and it is what makes `{ q: $value }` mean what an author expects both on the element they
+ * wrote it on and on one it bubbled from.
+ */
+const CONTROL: Payload = {
+  value: (event) => (event.target as HTMLInputElement | null)?.value ?? '',
+  checked: (event) => (event.target as HTMLInputElement | null)?.checked ?? false,
+};
+
+for (const base of ['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'contextmenu',
+  'pointerdown', 'pointerup', 'pointermove']) payloads.set(base, POINTER);
+for (const base of ['keydown', 'keyup', 'keypress']) payloads.set(base, KEYS);
+for (const base of ['input', 'change']) payloads.set(base, CONTROL);
+
+/**
+ * The event being dispatched, for the `$` resolution below.
+ *
+ * A module-level current-trigger rather than an overlay threaded through `evaluate`,
+ * `runAssignments` and every caller: dispatch is synchronous and one at a time, the value is
+ * genuinely ambient to the run, and the alternative allocated a payload object on EVERY event
+ * whether or not the handler named one variable. Saved and restored rather than cleared, so a
+ * handler dispatching an event of its own does not blank the outer trigger.
+ */
+let firing: Event | null = null;
+
+/** The names in scope for an event, `$`-less — the did-you-mean and the refusal both read it. */
+const offers = (event: Event | null): string[] =>
+  event ? [...Object.keys(payloads.get(event.type) ?? {}), 'type'] : [];
+
+/**
+ * Resolve one `$name`, or THROW.
+ *
+ * **The throw is what makes the refusal free.** An unknown name must skip the whole handler —
+ * writing `undefined` under the author's key is the half-applied state this engine refuses
+ * everywhere else, and `{ q: $vlaue }` would read on screen as a filter matching everything.
+ * Detecting that by WALKING every parsed value cost 235 B and had to run in production too, or the
+ * two builds would disagree about what a page does. Throwing reuses the try/catch dispatch already
+ * has: identical behaviour in both builds, and only the sentence is development-only.
+ *
+ * It also carries out of an EXPRESSION, which a walk had to handle as its own case — a throw leaves
+ * `$q / 2` exactly as it leaves a bare `$q`, instead of quietly yielding NaN.
+ */
+const payloadValue = (name: string, tail: number): unknown => {
+  const event = firing;
+  /**
+   * **A dotted `$` path is refused, not walked.** `$value.length` silently answered `"abcd"` — the
+   * tail was dropped and the whole primitive returned, which is a wrong value that looks like a
+   * right one, the failure this grammar exists to make impossible. Supporting it is not the fix
+   * either: property access on a primitive is the prototype surface the extractor design closed on
+   * purpose, and `.length` today is `.constructor` tomorrow.
+   */
+  if (tail > 0) throw refusal('payload-not-walkable', [`$${name}`]);
+  /** No trigger at all — a reflection, an initial, a server pass. Its own refusal, because
+   *  "$value is not something this event carries" is nonsense when there is no event. */
+  if (!event) throw refusal('payload-outside-handler', [`$${name}`]);
+  const getter = payloads.get(event.type)?.[name] ?? TYPE[name];
+  if (!getter) {
+    /**
+     * The ARGUMENTS are development-only, not just the sentence they fill: `reject` keeps no
+     * message in production, so computing the offered list and the did-you-mean there is work for
+     * a string nothing reads — the difference between this refusal costing a code and costing the
+     * vocabulary of every base beside it.
+     */
+    const list = __DEV__ ? offers(event) : [];
+    const near = __DEV__
+      ? list.find((one) => one[0] === name[0] && Math.abs(one.length - name.length) <= 2)
+        ?? list.find((one) => one.includes(name) || name.includes(one))
+      : undefined;
+    throw refusal('unknown-payload-var',
+      [`$${name}`, list.map((one) => `$${one}`).join(', '), near ? `$${near}` : '']);
+  }
+  const value = getter(event);
+  /**
+   * **Primitives only** is the charter (design §20.1) and nothing enforced it. A getter returning
+   * an object hands attribute text a walkable graph — precisely what extractors exist to prevent —
+   * and it would be a third-party getter, so the engine cannot assume good behaviour. Checked in
+   * development, where the author of that getter is standing.
+   */
+  if (__DEV__ && value !== null && typeof value === 'object') {
+    reject(null, 'payload', 'payload-not-primitive', [`$${name}`, firing?.type ?? '']);
+    return undefined;
+  }
+  return value;
+};
+
+/**
+ * Record a thrown error as a refusal, keeping its OWN code when it brought one.
+ *
+ * Everything used to land as `directive-threw` with the message in place of an explanation, which
+ * turned `$value` outside a handler into `directive-threw: value` — a code that says a directive
+ * misbehaved about a page that made an ordinary authoring mistake, and a message that is a bare
+ * word. A refusal that names itself keeps its name however far it is thrown.
+ */
+const rejectThrown = (el: Element, attr: string, error: unknown): void => {
+  const ve = error as ValueError & { args?: string[] };
+  reject(el, attr, ve.code ?? 'directive-threw', ve.args ?? [String(ve?.message ?? error)]);
+};
+
+/** A refusal that travels as a throw — see `payloadValue`. */
+const refusal = (code: string, args: string[]): ValueError & { args?: string[] } => {
+  const error = new Error(code) as ValueError & { args?: string[] };
+  error.code = code;
+  error.args = args;
+  return error;
 };
 
 /** One view per element, so `stateOf(el) === stateOf(el)` and a reference can be kept. */
@@ -793,7 +816,7 @@ const activateDirective = (el: Element, attr: string, directive: AnyDirective, s
             instance._cleanup = typeof out === 'function' ? out : undefined;
           } catch (error) {
             /** QUARANTINE: this instance only — sibling directives on the element keep working. */
-            reject(el, attr, 'directive-threw', [String((error as Error)?.message ?? error)]);
+            rejectThrown(el, attr, error);
             deactivateDirective(el, attr);
           }
         },
@@ -801,7 +824,7 @@ const activateDirective = (el: Element, attr: string, directive: AnyDirective, s
       run?.(undefined, true);
     }
   } catch (error) {
-    reject(el, attr, 'directive-threw', [String((error as Error)?.message ?? error)]);
+    rejectThrown(el, attr, error);
     deactivateDirective(el, attr);
   }
 };
@@ -916,13 +939,18 @@ const dispatch = (root: Node, event: Event) => {
     try {
       const parsed = parseAttr(raw);
       if (isObject(parsed)) {
-        const { overlay, vars } = payloadFor(event);
-        /** The `$` test first: a handler with no trigger variables never walks its own values. */
-        if (raw.includes('$') && unknownVars(el, attr, parsed, overlay, vars).length) continue;
-        runAssignments(el, parsed, overlay);
+        const outer = firing;
+        firing = event;
+        try {
+          runAssignments(el, parsed);
+        } finally {
+          firing = outer;
+        }
       } else reject(el, attr, 'handler-not-object');
     } catch (error) {
-      reject(el, attr, (error as ValueError).code ?? 'value-bad', [raw, (error as ValueError).message]);
+      const ve = error as ValueError & { args?: string[] };
+      /** A `$` refusal carries its own arguments; a parse failure carries the text it choked on. */
+      reject(el, attr, ve.code ?? 'value-bad', ve.args ?? [raw, ve.message]);
     }
   }
 };
@@ -1204,7 +1232,7 @@ const renderElement = (el: Element): void => {
     } catch (error) {
       /** Quarantined per instance, exactly as the client quarantines — a refusal is a sentence in
        *  the registry, never a failed page. */
-      reject(el, f.attr, 'directive-threw', [String((error as Error)?.message ?? error)]);
+      rejectThrown(el, f.attr, error);
     }
   }
 

@@ -120,7 +120,9 @@ test('AN UNKNOWN $var IS REFUSED — once, and with what this event does offer',
 });
 
 test('a page may register its own base, and the vocabulary is introspectable', async () => {
-  wirePayloads({ 'vera:ping': { vars: ['strength'], read: (event) => ({ strength: event.detail?.strength ?? 0 }) } });
+  /** NAME → getter, so a base cannot declare a variable it never reads or read one it never
+   *  declared — the two-field shape this replaced allowed both. */
+  wirePayloads({ 'vera:ping': { strength: (event) => event.detail?.strength ?? 0 } });
 
   const host = await mount(`
     <div data-vd-state="{ got: 0 }">
@@ -133,10 +135,61 @@ test('a page may register its own base, and the vocabulary is introspectable', a
 
   const described = describePayloads();
   const ping = described.find((one) => one.base === 'vera:ping');
-  assert.deepEqual(ping, { base: 'vera:ping', vars: ['$strength'] },
-    'a picker that lists a base without its variables has told an author the word and withheld the sentence');
+  assert.deepEqual(ping, { base: 'vera:ping', vars: ['$strength', '$type'] },
+    'a picker that lists a base without its variables has told an author the word and withheld ' +
+    'the sentence — and $type is in scope everywhere, so it is listed everywhere');
   assert.ok(described.some((one) => one.base === 'input' && one.vars.includes('$value')),
     'and the engine defaults are described the same way');
+  host.remove();
+  await settled();
+});
+
+/**
+ * The three ways a `$` can be wrong that are NOT "that name does not exist" — each its own code,
+ * because a refusal that cannot say which mistake was made is barely better than silence.
+ */
+test('a dotted $ path is REFUSED, not silently truncated', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ n: 0 }">
+      <input id="i" data-vd-on-input="{ n: $value.length }" />
+    </div>`);
+  const input = host.querySelector('#i');
+  input.value = 'abcd';
+  input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await settled();
+
+  assert.ok(rejections(input).some((r) => r.code === 'payload-not-walkable'));
+  /** It ANSWERED "abcd" before — the tail was dropped and the whole primitive returned, which is a
+   *  wrong value wearing the shape of a right one. Supporting it is not the fix either: property
+   *  access on a primitive reopens the prototype surface extractors exist to close. */
+  assert.equal(stateOf(host.querySelector('[data-vd-state]')).n, 0, 'and nothing was written');
+  host.remove();
+  await settled();
+});
+
+test('a $ outside a handler says so, rather than blaming the directive', async () => {
+  const host = await mount(`<div data-vd-state="{ n: 0 }"><b id="b" data-vd-text="$value"></b></div>`);
+  const codes = rejections(host.querySelector('#b')).map((r) => r.code);
+  assert.ok(codes.includes('payload-outside-handler'),
+    'it reported `directive-threw: value` before — a code accusing a directive of misbehaving ' +
+    'about a page that made an ordinary authoring mistake, with a bare word for a message');
+  assert.ok(!codes.includes('directive-threw'), 'a refusal that names itself keeps its name however far it is thrown');
+  host.remove();
+  await settled();
+});
+
+test('a getter that breaks the primitives contract is caught, not propagated', async (t) => {
+  if (isProduction) return t.skip('the contract is enforced where the author of the getter is standing');
+
+  wirePayloads({ 'vera:bad': { thing: () => ({ walkable: true }) } });
+  const host = await mount(`
+    <div data-vd-state="{ got: 0 }"><div id="x" data-vd-on-vera:bad="{ got: $thing }"></div></div>`);
+  host.querySelector('#x').dispatchEvent(new dom.window.CustomEvent('vera:bad', { bubbles: true }));
+  await settled();
+
+  assert.ok(rejections().some((r) => r.code === 'payload-not-primitive'),
+    'nothing enforced this: a getter returning an object hands attribute text a walkable graph, ' +
+    'which is exactly what extractors exist to prevent — and it is third-party code');
   host.remove();
   await settled();
 });
