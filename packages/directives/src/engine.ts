@@ -24,6 +24,8 @@ import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnec
 import { PROSE } from './diagnostics.js';
 /** Its own module so a PRODUCTION reference cannot tether the dev-only table — see `docs-url.ts`. */
 import { DOCS } from './docs-url.js';
+import { DEFAULT_PAYLOADS, TYPE } from './payload-defaults.js';
+import type { Payload } from './payload-defaults.js';
 
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
@@ -244,9 +246,22 @@ export const describeDirectives = () => [
  * A picker that lists `data-vd-on-input` without saying it carries `$value` has told an author the
  * word and withheld the sentence. Sorted, so a generated page or a diff does not churn on Map order.
  */
-export const describePayloads = () => [...payloads.keys()]
-  .map((base) => ({ base, vars: [...Object.keys(payloads.get(base) ?? {}), 'type'].map((one) => `$${one}`) }))
-  .sort((a, b) => (a.base < b.base ? -1 : 1));
+export const describePayloads = () => [
+  /**
+   * **The universal row comes first, and it is not decoration.** This listed only bases someone had
+   * registered, so `focusin` was absent although it answers `$type` — and a consumer reading the
+   * list concluded that base offered nothing. An introspection API is worth exactly what its
+   * completeness is worth, so the floor every event shares is IN THE DATA rather than in a sentence
+   * a reader has to have found. A base listed below carries these as well as its own.
+   */
+  { base: '*', vars: ['$type'] },
+  ...[...payloads.keys()]
+    .map((base) => ({
+      base,
+      vars: [...Object.keys(payloads.get(base) ?? {}), 'type'].map((one) => `$${one}`),
+    }))
+    .sort((a, b) => (a.base < b.base ? -1 : 1)),
+];
 
 /* ── rejections ───────────────────────────────────────────────────────────────────────────── */
 
@@ -529,7 +544,7 @@ const runAssignments = (el: Element, obj: ParsedObject) => {
  * its vocabulary, `describePayloads()` reads the keys, and one shared object serves every base
  * that behaves alike.
  */
-export type Payload = Record<string, (event: Event) => string | number | boolean | null>;
+export type { Payload } from './payload-defaults.js';
 
 const payloads = new Map<string, Payload>();
 
@@ -543,33 +558,11 @@ export const wirePayloads = (map: Record<string, Payload>): void => {
   }
 };
 
-/** Every event answers `$type`, whatever else it offers — one getter, not one per base. */
-const TYPE: Payload = { type: (event) => event.type };
-
 /**
- * Pointer geometry as the PAGE sees it — `clientX/Y` rather than screen or offset, because a
- * handler writing coordinates into state is positioning something in the page.
+ * The engine ships these; `payload-defaults.ts` holds them so the docs generator can read the same
+ * declaration the runtime registers, rather than a hand-typed copy of it that drifts.
  */
-const POINTER: Payload = {
-  x: (event) => (event as MouseEvent).clientX ?? 0,
-  y: (event) => (event as MouseEvent).clientY ?? 0,
-  button: (event) => (event as MouseEvent).button ?? 0,
-};
-const KEYS: Payload = { key: (event) => (event as KeyboardEvent).key ?? '' };
-/**
- * `$value` and `$checked` come from the TARGET, not the event — that is where a form control keeps
- * them, and it is what makes `{ q: $value }` mean what an author expects both on the element they
- * wrote it on and on one it bubbled from.
- */
-const CONTROL: Payload = {
-  value: (event) => (event.target as HTMLInputElement | null)?.value ?? '',
-  checked: (event) => (event.target as HTMLInputElement | null)?.checked ?? false,
-};
-
-for (const base of ['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'contextmenu',
-  'pointerdown', 'pointerup', 'pointermove']) payloads.set(base, POINTER);
-for (const base of ['keydown', 'keyup', 'keypress']) payloads.set(base, KEYS);
-for (const base of ['input', 'change']) payloads.set(base, CONTROL);
+for (const [base, payload] of Object.entries(DEFAULT_PAYLOADS)) payloads.set(base, payload);
 
 /**
  * The event being dispatched, for the `$` resolution below.

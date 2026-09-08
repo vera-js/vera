@@ -133,8 +133,8 @@ describing the bytes honestly.)*
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/inserts` | 357 B | the extension point |
-| `@verajs/directives/core` | 5 782 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 7 099 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | 5 811 B | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | 7 131 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 241 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interaction` | 3 257 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 1 616 B | the query pack — route, query, region |

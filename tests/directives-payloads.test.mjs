@@ -134,6 +134,14 @@ test('a page may register its own base, and the vocabulary is introspectable', a
   assert.equal(stateOf(host.querySelector('[data-vd-state]')).got, 7, 'the same door packs use');
 
   const described = describePayloads();
+  /**
+   * **The universal row, which this API lacked.** It listed only bases someone had registered, so
+   * `focusin` was absent although it answers `$type` — and a consumer reading the list concluded
+   * that base offered nothing. An introspection API is worth what its completeness is worth.
+   */
+  assert.deepEqual(described[0], { base: '*', vars: ['$type'] },
+    'the floor every event shares is in the DATA, not in a sentence a reader has to have found');
+
   const ping = described.find((one) => one.base === 'vera:ping');
   assert.deepEqual(ping, { base: 'vera:ping', vars: ['$strength', '$type'] },
     'a picker that lists a base without its variables has told an author the word and withheld ' +
@@ -192,4 +200,26 @@ test('a getter that breaks the primitives contract is caught, not propagated', a
     'which is exactly what extractors exist to prevent — and it is third-party code');
   host.remove();
   await settled();
+});
+
+test('the documented vocabulary IS the runtime vocabulary', async () => {
+  const { readFileSync } = await import('node:fs');
+  const published = JSON.parse(
+    readFileSync(new URL('../packages/directives/diagnostics.json', import.meta.url), 'utf8'));
+
+  /**
+   * `$x $y $button` was typed by hand into `llms.txt`, the package README and the source, with
+   * nothing checking any copy against another — so adding `$deltaY` for `wheel` meant editing three
+   * places and failing nowhere. `sync-diagnostics.mjs` owns the block between the doc markers now;
+   * this asserts the ARTIFACT it publishes matches what the engine actually resolves, which is the
+   * half a text-substitution check cannot see.
+   */
+  const runtime = new Map(describePayloads().map((row) => [row.base, row.vars.join(' ')]));
+  for (const { bases, vars } of published.payloads) {
+    for (const base of bases) {
+      assert.equal(runtime.get(base), vars.join(' '),
+        `${base} is published as "${vars.join(' ')}" and resolves as "${runtime.get(base)}"`);
+    }
+  }
+  assert.ok(published.payloads.length >= 4, 'the control: the artifact describes something at all');
 });

@@ -58,8 +58,8 @@ an app using motion pays more than everything else combined.
 
 | entry | gzip | what it is |
 | --- | --- | --- |
-| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 782 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 099 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 811 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 131 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 241 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 257 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
@@ -71,8 +71,14 @@ Packs you never import cost nothing — pinned by a Rollup tree-shaking test, no
 
 ## Event payloads
 
-A handler reads the event that ran it through `$` variables — mouse and pointer carry `$x $y
-$button`, keyboard `$key`, input and change `$value $checked`, and every base answers `$type`.
+A handler reads the event that ran it through `$` variables:
+
+<!--payloads-->
+- every base — $type
+- `click`, `dblclick`, `mousedown`, `mouseup`, `mousemove`, `contextmenu`, `pointerdown`, `pointerup`, `pointermove` — $x $y $button $type
+- `keydown`, `keyup`, `keypress` — $key $type
+- `input`, `change` — $value $checked $type
+<!--/payloads-->
 
 ```html
 <input data-vd-on-input="{ q: $value }" />

@@ -863,8 +863,16 @@ key read state) · `none`.
 
 **Event payloads — the `$` namespace.** A handler reads the event that ran it through declared
 variables: `data-vd-on-input="{ q: $value }"`, `data-vd-on-click="{ x: $x }"`,
-`data-vd-on-keydown-enter="{ go: true }"`. Bases and their variables — mouse/pointer `$x $y
-$button` · keyboard `$key` · input/change `$value $checked` · every base `$type`. Values are
+`data-vd-on-keydown-enter="{ go: true }"`. Bases and their variables (generated — do not hand-edit):
+
+<!--payloads-->
+- every base — $type
+- `click`, `dblclick`, `mousedown`, `mouseup`, `mousemove`, `contextmenu`, `pointerdown`, `pointerup`, `pointermove` — $x $y $button $type
+- `keydown`, `keyup`, `keypress` — $key $type
+- `input`, `change` — $value $checked $type
+<!--/payloads-->
+
+Values are
 PRIMITIVES, never the event: native properties live on prototypes, so reaching for them would hand
 attribute text the whole DOM API. Register a base with `wirePayloads({ 'my:event': { n: (e) => e.detail.n } })` — NAME → getter, so a
 base cannot declare a variable it never reads; read the vocabulary with `describePayloads()`. An

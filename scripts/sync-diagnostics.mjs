@@ -33,6 +33,13 @@ const OUT = new URL('../packages/directives/diagnostics.json', import.meta.url);
 const { PROSE } = await import('../packages/directives/src/diagnostics.ts');
 /** The same constant the production bundle prints, never a second copy of the string. */
 const { DOCS } = await import('../packages/directives/src/docs-url.ts');
+/**
+ * The `$` vocabulary, from the same declaration the runtime registers. It was typed by hand into
+ * `llms.txt` and the package README, so adding `$deltaY` for `wheel` would have meant editing three
+ * places with nothing failing when someone edited one — the drift this file exists to prevent for
+ * rejection codes, in a second list beside them.
+ */
+const { DEFAULT_PAYLOADS, TYPE } = await import('../packages/directives/src/payload-defaults.ts');
 
 /** The parameter names, so a published sentence carries `{key}` where the console carries a value. */
 const paramsOf = (fn) => {
@@ -47,9 +54,50 @@ const entries = Object.keys(PROSE).sort().map((code) => {
   return { code, params, message, ...(fix ? { fix } : {}) };
 });
 
-const json = `${JSON.stringify({ url: DOCS, entries }, null, 2)}\n`;
+/** Grouped by the vocabulary each set of bases shares, which is how a reader wants to see it —
+ *  nine mouse bases offering the same three names is one fact, not nine. */
+const byVocabulary = new Map();
+for (const [base, payload] of Object.entries(DEFAULT_PAYLOADS)) {
+  const vars = [...Object.keys(payload), ...Object.keys(TYPE)].map((one) => `$${one}`);
+  const key = vars.join(' ');
+  if (!byVocabulary.has(key)) byVocabulary.set(key, { vars, bases: [] });
+  byVocabulary.get(key).bases.push(base);
+}
+const payloads = [
+  { bases: ['*'], vars: Object.keys(TYPE).map((one) => `$${one}`) },
+  ...[...byVocabulary.values()],
+];
+
+const json = `${JSON.stringify({ url: DOCS, entries, payloads }, null, 2)}\n`;
+
+/**
+ * The documentation block, owned end to end. `--check` compares it exactly, so a vocabulary change
+ * that skips the docs fails the gate instead of being noticed months later by a reader.
+ */
+const DOC_TARGETS = ['llms.txt', 'packages/directives/README.md'];
+const block = payloads
+  .map(({ bases, vars }) => `- ${bases.map((b) => (b === '*' ? 'every base' : `\`${b}\``)).join(', ')} — ${vars.join(' ')}`)
+  .join('\n');
+
+/** Replace what sits between the markers, leaving the prose around them alone. */
+const MARKERS = /(<!--payloads-->)[\s\S]*?(<!--\/payloads-->)/;
+const docWrites = [];
+for (const target of DOC_TARGETS) {
+  const url = new URL(`../${target}`, import.meta.url);
+  const text = readFileSync(url, 'utf8');
+  if (!MARKERS.test(text)) continue;
+  const next = text.replace(MARKERS, `$1\n${block}\n$2`);
+  if (next !== text) docWrites.push([url, next, target]);
+}
 
 if (process.argv.includes('--check')) {
+  if (docWrites.length) {
+    console.error(
+      `the payload vocabulary in ${docWrites.map(([, , t]) => t).join(', ')} is stale.\n` +
+        `Run: node scripts/sync-diagnostics.mjs`
+    );
+    process.exit(1);
+  }
   let current = '';
   try {
     current = readFileSync(OUT, 'utf8');
@@ -67,5 +115,7 @@ if (process.argv.includes('--check')) {
   console.log(`diagnostics.json is current (${entries.length} codes)`);
 } else {
   writeFileSync(OUT, json);
-  console.log(`diagnostics.json written (${entries.length} codes)`);
+  for (const [url, next] of docWrites) writeFileSync(url, next);
+  console.log(`diagnostics.json written (${entries.length} codes, ${payloads.length} payload groups)` +
+    (docWrites.length ? `; docs updated: ${docWrites.map(([, , t]) => t).join(', ')}` : ''));
 }

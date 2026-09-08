@@ -1070,5 +1070,56 @@
       "message": "could not parse \"{raw}\": {detail}.",
       "fix": "Check the attribute value against the syntax for this directive."
     }
+  ],
+  "payloads": [
+    {
+      "bases": [
+        "*"
+      ],
+      "vars": [
+        "$type"
+      ]
+    },
+    {
+      "vars": [
+        "$x",
+        "$y",
+        "$button",
+        "$type"
+      ],
+      "bases": [
+        "click",
+        "dblclick",
+        "mousedown",
+        "mouseup",
+        "mousemove",
+        "contextmenu",
+        "pointerdown",
+        "pointerup",
+        "pointermove"
+      ]
+    },
+    {
+      "vars": [
+        "$key",
+        "$type"
+      ],
+      "bases": [
+        "keydown",
+        "keyup",
+        "keypress"
+      ]
+    },
+    {
+      "vars": [
+        "$value",
+        "$checked",
+        "$type"
+      ],
+      "bases": [
+        "input",
+        "change"
+      ]
+    }
   ]
 }
