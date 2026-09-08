@@ -163,6 +163,93 @@ const init: Directive = {
   },
 };
 
+/* ── reacting to state ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * **React to a state change you did not author.**
+ *
+ * `data-vd-watch="{ q: { page: 1 } }"` — when `q` changes, run `{ page: 1 }`.
+ *
+ * The motivating case is a filtered list, and it is worth stating precisely because the obvious
+ * version of it is already handled: `region` CLAMPS `page` to the page count, so narrowing a search
+ * until the results shrink past your page moves you back on its own. What the clamp cannot catch is
+ * a new query whose results are still long — type a fresh search on page 4 of 8 and you land on
+ * page 4 of the NEW results rather than at the start of them, which no reader expects.
+ *
+ * **Why not write it where the change happens**, `{ q: $value, page: 1 }`? For a handler you
+ * authored, do exactly that — it is simpler and needs nothing from this directive. `watch` earns
+ * its place where the write is NOT yours: a shared link seeding `q` through the query pack, a fetch
+ * patching state, another component writing the same key. None of those has a handler to amend.
+ *
+ * **It does not fire on the first pass**, and that is load-bearing rather than an optimisation. The
+ * first observation establishes the baseline; firing on it would reset `page` to 1 the instant
+ * `?q=ber&page=3` loaded, breaking the query pack's guarantee that a shared link reproduces what
+ * the sender saw — the feature sabotaging the feature it exists to serve.
+ */
+const watch: Directive = {
+  name: 'watch',
+  value: 'object',
+  priority: 45,
+  docs: {
+    summary: 'Runs assignments when a state key changes: { key: { writes } }.',
+    example: 'data-vd-watch="{ q: { page: 1 } }"',
+  },
+  setup(_el, ctx) {
+    const previous = new Map<string, unknown>();
+    let seeded = false;
+    /**
+     * **The run cap, per element per settle** (design §16). A watch that writes a key it also
+     * watches is a loop, and the honest failure is to break it and say so rather than let the page
+     * hang. Reset on a microtask so the cap is per settle rather than for the life of the element —
+     * a page legitimately changing a watched key a hundred times over a session must not fall
+     * silent after the tenth.
+     */
+    let runs = 0;
+    let scheduled = false;
+    return {
+      apply: (_element: Element, value: unknown) => {
+        if (!isObject(value as never)) {
+          ctx.reject('watch-not-object');
+          return;
+        }
+        const entries = value as Record<string, unknown>;
+        const firing: string[] = [];
+        for (const key of Object.keys(entries)) {
+          /** Read through context — that IS the subscription, and why this re-runs at all. */
+          const now = ctx.get(key);
+          const had = previous.has(key);
+          const before = previous.get(key);
+          previous.set(key, now);
+          /** A key seen for the first time only establishes the baseline. */
+          if (!seeded || !had) continue;
+          if (!Object.is(before, now)) firing.push(key);
+        }
+        seeded = true;
+        if (!firing.length) return;
+        if (++runs > 10) {
+          ctx.reject('watch-loop');
+          return;
+        }
+        if (!scheduled) {
+          scheduled = true;
+          queueMicrotask(() => {
+            runs = 0;
+            scheduled = false;
+          });
+        }
+        for (const key of firing) {
+          const body = entries[key];
+          if (!isObject(body as never)) {
+            ctx.reject('watch-entry-not-object', [key]);
+            continue;
+          }
+          ctx.run(body as never);
+        }
+      },
+    };
+  },
+};
+
 /* ── timers ──────────────────────────────────────────────────────────────────────────────── */
 
 /** `every` — an object of interval: assignments (names select, values configure; §20.7's cousin). */
@@ -568,6 +655,6 @@ export { onFamilyFull as onFamily };
  * from the engine, which is what makes the additive single-file build possible at all.
  */
 export const interaction: Directive[] = [
-  show, classDirective, style, text, bind, init, every, sync, persist,
+  show, classDirective, style, text, bind, init, every, watch, sync, persist,
   focusOn, focusTrap, focusReturn, docClass, scrollLock, copy, scrollTo, on,
 ];

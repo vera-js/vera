@@ -891,7 +891,14 @@ true is present-empty; `value`/`checked`/`selected`/`open` write the live proper
 so swapped-in markup works from its first event; members `on-keydown-enter`, `on-outside-click`,
 `on-escape`, `on-window-*`, `on-document-*`, `init`, `on-submit`, `on-submit-native`) · `sync` ·
 `persist` · `every` · `focus-on` / `focus-trap` / `focus-return` · `doc-class` · `scroll-lock` ·
-`copy` · `scroll-to`.
+`copy` · `scroll-to` · `watch`.
+
+`watch` (object) runs assignments when a state key CHANGES — `data-vd-watch="{ q: { page: 1 } }"`.
+It does not fire on the first pass, so a shared link's `?q=ber&page=3` survives; and it is for
+changes you did NOT author (a link, a fetch, another component). Where you wrote the handler, put
+the reset in it: `{ q: $value, page: 1 }`. A watch that writes a key it watches is stopped with
+`watch-loop`.
+
 
 **expressions pack** — optional tier, CSP-safe (no `eval`, no `Function`). Comparisons (`==` is
 STRICT; writing `===` is refused with a teaching message), arithmetic, ternaries, `!`, and PURE

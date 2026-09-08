@@ -136,6 +136,15 @@ export const PROSE: Record<string, Prose> = {
     `${name} is not something this event carries.`,
     `${near ? `Did you mean ${near}? ` : ''}This one offers ${offered}.`,
   ],
+  'watch-not-object': () => [
+    'data-vd-watch takes a braced object of key: { writes }.',
+    'Write data-vd-watch="{ q: { page: 1 } }".',
+  ],
+  'watch-entry-not-object': (key) => [`the value watched for "${key}" must be a braced assignments object.`],
+  'watch-loop': () => [
+    'a watch kept changing a key it watches, so it was stopped.',
+    'Write to keys the watch does not read, or the two chase each other.',
+  ],
   'unknown-key': (head: string) => [`no ancestor state declares "${head}".`, `Reads answer undefined.`],
   /* ── the motion pack ────────────────────────────────────────────────────────────────────── */
   /**

@@ -1069,6 +1069,25 @@
       ],
       "message": "could not parse \"{raw}\": {detail}.",
       "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "watch-entry-not-object",
+      "params": [
+        "key"
+      ],
+      "message": "the value watched for \"{key}\" must be a braced assignments object."
+    },
+    {
+      "code": "watch-loop",
+      "params": [],
+      "message": "a watch kept changing a key it watches, so it was stopped.",
+      "fix": "Write to keys the watch does not read, or the two chase each other."
+    },
+    {
+      "code": "watch-not-object",
+      "params": [],
+      "message": "data-vd-watch takes a braced object of key: { writes }.",
+      "fix": "Write data-vd-watch=\"{ q: { page: 1 } }\"."
     }
   ],
   "payloads": [
