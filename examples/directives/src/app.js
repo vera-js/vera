@@ -462,7 +462,7 @@ const MOTION = `
   </demo-block>
   <demo-block caption="The object form: multiple properties, each on its own keyframes; number sugar (opacity: 1 means 'to 1'); element settings inline.">
     <div class="hero-box"
-         data-vd-motion="{ opacity: '0% 0, 60% 1', rotate: '0% -12deg, 100% 0deg',
+         data-vd-motion="{ opacity: '0% 0, 55% 1', rotate: '0% -12deg, 55% 0deg',
                            translate-y: '0% 70px, 100% 0px', inertia: 0.25 }">
       composed
     </div>
@@ -477,7 +477,7 @@ const MOTION = `
   </demo-block>
   <demo-block caption="Width bands merge over the base ([0-560]: less travel on a phone) — and a registered breakpoint name is a key suffix: translate-y-phone. Resize to watch.">
     <div class="hero-box"
-         data-vd-motion="{ translate-x: '0% 160px, 100% 0px; [0-560]: 0% 40px, 100% 0px',
+         data-vd-motion="{ translate-x: '0% 160px, 55% 0px; [0-560]: 0% 40px, 55% 0px',
                            opacity-wide: '0% 0.5, 100% 1' }">
       responsive
     </div>
@@ -490,6 +490,13 @@ const MOTION = `
       <div class="hero-box" data-vd-motion="fade-up">4th</div>
     </div>
   </demo-block>
+  <p class="lede"><b>The window is the whole transit.</b> <code>0%</code> is the moment the element's
+  top edge reaches the bottom of the viewport and <code>100%</code> the moment it has completely
+  left the top — so an animation written <code>0% → 100%</code> is still moving as it exits, and
+  only finishes where nobody can see it. That is right for a scrubbed effect and wrong for an
+  entrance. Land the last keyframe around <code>55%</code> and it is finished while centred; the
+  demos below do exactly that, and the scrubbed ones deliberately do not.</p>
+
   <h2>Inertia — the movement outlives the scroll</h2>
   <demo-block caption="Both boxes read the same scroll position. inertia: 0 tracks it exactly; a high inertia writes the TARGET each frame and lets a compositor-driven CSS transition carry the value there — so when you stop, it keeps going and settles. Scroll in a short burst and watch the right one catch up.">
     <div class="lag-row">
@@ -511,34 +518,37 @@ const MOTION = `
   <p class="lede"><code>when</code> is a SELECTOR trigger, so the animation plays under its own
   time rather than scrubbing with the scroll position. Point it at a class, drive the class from
   sensors, and the four reveal behaviours fall out of pieces that already exist:
-  <code>in-view</code> says whether it is on screen, <code>scroll-direction</code> says which way
-  the reader is going, and <code>watch</code> latches the ones that should never come back.</p>
-  <demo-block caption="Each box plays THROUGH on entry (when: a class, not the scroll position). What differs is only the expression driving the class. Scroll down past them, then back up.">
-    <div data-vd-state="{ seen: false, ever: false, dir: '' }"
+  <code>scroll-progress</code> says how far through the viewport the element is (0 entering,
+  <b>0.5 centred</b>, 1 gone), <code>scroll-direction</code> says which way the reader is going,
+  and <code>watch</code> latches the ones that should never come back.</p>
+  <demo-block caption="The row waits until it is HALF WAY through the viewport, then each box plays through on its own time — the trigger is a threshold on scroll-progress, not the scroll position itself. Only the expression driving the class differs. Scroll down slowly, then back up.">
+    <div data-vd-state="{ p: 0, ever: false, dir: '' }"
+         data-vd-scroll-progress="p"
          data-vd-scroll-direction="dir"
-         data-vd-watch="{ seen: { ever: true } }">
+         data-vd-watch="{ p: { ever: ever ? true : p > 0.5 } }">
       <div class="reveal-row">
-        <div class="hero-box" data-vd-in-view="seen" data-vd-class="{ lit: ever }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
-          1 · once, then holds
+        <div class="hero-box" data-vd-class="{ lit: ever }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+          1 · plays once at 50%, then holds
         </div>
-        <div class="hero-box" data-vd-class="{ lit: ever && dir != 'up' }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
-          2 · out when scrolling up
+        <div class="hero-box" data-vd-class="{ lit: ever ? dir != 'up' : false }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+          2 · plays back out when you scroll up
         </div>
-        <div class="hero-box" data-vd-class="{ lit: ever && dir != 'down' }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
-          3 · out when scrolling down
+        <div class="hero-box" data-vd-class="{ lit: ever ? dir != 'down' : false }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+          3 · plays back out when you scroll down
         </div>
-        <div class="hero-box" data-vd-class="{ lit: seen }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
-          4 · out whenever it leaves
+        <div class="hero-box" data-vd-class="{ lit: p > 0.5 }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+          4 · follows the threshold both ways
         </div>
       </div>
     </div>
   </demo-block>
+
   <demo-block caption="run-once plays through and LATCHES — scroll it in, then back up: it stays. The latch even survives attribute edits.">
-    <div class="hero-box" data-vd-motion="{ opacity: '0% 0, 100% 1', scale: '0% 0.6, 100% 1', run-once: true }">
+    <div class="hero-box" data-vd-motion="{ opacity: '0% 0, 55% 1', scale: '0% 0.6, 55% 1', run-once: true }">
       latched
     </div>
   </demo-block>
@@ -547,7 +557,7 @@ const MOTION = `
     <div data-vd-state="{ lit: false }">
       <button data-vd-on-click="{ lit: !lit }">toggle</button>
       <div class="hero-box" data-vd-class="{ lit: lit }"
-           data-vd-motion="{ opacity: '0% 0.25, 100% 1', scale: '0% 0.8, 100% 1',
+           data-vd-motion="{ opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1',
                              rotate: '0% 0deg, 100% 360deg', when: '.lit', inertia: 0.5 }">
         state-driven
       </div>
@@ -590,12 +600,14 @@ const VOCAB = `
   </demo-block>
   <h2>path — follow an SVG path</h2>
   <demo-block caption="path animates offset-distance along the &lt;path&gt; named by path-selector (resolved in the element's own root — shadow-safe). path-rotate: auto follows the tangent.">
-    <svg class="trail" viewBox="0 0 600 130" aria-hidden="true">
-      <path id="wave" d="M 20 100 C 150 -20, 300 180, 420 40 S 560 90, 585 30"
-            fill="none" stroke="var(--soft)" stroke-width="3" />
-    </svg>
-    <div class="rider"
-         data-vd-motion="{ path: '0% 0, 100% 100', path-selector: '#wave', path-rotate: 'auto', inertia: 0.2 }"></div>
+    <div class="trail-wrap">
+      <svg class="trail" viewBox="0 0 600 130" aria-hidden="true">
+        <path id="wave" d="M 20 100 C 150 -20, 300 180, 420 40 S 560 90, 585 30"
+              fill="none" stroke="var(--soft)" stroke-width="3" />
+      </svg>
+      <div class="rider"
+           data-vd-motion="{ path: '0% 0, 100% 100', path-selector: '#wave', path-rotate: 'auto', inertia: 0.2 }"></div>
+    </div>
   </demo-block>
   <h2>split — text in pieces</h2>
   <demo-block caption="split rewrites the text; each piece inherits the element's motion (minus stagger, which stays on the host and cascades the pieces). A visually-hidden copy keeps the sentence for screen readers.">

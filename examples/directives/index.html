@@ -166,8 +166,19 @@
       .lag-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; align-items: start; }
       .reveal-row { display: grid; gap: 0.8rem; }
       .reveal-row .hero-box { margin: 0; }
-      svg.trail { width: 100%; height: 130px; }
-      .rider { width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); offset-rotate: 0deg; }
+      /**
+       * The rider follows a CSS `offset-path`, whose coordinates are PIXELS in the element's own
+       * containing block — while the curve is drawn in the SVG's viewBox units. With `width: 100%`
+       * and a fixed height the SVG scaled non-uniformly, so the two spaces disagreed and the ball
+       * traced the right shape in the wrong place. Rendering the SVG at its intrinsic 600×130 makes
+       * one unit one pixel, and the wrapper gives the absolutely-positioned rider the same origin.
+       */
+      .trail-wrap { position: relative; width: 600px; max-width: 100%; height: 130px; margin-inline: auto; }
+      svg.trail { display: block; width: 600px; height: 130px; }
+      .rider {
+        position: absolute; top: 0; left: 0;
+        width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); offset-rotate: 0deg;
+      }
     </style>
   </head>
   <body>
