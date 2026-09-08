@@ -22,6 +22,8 @@ import type { AnyDirective, Ctx, Directive, Rejection, EngineSeams, EngineConnec
  * production bundle: once those fold, nothing names `PROSE` and rollup drops the import with it.
  */
 import { PROSE } from './diagnostics.js';
+/** Its own module so a PRODUCTION reference cannot tether the dev-only table — see `docs-url.ts`. */
+import { DOCS } from './docs-url.js';
 
 /* ── substrate adoption (design §16b) ─────────────────────────────────────────────────────── */
 
@@ -284,6 +286,24 @@ export const reject = (
       warned.add(key);
       console.warn(`[vera] directives: ${directive} — ${message}${fix ? ` ${fix}` : ''} (${code})`);
     }
+  } else if (!warned.has(code)) {
+    /**
+     * **Production says something too — the code and where it is explained.**
+     *
+     * The prose is gone here and should be: it is bytes on every page for text an end user cannot
+     * act on. But saying NOTHING is a different mistake, and this package was making it 140 times
+     * over — a refusal was recorded in a registry nobody reads and the console stayed empty, so a
+     * production-only failure was undebuggable by the one person who could fix it.
+     *
+     * The code survives the fold because tooling matches on it, so the whole line costs the URL and
+     * a template: `[vera] directives: data-vd-show — https://docs.verajs.dev/e/undeclared-write`.
+     *
+     * Once per CODE rather than per code×directive as development does — a list of two hundred rows
+     * making the same mistake is one line either way, and in production the extra grain buys a
+     * reader nothing they can act on differently.
+     */
+    warned.add(code);
+    console.warn(`[vera] directives: ${directive} — ${DOCS}${code}`);
   }
 };
 

@@ -31,6 +31,8 @@ const OUT = new URL('../packages/directives/diagnostics.json', import.meta.url);
  * recover. Node strips the type annotations; the module imports nothing.
  */
 const { PROSE } = await import('../packages/directives/src/diagnostics.ts');
+/** The same constant the production bundle prints, never a second copy of the string. */
+const { DOCS } = await import('../packages/directives/src/docs-url.ts');
 
 /** The parameter names, so a published sentence carries `{key}` where the console carries a value. */
 const paramsOf = (fn) => {
@@ -45,7 +47,7 @@ const entries = Object.keys(PROSE).sort().map((code) => {
   return { code, params, message, ...(fix ? { fix } : {}) };
 });
 
-const json = `${JSON.stringify({ url: 'https://docs.verajs.dev/e/', entries }, null, 2)}\n`;
+const json = `${JSON.stringify({ url: DOCS, entries }, null, 2)}\n`;
 
 if (process.argv.includes('--check')) {
   let current = '';

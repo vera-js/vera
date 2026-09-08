@@ -202,5 +202,18 @@ export const parseLiteral = (source: string): string | number | boolean | null =
 export const isPath = (v: Parsed): v is Path =>
   typeof v === 'object' && v !== null && (v as Path).kind === 'path';
 
+/**
+ * A braced OBJECT LITERAL — not merely "a JavaScript object".
+ *
+ * **Any node with a `kind` is a parser node, not data**, and testing only for `'path'` was a bug
+ * that arrived with the second kind: once the expressions tier existed, `data-vd-state="oops"`
+ * parsed to `{ kind: 'expr', src: 'oops' }`, which is an object by every check here — so the
+ * refusal never fired and the element's state silently BECAME the parser's internal node, keys and
+ * all. Every object-valued directive shared it: `data-vd-class="oops"` would have gone looking for
+ * classes named `kind` and `src`.
+ *
+ * Written against the presence of `kind` rather than a list of kinds, so a third node type cannot
+ * reopen it the way the second one did.
+ */
 export const isObject = (v: Parsed): v is ParsedObject =>
-  typeof v === 'object' && v !== null && (v as Path).kind !== 'path';
+  typeof v === 'object' && v !== null && (v as { kind?: string }).kind === undefined;

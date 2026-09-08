@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-07",
+  "taken": "2026-09-08",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -51,12 +51,12 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 13537,
-      "gzip": 5246
+      "raw": 13637,
+      "gzip": 5310
     },
     "directives-standalone": {
-      "raw": 17118,
-      "gzip": 6563
+      "raw": 17218,
+      "gzip": 6623
     },
     "directives-expressions": {
       "raw": 5271,
@@ -64,23 +64,23 @@
     },
     "directives-interaction": {
       "raw": 8845,
-      "gzip": 3256
+      "gzip": 3257
     },
     "directives-query": {
       "raw": 3716,
-      "gzip": 1614
+      "gzip": 1616
     },
     "directives-sensors": {
       "raw": 4284,
-      "gzip": 1690
+      "gzip": 1688
     },
     "directives-remote": {
       "raw": 2624,
-      "gzip": 1304
+      "gzip": 1302
     },
     "directives-motion": {
       "raw": 52169,
-      "gzip": 17772
+      "gzip": 17773
     }
   },
   "apps": [
