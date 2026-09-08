@@ -93,7 +93,28 @@
         border: 1px solid var(--accent); border-radius: 0.5rem; padding: 0.3rem 0.7rem;
       }
       button { cursor: pointer; }
-      button:hover { background: var(--soft); }
+      button:hover:not(:disabled) { background: var(--soft); }
+      /* A disabled button must LOOK disabled — the bind-* demo is about an attribute you
+         otherwise cannot see, and an unstyled :disabled looks exactly like an enabled one. */
+      button:disabled { opacity: 0.4; cursor: not-allowed; border-style: dashed; }
+      /* And a field must not look like a button. They shared a border, a radius and a padding,
+         so the bound <input> in the bind-* demo read as a fourth button. */
+      input, select {
+        border-color: color-mix(in srgb, var(--accent) 30%, var(--paper));
+        background: color-mix(in srgb, var(--soft) 35%, var(--paper));
+        border-radius: 0.25rem;
+      }
+      input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      /* A range or a checkbox is not a text field: the shared border and padding inset the track,
+         so the thumb at max stopped short of the end and 100 did not look like 100. */
+      input[type="range"], input[type="checkbox"], input[type="radio"] {
+        border: 0; background: none; padding: 0; vertical-align: middle;
+      }
+      /* The attribute mirror: what the DOM actually holds, beside the thing holding it. */
+      .mirror { font: 0.85rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--soft); border-radius: 0.4rem; padding: 0.4rem 0.7rem; margin: 0.4rem 0 0; }
+      .mirror b { font-weight: 600; }
+      .mirror .absent { opacity: 0.55; font-style: italic; }
       .pill { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 1rem; background: var(--soft); }
       .is-open { outline: 2px solid var(--good); }
       .bulk { color: var(--bad); font-weight: 700; }
@@ -122,9 +143,29 @@
         position: fixed; inset: 0; display: grid; place-items: center;
         background: color-mix(in srgb, var(--ink) 40%, transparent); z-index: 20;
       }
-      .modal > div { background: var(--paper); border-radius: 1rem; padding: 1.5rem; max-width: 22rem; filter: none; }
+      /* The dialog panel had no layout at all — children stacked at whatever width they defaulted
+         to, so two inputs and a button came out three different sizes with no spacing. */
+      .modal > div {
+        background: var(--paper); border-radius: 1rem; padding: 1.5rem; max-width: 22rem; filter: none;
+        display: grid; gap: 0.6rem; box-shadow: 0 1rem 3rem color-mix(in srgb, var(--ink) 30%, transparent);
+      }
+      .modal > div h3 { margin: 0; }
+      .modal > div button { justify-self: start; }
       .konami-row span { font-size: 1.6rem; opacity: 0.25; transition: opacity 0.2s, transform 0.2s; }
       .konami-row span.hit { opacity: 1; transform: translateY(-4px); }
+      /* A gradient bigger than its frame, moved by scroll: the shift is continuous because a
+         transform interpolates, where paint's colour table is deliberately discrete. */
+      .sky { position: relative; height: 190px; border-radius: 0.75rem; overflow: hidden; }
+      .sky-layer {
+        position: absolute; inset: -60% -20%;
+        background: conic-gradient(from 0deg, #6246ea, #ff8e6e, #ffd97d, #57cc99, #4cc9f0, #6246ea);
+        filter: blur(18px) saturate(1.2);
+      }
+      .sky-label { position: absolute; inset: 0; display: grid; place-items: center;
+        font-weight: 700; color: var(--paper); text-shadow: 0 1px 6px rgb(0 0 0 / 0.45); }
+      .lag-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; align-items: start; }
+      .reveal-row { display: grid; gap: 0.8rem; }
+      .reveal-row .hero-box { margin: 0; }
       svg.trail { width: 100%; height: 130px; }
       .rider { width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); offset-rotate: 0deg; }
     </style>

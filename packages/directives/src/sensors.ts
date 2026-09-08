@@ -313,6 +313,50 @@ const scrollProgress: Directive = {
   },
 };
 
+/**
+ * `scroll-direction` — which way the page is currently moving: `'down'`, `'up'`, or `''` at rest.
+ *
+ * The missing half of a reveal. `in-view` says an element is on screen and `scroll-progress` says
+ * how far through it is, but neither says which WAY the reader is going — so "play it in, and let
+ * it play back out only when they scroll back up" could not be expressed at all, and every
+ * direction-aware pattern (a header that hides going down and returns going up, a reveal that
+ * reverses one way and holds the other) needed hand-written JavaScript.
+ *
+ * A reading rather than an event, so it composes: a class toggles from it, and `data-vd-motion`'s
+ * `when` selector animates from the class. That is the whole four-mode reveal vocabulary out of
+ * pieces that already existed, with no new setting on the motion side.
+ */
+const scrollDirection: Directive = {
+  name: 'scroll-direction',
+  value: 'literal',
+  priority: 60,
+  docs: {
+    summary: "Writes 'down', 'up', or '' at rest, as the page scrolls.",
+    example: 'data-vd-scroll-direction="dir"',
+  },
+  setup(el, ctx) {
+    const key = keyFor(el, 'data-vd-scroll-direction', ctx);
+    if (!key) return;
+    let previous = window.scrollY;
+    let last = '';
+    const read = () => {
+      const now = window.scrollY;
+      /**
+       * A dead band, because a trackpad delivers sub-pixel jitter in both directions at rest and a
+       * reveal that flickers between its two states is worse than one that does nothing. Two
+       * pixels is below the threshold of a deliberate scroll and above the noise.
+       */
+      if (Math.abs(now - previous) < 2) return;
+      const value = now > previous ? 'down' : 'up';
+      previous = now;
+      if (value === last) return;
+      last = value;
+      ctx.set(key, value);
+    };
+    return watchScroll(read);
+  },
+};
+
 /* ── swipe ───────────────────────────────────────────────────────────────────────────────── */
 
 const DIRECTIONS = ['left', 'right', 'up', 'down'] as const;
@@ -409,5 +453,5 @@ const swipe: Directive = {
 
 /** `wireDirectives([sensors])` — no options; each sensor is inert until an element names a key. */
 export const sensors: EngineConnector = (seams) => {
-  for (const directive of [inView, measure, pointer, scrollProgress, swipe]) seams.directive(directive);
+  for (const directive of [inView, measure, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
 };

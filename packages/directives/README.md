@@ -58,12 +58,12 @@ an app using motion pays more than everything else combined.
 
 | entry | gzip | what it is |
 | --- | --- | --- |
-| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 920 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 237 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 927 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 243 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 281 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
-| `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 543 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
+| `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 561 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
-| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->1 688 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
+| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->1 807 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
 | `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->17 773 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
 

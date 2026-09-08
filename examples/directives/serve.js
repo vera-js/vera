@@ -50,6 +50,32 @@ createServer(async (req, res) => {
     });
     res.end(body);
   } catch {
+    /**
+     * **A routed path is not a file, and a static server has to know that.**
+     *
+     * `/examples/directives/events` is a route the client owns — there is no such file, so a
+     * RELOAD (or a shared link, or the back button after a hard navigation) got a 404 while the
+     * same URL reached by clicking worked perfectly. That is not a router bug; it is the one
+     * server-side obligation a history-API router places on whatever serves it, and an example
+     * that models the client half while getting the server half wrong teaches the wrong lesson to
+     * the person who deploys one.
+     *
+     * So: anything under the example's base that is not a file falls back to its `index.html`, and
+     * the client router resolves the path from there. Scoped to the base rather than global,
+     * because a missing BUNDLE must still 404 loudly — serving HTML in place of a missing
+     * `.min.js` is how "run npm run build first" turns into an unreadable syntax error.
+     */
+    const base = '/examples/directives/';
+    if (url.startsWith(base) && !extname(url)) {
+      try {
+        const shell = await readFile(join(ROOT, base, 'index.html'));
+        res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });
+        res.end(shell);
+        return;
+      } catch {
+        /** No shell either — fall through to the honest 404 below. */
+      }
+    }
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`Not found: ${url}\n\nIf this is a bundle, run \`npm run build\` first.`);
   }

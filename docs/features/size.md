@@ -133,12 +133,12 @@ describing the bytes honestly.)*
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/inserts` | 357 B | the extension point |
-| `@verajs/directives/core` | 5 920 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 7 237 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | 5 927 B | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | 7 243 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 281 B | the expression tier — arithmetic, comparisons, calls |
-| `@verajs/directives/interaction` | 3 543 B | the interaction pack — events, reflections, state |
+| `@verajs/directives/interaction` | 3 561 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 1 616 B | the query pack — route, query, region |
-| `@verajs/directives/sensors` | 1 688 B | the sensors pack — environment to state |
+| `@verajs/directives/sensors` | 1 807 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 1 302 B | the remote pack — server-driven interactions |
 | `@verajs/directives/motion` | 17 773 B | the motion pack — presets, easings, paint, path, sequence, split |
 <!--/size:table.permodule-->

@@ -13,7 +13,7 @@ import { renderer } from '@verajs/renderer';
 import { initRouter, setBasePath, router } from '@verajs/router';
 import { directiveLoader } from '@verajs/autoloader';
 import {
-  wireDirectives, directives, interaction, expressions,
+  wireDirectives, directives, interaction, expressions, sensors,
   motion, easings, paint, path, split, sequence,
   rejections, describeDirectives, settled, stateOf,
   enableMotion, disableMotion,
@@ -26,6 +26,7 @@ wire([renderer, router, directives, directiveLoader(import.meta.url, '../directi
 wireDirectives([
   expressions,
   ...interaction,
+  sensors,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
   easings, paint, path, split, sequence,
 ]);
@@ -34,6 +35,24 @@ wireDirectives([
  * <demo-block caption="…">: the honesty device. Children are the demo; their
  * serialized form is the displayed source. One origin, two renderings.
  * ──────────────────────────────────────────────────────────────────────────── */
+/**
+ * **Serialization adds one escape a reader should never see.**
+ *
+ * `innerHTML` round-trips an attribute value through the HTML serializer, and every real engine —
+ * Chromium, Firefox and WebKit alike — writes `>` as `&gt;` there. So `data-vd-show="taps >= 5"`
+ * was displayed as `taps &gt;= 5`: the demo above it worked, and the code beneath it showed a
+ * reader an entity they never typed and would not type.
+ *
+ * Only `>` is undone, and the precision matters. A bare `>` is valid in both attribute values and
+ * text, so decoding it leaves markup that still parses if copied. `&quot;` inside a
+ * double-quoted attribute, `&lt;` in text and `&amp;` anywhere are all load-bearing — decoding
+ * those (the one-line "just unescape everything" fix) turns `value="quote &quot;here&quot;"` into
+ * `value="quote "here""`, which is markup a reader cannot paste back.
+ *
+ * jsdom does NOT escape it, so no fake-DOM test could have found this. It took a real engine.
+ */
+const readable = (text) => text.replace(/&gt;/g, '>');
+
 const dedent = (text) => {
   const lines = text.replace(/^\n+/, '').replace(/\s+$/, '').split('\n');
   const indents = lines.filter((l) => l.trim()).map((l) => /^\s*/.exec(l)[0].length);
@@ -45,7 +64,7 @@ customElements.define('demo-block', class extends HTMLElement {
   connectedCallback() {
     if (this.dataset.built) return;
     this.dataset.built = '1';
-    const source = dedent(this.innerHTML);
+    const source = readable(dedent(this.innerHTML));
     const live = document.createElement('div');
     live.className = 'demo-live';
     while (this.firstChild) live.append(this.firstChild);
@@ -62,6 +81,40 @@ customElements.define('demo-block', class extends HTMLElement {
     details.append(summary, pre);
     this.append(caption, live, details);
   }
+});
+
+/**
+ * `<attr-mirror for="#id" attrs="disabled aria-expanded">` — what the DOM actually holds.
+ *
+ * `bind-*` is the one family whose whole lesson is INVISIBLE: an attribute removed, an attribute
+ * present-and-empty, and a value stringified all look identical on screen. The demo showed four
+ * controls and asked a reader to take the caption's word for it. This prints the live truth beside
+ * them, so "false removes it" and "true is present-empty" are things you watch happen.
+ *
+ * `value` is read as a PROPERTY, deliberately: that is what `bind-value` writes, and the attribute
+ * would go on saying whatever the markup said — which is the distinction worth showing.
+ */
+customElements.define('attr-mirror', class extends HTMLElement {
+  connectedCallback() {
+    const target = document.querySelector(this.getAttribute('for'));
+    const names = (this.getAttribute('attrs') ?? '').split(/\s+/).filter(Boolean);
+    if (!target) return;
+    this.className = 'mirror';
+    const render = () => {
+      this.innerHTML = names.map((name) => {
+        if (name === 'value') return `<b>value</b> <span>(property) "${target.value}"</span>`;
+        if (!target.hasAttribute(name)) return `<b>${name}</b> <span class="absent">absent</span>`;
+        const raw = target.getAttribute(name);
+        return `<b>${name}</b> <span>${raw === '' ? '"" (present, empty)' : `"${raw}"`}</span>`;
+      }).join(' · ');
+    };
+    render();
+    this._stop = new MutationObserver(render);
+    this._stop.observe(target, { attributes: true, attributeFilter: names });
+    /** A property write fires no mutation record, so the live value needs its own signal. */
+    this._tick = setInterval(render, 200);
+  }
+  disconnectedCallback() { this._stop?.disconnect(); clearInterval(this._tick); }
 });
 
 /* A vera component subscribing to a DIRECTIVE's store — the adoption interop, live. */
@@ -157,7 +210,7 @@ const HOME = `
 import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import {
-  wireDirectives, directives, interaction, expressions,
+  wireDirectives, directives, interaction, expressions, sensors,
   motion, easings, paint, path, split, sequence,
 } from '@verajs/directives';
 
@@ -215,14 +268,18 @@ const STATE = `
     </div>
   </demo-block>
   <h2>bind-* — attributes and live form properties</h2>
-  <demo-block caption="false/null removes; true is present-empty; aria-* stringifies; value/checked write the LIVE property. href is refused outright — see Diagnostics.">
-    <div data-vd-state="{ open: false, note: 'editable from state' }">
-      <button data-vd-bind-aria-expanded="open" data-vd-bind-disabled="!open">
-        disabled until opened
-      </button>
-      <button data-vd-on-click="{ open: !open }">flip it</button>
-      <br /><input data-vd-bind-value="note" size="30" />
-      <button data-vd-on-click="{ note: 'reset by a click' }">reset the input</button>
+  <demo-block caption="Watch the mirrors, not the buttons. false/null REMOVES the attribute; true leaves it present and empty; aria-* stringifies to the words true/false; value writes the live PROPERTY, so typing in the field and writing from state both land in the same place. href is refused outright — see Diagnostics.">
+    <div data-vd-state="{ open: false, note: 'state wrote this' }">
+      <p><button data-vd-on-click="{ open: !open }">toggle — open is <b data-vd-text="open"></b></button></p>
+
+      <p><button id="bind-btn" data-vd-bind-disabled="!open" data-vd-bind-aria-expanded="open">
+        clickable only while open is true
+      </button></p>
+      <attr-mirror for="#bind-btn" attrs="disabled aria-expanded"></attr-mirror>
+
+      <p><label>bound field <input id="bind-input" data-vd-bind-value="note" size="24" /></label>
+        <button data-vd-on-click="{ note: 'state wrote this' }">write it from state</button></p>
+      <attr-mirror for="#bind-input" attrs="value"></attr-mirror>
     </div>
   </demo-block>
   <h2>Components and directives share one world</h2>
@@ -288,9 +345,21 @@ const EVENTS = `
       </form>
     </div>
   </demo-block>
-  <p class="lede">An honest limit, stated rather than hidden: handlers are assignment objects, so
-  they see state — not the event object. The moment a demo needs <code>event.clientX</code>, it
-  has crossed into component territory, and components are one <code>init(this)</code> away.</p>
+  <h2>$ — what the event carries</h2>
+  <demo-block caption="Trigger variables are declared per event base and return PRIMITIVES, never the event: native properties live on prototypes, so handing the object over would expose the whole DOM API to attribute text. An unknown $name refuses the WHOLE handler rather than quietly writing undefined.">
+    <div data-vd-state="{ q: '', px: 0, py: 0, key: '' }">
+      <label>type here <input data-vd-on-input="{ q: $value }" size="22" /></label>
+      <p>captured: <b data-vd-text="q"></b></p>
+      <div class="card" data-vd-on-pointermove="{ px: $x, py: $y }">
+        move the pointer over me — <b data-vd-text="px"></b> × <b data-vd-text="py"></b>
+      </div>
+      <p><label>press a key <input data-vd-on-keydown="{ key: $key }" size="10" /></label>
+        last key <b data-vd-text="key"></b></p>
+    </div>
+  </demo-block>
+  <p class="lede">One-way by design: <code>$value</code> CAPTURES what the event carried. If
+  anything else can write that key — a shared link, a fetch, another component — reach for
+  <code>data-vd-sync</code>, which binds both directions.</p>
 `;
 
 const EXPRESSIONS = `
@@ -421,6 +490,53 @@ const MOTION = `
       <div class="hero-box" data-vd-motion="fade-up">4th</div>
     </div>
   </demo-block>
+  <h2>Inertia — the movement outlives the scroll</h2>
+  <demo-block caption="Both boxes read the same scroll position. inertia: 0 tracks it exactly; a high inertia writes the TARGET each frame and lets a compositor-driven CSS transition carry the value there — so when you stop, it keeps going and settles. Scroll in a short burst and watch the right one catch up.">
+    <div class="lag-row">
+      <div class="hero-box" data-vd-motion="{ translate-y: '0% 70px, 100% -70px', inertia: 0 }">inertia: 0 — locked to scroll</div>
+      <div class="hero-box" data-vd-motion="{ translate-y: '0% 70px, 100% -70px', inertia: 0.85, inertia-ease: 'cubic-bezier(0.22, 1, 0.36, 1)' }">inertia: 0.85 — keeps travelling</div>
+    </div>
+  </demo-block>
+
+  <h2>A gradient that never stops moving</h2>
+  <demo-block caption="The colour is a plain CSS conic-gradient on a layer larger than its frame; scroll rotates and slides it. paint's colour table is DISCRETE on purpose — it indexes exact values so it can never paint a colour you did not write — so a continuous wash is a transform on a gradient rather than an interpolation between colours.">
+    <div class="sky">
+      <div class="sky-layer"
+           data-vd-motion="{ rotate: '0% 0deg, 100% 140deg', scale: '0% 1, 50% 1.25, 100% 1', inertia: 0.5 }"></div>
+      <div class="sky-label">scroll me</div>
+    </div>
+  </demo-block>
+
+  <h2>Reveal: four modes, no new motion setting</h2>
+  <p class="lede"><code>when</code> is a SELECTOR trigger, so the animation plays under its own
+  time rather than scrubbing with the scroll position. Point it at a class, drive the class from
+  sensors, and the four reveal behaviours fall out of pieces that already exist:
+  <code>in-view</code> says whether it is on screen, <code>scroll-direction</code> says which way
+  the reader is going, and <code>watch</code> latches the ones that should never come back.</p>
+  <demo-block caption="Each box plays THROUGH on entry (when: a class, not the scroll position). What differs is only the expression driving the class. Scroll down past them, then back up.">
+    <div data-vd-state="{ seen: false, ever: false, dir: '' }"
+         data-vd-scroll-direction="dir"
+         data-vd-watch="{ seen: { ever: true } }">
+      <div class="reveal-row">
+        <div class="hero-box" data-vd-in-view="seen" data-vd-class="{ lit: ever }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
+          1 · once, then holds
+        </div>
+        <div class="hero-box" data-vd-class="{ lit: ever && dir != 'up' }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
+          2 · out when scrolling up
+        </div>
+        <div class="hero-box" data-vd-class="{ lit: ever && dir != 'down' }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
+          3 · out when scrolling down
+        </div>
+        <div class="hero-box" data-vd-class="{ lit: seen }"
+             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24, 100% 0', when: '.lit', inertia: 0.35 }">
+          4 · out whenever it leaves
+        </div>
+      </div>
+    </div>
+  </demo-block>
   <demo-block caption="run-once plays through and LATCHES — scroll it in, then back up: it stays. The latch even survives attribute edits.">
     <div class="hero-box" data-vd-motion="{ opacity: '0% 0, 100% 1', scale: '0% 0.6, 100% 1', run-once: true }">
       latched
@@ -496,10 +612,10 @@ const VOCAB = `
     </p>
   </demo-block>
   <h2>sequence — scroll-scrubbed image frames</h2>
-  <demo-block caption="A canvas scrubbed through numbered frames as you scroll. The URL policy is FACTORY-ONLY — an attribute can never widen the origin allowlist; this one stays same-origin and is refused live because no frames are served here. That refusal (below, and on the Diagnostics page) is the feature: nothing fails silently.">
+  <demo-block caption="A canvas scrubbed through 24 numbered frames as you scroll — scroll slowly and the dial turns. The URL policy is FACTORY-ONLY: an attribute can never widen the origin allowlist, so these are served same-origin. Point frame-url at another origin and it is refused rather than fetched.">
     <canvas width="320" height="180" class="card"
-            data-vd-motion="{ frame: '0% 0, 100% 24', frame-url: '/examples/directives/frames/',
-                              frame-count: 24, frame-ext: 'webp', frame-tween: true }"></canvas>
+            data-vd-motion="{ frame: '0% 0, 100% 23', frame-url: '/examples/directives/frames/',
+                              frame-count: 24, frame-ext: 'svg', frame-tween: true }"></canvas>
   </demo-block>
   <h2>easings</h2>
   <demo-block caption="The easings module resolves keywords, cubic-bezier() and steps() for the CURVE (evaluated per segment, like @keyframes). inertia-ease shapes the catch-up and is CSS's job — same vocabulary, different physics.">

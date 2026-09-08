@@ -169,6 +169,78 @@ test('outside-click lives on the CONTAINER; escape and window targets fire; init
   host.remove();
 });
 
+test('A MOVE IS NOT A REMOVAL — relocating an element does not re-run its directives', async () => {
+  /**
+   * A move arrives as a removal plus an addition, and the engine believed the removal: it tore
+   * every directive on the subtree down and built it again. `data-vd-init` ran TWICE on one page
+   * load, teardowns fired for elements that never went anywhere, and per-instance state closed over
+   * by `setup` was silently discarded. Wrapping children in a container — something layout code
+   * does constantly — was all it took.
+   */
+  const host = mount(`
+    <div data-vd-state="{ n: 0 }">
+      <i id="mover" data-vd-init="{ n: n + 1 }"></i>
+    </div>`);
+  await settled();
+  const carrier = host.firstElementChild;
+  assert.equal(stateOf(carrier).n, 1, 'the control: it activated once');
+
+  /** Exactly what a wrapper does: detach the child, put it in a box, put the box back. */
+  const mover = host.querySelector('#mover');
+  const box = doc.createElement('div');
+  carrier.append(box);
+  box.append(mover);
+  await settled();
+  assert.equal(stateOf(carrier).n, 1, 'still once — it never left the document, so nothing re-ran');
+
+  /** And the other half, which the fix must not break: a real removal still tears down. */
+  const before = stateOf(carrier).n;
+  box.remove();
+  await settled();
+  carrier.append(mover);
+  await settled();
+  assert.equal(stateOf(carrier).n, before + 1,
+    'a node that genuinely left and came back DID re-activate — the guard reads isConnected at ' +
+    'processing time, so a real removal still reads false');
+  host.remove();
+});
+
+test('THE OPENING CLICK DOES NOT CLOSE IT — outside-click listens in the capture phase', async () => {
+  /**
+   * The commonest use of this directive could not work, and the test above missed it by starting
+   * with `open: true` — it verified closing and never once opened anything.
+   *
+   * The click that OPENS a panel is by construction a click outside it: the button is not inside
+   * the thing it reveals. In the bubble phase this listener saw that click AFTER the delegated
+   * handler had run and after the reflection had already removed `hidden`, so it closed the panel
+   * on the very click that opened it — and no "is it visible" test could separate the two, because
+   * by that point it genuinely was visible. Capture asks the question a reader means: *was this
+   * open when the click began.*
+   */
+  const host = mount(`
+    <div data-vd-state="{ open: false }">
+      <button id="opener" data-vd-on-click="{ open: true }">open</button>
+      <nav data-vd-show="open" data-vd-on-outside-click="{ open: false }"><b id="in2">panel</b></nav>
+    </div>`);
+  await settled();
+  const carrier = host.firstElementChild;
+  assert.equal(stateOf(carrier).open, false, 'the control: it starts closed, which the older test never did');
+
+  click(host.querySelector('#opener'));
+  await settled();
+  assert.equal(stateOf(carrier).open, true, 'the opening click opened it and did not immediately close it');
+  assert.equal(host.querySelector('nav').hidden, false, 'and the panel is actually on screen');
+
+  /** And the directive still does its job. */
+  click(host.querySelector('#in2'));
+  await settled();
+  assert.equal(stateOf(carrier).open, true, 'a click inside still does not close');
+  click(doc.body);
+  await settled();
+  assert.equal(stateOf(carrier).open, false, 'a click genuinely outside still closes');
+  host.remove();
+});
+
 test('submit prevents by default; submit-native opts out (the day-one member)', async () => {
   const host = mount(`
     <div data-vd-state="{ sent: 0, native: 0 }">

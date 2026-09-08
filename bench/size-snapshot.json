@@ -51,28 +51,28 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 15179,
-      "gzip": 5920
+      "raw": 15194,
+      "gzip": 5927
     },
     "directives-standalone": {
-      "raw": 18767,
-      "gzip": 7237
+      "raw": 18782,
+      "gzip": 7243
     },
     "directives-expressions": {
       "raw": 5365,
       "gzip": 2281
     },
     "directives-interaction": {
-      "raw": 9713,
-      "gzip": 3543
+      "raw": 9747,
+      "gzip": 3561
     },
     "directives-query": {
       "raw": 3716,
       "gzip": 1616
     },
     "directives-sensors": {
-      "raw": 4284,
-      "gzip": 1688
+      "raw": 4673,
+      "gzip": 1807
     },
     "directives-remote": {
       "raw": 2624,

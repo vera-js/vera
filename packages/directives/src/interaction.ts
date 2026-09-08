@@ -624,13 +624,31 @@ const on: Directive = {
       return () => el.ownerDocument.removeEventListener('keydown', onKey);
     }
     if (sel.kind === 'outside-click') {
-      /** On the CONTAINER (the constraint set): a click composed-outside the element runs it. */
+      /**
+       * On the CONTAINER (the constraint set): a click composed-outside the element runs it.
+       *
+       * **Listened for in the CAPTURE phase, and that one argument is what makes the directive
+       * usable at all.** The click that OPENS a panel is by construction a click outside it — the
+       * button is not inside the thing it reveals — so in the bubble phase this saw the opening
+       * click AFTER the delegated handler had already run and the reflection had already removed
+       * `hidden`. It then closed the panel on the very click that opened it, and no amount of
+       * "is it visible" testing could tell the two apart, because by then it genuinely was.
+       *
+       * Capture runs before any of that: the question becomes *was this element open when the click
+       * began*, which is the question a reader means. The path test is phase-independent, so a click
+       * genuinely outside still closes and a click inside still does not.
+       */
       const onClick = (event: Event) => {
-        const path = event.composedPath();
-        if (!path.includes(el)) run();
+        /** A hidden panel has no outside — and in capture, "hidden" still means what it meant when
+         *  the click started. `hidden` is the test because `show` sets exactly that, and because a
+         *  layout test (`getClientRects`) is empty for everything under jsdom and would disable
+         *  this wherever the suites run. */
+        const node = el as HTMLElement;
+        if (!node.isConnected || node.hidden) return;
+        if (!event.composedPath().includes(el)) run();
       };
-      el.ownerDocument.addEventListener('click', onClick);
-      return () => el.ownerDocument.removeEventListener('click', onClick);
+      el.ownerDocument.addEventListener('click', onClick, true);
+      return () => el.ownerDocument.removeEventListener('click', onClick, true);
     }
     if (sel.kind === 'submit' || sel.kind === 'submit-native') {
       const native = sel.kind === 'submit-native';

@@ -1105,7 +1105,21 @@ const onMutations = (root: Node, records: MutationRecord[]) => {
       }
       continue;
     }
-    for (const node of record.removedNodes) unwalk(node);
+    /**
+     * **A node still in the document did not leave — it MOVED, and tearing it down is wrong.**
+     *
+     * A move is delivered as a removal plus an addition, so this tore every directive on the moved
+     * subtree down and built it again: `data-vd-init` ran twice on one page load, teardowns fired
+     * for elements that never went anywhere, and any per-instance state closed over by `setup` was
+     * silently discarded. Wrapping children in a container — something layout code does constantly
+     * — was enough to trigger it.
+     *
+     * `isConnected` at PROCESSING time is the whole test. Records arrive in a microtask batch after
+     * the DOM has settled, so a genuine removal reads false and a move reads true; the re-addition
+     * in the same batch then finds the instances still live and returns, because activation is
+     * idempotent per element and attribute.
+     */
+    for (const node of record.removedNodes) if (!node.isConnected) unwalk(node);
     for (const node of record.addedNodes) walk(node, root);
   }
 };
