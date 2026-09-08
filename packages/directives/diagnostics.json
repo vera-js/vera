@@ -192,6 +192,14 @@
       "message": "an on-* value is a braced assignments object."
     },
     {
+      "code": "in-view-bad-line",
+      "params": [
+        "line"
+      ],
+      "message": "\"{line}\" is not a trigger line.",
+      "fix": "Write a fraction or a percentage of the viewport height, like data-vd-in-view=\"seen 0.3\"."
+    },
+    {
       "code": "key-not-writable",
       "params": [
         "key"

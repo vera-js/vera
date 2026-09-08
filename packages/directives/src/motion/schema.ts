@@ -268,7 +268,9 @@ export interface SettingDef {
     /** A CSS transform-origin. Validated by grammar, not passed through. */
     | 'origin'
     /** A keyframe-position offset: a number with an optional unit, `%` by default. */
-    | 'offset';
+    | 'offset'
+    /** `"<edge> <viewport position>"` — one end of the range percentages are measured across. */
+    | 'alignment';
   /** Bounds for `number`. A setting without them is unbounded, which is a bug. */
   readonly min?: number;
   readonly max?: number;
@@ -333,6 +335,27 @@ export const SETTINGS = [
    * supported it).
    */
   { key: 'ease', type: 'easing' },
+  /**
+   * **The RANGE an animation's percentages are measured across** (Brian, 2026-09-08).
+   *
+   * A percentage was a fraction of one fixed thing — the element's own transit — so where `35%`
+   * landed on screen depended on the element's height AND the viewport's, and *"fade in at 60% down
+   * the screen"* had no portable spelling at all: measured, it is 18.8% in an 800px viewport and
+   * 21.1% in a 1000px one. Naming the ends fixes that. Percentages stay a fraction of the range;
+   * the range becomes something you can say out loud.
+   *
+   * `anchor` picks WHOSE box the edges belong to (default: this element). `start` and `end` are
+   * `"<edge> <viewport position>"` — the element edge, and where in the viewport it sits when that
+   * end of the range is reached. Defaults are `top bottom` and `bottom top`, which reduce exactly
+   * to the old window, so nothing already written changes meaning.
+   *
+   *   start: 'top 60%'      the range begins when this element's top is 60% down the viewport
+   *   anchor: '#section'    measure against a section instead, for a sticky child
+   *   start: 'top top', end: 'bottom bottom'    the span a sticky element is pinned for
+   */
+  { key: 'anchor', type: 'selector', parse: (raw) => parseSelector(raw, true) },
+  { key: 'start', type: 'alignment', parse: (raw) => parseAlignment(raw) },
+  { key: 'end', type: 'alignment', parse: (raw) => parseAlignment(raw) },
   { key: 'run-once', type: 'boolean' },
   /**
    * Drive this element from a selector match instead of from scroll. While
@@ -644,6 +667,64 @@ export interface KeyframeList {
  * unambiguously a *value*, so `opacity: '0'` can keep meaning "animate to 0"
  * alongside the list form.
  */
+/**
+ * `"<edge> <viewport position>"` → `"<edgeFraction> <viewportFraction>"`.
+ *
+ * Both halves accept the words a person says — `top`, `center`, `bottom` — and the viewport half
+ * also accepts a percentage or a fraction, because "60% down" is the whole reason this exists.
+ * Stored as two numbers in a string so a setting stays a plain value.
+ */
+/**
+ * **Edges are fractions along the SCROLL AXIS, not compass directions.** `0` is the leading edge —
+ * the top when the page scrolls down, the left when it scrolls sideways — and `1` the trailing one.
+ * The words are aliases for those two numbers, so `left`/`right` and `top`/`bottom` are the same
+ * pair said two ways and a horizontal page reads naturally without the runtime learning a second
+ * vocabulary. `start`/`end` are the axis-neutral spelling for anyone writing both.
+ */
+const EDGES: Record<string, number> = {
+  top: 0, left: 0, start: 0,
+  center: 0.5, middle: 0.5,
+  bottom: 1, right: 1, end: 1,
+};
+
+/** Which axis a word commits to, so a mixed pair can be refused rather than silently meaning something. */
+const AXIS: Record<string, 'block' | 'inline'> = {
+  top: 'block', bottom: 'block', left: 'inline', right: 'inline',
+};
+
+/** One half of an alignment: a word, a percentage, or a bare fraction — the same rule both sides. */
+const place = (token: string): number | null => {
+  if (token in EDGES) return EDGES[token]!;
+  const value = token.endsWith('%') ? Number(token.slice(0, -1)) / 100 : Number(token);
+  return Number.isFinite(value) && value >= -3 && value <= 3 ? value : null;
+};
+
+/**
+ * `"<edge> <viewport position>"` → `"<edgeFraction> <viewportFraction>"`.
+ *
+ * **Both halves take the same vocabulary**, which is the point: `top 60%` and `top center` and
+ * `25% 60%` all read, and nobody has to remember that one side accepts words and the other numbers.
+ * The edge is a fraction of the ELEMENT (0 its leading edge, 1 its trailing one); the second is a
+ * fraction of the VIEWPORT. Out-of-range on either side is allowed to ±3, so a range can begin
+ * before the element is anywhere near the screen.
+ */
+export const parseAlignment = (raw: string): string | null => {
+  const parts = raw.trim().toLowerCase().split(/\s+/);
+  if (parts.length !== 2) return null;
+  const edge = place(parts[0]!);
+  const viewport = place(parts[1]!);
+  if (edge === null || viewport === null) return null;
+  /**
+   * **A pair may not mix axes.** `top` and `left` are the same number — the leading edge — so
+   * `top 50%` beside `right 0%` is accepted by arithmetic while meaning nothing anyone intended.
+   * The words are the only place the axis is ever stated, so this is the only place it can be
+   * checked; refusing here turns a silent misreading into a sentence.
+   */
+  const axes = [AXIS[parts[0]!], AXIS[parts[1]!]].filter(Boolean);
+  if (axes.length === 2 && axes[0] !== axes[1]) return null;
+  return `${edge} ${viewport}`;
+};
+
 export const parsePosition = (
   raw: string
 ): { position: number; positionUnit: PositionUnit } | null => {

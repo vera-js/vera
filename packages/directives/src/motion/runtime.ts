@@ -107,6 +107,9 @@ export interface RuntimeElement {
 
   /** Cached geometry — recomputed on resize and mutation, never per frame. */
   start: number;
+  /** The scroll range percentages are measured across — see `resolveRange`. */
+  rangeStart: number;
+  rangeSize: number;
   end: number;
   size: number;
 
@@ -513,10 +516,12 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
 
   for (const animation of element.plan.all) {
     const merged = mergeForWidth(animation, win.width);
-    const points = merged.map((k) => ({
-      position: normalisePosition(k, scrollWindow, win, root) + offset,
-      value: k.value,
-    }));
+    /** Sorted after normalising, because the authored order is now DESCENDING (100% is the start)
+     *  and the curve builder wants positions ascending. This also makes keyframes written out of
+     *  order simply work, which they previously did not. */
+    const points = merged
+      .map((k) => ({ position: normalisePosition(k, scrollWindow, win, root) + offset, value: k.value }))
+      .sort((a, b) => a.position - b.position);
 
     /**
      * A band can add or remove keyframes, so the curve is only refilled in
@@ -905,6 +910,8 @@ export const createRuntimeElement = (
     displaced,
     /** Both readings carry the correction, here and on every re-measure. */
     start: start + displaced,
+    rangeStart: 0,
+    rangeSize: 0,
     end: end + displaced,
     size,
     lowestStart: 0,
@@ -934,6 +941,10 @@ export const createRuntimeElement = (
   markUnfinishable(element, win);
   element.pinBlocked = pinTrouble(element, settings);
   element.flatBlocked = flatTrouble(element, settings);
+
+  /** Resolve the range NOW: an element that is never re-measured would otherwise carry a zero-width
+   *  range and sit at position 0 for ever — every animation frozen at its first keyframe. */
+  resolveRange(element, settings, win);
 
   return element;
 };
@@ -1087,11 +1098,61 @@ export const updateStateElement = (
  * 1/resolution steps purely so LUT indexing landed on an exact entry; with the
  * LUT gone there is no reason to, and the values are smoother for it.
  */
-export const updateTimelinePosition = (element: RuntimeElement, win: WindowSize): void => {
-  const scrollWindow = element.size + win.size;
-  element.timelinePosition =
-    scrollWindow === 0 ? 0 : (win.end - element.start) / scrollWindow;
+/**
+ * Resolve the scroll range this element's percentages are measured across.
+ *
+ * An alignment is `"<edgeFraction> <viewportFraction>"`: the range reaches that end when the
+ * anchor's edge sits at that place in the viewport. So the scroll offset for one end is
+ * `anchorEdge - viewportPlace * viewportSize`, and the range is the span between the two.
+ *
+ * The defaults — `top bottom` and `bottom top` — reduce to `(scrollY + V - A) / (Ah + V)`, which is
+ * the window this had before naming existed, so every animation already written keeps its meaning.
+ */
+const alignmentAt = (
+  spec: string | undefined,
+  fallback: [number, number],
+  anchorStart: number,
+  anchorSize: number,
+  win: WindowSize
+): number => {
+  const [edge, place] = spec ? spec.split(' ').map(Number) : fallback;
+  return anchorStart + (edge ?? 0) * anchorSize - (place ?? 0) * win.size;
 };
+
+export const resolveRange = (
+  element: RuntimeElement,
+  settings: RuntimeSettings,
+  win: WindowSize
+): void => {
+  let anchorStart = element.start;
+  let anchorSize = element.size;
+
+  const selector = element.parsed.settings['anchor'];
+  if (typeof selector === 'string' && selector !== '') {
+    /** Resolved in the element's OWN root, so a component can anchor to its own section without
+     *  reaching into the page — the same rule `path-selector` follows. */
+    const root = element.node.getRootNode() as ParentNode;
+    const found = root.querySelector?.(selector) as HTMLElement | null;
+    if (found) {
+      const box = getElementSize(found, settings.scrollDirection, settings.scrollElement);
+      anchorStart = box.start;
+      anchorSize = box.size;
+    }
+  }
+
+  const from = alignmentAt(
+    element.parsed.settings['start'] as string | undefined, [0, 1], anchorStart, anchorSize, win);
+  const to = alignmentAt(
+    element.parsed.settings['end'] as string | undefined, [1, 0], anchorStart, anchorSize, win);
+  element.rangeStart = from;
+  element.rangeSize = to - from;
+};
+
+export const updateTimelinePosition = (element: RuntimeElement, win: WindowSize): void => {
+  element.timelinePosition =
+    element.rangeSize === 0 ? 0 : (win.start - element.rangeStart) / element.rangeSize;
+};
+
 
 /** Recomputes position, screen type and timeline position, then writes. */
 export const updateElement = (
@@ -1295,6 +1356,7 @@ export const resetElement = (
   element.start = start + element.displaced;
   element.end = end + element.displaced;
   element.size = size;
+  resolveRange(element, settings, win ?? getWindowSize(settings.scrollDirection, settings.scrollElement ?? window));
 
   markUnfinishable(element, win ?? getWindowSize(settings.scrollDirection, settings.scrollElement ?? window));
   /** A resize is exactly when a wrapper starts or stops clipping. */

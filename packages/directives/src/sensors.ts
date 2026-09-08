@@ -47,23 +47,47 @@ import type { Directive, Ctx, EngineConnector } from './types.js';
  * no object, no listener and no frame.
  */
 const intersectHandlers = new WeakMap<Element, (visible: boolean) => void>();
-let intersectObserver: IntersectionObserver | null = null;
-let intersectCount = 0;
+const intersectObservers = new Map<string, { observer: IntersectionObserver; count: number }>();
 
-const watchIntersect = (el: Element, fn: (visible: boolean) => void): (() => void) | null => {
+/**
+ * Watch an element's intersection, optionally against a TRIGGER LINE.
+ *
+ * `margin` is a `rootMargin`, and it is the difference between "is any part of this on screen" and
+ * "has this reached a third of the way down" — the second is what a reveal actually wants, and it
+ * is height-INDEPENDENT, which no threshold on the element's own travel can be. A tall element and
+ * a short one cross the same line at the same place on screen.
+ *
+ * Observers are keyed by margin: a page using only the default still shares ONE observer, and each
+ * distinct trigger line costs exactly one more.
+ */
+const watchIntersect = (
+  el: Element,
+  fn: (visible: boolean) => void,
+  margin = ''
+): (() => void) | null => {
   if (typeof IntersectionObserver !== 'function') return null;
   intersectHandlers.set(el, fn);
-  intersectObserver ??= new IntersectionObserver((entries) => {
-    for (const entry of entries) intersectHandlers.get(entry.target)?.(entry.isIntersecting);
-  });
-  intersectObserver.observe(el);
-  intersectCount++;
+  let entry = intersectObservers.get(margin);
+  if (!entry) {
+    entry = {
+      observer: new IntersectionObserver(
+        (records) => {
+          for (const record of records) intersectHandlers.get(record.target)?.(record.isIntersecting);
+        },
+        margin ? { rootMargin: margin } : undefined
+      ),
+      count: 0,
+    };
+    intersectObservers.set(margin, entry);
+  }
+  entry.observer.observe(el);
+  entry.count++;
   return () => {
     intersectHandlers.delete(el);
-    intersectObserver?.unobserve(el);
-    if (--intersectCount === 0) {
-      intersectObserver?.disconnect();
-      intersectObserver = null;
+    entry.observer.unobserve(el);
+    if (--entry.count === 0) {
+      entry.observer.disconnect();
+      intersectObservers.delete(margin);
     }
   };
 };
@@ -153,8 +177,9 @@ const same = (a: Record<string, number | boolean>, b: Record<string, number | bo
 };
 
 /** The key a literal sensor writes to, or null with the refusal already recorded. */
-const keyFor = (el: Element, attr: string, ctx: Ctx): string | null => {
-  const key = (el.getAttribute(attr) ?? '').trim();
+/** `given` lets a directive whose value carries more than a key hand over just the key. */
+const keyFor = (el: Element, attr: string, ctx: Ctx, given?: string): string | null => {
+  const key = (given ?? el.getAttribute(attr) ?? '').trim();
   if (key === '') {
     ctx.reject('sensor-no-key', [attr]);
     return null;
@@ -169,32 +194,57 @@ const inView: Directive = {
   value: 'literal',
   priority: 60,
   docs: {
-    summary: 'Writes true to a state key while the element is on screen.',
-    example: 'data-vd-in-view="seen"',
+    summary: 'Writes true when the element crosses a trigger line: "key" or "key 30%".',
+    example: 'data-vd-in-view="seen 30%"',
   },
   /**
-   * DEGRADED, NEVER DEAD — this file's third discipline, applied where it matters most. A server
-   * has no observer, so by that rule the answer is `true`; writing nothing meant server markup
-   * rendered UNREVEALED, which is the exact failure the discipline exists to prevent, in the one
-   * place a reader can never recover from it: no JavaScript, ever.
+   * DEGRADED, NEVER DEAD — a server has no observer, so by that rule the answer is `true`. Writing
+   * nothing rendered the markup UNREVEALED, which is the exact failure the discipline exists to
+   * prevent, in the one place a reader can never recover from it: no JavaScript, ever.
    */
   ssr: (el, _value, ctx) => {
-    const key = (el.getAttribute('data-vd-in-view') ?? '').trim();
+    const key = (el.getAttribute('data-vd-in-view') ?? '').trim().split(/\s+/)[0];
     if (key) ctx.set(key, true);
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-in-view', ctx);
-    if (!key) return;
     /**
-     * No observer means no way to know — and the honest answer there is VISIBLE, because the
-     * alternative hides content from a reader over a capability the page lacks.
+     * **A key, and optionally a TRIGGER LINE** — `"seen"` or `"seen 30%"`.
+     *
+     * Bare, this fires the instant any edge touches the viewport, which is right for "is it on
+     * screen" and wrong for a reveal: the element has barely appeared and the animation is over
+     * before it is readable. A line is a position ON SCREEN — `30%` means "when it reaches a third
+     * of the way down" — and it is HEIGHT-INDEPENDENT, which no measure of the element's own travel
+     * can be. A tall card and a short one cross the same line in the same place.
+     *
+     * Written as a percentage or a fraction, because both readings are natural and neither is worth
+     * a refusal: `30%` and `0.3` mean the same thing.
      */
+    const raw = (el.getAttribute('data-vd-in-view') ?? '').trim();
+    const [name, line] = raw.split(/\s+/);
+    const key = keyFor(el, 'data-vd-in-view', ctx, name);
+    if (!key) return;
+
+    let margin = '';
+    if (line !== undefined) {
+      const percent = line.endsWith('%') ? Number(line.slice(0, -1)) : Number(line) * 100;
+      if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+        ctx.reject('in-view-bad-line', [line]);
+      } else {
+        /** The root shrinks to the band above the line, so intersection begins exactly there. */
+        margin = `0px 0px -${100 - percent}% 0px`;
+      }
+    }
+
     let last: boolean | null = null;
     const stop = watchIntersect(el, (visible) => {
       if (visible === last) return;
       last = visible;
       ctx.set(key, visible);
-    });
+    }, margin);
+    /**
+     * No observer means no way to know — and the honest answer there is VISIBLE, because the
+     * alternative hides content from a reader over a capability the page lacks.
+     */
     if (!stop) {
       ctx.set(key, true);
       return;
@@ -202,6 +252,7 @@ const inView: Directive = {
     return stop;
   },
 };
+
 
 /* ── size ────────────────────────────────────────────────────────────────────────────────── */
 

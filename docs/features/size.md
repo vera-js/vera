@@ -138,9 +138,9 @@ describing the bytes honestly.)*
 | `@verajs/directives/expressions` | 2 281 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interaction` | 3 561 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 1 616 B | the query pack — route, query, region |
-| `@verajs/directives/sensors` | 1 807 B | the sensors pack — environment to state |
+| `@verajs/directives/sensors` | 2 052 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 1 302 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 17 773 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | 18 165 B | the motion pack — presets, easings, paint, path, sequence, split |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).

@@ -124,6 +124,10 @@ export const PROSE: Record<string, Prose> = {
     'A reflection re-runs whenever its inputs change, so an action there would fire over and over.',
   ],
   'action-no-element': (name) => [`${name}() had no element to build a context from.`],
+  'in-view-bad-line': (line) => [
+    `"${line}" is not a trigger line.`,
+    'Write a fraction or a percentage of the viewport height, like data-vd-in-view="seen 0.3".',
+  ],
   'unknown-directive': (suffix: string, declined?: string) => [
     `nothing wired provides "${suffix}".`,
     declined ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.',
