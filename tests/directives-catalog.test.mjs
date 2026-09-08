@@ -169,6 +169,30 @@ test('outside-click lives on the CONTAINER; escape and window targets fire; init
   host.remove();
 });
 
+test('a CSS CUSTOM PROPERTY is a legal object key — in both grammars', async () => {
+  /**
+   * `data-vd-style`'s contract says "custom properties included" and the grammar refused them: a key
+   * could CONTAIN a hyphen (`background-color`) but not BEGIN with one, so `{ --x: p.x }` never
+   * reached the directive. A documented capability with no spelling.
+   *
+   * The rule lived in THREE places — the base grammar and both of the expressions tier's key
+   * readers — so fixing one made it work in tests and still fail on any page wiring expressions,
+   * which is every real page. It is one exported predicate now. This runs with the tier wired,
+   * which is the copy that was in force when it failed.
+   */
+  const host = mount(`
+    <div data-vd-state="{ n: 0.25 }">
+      <i id="cp" data-vd-style="{ --x: n, --my-thing: n, opacity: n }"></i>
+    </div>`);
+  await settled();
+  const el = host.querySelector('#cp');
+  assert.deepEqual(rejections(el).map((r) => r.code), [], 'no refusal: the key is legal');
+  assert.equal(el.style.getPropertyValue('--x'), '0.25', 'and it was written with setProperty');
+  assert.equal(el.style.getPropertyValue('--my-thing'), '0.25', 'hyphens inside it survive too');
+  assert.equal(el.style.opacity, '0.25', 'ordinary properties still work beside it');
+  host.remove();
+});
+
 test('A MOVE IS NOT A REMOVAL — relocating an element does not re-run its directives', async () => {
   /**
    * A move arrives as a removal plus an addition, and the engine believed the removal: it tore

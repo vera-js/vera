@@ -501,6 +501,16 @@ const MOTION = `
   entrance. Land the last keyframe around <code>55%</code> and it is finished while centred; the
   demos below do exactly that, and the scrubbed ones deliberately do not.</p>
 
+  <h2>A dot that chases the pointer</h2>
+  <demo-block caption="pointer writes { x, y, inside } normalised 0→1 over the element — a READING, not an event, so it re-runs whatever depends on it. The directive only ever writes a target; the lag is a CSS transition, so the compositor carries it and nothing animates frame by frame. Two dots, two durations.">
+    <div class="pad" data-vd-state="{ p: { x: 0.5, y: 0.5, inside: false } }" data-vd-pointer="p">
+      <span class="hint" data-vd-show="!p.inside">move your pointer in here</span>
+      <div class="dot trailer" data-vd-style="{ --x: p.x, --y: p.y, opacity: p.inside ? 0.28 : 0 }"></div>
+      <div class="dot" data-vd-style="{ --x: p.x, --y: p.y, opacity: p.inside ? 1 : 0,
+                                        transform: p.inside ? 'scale(1)' : 'scale(0.4)' }"></div>
+    </div>
+  </demo-block>
+
   <h2>Inertia — the movement outlives the scroll</h2>
   <demo-block caption="Both boxes read the same scroll position. inertia: 0 tracks it exactly; a high inertia writes the TARGET each frame and lets a compositor-driven CSS transition carry the value there — so when you stop, it keeps going and settles. Scroll in a short burst and watch the right one catch up.">
     <div class="lag-row">

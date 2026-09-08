@@ -21,6 +21,7 @@
  * `evalExpr`). Change one grammar's surface and visit the other.
  */
 import type { Parsed, ParsedObject } from './parse.js';
+import { startsCustomProperty } from './parse.js';
 import type { EngineConnector, EngineSeams } from './types.js';
 
 type Read = (segments: string[], global: boolean) => unknown;
@@ -302,7 +303,10 @@ const parseObject = (source: string, from: number): { node: ParsedObject; end: n
     ws();
     const start = i;
     if (source[i] === '@') i++;
-    if (isDigit(source[i])) while (i < source.length && isDigit(source[i])) i++;
+    /** A custom property is a key: `{ --x: p.x }`. Same rule the base grammar uses — see
+     *  `startsCustomProperty`, which exists because this was written out three times. */
+    if (startsCustomProperty(source, i)) { i++; while (i < source.length && isId(source[i])) i++; }
+    else if (isDigit(source[i])) while (i < source.length && isDigit(source[i])) i++;
     else if (isIdStart(source[i])) while (i < source.length && (isId(source[i]) || source[i] === '.')) i++;
     const key = source.slice(start, i);
     if (!key || key === '@') fail('object-bad-key', start, 'expected a key');

@@ -45,6 +45,18 @@ const DEPTH_MAX = 8;
 
 const isIdStart = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_' || c === '$';
 const isId = (c: string) => isIdStart(c) || (c >= '0' && c <= '9') || c === '-';
+
+/**
+ * Whether a `-` at `at` begins a CSS CUSTOM PROPERTY rather than a negative number.
+ *
+ * Exported because the expressions tier parses objects too, and this rule lived in three places
+ * once — the base grammar and both of the tier's key readers. `data-vd-style="{ --x: p.x }"` was
+ * refused by whichever copy was in force, while `style`'s own contract said custom properties were
+ * supported; fixing one copy fixed the base tier and left the page (which wires expressions)
+ * refusing exactly as before. One rule, one address.
+ */
+export const startsCustomProperty = (source: string, at: number): boolean =>
+  source[at] === '-' && (source[at + 1] === '-' || source[at + 1] === '_' || isIdStart(source[at + 1] ?? ''));
 const isDigit = (c: string) => c >= '0' && c <= '9';
 
 /** Parse one attribute value. Throws a `ValueError`-shaped Error; callers convert to rejections. */
@@ -63,11 +75,24 @@ export const parseValue = (source: string): Parsed => {
     }
   };
 
-  /** Keys are TOKENS the directive interprets: names, dotted paths, `@names`, or bare numbers. */
+  /**
+   * Keys are TOKENS the directive interprets: names, dotted paths, `@names`, bare numbers — and
+   * **CSS custom properties**, which could not be written at all.
+   *
+   * `data-vd-style`'s own contract says "custom properties included", and `{ --x: p.x }` was
+   * refused by the grammar before the directive ever saw it: a key could CONTAIN a hyphen
+   * (`background-color`) but not begin with one. A documented capability with no spelling.
+   *
+   * The leading hyphen is admitted only when a letter, `_` or a second hyphen follows, so `--x` and
+   * `-webkit-thing` read as names while `-5` stays a number and cannot be mistaken for one.
+   */
   const key = (): string => {
     const start = i;
     if (source[i] === '@') i++;
-    if (isDigit(source[i])) {
+    if (startsCustomProperty(source, i)) {
+      i++;
+      while (!done() && isId(source[i])) i++;
+    } else if (isDigit(source[i])) {
       while (!done() && isDigit(source[i])) i++;
     } else if (isIdStart(source[i])) {
       while (!done() && (isId(source[i]) || source[i] === '.')) i++;

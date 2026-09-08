@@ -20,14 +20,14 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
 | `@verajs/inserts` | 486 B | 357 B |
-| `@verajs/directives` | 14.84 KB | 5.79 KB |
-| `@verajs/directives/directives-standalone` | 18.34 KB | 7.07 KB |
-| `@verajs/directives/directives-expressions` | 5.24 KB | 2.23 KB |
+| `@verajs/directives` | 14.94 KB | 5.83 KB |
+| `@verajs/directives/directives-standalone` | 18.44 KB | 7.11 KB |
+| `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
 | `@verajs/directives/directives-interaction` | 9.52 KB | 3.48 KB |
 | `@verajs/directives/directives-query` | 3.63 KB | 1.58 KB |
 | `@verajs/directives/directives-sensors` | 4.97 KB | 2.00 KB |
 | `@verajs/directives/directives-remote` | 2.56 KB | 1.27 KB |
-| `@verajs/directives/directives-motion` | 52.14 KB | 17.74 KB |
+| `@verajs/directives/directives-motion` | 52.24 KB | 17.80 KB |
 <!--/size:table.modules-->
 
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.6 KB<!--/size:app.kb--> gzipped**. For

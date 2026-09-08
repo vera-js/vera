@@ -51,16 +51,16 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 15194,
-      "gzip": 5927
+      "raw": 15299,
+      "gzip": 5967
     },
     "directives-standalone": {
-      "raw": 18782,
-      "gzip": 7243
+      "raw": 18887,
+      "gzip": 7282
     },
     "directives-expressions": {
-      "raw": 5365,
-      "gzip": 2281
+      "raw": 5540,
+      "gzip": 2343
     },
     "directives-interaction": {
       "raw": 9747,
@@ -79,8 +79,8 @@
       "gzip": 1302
     },
     "directives-motion": {
-      "raw": 53388,
-      "gzip": 18165
+      "raw": 53493,
+      "gzip": 18224
     }
   },
   "apps": [

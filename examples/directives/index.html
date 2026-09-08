@@ -163,6 +163,21 @@
       }
       .sky-label { position: absolute; inset: 0; display: grid; place-items: center;
         font-weight: 700; color: var(--paper); text-shadow: 0 1px 6px rgb(0 0 0 / 0.45); }
+      /* The dot chases the pointer: the directive writes a TARGET, the transition does the
+         lagging. Nothing animates the dot frame by frame — the compositor carries it. */
+      .pad { position: relative; height: 260px; border-radius: 0.75rem; overflow: hidden;
+        background: color-mix(in srgb, var(--soft) 60%, var(--paper)); cursor: crosshair; }
+      .pad .hint { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0.5; }
+      .dot {
+        position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+        background: var(--accent); pointer-events: none;
+        left: calc(var(--x, 0.5) * 100%); top: calc(var(--y, 0.5) * 100%);
+        transition: left 420ms cubic-bezier(0.22, 1, 0.36, 1),
+                    top 420ms cubic-bezier(0.22, 1, 0.36, 1),
+                    opacity 200ms, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .dot.trailer { width: 54px; height: 54px; margin: -27px 0 0 -27px; opacity: 0.28;
+        transition-duration: 900ms, 900ms, 200ms, 900ms; }
       .lag-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; align-items: start; }
       .reveal-row { display: grid; gap: 0.8rem; }
       .reveal-row .hero-box { margin: 0; }
