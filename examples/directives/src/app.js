@@ -529,33 +529,31 @@ const MOTION = `
   </demo-block>
 
   <h2>Reveal: four modes, no new motion setting</h2>
-  <p class="lede"><code>when</code> is a SELECTOR trigger, so the animation plays under its own
-  time rather than scrubbing with the scroll position. Point it at a class, drive the class from
-  sensors, and the four reveal behaviours fall out of pieces that already exist:
-  <code>in-view</code> takes a TRIGGER LINE — <code>"seen 0.3"</code> fires when the element
-  reaches 30% down the viewport — <code>scroll-direction</code> says which way the reader is
-  going, and <code>watch</code> latches the ones that should never come back.</p>
-  <demo-block caption="All four play through on their own time when the row reaches 30% DOWN THE VIEWPORT — data-vd-in-view=&quot;seen 0.3&quot;, a line on screen rather than a fraction of the row’s own travel, so a tall row and a short one cross it in the same place. Only the expression driving the class differs. Scroll down past them, then back up.">
-    <div data-vd-state="{ seen: false, ever: false, dir: '' }"
-         data-vd-in-view="seen 0.3"
-         data-vd-scroll-direction="dir"
-         data-vd-watch="{ seen: { ever: ever ? true : seen } }">
-      <div class="reveal-row">
+  <p class="lede">Two readings decide everything: <code>in-view="crossed 0.5"</code> is true once the
+  element has risen past the halfway line, and a bare <code>in-view="onScreen"</code> is true while
+  any of it is visible. The four behaviours are four expressions over those two — nothing here
+  watches the scroll DIRECTION, which is the point: what matters is which side you left by, not
+  which way you happened to be moving.</p>
+  <demo-block caption="Scroll down until the row passes the halfway line — all four appear. Keep going and they leave off the top; come back up and they drop below the line again. Each box differs only in which of those two exits it honours.">
+    <div data-vd-state="{ crossed: false, onScreen: false, ever: false }"
+         data-vd-in-view="crossed 0.5"
+         data-vd-watch="{ crossed: { ever: ever ? true : crossed } }">
+      <div class="reveal-row" data-vd-in-view="onScreen">
         <div class="hero-box" data-vd-class="{ lit: ever }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          1 · once, then holds
+          1 · never leaves
         </div>
-        <div class="hero-box" data-vd-class="{ lit: ever ? dir != 'up' : false }"
+        <div class="hero-box" data-vd-class="{ lit: ever ? (crossed ? true : !onScreen) : false }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          2 · out when scrolling up
+          2 · leaves only out the BOTTOM
         </div>
-        <div class="hero-box" data-vd-class="{ lit: ever ? dir != 'down' : false }"
+        <div class="hero-box" data-vd-class="{ lit: ever ? onScreen : false }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          3 · out when scrolling down
+          3 · leaves only out the TOP
         </div>
-        <div class="hero-box" data-vd-class="{ lit: seen }"
+        <div class="hero-box" data-vd-class="{ lit: crossed ? onScreen : false }"
              data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
-          4 · out whenever it leaves
+          4 · leaves either way
         </div>
       </div>
     </div>
@@ -687,7 +685,7 @@ const FUN = `
     </div>
   </demo-block>
   <demo-block caption="ENTRANCE TRANSITIONS — in-view + when: the trigger line writes state when this reaches 35% down the viewport, the selector matches, and inertia eases it in. It is deliberately NOT data-vd-init: state written AT activation is already true when motion first evaluates, so the element starts at its end value and there is nothing to transition from. A trigger that fires later is what gives a transition two values.">
-    <div data-vd-state="{ here: false }" data-vd-in-view="here 0.35">
+    <div data-vd-state="{ here: false }" data-vd-in-view="here 0.85">
       <div class="hero-box" data-vd-class="{ lit: here }"
            data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px',
                              when: '.lit', inertia: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
