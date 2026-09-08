@@ -842,6 +842,14 @@
       "fix": "Write data-vd-region=\"{ items: '.card', search: 'q' }\"."
     },
     {
+      "code": "scroll-progress-bad-source",
+      "params": [
+        "given"
+      ],
+      "message": "\"{given}\" is not something scroll-progress can measure.",
+      "fix": "Leave it off for this element’s own travel, or write \"document\" for the whole page."
+    },
+    {
       "code": "scroll-to-missing",
       "params": [],
       "message": "the scroll target matched nothing."

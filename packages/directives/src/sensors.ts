@@ -338,26 +338,50 @@ const scrollProgress: Directive = {
   value: 'literal',
   priority: 60,
   docs: {
-    summary: "Writes 0→1 as the element travels through the viewport.",
-    example: 'data-vd-scroll-progress="p"',
+    summary: 'Writes 0→1 as the element travels the viewport — or as the DOCUMENT scrolls.',
+    example: 'data-vd-scroll-progress="@scroll document"',
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-scroll-progress', ctx);
+    /**
+     * **A key, and optionally what to measure** — `"p"` or `"@scroll document"`.
+     *
+     * Bare, this is the element's own travel. `document` measures the PAGE instead: 0 at the top,
+     * 1 at the bottom. Written to an `@key` it becomes a page-global any expression can read with
+     * nothing declared — `data-vd-style="{ --p: @scroll }"` — which is the reading-progress bar,
+     * the condensed nav, the parallax that depends on where the page is rather than where an
+     * element is. One attribute instead of four, and the same sensor rather than a second one.
+     */
+    const raw = (el.getAttribute('data-vd-scroll-progress') ?? '').trim();
+    const [name, of] = raw.split(/\s+/);
+    const key = keyFor(el, 'data-vd-scroll-progress', ctx, name);
     if (!key) return;
+    if (of !== undefined && of !== 'document') {
+      ctx.reject('scroll-progress-bad-source', [of]);
+      return;
+    }
+    const wholeDocument = of === 'document';
+
     let last = -1;
     const measure = () => {
-      const rect = (el as HTMLElement).getBoundingClientRect();
-      const span = window.innerHeight + rect.height;
-      /**
-       * 0 is the moment the element begins entering the viewport and 1 the moment it has
-       * completely left — the same quantity `data-vd-motion` normalises against, so a page can
-       * mix a motion animation and a progress read and have them agree.
-       */
-      const raw = span === 0 ? 0 : (window.innerHeight - rect.top) / span;
-      const value = Math.round(Math.min(Math.max(raw, 0), 1) * 1000) / 1000;
-      if (value === last) return;
-      last = value;
-      ctx.set(key, value);
+      let value: number;
+      if (wholeDocument) {
+        const doc = el.ownerDocument.documentElement;
+        const travel = doc.scrollHeight - doc.clientHeight;
+        value = travel <= 0 ? 0 : doc.scrollTop / travel;
+      } else {
+        const rect = (el as HTMLElement).getBoundingClientRect();
+        const span = window.innerHeight + rect.height;
+        /**
+         * 0 is the moment the element begins entering the viewport and 1 the moment it has
+         * completely left — the same quantity `data-vd-motion` normalises against, so a page can
+         * mix a motion animation and a progress read and have them agree.
+         */
+        value = span === 0 ? 0 : (window.innerHeight - rect.top) / span;
+      }
+      const rounded = Math.round(Math.min(Math.max(value, 0), 1) * 1000) / 1000;
+      if (rounded === last) return;
+      last = rounded;
+      ctx.set(key, rounded);
     };
     measure();
     return watchScroll(measure);

@@ -686,8 +686,8 @@ const FUN = `
       <b data-vd-show="u > 0 ? d > 0 ? l > 0 ? r > 0 : false : false : false">— full compass! (Esc resets)</b>
     </div>
   </demo-block>
-  <demo-block caption="ENTRANCE TRANSITIONS — the init + when recipe: activation writes state, the selector matches, inertia eases it in. Route away and back to replay.">
-    <div data-vd-state="{ here: false }" data-vd-init="{ here: true }">
+  <demo-block caption="ENTRANCE TRANSITIONS — in-view + when: the trigger line writes state when this reaches 35% down the viewport, the selector matches, and inertia eases it in. It is deliberately NOT data-vd-init: state written AT activation is already true when motion first evaluates, so the element starts at its end value and there is nothing to transition from. A trigger that fires later is what gives a transition two values.">
+    <div data-vd-state="{ here: false }" data-vd-in-view="here 0.35">
       <div class="hero-box" data-vd-class="{ lit: here }"
            data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px',
                              when: '.lit', inertia: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">

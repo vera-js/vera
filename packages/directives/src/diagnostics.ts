@@ -102,6 +102,10 @@ export const PROSE: Record<string, Prose> = {
   'region-bad-selector': (selector: string) => [`"${selector}" is not a selector.`],
   'region-not-object': () => ['data-vd-region takes a braced object.', `Write data-vd-region="{ items: '.card', search: 'q' }".`],
   'scroll-to-missing': () => [`the scroll target matched nothing.`],
+  'scroll-progress-bad-source': (given) => [
+    `"${given}" is not something scroll-progress can measure.`,
+    'Leave it off for this element\u2019s own travel, or write "document" for the whole page.',
+  ],
   'sensor-no-key': (attr: string) => [`${attr} needs the name of a state key to write.`, `Write ${attr}="seen" and read it with data-vd-show="seen".`],
   'server-unsettled': (limit: string) => [`state was still changing after ${limit} server passes, so the markup may not be final.`, 'A directive is writing a different value every run — compare before writing.'],
   'state-not-object': () => [`data-vd-state takes a braced object.`, `Write data-vd-state="{ open: false }".`],

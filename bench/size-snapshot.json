@@ -71,8 +71,8 @@
       "gzip": 1616
     },
     "directives-sensors": {
-      "raw": 5093,
-      "gzip": 2052
+      "raw": 5437,
+      "gzip": 2186
     },
     "directives-remote": {
       "raw": 2624,
