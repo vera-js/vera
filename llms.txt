@@ -849,7 +849,8 @@ wiring for SSR, never your directives wiring.
 `deactivate(root)` (any root, shadow roots included — closed ones too, via a component's `init`) ·
 `settled(): Promise<void>` (test/e2e primitive) · `rejections(el?)` (every refusal:
 `{ element, directive, code, message, fix }`) · `describeDirectives()` (the live vocabulary — build
-GUI panels from this, never a hand-written list) · `stateOf(el)` (what this element can SEE,
+GUI panels from this, never a hand-written list) · `describePayloads()` (the `$` vocabulary per
+event base — the other half of that list) · `wirePayloads({ base: { vars, read } })` · `stateOf(el)` (what this element can SEE,
 resolved per key up the carrier chain exactly as its directives resolve — live, and writable
 through the same owner rules) · `renderDirectives(root)` (server; returns nothing) and
 `takeDirectiveNames()` (server; the one door to the names, unclaimed ones included, which are what
@@ -859,6 +860,16 @@ to preload).
 `literal` (raw text; a bare word is a string, never a state read) · `expression` · `object` (a
 braced object whose VALUES stay lazy — evaluate them with `ctx.eval`, which is what lets a config
 key read state) · `none`.
+
+**Event payloads — the `$` namespace.** A handler reads the event that ran it through declared
+variables: `data-vd-on-input="{ q: $value }"`, `data-vd-on-click="{ x: $x }"`,
+`data-vd-on-keydown-enter="{ go: true }"`. Bases and their variables — mouse/pointer `$x $y
+$button` · keyboard `$key` · input/change `$value $checked` · every base `$type`. Values are
+PRIMITIVES, never the event: native properties live on prototypes, so reaching for them would hand
+attribute text the whole DOM API. Register a base with `wirePayloads({ 'my:event': { vars: ['n'],
+read: (e) => ({ n: e.detail.n }) } })`; read the vocabulary with `describePayloads()`. An unknown
+`$var` REFUSES THE WHOLE HANDLER — writing `undefined` under the author's key is a working page
+with wrong behaviour — and says what the event does offer.
 
 The class TYPES what `apply` and `ssr` receive: `Directive` is discriminated on `value`, so
 `value: 'object'` gives `apply` a `ParsedObject` of unevaluated entries and using one as a finished

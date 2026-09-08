@@ -120,6 +120,10 @@ export const PROSE: Record<string, Prose> = {
     `nothing wired provides "${suffix}".`,
     declined ? 'The loader declined it — check the name, or its alias map.' : 'Wire its pack, or check the name.',
   ],
+  'unknown-payload-var': (name, offered, near) => [
+    `${name} is not something this event carries.`,
+    `${near ? `Did you mean ${near}? ` : ''}This one offers ${offered}.`,
+  ],
   'unknown-key': (head: string) => [`no ancestor state declares "${head}".`, `Reads answer undefined.`],
   /* ── the motion pack ────────────────────────────────────────────────────────────────────── */
   /**

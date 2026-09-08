@@ -982,6 +982,16 @@
       "fix": "Reads answer undefined."
     },
     {
+      "code": "unknown-payload-var",
+      "params": [
+        "name",
+        "offered",
+        "near"
+      ],
+      "message": "{name} is not something this event carries.",
+      "fix": "Did you mean {near}? This one offers {offered}."
+    },
+    {
       "code": "value-bad",
       "params": [
         "raw",

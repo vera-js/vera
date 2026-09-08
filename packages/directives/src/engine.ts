@@ -237,6 +237,17 @@ export const describeDirectives = () => [
   })),
 ];
 
+/**
+ * The `$` variables each event base offers — the other half of the vocabulary, and useless to a
+ * generator unless it is here beside the directives.
+ *
+ * A picker that lists `data-vd-on-input` without saying it carries `$value` has told an author the
+ * word and withheld the sentence. Sorted, so a generated page or a diff does not churn on Map order.
+ */
+export const describePayloads = () => [...payloads.entries()]
+  .map(([base, payload]) => ({ base, vars: payload.vars.map((one) => `$${one}`) }))
+  .sort((a, b) => (a.base < b.base ? -1 : 1));
+
 /* ── rejections ───────────────────────────────────────────────────────────────────────────── */
 
 const allRejections: Rejection[] = [];
@@ -459,6 +470,14 @@ let tierEval: ((node: unknown, read: (segments: string[], global: boolean) => un
  * ancestors PLUS the keys already built, before any carrier exists (design §20.6).
  */
 const readSegments = (el: Element, overlay?: Record<string, unknown>) => (segments: string[], global: boolean): unknown => {
+  /**
+   * **A `$` name never falls through to state**, and that is about the diagnostic rather than the
+   * value. Both answers are `undefined`, but the state lookup ALSO reports *"no ancestor state
+   * declares `$vaule`"* — so one typo produced two refusals, the second of them nonsense, since a
+   * trigger variable could not be in a `data-vd-state` however correct it was. The handler path
+   * has already said the useful thing.
+   */
+  if (!global && segments[0]!.startsWith('$')) return overlay?.[segments[0]!];
   if (!global && overlay && Object.prototype.hasOwnProperty.call(overlay, segments[0])) {
     let v: unknown = overlay[segments[0]];
     for (const seg of segments.slice(1)) {
@@ -485,8 +504,140 @@ const evaluate = (el: Element, v: Parsed, overlay?: Record<string, unknown>): un
 };
 
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
-const runAssignments = (el: Element, obj: ParsedObject) => {
-  for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key]));
+const runAssignments = (el: Element, obj: ParsedObject, payload?: Record<string, unknown>) => {
+  for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key], payload));
+};
+
+/* ── event payloads: the `$` namespace (design §20.1) ─────────────────────────────────────── */
+
+/**
+ * **What a handler can read about the event that ran it.**
+ *
+ * `data-vd-on-input="{ q: $value }"` was impossible before this: a handler could only write
+ * constants and re-read state, so the commonest interaction there is — type into a box, filter a
+ * list — needed `data-vd-sync` and a state key whether or not the page wanted one.
+ *
+ * **It cannot be "just read the event", and that is the whole design.** Native event properties
+ * live on PROTOTYPES, so the own-property walk every path resolution here does would read nothing
+ * from a real event — and reaching through the prototype chain would hand attribute text the entire
+ * DOM API, which is precisely the surface this grammar exists not to have. So each event base
+ * declares an EXTRACTOR that returns primitives, and `$` resolves against that and nothing else:
+ * the vocabulary is enumerable, the values are serializable, and an unknown `$var` is a refusal
+ * rather than `undefined` (which reads as an empty box rather than a mistake).
+ */
+export type Payload = {
+  /** The `$` names this base offers, WITHOUT the sigil — feeds `describeDirectives()`. */
+  readonly vars: readonly string[];
+  /** Primitives only: deterministic, serializable, and safe to hand to an agent or a log. */
+  readonly read: (event: Event) => Record<string, string | number | boolean | null>;
+};
+
+const payloads = new Map<string, Payload>();
+
+/**
+ * Register payload extractors for event bases — the same door packs and users use.
+ *
+ * Later registrations win, so a page may sharpen a base the engine ships. Names are stored WITHOUT
+ * the `$`; the sigil is grammar, not part of the variable.
+ */
+export const wirePayloads = (map: Record<string, Payload>): void => {
+  for (const [base, payload] of Object.entries(map)) payloads.set(base, payload);
+};
+
+/**
+ * Every event answers `$type`, whatever else it offers. It costs one property and it is the honest
+ * floor: a handler on a base nothing has described can still tell what ran it.
+ */
+const GENERIC: Payload = { vars: ['type'], read: (event) => ({ type: event.type }) };
+
+wirePayloads({
+  /** Pointer geometry as the PAGE sees it — clientX/Y, not screen or offset, because a handler
+   *  writing coordinates into state is positioning something in the page. */
+  ...Object.fromEntries(['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'contextmenu',
+    'pointerdown', 'pointerup', 'pointermove'].map((base) => [base, {
+    vars: ['x', 'y', 'button', 'type'],
+    read: (event: Event) => ({
+      x: (event as MouseEvent).clientX ?? 0,
+      y: (event as MouseEvent).clientY ?? 0,
+      button: (event as MouseEvent).button ?? 0,
+      type: event.type,
+    }),
+  } as Payload])),
+  ...Object.fromEntries(['keydown', 'keyup', 'keypress'].map((base) => [base, {
+    vars: ['key', 'type'],
+    read: (event: Event) => ({ key: (event as KeyboardEvent).key ?? '', type: event.type }),
+  } as Payload])),
+  /**
+   * `$value` and `$checked` come from the TARGET, not the event — that is where a form control
+   * keeps them, and it is what makes `{ q: $value }` mean what an author expects on the element
+   * they wrote it on as well as on one it bubbled from.
+   */
+  ...Object.fromEntries(['input', 'change'].map((base) => [base, {
+    vars: ['value', 'checked', 'type'],
+    read: (event: Event) => {
+      const target = event.target as HTMLInputElement | null;
+      return { value: target?.value ?? '', checked: target?.checked ?? false, type: event.type };
+    },
+  } as Payload])),
+});
+
+/**
+ * **A `$var` this event does not offer is a REFUSAL, not `undefined`.**
+ *
+ * Silence here is the worst available answer: `{ q: $vaule }` would write an empty string into `q`
+ * and read on screen as a filter that matches everything, which is a working page with wrong
+ * behaviour — the shape this grammar refuses everywhere else. The suggestion is worth its bytes
+ * because the mistake is almost always a typo or the wrong base (`$value` on a click).
+ *
+ * **The handler is then SKIPPED ENTIRELY, in both builds.** Writing `undefined` under the author's
+ * key is the half-applied state this engine refuses everywhere else, and doing it in production
+ * while development refused would make the two programs disagree about what a page does — far worse
+ * than the check costing something. It costs almost nothing: the walk runs only when the attribute
+ * text contains a `$` at all, so a page with no trigger variables pays one `indexOf`.
+ */
+const unknownVars = (
+  el: Element,
+  attr: string,
+  parsed: ParsedObject,
+  overlay: Record<string, unknown>,
+  vars: readonly string[]
+): string[] => {
+  const seen = new Set<string>();
+  const walk = (value: Parsed | unknown): void => {
+    if (isPath(value as Parsed)) {
+      const head = (value as Path).segments[0]!;
+      if (head.startsWith('$') && !(head in overlay)) seen.add(head);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      const node = value as { kind?: string; src?: string };
+      /** An expression carries its source rather than a walkable tree here; the names inside it are
+       *  read the same way, so scan the text for `$` words. */
+      if (node.kind === 'expr') {
+        for (const hit of String(node.src ?? '').matchAll(/\$[A-Za-z_][\w-]*/g))
+          if (!(hit[0] in overlay)) seen.add(hit[0]);
+        return;
+      }
+      for (const inner of Object.values(value as Record<string, unknown>)) walk(inner);
+    }
+  };
+  for (const value of Object.values(parsed)) walk(value);
+
+  for (const name of seen) {
+    const bare = name.slice(1);
+    const near = vars.find((one) => one[0] === bare[0] && Math.abs(one.length - bare.length) <= 2)
+      ?? vars.find((one) => one.includes(bare) || bare.includes(one));
+    reject(el, attr, 'unknown-payload-var', [name, vars.map((one) => `$${one}`).join(', '), near ? `$${near}` : '']);
+  }
+  return [...seen];
+};
+
+/** The `$`-prefixed overlay for one event, and the names it legitimately offers. */
+const payloadFor = (event: Event): { overlay: Record<string, unknown>; vars: readonly string[] } => {
+  const payload = payloads.get(event.type) ?? GENERIC;
+  const overlay: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(payload.read(event))) overlay[`$${name}`] = value;
+  return { overlay, vars: payload.vars };
 };
 
 /** One view per element, so `stateOf(el) === stateOf(el)` and a reference can be kept. */
@@ -764,8 +915,12 @@ const dispatch = (root: Node, event: Event) => {
     if (node !== root && (root as ParentNode).contains && !(root as ParentNode).contains(el)) continue;
     try {
       const parsed = parseAttr(raw);
-      if (isObject(parsed)) runAssignments(el, parsed);
-      else reject(el, attr, 'handler-not-object');
+      if (isObject(parsed)) {
+        const { overlay, vars } = payloadFor(event);
+        /** The `$` test first: a handler with no trigger variables never walks its own values. */
+        if (raw.includes('$') && unknownVars(el, attr, parsed, overlay, vars).length) continue;
+        runAssignments(el, parsed, overlay);
+      } else reject(el, attr, 'handler-not-object');
     } catch (error) {
       reject(el, attr, (error as ValueError).code ?? 'value-bad', [raw, (error as ValueError).message]);
     }

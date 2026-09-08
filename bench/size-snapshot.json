@@ -51,12 +51,12 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 13637,
-      "gzip": 5310
+      "raw": 15321,
+      "gzip": 5942
     },
     "directives-standalone": {
-      "raw": 17218,
-      "gzip": 6623
+      "raw": 18898,
+      "gzip": 7271
     },
     "directives-expressions": {
       "raw": 5271,
