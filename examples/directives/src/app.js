@@ -524,32 +524,40 @@ const MOTION = `
     </div>
   </demo-block>
 
-  <h2>Reveal: four modes, no new motion setting</h2>
-  <p class="lede">Two readings decide everything: <code>in-view="crossed 0.5"</code> is true once the
-  element has risen past the halfway line, and a bare <code>in-view="onScreen"</code> is true while
-  any of it is visible. The four behaviours are four expressions over those two — nothing here
-  watches the scroll DIRECTION, which is the point: what matters is which side you left by, not
-  which way you happened to be moving.</p>
-  <demo-block caption="Scroll down until the row passes the halfway line — all four appear. Keep going and they leave off the top; come back up and they drop below the line again. Each box differs only in which of those two exits it honours.">
+  <h2>Reveal: four modes, three of them one attribute</h2>
+  <p class="lede">A <code>play</code> crosses a line rather than tracking scroll, and
+  <code>scroll</code> says where the lines are. <strong>One line is crossed both ways</strong> — in
+  going down, out coming back up past it. <strong>Two lines</strong> are an entrance and an exit.
+  <code>run-once</code> latches after the first play and never reverses. Those three shapes cover
+  everything below except the third box, which is here precisely because they do not.</p>
+  <demo-block caption="Scroll down past the halfway line, then keep going, then come back up. Each box differs only in which exit it honours — and only the third still needs an expression.">
+    <div class="reveal-row">
+      <div class="hero-box"
+           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, scroll: '50%', play: 0.55, run-once: true }">
+        1 · never leaves — run-once
+      </div>
+      <div class="hero-box"
+           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, scroll: '50%', play: 0.55 }">
+        2 · out the BOTTOM only — one line
+      </div>
+      <div class="hero-box"
+           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, scroll: '50%, bottom top', play: 0.55 }">
+        4 · either way — two lines
+      </div>
+    </div>
+  </demo-block>
+  <p class="lede">The one that does not fit: <strong>out the TOP only</strong> needs the entrance and
+  the exit to be asymmetric — in at the line, out off the top, but NOT out when you scroll back below
+  the line. A pair of thresholds is symmetric by construction, so this is where the expression tier
+  earns its place rather than where the motion vocabulary should grow a fourth mode.</p>
+  <demo-block caption="Two in-view readings and one expression. Nothing here watches scroll DIRECTION — what matters is which side you left by.">
     <div data-vd-state="{ crossed: false, onScreen: false, ever: false }"
          data-vd-in-view="crossed 0.5"
          data-vd-watch="{ crossed: { ever: ever ? true : crossed } }">
       <div class="reveal-row" data-vd-in-view="onScreen">
-        <div class="hero-box" data-vd-class="{ lit: ever }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
-          1 · never leaves
-        </div>
-        <div class="hero-box" data-vd-class="{ lit: ever ? (crossed ? true : !onScreen) : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
-          2 · leaves only out the BOTTOM
-        </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? onScreen : false }"
              data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
-          3 · leaves only out the TOP
-        </div>
-        <div class="hero-box" data-vd-class="{ lit: crossed ? onScreen : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
-          4 · leaves either way
+          3 · out the TOP only
         </div>
       </div>
     </div>
@@ -561,7 +569,7 @@ const MOTION = `
     </div>
   </demo-block>
   <h2>when — the selector driver</h2>
-  <demo-block caption="when REPLACES the scroll driver: matched sits at the end, unmatched at the start, inertia carries the change. Pair it with state + on-click and you have UI transitions with no new machinery.">
+  <demo-block caption="when GATES the animation: while the selector matches it runs, otherwise it rests at its start. With play it runs end-to-end, which is what makes this a UI transition rather than a scrub. Pair it with state + on-click and you have transitions with no new machinery.">
     <div data-vd-state="{ lit: false }">
       <button data-vd-on-click="{ lit: !lit }">toggle</button>
       <div class="hero-box" data-vd-class="{ lit: lit }"
