@@ -390,43 +390,29 @@ export const getSetting = (name: string): SettingDef | undefined => BY_SETTING.g
 /** Whether a name is an element-level setting rather than an animatable property. */
 export const isSetting = (name: string): boolean => BY_SETTING.has(name);
 
-export interface ParsedKey {
-  readonly property: PropertyDef;
-  /** The range a name suffix stood for, or null for the unsuffixed key. */
-  readonly range: Range | null;
-}
-
 /**
- * Resolves an object KEY to its property, and any trailing name suffix to the
- * range that name was registered for. (`parseAttributeName` before the
- * fold-in, minus the attribute prefix — the logic is otherwise identical, and
- * the exact-match-first rule below is the part that must never change.)
+ * The property a RETIRED `property-breakpoint` key named — detection only, so the refusal can say
+ * what to write instead. The form is no longer parsed.
  *
- * An exact property name wins over a band split, always. Load-bearing,
- * because several property names end in something that could be a breakpoint
- * alias: `rotate-x`, `path-rotate`, `frame-ext`. Without exact-match-first,
- * registering a breakpoint called `x` would turn `rotate-x` into "rotate, at
- * the x band" and the real property would become unreachable. The cost is the
- * mirror image, and it is the lesser one: a site that registers a breakpoint
- * named `x` cannot then write `rotate` at that band. Deterministic either
- * way, and this direction keeps every documented key writable.
+ * It expressed exactly what a width band expresses and nothing more, in a second grammar: bands
+ * already cover the no-base "only on small screens" shape, and now take the same registered names.
+ * It was also the form that silently lost a value when one variant was written without its siblings.
  *
- * @param name e.g. `translate-y` or `translate-y-mobile`
- * @param breakpoints the registered aliases, if any
+ * Retiring it deletes a hazard with it. A key had to be split on its LAST `-` and matched
+ * exact-name-first, because several property names end in something that could be an alias —
+ * `rotate-x`, `path-rotate`, `frame-ext` — so registering a breakpoint called `x` made `rotate` at
+ * that band unwritable. A band carries its name in brackets and cannot collide with a property name
+ * at all.
  */
-export const parseKeyName = (
+export const retiredSuffix = (
   name: string,
   breakpoints?: ReadonlyMap<string, Range>
-): ParsedKey | null => {
-  const direct = BY_KEY.get(name);
-  if (direct) return { property: direct, range: null };
-
+): { property: string; band: string } | null => {
   const cut = name.lastIndexOf('-');
   if (cut < 0 || !breakpoints) return null;
-
-  const range = breakpoints.get(name.slice(cut + 1));
-  const property = BY_KEY.get(name.slice(0, cut));
-  return range && property ? { property, range } : null;
+  const band = name.slice(cut + 1);
+  const property = name.slice(0, cut);
+  return breakpoints.has(band) && BY_KEY.has(property) ? { property, band } : null;
 };
 
 /**

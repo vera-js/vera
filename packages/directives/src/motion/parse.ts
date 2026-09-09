@@ -24,7 +24,7 @@ import type { Refusal } from './schema.js';
 import { at } from './schema.js';
 import {
   PRESETS, getSetting, getProperty, isPreset,
-  parseKeyName, parseBandedList, parseSelector, parseEasing, parseOrigin,
+  parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin,
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
 import type { PropertyDef, Unit, RawKeyframe, PositionUnit, Band, Range, Easing } from './schema.js';
@@ -194,21 +194,17 @@ const indexIn = (host: Element, node: Element): number => {
   return index.get(node) ?? 0;
 };
 
-/**
- * What one property collected from the object's keys: the unsuffixed value,
- * plus any `-name`-suffixed ones with the range that name stands for.
- */
+/** What one property collected from the keys inside `keyframes`. */
 interface Collected {
   base?: string;
   /** The nested form's per-property ease, validated. */
   ease?: string;
-  readonly named: Array<{ readonly range: Range; readonly raw: string }>;
 }
 
 const slotFor = (into: Map<string, Collected>, property: string): Collected => {
   let slot = into.get(property);
   if (!slot) {
-    slot = { named: [] };
+    slot = {};
     into.set(property, slot);
   }
   return slot;
@@ -399,9 +395,6 @@ const applyPreset = (name: string, into: Map<string, Collected>): void => {
   }
 };
 
-/** An open-ended range reads as `640+`, not `640-Infinity`. */
-const bound = (max: number): string => (max === Infinity ? '+' : String(max));
-
 /**
  * Builds one animation from collected keyframes, or null if nothing valid
  * survives validation.
@@ -413,41 +406,14 @@ const buildAnimation = (
   breakpoints?: ReadonlyMap<string, Range>
 ): ElementMotion | null => {
   /**
-   * No base at all is a shape, not a mistake — "only animate on small
-   * screens" is an ordinary thing to want: `opacity-small: '0% 0, 100% 1'`
-   * with no unsuffixed key builds bands and no base.
+   * No base at all is a shape, not a mistake — "only animate on small screens" is an ordinary thing
+   * to want, and a value that is nothing but bands (`'[mobile]: 0% 0, 100% 1'`) says it. That used
+   * to need the retired key-suffix form; `parseBandedList` returns an empty base for it directly.
    */
-  const { base, bands, rejected: bad } = collected.base === undefined && collected.named.length
-    ? { base: { keyframes: [], rejected: [], geometryDependent: false }, bands: [], rejected: [] }
-    : parseBandedList(collected.base ?? '', property, breakpoints);
+  const { base, bands, rejected: bad } = parseBandedList(collected.base ?? '', property, breakpoints);
   for (const entry of bad) rejected.push(at(property.key, entry));
 
   const all: Band[] = [...bands];
-  /** A `-name` key is one more band, with the range that name registered. */
-  for (const { range, raw } of collected.named) {
-    const parsed = parseBandedList(raw, property);
-    for (const entry of parsed.rejected) rejected.push(at(property.key, entry));
-    if (parsed.base.keyframes.length) {
-      all.push({ ...range, keyframes: parsed.base.keyframes, geometryDependent: parsed.base.geometryDependent });
-    }
-    /** Nested bands inside a named one are intersected, narrowest wins. */
-    for (const band of parsed.bands) {
-      const min = Math.max(band.min, range.min);
-      const max = Math.min(band.max, range.max);
-      /**
-       * An intersection that is empty is a key that can never apply, at any
-       * width — always a mistake. Reported and dropped rather than reported
-       * and kept: an impossible band downstream is a shape every later
-       * reader has to think about.
-       */
-      if (min > max) {
-        rejected.push({ code: 'motion-band-outside', where: property.key,
-                  args: [String(band.min), String(bound(band.max)), String(range.min), String(bound(range.max))] });
-        continue;
-      }
-      all.push({ ...band, min, max });
-    }
-  }
 
   if (!base.keyframes.length && !all.length) return null;
 
@@ -608,7 +574,7 @@ export const parseMotion = (
         rejected.push({ code: 'motion-setting-in-keyframes', where: key, args: [key] });
         continue;
       }
-      if (!settingDef && !inKeyframes && parseKeyName(key, context.breakpoints)) {
+      if (!settingDef && !inKeyframes && getProperty(key)) {
         /**
          * A property at the top level: the shape this value had before the two halves were
          * separated. Its own code, with the move spelled out, because it is the one refusal every
@@ -628,7 +594,7 @@ export const parseMotion = (
         continue;
       }
 
-      const named = parseKeyName(key, context.breakpoints);
+      const named = getProperty(key);
       if (!named) {
         /**
          * Report it rather than ignoring it — a typo is the likeliest
@@ -642,6 +608,14 @@ export const parseMotion = (
          * make the page hold, and the hostile-surface bound is 120
          * characters per reason.
          */
+        /** The retired `property-breakpoint` key, named before the generic refusal: the author
+         *  knows what they meant and the band spelling says it in one line. */
+        const retired = retiredSuffix(key, context.breakpoints);
+        if (retired) {
+          rejected.push({ code: 'motion-band-suffix-retired', where: key,
+                          args: [retired.property, retired.band] });
+          continue;
+        }
         /** One code in both builds — see the preset branch above; only the SUGGESTION is dev-only,
          *  because computing it is a scan for a string production cannot print. */
         const meant = __DEV__ ? probablyMeant(key) : undefined;
@@ -649,7 +623,7 @@ export const parseMotion = (
         continue;
       }
 
-      const slot = slotFor(collected, named.property.key);
+      const slot = slotFor(collected, named.key);
 
       /**
        * A bare word parses as a PATH in the base grammar — `opacity: fade`
@@ -682,11 +656,9 @@ export const parseMotion = (
         if (ease !== undefined) {
           const valid = typeof ease === 'string' ? parseEasing(ease) : null;
           if (valid === null) rejected.push({ code: 'motion-setting-easing', args: [], where: `${key}.ease` });
-          else if (named.range) rejected.push({ code: 'motion-ease-on-band', where: `${key}.ease`, args: [] });
           else slot.ease = valid;
         }
-        if (named.range) slot.named.push({ range: named.range, raw: String(frames) });
-        else slot.base = String(frames);
+        slot.base = String(frames);
         continue;
       }
 
@@ -697,8 +669,7 @@ export const parseMotion = (
 
       /** A number is the end-value sugar: `opacity: 0` is `opacity: '0'`. */
       const rawText = String(value);
-      if (named.range) slot.named.push({ range: named.range, raw: rawText });
-      else slot.base = rawText;
+      slot.base = rawText;
     }
   }
 

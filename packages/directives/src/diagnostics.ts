@@ -212,9 +212,6 @@ export const PROSE: Record<string, Prose> = {
     "Like { frames: '0% 0, 100% 1', ease: 'ease-in' }.",
   ],
   'motion-nested-unknown': (where) => [`${where}: not part of the nested form.`],
-  'motion-ease-on-band': (where) => [
-    `${where}: a per-property ease goes on the unsuffixed key — a band shares its property's curve shaper.`,
-  ],
   'motion-setting-not-plain': (where) => [`${where}: a setting takes a plain value.`],
   'motion-setting-boolean': (where) => [`${where}: must be true or false.`],
   'motion-setting-easing': (where) => [`${where}: is not an easing name or a cubic-bezier().`],
@@ -225,8 +222,9 @@ export const PROSE: Record<string, Prose> = {
   ],
   'motion-setting-length': (where) => [`${where}: is not a length — use px, rem, em, %, vh or vw.`],
   'motion-setting-module-refused': (where) => [`${where}: was refused by the module that owns it.`],
-  'motion-band-outside': (where, min, max, rangeMin, rangeMax) => [
-    `${where}: [${min}-${max}] is outside [${rangeMin}-${rangeMax}], the range this key names; it can never apply.`,
+  'motion-band-suffix-retired': (property, band) => [
+    `a \`-${band}\` key suffix is no longer read — write the band in the value instead.`,
+    `keyframes: { ${property}: '…; [${band}]: …' }`,
   ],
   'motion-band-bad': (where, segment) => [`${where ? `${where}: ` : ''}${segment} is not a usable band.`],
   'motion-second-base': (where, segment) => [

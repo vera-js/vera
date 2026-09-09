@@ -476,9 +476,9 @@ const MOTION = `
       eased
     </div>
   </demo-block>
-  <demo-block caption="Width bands merge over the base ([0-560]: less travel on a phone) — and a registered breakpoint name is a key suffix: translate-y-phone. Resize to watch.">
+  <demo-block caption="Width bands merge over the base, named ([phone]) or literal ([0-560]) — and a band with NO base animates only in that band, which is what opacity does here. Resize to watch.">
     <div class="hero-box"
-         data-vd-motion="{ keyframes: { translate-x: '0% 160px, 55% 0px; [0-560]: 0% 40px, 55% 0px', opacity-wide: '0% 0.5, 100% 1' } }">
+         data-vd-motion="{ keyframes: { translate-x: '0% 160px, 55% 0px; [phone]: 0% 40px, 55% 0px', opacity: '[wide]: 0% 0.5, 100% 1' } }">
       responsive
     </div>
   </demo-block>
