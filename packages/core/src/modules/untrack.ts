@@ -1,5 +1,5 @@
 import { hooksQueue } from '../store/store.js';
-import { ComponentHook } from '../types.js';
+import type { ComponentHook } from '../types.js';
 
 /**
  * Reads state without subscribing to it.

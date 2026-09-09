@@ -1,4 +1,4 @@
-import { RouteSnapshot, RouteEvent, RouteEventHandler } from './types.js';
+import type { RouteSnapshot, RouteEvent, RouteEventHandler } from './types.js';
 import { getOrCreate, handlers } from './state.js';
 
 /**

@@ -1,4 +1,4 @@
-import { AutoloaderInstance, AutoloaderOptions } from './types.js';
+import type { AutoloaderInstance, AutoloaderOptions } from './types.js';
 
 /**
  * Inits an autoloader with the provided root directory, component directory and autoloader options.

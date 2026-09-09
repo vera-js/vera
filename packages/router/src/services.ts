@@ -1,4 +1,4 @@
-import { MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
+import type { MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
 /** Type-only: erased at build, so this package still imports nothing at runtime. */
 import type { Inserts } from '@verajs/inserts';
 

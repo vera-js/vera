@@ -1,5 +1,5 @@
 import { hooksQueue } from '../store/store.js';
-import { ComponentElement } from '../types.js';
+import type { ComponentElement } from '../types.js';
 
 /**
  * Detects a render or effect that feeds itself, and says so once — **without stopping it**.

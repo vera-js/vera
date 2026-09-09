@@ -42,17 +42,55 @@ indistinguishable in style from the code around it.
   `@verajs/shared-utils`; the `filename` field in each `package.json` drives every build output name.
   Match the surrounding comment density, naming, and idiom.
 - **Functional style by default; a `class` is permitted in exactly two places.** Public APIs,
-  modules, and app code are functions and closures. The exceptions: the platform boundary
-  (`extends HTMLElement`, which the spec requires), and per-node hot-path machinery where prototype
-  sharing is a *measured* win — today that means `@verajs/renderer`'s internal parts (`spread.ts`
-  records the measurement: as an object literal, `handleEvent` was a fresh closure per bound key).
-  Neither exception may leak a class into a public API surface.
+  modules, and app code are functions and closures. The exceptions: **the platform boundary** —
+  `extends HTMLElement` where the spec requires it, `@verajs/ssr`'s DOM shims, which *implement*
+  platform interfaces (`extends EventTarget`) and are class-shaped because the contract they emulate
+  is, and subclassing `Error`, which is the platform's own idiom — and **per-node hot-path
+  machinery** where prototype sharing is a *measured* win — today that means `@verajs/renderer`'s
+  internal parts (`spread.ts` records the measurement: as an object literal, `handleEvent` was a
+  fresh closure per bound key). Neither exception may leak a class into a public API surface.
 - **TypeScript is the source of truth.** Packages are `.ts` and stay `.ts`. A component must never
   exist as both `.ts` and `.js` — twins drift silently, in *both* directions.
 - **Artifacts are never committed.** `dist/` is gitignored and produced only by `npm run build`. An
   example that needs a bundle points at `packages/<pkg>/dist/`; it never gets its own copy.
 - **Don't silently refactor.** If a better pattern exists, or you hit a legacy/experimental area,
   complete the asked task and *flag* the improvement with why/where/how — the developer decides.
+
+### Types — the shape and the conventions
+
+Decided 2026-09-09, from `@verajs/core`'s types module — and where the code drifts from these rules,
+**the rule leads and the code follows**: fix the code, never soften the rule to describe what
+happened to get written.
+
+**The shape.** Every package keeps one `src/types.ts` holding its cross-file and public types.
+A type used by exactly one file stays in that file, **unexported** (`ref.ts` is the model).
+`types.ts` **imports nothing from inside its own package** — `@verajs/shared-types` only — so it
+sits at the root of the package's import graph and circular imports among a package's modules are
+structurally impossible, not accidentally avoided. A type two *packages* share lives in
+`@verajs/shared-types`, and each package re-exports it so its own public surface stays whole.
+Always `.ts`, never a hand-written `.d.ts` — declaration files describe existing JS; as source they
+are a twin waiting to drift.
+
+**The conventions.**
+
+1. **Every exported type carries JSDoc**, one-liners included. The types file is the package's
+   front door and reads as documentation.
+2. **PascalCase noun phrases, family-prefixed** — `Component*`, `Hook*`, `Signal*` — so related
+   types sort and read together.
+3. **`type` unless extending; `interface` only for genuine extension** (`ComponentHook extends
+   Omit<Hook, …>`). This is a safety choice as much as style: interfaces are open to declaration
+   merging, and the public types are not meant to be silently augmentable.
+4. **No enums** — literal unions (`type ResultType = 1 | 2 | 3`). Enums generate runtime code,
+   which breaks type erasure.
+5. **Underscore-prefixed expandos are cross-boundary contracts**: the comment states who reads
+   them across which boundary and that mangling must never touch them, not just the name.
+6. **Family-grouped, dependencies before dependents**, alphabetical only as a tiebreak — a
+   composed-from type appears just before its composer (`SignalChange` → `Signal`).
+7. **`import type` / `export type` for all type-only flow.** Bare imports of a types module only
+   work by the compiler's elision grace, and a types module is real emitted source — erasure is
+   guaranteed by the syntax, not hoped for.
+8. **`any` requires the `eslint-disable` line *and* a reason** in the comment beside it
+   (`RenderTemplate` is the model). Undocumented `any` fails review.
 
 ## 2. Web-standards-native best practices
 

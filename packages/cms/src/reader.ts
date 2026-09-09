@@ -14,7 +14,7 @@
  */
 import { queryEntries, QueryOptions, ReaderEntry } from './query.js';
 import { TaxonomyIndex } from './taxonomy.js';
-import { Manifest } from './types.js';
+import type { Manifest } from './types.js';
 
 export type ReaderOptions = {
   /**

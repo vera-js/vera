@@ -19,7 +19,7 @@
  * CLI run the identical integrity check, so a site publishes to the same standard from either.
  */
 import { CollectionSchema, Schema } from './schema.js';
-import { Manifest } from './types.js';
+import type { Manifest } from './types.js';
 
 export type TaxonomyIndex = {
   version: 1;

@@ -10,7 +10,7 @@
  * leading quote) — and left bare otherwise, because bare is what a human expects to see in
  * frontmatter they might hand-edit next.
  */
-import { FrontmatterMap, Scalar } from './types.js';
+import type { FrontmatterMap, Scalar } from './types.js';
 
 /** Would this string read back as itself, bare? If not, it travels double-quoted. */
 const needsQuotes = (value: string): boolean =>

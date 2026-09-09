@@ -1,6 +1,6 @@
 import { inserts, InitInsert } from '@verajs/inserts';
 import { currentInstance } from '../store/store.js';
-import { ComponentElement } from '../types.js';
+import type { ComponentElement } from '../types.js';
 import { reportHookError } from './createHook.js';
 
 /** Dev-only, and once per page: a missing `@verajs/styles` is silent otherwise. */

@@ -1,6 +1,6 @@
 import { createHook } from '../modules/createHook.js';
 import { coalesce } from './coalesce.js';
-import { HookCallback, ComponentElement } from '../types.js';
+import type { HookCallback, ComponentElement } from '../types.js';
 
 /**
  * When changes are detected within content, runs the callback before both useRender and useEffect.

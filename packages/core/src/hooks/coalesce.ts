@@ -2,7 +2,7 @@ import { deferInHookContext, reportHookError } from '../modules/createHook.js';
 import { schedulerGeneration } from '../modules/setRenderScheduler.js';
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { swapCleanup } from '../store/store.js';
-import { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
+import type { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
 
 /**
  * Collapses every change in a tick into one deferred run.

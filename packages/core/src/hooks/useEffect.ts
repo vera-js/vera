@@ -1,7 +1,7 @@
 import { createHook } from '../modules/createHook.js';
 import { coalesce } from './coalesce.js';
 import { renderScheduler } from '../modules/setRenderScheduler.js';
-import { HookCallback, ComponentElement } from '../types.js';
+import type { HookCallback, ComponentElement } from '../types.js';
 
 /**
  * When changes are detected, runs the callback later than both useRender and useLayoutEffect.

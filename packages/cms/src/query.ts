@@ -8,7 +8,7 @@
  * declarative, JSON-able `where` belongs with the schema layer that can type it — a serializable
  * query only becomes *safe to hand an agent* once fields have declared types to validate against.
  */
-import { ManifestEntry } from './types.js';
+import type { ManifestEntry } from './types.js';
 
 /** A manifest row as a reader returns it — stamped with where it came from. */
 export type ReaderEntry = ManifestEntry & { collection: string };

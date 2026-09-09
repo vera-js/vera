@@ -14,7 +14,7 @@
  * this string with their framework's raw-HTML mechanism is using *their* documented sink, in their
  * own code, which is exactly where such a decision belongs.
  */
-import { Block, Inline, ListItem, Root } from './types.js';
+import type { Block, Inline, ListItem, Root } from './types.js';
 
 /**
  * The five characters with meaning in markup or attributes. Local rather than shared with

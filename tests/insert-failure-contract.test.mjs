@@ -147,7 +147,7 @@ test('a render that throws leaves the page as it was, and recovers on the next w
  * `InsertFunctionMap` and forgetting the README fails instead of shipping.
  */
 test('the README documents every point the types declare', () => {
-  const types = readFileSync(new URL('../packages/inserts/src/types.d.ts', import.meta.url), 'utf8');
+  const types = readFileSync(new URL('../packages/inserts/src/types.ts', import.meta.url), 'utf8');
   const map = types.match(/export type InsertFunctionMap = \{([\s\S]*?)\}/);
   assert.ok(map, 'InsertFunctionMap is gone or has changed shape');
   const declared = [...map[1].matchAll(/'([a-z-]+)':/g)].map((m) => m[1]);

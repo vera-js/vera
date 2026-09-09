@@ -28,7 +28,7 @@ export type ComponentMethods = {
   runHooks?: () => void;
 };
 
-/** The properties that can be attached to an   */
+/** The framework-internal properties `init` and the hooks attach to an element. */
 export type ComponentProperties = {
   /**
    * The elements hooks. Hooks are attached directly to the element so that when it's
@@ -62,8 +62,8 @@ export type ComponentProperties = {
   _root?: ShadowRoot;
 };
 
-/** Styles to be applied */
-export type CSSResultGroup = { styleSheet: CSSStyleSheet; cssText: string };
+/** A constructed stylesheet paired with its source text — shared with `@verajs/styles`, one home. */
+export type { CSSResultGroup } from '@verajs/shared-types';
 
 /** Hook with a callback and priority */
 export interface Hook {
@@ -75,13 +75,13 @@ export interface Hook {
   priority: number | null;
 }
 
-/** Represents a callback function for hooks */
 /** Returned from a hook to undo whatever it set up; run before the next pass and on teardown. */
 export type HookCleanup = () => void;
 
+/** A hook's callback: handed the signal that woke it, and `init` on the first pass. */
 export type HookCallback = <V>(signal?: Signal<V>, init?: boolean) => void | HookCleanup;
 
-/** Hook with a callback and priority */
+/** An element's hooks, dense and priority-sorted — `_hookPriorities` runs parallel to it. */
 export type Hooks = Set<HookCallback>[];
 
 /** The template that is passed to the renderer is a useRender hook and the render helper function */

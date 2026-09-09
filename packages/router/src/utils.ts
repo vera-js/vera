@@ -1,4 +1,4 @@
-import {
+import type {
   MatchFunction,
   ParamData,
   ParsedPattern,

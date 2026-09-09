@@ -1,4 +1,4 @@
-import { ElementsData, Route, RouteEventHandler, RouteParams, RouterSettings } from './types.js';
+import type { ElementsData, Route, RouteEventHandler, RouteParams, RouterSettings } from './types.js';
 
 import { getMatch } from './utils.js';
 

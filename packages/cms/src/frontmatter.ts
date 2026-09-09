@@ -24,7 +24,7 @@
  * about which fields exist. That is the schema's job.
  */
 import { parseMarkdown } from './markdown.js';
-import { ContentFile, FrontmatterMap, Root, Scalar } from './types.js';
+import type { ContentFile, FrontmatterMap, Root, Scalar } from './types.js';
 
 const FENCE = /^---\s*$/;
 /**

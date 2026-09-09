@@ -1,5 +1,5 @@
 import { createHook } from '../modules/createHook.js';
-import { HookCallback, HookCleanup, ComponentElement, Signal } from '../types.js';
+import type { HookCallback, HookCleanup, ComponentElement, Signal } from '../types.js';
 import { swapCleanup } from '../store/store.js';
 
 /**

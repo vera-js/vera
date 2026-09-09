@@ -1,4 +1,4 @@
-import { ComponentElement, RenderTemplate, Signal } from '../types.js';
+import type { ComponentElement, RenderTemplate, Signal } from '../types.js';
 import { createHook, deferInHookContext } from '../modules/createHook.js';
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';

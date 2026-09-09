@@ -1,5 +1,5 @@
 import { currentInstance } from '../store/store.js';
-import { ComponentElement } from '../types.js';
+import type { ComponentElement } from '../types.js';
 
 /**
  * The element currently being set up, or `undefined` with a warning naming the caller.

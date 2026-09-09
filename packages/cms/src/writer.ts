@@ -24,7 +24,7 @@
  * writer is handed one, or a function that produces one fresh per request.
  */
 import { serializeContent } from './write.js';
-import { FrontmatterMap } from './types.js';
+import type { FrontmatterMap } from './types.js';
 
 export type WriterOptions = {
   /** `owner/name`, the repository this writer commits into. */

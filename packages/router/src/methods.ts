@@ -1,4 +1,4 @@
-import { Route, RouteOptions } from './types.js';
+import type { Route, RouteOptions } from './types.js';
 import { routerSettings } from './state.js';
 
 /** Hrefs already reported by the base diagnostic below — one word each, not one per click. */

@@ -1,4 +1,4 @@
-import { ComponentElement, ComponentHook, Hook, Signal } from '../types.js';
+import type { ComponentElement, ComponentHook, Hook, Signal } from '../types.js';
 import { hooksQueue, currentInstance } from '../store/store.js';
 import { prioritySlot } from '@verajs/shared-utils';
 import { ErrorInsert, inserts } from '@verajs/inserts';

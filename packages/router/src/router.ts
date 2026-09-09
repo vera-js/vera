@@ -1,4 +1,4 @@
-import { AddRoutes, RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptions } from './types.js';
+import type { AddRoutes, RouteEvent, RouteEventHandler, RouteOptions, RouterMethods, RouterOptions } from './types.js';
 import { on, off } from './events.js';
 import { elements, elementsData, routerSettings } from './state.js';
 import { attachWindowListeners, navigate, stripBase } from './services.js';

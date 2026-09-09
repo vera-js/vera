@@ -1,6 +1,6 @@
 import { createProxy } from '../services/createProxy.js';
 import { proxyCallbacks } from '../store/store.js';
-import { Store } from '../types.js';
+import type { Store } from '../types.js';
 
 /**
  * **Whether a store needs to be reactive at all.**

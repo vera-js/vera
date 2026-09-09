@@ -1,4 +1,4 @@
-import { InsertFunctionMap, Inserts } from './types.js';
+import type { InsertFunctionMap, Inserts } from './types.js';
 
 export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof InsertFunctionMap][]>();
 

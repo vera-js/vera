@@ -11,6 +11,13 @@ export type Autoloader = (element: HTMLElement) => void;
 
 
 
+/**
+ * A constructed stylesheet paired with its source text — what core's `css` tag produces and what
+ * `@verajs/styles` adopts. Shared here because two packages speak it; each re-exports it so its own
+ * public surface is unchanged.
+ */
+export type CSSResultGroup = { styleSheet: CSSStyleSheet; cssText: string };
+
 /** Proxy object shape that is used in signal */
 export type ProxyObject<T extends object> = (T | { value: T }) & StoreProxyKeys;
 

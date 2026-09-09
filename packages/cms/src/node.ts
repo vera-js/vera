@@ -19,7 +19,7 @@ import { generateManifest, serializeManifest, ContentSource } from './manifest.j
 import { parseSchema, Schema } from './schema.js';
 import { checkReferences, generateTaxonomies, serializeTaxonomies } from './taxonomy.js';
 import { emitJsonSchemas } from './emit.js';
-import { Manifest } from './types.js';
+import type { Manifest } from './types.js';
 
 export type BuildOptions = {
   /** The content root — one subdirectory per collection. Default `content`. */

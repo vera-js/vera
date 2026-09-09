@@ -28,7 +28,7 @@
  * handful of field types cover real content models, the shapes here are what the tooling writes,
  * and anything the subset cannot say fails loudly at schema load rather than validating wrongly.
  */
-import { FrontmatterMap, FrontmatterValue } from './types.js';
+import type { FrontmatterMap, FrontmatterValue } from './types.js';
 
 /** The field vocabulary. `text` is multiline prose; `string` is a line. */
 export type Field =

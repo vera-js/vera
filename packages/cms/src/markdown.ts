@@ -49,7 +49,7 @@
  * and the fence pattern.
  */
 
-import { Block, Inline, ListItem, Root } from './types.js';
+import type { Block, Inline, ListItem, Root } from './types.js';
 
 /** Linear on purpose — the old `(\S*)[^\`]*$` tail was quadratic on long lines (audit pass 7). */
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
