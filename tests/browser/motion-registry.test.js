@@ -189,6 +189,15 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
    * NOT retime the paused animation from the transitioning intermediates: measured at p=0.1665,
    * opacity read 1 — the END value — in Chromium, Firefox AND WebKit. CSS-as-the-clock is dead.
    *
+   * Independently confirmed on omni's harness the same day, with the mechanism sharpened: the
+   * delay resolves to the transition's TARGET immediately — first frame already at the end
+   * position while the variable itself is mid-ramp. And a trap for the next measurer: their first
+   * pass put the transition on a PARENT with the variable INHERITED, and WebKit then APPEARED to
+   * sweep while the others froze. That was an inheritance-context artifact, not an engine split —
+   * transition on the animated element itself and all three freeze unanimously. Our registration
+   * is `inherits: false`, so the artifact cannot arise in this design, but any future measurement
+   * that inherits the variable will rediscover the phantom.
+   *
    * So a play's clock is a rAF ramp WRITING the variable — the scrub's own proven mechanism at a
    * clock target instead of a scroll target — and this test pins that the ramp genuinely sweeps:
    * a bent curve (opacity 0→0.2 over the first half, 0.2→1 over the second) reads ≈p·0.4 mid-first-
