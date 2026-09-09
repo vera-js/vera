@@ -499,6 +499,13 @@ export const paint: EngineConnector = motionExtension(paintRows);
 export const path: EngineConnector = motionExtension(pathRows);
 export const sequence = dual<SequenceOptions>((options) => motionExtension(sequenceRows(options)));
 export const split = splitDirective;
+/**
+ * The write-path registry — INTERNAL until the rewrite's stage 4 wires activation through it.
+ * Exported now so the browser suite can prove delivery, dedup and eviction against real engines
+ * without a public surface committing to anything; not documented, not API, and its shape may
+ * change with any stage.
+ */
+export * as keyframeRegistry from './registry.js';
 export { parsePathData } from './path.js';
 
 export { enableMotion, disableMotion, runInserts };
