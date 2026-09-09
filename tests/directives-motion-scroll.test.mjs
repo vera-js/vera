@@ -159,3 +159,43 @@ test('scroll refuses a space where a comma belongs — because the space already
   const tooMany = rejections(await at(`{ ${K}, scroll: '10%, 20%, 30%' }`));
   assert.ok(tooMany.some((r) => r.code === 'motion-setting-range'), 'three halves is not a range');
 });
+
+/**
+ * **`progress` writes the timeline position to a custom property, so CSS can read it.**
+ *
+ * The reach argument rather than a convenience: the animatable-property table is a closed list and a
+ * number in CSS is not, so gradients, `box-shadow`, `clip-path` and anything `calc()` touches become
+ * reachable without this package growing an entry for each. It is also the seam pointing toward the
+ * platform — a page can move its visual layer into CSS and keep the range naming, gating and regions
+ * from here.
+ *
+ * Opt-in by NAMING the property, which is what makes it usable: the author picks a name their own
+ * stylesheet already talks about, and a page that does not read it pays no per-frame write.
+ */
+test('progress writes the named custom property, and only when named', async () => {
+  const named = await at(`{ ${K}, progress: '--p' }`);
+  const unnamed = await at(`{ ${K} }`);
+
+  const value = Number(named.style.getPropertyValue('--p'));
+  assert.ok(Number.isFinite(value) && value > 0 && value < 1,
+    `the control: a real mid-range progress was written (${value})`);
+  assert.ok(!unnamed.style.cssText.includes('--'),
+    'and nothing at all without the setting — one setProperty per element per frame is not free');
+});
+
+test('progress refuses a name that is not a custom property', async () => {
+  const el = await at(`{ ${K}, progress: 'p' }`);
+  assert.ok(rejections(el).length > 0,
+    'a bare word would reach setProperty and be silently dropped by the CSSOM');
+});
+
+test('teardown removes the progress property', async () => {
+  const el = await at(`{ ${K}, progress: '--p' }`);
+  assert.notEqual(el.style.getPropertyValue('--p'), '', 'control: it was written');
+
+  el.remove();
+  await settled();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(el.style.getPropertyValue('--p'), '',
+    'a stale number reads as a bar frozen part-way rather than as nothing');
+});

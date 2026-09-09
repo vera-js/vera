@@ -112,6 +112,8 @@ export interface RuntimeElement {
   rangeSize: number;
   /** `play` is set: this element runs its keyframes over time at a threshold rather than scrubbing. */
   readonly playing: boolean;
+  /** The custom property progress is written to, or null. Opt-in — see the `progress` setting. */
+  readonly progressProperty: string | null;
   /**
    * Where a PLAY reverses, or null for a single threshold crossed both ways. Resolved with the range
    * because it is the far end of it — kept apart from `rangeSize` because a play with one half still
@@ -939,6 +941,8 @@ export const createRuntimeElement = (
     rangeStart: 0,
     rangeSize: 0,
     playing: parsed.settings['play'] !== undefined,
+    progressProperty:
+      typeof parsed.settings['progress'] === 'string' ? parsed.settings['progress'] : null,
     exitAt: null,
     end: end + displaced,
     size,
@@ -984,6 +988,15 @@ export const createRuntimeElement = (
 export const animateElement = (element: RuntimeElement): void => {
   const { plan } = element;
   const position = element.timelinePosition;
+
+  /**
+   * The progress custom property, when one was named. Written before the values rather than after,
+   * so a stylesheet reading it resolves in the same style pass as the inline writes below instead of
+   * lagging them by a frame.
+   */
+  if (element.progressProperty) {
+    element.node.style.setProperty(element.progressProperty, String(position));
+  }
 
   const { transform, transformValues } = plan;
   if (transform.length) {
@@ -1462,6 +1475,9 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
   node.style.transition = '';
   node.style.transform = '';
   node.style.filter = '';
+  /** The progress property too, or a torn-down element leaves a stale number behind for whatever
+   *  CSS was reading it — visible as a bar frozen part-way rather than as nothing at all. */
+  if (element.progressProperty) node.style.removeProperty(element.progressProperty);
 
   /**
    * Invalidate the write cache. Without this the next composed string would

@@ -922,7 +922,7 @@ boundaries host-ward); `@key` is the page-global store. `@route` is published by
 from a WIRED pack — see below) or an object with **two halves**: properties inside `keyframes`,
 settings outside it —
 `data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
-start: '70%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: inside `keyframes` it is
+scroll: '70%, 50%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: inside `keyframes` it is
 **progress along the animation**, outside it a **position on the screen** (`0%` top, `100%` bottom,
 like CSS `top:`). Progress is how far the element has travelled UP through its range — `0%` just
 arriving at the bottom, `100%` just leaving at the top, which is the direction CSS `view()` runs.
@@ -930,12 +930,24 @@ A property written at the top level, or a setting written inside `keyframes`, is
 with the move spelled out. Keyframes are `'progress value'` pairs; a lone value is the end.
 Per-property easing uses the nested form `{ frames: '…', ease: '…' }`. Width bands merge over the
 base, by registered name or literal range (`'…; [mobile]: …'`, `'…; [0-560]: …'`); the names come
-from `motion({ breakpoints })`, which is JavaScript, never an attribute. `start`/`end` name the
-range as `'<edge> <screen position>'`, or ONE token for the leading edge — `start: '70%', end:
-'50%'` runs over a fixed 40% of the screen whatever the element's height, where the defaults
-(`'start bottom'` → `'end start'`) scale to the element's own transit. `stagger` goes on the PARENT.
-`when: '.selector'` replaces the scroll driver. `inertia` smooths the value toward its target, the
-one thing CSS scroll-driven animation cannot do — that is a pure function of scroll position.
+from `motion({ breakpoints })`, which is JavaScript, never an attribute. **`scroll` names where the animation begins and ends;
+scrubbing spreads it across that span, playing runs it at each end.** Each half is
+`'<edge> <screen position>'` or ONE token for the leading edge, comma-separated —
+`scroll: '70%, 50%'` is a fixed 40% of the screen whatever the element's height, where the defaults
+(`'start bottom'` → `'end start'`) scale to its own transit. A comma is required: `'70% 50%'` is
+already a legal single alignment.
+
+**`play` (SECONDS, like `inertia`) makes it a playthrough instead of a scrub** — crossing a threshold
+runs the keyframes over time. One `scroll` half is one line crossed both ways (in going down, out
+coming back up past it); two halves are an entrance and an exit. `run-once` latches after the first
+play. `play` beside `inertia` is refused (same transition), and `ease` is refused for a play (it
+never visits the keyframes between). **`when: '.selector'` GATES** — it animates while matching and
+rests at its start otherwise; `when` + `play` is a UI transition. `stagger` goes on the PARENT, and
+is refused with `play` until a per-sibling time delay exists. `inertia` smooths the value toward its
+target, the one thing CSS scroll-driven animation cannot do — that is a pure function of scroll
+position. **`progress: '--p'`** writes the timeline position to a custom property so CSS can read it
+(opt-in; one write per element per frame), which is how anything outside the animatable-property
+table — gradients, shadows, `clip-path` — gets animated.
 `data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
 Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (`frame-*`), plus

@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 234 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 718 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 788 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -111,13 +111,20 @@ writing `undefined`.
   <div data-vd-motion="fade-up">…</div>   <!-- needs wireDirectives([motion, presets]) -->
 
   <div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
-                         start: '70%', end: '50%' }">…</div>
+                         scroll: '70%, 50%' }">…</div>
+
+  <div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, scroll: '50%', play: 0.6 }">…</div>
   ```
+
+  **`scroll` names where the animation begins and ends. Scrubbing spreads it across that span;
+  playing runs it at each end.** Without `play` it tracks scroll position; with `play` (in seconds)
+  crossing a threshold runs the keyframes over time — one `scroll` half is a line crossed both ways,
+  two halves are an entrance and an exit, and `run-once` latches after the first play.
 
   The settings are the half worth knowing about, because three of them — `transform-origin`,
   `perspective` and `will-change` — are real CSS property names that do NOT animate here. They
-  configure the animation, so they live outside `keyframes` with `start`, `end`, `ease`, `anchor`,
-  `inertia`, `stagger`, `when`, `run-once` and `pin`. Put one in the wrong half and it is refused by
+  configure the animation, so they live outside `keyframes` with `scroll`, `play`, `ease`, `anchor`,
+  `inertia`, `stagger`, `when`, `run-once`, `pin` and `progress`. Put one in the wrong half and it is refused by
   name with the move spelled out, in both directions.
 
   **Presets are a pack, and ours is an example rather than the list.** A preset is a motion value

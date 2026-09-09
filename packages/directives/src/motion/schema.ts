@@ -391,6 +391,24 @@ export const SETTINGS = [
    * contradiction and are refused rather than silently ranked.
    */
   { key: 'play', type: 'number', min: 0, max: 3600 },
+  /**
+   * **Writes this element's progress to a custom property, so CSS can read it.** Names the property
+   * rather than taking a boolean, which is what makes it usable: the author picks a name their own
+   * stylesheet already talks about, and there is no framework-chosen identifier to collide with.
+   *
+   *   data-vd-motion="{ scroll: '70%, 30%', progress: '--p' }"
+   *   .bar { transform: scaleX(var(--p, 0)) }
+   *
+   * **Opt-in on purpose.** It is one `setProperty` per element per frame, which is nothing for one
+   * element and measurable for three hundred — so a page that does not read it does not pay for it.
+   *
+   * The point of it is reach rather than convenience: the animatable-property table is a closed
+   * list, and a progress value in CSS is not. Gradients, `box-shadow`, `clip-path`, a colour mix,
+   * anything `calc()` can touch — all of it becomes reachable without this package growing a
+   * vocabulary entry for each. It is also the seam pointing TOWARD the platform: a page can move its
+   * visual layer into CSS while keeping the range naming, `anchor`, gating and regions from here.
+   */
+  { key: 'progress', type: 'string', parse: (raw) => (/^--[\w-]+$/.test(raw.trim()) ? raw.trim() : null) },
   { key: 'run-once', type: 'boolean' },
   /**
    * **Gates the animation; it does not replace the driver.** While the element matches, it animates
