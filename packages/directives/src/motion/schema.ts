@@ -519,6 +519,15 @@ export interface InsertMap {
   /** Turns an `ease` value into a curve shaper. The easings module. */
   easing: (value: string) => Easing | null;
   /**
+   * Turns a preset NAME into the motion value it stands for, or null if this pack does not know it.
+   * The presets module — and, deliberately, anyone else's: the shipped table is one registration on
+   * this point and carries no privilege over a third party's.
+   *
+   * Like `easing`, and unlike the four below, this chain's links RETURN a value, so a resolver that
+   * throws or answers nonsense has to be contained per link rather than per page.
+   */
+  preset: (name: string) => Readonly<Record<string, unknown>> | null;
+  /**
    * Runs over a root **before** its elements are collected, so a module can
    * change the DOM the runtime is about to read. `split` uses it: the pieces
    * it creates are then found by the ordinary scan, and nothing downstream
@@ -1179,31 +1188,3 @@ export const parseOrigin = (raw: string): string | null => {
   return parts.join(' ');
 };
 
-/**
- * Presets. These exist because a named effect is the fastest thing for a
- * person or a model to reach for — `data-vd-motion="fade-up"` is the
- * everyday spelling. Each value is exactly what an author would write in the
- * object, so a preset is never a special case downstream: it expands into
- * precisely what the hand-authored equivalent would produce.
- */
-export type PresetKeyframes = Readonly<Record<string, string>>;
-
-export const PRESETS: Readonly<Record<string, PresetKeyframes>> = {
-  'fade': { opacity: '0% 0, 100% 1' },
-  'fade-up': { opacity: '0% 0, 100% 1', 'translate-y': '0% 40px, 100% 0px' },
-  'fade-down': { opacity: '0% 0, 100% 1', 'translate-y': '0% -40px, 100% 0px' },
-  'fade-left': { opacity: '0% 0, 100% 1', 'translate-x': '0% 40px, 100% 0px' },
-  'fade-right': { opacity: '0% 0, 100% 1', 'translate-x': '0% -40px, 100% 0px' },
-  'zoom-in': { opacity: '0% 0, 100% 1', scale: '0% 0.8, 100% 1' },
-  'zoom-out': { opacity: '0% 0, 100% 1', scale: '0% 1.2, 100% 1' },
-  'slide-up': { 'translate-y': '0% 100px, 100% 0px' },
-  'slide-down': { 'translate-y': '0% -100px, 100% 0px' },
-  'blur-in': { opacity: '0% 0, 100% 1', blur: '0% 12px, 100% 0px' },
-};
-
-/**
- * Whether a name is a preset. Uses `hasOwnProperty` rather than a lookup, so
- * `constructor` and other prototype keys cannot masquerade as one.
- */
-export const isPreset = (name: string): boolean =>
-  Object.prototype.hasOwnProperty.call(PRESETS, name);

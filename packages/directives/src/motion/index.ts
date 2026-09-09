@@ -456,6 +456,12 @@ export const vocabularyConnector = (rows: WirableTree): EngineConnector => (seam
  * DIRECTIVE — it rewrites DOM rather than adding keys.
  */
 export const easings: EngineConnector = vocabularyConnector({ on: 'easing', fn: resolveEasing });
+/** The shipped preset pack — one registration on the `preset` point, with no privilege over a
+ *  third party's. Declared here rather than in `presets.ts` to keep that module free of a cycle. */
+export const presets: EngineConnector = vocabularyConnector({ on: 'preset', fn: lookUpPreset });
+import { lookUpPreset } from './presets.js';
+export { PRESETS } from './presets.js';
+export type { Preset } from './presets.js';
 export const paint: EngineConnector = vocabularyConnector(paintRows);
 export const path: EngineConnector = vocabularyConnector(pathRows);
 export const sequence = dual<SequenceOptions>((options) => vocabularyConnector(sequenceRows(options)));

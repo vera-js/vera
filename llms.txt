@@ -918,8 +918,9 @@ division by zero render rather than throw, and `!missing` is the absence idiom.
 **State addressing.** A read resolves to the NEAREST ancestor that OWNS the key (crossing shadow
 boundaries host-ward); `@key` is the page-global store. `@route` is published by the query pack.
 
-**motion pack** — one attribute, `data-vd-motion`, taking a preset name (`fade-up`, `zoom-in`, …)
-or an object with **two halves**: properties inside `keyframes`, settings outside it —
+**motion pack** — one attribute, `data-vd-motion`, taking a preset name (`fade-up`, `zoom-in`, …
+from a WIRED pack — see below) or an object with **two halves**: properties inside `keyframes`,
+settings outside it —
 `data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
 start: '70%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: inside `keyframes` it is
 **progress along the animation**, outside it a **position on the screen** (`0%` top, `100%` bottom,
@@ -939,6 +940,13 @@ one thing CSS scroll-driven animation cannot do — that is a pure function of s
 Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (`frame-*`), plus
 `data-vd-split` (chars/words/lines; pieces inherit the motion minus `stagger`).
+
+**`presets` is one of those modules, not a built-in list.** `wireDirectives([motion, presets])`
+wires the ten shipped names; without it a preset name is refused as unwired rather than misspelled.
+**A preset is a motion value with a name** — the same shape as the attribute, `keyframes` plus any
+settings — so a pack can encode a whole house style under one word:
+`vocabularyConnector({ on: 'preset', fn: (name) => TABLE[name] ?? null })`. The expansion runs
+BEFORE every other key, so an explicit key always wins whichever order it is written in.
 
 **remote pack** — `data-vd-fetch="{ url, on, into, body, method, status }"`. **The response
 decides**: JSON is a state patch (existing reflections update themselves), anything else is markup

@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 234 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 261 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 460 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -108,7 +108,7 @@ writing `undefined`.
   screen.
 
   ```html
-  <div data-vd-motion="fade-up">…</div>
+  <div data-vd-motion="fade-up">…</div>   <!-- needs wireDirectives([motion, presets]) -->
 
   <div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
                          start: '70%', end: '50%' }">…</div>
@@ -119,6 +119,24 @@ writing `undefined`.
   configure the animation, so they live outside `keyframes` with `start`, `end`, `ease`, `anchor`,
   `inertia`, `stagger`, `when`, `run-once` and `pin`. Put one in the wrong half and it is refused by
   name with the move spelled out, in both directions.
+
+  **Presets are a pack, and ours is an example rather than the list.** A preset is a motion value
+  with a name — `keyframes` plus any settings — so a project can encode its whole house style under
+  one word, and replacing ours is a matter of wiring yours instead:
+
+  ```js
+  const house = vocabularyConnector({
+    on: 'preset',
+    fn: (name) => name === 'hero-in'
+      ? { keyframes: { opacity: '0% 0, 100% 1' }, ease: 'out-cubic', inertia: 0.4 }
+      : null,
+  });
+  wireDirectives([motion, house]);
+  ```
+
+  A preset expands before every other key is read, so an explicit key on the element always wins —
+  `{ preset: 'hero-in', inertia: 0.9 }` is `hero-in` with your inertia, whichever order you write
+  the two in.
 
 ## Actions — the escape hatch
 

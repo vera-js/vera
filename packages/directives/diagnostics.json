@@ -489,14 +489,31 @@
       "fix": "An invalid perspective() drops the whole transform, so nothing on this element would animate."
     },
     {
+      "code": "motion-preset-pack-broken",
+      "params": [
+        "where",
+        "text"
+      ],
+      "message": "{where}: a preset pack failed while resolving \"{text}\".",
+      "fix": "The pack is at fault, not the name — the other wired packs were still asked."
+    },
+    {
       "code": "motion-preset-unknown",
       "params": [
         "where",
-        "text",
-        "near"
+        "text"
       ],
-      "message": "{where}: \"{text}\" is not a preset this library has.",
-      "fix": "Did you mean \"{near}\"?"
+      "message": "{where}: \"{text}\" is not a preset any wired pack knows.",
+      "fix": "Presets are a pack, so this list is whatever you wired — check that one, not a built-in list."
+    },
+    {
+      "code": "motion-presets-unwired",
+      "params": [
+        "where",
+        "text"
+      ],
+      "message": "{where}: \"{text}\" needs a preset pack, and none is wired.",
+      "fix": "Wire one: wireDirectives([motion, presets]) — or your own."
     },
     {
       "code": "motion-property-at-top-level",

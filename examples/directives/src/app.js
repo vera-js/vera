@@ -14,7 +14,7 @@ import { initRouter, setBasePath, router } from '@verajs/router';
 import { directiveLoader } from '@verajs/autoloader';
 import {
   wireDirectives, directives, interaction, expressions, sensors,
-  motion, easings, paint, path, split, sequence,
+  motion, presets, easings, paint, path, split, sequence,
   rejections, describeDirectives, settled, stateOf,
   enableMotion, disableMotion,
 } from '@verajs/directives';
@@ -28,7 +28,7 @@ wireDirectives([
   ...interaction,
   sensors,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
-  easings, paint, path, split, sequence,
+  presets, easings, paint, path, split, sequence,
 ]);
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ wireDirectives([
   expressions,
   ...interaction,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
-  easings, paint, path, split, sequence,
+  presets, easings, paint, path, split, sequence,
 ]);</code></pre>
   </demo-block>
   <demo-block caption="Proof of life: state, an expression, a click — the page's hello world.">

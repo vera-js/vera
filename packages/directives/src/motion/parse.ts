@@ -23,7 +23,7 @@
 import type { Refusal } from './schema.js';
 import { at } from './schema.js';
 import {
-  PRESETS, getSetting, getProperty, isPreset,
+  getSetting, getProperty, insert,
   parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin,
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
@@ -374,24 +374,84 @@ const readSetting = (
 };
 
 /**
- * Expands a preset into keyframes. Presets are only keyframes, so they are
- * never a special case downstream — an explicit key for the same property
- * simply replaces the preset's contribution wholesale, which is more
- * predictable than merging per keyframe.
+ * The motion value a preset name stands for, from the first wired pack that knows it, or null.
  *
- * An explicit *base* for the same property wins outright — but a
- * `-mobile`-style band key is not a base: it says at which widths the
- * animation differs, not that the preset was a mistake. A band written
- * *inline* — `opacity: '[0-700]: 0% 0.5, 100% 1'` — still wins outright,
- * because that is an explicit key for the property.
+ * The chain returns values, so a link that throws or answers nonsense is contained here rather than
+ * costing the page — the same rule the `easing` chain follows, and for the same reason: these are the
+ * two insert points whose links are asked a question instead of told something.
  */
-const applyPreset = (name: string, into: Map<string, Collected>): void => {
-  const preset = PRESETS[name];
-  if (!preset) return;
+const resolvePreset = (name: string, rejected: Refusal[]): Readonly<Record<string, unknown>> | null => {
+  for (const resolve of insert('preset')) {
+    try {
+      const found = resolve(name);
+      if (found && typeof found === 'object') return found;
+      /** A truthy non-object is a broken pack, and gets a pack's refusal rather than a name's. */
+      if (found) rejected.push({ code: 'motion-preset-pack-broken', where: 'preset', args: [name] });
+    } catch {
+      rejected.push({ code: 'motion-preset-pack-broken', where: 'preset', args: [name] });
+    }
+  }
+  return null;
+};
 
-  for (const [property, value] of Object.entries(preset)) {
-    if (into.get(property)?.base !== undefined) continue;
-    slotFor(into, property).base = value;
+/**
+ * Why a name resolved to nothing, which is TWO different mistakes.
+ *
+ * With no pack wired at all the name is not misspelled and no suggestion would help — the rule
+ * already written for unknown KEYS, that "this library has no such thing" is false in the commonest
+ * case because the thing belongs to a module nobody wired. `fade-up` is real and correctly spelled;
+ * telling its author to check the spelling sends them to hunt in the one place nothing is wrong.
+ *
+ * The misspelling suggestion the shipped table used to compute is gone with the table: a wired pack
+ * exposes a resolver, not an enumeration, so there is nothing to scan. Worth the trade — the packs
+ * are now the extension point, and a mechanism that only worked for ours would be the wrong shape.
+ */
+const noSuchPreset = (name: string, rejected: Refusal[]): void => {
+  rejected.push(insert('preset').length
+    ? { code: 'motion-preset-unknown', where: 'preset', args: [name] }
+    : { code: 'motion-presets-unwired', where: 'preset', args: [name] });
+};
+
+/**
+ * Expands a preset into keyframes AND settings — it is shaped exactly like the value it stands for,
+ * so a pack can encode a whole motion character under one word.
+ *
+ * **Written unconditionally, because this runs FIRST.** Every other key is read afterwards and
+ * overwrites what lands here, which is what makes "explicit always wins" true with no ordering
+ * caveat. It used to run at the `preset` key's own position and got away with it: `applyPreset`
+ * skipped a property whose base was already set, and explicit assignment overwrote, so keyframes
+ * came out right either way. Settings had no such guard, so the moment a preset could carry one,
+ * `{ inertia: 0.5, preset: 'x' }` and `{ preset: 'x', inertia: 0.5 }` would have differed.
+ */
+const applyPreset = (
+  preset: Readonly<Record<string, unknown>>,
+  into: Map<string, Collected>,
+  settings: Record<string, string | number | boolean>,
+  rejected: Refusal[]
+): void => {
+  for (const [key, value] of Object.entries(preset)) {
+    if (key === 'keyframes') {
+      if (!value || typeof value !== 'object') {
+        rejected.push({ code: 'motion-keyframes-not-object', where: 'preset', args: [] });
+        continue;
+      }
+      for (const [property, frames] of Object.entries(value as Record<string, unknown>)) {
+        if (getProperty(property)) slotFor(into, property).base = String(frames);
+        else rejected.push({ code: 'motion-no-such-key', where: `preset: ${property}`, args: [''] });
+      }
+      continue;
+    }
+    const def = getSetting(key);
+    if (!def) {
+      rejected.push({ code: 'motion-no-such-key', where: `preset: ${key}`, args: [''] });
+      continue;
+    }
+    /** Validated exactly as an authored one is. A pack is code, but it is code the page did not
+     *  write, and a preset that sets a nonsense ease should say so rather than reach the runtime. */
+    const no = (code: string, args: readonly string[] = []): void => {
+      rejected.push({ code, args, where: `preset: ${key}` });
+    };
+    readSetting(key, def, value as string | number | boolean, no, settings);
   }
 };
 
@@ -484,28 +544,13 @@ export const parseMotion = (
   const text = raw.trim();
 
   if (!text.startsWith('{')) {
-    /** The literal form: a preset name, with the misspelling suggestion the
-     *  marker attribute always had. An empty value has nothing to say. */
+    /** The literal form: a preset name. An empty value has nothing to say. */
     if (text === '') {
       rejected.push({ code: 'motion-no-value', args: [] });
-    } else if (isPreset(text)) {
-      applyPreset(text, collected);
     } else {
-      /**
-       * **One code in both builds.** This branched on `__DEV__` to choose between a message with
-       * a spelling suggestion and a terser one — which was fine while the message WAS the refusal,
-       * and became a defect the moment the code became the identifier: the same mistake would have
-       * reported `motion-preset-unknown` in development and something else in production, so a
-       * test, a docs link and Studio's inspector would each be right in only one build.
-       *
-       * Only the SUGGESTION is dev-only now, because scanning the preset table to compute it is
-       * real work for a string production has no way to print.
-       */
-      const flat = __DEV__ ? text.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
-      const near = __DEV__
-        ? Object.keys(PRESETS).find((one) => one.replace(/[^a-z0-9]/gi, '').toLowerCase() === flat)
-        : undefined;
-      rejected.push({ code: 'motion-preset-unknown', args: [text, near ?? ''] });
+      const preset = resolvePreset(text, rejected);
+      if (preset) applyPreset(preset, collected, settings, rejected);
+      else noSuchPreset(text, rejected);
     }
   } else {
     /** The object form, through the base grammar — never the expression tier. */
@@ -541,8 +586,26 @@ export const parseMotion = (
      * Flattened into one list rather than parsed by a second walk so the interpretation below stays
      * a single loop; `inKeyframes` is what each guard needs and all it needs.
      */
+    /**
+     * **The preset expands FIRST, wherever its key sits.** Every other key is read below and
+     * overwrites what it left, so "explicit always wins" holds with no ordering caveat — see
+     * `applyPreset` for why position-order was safe for keyframes and would not have been for
+     * settings.
+     */
+    const named = (parsed as ParsedObject)['preset'];
+    if (named !== undefined) {
+      if (typeof named !== 'string') {
+        rejected.push({ code: 'motion-preset-unknown', where: 'preset', args: [String(named)] });
+      } else {
+        const preset = resolvePreset(named, rejected);
+        if (preset) applyPreset(preset, collected, settings, rejected);
+        else noSuchPreset(named, rejected);
+      }
+    }
+
     const entries: Array<[string, Parsed, boolean]> = [];
     for (const [key, value] of Object.entries(parsed as ParsedObject)) {
+      if (key === 'preset') continue;
       if (key !== 'keyframes') {
         entries.push([key, value as Parsed, false]);
         continue;
@@ -559,14 +622,6 @@ export const parseMotion = (
     }
 
     for (const [key, value, inKeyframes] of entries) {
-      /** `preset:` inside the object merges exactly as the literal form does. Top level only — it
-       *  selects settings as well as keyframes, so it is not one of the things `keyframes` holds. */
-      if (key === 'preset' && !inKeyframes) {
-        if (typeof value === 'string' && isPreset(value)) applyPreset(value, collected);
-        else rejected.push({ code: 'motion-preset-unknown', where: 'preset', args: [String(value), ''] });
-        continue;
-      }
-
       const settingDef = getSetting(key);
       if (settingDef && inKeyframes) {
         /** A setting written among the keyframes. Named rather than treated as an unknown property,

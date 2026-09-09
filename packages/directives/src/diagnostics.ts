@@ -194,9 +194,17 @@ export const PROSE: Record<string, Prose> = {
     `motion: could not parse — ${detail}.`,
     'If a value is text (keyframes, lengths, easings) it has to be quoted.',
   ],
-  'motion-preset-unknown': (where, text, near) => [
-    `${where ? `${where}: ` : ''}"${text}" is not a preset this library has.`,
-    near ? `Did you mean "${near}"?` : 'Check the spelling.',
+  'motion-preset-unknown': (where, text) => [
+    `${where ? `${where}: ` : ''}"${text}" is not a preset any wired pack knows.`,
+    'Presets are a pack, so this list is whatever you wired — check that one, not a built-in list.',
+  ],
+  'motion-presets-unwired': (where, text) => [
+    `${where ? `${where}: ` : ''}"${text}" needs a preset pack, and none is wired.`,
+    "Wire one: wireDirectives([motion, presets]) — or your own.",
+  ],
+  'motion-preset-pack-broken': (where, text) => [
+    `${where ? `${where}: ` : ''}a preset pack failed while resolving "${text}".`,
+    'The pack is at fault, not the name — the other wired packs were still asked.',
   ],
   'motion-no-such-key': (where, meant) => [
     `${where}: no such key.`,

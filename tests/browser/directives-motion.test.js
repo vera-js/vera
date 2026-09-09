@@ -10,9 +10,9 @@
  * waits on a transition it cannot see finish deterministically.
  */
 import { expect } from '@esm-bundle/chai';
-import { wireDirectives, motion, settled } from '../../packages/directives/dist/development/vera-directives.js';
+import { wireDirectives, motion, presets, settled } from '../../packages/directives/dist/development/vera-directives.js';
 
-wireDirectives([motion]);
+wireDirectives([motion, presets]);
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const settle = async () => {

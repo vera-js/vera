@@ -21,9 +21,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'HTMLCanvasElement', 'cust
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, motion, easings, paint, path, sequence, split, settled, rejections } =
+const { wireDirectives, motion, presets, easings, paint, path, sequence, split, settled, rejections } =
   await load('directives');
-wireDirectives([motion, easings, paint, path, sequence, split]);
+wireDirectives([motion, presets, easings, paint, path, sequence, split]);
 
 const doc = dom.window.document;
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => r()));

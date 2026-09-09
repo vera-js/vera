@@ -23,8 +23,8 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, motion, settled, rejections } = await load('directives');
-wireDirectives([motion]);
+const { wireDirectives, motion, presets, settled, rejections } = await load('directives');
+wireDirectives([motion, presets]);
 
 const doc = dom.window.document;
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => r()));
@@ -71,12 +71,18 @@ test('refusals are sentences in the engine registry: unknown preset, unknown key
     <div id="c" data-vd-motion="{ keyframes: { opacity: '0% 5' } }">c</div>`);
   /** Prod keeps the DATA (code, element); the prose is a development feature. */
   const a = rejections(host.querySelector('#a'));
-  assert.ok(a.some((r) => r.code === 'motion-preset-unknown'), 'preset misspelling reported');
+  assert.ok(a.some((r) => r.code === 'motion-preset-unknown'), 'unknown preset reported');
   if (!isProduction) {
     assert.ok(a.some((r) => /fadeUp/.test(r.message)), 'named what was written');
-    /** The suggestion is the FIX now, not the message — which is what the field is for, and what
-     *  lets a tool render "what happened" and "what to do" apart. */
-    assert.ok(a.some((r) => /Did you mean "fade-up"/.test(r.fix ?? '')), 'and suggested');
+    /**
+     * **No misspelling suggestion, deliberately.** Presets are a wirable pack now, and a pack
+     * exposes a resolver rather than an enumeration — there is nothing to scan for a near match.
+     * Suggesting from the SHIPPED table would have been worse than saying nothing: it would answer
+     * for one pack while claiming to answer for all of them, and be confidently wrong on any page
+     * that wired its own. The fix points at the pack instead.
+     */
+    assert.ok(a.some((r) => /wired/.test(r.fix ?? '')), 'points at the pack, not at a spelling');
+    assert.ok(!a.some((r) => /Did you mean/.test(r.fix ?? '')), 'and suggests nothing it cannot know');
   }
   const b = rejections(host.querySelector('#b'));
   assert.ok(b.some((r) => r.code === 'motion-no-such-key'), 'unknown key reported');
