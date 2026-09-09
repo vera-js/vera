@@ -528,6 +528,14 @@
       "fix": "presets(table) already includes the shipped ten; wire that one alone."
     },
     {
+      "code": "motion-progress-property-taken",
+      "params": [
+        "name"
+      ],
+      "message": "{name} is already registered with a different type, so progress written to it will not interpolate — a play on this element snaps instead of easing.",
+      "fix": "Pick an unregistered name in progress:, or align your own @property registration to <number>."
+    },
+    {
       "code": "motion-property-at-top-level",
       "params": [
         "key"

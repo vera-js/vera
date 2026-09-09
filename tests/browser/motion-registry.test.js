@@ -13,8 +13,10 @@ import { keyframeRegistry } from '../../packages/directives/dist/development/ver
 
 const { contentHash, acquire, release } = keyframeRegistry;
 
-/** The rule under test, and the fixture the fast suite hashes on the SERVER. */
-const CSS = '@keyframes vd-probe { 0% { opacity: 0 } 100% { opacity: 1 } }';
+/** The rule under test, and the fixture the fast suite hashes on the SERVER. Named RULE, not CSS:
+ *  a `const CSS` here SHADOWED the global `CSS` object, so `CSS.registerProperty` below was called
+ *  on a string and threw "not a function" — while the bundle's own realm saw the real global. */
+const RULE = '@keyframes vd-probe { 0% { opacity: 0 } 100% { opacity: 1 } }';
 const SEEK = 'animation: vd-probe 1s linear both paused; animation-delay: -0.5s;';
 
 const hosts = [];
@@ -39,7 +41,7 @@ it('the hash agrees with the server, byte for byte', () => {
    * carries names the client must independently re-derive, so the two runtimes agreeing on one
    * fixture is the whole requirement, pinned from both sides.
    */
-  expect(contentHash(CSS)).to.equal('fd6bc413');
+  expect(contentHash(RULE)).to.equal('fd6bc413');
 });
 
 it('CONTROL: the name resolves nowhere before any acquire', async () => {
@@ -51,20 +53,20 @@ it('CONTROL: the name resolves nowhere before any acquire', async () => {
 });
 
 it('acquire delivers to the document, and marking AFTER acquire resolves', async () => {
-  acquire(document, contentHash(CSS), CSS);
+  acquire(document, contentHash(RULE), RULE);
   const el = host();
   el.style.cssText = SEEK;
   await frame();
 
   const value = opacityOf(el);
   expect(mid(value), `insert-then-mark resolves (${value})`).to.equal(true);
-  release(contentHash(CSS));
+  release(contentHash(RULE));
 });
 
 it('two acquires, one rule — and the sheet is the SAME object in every root', async () => {
-  const hash = contentHash(CSS);
-  acquire(document, hash, CSS);
-  acquire(document, hash, CSS);
+  const hash = contentHash(RULE);
+  acquire(document, hash, RULE);
+  acquire(document, hash, RULE);
 
   const sheet = document.adoptedStyleSheets.at(-1);
   expect(sheet.cssRules.length, 'one rule for two users — count tracks DISTINCT animations').to.equal(1);
@@ -72,7 +74,7 @@ it('two acquires, one rule — and the sheet is the SAME object in every root', 
   const shadowHost = host();
   const root = shadowHost.attachShadow({ mode: 'open' });
   root.innerHTML = `<div id="t" style="${SEEK}">x</div>`;
-  acquire(root, hash, CSS);
+  acquire(root, hash, RULE);
   await frame();
 
   expect(root.adoptedStyleSheets.at(-1), 'a reference, not a copy').to.equal(sheet);
@@ -85,9 +87,9 @@ it('two acquires, one rule — and the sheet is the SAME object in every root', 
 });
 
 it('release below the count keeps the rule; the LAST release evicts it', async () => {
-  const hash = contentHash(CSS);
-  acquire(document, hash, CSS);
-  acquire(document, hash, CSS);
+  const hash = contentHash(RULE);
+  acquire(document, hash, RULE);
+  acquire(document, hash, RULE);
   const sheet = document.adoptedStyleSheets.at(-1);
 
   release(hash);
@@ -121,4 +123,58 @@ it('eviction removes the RIGHT rule when several are live', async () => {
 
   release(contentHash(a));
   release(contentHash(c));
+});
+
+/* ── @property registration — the typing every timed mode rests on ───────────────────────────── */
+
+it('a registered property INTERPOLATES where an unregistered one flips', async () => {
+  const flip = host();
+  const ease = host();
+  const run = async (el, name) => {
+    el.style.setProperty(name, '0');
+    el.style.transition = `${name} 1s linear`;
+    /** A forced style resolution, not a frame — a transition needs two RESOLVED values, and every
+     *  rAF callback in a turn runs before the same paint. The trap with two addresses now. */
+    void getComputedStyle(el).getPropertyValue(name);
+    el.style.setProperty(name, '1');
+    await new Promise((r) => setTimeout(r, 120));
+    const value = Number(getComputedStyle(el).getPropertyValue(name));
+    return value > 0 && value < 1;
+  };
+
+  /** The CONTROL: without it, "interpolated" below could be a probe that measures nothing. */
+  expect(await run(flip, '--vd-unregistered'), 'unregistered: flips at the midpoint').to.equal(false);
+
+  keyframeRegistry.ensureProperty('--vd-p');
+  expect(await run(ease, '--vd-p'), 'registered: a real mid transition value').to.equal(true);
+});
+
+it('a duplicate ensureProperty is a no-op, and a foreign SAME-NAME registration is tolerated', () => {
+  keyframeRegistry.ensureProperty('--vd-p');
+  keyframeRegistry.ensureProperty('--vd-p');
+
+  /**
+   * The cross-bundle condition, simulated: a second inlined copy of the pack has its own Set, so
+   * its registration reaches the platform and throws there. Register the name FIRST as the other
+   * bundle would — identically — then ensure: the catch must classify it harmless.
+   */
+  const name = `--vd-p2-${Math.floor(Math.random() * 1e9)}`;
+  CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
+  expect(() => keyframeRegistry.ensureProperty(name)).to.not.throw();
+});
+
+it('an author-owned name with a DIFFERENT type is reported, not swallowed', () => {
+  const name = `--taken-${Math.floor(Math.random() * 1e9)}`;
+  CSS.registerProperty({ name, syntax: '<length>', inherits: false, initialValue: '0px' });
+
+  const warned = [];
+  const original = console.warn;
+  console.warn = (...args) => warned.push(args.join(' '));
+  try {
+    keyframeRegistry.ensureProperty(name);
+  } finally {
+    console.warn = original;
+  }
+  expect(warned.join('\n'), 'their <length> beat our <number>; a play on it will snap — say so')
+    .to.include('motion-progress-property-taken');
 });

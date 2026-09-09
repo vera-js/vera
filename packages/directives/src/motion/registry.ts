@@ -16,6 +16,7 @@
  * Design record and the measurements behind every choice here: the write-path spec in the portal.
  */
 import type { SheetRoot } from './types.js';
+import { pageProblem } from './schema.js';
 
 /**
  * FNV-1a, 32-bit, hex — the content hash that names a rule.
@@ -42,6 +43,51 @@ export const contentHash = (text: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0');
   /* eslint-enable no-bitwise */
 };
+
+/**
+ * The custom properties this page has registered, so a duplicate is skipped rather than thrown.
+ *
+ * `CSS.registerProperty()` THROWS on a name it already knows (`InvalidModificationError`), and
+ * content hashing is exactly what makes two callers want the same name — so the second registration
+ * is the ordinary case, not the error case. A `Set` rather than a bare try/catch, because a
+ * try/catch alone would also swallow real errors.
+ */
+const registered = new Set<string>();
+
+/**
+ * Registers `name` as an interpolable number, once — the typing every timed mode rests on.
+ *
+ * Three declarations, three loads carried: `syntax: '<number>'` makes the property INTERPOLATE
+ * (unregistered, a transition on it flips at the midpoint — measured, and it is the difference
+ * between a play easing and a play snapping); `initialValue: 0` is the server-rendered first frame
+ * (the seek resolves against it before any JS runs); `inherits: false` keeps a parent's progress
+ * out of its children, or nested motion would interfere silently.
+ *
+ * Degrades by doing nothing where the API is missing (older engines, the server): a scrub writes
+ * discrete values per frame and never needs interpolation, so only the timed modes soften — a play
+ * snaps to its end, which is the documented shape.
+ *
+ * The catch handles the one duplicate the `Set` cannot see: ANOTHER copy of this bundle on the same
+ * page (two inlined registries, two Sets — the CDN two-bundle condition). For our own name that
+ * collision is byte-identical and harmless. For an AUTHOR-named `progress` property it is not —
+ * their earlier registration may carry a different syntax, ours lost, and their type will not
+ * interpolate our unitless number — so that case is reported by name rather than swallowed.
+ * Anything else rethrows; a swallow that broad would eat real errors.
+ */
+export const ensureProperty = (name: string): void => {
+  if (registered.has(name)) return;
+  if (typeof CSS === 'undefined' || typeof CSS.registerProperty !== 'function') return;
+  try {
+    CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
+  } catch (error) {
+    if ((error as DOMException)?.name !== 'InvalidModificationError') throw error;
+    if (name !== PROGRESS_PROPERTY) pageProblem('motion-progress-property-taken', [name]);
+  }
+  registered.add(name);
+};
+
+/** The engine's own variable — the one every generated rule seeks by unless `progress` renames it. */
+export const PROGRESS_PROPERTY = '--vd-p';
 
 /** One rule's live bookkeeping. `cssText` is kept for two replays: a fallback root arriving after
  *  the rule, and rebuilding a fallback sheet on eviction. */
