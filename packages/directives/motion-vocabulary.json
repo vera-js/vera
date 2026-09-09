@@ -1,0 +1,346 @@
+{
+  "properties": [
+    {
+      "key": "translate-x",
+      "category": "transform",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "translate-y",
+      "category": "transform",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "translate-z",
+      "category": "transform",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "rotate",
+      "category": "transform",
+      "defaultUnit": "deg",
+      "units": [
+        "deg"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "rotate-x",
+      "category": "transform",
+      "defaultUnit": "deg",
+      "units": [
+        "deg"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "rotate-y",
+      "category": "transform",
+      "defaultUnit": "deg",
+      "units": [
+        "deg"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "scale",
+      "category": "transform",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 1
+    },
+    {
+      "key": "scale-x",
+      "category": "transform",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 1
+    },
+    {
+      "key": "scale-y",
+      "category": "transform",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 1
+    },
+    {
+      "key": "skew-x",
+      "category": "transform",
+      "defaultUnit": "deg",
+      "units": [
+        "deg"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "skew-y",
+      "category": "transform",
+      "defaultUnit": "deg",
+      "units": [
+        "deg"
+      ],
+      "initial": 0
+    },
+    {
+      "key": "opacity",
+      "category": "filter",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "max": 1,
+      "initial": 1
+    },
+    {
+      "key": "blur",
+      "category": "filter",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em"
+      ],
+      "min": 0,
+      "initial": 0
+    },
+    {
+      "key": "brightness",
+      "category": "filter",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 1
+    },
+    {
+      "key": "contrast",
+      "category": "filter",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 1
+    },
+    {
+      "key": "saturate",
+      "category": "filter",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 1
+    },
+    {
+      "key": "grayscale",
+      "category": "filter",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "max": 1,
+      "initial": 0
+    },
+    {
+      "key": "radius",
+      "category": "border",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "min": 0,
+      "initial": 0
+    },
+    {
+      "key": "radius-top-left",
+      "category": "border",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "min": 0,
+      "initial": 0
+    },
+    {
+      "key": "radius-top-right",
+      "category": "border",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "min": 0,
+      "initial": 0
+    },
+    {
+      "key": "radius-bottom-left",
+      "category": "border",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "min": 0,
+      "initial": 0
+    },
+    {
+      "key": "radius-bottom-right",
+      "category": "border",
+      "defaultUnit": "px",
+      "units": [
+        "px",
+        "rem",
+        "em",
+        "%",
+        "vh",
+        "vw"
+      ],
+      "min": 0,
+      "initial": 0
+    }
+  ],
+  "settings": [
+    {
+      "key": "inertia",
+      "type": "number",
+      "min": 0,
+      "max": 3600
+    },
+    {
+      "key": "pin",
+      "type": "length"
+    },
+    {
+      "key": "perspective",
+      "type": "length"
+    },
+    {
+      "key": "transform-inertia",
+      "type": "number",
+      "min": 0,
+      "max": 3600
+    },
+    {
+      "key": "filter-inertia",
+      "type": "number",
+      "min": 0,
+      "max": 3600
+    },
+    {
+      "key": "inertia-ease",
+      "type": "easing"
+    },
+    {
+      "key": "ease",
+      "type": "easing"
+    },
+    {
+      "key": "anchor",
+      "type": "selector"
+    },
+    {
+      "key": "scroll",
+      "type": "range"
+    },
+    {
+      "key": "play",
+      "type": "number",
+      "min": 0,
+      "max": 3600
+    },
+    {
+      "key": "progress",
+      "type": "string"
+    },
+    {
+      "key": "run-once",
+      "type": "boolean"
+    },
+    {
+      "key": "when",
+      "type": "selector"
+    },
+    {
+      "key": "stagger",
+      "type": "offset"
+    },
+    {
+      "key": "will-change",
+      "type": "boolean"
+    },
+    {
+      "key": "transform-origin",
+      "type": "origin"
+    }
+  ],
+  "presets": [
+    "blur-in",
+    "fade",
+    "fade-down",
+    "fade-left",
+    "fade-right",
+    "fade-up",
+    "slide-down",
+    "slide-up",
+    "zoom-in",
+    "zoom-out"
+  ]
+}

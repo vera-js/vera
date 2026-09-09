@@ -178,3 +178,54 @@ it('an author-owned name with a DIFFERENT type is reported, not swallowed', () =
   expect(warned.join('\n'), 'their <length> beat our <number>; a play on it will snap — say so')
     .to.include('motion-progress-property-taken');
 });
+
+/* ── the SWEEP: how a play must drive the variable — measured, with a negative result ───────── */
+
+it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', async () => {
+  /**
+   * Stage 4's play mechanism, measured before anything was built on it — and the answer came back
+   * NEGATIVE for the design both repos had converged on. A transition on the registered variable
+   * runs (the computed value reads mid-flight) but `animation-delay: calc(var(--vd-p) * -1s)` does
+   * NOT retime the paused animation from the transitioning intermediates: measured at p=0.1665,
+   * opacity read 1 — the END value — in Chromium, Firefox AND WebKit. CSS-as-the-clock is dead.
+   *
+   * So a play's clock is a rAF ramp WRITING the variable — the scrub's own proven mechanism at a
+   * clock target instead of a scroll target — and this test pins that the ramp genuinely sweeps:
+   * a bent curve (opacity 0→0.2 over the first half, 0.2→1 over the second) reads ≈p·0.4 mid-first-
+   * segment where endpoint interpolation would read ≈p. The two cannot be confused. Captured by
+   * polling the variable itself, never by sleeping to a chosen instant.
+   */
+  const bent = '@keyframes vd-sweep { 0% { opacity: 0 } 50% { opacity: 0.2 } 100% { opacity: 1 } }';
+  const hash = contentHash(bent);
+  keyframeRegistry.ensureProperty('--vd-p');
+  acquire(document, hash, bent);
+
+  const el = host();
+  el.style.cssText =
+    'animation: vd-sweep 1s linear both paused; animation-delay: calc(var(--vd-p, 0) * -1s);';
+
+  /** The ramp: what the play engine will do. Duration irrelevant to the claim — only the sweep is. */
+  const t0 = performance.now();
+  let seenP = 0;
+  let seenOpacity = -1;
+  while (true) {
+    const p = Math.min(1, (performance.now() - t0) / 500);
+    el.style.setProperty('--vd-p', String(p));
+    await frame();
+    if (seenOpacity === -1 && p > 0.15 && p < 0.45) {
+      seenP = p;
+      seenOpacity = Number(getComputedStyle(el).opacity);
+    }
+    if (p >= 1) break;
+  }
+  release(hash);
+
+  expect(seenOpacity, 'the control: a mid-first-segment frame was captured').to.be.above(-1);
+  const swept = seenP * 0.4;
+  const endpoint = seenP;
+  const toSwept = Math.abs(seenOpacity - swept);
+  expect(toSwept, `at p=${seenP.toFixed(3)}: opacity ${seenOpacity} vs swept ${swept.toFixed(3)} / endpoint ${endpoint.toFixed(3)}`)
+    .to.be.below(0.05);
+  expect(toSwept, 'unambiguously the sweep, not endpoint interpolation')
+    .to.be.below(Math.abs(seenOpacity - endpoint));
+});

@@ -68,6 +68,26 @@ const payloads = [
   ...[...byVocabulary.values()],
 ];
 
+/**
+ * The motion vocabulary as DATA — the lockstep artifact omni vendors and pins a test to. Schema-
+ * derived like everything else in this file, so it cannot drift from the parser that enforces it;
+ * function-valued fields are omitted because a conformance corpus pins grammar and observable
+ * behaviour, never implementation.
+ */
+const { PROPERTIES, SETTINGS } = await import('../packages/directives/src/motion/schema.ts');
+const { PRESETS } = await import('../packages/directives/src/motion/presets.ts');
+const VOCAB_OUT = new URL('../packages/directives/motion-vocabulary.json', import.meta.url);
+const vocabulary = {
+  properties: PROPERTIES.map(({ key, category, defaultUnit, units, min, max, initial, discrete }) =>
+    ({ key, category, defaultUnit, units, ...(min !== undefined ? { min } : {}),
+       ...(max !== undefined ? { max } : {}), initial, ...(discrete ? { discrete } : {}) })),
+  settings: SETTINGS.map(({ key, type, min, max, allowed }) =>
+    ({ key, type, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}),
+       ...(allowed ? { allowed } : {}) })),
+  presets: Object.keys(PRESETS).sort(),
+};
+const vocabJson = `${JSON.stringify(vocabulary, null, 2)}\n`;
+
 const json = `${JSON.stringify({ url: DOCS, entries, payloads }, null, 2)}\n`;
 
 /**
@@ -98,6 +118,14 @@ if (process.argv.includes('--check')) {
     );
     process.exit(1);
   }
+  let vocabCurrent = '';
+  try {
+    vocabCurrent = readFileSync(VOCAB_OUT, 'utf8');
+  } catch { /* missing counts as stale */ }
+  if (vocabCurrent !== vocabJson) {
+    console.error(`motion-vocabulary.json is stale.\nRun: node scripts/sync-diagnostics.mjs`);
+    process.exit(1);
+  }
   let current = '';
   try {
     current = readFileSync(OUT, 'utf8');
@@ -115,6 +143,7 @@ if (process.argv.includes('--check')) {
   console.log(`diagnostics.json is current (${entries.length} codes)`);
 } else {
   writeFileSync(OUT, json);
+  writeFileSync(VOCAB_OUT, vocabJson);
   for (const [url, next] of docWrites) writeFileSync(url, next);
   console.log(`diagnostics.json written (${entries.length} codes, ${payloads.length} payload groups)` +
     (docWrites.length ? `; docs updated: ${docWrites.map(([, , t]) => t).join(', ')}` : ''));
