@@ -173,6 +173,18 @@ export const PROSE: Record<string, Prose> = {
    */
   'motion-no-value': () => ['motion: no value — name a preset or write an object.'],
   'motion-not-object': () => ['motion: the braced form must be an object of keys.'],
+  'motion-keyframes-not-object': () => [
+    'motion: keyframes takes an object of properties.',
+    "Write keyframes: { opacity: '0% 0, 100% 1' }.",
+  ],
+  'motion-property-at-top-level': (key) => [
+    `${key} is a property, and properties are written inside keyframes.`,
+    `Move it: keyframes: { ${key}: … }. The top level holds settings — start, end, ease, anchor.`,
+  ],
+  'motion-setting-in-keyframes': (key) => [
+    `${key} is a setting, and settings are written outside keyframes.`,
+    `Move it up one level, beside keyframes rather than inside it.`,
+  ],
   'motion-not-html': (tag) => [
     `motion is on a <${tag}>, which this library cannot measure — it reads offsetTop and ` +
     'offsetHeight, which only HTML elements have.',

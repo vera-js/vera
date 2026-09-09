@@ -409,7 +409,8 @@ const bound = (max: number): string => (max === Infinity ? '+' : String(max));
 const buildAnimation = (
   property: PropertyDef,
   collected: Collected,
-  rejected: Refusal[]
+  rejected: Refusal[],
+  breakpoints?: ReadonlyMap<string, Range>
 ): ElementMotion | null => {
   /**
    * No base at all is a shape, not a mistake — "only animate on small
@@ -418,7 +419,7 @@ const buildAnimation = (
    */
   const { base, bands, rejected: bad } = collected.base === undefined && collected.named.length
     ? { base: { keyframes: [], rejected: [], geometryDependent: false }, bands: [], rejected: [] }
-    : parseBandedList(collected.base ?? '', property);
+    : parseBandedList(collected.base ?? '', property, breakpoints);
   for (const entry of bad) rejected.push(at(property.key, entry));
 
   const all: Band[] = [...bands];
@@ -563,15 +564,60 @@ export const parseMotion = (
       return null;
     }
 
+    /**
+     * **The two halves, separated by where they are written.** Properties live in `keyframes: { … }`
+     * and settings at the top level, and the split is the whole reason it exists: a `%` inside
+     * `keyframes` is always progress along the animation, a `%` outside it is always a position on
+     * the screen. They used to share one flat object, where `transform-origin`, `perspective` and
+     * `will-change` — settings, all three of them real CSS property names — sat beside `translate-x`
+     * and `rotate`, which are the ones that animate. Nothing but knowing the tables told them apart.
+     *
+     * Flattened into one list rather than parsed by a second walk so the interpretation below stays
+     * a single loop; `inKeyframes` is what each guard needs and all it needs.
+     */
+    const entries: Array<[string, Parsed, boolean]> = [];
     for (const [key, value] of Object.entries(parsed as ParsedObject)) {
-      /** `preset:` inside the object merges exactly as the literal form does. */
-      if (key === 'preset') {
+      if (key !== 'keyframes') {
+        entries.push([key, value as Parsed, false]);
+        continue;
+      }
+      /** `isPath` first: a bare word parses as a Path, which is an object, and would otherwise be
+       *  walked as if it held properties. */
+      if (typeof value !== 'object' || value === null || isPath(value as Parsed)) {
+        rejected.push({ code: 'motion-keyframes-not-object', where: 'keyframes', args: [] });
+        continue;
+      }
+      for (const [inner, frames] of Object.entries(value as ParsedObject)) {
+        entries.push([inner, frames as Parsed, true]);
+      }
+    }
+
+    for (const [key, value, inKeyframes] of entries) {
+      /** `preset:` inside the object merges exactly as the literal form does. Top level only — it
+       *  selects settings as well as keyframes, so it is not one of the things `keyframes` holds. */
+      if (key === 'preset' && !inKeyframes) {
         if (typeof value === 'string' && isPreset(value)) applyPreset(value, collected);
         else rejected.push({ code: 'motion-preset-unknown', where: 'preset', args: [String(value), ''] });
         continue;
       }
 
       const settingDef = getSetting(key);
+      if (settingDef && inKeyframes) {
+        /** A setting written among the keyframes. Named rather than treated as an unknown property,
+         *  because the author knows exactly what they meant and only put it one level too deep. */
+        rejected.push({ code: 'motion-setting-in-keyframes', where: key, args: [key] });
+        continue;
+      }
+      if (!settingDef && !inKeyframes && parseKeyName(key, context.breakpoints)) {
+        /**
+         * A property at the top level: the shape this value had before the two halves were
+         * separated. Its own code, with the move spelled out, because it is the one refusal every
+         * existing value will hit and "no such key" would be actively misleading — the key is real,
+         * it is simply written in the half that holds settings.
+         */
+        rejected.push({ code: 'motion-property-at-top-level', where: key, args: [key] });
+        continue;
+      }
       if (settingDef) {
         if (typeof value === 'object' && value !== null) {
           rejected.push({ code: 'motion-setting-not-plain', args: [], where: key });
@@ -660,7 +706,7 @@ export const parseMotion = (
   for (const [propertyName, slot] of collected) {
     const property = getProperty(propertyName);
     if (!property) continue;
-    const animation = buildAnimation(property, slot, rejected);
+    const animation = buildAnimation(property, slot, rejected, context.breakpoints);
     if (animation) animations.push(animation);
   }
 

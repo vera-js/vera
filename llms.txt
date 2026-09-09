@@ -919,11 +919,23 @@ division by zero render rather than throw, and `!missing` is the absence idiom.
 boundaries host-ward); `@key` is the page-global store. `@route` is published by the query pack.
 
 **motion pack** — one attribute, `data-vd-motion`, taking a preset name (`fade-up`, `zoom-in`, …)
-or an object of properties and settings: `data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y:
-'0% 40px, 100% 0px', inertia: 0.2 }"`. Keyframes are `'position value'` pairs; a lone value is the
-end. Per-property easing uses the nested form `{ frames: '…', ease: '…' }`. Width bands merge over
-the base (`'…; [0-560]: …'`). `stagger` goes on the PARENT. `when: '.selector'` replaces the scroll
-driver. `data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
+or an object with **two halves**: properties inside `keyframes`, settings outside it —
+`data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
+start: '70%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: inside `keyframes` it is
+**progress along the animation**, outside it a **position on the screen** (`0%` top, `100%` bottom,
+like CSS `top:`). Progress is how far the element has travelled UP through its range — `0%` just
+arriving at the bottom, `100%` just leaving at the top, which is the direction CSS `view()` runs.
+A property written at the top level, or a setting written inside `keyframes`, is refused by name
+with the move spelled out. Keyframes are `'progress value'` pairs; a lone value is the end.
+Per-property easing uses the nested form `{ frames: '…', ease: '…' }`. Width bands merge over the
+base, by registered name or literal range (`'…; [mobile]: …'`, `'…; [0-560]: …'`); the names come
+from `motion({ breakpoints })`, which is JavaScript, never an attribute. `start`/`end` name the
+range as `'<edge> <screen position>'`, or ONE token for the leading edge — `start: '70%', end:
+'50%'` runs over a fixed 40% of the screen whatever the element's height, where the defaults
+(`'start bottom'` → `'end start'`) scale to the element's own transit. `stagger` goes on the PARENT.
+`when: '.selector'` replaces the scroll driver. `inertia` smooths the value toward its target, the
+one thing CSS scroll-driven animation cannot do — that is a pure function of scroll position.
+`data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
 Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (`frame-*`), plus
 `data-vd-split` (chars/words/lines; pieces inherit the motion minus `stagger`).

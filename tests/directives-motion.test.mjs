@@ -56,7 +56,7 @@ test('a preset literal activates and writes the composed style at the clamped en
 
 test('an object value with per-property keyframes writes both categories', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px', rotate: '0% 0deg, 100% 90deg' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px', rotate: '0% 0deg, 100% 90deg' } }">x</div>`);
   const el = host.querySelector('div');
   assert.match(el.style.transform, /translateY\(0px\) rotate\(90deg\)/, 'schema order composes transforms');
   assert.match(el.style.filter, /opacity\(1\)/);
@@ -67,8 +67,8 @@ test('an object value with per-property keyframes writes both categories', async
 test('refusals are sentences in the engine registry: unknown preset, unknown key, bad value', async () => {
   const host = await mount(`
     <div id="a" data-vd-motion="fadeUp">a</div>
-    <div id="b" data-vd-motion="{ opacity_: '0% 0' }">b</div>
-    <div id="c" data-vd-motion="{ opacity: '0% 5' }">c</div>`);
+    <div id="b" data-vd-motion="{ keyframes: { opacity_: '0% 0' } }">b</div>
+    <div id="c" data-vd-motion="{ keyframes: { opacity: '0% 5' } }">c</div>`);
   /** Prod keeps the DATA (code, element); the prose is a development feature. */
   const a = rejections(host.querySelector('#a'));
   assert.ok(a.some((r) => r.code === 'motion-preset-unknown'), 'preset misspelling reported');
@@ -92,7 +92,7 @@ test('refusals are sentences in the engine registry: unknown preset, unknown key
 });
 
 test('a bare word where a string belongs is refused with the fix, never resolved as state', async () => {
-  const host = await mount(`<div data-vd-motion="{ opacity: fade }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: fade } }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-quote-the-value'));
   if (!isProduction) assert.ok(reasons.some((r) => /quote the value/.test(r.message)));
@@ -105,7 +105,7 @@ test('an unquoted text value fails the whole element LOUDLY, with the quote hint
    *  Brian's call (2026-09-06): whole-element refusal beats a silently missing
    *  property, because visible breakage gets investigated and content rests
    *  readable either way. The hint is what turns loud into teachable. */
-  const host = await mount(`<div data-vd-motion="{ opacity: '0% 0, 100% 1', pin: 120px }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, pin: 120px }">x</div>`);
   const el = host.querySelector('div');
   assert.equal(el.style.filter, '', 'nothing half-applied: the element rests natural');
   const reasons = rejections(el);
@@ -117,7 +117,7 @@ test('an unquoted text value fails the whole element LOUDLY, with the quote hint
 
 test('the when driver: a selector match walks the element to its other end', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: '0% 0, 100% 1', when: '.open', inertia: 0 }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, when: '.open', inertia: 0 }">x</div>`);
   const el = host.querySelector('div');
   assert.match(el.style.filter, /opacity\(0\)/, 'not matching: rests at the authored start');
   el.classList.add('open');
@@ -134,7 +134,7 @@ test('the when driver: a selector match walks the element to its other end', asy
 });
 
 test('when refuses the pseudo-classes the observer cannot see, and drops the setting', async () => {
-  const host = await mount(`<div data-vd-motion="{ opacity: '0% 0, 100% 1', when: ':hover' }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, when: ':hover' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-when-blind'), 'refused');
   if (!isProduction) assert.ok(reasons.some((r) => /:hover/.test(r.message)), 'named the pseudo-class');
@@ -144,7 +144,7 @@ test('when refuses the pseudo-classes the observer cannot see, and drops the set
 
 test('per-property ease without the easings module is a refusal per element, and the curve is linear', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }">x</div>`);
   const el = host.querySelector('div');
   const reasons = rejections(el);
   assert.ok(reasons.some((r) => r.code === 'motion-easings-module-missing'), 'refused');
@@ -156,7 +156,7 @@ test('per-property ease without the easings module is a refusal per element, and
 
 test('the nested form refuses junk keys and a band key carrying its own ease', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: { frames: '0% 0, 100% 1', wobble: 3 } }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', wobble: 3 } } }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-nested-unknown'));
   if (!isProduction) assert.ok(reasons.some((r) => /opacity\.wobble/.test(r.message)));
@@ -180,7 +180,7 @@ test('motion-config: a bad axis is refused with the region still working on defa
 
 test('settings arrive as authored types: numbers, booleans, and their refusals', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: '0% 0, 100% 1', inertia: 0.5, run-once: true, pin: 'sideways' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0.5, run-once: true, pin: 'sideways' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-setting-length'), 'pin refused');
   if (!isProduction) {
@@ -193,14 +193,14 @@ test('settings arrive as authored types: numbers, booleans, and their refusals',
 
 test('attribute edits rebuild through the engine, and the run-once latch survives them', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: '0% 0, 100% 1', run-once: true, when: '.go', inertia: 0 }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', inertia: 0 }">x</div>`);
   const el = host.querySelector('div');
   el.classList.add('go');
   await settled();
   await frame();
   assert.match(el.style.filter, /opacity\(1\)/, 'played through and latched');
   /** Edit the value: the engine tears down and reactivates this directive. */
-  el.setAttribute('data-vd-motion', `{ opacity: '0% 0, 100% 1', run-once: true, when: '.go', inertia: 0.2 }`);
+  el.setAttribute('data-vd-motion', `{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', inertia: 0.2 }`);
   await settled();
   await frame();
   await frame();

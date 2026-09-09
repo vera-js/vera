@@ -642,7 +642,10 @@ export interface Band extends Range {
  * is no `[-500]` form — an open bottom is `[0-500]`, which is one character
  * longer and cannot be misread as negative five hundred.
  */
-export const parseRange = (raw: string): Range | null => {
+export const parseRange = (
+  raw: string,
+  breakpoints?: ReadonlyMap<string, Range>
+): Range | null => {
   const closed = /^\[\s*(\d+)\s*-\s*(\d+)\s*\]$/.exec(raw);
   if (closed) {
     const min = Number(closed[1]);
@@ -650,7 +653,20 @@ export const parseRange = (raw: string): Range | null => {
     return max >= min ? { min, max } : null;
   }
   const open = /^\[\s*(\d+)\s*\+\s*\]$/.exec(raw);
-  return open ? { min: Number(open[1]), max: Infinity } : null;
+  if (open) return { min: Number(open[1]), max: Infinity };
+  /**
+   * **A registered name, which is the form to write.** `[mobile]` says what the band is FOR where
+   * `[0-640]` says only what it measures, and the numbers then live in one place — the `breakpoints`
+   * option — instead of being retyped at every call site and drifting.
+   *
+   * This is also the mechanism that let the key-suffix form (`translate-x-mobile`) be retired: it
+   * expressed exactly this and nothing more, in a second grammar, and it silently lost a value when
+   * one variant was written without its siblings.
+   */
+  const named = /^\[\s*([a-z][\w-]*)\s*\]$/i.exec(raw);
+  /** Matched exactly as registered, the way the suffix form did — case-folding here would accept
+   *  `[Mobile]` for a `mobile` registration and leave the reverse an unexplained refusal. */
+  return named ? breakpoints?.get(named[1]!) ?? null : null;
 };
 
 export interface KeyframeList {
@@ -707,9 +723,20 @@ const place = (token: string): number | null => {
  * The edge is a fraction of the ELEMENT (0 its leading edge, 1 its trailing one); the second is a
  * fraction of the VIEWPORT. Out-of-range on either side is allowed to ±3, so a range can begin
  * before the element is anywhere near the screen.
+ *
+ * **One token is the shorthand, and it means the LEADING edge** — `'70%'` is `'start 70%'`. It is
+ * the form to reach for when the range should be a fixed slice of the screen rather than scaled to
+ * the element: `start: '70%', end: '50%'` runs over 40% of a viewport whatever the element's height,
+ * where the defaults (`start bottom` → `end start`) run across the element's own transit and so
+ * stretch with it. Deliberately the leading edge rather than literally `top`, so the shorthand
+ * carries no axis and reads the same on a sideways page.
  */
 export const parseAlignment = (raw: string): string | null => {
   const parts = raw.trim().toLowerCase().split(/\s+/);
+  if (parts.length === 1) {
+    const only = place(parts[0]!);
+    return only === null ? null : `0 ${only}`;
+  }
   if (parts.length !== 2) return null;
   const edge = place(parts[0]!);
   const viewport = place(parts[1]!);
@@ -776,7 +803,8 @@ export const parseOffset = (raw: string): string | null => {
  */
 export const parseBandedList = (
   raw: string,
-  property: PropertyDef
+  property: PropertyDef,
+  breakpoints?: ReadonlyMap<string, Range>
 ): { base: KeyframeList; bands: readonly Band[]; rejected: readonly Refusal[] } => {
   if (!raw.includes('[')) {
     /**
@@ -814,7 +842,7 @@ export const parseBandedList = (
 
     const close = trimmed.indexOf(']');
     const colon = trimmed.indexOf(':', close);
-    const range = close < 0 || colon < 0 ? null : parseRange(trimmed.slice(0, close + 1));
+    const range = close < 0 || colon < 0 ? null : parseRange(trimmed.slice(0, close + 1), breakpoints);
     /**
      * Anything between the `]` and the `:` is a segment the grammar has no
      * reading for — `[0-500]x: …` — and it used to vanish: the range parsed,

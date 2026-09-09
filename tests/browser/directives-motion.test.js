@@ -51,7 +51,7 @@ afterEach(async () => {
 });
 
 it('the timeline follows scroll: clamped start below the fold, mid-flight between, clamped end above', async () => {
-  const host = page(`<div id="t" data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px', inertia: 0 }" style="height:100px">x</div>`);
+  const host = page(`<div id="t" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' }, inertia: 0 }" style="height:100px">x</div>`);
   const el = host.querySelector('#t');
   await settle();
 
@@ -81,9 +81,9 @@ it('the timeline follows scroll: clamped start below the fold, mid-flight betwee
 it('the stagger cascade is real offsets: siblings at one scroll position sit at descending progress', async () => {
   const host = page(`
     <div data-vd-motion="{ stagger: '15%' }">
-      <div class="s" data-vd-motion="{ opacity: '0% 0, 100% 1', inertia: 0 }" style="height:40px">a</div>
-      <div class="s" data-vd-motion="{ opacity: '0% 0, 100% 1', inertia: 0 }" style="height:40px">b</div>
-      <div class="s" data-vd-motion="{ opacity: '0% 0, 100% 1', inertia: 0 }" style="height:40px">c</div>
+      <div class="s" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0 }" style="height:40px">a</div>
+      <div class="s" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0 }" style="height:40px">b</div>
+      <div class="s" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0 }" style="height:40px">c</div>
     </div>`);
   await settle();
   const items = [...host.querySelectorAll('.s')];
@@ -102,7 +102,7 @@ it('the stagger cascade is real offsets: siblings at one scroll position sit at 
 });
 
 it('a when element ignores scroll and walks between its authored ends on the selector', async () => {
-  const host = page(`<div id="w" data-vd-motion="{ opacity: '0% 0.2, 100% 0.8', when: '.go', inertia: 0 }" style="height:50px">x</div>`);
+  const host = page(`<div id="w" data-vd-motion="{ keyframes: { opacity: '0% 0.2, 100% 0.8' }, when: '.go', inertia: 0 }" style="height:50px">x</div>`);
   const el = host.querySelector('#w');
   await settle();
   expect(opacityOf(el), 'unmatched: the authored start, wherever the page is scrolled').to.equal(0.2);

@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 234 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 286 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 445 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -102,7 +102,23 @@ writing `undefined`.
   a readable page when the capability is missing.
 - **`remote`** — `data-vd-fetch`. A JSON response patches state; a markup response swaps a region,
   same-origin only, always.
-- **`motion`** — one `data-vd-motion` attribute taking a preset or an object.
+- **`motion`** — one `data-vd-motion` attribute taking a preset or an object of two halves:
+  animated properties inside `keyframes`, settings outside it. That is also what makes `%`
+  unambiguous — inside `keyframes` it is progress along the animation, outside it a position on the
+  screen.
+
+  ```html
+  <div data-vd-motion="fade-up">…</div>
+
+  <div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
+                         start: '70%', end: '50%' }">…</div>
+  ```
+
+  The settings are the half worth knowing about, because three of them — `transform-origin`,
+  `perspective` and `will-change` — are real CSS property names that do NOT animate here. They
+  configure the animation, so they live outside `keyframes` with `start`, `end`, `ease`, `anchor`,
+  `inertia`, `stagger`, `when`, `run-once` and `pin`. Put one in the wrong half and it is refused by
+  name with the move spelled out, in both directions.
 
 ## Actions — the escape hatch
 

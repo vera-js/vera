@@ -466,23 +466,19 @@ const MOTION = `
   </demo-block>
   <demo-block caption="The object form: multiple properties, each on its own keyframes; number sugar (opacity: 1 means 'to 1'); element settings inline.">
     <div class="hero-box"
-         data-vd-motion="{ opacity: '0% 0, 55% 1', rotate: '0% -12deg, 55% 0deg',
-                           translate-y: '0% 70px, 100% 0px', inertia: 0.25 }">
+         data-vd-motion="{ keyframes: { opacity: '0% 0, 55% 1', rotate: '0% -12deg, 55% 0deg', translate-y: '0% 70px, 100% 0px' }, inertia: 0.25 }">
       composed
     </div>
   </demo-block>
   <demo-block caption="Per-property easing — the nested form. rotate spins on ease-in while opacity stays linear; a cubic-bezier with y past 1 overshoots and settles.">
     <div class="hero-box"
-         data-vd-motion="{ opacity: '0% 0, 40% 1',
-                           rotate: { frames: '0% 180deg, 100% 0deg', ease: 'ease-in' },
-                           translate-y: { frames: '0% 90px, 100% 0px', ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' } }">
+         data-vd-motion="{ keyframes: { opacity: '0% 0, 40% 1', rotate: { frames: '0% 180deg, 100% 0deg', ease: 'ease-in' }, translate-y: { frames: '0% 90px, 100% 0px', ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' } } }">
       eased
     </div>
   </demo-block>
   <demo-block caption="Width bands merge over the base ([0-560]: less travel on a phone) — and a registered breakpoint name is a key suffix: translate-y-phone. Resize to watch.">
     <div class="hero-box"
-         data-vd-motion="{ translate-x: '0% 160px, 55% 0px; [0-560]: 0% 40px, 55% 0px',
-                           opacity-wide: '0% 0.5, 100% 1' }">
+         data-vd-motion="{ keyframes: { translate-x: '0% 160px, 55% 0px; [0-560]: 0% 40px, 55% 0px', opacity-wide: '0% 0.5, 100% 1' } }">
       responsive
     </div>
   </demo-block>
@@ -514,8 +510,8 @@ const MOTION = `
   <h2>Inertia — the movement outlives the scroll</h2>
   <demo-block caption="Both boxes read the same scroll position. inertia: 0 tracks it exactly; a high inertia writes the TARGET each frame and lets a compositor-driven CSS transition carry the value there — so when you stop, it keeps going and settles. Scroll in a short burst and watch the right one catch up.">
     <div class="lag-row">
-      <div class="hero-box" data-vd-motion="{ translate-y: '0% 70px, 100% -70px', inertia: 0 }">inertia: 0 — locked to scroll</div>
-      <div class="hero-box" data-vd-motion="{ translate-y: '0% 70px, 100% -70px', inertia: 0.85, inertia-ease: 'cubic-bezier(0.22, 1, 0.36, 1)' }">inertia: 0.85 — keeps travelling</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 70px, 100% -70px' }, inertia: 0 }">inertia: 0 — locked to scroll</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 70px, 100% -70px' }, inertia: 0.85, inertia-ease: 'cubic-bezier(0.22, 1, 0.36, 1)' }">inertia: 0.85 — keeps travelling</div>
     </div>
   </demo-block>
 
@@ -523,7 +519,7 @@ const MOTION = `
   <demo-block caption="The colour is a plain CSS conic-gradient on a layer larger than its frame; scroll rotates and slides it. paint's colour table is DISCRETE on purpose — it indexes exact values so it can never paint a colour you did not write — so a continuous wash is a transform on a gradient rather than an interpolation between colours.">
     <div class="sky">
       <div class="sky-layer"
-           data-vd-motion="{ rotate: '0% 0deg, 100% 140deg', scale: '0% 1, 50% 1.25, 100% 1', inertia: 0.5 }"></div>
+           data-vd-motion="{ keyframes: { rotate: '0% 0deg, 100% 140deg', scale: '0% 1, 50% 1.25, 100% 1' }, inertia: 0.5 }"></div>
       <div class="sky-label">scroll me</div>
     </div>
   </demo-block>
@@ -540,19 +536,19 @@ const MOTION = `
          data-vd-watch="{ crossed: { ever: ever ? true : crossed } }">
       <div class="reveal-row" data-vd-in-view="onScreen">
         <div class="hero-box" data-vd-class="{ lit: ever }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
           1 · never leaves
         </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? (crossed ? true : !onScreen) : false }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
           2 · leaves only out the BOTTOM
         </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? onScreen : false }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
           3 · leaves only out the TOP
         </div>
         <div class="hero-box" data-vd-class="{ lit: crossed ? onScreen : false }"
-             data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0', when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
           4 · leaves either way
         </div>
       </div>
@@ -560,7 +556,7 @@ const MOTION = `
   </demo-block>
 
   <demo-block caption="run-once plays through and LATCHES — scroll it in, then back up: it stays. The latch even survives attribute edits.">
-    <div class="hero-box" data-vd-motion="{ opacity: '0% 0, 55% 1', scale: '0% 0.6, 55% 1', run-once: true }">
+    <div class="hero-box" data-vd-motion="{ keyframes: { opacity: '0% 0, 55% 1', scale: '0% 0.6, 55% 1' }, run-once: true }">
       latched
     </div>
   </demo-block>
@@ -569,8 +565,7 @@ const MOTION = `
     <div data-vd-state="{ lit: false }">
       <button data-vd-on-click="{ lit: !lit }">toggle</button>
       <div class="hero-box" data-vd-class="{ lit: lit }"
-           data-vd-motion="{ opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1',
-                             rotate: '0% 0deg, 100% 360deg', when: '.lit', inertia: 0.5 }">
+           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.lit', inertia: 0.5 }">
         state-driven
       </div>
     </div>
@@ -578,12 +573,12 @@ const MOTION = `
   <h2>Regions — motion-config replaces instances</h2>
   <demo-block caption="A container with motion-config is its own scroll world: this rail is a HORIZONTAL region with its own scroller. Scroll it sideways.">
     <div id="rail" class="gallery" data-vd-motion-region="{ axis: 'horizontal', scroller: '#rail', inertia: 0 }">
-      <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">A</div>
-      <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">B</div>
-      <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">C</div>
-      <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">D</div>
-      <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">E</div>
-      <div class="hero-box" data-vd-motion="{ rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' }">F</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">A</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">B</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">C</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">D</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">E</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">F</div>
     </div>
   </demo-block>
   <demo-block caption="The authoring escape hatch: explicit enable/disable wins over the reduced-motion preference (a page that never calls these honours the visitor's setting).">
@@ -603,10 +598,7 @@ const VOCAB = `
   <div class="tall-space">↓ scroll ↓</div>
   <demo-block caption="A sky, by scroll: background bands through dawn. shadow and color ride along.">
     <div class="hero-box" style="width:100%; height:9rem"
-         data-vd-motion="{ background: '0% #1a1a2e, 35% #6246ea, 70% #ff8e6e, 100% #ffd97d',
-                           color: '0% #ffffff, 70% #1a1a2e',
-                           shadow: '0% 0 0 0 rgba(0,0,0,0), 100% 0 18px 40px rgba(98,70,234,0.45)',
-                           inertia: 0.35 }">
+         data-vd-motion="{ keyframes: { background: '0% #1a1a2e, 35% #6246ea, 70% #ff8e6e, 100% #ffd97d', color: '0% #ffffff, 70% #1a1a2e', shadow: '0% 0 0 0 rgba(0,0,0,0), 100% 0 18px 40px rgba(98,70,234,0.45)' }, inertia: 0.35 }">
       dawn
     </div>
   </demo-block>
@@ -618,36 +610,34 @@ const VOCAB = `
               fill="none" stroke="var(--soft)" stroke-width="3" />
       </svg>
       <div class="rider"
-           data-vd-motion="{ path: '0% 0, 100% 100', path-selector: '#wave', path-rotate: 'auto', inertia: 0.2 }"></div>
+           data-vd-motion="{ keyframes: { path: '0% 0, 100% 100' }, path-selector: '#wave', path-rotate: 'auto', inertia: 0.2 }"></div>
     </div>
   </demo-block>
   <h2>split — text in pieces</h2>
   <demo-block caption="split rewrites the text; each piece inherits the element's motion (minus stagger, which stays on the host and cascades the pieces). A visually-hidden copy keeps the sentence for screen readers.">
     <p class="poem" data-vd-split="words"
-       data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 26px, 100% 0px',
-                         blur: '0% 6px, 100% 0px', stagger: '9%' }">
+       data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 26px, 100% 0px', blur: '0% 6px, 100% 0px' }, stagger: '9%' }">
       every word arrives on its own little breath of scroll
     </p>
   </demo-block>
   <demo-block caption="chars splits by grapheme cluster (Intl.Segmenter) — an emoji family is ONE piece, not five broken glyphs.">
     <p class="poem" data-vd-split="chars"
-       data-vd-motion="{ rotate: '0% 90deg, 100% 0deg', opacity: '0% 0, 100% 1', stagger: '4%' }">
+       data-vd-motion="{ keyframes: { rotate: '0% 90deg, 100% 0deg', opacity: '0% 0, 100% 1' }, stagger: '4%' }">
       vera 👨‍👩‍👧‍👦 splits
     </p>
   </demo-block>
   <h2>sequence — scroll-scrubbed image frames</h2>
   <demo-block caption="A canvas scrubbed through 24 numbered frames as you scroll — scroll slowly and the dial turns. The URL policy is FACTORY-ONLY: an attribute can never widen the origin allowlist, so these are served same-origin. Point frame-url at another origin and it is refused rather than fetched.">
     <canvas width="320" height="180" class="card"
-            data-vd-motion="{ frame: '0% 0, 100% 23', frame-url: '/examples/directives/frames/',
-                              frame-count: 24, frame-ext: 'svg', frame-tween: true }"></canvas>
+            data-vd-motion="{ keyframes: { frame: '0% 0, 100% 23' }, frame-url: '/examples/directives/frames/', frame-count: 24, frame-ext: 'svg', frame-tween: true }"></canvas>
   </demo-block>
   <h2>easings</h2>
   <demo-block caption="The easings module resolves keywords, cubic-bezier() and steps() for the CURVE (evaluated per segment, like @keyframes). inertia-ease shapes the catch-up and is CSS's job — same vocabulary, different physics.">
     <div style="display:flex; gap:0.9rem; flex-wrap:wrap">
-      <div class="hero-box" data-vd-motion="{ translate-y: '0% 80px, 100% 0px', ease: 'linear' }">linear</div>
-      <div class="hero-box" data-vd-motion="{ translate-y: '0% 80px, 100% 0px', ease: 'ease-in-out' }">ease-in-out</div>
-      <div class="hero-box" data-vd-motion="{ translate-y: '0% 80px, 100% 0px', ease: 'steps(5)' }">steps(5)</div>
-      <div class="hero-box" data-vd-motion="{ translate-y: '0% 80px, 100% 0px', ease: 'cubic-bezier(0.34, 1.8, 0.64, 1)' }">springy</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 80px, 100% 0px' }, ease: 'linear' }">linear</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 80px, 100% 0px' }, ease: 'ease-in-out' }">ease-in-out</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 80px, 100% 0px' }, ease: 'steps(5)' }">steps(5)</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 80px, 100% 0px' }, ease: 'cubic-bezier(0.34, 1.8, 0.64, 1)' }">springy</div>
     </div>
   </demo-block>
   <div class="tall-space">— end of the vocabulary —</div>
@@ -687,8 +677,7 @@ const FUN = `
   <demo-block caption="ENTRANCE TRANSITIONS — in-view + when: the trigger line writes state when this reaches 35% down the viewport, the selector matches, and inertia eases it in. It is deliberately NOT data-vd-init: state written AT activation is already true when motion first evaluates, so the element starts at its end value and there is nothing to transition from. A trigger that fires later is what gives a transition two values.">
     <div data-vd-state="{ here: false }" data-vd-in-view="here 0.85">
       <div class="hero-box" data-vd-class="{ lit: here }"
-           data-vd-motion="{ opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px',
-                             when: '.lit', inertia: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
+           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px' }, when: '.lit', inertia: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
         hello
       </div>
     </div>
@@ -714,7 +703,7 @@ const DIAGNOSTICS = `
       <p data-vd-show="{ broken">a value that cannot parse</p>
       <p data-vd-text="n === 1 ? 'x' : 'y'">=== gets the teaching refusal (== is already strict)</p>
       <a data-vd-bind-href="'javascript:alert(1)'">bind-href is refused wholesale — templates own URLs</a>
-      <p data-vd-motion="{ opacity: fade }">an unquoted motion value</p>
+      <p data-vd-motion="{ keyframes: { opacity: fade } }">an unquoted motion value</p>
       <p data-vd-motion="{ pin: 120px }">the unquoted-length paper cut — whole-element refusal, with the fix in the message</p>
       <svg data-vd-motion="fade"><rect width="10" height="10"></rect></svg>
     </div>

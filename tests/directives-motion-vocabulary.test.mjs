@@ -39,7 +39,7 @@ const mount = async (html) => {
 
 test('easings wired: a per-property ease is accepted, no refusal, still animates', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' }, ease: 'ease-out' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } }, ease: 'ease-out' }">x</div>`);
   const el = host.querySelector('div');
   assert.equal(rejections(el).length, 0, 'both ease slots resolved through the module');
   assert.match(el.style.filter, /opacity\(1\)/, 'clamped end, shaped curve or not');
@@ -49,7 +49,7 @@ test('easings wired: a per-property ease is accepted, no refusal, still animates
 
 test('paint wired: background animates by slot, written as the authored string', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ background: '0% red, 100% blue' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { background: '0% red, 100% blue' } }">x</div>`);
   const el = host.querySelector('div');
   /** Timeline sits past the end in jsdom, so the LAST slot's string lands. */
   assert.equal(el.style.getPropertyValue('background'), 'blue', 'the slot table round-tripped');
@@ -60,7 +60,7 @@ test('paint wired: background animates by slot, written as the authored string',
 
 test('paint refuses the image-sourcing family even where CSS.supports is absent', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ background: '0% red, 100% image-set(&quot;https://evil.test/x&quot; 1x)' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { background: '0% red, 100% image-set(&quot;https://evil.test/x&quot; 1x)' } }">x</div>`);
   const el = host.querySelector('div');
   assert.ok(rejections(el).some((r) => r.code === 'motion-bad-value'), 'the fetching value was dropped');
   assert.equal(el.style.getPropertyValue('background'), 'red', 'the clean keyframe survived alone');
@@ -70,7 +70,7 @@ test('paint refuses the image-sourcing family even where CSS.supports is absent'
 
 test('path wired: a selector matching nothing is refused with which way it failed', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ path: '0% 0, 100% 100', path-selector: '#nope' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { path: '0% 0, 100% 100' }, path-selector: '#nope' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-path-selector-bad'), 'refused');
   if (!isProduction) assert.ok(reasons.some((r) => /matched no element/.test(r.message)));
@@ -79,7 +79,7 @@ test('path wired: a selector matching nothing is refused with which way it faile
 });
 
 test('path without path-selector says so instead of travelling along nothing', async () => {
-  const host = await mount(`<div data-vd-motion="{ path: '0% 0, 100% 100' }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ keyframes: { path: '0% 0, 100% 100' } }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-path-no-selector'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs path-selector/.test(r.message)));
@@ -89,7 +89,7 @@ test('path without path-selector says so instead of travelling along nothing', a
 
 test('sequence wired: the whole validation chain runs — a real canvas fails at the 2D context here', async () => {
   const host = await mount(
-    `<canvas data-vd-motion="{ frame: '0% 0, 100% 10', frame-url: '/seq/', frame-count: 10 }"></canvas>`);
+    `<canvas data-vd-motion="{ keyframes: { frame: '0% 0, 100% 10' }, frame-url: '/seq/', frame-count: 10 }"></canvas>`);
   const el = host.querySelector('canvas');
   const reasons = rejections(el);
   /** url passed policy, count parsed — jsdom's context-less canvas is the stop. */
@@ -101,7 +101,7 @@ test('sequence wired: the whole validation chain runs — a real canvas fails at
 
 test('sequence: frame on a non-canvas is the first refusal', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ frame: '0% 0, 100% 10', frame-url: '/seq/', frame-count: 10 }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { frame: '0% 0, 100% 10' }, frame-url: '/seq/', frame-count: 10 }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs a <canvas>/.test(r.message)));
@@ -111,7 +111,7 @@ test('sequence: frame on a non-canvas is the first refusal', async () => {
 
 test('sequence: a cross-origin frame-url is refused by the default policy', async () => {
   const host = await mount(
-    `<canvas data-vd-motion="{ frame: '0% 0, 100% 10', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
+    `<canvas data-vd-motion="{ keyframes: { frame: '0% 0, 100% 10' }, frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
   const reasons = rejections(host.querySelector('canvas'));
   assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'), 'same-origin unless the FACTORY allows');
   host.remove();
@@ -120,7 +120,7 @@ test('sequence: a cross-origin frame-url is refused by the default policy', asyn
 
 test('split by words: pieces inherit the motion minus stagger, the sentence survives hidden', async () => {
   const host = await mount(
-    `<p data-vd-split="words" data-vd-motion="{ opacity: '0% 0, 100% 1', stagger: '10%' }">quick brown fox</p>`);
+    `<p data-vd-split="words" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, stagger: '10%' }">quick brown fox</p>`);
   const p = host.querySelector('p');
   const pieces = [...p.querySelectorAll('[data-vd-motion]')];
   assert.equal(pieces.length, 3, 'three words, three pieces');
@@ -176,7 +176,7 @@ test('split teardown puts the original text back exactly', async () => {
 
 test('a split container does not animate as a block — its value is the template', async () => {
   const host = await mount(
-    `<p data-vd-split="words" data-vd-motion="{ opacity: '0% 0, 100% 1' }">one two</p>`);
+    `<p data-vd-split="words" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">one two</p>`);
   const p = host.querySelector('p');
   assert.equal(p.style.filter, '', 'the container itself carries no animation style');
   host.remove();

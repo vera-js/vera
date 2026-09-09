@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-08",
+  "taken": "2026-09-09",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -79,8 +79,8 @@
       "gzip": 1302
     },
     "directives-motion": {
-      "raw": 53687,
-      "gzip": 18286
+      "raw": 54281,
+      "gzip": 18445
     }
   },
   "apps": [
