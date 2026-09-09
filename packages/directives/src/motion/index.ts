@@ -506,6 +506,7 @@ export const split = splitDirective;
  * change with any stage.
  */
 export * as keyframeRegistry from './registry.js';
+export * as writePath from './generate.js';
 export { parsePathData } from './path.js';
 
 export { enableMotion, disableMotion, runInserts };

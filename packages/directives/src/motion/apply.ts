@@ -23,7 +23,9 @@ export interface AppliedAnimation {
  * Rounds to a sane precision before it reaches the DOM. Sub-pixel noise past
  * three decimals cannot be rendered, and shorter strings mean less parsing.
  */
-const format = (value: number): string => String(Math.round(value * 1000) / 1000);
+/** Exported for generation: the SAME rounding must name identical animations identically, or the
+ *  content hash splits on formatting noise two writers never intended to differ on. */
+export const format = (value: number): string => String(Math.round(value * 1000) / 1000);
 
 /**
  * Composes a CSS function list — `translateY(10px) rotate(45deg)` — from every
