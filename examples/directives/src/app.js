@@ -555,8 +555,8 @@ const MOTION = `
          data-vd-in-view="crossed 0.5"
          data-vd-watch="{ crossed: { ever: ever ? true : crossed } }">
       <div class="reveal-row" data-vd-in-view="onScreen">
-        <div class="hero-box" data-vd-class="{ lit: ever ? onScreen : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
+        <div class="hero-box" data-vd-class="{ glowing: ever ? onScreen : false }"
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.glowing', play: 0.55 }">
           3 · out the TOP only
         </div>
       </div>
@@ -570,10 +570,10 @@ const MOTION = `
   </demo-block>
   <h2>when — the selector driver</h2>
   <demo-block caption="when GATES the animation: while the selector matches it runs, otherwise it rests at its start. With play it runs end-to-end, which is what makes this a UI transition rather than a scrub. Pair it with state + on-click and you have transitions with no new machinery.">
-    <div data-vd-state="{ lit: false }">
-      <button data-vd-on-click="{ lit: !lit }">toggle</button>
-      <div class="hero-box" data-vd-class="{ lit: lit }"
-           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.lit', play: 0.5 }">
+    <div data-vd-state="{ glowing: false }">
+      <button data-vd-on-click="{ glowing: !glowing }">toggle</button>
+      <div class="hero-box" data-vd-class="{ glowing: glowing }"
+           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.glowing', play: 0.5 }">
         state-driven
       </div>
     </div>
@@ -684,8 +684,8 @@ const FUN = `
   </demo-block>
   <demo-block caption="ENTRANCE TRANSITIONS — in-view + when: the trigger line writes state when this reaches 35% down the viewport, the selector matches, and inertia eases it in. It is deliberately NOT data-vd-init: state written AT activation is already true when motion first evaluates, so the element starts at its end value and there is nothing to transition from. A trigger that fires later is what gives a transition two values.">
     <div data-vd-state="{ here: false }" data-vd-in-view="here 0.85">
-      <div class="hero-box" data-vd-class="{ lit: here }"
-           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px' }, when: '.lit', play: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
+      <div class="hero-box" data-vd-class="{ glowing: here }"
+           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px' }, when: '.glowing', play: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
         hello
       </div>
     </div>
