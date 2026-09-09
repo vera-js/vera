@@ -24,7 +24,7 @@ import { emit, EVENTS } from './events.js';
 import { forgetSticky, forgetDirection } from './dom.js';
 import { supports, prefersReducedMotion, prefersCoarsePointer, onReducedMotionChange, onCoarsePointerChange } from './supports.js';
 import {
-  createRuntimeElement, updateElement, updateStateElement, resetElement, clearElement,
+  createRuntimeElement, updateElement, resetElement, clearElement,
   setElementStyles, setTransitions, readRootFontSize, cascadeTrouble,
 } from './runtime.js';
 import type { RuntimeElement, RuntimeSettings } from './runtime.js';
@@ -225,8 +225,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     queueTransitions(list);
     for (const element of list) {
       if (!enabled) return;
-      if (element.when) updateStateElement(element, true, runtimeSettings);
-      else updateElement(element, win, runtimeSettings, true);
+      updateElement(element, win, runtimeSettings, true);
     }
     /**
      * Then ask whether those writes survived the page's CSS — a SECOND pass
@@ -253,10 +252,17 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     for (const element of targets) updateElement(element, win, runtimeSettings);
   };
 
+  /**
+   * A gate opened or closed. `when` no longer replaces the scroll driver, so this re-runs the
+   * ORDINARY update — the element resumes scrubbing where the page is, or rests at its start.
+   * The window has to be measured here because a selector match is not a scroll event and the
+   * frame loop's `win` is not in hand.
+   */
   const updateState = (force = false): void => {
     if (!enabled) return;
+    const win = getWindowSize(runtimeSettings.scrollDirection, scroller);
     for (const element of elements) {
-      if (element.when) updateStateElement(element, force, runtimeSettings);
+      if (element.when) updateElement(element, win, runtimeSettings, force);
     }
   };
 
@@ -444,7 +450,8 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     updateWhen(node) {
       if (!enabled) return;
       const element = byNode.get(node);
-      if (element?.when) updateStateElement(element, false, runtimeSettings);
+      if (!element?.when) return;
+      updateElement(element, getWindowSize(runtimeSettings.scrollDirection, scroller), runtimeSettings, false);
     },
 
     /**
@@ -475,8 +482,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
         const win = getWindowSize(runtimeSettings.scrollDirection, scroller);
         for (const element of elements) {
           if (!enabled) return;
-          if (element.when) updateStateElement(element, true, runtimeSettings);
-          else updateElement(element, win, runtimeSettings, true);
+          updateElement(element, win, runtimeSettings, true);
         }
       }
     },

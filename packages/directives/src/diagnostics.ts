@@ -232,6 +232,14 @@ export const PROSE: Record<string, Prose> = {
   'motion-setting-selector': (where) => [
     `${where}: is not a selector this library will use — :has() and a few others are refused.`,
   ],
+  'motion-setting-alignment': (where) => [
+    `${where}: is not "<edge> <viewport position>".`,
+    'One token means the leading edge: \'70%\' is \'start 70%\'.',
+  ],
+  'motion-setting-range': (where) => [
+    `${where}: is not one or two comma-separated positions.`,
+    "scroll: '70%, 50%' scrubs between them; with play: they are the in and out thresholds.",
+  ],
   'motion-setting-length': (where) => [`${where}: is not a length — use px, rem, em, %, vh or vw.`],
   'motion-setting-module-refused': (where) => [`${where}: was refused by the module that owns it.`],
   'motion-band-suffix-retired': (property, band) => [
@@ -275,18 +283,23 @@ export const PROSE: Record<string, Prose> = {
     'selector when an attribute changes, and that state is not an attribute.',
     'Use CSS for it. This element animates on scroll instead.',
   ],
-  'motion-ease-with-when': () => [
-    'ease does nothing on a `when` element — it shapes the curve between keyframes, and `when` ' +
-    'holds the element at one end or the other.',
+  'motion-ease-with-play': () => [
+    'ease does nothing on a play — it shapes the curve between keyframes, and a play steps ' +
+    'end-to-end without visiting them.',
     'Use inertia-ease to shape the change.',
+  ],
+  'motion-play-with-inertia': () => [
+    'play and inertia name the same transition, so only one of them can be in force.',
+    'Keep play for a timed playthrough, or inertia for a smoothed scrub.',
   ],
   'motion-inertia-ease-at-zero': () => [
     'inertia-ease does nothing at inertia: 0 — it shapes the catch-up, and 0 means the values ' +
     'track scroll exactly with no transition to shape.',
     'Raise inertia, or use ease.',
   ],
-  'motion-stagger-with-when': () => [
-    'stagger does nothing on a `when` element — it offsets a scroll timeline, and `when` replaces the scroll driver.',
+  'motion-stagger-with-play': () => [
+    'stagger does nothing on a play — it offsets a scroll timeline, and a play has none.',
+    'Remove one of them; a per-sibling time delay is not built yet.',
   ],
   'motion-stagger-no-descendants': () => [
     'stagger needs animated descendants — it goes on the parent.',

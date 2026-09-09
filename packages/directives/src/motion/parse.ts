@@ -247,6 +247,8 @@ const WHY: Record<string, string> = {
   offset: 'motion-setting-offset',
   selector: 'motion-setting-selector',
   length: 'motion-setting-length',
+  alignment: 'motion-setting-alignment',
+  range: 'motion-setting-range',
 };
 
 /**
@@ -802,14 +804,26 @@ export const parseMotion = (
   }
 
   /**
-   * `ease` shapes the curve *between* keyframes, and a `when` element is
-   * never between them: it sits at one end or steps to the other. The
-   * message names the one that does work — `inertia-ease` shapes the
-   * *change* between the two states and applies to a `when` element exactly
-   * as to a scrolled one.
+   * `ease` shapes the curve *between* keyframes, and a PLAY is never between them: it steps the
+   * timeline end-to-end and lets the transition carry the values, so intermediate keyframes are
+   * never visited. `inertia-ease` is the one that works — it shapes that change, and applies to a
+   * play exactly as to a scrub.
+   *
+   * This used to be refused for `when` rather than `play`, on the same reasoning, and the reasoning
+   * moved with the behaviour: `when` now GATES a scrub instead of replacing it, so a gated element
+   * is between keyframes like any other and `ease` is meaningful again.
    */
-  if (typeof settings['ease'] === 'string' && typeof settings['when'] === 'string') {
-    rejected.push({ code: 'motion-ease-with-when', args: [] });
+  if (typeof settings['ease'] === 'string' && settings['play'] !== undefined) {
+    rejected.push({ code: 'motion-ease-with-play', args: [] });
+  }
+
+  /**
+   * `play` and `inertia` name the SAME number — the transition that carries the values — so writing
+   * both is a contradiction rather than a combination. Refused instead of ranked: silently
+   * preferring one leaves an author tuning a value nothing reads.
+   */
+  if (settings['play'] !== undefined && settings['inertia'] !== undefined) {
+    rejected.push({ code: 'motion-play-with-inertia', args: [] });
   }
 
   /**
@@ -830,13 +844,16 @@ export const parseMotion = (
   }
 
   /**
-   * Stagger works by shifting keyframes along the *scroll* timeline, and
-   * `when` replaces the scroll driver entirely. Reported on the child
-   * rather than the parent, because a parent may hold a mix of
-   * scroll-driven and state-driven children.
+   * Stagger shifts keyframes along the SCROLL timeline, which a play does not have — it crosses a
+   * threshold and runs over time, so a position offset moves nothing. The equivalent for a play is a
+   * time delay per sibling, which is a different mechanism and is not built yet; refused meanwhile,
+   * because a stagger that parses and shifts nothing is exactly the quiet failure this package
+   * refuses elsewhere.
+   *
+   * Reported on the CHILD rather than the parent, because a parent may hold a mix.
    */
-  if (stagger && typeof settings['when'] === 'string') {
-    rejected.push({ code: 'motion-stagger-with-when', args: [] });
+  if (stagger && settings['play'] !== undefined) {
+    rejected.push({ code: 'motion-stagger-with-play', args: [] });
   }
 
   return {

@@ -110,6 +110,15 @@ export interface RuntimeElement {
   /** The scroll range percentages are measured across — see `resolveRange`. */
   rangeStart: number;
   rangeSize: number;
+  /** `play` is set: this element runs its keyframes over time at a threshold rather than scrubbing. */
+  readonly playing: boolean;
+  /**
+   * Where a PLAY reverses, or null for a single threshold crossed both ways. Resolved with the range
+   * because it is the far end of it — kept apart from `rangeSize` because a play with one half still
+   * has a range (its default end), and using that as an exit would make the element leave at a line
+   * the author never wrote.
+   */
+  exitAt: number | null;
   end: number;
   size: number;
 
@@ -331,7 +340,19 @@ const transitionFor = (
   element: ParsedElement
 ): string | null => {
   const ease = String(element.settings['inertia-ease'] ?? settings.inertiaEase);
-  const base = Number(element.settings['inertia'] ?? settings.inertia);
+  /**
+   * **`play` IS the transition, when it is set.** A play walks the timeline end-to-end in one step
+   * and the transition is what makes that take time, so its duration is the playthrough's length —
+   * the same mechanism `when` has always used, with a name that says so.
+   *
+   * It overrides `inertia` rather than combining with it, and the two together are refused at parse
+   * time: they name the same number, so ranking them silently would leave an author tuning a value
+   * nothing reads.
+   */
+  const playing = element.settings['play'];
+  const base = playing !== undefined
+    ? Number(playing)
+    : Number(element.settings['inertia'] ?? settings.inertia);
 
   /**
    * Per-category inertia, so one element can move fast and fade slowly — the
@@ -343,6 +364,9 @@ const transitionFor = (
    * failure this codebase rejects elsewhere.
    */
   const speedFor = (category: string): number => {
+    /** A play has ONE duration. Per-category inertia is a scrub's smoothing, and letting it split a
+     *  playthrough would make transform and filter finish at different times mid-play. */
+    if (playing !== undefined) return base;
     const override = element.settings[`${category}-inertia`];
     return override === undefined ? base : Number(override);
   };
@@ -573,11 +597,13 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
 const markUnfinishable = (element: RuntimeElement, win: WindowSize): void => {
   element.unfinishable =
     /**
-     * Never for a `when` element. It is driven by a selector match rather than
-     * by scroll, so it reaches `highestEnd` the moment the selector does and
-     * the page's length has nothing to do with it — this said "the page ends
-     * before this animation does" about an animation that finishes whenever
-     * the class is toggled, on a page of any height.
+     * Never for a PLAY. It reaches `highestEnd` the moment its threshold is crossed and the page's
+     * length has nothing to do with it — this said "the page ends before this animation does" about
+     * an animation that finishes on a trigger, on a page of any height.
+     *
+     * This tested `when` until `when` became a gate rather than a driver. A gated element still
+     * scrubs, so the page's length is exactly as relevant to it as to any other; the property that
+     * makes the diagnostic false is not having a scroll timeline at all, which is now `playing`.
      *
      * A false diagnostic costs what a missing one costs. It lands in the same
      * `rejected` list a GUI renders beside the real refusals, and the sentence
@@ -587,7 +613,7 @@ const markUnfinishable = (element: RuntimeElement, win: WindowSize): void => {
      * depended on the driver goes with it: the same rule that refuses `ease`
      * and `stagger` there.
      */
-    !element.when &&
+    !element.playing &&
     win.reach > win.size &&
     win.reach - element.start < element.highestEnd * (element.size + win.size);
 };
@@ -912,6 +938,8 @@ export const createRuntimeElement = (
     start: start + displaced,
     rangeStart: 0,
     rangeSize: 0,
+    playing: parsed.settings['play'] !== undefined,
+    exitAt: null,
     end: end + displaced,
     size,
     lowestStart: 0,
@@ -1029,66 +1057,6 @@ export const animateElement = (element: RuntimeElement): void => {
   }
 };
 
-/**
- * Drives a state-driven element from its selector.
- *
- * The whole feature is this: the timeline position comes from a selector match
- * rather than from scroll. End of the authored range while it matches, start
- * while it does not — the *authored* range rather than 0 and 1, so keyframes
- * outside the usual bounds still resolve to the right ends.
- *
- * Everything downstream is untouched. The damping that makes a scroll animation
- * chase is the same damping that makes this ease rather than snap.
- *
- * @returns whether the position changed, so the caller can skip a pointless write
- */
-export const updateStateElement = (
-  element: RuntimeElement,
-  force = false,
-  settings?: RuntimeSettings
-): boolean => {
-  if (!element.when) return false;
-
-  /**
-   * run-once means the same thing here as on scroll: play through, then latch.
-   *
-   * A forced repaint still has to *paint* it. `enable()` strips every animated
-   * style and `start()` puts them back, passing `force` precisely so a latched
-   * element is not skipped — its own comment says so — and this returned
-   * before reading `force` at all. Measured: a latched state-driven element
-   * came back from a disable/enable toggle with no transform whatsoever.
-   *
-   * Repaint, never re-evaluate: the selector may well have stopped matching
-   * since it latched, and latched means the end value holds regardless.
-   */
-  if (element.runOnce && element.runOnceRan) {
-    if (force) animateElement(element);
-    return false;
-  }
-
-  const matches = element.node.matches(element.when);
-  const next = matches ? element.highestEnd : element.lowestStart;
-
-  /**
-   * `force` exists for the initial pass. A resting element's position already
-   * equals its start, so without it the element would carry no inline style at
-   * all until the selector first matched — visible as a flash of un-animated
-   * content the moment it does.
-   */
-  if (!force && next === element.timelinePosition) return false;
-
-  element.timelinePosition = next;
-  animateElement(element);
-
-  settings?.onProgress?.(element.node, next);
-
-  if (element.runOnce && matches && !element.runOnceRan) {
-    element.runOnceRan = true;
-    emit(element.node, EVENTS.complete, next);
-  }
-
-  return true;
-};
 
 /**
  * Recomputes the timeline position from the current scroll window.
@@ -1119,6 +1087,21 @@ const alignmentAt = (
   return anchorStart + (edge ?? 0) * anchorSize - (place ?? 0) * win.size;
 };
 
+/**
+ * `scroll`'s two halves, or `undefined` for each one not given — which is what `alignmentAt` reads as
+ * "use the default for this end".
+ *
+ * Stored as one normalised string because a setting's value is `string | number | boolean`; split
+ * here rather than at parse time so the runtime holds exactly what the author wrote and the two ends
+ * keep travelling together.
+ */
+const scrollHalves = (element: RuntimeElement): [string | undefined, string | undefined] => {
+  const raw = element.parsed.settings['scroll'];
+  if (typeof raw !== 'string' || raw === '') return [undefined, undefined];
+  const [first, second] = raw.split(',');
+  return [first || undefined, second || undefined];
+};
+
 export const resolveRange = (
   element: RuntimeElement,
   settings: RuntimeSettings,
@@ -1135,12 +1118,12 @@ export const resolveRange = (
    * point at it.
    */
   if (selector === 'self') {
-    const from = alignmentAt(
-      element.parsed.settings['start'] as string | undefined, [0, 1], element.start, element.size, win);
-    const to = alignmentAt(
-      element.parsed.settings['end'] as string | undefined, [1, 0], element.start, element.size, win);
+    const [first, second] = scrollHalves(element);
+    const from = alignmentAt(first, [0, 1], element.start, element.size, win);
+    const to = alignmentAt(second, [1, 0], element.start, element.size, win);
     element.rangeStart = from;
     element.rangeSize = to - from;
+    element.exitAt = second === undefined ? null : to;
     return;
   }
   if (typeof selector === 'string' && selector !== '') {
@@ -1155,12 +1138,13 @@ export const resolveRange = (
     }
   }
 
-  const from = alignmentAt(
-    element.parsed.settings['start'] as string | undefined, [0, 1], anchorStart, anchorSize, win);
-  const to = alignmentAt(
-    element.parsed.settings['end'] as string | undefined, [1, 0], anchorStart, anchorSize, win);
+  const [first, second] = scrollHalves(element);
+  const from = alignmentAt(first, [0, 1], anchorStart, anchorSize, win);
+  const to = alignmentAt(second, [1, 0], anchorStart, anchorSize, win);
   element.rangeStart = from;
   element.rangeSize = to - from;
+  /** Only an AUTHORED second half is an exit — see `exitAt`. */
+  element.exitAt = second === undefined ? null : to;
 };
 
 export const updateTimelinePosition = (element: RuntimeElement, win: WindowSize): void => {
@@ -1185,8 +1169,38 @@ export const updateElement = (
    */
   force = false
 ): void => {
-  /** State-driven elements ignore scroll entirely — see updateStateElement. */
-  if (element.when) return;
+  /**
+   * **The latch is checked FIRST, above the gate.** `run-once` means played through and finished,
+   * and a finished animation is not un-finished by its gate closing — measured here: with the gate
+   * tested first, removing the class sent a latched element back to `opacity(0)`.
+   *
+   * A forced repaint paints what it latched *at* rather than recomputing from the current scroll
+   * position — recomputing put a finished animation back to wherever the page happens to be
+   * scrolled now. Measured: latched at `translateY(120px)`, scrolled back to the top, toggled off
+   * and on, and it came back at `translateY(86.292px)`.
+   */
+  if (element.runOnce && element.runOnceRan) {
+    if (force) animateElement(element);
+    return;
+  }
+
+  /**
+   * **`when` GATES; it no longer replaces the driver.** While the selector matches, the element
+   * animates normally — scrubbing below, or playing if `play` is set. While it does not, it rests at
+   * its authored start, which is what "not active" means and what makes the gate reversible.
+   *
+   * It used to replace the scroll driver outright, jumping the element end-to-end on a match. That
+   * was one key answering two independent questions — under what condition is this active, and what
+   * drives the progress — and one key cannot carry two orthogonal choices. `when: '.open', play: 0.6`
+   * says the old behaviour out loud.
+   */
+  if (element.when && !element.node.matches(element.when)) {
+    if (force || element.timelinePosition !== element.lowestStart) {
+      element.timelinePosition = element.lowestStart;
+      animateElement(element);
+    }
+    return;
+  }
 
   /**
    * Deliberately allocation-free. This runs once per element per frame, and
@@ -1202,15 +1216,30 @@ export const updateElement = (
    * element is measured, which is where the width is already known — this ran
    * once per element per frame to answer a question that changes on resize.
    */
-  if (element.runOnce && element.runOnceRan) {
-    /**
-     * Latched. A forced repaint paints what it latched *at* rather than
-     * recomputing from the current scroll position — recomputing put a
-     * finished animation back to wherever the page happens to be scrolled
-     * now. Measured: latched at `translateY(120px)`, scrolled back to the top,
-     * toggled off and on, and it came back at `translateY(86.292px)`.
-     */
-    if (force) animateElement(element);
+  /**
+   * **A play does not scrub.** It walks the timeline end-to-end in one step when a threshold is
+   * crossed and lets the transition (whose duration is `play`) take the time; a scrub tracks scroll
+   * position continuously. Which is why `scroll`'s two halves mean different things in the two
+   * modes and the same sentence covers both: *scroll names where the animation begins and ends —
+   * scrubbing spreads it across that span, playing runs it at each end.*
+   *
+   * With ONE half there is one threshold, crossed both ways: in going down, out coming back up past
+   * the same line. With two, the second is the exit — so an element can come in at 75% and leave
+   * when its bottom clears 25%, and reverse symmetrically. `run-once` is the opt-out that latches
+   * after the first forward play and never reverses.
+   */
+  if (element.playing) {
+    const entered = win.start >= element.rangeStart;
+    const exited = element.exitAt !== null && win.start >= element.exitAt;
+    const target = entered && !exited ? element.highestEnd : element.lowestStart;
+    if (!force && target === element.timelinePosition) return;
+    element.timelinePosition = target;
+    animateElement(element);
+    settings.onProgress?.(element.node, target);
+    if (element.runOnce && target === element.highestEnd) {
+      element.runOnceRan = true;
+      emit(element.node, EVENTS.complete, target);
+    }
     return;
   }
 

@@ -101,19 +101,47 @@ it('the stagger cascade is real offsets: siblings at one scroll position sit at 
   expect(values[1], 'second leads third').to.be.greaterThan(values[2]);
 });
 
-it('a when element ignores scroll and walks between its authored ends on the selector', async () => {
+it('when GATES a scrub: closed it rests at the start, open it tracks scroll', async () => {
   const host = page(`<div id="w" data-vd-motion="{ keyframes: { opacity: '0% 0.2, 100% 0.8' }, when: '.go', inertia: 0 }" style="height:50px">x</div>`);
   const el = host.querySelector('#w');
   await settle();
-  expect(opacityOf(el), 'unmatched: the authored start, wherever the page is scrolled').to.equal(0.2);
+  expect(opacityOf(el), 'unmatched: the authored start').to.equal(0.2);
   await scrollTo(el.offsetTop);
-  expect(opacityOf(el), 'scroll does not drive it').to.equal(0.2);
+  expect(opacityOf(el), 'and still, wherever the page is scrolled').to.equal(0.2);
+
   el.classList.add('go');
   await settle();
-  expect(opacityOf(el), 'matched: the authored end').to.equal(0.8);
+  /**
+   * **The whole change, and only a real browser can show it.** `when` used to REPLACE the scroll
+   * driver, so a match jumped the element to its authored end (0.8). It gates now: a matching
+   * element resumes the ordinary scrub, so at this scroll position it sits BETWEEN the ends. An
+   * assertion of "not 0.2" would have passed under both behaviours.
+   */
+  const live = opacityOf(el);
+  expect(live, 'matched: scrubbing with the page').to.be.greaterThan(0.2);
+  expect(live, 'matched: and not jumped to the end').to.be.lessThan(0.8);
+
   el.classList.remove('go');
   await settle();
-  expect(opacityOf(el), 'and back').to.equal(0.2);
+  expect(opacityOf(el), 'closed again: back to the start').to.equal(0.2);
+});
+
+it('play runs end-to-end at a threshold, and reverses coming back up past it', async () => {
+  const host = page(`<div id="p" data-vd-motion="{ keyframes: { opacity: '0% 0.2, 100% 0.8' }, scroll: '50%', play: 0 }" style="height:50px">x</div>`);
+  const el = host.querySelector('#p');
+  await scrollTo(0);
+  await settle();
+  expect(opacityOf(el), 'below the line: the authored start').to.equal(0.2);
+
+  /** Past the halfway line: the play has run, and a play is never mid-range. */
+  await scrollTo(el.offsetTop);
+  await settle();
+  expect(opacityOf(el), 'past the threshold: the authored end, not a scroll position').to.equal(0.8);
+
+  /** Back up above it: symmetric, which is what makes one threshold a reveal AND a hide. */
+  await scrollTo(0);
+  await settle();
+  expect(opacityOf(el), 'back above the line: reversed').to.equal(0.2);
 });
 
 it('teardown returns the element to its natural state with the page scrolled anywhere', async () => {

@@ -30,9 +30,9 @@
  * form can coexist.
  *
  * Positions use standard CSS units — `%` `vh` `vw` `px` `rem`. `%` is a
- * percentage of the scroll window (element size + viewport), which is what
- * CSS's own `animation-range` means by a percentage of `cover`. Values outside
- * 0-100 extrapolate, bounded by MIN_PERCENT / MAX_PERCENT.
+ * percentage of the range `scroll` names, which is what CSS's own `animation-range` means by a
+ * percentage of `cover`. Positions run 0-100, like CSS keyframes; the out-of-range spellings live
+ * on `scroll` instead — see MIN_PERCENT.
  *
  * The category (transform / filter / …) is deliberately absent from the key:
  * `translate-y` is always a transform, so it is derived here rather than
@@ -59,9 +59,25 @@ export const setProblemReporter = (fn: typeof report): void => {
 /** A page-level problem — no element to hang it on. Codes, like everything else here. */
 export const pageProblem = (code: string, args: readonly string[] = []): void => report(code, args);
 
-/** Timeline bounds, as percentages. */
-export const MIN_PERCENT = -300;
-export const MAX_PERCENT = 300;
+/**
+ * **Keyframe positions are 0-100%, exactly like CSS `@keyframes`.**
+ *
+ * They used to run -300..300, on the reasoning that a value could extrapolate beyond the range. It
+ * bought nothing: `'-50% 0, 150% 1'` produces 0.25 to 0.75 across the range, which is
+ * `'0% 0.25, 100% 0.75'` said longer. What it COST was the ability to emit these as real CSS
+ * keyframes without rescaling every position against a computed span — the obstacle that stood in
+ * the way of handing the write path to the platform.
+ *
+ * The extrapolation range belongs on `scroll`, where it is a genuine capability: `scroll: '150%'`
+ * means "begin when the element's top is half a viewport below the fold", which has no in-range
+ * spelling. `place()` allows ±3 there and keeps doing so.
+ *
+ * One caveat, recorded rather than hidden: with a NON-LINEAR ease the two spellings are not exactly
+ * equivalent, because sampling a cubic across a wider span is a different curve than that cubic
+ * between remapped endpoints. Reachable by choosing a different easing, and not worth the rescaling.
+ */
+export const MIN_PERCENT = 0;
+export const MAX_PERCENT = 100;
 
 export const CATEGORIES = [
   'transform',
@@ -270,7 +286,9 @@ export interface SettingDef {
     /** A keyframe-position offset: a number with an optional unit, `%` by default. */
     | 'offset'
     /** `"<edge> <viewport position>"` — one end of the range percentages are measured across. */
-    | 'alignment';
+    | 'alignment'
+    /** One or two alignments, comma-separated: the span a scrub crosses, or a play's two events. */
+    | 'range';
   /** Bounds for `number`. A setting without them is unbounded, which is a bug. */
   readonly min?: number;
   readonly max?: number;
@@ -344,25 +362,45 @@ export const SETTINGS = [
    * 21.1% in a 1000px one. Naming the ends fixes that. Percentages stay a fraction of the range;
    * the range becomes something you can say out loud.
    *
-   * `anchor` picks WHOSE box the edges belong to (default: this element). `start` and `end` are
-   * `"<edge> <viewport position>"` — the element edge, and where in the viewport it sits when that
-   * end of the range is reached. Defaults are `top bottom` and `bottom top`, which reduce exactly
-   * to the old window, so nothing already written changes meaning.
+   * **`scroll` names where the animation begins and ends. Scrubbing spreads it across that span;
+   * playing runs it at each end.** One sentence, two modes, the same two positions — which is why
+   * this is one key and not the `start`/`end` pair it replaces. `scroll:` and `play:` then read as
+   * two answers to one question, where `start`/`end`/`play` left the relationship invisible.
    *
-   *   start: 'top 60%'      the range begins when this element's top is 60% down the viewport
-   *   anchor: '#section'    measure against a section instead, for a sticky child
-   *   start: 'top top', end: 'bottom bottom'    the span a sticky element is pinned for
+   * Each half is `"<edge> <viewport position>"` — the element edge, and where in the viewport it
+   * sits when that end is reached — or ONE token for the leading edge. Defaults are `start bottom`
+   * and `end start`: the element's own transit, scaled to its height.
+   *
+   *   scroll: '70%, 50%'          top from 70% down the screen to 50% — a fixed slice, any height
+   *   scroll: 'top 60%'           begins when this element's top is 60% down; default end
+   *   scroll: 'top top, bottom bottom'   the span a sticky element is pinned for
+   *   anchor: '#section'          measure against a section instead, for a sticky child
+   *
+   * With `play`, the two halves are the two EVENTS rather than the ends of a span: in at the first,
+   * out (reversed) at the second. One half means one threshold, crossed both ways.
    */
   { key: 'anchor', type: 'selector', parse: (raw) => (raw.trim() === 'self' ? 'self' : parseSelector(raw, true)) },
-  { key: 'start', type: 'alignment', parse: (raw) => parseAlignment(raw) },
-  { key: 'end', type: 'alignment', parse: (raw) => parseAlignment(raw) },
+  { key: 'scroll', type: 'range', parse: (raw) => parseScrollRange(raw) },
+  /**
+   * **Seconds, and its presence is what makes this a play rather than a scrub.** Seconds because
+   * `inertia` is seconds; two durations in one object differing by 1000x with neither carrying a
+   * unit is a bug factory.
+   *
+   * A play runs its keyframes over time when a threshold is crossed; a scrub tracks scroll
+   * position. `inertia` names the same transition a play's duration does, so the two together are a
+   * contradiction and are refused rather than silently ranked.
+   */
+  { key: 'play', type: 'number', min: 0, max: 3600 },
   { key: 'run-once', type: 'boolean' },
   /**
-   * Drive this element from a selector match instead of from scroll. While
-   * the element matches, the animation sits at its end; while it does not, at
-   * its start. It replaces the driver rather than adding to it: an element is
-   * scroll-driven or state-driven, never both. A list is allowed — `when` is
-   * evaluated with `matches()`, where `a, b` means "either".
+   * **Gates the animation; it does not replace the driver.** While the element matches, it animates
+   * normally — scrubbing on scroll, or playing if `play` is set; while it does not, it rests at its
+   * start. A list is allowed — `when` is evaluated with `matches()`, where `a, b` means "either".
+   *
+   * It used to REPLACE the scroll driver, jumping the element end-to-end on a match. That was one
+   * key answering two independent questions — *under what condition is this active* and *what drives
+   * the progress* — and one key cannot express two orthogonal choices. The old behaviour is still
+   * expressible and now says so out loud: `when: '.open', play: 0.6`.
    */
   { key: 'when', type: 'selector', parse: (raw) => parseSelector(raw, true) },
   /**
@@ -745,6 +783,30 @@ export const parseAlignment = (raw: string): string | null => {
   const axes = [AXIS[parts[0]!], AXIS[parts[1]!]].filter(Boolean);
   if (axes.length === 2 && axes[0] !== axes[1]) return null;
   return `${edge} ${viewport}`;
+};
+
+/**
+ * `scroll`'s value: one or two alignments, comma-separated.
+ *
+ * Returned as the two halves joined by `,` so the runtime splits once and hands each to the same
+ * resolver `start`/`end` used — the storage is a normalised string because a setting's value is
+ * `string | number | boolean` and a pair has nowhere else to live.
+ *
+ * **A comma is required between the halves, and a space is not a second spelling of it** — because
+ * `'70% 50%'` is already a legal SINGLE alignment: both halves of an alignment take a percentage, so
+ * that reads as "the point 70% down the element, at 50% of the viewport". Nothing is ambiguous; two
+ * different valid things are being distinguished, and the comma is what picks the pair. Which is
+ * also why this cannot be relaxed later: accepting a space would take a working spelling away.
+ *
+ * One half is legal and means the first end only — the second falls back to its default. There is
+ * deliberately no empty-slot spelling for the reverse (`', 50%'`): it differs from `'50%, '` by one
+ * character, they mean opposite things, and neither looks wrong. Write the default out.
+ */
+export const parseScrollRange = (raw: string): string | null => {
+  const halves = raw.split(',');
+  if (halves.length > 2) return null;
+  const parsed = halves.map((half) => parseAlignment(half));
+  return parsed.some((one) => one === null) ? null : parsed.join(',');
 };
 
 export const parsePosition = (

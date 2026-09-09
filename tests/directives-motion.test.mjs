@@ -197,16 +197,22 @@ test('settings arrive as authored types: numbers, booleans, and their refusals',
   await settled();
 });
 
+/**
+ * `play` rather than `inertia` since the scroll/play pass: `when` GATES now, so `when` alone would
+ * let this element scrub with the page rather than run end-to-end, and the latch under test is a
+ * property of a playthrough. `play: 0` is the instant version of what `inertia: 0` used to express
+ * here — the two name the same transition, which is why writing both is refused.
+ */
 test('attribute edits rebuild through the engine, and the run-once latch survives them', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', inertia: 0 }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', play: 0 }">x</div>`);
   const el = host.querySelector('div');
   el.classList.add('go');
   await settled();
   await frame();
   assert.match(el.style.filter, /opacity\(1\)/, 'played through and latched');
   /** Edit the value: the engine tears down and reactivates this directive. */
-  el.setAttribute('data-vd-motion', `{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', inertia: 0.2 }`);
+  el.setAttribute('data-vd-motion', `{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', play: 0.2 }`);
   await settled();
   await frame();
   await frame();

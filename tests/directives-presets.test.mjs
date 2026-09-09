@@ -92,11 +92,17 @@ test('an explicit setting beats the preset — in EITHER written order', async (
 });
 
 test('an explicit keyframe replaces the preset’s for that property, and keeps the rest', async () => {
+  /**
+   * The override ENDS somewhere the preset never does. `fade-up` travels to `0px`, so an override
+   * that also ended at 0 would be indistinguishable from it once the play completes — which is
+   * exactly what this asserted before the shipped presets gained triggers, and it passed for the
+   * wrong reason until they did.
+   */
   const host = await mount(
-    `<div data-vd-motion="{ preset: 'fade-up', keyframes: { translate-y: '0% 200px, 100% 0px' } }"></div>`);
+    `<div data-vd-motion="{ preset: 'fade-up', keyframes: { translate-y: '0% 0px, 100% 50px' } }"></div>`);
   const el = host.querySelector('div');
 
-  assert.match(el.style.transform, /translateY\((?!0px)/, 'the explicit travel is in force');
+  assert.match(el.style.transform, /translateY\(50px\)/, 'the explicit travel is in force');
   assert.match(el.style.filter, /opacity\(/, 'and the preset’s other property survived');
 });
 

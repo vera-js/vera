@@ -536,19 +536,19 @@ const MOTION = `
          data-vd-watch="{ crossed: { ever: ever ? true : crossed } }">
       <div class="reveal-row" data-vd-in-view="onScreen">
         <div class="hero-box" data-vd-class="{ lit: ever }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
           1 · never leaves
         </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? (crossed ? true : !onScreen) : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
           2 · leaves only out the BOTTOM
         </div>
         <div class="hero-box" data-vd-class="{ lit: ever ? onScreen : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
           3 · leaves only out the TOP
         </div>
         <div class="hero-box" data-vd-class="{ lit: crossed ? onScreen : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', inertia: 0.55 }">
+             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.lit', play: 0.55 }">
           4 · leaves either way
         </div>
       </div>
@@ -565,7 +565,7 @@ const MOTION = `
     <div data-vd-state="{ lit: false }">
       <button data-vd-on-click="{ lit: !lit }">toggle</button>
       <div class="hero-box" data-vd-class="{ lit: lit }"
-           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.lit', inertia: 0.5 }">
+           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.lit', play: 0.5 }">
         state-driven
       </div>
     </div>
@@ -677,7 +677,7 @@ const FUN = `
   <demo-block caption="ENTRANCE TRANSITIONS — in-view + when: the trigger line writes state when this reaches 35% down the viewport, the selector matches, and inertia eases it in. It is deliberately NOT data-vd-init: state written AT activation is already true when motion first evaluates, so the element starts at its end value and there is nothing to transition from. A trigger that fires later is what gives a transition two values.">
     <div data-vd-state="{ here: false }" data-vd-in-view="here 0.85">
       <div class="hero-box" data-vd-class="{ lit: here }"
-           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px' }, when: '.lit', inertia: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
+           data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 24px, 100% 0px' }, when: '.lit', play: 0.6, inertia-ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }">
         hello
       </div>
     </div>

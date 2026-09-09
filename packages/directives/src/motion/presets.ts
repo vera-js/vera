@@ -45,22 +45,34 @@ export interface Preset {
 export type PresetTable = Readonly<Record<string, Preset>>;
 
 /**
- * Deliberately keyframes-only, all ten. A preset that carried a trigger would be making a decision
- * about a page it has never seen, and these are the generic vocabulary — `fade-up` means "fade and
- * rise", not "fade and rise 85% down the screen". A HOUSE pack is where triggers belong, because
- * that is written by someone who knows the page.
+ * **Every one of these carries a trigger, and that is the point.** They were keyframes-only at
+ * first, on the reasoning that a trigger is a decision about a page the pack has never seen. Brian's
+ * objection, and it is correct: the keyframes are equally such a decision — why 40px of travel? —
+ * and declining to choose does not leave the preset neutral, it leaves it BROKEN. Without a trigger
+ * a play fires the instant the element's first pixel clears the bottom of the viewport, so the
+ * animation is over before anyone looks at it. A preset that does not work on its own is not a
+ * preset, it is a fragment.
+ *
+ * `scroll: '85%'` — the element's top 85% down the screen, which is where a reveal reads as
+ * deliberate rather than as something that happened off-screen. `play: 0.6` because these are
+ * reveals rather than scrubs: crossing the line runs the animation, and crossing back up past it
+ * reverses. Not `run-once`, which is the opt-out for anyone who wants the latch.
+ *
+ * Anything here is overridable per element and per pack — `{ preset: 'fade-up', scroll: '60%' }` is
+ * fade-up arriving earlier, because the expansion runs before every other key.
  */
+const REVEAL = { scroll: '85%', play: 0.6 } as const;
 export const PRESETS: PresetTable = {
-  'fade': { keyframes: { opacity: '0% 0, 100% 1' } },
-  'fade-up': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% 40px, 100% 0px' } },
-  'fade-down': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% -40px, 100% 0px' } },
-  'fade-left': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% 40px, 100% 0px' } },
-  'fade-right': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% -40px, 100% 0px' } },
-  'zoom-in': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 0.8, 100% 1' } },
-  'zoom-out': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 1.2, 100% 1' } },
-  'slide-up': { keyframes: { 'translate-y': '0% 100px, 100% 0px' } },
-  'slide-down': { keyframes: { 'translate-y': '0% -100px, 100% 0px' } },
-  'blur-in': { keyframes: { opacity: '0% 0, 100% 1', blur: '0% 12px, 100% 0px' } },
+  'fade': { keyframes: { opacity: '0% 0, 100% 1' }, ...REVEAL },
+  'fade-up': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% 40px, 100% 0px' }, ...REVEAL },
+  'fade-down': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% -40px, 100% 0px' }, ...REVEAL },
+  'fade-left': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% 40px, 100% 0px' }, ...REVEAL },
+  'fade-right': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% -40px, 100% 0px' }, ...REVEAL },
+  'zoom-in': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 0.8, 100% 1' }, ...REVEAL },
+  'zoom-out': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 1.2, 100% 1' }, ...REVEAL },
+  'slide-up': { keyframes: { 'translate-y': '0% 100px, 100% 0px' }, ...REVEAL },
+  'slide-down': { keyframes: { 'translate-y': '0% -100px, 100% 0px' }, ...REVEAL },
+  'blur-in': { keyframes: { opacity: '0% 0, 100% 1', blur: '0% 12px, 100% 0px' }, ...REVEAL },
 };
 
 /**
