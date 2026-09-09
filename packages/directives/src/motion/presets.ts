@@ -3,35 +3,33 @@
  *
  * **These are AN example, not THE list.** A preset is the most project-specific thing in this
  * package: a site's house reveal is not ours to guess, and the ten below are a starting vocabulary
- * rather than a standard. Registering your own is the same one-liner this file uses, and replacing
- * ours wholesale is `wireDirectives([motion, myPresets])` with ours never imported.
+ * rather than a standard.
  *
- *   import { motion, presets } from '@verajs/directives/motion';
- *   wireDirectives([motion, presets]);
+ *   wireDirectives([motion, presets]);            // the shipped ten
+ *   wireDirectives([motion, presets(house)]);     // yours, MERGED over ours
  *
- *   // or your own, instead of or beside ours
- *   const house = vocabularyConnector({ on: 'preset', fn: (name) => TABLE[name] ?? null });
+ * **A preset is a motion value with a name**, and that is the whole design: the entries below are
+ * the same shape as the attribute they expand into, so anything writable in markup is writable in a
+ * preset and there is no second format to learn or keep in step. That includes SETTINGS, which is
+ * what makes a pack worth shipping rather than a snippet worth copying — one word can carry a
+ * project's whole motion character.
  *
- * **A preset is a motion value with a name**, and that is the whole design: the object below is the
- * same shape as the attribute it expands into, so anything writable in markup is writable in a
- * preset and there is no second format to learn or keep in step.
+ * **`presets(table)` merges rather than replaces**, key by key, yours winning. Two reasons, and the
+ * second is the one that decided it:
  *
- * That includes SETTINGS, which is what makes a pack worth shipping rather than a snippet worth
- * copying — `hero-in` can encode keyframes, ease, trigger and duration together, and one word then
- * carries a project's whole motion character. It is also how the eager default trigger is answered:
- * a play with no `scroll` fires the instant the element's first pixel clears the bottom of the
- * viewport, so every preset that plays names a later trigger itself rather than the library keeping
- * a second default for the case.
+ * Overriding one preset is the common intent — `presets({ 'fade-up': … })` means "these ten, with
+ * fade-up changed", and replace-by-default would silently lose the other nine.
  *
- * Explicit keys on the element always win — the expansion runs BEFORE anything else is read, so
- * `data-vd-motion="{ preset: 'fade-up', inertia: 0.5 }"` is fade-up with your inertia, whichever
- * order the two keys are written in.
- */
-/**
- * **No import from `./index.js`.** The connector is declared there, beside `easings` and `paint`,
- * because building it here would close a cycle — index re-exports `presets`, so calling
- * `vocabularyConnector` at this module's scope read it before initialisation and took the whole
- * bundle down at import time. This file owns the table and the lookup; index owns the wiring.
+ * And chaining two packs instead would have reintroduced an ordering rule at the wiring level:
+ * `[motion, presets, presets(house)]` and `[motion, presets(house), presets]` would resolve a
+ * collision differently with nothing on the page saying which won. That is the same invisible
+ * order-dependence the expansion pass exists to remove one level down, and removing it there while
+ * adding it here would have been silly. Explicit beats inherited, key by key, at BOTH levels — one
+ * rule, stated once.
+ *
+ * To inherit nothing, use the function that means that: `motionExtension({ on: 'preset', fn })`
+ * never references this table, so it also drops out of the bundle. A pack declares its intent by
+ * which function it calls rather than by a flag.
  */
 
 /**
@@ -44,13 +42,15 @@ export interface Preset {
   readonly [setting: string]: unknown;
 }
 
+export type PresetTable = Readonly<Record<string, Preset>>;
+
 /**
  * Deliberately keyframes-only, all ten. A preset that carried a trigger would be making a decision
  * about a page it has never seen, and these are the generic vocabulary — `fade-up` means "fade and
  * rise", not "fade and rise 85% down the screen". A HOUSE pack is where triggers belong, because
  * that is written by someone who knows the page.
  */
-export const PRESETS: Readonly<Record<string, Preset>> = {
+export const PRESETS: PresetTable = {
   'fade': { keyframes: { opacity: '0% 0, 100% 1' } },
   'fade-up': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% 40px, 100% 0px' } },
   'fade-down': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% -40px, 100% 0px' } },
@@ -64,8 +64,21 @@ export const PRESETS: Readonly<Record<string, Preset>> = {
 };
 
 /**
- * `hasOwnProperty` rather than a lookup, so `constructor` and the other prototype keys cannot
- * masquerade as a preset. The value is attribute text on a page anyone with CMS access can edit.
+ * **`hasOwnProperty`, not a bare lookup**, and this is the reason `presets(table)` exists at all
+ * rather than leaving everyone to write their own three-line resolver.
+ *
+ * A preset name is attribute text, editable by anyone with CMS access, and `TABLE[name]` answers
+ * `Object.prototype.constructor` for `"constructor"` — an object that is not a preset, reaching the
+ * expansion as though it were one. Ours is safe because it is written here once; a pack author
+ * hand-rolling the obvious version would not be. Building the resolver for them removes the footgun
+ * from every pack anyone writes.
  */
-export const lookUpPreset = (name: string): Preset | null =>
-  Object.prototype.hasOwnProperty.call(PRESETS, name) ? PRESETS[name]! : null;
+const own = (table: PresetTable, name: string): Preset | null =>
+  Object.prototype.hasOwnProperty.call(table, name) ? table[name]! : null;
+
+/** The shipped ten, for the bare `presets`. */
+export const lookUpPreset = (name: string): Preset | null => own(PRESETS, name);
+
+/** A table merged over the shipped ten: theirs answers first, ours fills the rest. */
+export const lookUpMerged = (table: PresetTable) => (name: string): Preset | null =>
+  own(table, name) ?? own(PRESETS, name);

@@ -516,6 +516,12 @@
       "fix": "Wire one: wireDirectives([motion, presets]) — or your own."
     },
     {
+      "code": "motion-presets-wired-twice",
+      "params": [],
+      "message": "presets is wired twice — the second registration cannot override the first.",
+      "fix": "presets(table) already includes the shipped ten; wire that one alone."
+    },
+    {
       "code": "motion-property-at-top-level",
       "params": [
         "key"

@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 234 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 460 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->18 521 B<!--/size:directives-motion.gzip.bytes--> | presets, easings, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -122,21 +122,36 @@ writing `undefined`.
 
   **Presets are a pack, and ours is an example rather than the list.** A preset is a motion value
   with a name — `keyframes` plus any settings — so a project can encode its whole house style under
-  one word, and replacing ours is a matter of wiring yours instead:
+  one word. `presets` is a dual, like `motion`: bare for the shipped ten, called for your own.
 
   ```js
-  const house = vocabularyConnector({
-    on: 'preset',
-    fn: (name) => name === 'hero-in'
-      ? { keyframes: { opacity: '0% 0, 100% 1' }, ease: 'out-cubic', inertia: 0.4 }
-      : null,
-  });
-  wireDirectives([motion, house]);
+  wireDirectives([motion, presets({
+    'hero-in': { keyframes: { opacity: '0% 0, 100% 1' }, ease: 'out-cubic', inertia: 0.4 },
+  })]);
   ```
+
+  `presets(table)` **merges** over the shipped ten, yours winning key by key — so redefining
+  `fade-up` keeps the other nine — and it builds a safe lookup for you, since a bare `TABLE[name]`
+  answers `Object.prototype.constructor` for `"constructor"` and preset names are attribute text.
+  Wire one or the other, never both: the chain answers from the first resolver, so `presets` beside
+  `presets(table)` means your overrides silently never apply, and it is refused.
 
   A preset expands before every other key is read, so an explicit key on the element always wins —
   `{ preset: 'hero-in', inertia: 0.9 }` is `hero-in` with your inertia, whichever order you write
   the two in.
+
+  To inherit nothing, use `motionExtension` — which is also how a module adds animatable properties,
+  new settings, or hooks a lifecycle point:
+
+  ```js
+  motionExtension({ on: 'preset', fn: (name) => resolve(name) });          // your own resolver
+  motionExtension({ key: 'letter-spacing', category: 'text', /* … */ });   // a new property
+  motionExtension({ key: 'hero-delay', type: 'number', min: 0, max: 10 }); // a new setting
+  motionExtension({ on: 'release', fn: (node) => cache.delete(node) });    // per-element cleanup
+  ```
+
+  Keys **replace** with a `motion-vocabulary-replaced` warning; inserts (`preset`, `easing`,
+  `prepare`, `release`, `teardown`, `forget`) **chain**, first answer winning.
 
 ## Actions — the escape hatch
 

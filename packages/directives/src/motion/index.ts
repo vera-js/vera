@@ -444,7 +444,7 @@ export const motion = dual<MotionOptions>(connect);
  * file: `wireDirectives([motion, paint])` — each module is a connector whose
  * body registers its rows. Exported so third parties write the same shape.
  */
-export const vocabularyConnector = (rows: WirableTree): EngineConnector => (seams) => {
+export const motionExtension = (rows: WirableTree): EngineConnector => (seams) => {
   setProblemReporter((code, args) => seams.reject(null, 'motion', code, args));
   registerVocabulary(rows);
 };
@@ -455,16 +455,49 @@ export const vocabularyConnector = (rows: WirableTree): EngineConnector => (seam
  * factory whose call is optional, the same dual `motion` is; `split` is a
  * DIRECTIVE — it rewrites DOM rather than adding keys.
  */
-export const easings: EngineConnector = vocabularyConnector({ on: 'easing', fn: resolveEasing });
-/** The shipped preset pack — one registration on the `preset` point, with no privilege over a
- *  third party's. Declared here rather than in `presets.ts` to keep that module free of a cycle. */
-export const presets: EngineConnector = vocabularyConnector({ on: 'preset', fn: lookUpPreset });
-import { lookUpPreset } from './presets.js';
+export const easings: EngineConnector = motionExtension({ on: 'easing', fn: resolveEasing });
+/**
+ * The preset pack, usable bare or called — the dual shape CLAUDE.md's wireable rule prescribes for
+ * OPTIONAL options, and the same one `motion` and `sequence` already take.
+ *
+ *   wireDirectives([motion, presets]);          // the shipped ten
+ *   wireDirectives([motion, presets(house)]);   // yours, merged over ours
+ *
+ * One name rather than two, deliberately: a separate factory would have put `presets` and something
+ * near-identically named side by side in the same array, one a module and one a call, which is a
+ * reader's problem for no gain.
+ *
+ * Declared here rather than in `presets.ts` to keep that module free of an import cycle — building
+ * the connector beside the table read `motionExtension` before initialisation and took the bundle
+ * down at import time.
+ */
+let presetsWired = false;
+export const presets = dual<PresetTable>((table) => {
+  const connect = motionExtension({ on: 'preset', fn: table ? lookUpMerged(table) : lookUpPreset });
+  return (seams) => {
+    /**
+     * **Wiring this twice is redundant AND silently wrong**, which is why it is refused rather than
+     * tolerated. `presets(house)` already includes the shipped ten, so `[motion, presets,
+     * presets(house)]` adds nothing — and worse, the chain answers from the FIRST resolver, so every
+     * override in `house` quietly does not apply. The author sees their preset ignored with no
+     * refusal anywhere, which is the exact failure shape this package keeps paying for.
+     *
+     * Reported rather than thrown, and the second registration still happens: it is harmless where
+     * the names do not collide, and a page that animates slightly wrong beats a page that does not
+     * load. The line says which call to keep.
+     */
+    if (presetsWired) pageProblem('motion-presets-wired-twice');
+    presetsWired = true;
+    return connect(seams);
+  };
+});
+import { lookUpPreset, lookUpMerged } from './presets.js';
+import type { PresetTable } from './presets.js';
 export { PRESETS } from './presets.js';
-export type { Preset } from './presets.js';
-export const paint: EngineConnector = vocabularyConnector(paintRows);
-export const path: EngineConnector = vocabularyConnector(pathRows);
-export const sequence = dual<SequenceOptions>((options) => vocabularyConnector(sequenceRows(options)));
+export type { Preset, PresetTable } from './presets.js';
+export const paint: EngineConnector = motionExtension(paintRows);
+export const path: EngineConnector = motionExtension(pathRows);
+export const sequence = dual<SequenceOptions>((options) => motionExtension(sequenceRows(options)));
 export const split = splitDirective;
 export { parsePathData } from './path.js';
 

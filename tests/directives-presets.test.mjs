@@ -29,7 +29,7 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, motion, presets, vocabularyConnector, settled, rejections } =
+const { wireDirectives, motion, presets, motionExtension, settled, rejections } =
   await load('directives');
 
 /**
@@ -37,7 +37,7 @@ const { wireDirectives, motion, presets, vocabularyConnector, settled, rejection
  * rather than stopping at ours. It carries a setting, which is the capability the shipped ten
  * deliberately do not exercise.
  */
-const housePresets = vocabularyConnector({
+const housePresets = motionExtension({
   on: 'preset',
   fn: (name) => (name === 'house-in'
     ? { keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0.9 }
@@ -110,4 +110,13 @@ test('a pack that throws costs its own answer, not the page', async () => {
   if (!isProduction) {
     assert.ok(reasons.some((r) => /wired/.test(r.fix ?? '')), 'and the fix points at the packs');
   }
+});
+
+test('a prototype key is not a preset, however the table is written', async () => {
+  const host = await mount(`<div data-vd-motion="constructor"></div>`);
+  const reasons = rejections(host.querySelector('div'));
+
+  assert.ok(reasons.some((r) => r.code === 'motion-preset-unknown'),
+    'hasOwnProperty: a bare TABLE[name] would have answered Object.prototype.constructor here');
+  assert.equal(host.querySelector('div').getAttribute('style'), null, 'and nothing was applied');
 });

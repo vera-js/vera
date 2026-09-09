@@ -198,6 +198,10 @@ export const PROSE: Record<string, Prose> = {
     `${where ? `${where}: ` : ''}"${text}" is not a preset any wired pack knows.`,
     'Presets are a pack, so this list is whatever you wired — check that one, not a built-in list.',
   ],
+  'motion-presets-wired-twice': () => [
+    'presets is wired twice — the second registration cannot override the first.',
+    'presets(table) already includes the shipped ten; wire that one alone.',
+  ],
   'motion-presets-unwired': (where, text) => [
     `${where ? `${where}: ` : ''}"${text}" needs a preset pack, and none is wired.`,
     "Wire one: wireDirectives([motion, presets]) — or your own.",

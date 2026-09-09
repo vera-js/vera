@@ -944,9 +944,19 @@ Vocabulary modules extend the object's KEYS, never the attribute space: `easings
 **`presets` is one of those modules, not a built-in list.** `wireDirectives([motion, presets])`
 wires the ten shipped names; without it a preset name is refused as unwired rather than misspelled.
 **A preset is a motion value with a name** — the same shape as the attribute, `keyframes` plus any
-settings — so a pack can encode a whole house style under one word:
-`vocabularyConnector({ on: 'preset', fn: (name) => TABLE[name] ?? null })`. The expansion runs
-BEFORE every other key, so an explicit key always wins whichever order it is written in.
+settings — so a pack can encode a whole house style under one word. The expansion runs BEFORE every
+other key, so an explicit key always wins whichever order it is written in.
+
+`presets` is a DUAL, like `motion` and `sequence`: bare for the shipped ten, called for your own.
+**`presets(table)` MERGES over the shipped ten**, key by key, yours winning — so overriding one name
+keeps the other nine, and it builds the `hasOwnProperty` lookup for you (a bare `TABLE[name]`
+resolves `"constructor"` to `Object.prototype.constructor`). Wire ONE of them: the insert chain
+answers from the first resolver, so wiring both means the shipped table answers and your overrides
+silently do not apply — refused as `motion-presets-wired-twice`. To inherit nothing, use
+`motionExtension({ on: 'preset', fn })`, which never references the shipped table and drops it from
+the bundle. `motionExtension` is also how a module adds animatable PROPERTIES (`{ key, category,
+… }`), SETTINGS (`{ key, type, … }`) or hooks an insert point (`preset`, `easing`, `prepare`,
+`release`, `teardown`, `forget`) — keys REPLACE with a warning, inserts CHAIN.
 
 **remote pack** — `data-vd-fetch="{ url, on, into, body, method, status }"`. **The response
 decides**: JSON is a state patch (existing reflections update themselves), anything else is markup
