@@ -182,3 +182,70 @@ it('CSS.registerProperty() throws on a duplicate name', async () => {
   try { once(); } catch { threw = true; }
   expect(threw, 'a duplicate registration is an error, not a no-op').to.equal(true);
 });
+
+/* ── one sheet, many roots: whether per-root delivery means per-root COPIES ──────────────────── */
+
+/**
+ * **The cost question.** Keyframes must be delivered per root (above), which sounds like one copy of
+ * every rule per shadow root — a real multiplier on a page of components.
+ *
+ * `adoptedStyleSheets` is supposed to take the SAME `CSSStyleSheet` object in several roots, making
+ * that N references rather than N copies. The whole per-root design rests on it, so it is measured
+ * rather than assumed: if sharing did not work, generated CSS would be paying a duplication cost the
+ * inline write path never had.
+ */
+it('ONE constructed sheet, adopted by many roots, resolves in all of them', async () => {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(RULE);
+
+  const roots = [];
+  for (let i = 0; i < 3; i++) {
+    const host = makeHost();
+    const root = host.attachShadow({ mode: 'open' });
+    root.adoptedStyleSheets = [sheet];
+    root.innerHTML = `<div id="t" style="${SEEK}">x</div>`;
+    roots.push(root);
+  }
+  await new Promise((r) => requestAnimationFrame(r));
+
+  for (const [i, root] of roots.entries()) {
+    const value = opacityOf(root.getElementById('t'));
+    expect(value, `root ${i} resolved the shared sheet: ${value}`).to.be.below(0.95);
+    expect(value, `root ${i} interpolated rather than reading zero`).to.be.above(0.2);
+  }
+
+  /** The identity claim: one object, not three clones. */
+  for (const root of roots) {
+    expect(root.adoptedStyleSheets[0], 'the same sheet object in every root').to.equal(sheet);
+  }
+});
+
+it('ORDER MATTERS: deliver the rule BEFORE the element references it', async () => {
+  /**
+   * **A WebKit divergence, and the reason the registry delivers before it marks.** Adding a rule to
+   * an already-adopted sheet does NOT re-resolve an animation name the element is already carrying:
+   * Chromium and Firefox pick it up, WebKit leaves the element unanimated for ever (measured at
+   * 250ms, so not a timing artefact).
+   *
+   * Insert first, then set the animation, and all three agree. That is the natural order for the
+   * registry anyway — generate, deliver, then mark the element — so the rule costs nothing to
+   * follow and everything to discover late.
+   */
+  const sheet = new CSSStyleSheet();
+  const host = makeHost();
+  const root = host.attachShadow({ mode: 'open' });
+  root.adoptedStyleSheets = [sheet];
+  root.innerHTML = `<div id="t">x</div>`;
+  const el = root.getElementById('t');
+  await new Promise((r) => requestAnimationFrame(r));
+
+  /** Deliver first. */
+  sheet.insertRule(RULE);
+  /** Then reference it. */
+  el.style.cssText = SEEK;
+  await new Promise((r) => requestAnimationFrame(r));
+
+  const value = opacityOf(el);
+  expect(value, `delivered before referenced, in every engine: ${value}`).to.be.below(0.95);
+  expect(value, 'and interpolated rather than reading zero').to.be.above(0.2);
+});
