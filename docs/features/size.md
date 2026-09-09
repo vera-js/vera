@@ -83,8 +83,7 @@ app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
 rendered text but silently dropped `@event`/`.prop`/`?bool` into the markup as literal attributes,
-so the README's own counter did not work. It was removed rather than repaired — see
-`internal/docs/TODO.md`.)*
+so the README's own counter did not work. It was removed rather than repaired.)*
 
 **Name Van.js and Solid.** Both are smaller, and volunteering that buys more credibility than any
 claim to be smallest. Both are fair trades to explain: Van.js has no keyed reconciliation, so any

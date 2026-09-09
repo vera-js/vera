@@ -11,8 +11,8 @@
  * serializer), so this is entirely about **user imperative DOM in `connectedCallback`** — the
  * `createElement` → `appendChild` → populate order, which is completely ordinary.
  *
- * Plan and staging: `internal/docs/PLAN-ssr-node-retention.md`. Step 1 adds no parser, so markup
- * assigned as a *string* is still not nodes; the last test here pins that boundary.
+ * This is step 1 of a staged plan, and step 1 adds no parser — so markup assigned as a *string*
+ * is still not nodes; the last test here pins that boundary.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

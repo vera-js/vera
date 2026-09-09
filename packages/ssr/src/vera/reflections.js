@@ -716,8 +716,8 @@ export const interfaceFor = (tag, Base) => {
          * Encoding that means thirty-one hand-classified rows in this table — which is how
          * `area.shape`, `ol.type` and `textarea.wrap` came to answer with the probe value used to
          * measure them. A negative width is already a caller's mistake; a fractional one is not. The
-         * measured table is in `internal/docs/audits/2026-08-26-gauntlet.md` if that trade is ever
-         * worth revisiting.
+         * thirty-one rows were classified against a measured table, kept with the project's private
+         * audits, if that trade is ever worth revisiting.
          */
         set(value) {
           const number = Number(value);

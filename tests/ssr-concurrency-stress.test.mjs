@@ -4,8 +4,9 @@
  * A server render is synchronous end to end today, and that is what makes two `renderToString` calls
  * safe: the per-render bookkeeping — `renderedTags`, `renderErrors`, `pendingInstances`,
  * `instanceCount`, the style-hoisting state — is **module-level**, and nothing can interleave to see
- * another request's copy of it. `internal/docs/PLAN-ssr-async-render.md` is about removing that
- * guarantee's underpinning on purpose, so this exists to say loudly if it is lost.
+ * another request's copy of it. Planned work would remove that guarantee's underpinning on
+ * purpose — a server render that awaits is a server render that can interleave — so this exists
+ * to say loudly if it is lost.
  *
  * The existing isolation suite next door pins five specific defects. This one is shaped differently
  * on purpose: **many renders, deliberately interleaved, compared against their own serial

@@ -258,8 +258,8 @@ const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
 /**
  * The retained nodes among the entries.
  *
- * **Markup supplied as a string is not nodes**, and this is where that shows. Until the parser
- * arrives (step 2 of `internal/docs/PLAN-ssr-node-retention.md`) a container filled by `innerHTML`
+ * **Markup supplied as a string is not nodes**, and this is where that shows. Until a parser
+ * arrives — a later, deliberately separate step — a container filled by `innerHTML`
  * or by the `children:` option has markup and no node view, so asking for one answers emptily —
  * which is a wrong answer, and says so rather than being discovered later as a defect.
  */
