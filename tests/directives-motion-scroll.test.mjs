@@ -226,3 +226,4 @@ test('teardown removes the progress property', async () => {
   assert.equal(el.style.getPropertyValue('--p'), '',
     'a stale number reads as a bar frozen part-way rather than as nothing');
 });
+

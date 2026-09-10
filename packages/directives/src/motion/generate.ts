@@ -22,7 +22,7 @@ import type { ElementMotion, ParsedElement } from './parse.js';
 import type { RawKeyframe, Band } from './schema.js';
 import { parseMotion } from './parse.js';
 import { composeTransform, composeFilter, format, sortForApply } from './apply.js';
-import { contentHash, PROGRESS_PROPERTY, STAGGER_PROPERTY } from './registry.js';
+import { contentHash, PROGRESS_PROPERTY, STAGGER_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 import type { WindowSize } from './dom.js';
 import { normalisePosition } from './dom.js';
 
@@ -648,7 +648,17 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    */
   const delayList = generatedGroups.map((g) =>
     `calc((var(${g.varName}, 0) - var(${STAGGER_PROPERTY}, 0)) * -1s)`).join(', ');
-  const declarations = `animation: ${animationList}; animation-delay: ${delayList};`;
+  /**
+   * TIER C, unconditional: the base variable's DEFAULT is derived in the cascade from the
+   * scroller's one written number and two per-element constants — clamped, because painting
+   * clamps at the fill edges anyway. Elements the cascade cannot drive (inertia's chase, ticks,
+   * plays, gates, a renamed progress whose consumers expect the unclamped number) write the
+   * variable INLINE, which beats this rule by cascade origin — the tiers LAYER instead of
+   * dispatching emission shapes, and every fallback keeps SSR's frame 0 at rest.
+   */
+  const cascade = `${varName}: clamp(0, calc((var(${SCROLL_PROPERTY}, 0) - ` +
+    `var(${RANGE_START_PROPERTY}, 0)) / var(${RANGE_SIZE_PROPERTY}, 1)), 1); `;
+  const declarations = `${cascade}animation: ${animationList}; animation-delay: ${delayList};`;
 
   /**
    * The BASE variable is in the list unconditionally, not derived from the groups: a tick-only

@@ -12,7 +12,7 @@ import { getElementSize, getWindowSize, displacementOf, normalisePosition } from
 import { generateSimple, mergeBandsForWidth } from './generate.js';
 import { tickFor } from './ticks.js';
 import type { Generated } from './generate.js';
-import { acquire, release, ensureProperty, setTail, STAGGER_PROPERTY } from './registry.js';
+import { acquire, release, ensureProperty, setTail, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
 
@@ -168,6 +168,14 @@ export interface RuntimeElement {
     /** Transition-mode play: the write is ONE attribute flip and the compositor owns the
      *  clock; no drives run and no variable exists. */
     readonly transition: boolean;
+    /**
+     * Tier C: the CASCADE computes this element's progress from the scroller's one written
+     * number — no per-frame JS write at all. True for the plain scrub (no inertia anywhere, no
+     * tick, no play, no gate, no run-once latch, no renamed progress, one variable); everything
+     * else drives inline, which beats the rule. JS still computes the number per pass for
+     * events and onProgress — CSS drives, JS observes.
+     */
+    readonly cascade: boolean;
     /** True when any keyframe position is a LENGTH — those rules are per-geometry-bucket and a
      *  re-measure regenerates them (release old, acquire new, re-mark). Bands are NOT this:
      *  their width switching is @media's job. */
@@ -738,9 +746,15 @@ export const createRuntimeElement = (
       void getComputedStyle(node as Element).transitionProperty;
       node.setAttribute('data-vera-t', '');
     }
+    const cascade = generatedCss.mode === 'seek' && generatedCss.groups.length > 0 &&
+      tick === null && typeof parsed.settings['play'] !== 'number' &&
+      typeof parsed.settings['when'] !== 'string' && parsed.settings['run-once'] !== true &&
+      generatedCss.varName === PROGRESS_PROPERTY && generatedCss.vars.length === 1 &&
+      Number(parsed.settings['inertia'] ?? settings.inertia) === 0;
     generated = {
       hash: generatedCss.hash,
       transition: generatedCss.mode === 'transition',
+      cascade,
       geometric: parsed.animations.some((a) =>
         a.keyframes.some((f) => f.positionUnit !== '%') ||
         a.bands.some((b) => b.keyframes.some((f) => f.positionUnit !== '%'))),
@@ -836,6 +850,8 @@ export const animateElement = (element: RuntimeElement): void => {
     else element.node.removeAttribute('data-vera-on');
     return;
   }
+  /** Tier C: CSS already computed this frame's value from the scroller var — nothing to write. */
+  if (element.generated.cascade) return;
   for (const d of element.generated.drives) {
     syncTo(d.driven, element.timelinePosition, element.generated.play !== null ? 0 : d.tau);
   }
@@ -908,6 +924,7 @@ export const resolveRange = (
     element.rangeStart = from;
     element.rangeSize = to - from;
     element.exitAt = second === undefined ? null : to;
+    writeRangeConstants(element);
     return;
   }
   if (typeof selector === 'string' && selector !== '') {
@@ -929,6 +946,16 @@ export const resolveRange = (
   element.rangeSize = to - from;
   /** Only an AUTHORED second half is an exit — see `exitAt`. */
   element.exitAt = second === undefined ? null : to;
+  writeRangeConstants(element);
+};
+
+/** Tier C's per-element constants — written at measure and every re-measure, read by the shared
+ *  rule's clamp/divide. Inline on purpose: they are per-element VALUES, not shared declarations
+ *  (the same split the stagger offset made). */
+const writeRangeConstants = (element: RuntimeElement): void => {
+  if (!element.generated?.cascade) return;
+  element.node.style.setProperty(RANGE_START_PROPERTY, String(element.rangeStart));
+  element.node.style.setProperty(RANGE_SIZE_PROPERTY, String(element.rangeSize || 1));
 };
 
 export const updateTimelinePosition = (element: RuntimeElement, win: WindowSize): void => {
@@ -1205,6 +1232,8 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
       node.style.removeProperty(d.driven.varName);
     }
     node.style.removeProperty(STAGGER_PROPERTY);
+    node.style.removeProperty(RANGE_START_PROPERTY);
+    node.style.removeProperty(RANGE_SIZE_PROPERTY);
     node.removeAttribute('data-vd-a');
     node.removeAttribute('data-vera-on');
     node.removeAttribute('data-vera-t');
@@ -1242,6 +1271,21 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.style.setProperty(element.restore[i]!, element.restore[i + 1]!);
   }
   adopted.delete(node);
+};
+
+/**
+ * Tier C's ONE write: the scroller's position along the axis, as a typed number every descendant
+ * rule divides against. Registered inheriting (the split invariant), written only on change, on
+ * the scroller itself — `documentElement` for the window, the element for a container.
+ */
+const lastScroll = new WeakMap<Element, number>();
+export const writeScrollVar = (settings: RuntimeSettings, win: WindowSize): void => {
+  const scroller: Element = settings.scrollElement instanceof Element
+    ? settings.scrollElement : document.documentElement;
+  if (lastScroll.get(scroller) === win.start) return;
+  lastScroll.set(scroller, win.start);
+  ensureProperty(SCROLL_PROPERTY, scroller, { inherits: true });
+  (scroller as HTMLElement).style.setProperty(SCROLL_PROPERTY, String(win.start));
 };
 
 export { getWindowSize };

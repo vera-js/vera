@@ -74,7 +74,15 @@ const registered = new WeakMap<object, Set<string>>();
  * interpolate our unitless number — so that case is reported by name rather than swallowed.
  * Anything else rethrows; a swallow that broad would eat real errors.
  */
-export const ensureProperty = (name: string, node: Element): void => {
+export const ensureProperty = (
+  name: string,
+  node: Element,
+  /** Tier C's split (the recorded invariant): the SCROLLER var must inherit or descendants
+   *  never see it; everything per-element stays non-inheriting or a parent's number leaks into
+   *  nested motion. `initial` parameterized for the same tier: the range divisor defaults to 1
+   *  so an unwritten element divides by one, never by zero. */
+  options?: { readonly inherits?: boolean; readonly initial?: string }
+): void => {
   /**
    * The ELEMENT'S realm, never the module's (CODE-PRINCIPLES §2): `CSS.registerProperty` types a
    * property in the calling window, and an element in a portaled document needs its own window's
@@ -87,7 +95,8 @@ export const ensureProperty = (name: string, node: Element): void => {
   if (names.has(name)) return;
   if (typeof view.CSS?.registerProperty !== 'function') return;
   try {
-    view.CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
+    view.CSS.registerProperty({ name, syntax: '<number>',
+      inherits: options?.inherits ?? false, initialValue: options?.initial ?? '0' });
   } catch (error) {
     if ((error as DOMException)?.name !== 'InvalidModificationError') throw error;
     if (name !== PROGRESS_PROPERTY) pageProblem('motion-progress-property-taken', [name]);
@@ -104,6 +113,18 @@ export const PROGRESS_PROPERTY = '--vd-p';
  *  A constant per element (written at measure time), never chased, so it is not a Driven and
  *  needs no registration: the calc fallback types it. */
 export const STAGGER_PROPERTY = '--vd-so';
+
+/**
+ * Tier C — the one-write scroller (measured: typed division through the whole seek chain, 3/3
+ * engines incl. Firefox). The region writes THIS, once per scroller per pass; every element
+ * derives its own progress in CSS from two per-element constants written at measure time. The
+ * per-frame JS cost of a scrub stops scaling with element count.
+ */
+export const SCROLL_PROPERTY = '--vd-s';
+/** Range start along the axis, px, per element — written at measure, re-written on re-measure. */
+export const RANGE_START_PROPERTY = '--vd-r0';
+/** Range size along the axis, px, per element. Registered initial 1: never divide by zero. */
+export const RANGE_SIZE_PROPERTY = '--vd-r1';
 
 /** One rule's live bookkeeping. `cssText` is kept for two replays: a fallback root arriving after
  *  the rule, and rebuilding a fallback sheet on eviction. */

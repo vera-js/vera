@@ -25,7 +25,7 @@ import { forgetSticky, forgetDirection } from './dom.js';
 import { supports, prefersReducedMotion, prefersCoarsePointer, onReducedMotionChange, onCoarsePointerChange } from './supports.js';
 import {
   createRuntimeElement, updateElement, resetElement, clearElement,
-  setElementStyles, readRootFontSize,
+  setElementStyles, readRootFontSize, writeScrollVar,
 } from './runtime.js';
 import type { RuntimeElement, RuntimeSettings } from './runtime.js';
 import { insert, pageProblem } from './schema.js';
@@ -213,6 +213,9 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     unpainted.clear();
     /** The read first, then every write — the same order, one level up. */
     const win = getWindowSize(runtimeSettings.scrollDirection, scroller);
+    /** The first paint may precede any scroll event, and a page can load mid-document — the
+     *  scroller var must be true before cascade elements first resolve. */
+    writeScrollVar(runtimeSettings, win);
     for (const element of list) setElementStyles(element, runtimeSettings);
     for (const element of list) {
       if (!enabled) return;
@@ -230,6 +233,9 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
   const update = (): void => {
     if (!enabled) return;
     const win = getWindowSize(runtimeSettings.scrollDirection, scroller);
+    /** Tier C: ONE write per scroller per pass — every cascade-driven element derives its own
+     *  progress from this in CSS, so the per-frame cost stops scaling with element count. */
+    writeScrollVar(runtimeSettings, win);
     const targets: Iterable<RuntimeElement> = visible ? visible.active : elements;
     for (const element of targets) updateElement(element, win, runtimeSettings);
   };

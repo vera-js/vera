@@ -63,8 +63,15 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
     expect(host.querySelector(`#${id}`).getAttribute('data-vd-a'),
       `${id}: the client re-derived the server's identity byte for byte`).to.equal(marker);
   }
-  expect(fade.style.getPropertyValue('--vd-p'), 'and the client is driving the seek now')
+  /** Tier C since the cede: the plain scrub's number is CASCADE-derived — the client's takeover
+   *  surface is the per-element range constants plus the scroller's one written variable, and
+   *  the ABSENCE of a per-frame inline write is itself the claim. */
+  expect(fade.style.getPropertyValue('--vd-r1'), 'the client measured and wrote the range constants')
     .to.not.equal('');
+  expect(document.documentElement.style.getPropertyValue('--vd-s'), 'and drives ONE scroller variable')
+    .to.not.equal('');
+  expect(fade.style.getPropertyValue('--vd-p'), 'with no per-element per-frame write at all')
+    .to.equal('');
   /** The stagger member activates client-side as ever — the skipped shape still works. */
   expect(getComputedStyle(host.querySelector('#member')).filter).to.match(/opacity\(/);
 

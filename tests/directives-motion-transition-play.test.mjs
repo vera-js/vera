@@ -150,3 +150,28 @@ test('pulse shapes still PLAY on the ramp — the fallback is behaviour, not a r
   host.remove();
   await settled();
 });
+
+test('TIER C: a plain scrub is cascade-driven — constants written once, the variable never inline', async () => {
+  /** The dispatch's positive control (a tier that never engages looks identical to one that
+   *  works): marker present, range constants inline, the shared rule carrying the clamp/divide,
+   *  and NO per-frame --vd-p write — CSS derives it from the scroller's one variable. This
+   *  suite wires inertia 0, which is tier C's condition; the scroll suite's default inertia is
+   *  the tier-J layering case. Value truth: the browser parity suite's twin A rides this tier. */
+  const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>`);
+  const el = host.querySelector('div');
+  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'generated');
+  assert.equal(el.style.getPropertyValue('--vd-p'), '', 'no inline seek write');
+  assert.notEqual(el.style.getPropertyValue('--vd-r0'), '', 'range start constant');
+  assert.notEqual(el.style.getPropertyValue('--vd-r1'), '', 'range size constant');
+  assert.ok(sheetText().includes('clamp(0, calc((var(--vd-s, 0)'), 'the shared rule derives the number');
+  host.remove();
+  await settled();
+
+  /** The LAYERING control: per-element inertia forces tier J — the inline write returns. */
+  const chased = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0.2 }">x</div>`);
+  const el2 = chased.querySelector('div');
+  await new Promise((r) => setTimeout(r, 60));
+  assert.notEqual(el2.style.getPropertyValue('--vd-p'), '', 'a chase writes inline over the rule');
+  chased.remove();
+  await settled();
+});
