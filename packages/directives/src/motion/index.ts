@@ -524,6 +524,13 @@ export const split = splitDirective;
  * registers what `tick: 'drawFrame'` names. The escape hatch, not the road.
  */
 export { wireTicks } from './ticks.js';
+/**
+ * SSR emission — stage 7: mark in-scope elements and emit their generated CSS so a
+ * server-rendered page paints frame 0 with no JavaScript. Runs under any DOM (the vera SSR shim,
+ * jsdom); pass the SAME wire array the page uses so presets and packs resolve identically.
+ */
+export { renderMotion } from './ssr.js';
+export type { RenderMotionOptions, RenderMotionReport } from './ssr.js';
 export type { TickFunction, TickModule } from './ticks.js';
 export * as keyframeRegistry from './registry.js';
 export * as writePath from './generate.js';

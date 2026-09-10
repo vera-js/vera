@@ -49,6 +49,10 @@ const steps = [
    * prevent.
    */
   ['kitchen fixture', 'node', ['scripts/build-kitchen-fixture.mjs', '--check']],
+  /** Same rule, same day it was written: the motion SSR fixture is real renderMotion output the
+   *  browser handoff suite paints against, so drift here means the suite hydrates markup no
+   *  server emits. Needs the development condition like every fixture script. */
+  ['motion fixture', 'node', ['--conditions', 'development', 'scripts/build-motion-fixture.mjs', '--check']],
   /**
    * @verajs/ui's surface contract: custom-elements.json must match the declared surfaces
    * (`src/x/surface.ts`) — a component API change without its manifest diff refuses here, which
