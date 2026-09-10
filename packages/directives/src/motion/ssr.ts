@@ -21,8 +21,9 @@
  * validates selectors through the document in scope. Node with no DOM installed is not enough.
  */
 import type { Generated } from './generate.js';
-import { fromAttribute } from './generate.js';
-import { staggerHost, MOTION_ATTR } from './parse.js';
+import { parseMotion, MOTION_ATTR } from './parse.js';
+import { generateSimple } from './generate.js';
+import { STAGGER_PROPERTY } from './registry.js';
 import { registerVocabulary, setProblemReporter } from './schema.js';
 
 /** What one pass did — counts for the caller's logs, problems for its diagnostics. */
@@ -132,11 +133,20 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
 
   const walk = (root: Document | ShadowRoot): void => {
     for (const el of root.querySelectorAll(`[${MOTION_ATTR}]`)) {
-      /** A stagger group rides the old path together — same gate as activation. */
-      const generated = staggerHost(el) ? null : fromAttribute(el, el.getAttribute(MOTION_ATTR) ?? '');
+      const parsed = parseMotion(el, el.getAttribute(MOTION_ATTR) ?? '', {});
+      const generated = parsed ? generateSimple(parsed) : null;
       if (!generated || !generated.groups.length) {
         skipped++;
         continue;
+      }
+      /**
+       * A `%` stagger is knowable server-side (index × step, no geometry), so frame 0 paints
+       * STAGGERED — the offset var goes out inline. Geometry staggers (px/vh) need the scroll
+       * window; those elements paint unstaggered at frame 0 and the client's first measure
+       * corrects, which beats not painting at all.
+       */
+      if (parsed!.stagger && parsed!.stagger.positionUnit === '%') {
+        (el as HTMLElement).style.setProperty(STAGGER_PROPERTY, String(parsed!.stagger.position / 100));
       }
       let sheet = sheets.get(root);
       if (!sheet) sheets.set(root, (sheet = new Map()));

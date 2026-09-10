@@ -99,6 +99,12 @@ export const ensureProperty = (name: string, node: Element): void => {
 /** The engine's own variable — the one every generated rule seeks by unless `progress` renames it. */
 export const PROGRESS_PROPERTY = '--vd-p';
 
+/** The per-element STAGGER offset, subtracted in every seek — `var(--vd-so, 0)`, so a
+ *  non-staggered element pays one fallback lookup and every sibling shares one rule set.
+ *  A constant per element (written at measure time), never chased, so it is not a Driven and
+ *  needs no registration: the calc fallback types it. */
+export const STAGGER_PROPERTY = '--vd-so';
+
 /** One rule's live bookkeeping. `cssText` is kept for two replays: a fallback root arriving after
  *  the rule, and rebuilding a fallback sheet on eviction. */
 type Entry = { count: number; cssText: string };

@@ -11,9 +11,8 @@
 import { getElementSize, getWindowSize, displacementOf } from './dom.js';
 import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
 import { generateSimple, mergeBandsForWidth } from './generate.js';
-import { staggerHost } from './parse.js';
 import { tickFor } from './ticks.js';
-import { acquire, release, ensureProperty, setTail } from './registry.js';
+import { acquire, release, ensureProperty, setTail, STAGGER_PROPERTY } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
 
@@ -556,6 +555,16 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
     ? normalisePosition({ ...stagger, value: 0, unit: '' }, scrollWindow, win, root)
     : 0;
 
+  /**
+   * The generated path consumes the offset as its CONSTANT var, re-written here because this is
+   * the one place that runs at construction AND on every re-measure — a geometry stagger (px)
+   * renormalises against the new scroll window exactly as the old curve shift did.
+   */
+  if (element.generated) {
+    if (offset !== 0) element.node.style.setProperty(STAGGER_PROPERTY, String(offset));
+    else element.node.style.removeProperty(STAGGER_PROPERTY);
+  }
+
   let lowest = Infinity;
   let highest = -Infinity;
 
@@ -905,7 +914,9 @@ export const createRuntimeElement = (
    * `motion-easings-module-missing` for a module the element does not need. The old path keeps
    * the requirement: its solver is ours.
    */
-  const generatedCss = staggerHost(node) ? null : generateSimple(parsed);
+  /** Stagger generates too since 8a — the offset is a per-element var the seek subtracts, so
+   *  the whole-group-one-path rule is satisfied ON the generated path now. */
+  const generatedCss = generateSimple(parsed);
 
   const declaredEase = parsed.settings['ease'];
   const elementEase = generatedCss ? null
@@ -1629,6 +1640,7 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
       dispose(d.driven);
       node.style.removeProperty(d.driven.varName);
     }
+    node.style.removeProperty(STAGGER_PROPERTY);
     node.removeAttribute('data-vd-a');
   }
   node.style.transition = '';

@@ -22,7 +22,7 @@ import type { ElementMotion, ParsedElement } from './parse.js';
 import type { RawKeyframe, Band } from './schema.js';
 import { parseMotion } from './parse.js';
 import { composeTransform, composeFilter, format, sortForApply } from './apply.js';
-import { contentHash, PROGRESS_PROPERTY } from './registry.js';
+import { contentHash, PROGRESS_PROPERTY, STAGGER_PROPERTY } from './registry.js';
 
 /**
  * Band merge for one width — THE band semantics, shared with the runtime (it imports this; the
@@ -134,7 +134,6 @@ interface Grouped {
  * authoritative for everything outside this scope until later stages widen it.
  */
 export const generateSimple = (parsed: ParsedElement): Generated | null => {
-  if (parsed.stagger) return null;
   /** A TICK-ONLY element is a real shape — `{ scroll: '…', tick: 'drawFrame' }` — and generates
    *  no CSS at all: zero groups, zero rules. It rides this path for the drive machinery (chase,
    *  ramp, the variable write) aimed at its function. Anything else with no animations is the
@@ -380,7 +379,16 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
    * else here changes.
    */
   const animationList = generatedGroups.map((g) => `${g.name} 1s ${g.ease} both paused`).join(', ');
-  const delayList = generatedGroups.map((g) => `calc(var(${g.varName}, 0) * -1s)`).join(', ');
+  /**
+   * STAGGER rides the seek as a subtraction (stage 8a): the old path shifted every keyframe
+   * position by the sibling offset; `base(t - offset)` is the same animation, and the offset is
+   * a per-element CONSTANT var — so two hundred staggered siblings share every rule, and a
+   * non-staggered element pays one `var()` fallback. Written by the runtime at measure time
+   * (geometry staggers re-write on resize); `both` fill clamps outside 0-1 exactly as the old
+   * clamped curve ends did.
+   */
+  const delayList = generatedGroups.map((g) =>
+    `calc((var(${g.varName}, 0) - var(${STAGGER_PROPERTY}, 0)) * -1s)`).join(', ');
   const declarations = `animation: ${animationList}; animation-delay: ${delayList};`;
 
   /**

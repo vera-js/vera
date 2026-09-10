@@ -457,7 +457,7 @@
   },
   {
    "name": "play bare seconds",
-   "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3 }",
+   "raw": "{ keyframes: { opacity: '0% 0, 100% 1' }, play: 0.3 }",
    "rejected": [],
    "settings": {
     "play": 0.3
@@ -466,7 +466,7 @@
   },
   {
    "name": "play with inertia contradiction",
-   "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3, inertia: 0.5 }",
+   "raw": "{ keyframes: { opacity: '0% 0, 100% 1' }, play: 0.3, inertia: 0.5 }",
    "rejected": [
     {
      "code": "motion-play-with-inertia"
@@ -480,7 +480,7 @@
   },
   {
    "name": "ease with play composes (ratified lift, 2026-09-10)",
-   "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3, ease: 'ease-out' }",
+   "raw": "{ keyframes: { opacity: '0% 0, 100% 1' }, play: 0.3, ease: 'ease-out' }",
    "rejected": [],
    "settings": {
     "play": 0.3,

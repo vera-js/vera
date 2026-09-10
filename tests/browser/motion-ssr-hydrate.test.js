@@ -37,9 +37,11 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
     .to.match(/opacity\(0\)/);
   expect(fade.getAttribute('data-vd-a'), 'marked by the server')
     .to.equal(MOTION_MARKERS.fade);
-  expect(host.querySelector('#member').hasAttribute('data-vd-a'),
-    'the stagger member is honestly client-only — unmarked, natural state').to.equal(false);
-  expect(MOTION_REPORT.rendered, 'the fixture really covered the page').to.equal(4);
+  /** Since 8a the stagger member paints frame 0 TOO — marked, its offset inline from the
+   *  server, sharing rules with any twin (the offset is a var, not a rule fork). */
+  expect(host.querySelector('#member').getAttribute('data-vd-a'),
+    'the stagger member paints server-side since 8a').to.equal(MOTION_MARKERS.member);
+  expect(MOTION_REPORT.rendered, 'the fixture really covered the page').to.equal(5);
 
   /** CLAIM 2 — wire the client on top of the server's page. */
   const { wireDirectives, motion, presets } = await import(

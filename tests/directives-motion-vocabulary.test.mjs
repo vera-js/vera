@@ -134,16 +134,21 @@ test('split by words: pieces inherit the motion minus stagger, the sentence surv
     assert.doesNotMatch(piece.getAttribute('data-vd-motion'), /stagger/, 'the stagger stayed on the host');
     /** Pieces inherit the host's STAGGER offset, and stagger gates to the old path until
      *  stage 5 — so the old inline surface is the correct instrument here, on purpose. */
-    assert.match(piece.style.filter, /opacity\(/, 'and each piece ANIMATES through the engine');
+    /** Staggered pieces GENERATE since 8a — the surface is the marker (jsdom evaluates no CSS
+     *  animation), and every piece shares one identity because the offset is a per-element var. */
+    assert.match(piece.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'each piece rides the generated path');
   }
   /**
-   * THE CASCADE, observed: the host's stagger shifts each piece's keyframes
-   * by index × 10%, so at one fixed timeline position the pieces sit at
-   * DIFFERENT values — which is the entire point of splitting, asserted as
-   * inequality rather than as any particular number.
+   * THE CASCADE, observed on the 8a surface: the offset is a per-element VAR now, so "the pieces
+   * sit at different points" is the offsets differing — index x 10% — while every piece shares
+   * one rule identity. Value-level truth (computed filter differing per piece) is the browser
+   * parity suite's claim since the flip.
    */
-  const distinct = new Set(pieces.map((piece) => piece.style.filter));
-  assert.ok(distinct.size > 1, `the pieces cascade: ${[...distinct].join(' | ')}`);
+  const offsets = pieces.map((piece) => piece.style.getPropertyValue('--vd-so'));
+  assert.equal(new Set(offsets).size, pieces.length,
+    `each piece carries its own offset: ${offsets.join(' | ')}`);
+  assert.equal(new Set(pieces.map((piece) => piece.getAttribute('data-vd-a'))).size, 1,
+    'while all pieces share ONE rule identity — the var is what varies');
   assert.match(p.textContent, /quick brown fox/, 'the readable sentence survives');
   const copy = [...p.querySelectorAll('span')].find((span) => !span.hasAttribute('aria-hidden'));
   assert.ok(copy && /quick brown fox/.test(copy.textContent), 'as the visually-hidden copy');

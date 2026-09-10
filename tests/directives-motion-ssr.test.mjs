@@ -74,17 +74,26 @@ test('a preset resolves through the SAME wire array the page uses', () => {
   assert.match(doc.querySelector('div').getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/);
 });
 
-test('out-of-scope shapes are skipped for the client, never broken: stagger groups and tick-only', () => {
+test('stagger renders SERVER-SIDE since 8a — % offsets go out inline; tick-only still waits for JS', () => {
   reset();
   doc.body.innerHTML = `
     <div data-vd-motion="{ stagger: '10%' }">
-      <div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>
+      <div id="m0" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>
+      <div id="m1" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>
     </div>
     <div data-vd-motion="{ tick: 'drawFrame', scroll: '100%, 0%' }">x</div>`;
   const report = renderMotion(doc);
-  assert.equal(report.rendered, 0);
-  assert.ok(report.skipped >= 2, 'the member and the tick element both wait for JS');
-  assert.equal(doc.querySelectorAll('[data-vd-a]').length, 0, 'no false marks');
+  assert.equal(report.rendered, 2, 'both members paint frame 0 now');
+  /** Two skips: the stagger HOST (a real shape, animates nothing itself) and the tick element. */
+  assert.equal(report.skipped, 2, 'the host and the tick element are honestly JS/none-first');
+  const m0 = doc.querySelector('#m0');
+  const m1 = doc.querySelector('#m1');
+  assert.equal(m0.getAttribute('data-vd-a'), m1.getAttribute('data-vd-a'),
+    'siblings share one identity — the offset is a var, not a rule fork');
+  assert.equal(m0.style.getPropertyValue('--vd-so'), '', 'index 0 carries no offset');
+  assert.equal(m1.style.getPropertyValue('--vd-so'), '0.1', 'index 1 is one step in, inline from the server');
+  const css = doc.head.querySelector('style[data-vera-sheet]').textContent;
+  assert.match(css, /- var\(--vd-so, 0\)/, 'the seek subtracts the offset for everyone, fallback 0');
 });
 
 test('a shadow tree gets its OWN sheet — keyframes are tree-scoped — and @property stays in head', () => {

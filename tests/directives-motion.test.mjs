@@ -190,12 +190,12 @@ test('a generated per-property ease needs NO easings module — the browser is t
   host.remove();
   await settled();
 
-  /** The CONTROL for the deletion above: the same nested ease on the old path (stagger keeps an
-   *  element there) still demands the module — proof the requirement was scoped, not lost. */
+  /** The CONTROL for the deletion above: the same nested ease on the OLD path still demands the
+   *  module — proof the requirement was scoped, not lost. Stagger generates since 8a, so the
+   *  old-path resident here is a GEOMETRY-position value (px stops), which stays inline until
+   *  stage 8d settles per-element rules. */
   const old = await mount(
-    `<div data-vd-motion="{ stagger: '10%' }">
-       <div id="member" data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }">x</div>
-     </div>`);
+    `<div id="member" data-vd-motion="{ keyframes: { opacity: { frames: '0px 0, 400px 1', ease: 'ease-in' } } }">x</div>`);
   const staggered = old.querySelector('#member');
   assert.equal(staggered.hasAttribute('data-vd-a'), false, 'the control really is on the old path');
   assert.ok(rejections(staggered).some((r) => r.code === 'motion-easings-module-missing'),
