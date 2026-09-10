@@ -48,6 +48,16 @@
       "development": "./dist/development/vera-directives-motion.js",
       "default": "./dist/vera-directives-motion.min.js"
     },
+    "./motion-core": {
+      "types": "./dist/development/vera-directives-motion-core.d.ts",
+      "development": "./dist/development/vera-directives-motion-core.js",
+      "default": "./dist/vera-directives-motion-core.min.js"
+    },
+    "./motion-ssr": {
+      "types": "./dist/development/vera-directives-motion-ssr.d.ts",
+      "development": "./dist/development/vera-directives-motion-ssr.js",
+      "default": "./dist/vera-directives-motion-ssr.min.js"
+    },
     "./remote": {
       "types": "./dist/development/vera-directives-remote.d.ts",
       "development": "./dist/development/vera-directives-remote.js",
