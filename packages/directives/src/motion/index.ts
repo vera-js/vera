@@ -29,7 +29,6 @@ import type { Range, WirableTree } from './schema.js';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 import type { Ctx, Directive, EngineConnector } from '../types.js';
-import { resolveEasing } from './easings.js';
 import { paintRows } from './paint.js';
 import { pathRows } from './path.js';
 import { sequenceRows, sequenceModule } from './sequence.js';
@@ -456,7 +455,9 @@ export const motionExtension = (rows: WirableTree): EngineConnector => (seams) =
  * factory whose call is optional, the same dual `motion` is; `split` is a
  * DIRECTIVE — it rewrites DOM rather than adding keys.
  */
-export const easings: EngineConnector = motionExtension({ on: 'easing', fn: resolveEasing });
+/** `easings` (the JS curve solver pack) is RETIRED with the inline write path: the browser is
+ *  the easing solver on every path now, so `ease` simply works unwired. The name is in the
+ *  removed-APIs pin so no doc resurrects it. */
 /**
  * The preset pack, usable bare or called — the dual shape CLAUDE.md's wireable rule prescribes for
  * OPTIONAL options, and the same one `motion` and `sequence` already take.

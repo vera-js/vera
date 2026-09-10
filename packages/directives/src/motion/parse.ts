@@ -27,7 +27,7 @@ import {
   parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin,
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
-import type { PropertyDef, Unit, RawKeyframe, PositionUnit, Band, Range, Easing } from './schema.js';
+import type { PropertyDef, Unit, RawKeyframe, PositionUnit, Band, Range } from './schema.js';
 import { parseValue, isObject, isPath } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 
@@ -944,5 +944,3 @@ export const serializeMotion = (
   return `{ ${parts.join(', ')} }`;
 };
 
-/** Re-exported for the runtime's use alongside the parse it feeds. */
-export type { Easing };

@@ -14,7 +14,7 @@ import { initRouter, setBasePath, router } from '@verajs/router';
 import { directiveLoader } from '@verajs/autoloader';
 import {
   wireDirectives, directives, interaction, expressions, sensors,
-  motion, presets, easings, paint, path, split, sequence,
+  motion, presets, paint, path, split, sequence,
   rejections, describeDirectives, settled, stateOf,
   enableMotion, disableMotion,
 } from '@verajs/directives';
@@ -28,7 +28,7 @@ wireDirectives([
   ...interaction,
   sensors,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
-  presets, easings, paint, path, split, sequence,
+  presets, paint, path, split, sequence,
 ]);
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -215,7 +215,7 @@ import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import {
   wireDirectives, directives, interaction, expressions, sensors,
-  motion, easings, paint, path, split, sequence,
+  motion, paint, path, split, sequence,
 } from '@verajs/directives';
 
 wire([renderer, router, directives, directiveLoader(import.meta.url, '../directives')]);
@@ -223,7 +223,7 @@ wireDirectives([
   expressions,
   ...interaction,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
-  presets, easings, paint, path, split, sequence,
+  presets, paint, path, split, sequence,
 ]);</code></pre>
   </demo-block>
   <demo-block caption="Proof of life: state, an expression, a click — the page's hello world.">
@@ -747,7 +747,7 @@ customElements.define('app-shell', class extends HTMLElement {
       { path: '/expressions', title: 'Expressions — vera directives', component: () => page('The expression tier', 'Optional, additive, CSP-safe. Wire it and every value class on the page learns arithmetic.', EXPRESSIONS) },
       { path: '/widgets', title: 'Widgets — vera directives', component: () => page('Forms, focus, and the document', 'The behaviors that make pages feel finished — each one attribute.', WIDGETS) },
       { path: '/motion', title: 'Motion — vera directives', component: () => page('Motion', 'Scroll-driven (or selector-driven) animation in one attribute. This page is meant to be scrolled slowly.', MOTION) },
-      { path: '/motion-vocab', title: 'Motion vocabulary — vera directives', component: () => page('The motion vocabulary', 'Wired modules extend the OBJECT — paint, path, split, sequence, easings teach data-vd-motion new keys, never new attributes.', VOCAB) },
+      { path: '/motion-vocab', title: 'Motion vocabulary — vera directives', component: () => page('The motion vocabulary', 'Wired modules extend the OBJECT — paint, path, split, sequence teach data-vd-motion new keys, never new attributes.', VOCAB) },
       { path: '/fun', title: 'Fun — vera directives', component: () => page('The fun ones', 'Nothing on this page needed a feature — every toy is the same small grammar, composed.', FUN) },
       { path: '/diagnostics', title: 'Diagnostics — vera directives', component: () => page('Diagnostics', 'The refusal philosophy, live: every mistake is a sentence in a registry, and the page never breaks.', DIAGNOSTICS) },
       { path: '/*rest', title: 'Lost — vera directives', component: (params) => html`<h1>Nothing at /${params.rest}</h1><p><a route href="/">Back to the overview.</a></p>` },

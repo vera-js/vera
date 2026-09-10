@@ -188,34 +188,28 @@ test('when refuses the pseudo-classes the observer cannot see, and drops the set
   await settled();
 });
 
-test('a generated per-property ease needs NO easings module — the browser is the solver', async () => {
+test('ease needs no module anywhere, and an inexpressible value refuses BY NAME', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }">x</div>`);
   const el = host.querySelector('div');
-  /** Before easing groups this refused `motion-easings-module-missing` and fell back to linear.
-   *  Now the ease is emitted verbatim as `animation-timing-function` and the browser evaluates
-   *  it — one wiring requirement deleted for every in-scope element. The OLD path keeps the
-   *  requirement (its solver is ours), asserted below on a staggered element. */
-  assert.equal(rejections(el).some((r) => r.code === 'motion-easings-module-missing'), false,
-    'no module demanded for a curve the browser solves');
+  /** The easings pack is RETIRED with the inline path: the browser evaluates every curve, so
+   *  there is no module to demand and no wiring step to forget. */
+  assert.equal(rejections(el).length, 0, 'no module demanded for a curve the browser solves');
   assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'rides the generated path');
   host.remove();
   await settled();
 
-  /** The CONTROL for the deletion above: an ease on the OLD path still demands the module —
-   *  proof the requirement was scoped, not lost. Geometry generates since 8d, so the last inline
-   *  residents are MISALIGNED stops under one non-linear element ease (splitting a segment would
-   *  reshape what the author wrote — the per-group aligned rule). */
-  const old = await mount(
-    `<div id="member" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 10px, 50% 5px, 100% 0px' }, ease: 'ease-in' }">x</div>`);
-  const staggered = old.querySelector('#member');
-  assert.equal(staggered.hasAttribute('data-vd-a'), false, 'the control really is on the old path');
-  assert.ok(rejections(staggered).some((r) => r.code === 'motion-easings-module-missing'),
-    'whose solver is ours, so the module is still required there');
-  old.remove();
+  /** The LAST inexpressible shape: a composite target (transform) whose members misalign under
+   *  ONE non-linear ease — no CSS spelling exists, so the element drops with the reason. */
+  const gone = await mount(
+    `<div data-vd-motion="{ keyframes: { translate-y: '0% 10px, 50% 5px, 100% 0px', rotate: '0% 0deg, 100% 90deg' }, ease: 'ease-in' }">x</div>`);
+  const dropped = gone.querySelector('div');
+  assert.equal(dropped.hasAttribute('data-vd-a'), false, 'nothing generated');
+  assert.ok(rejections(dropped).some((r) => r.code === 'motion-inexpressible'),
+    'refused by name, never silently still');
+  gone.remove();
   await settled();
 });
-
 test('the nested form refuses junk keys and a band key carrying its own ease', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', wobble: 3 } } }">x</div>`);

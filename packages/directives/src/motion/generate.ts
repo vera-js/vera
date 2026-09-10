@@ -248,9 +248,19 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    * product, which linear interpolation between stops would then get wrong mid-interval. Each of
    * those answers null and keeps the old path.
    */
+  /**
+   * `perspective` is a transform FUNCTION, so on the generated path it must live INSIDE the
+   * composed keyframes — an inline prefix loses to the animation outright. (The inline path
+   * carried it as a per-frame prefix; that path is gone, and this closes the gap the flip had
+   * silently opened.) It has no independent-property spelling, so it refuses the flip.
+   */
+  const perspective = parsed.settings['perspective'];
+  const transformPrefix = perspective !== undefined ? `perspective(${perspective}) ` : '';
+
   const transformMembers = parsed.animations.filter((a) => a.property.category === 'transform');
   const flip = new Set(transformMembers.map((a) => keyOf.get(a)!)).size > 1;
   if (flip) {
+    if (transformPrefix) return null;
     const fn = (a: ElementMotion): string => a.property.cssFunction!;
     if (transformMembers.some((a) => fn(a).startsWith('skew'))) return null;
     if (transformMembers.filter((a) => fn(a).startsWith('rotate')).length > 1) return null;
@@ -263,6 +273,40 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
         : fn(animation).startsWith('rotate') ? 'rotate' : 'scale';
       if (!claim(target, keyOf.get(animation)!)) return null;
     }
+  }
+
+  /**
+   * MISALIGNED STOPS UNDER ONE NON-LINEAR EASE split per TARGET property (8d). This shape used
+   * to fall back to the JS easing solver; the solver is gone, and the split is byte-honest
+   * where the solver was approximate: each property becomes its own animation with its own
+   * aligned stops and the same ease — `ease` applies per segment, and no property's segments
+   * gained a stop, so the curve is exactly what the author wrote. A COMPOSITE target (transform,
+   * filter) whose own members still misalign cannot split further and refuses — the one shape
+   * that genuinely has no CSS spelling.
+   */
+  const alignedIn = (members: readonly ElementMotion[]): boolean => {
+    const union = new Set(members.flatMap((m) => m.keyframes.map((f) => f.position)));
+    return members.every((m) => m.keyframes.length === union.size);
+  };
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const group = groups[i]!;
+    if (group.ease === 'linear' || group.members.length < 2 || alignedIn(group.members)) continue;
+    const buckets = new Map<string, ElementMotion[]>();
+    for (const member of group.members) {
+      const target = member.property.category === 'transform' ? 'transform'
+        : member.property.category === 'filter' ? 'filter'
+        : member.property.cssProperty!;
+      const bucket = buckets.get(target);
+      if (bucket) bucket.push(member);
+      else buckets.set(target, [member]);
+    }
+    if (buckets.size < 2) return null;
+    const subs = [...buckets.values()].map((members) =>
+      ({ ease: group.ease, varName: group.varName, members }));
+    for (const sub of subs) {
+      if (sub.members.length > 1 && !alignedIn(sub.members)) return null;
+    }
+    groups.splice(i, 1, ...subs);
   }
 
   /**
@@ -314,7 +358,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     return stops.map((stop) => {
       const declarations: string[] = [];
       if (transform.length && !flip) {
-        declarations.push(`transform: ${composeTransform(
+        declarations.push(`transform: ${transformPrefix}${composeTransform(
           { animations: transform, values: transform.map((a) => at(a, stop)) })}`);
       } else if (transform.length) {
         const by = new Map(transform.map((a) => [a.property.key, a]));

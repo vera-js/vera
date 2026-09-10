@@ -39,6 +39,12 @@ const REMOVED = {
    *  name cannot go on this list. `tests/docs-moved-render.test.mjs` covers it by specifier. */
   connectRouter: 'router',
   '@verajs/collections': '@verajs/reactivity/collections',
+  /** The JS easing-solver pack died with the inline write path (the sweep): the browser is the
+   *  easing solver on every path, so `ease` works with nothing wired. The bare word 'easing(s)'
+   *  is ordinary prose; the API NAME only ever appeared in wire arrays and import lists, which
+   *  is what this pin greps for. */
+  'wireDirectives([motion, easings])': 'ease just works — no module',
+  "{ easings }": 'ease just works — no module',
   'map-support': '@verajs/reactivity/collections',
   /** A fossil of the multi-strategy SSR era; the plain specifier was always the same module. */
   '@verajs/ssr/vera': '@verajs/ssr',

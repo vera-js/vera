@@ -124,12 +124,14 @@ it('the ease string is emitted verbatim — the browser is the solver now', () =
   const generated = writePath.fromAttribute(
     el, "{ keyframes: { opacity: '0% 0, 100% 1' }, ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }");
   expect(generated.elementStyle).to.include('cubic-bezier(0.34, 1.56, 0.64, 1)');
-  /** And a non-linear ease with MISALIGNED stops stays on the old path — splitting a segment
-   *  would reshape what the author wrote, since ease applies per segment on both sides. */
+  /** Misaligned stops under ONE non-linear ease SPLIT per target since the sweep — each
+   *  property its own animation, its own aligned stops, the same ease: byte-honest where the
+   *  retired JS solver was approximate. */
   const misaligned = writePath.fromAttribute(
     el,
     "{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 10px, 50% 5px, 100% 0px' }, ease: 'ease-in' }");
-  expect(misaligned).to.equal(null);
+  expect(misaligned.groups.length, 'two targets, two animations, one ease').to.equal(2);
+  expect(new Set(misaligned.groups.map((g) => g.ease)).size, 'the same authored curve on both').to.equal(1);
 });
 
 /* ── stage 5b: width bands as @media segments ────────────────────────────────────────────────── */

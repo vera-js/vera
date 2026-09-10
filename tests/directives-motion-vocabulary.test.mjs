@@ -1,7 +1,7 @@
 /**
- * The motion vocabulary modules, wired: easings, paint, path, sequence,
+ * The motion vocabulary modules, wired: paint, path, sequence,
  * split. Its own file because wiring is module state and the base motion
- * suite asserts the UNWIRED answers (the "needs the easings module"
+ * suite asserts the UNWIRED answers (the pack-unwired
  * refusal) — one process each, no bleed.
  *
  * jsdom notes: `CSS` is deliberately NOT exposed, so paint's
@@ -21,9 +21,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'HTMLCanvasElement', 'cust
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, motion, presets, easings, paint, path, sequence, split, settled, rejections } =
+const { wireDirectives, motion, presets, paint, path, sequence, split, settled, rejections } =
   await load('directives');
-wireDirectives([motion, presets, easings, paint, path, sequence, split]);
+wireDirectives([motion, presets, paint, path, sequence, split]);
 
 const doc = dom.window.document;
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => r()));
@@ -37,10 +37,11 @@ const mount = async (html) => {
   return host;
 };
 
-test('easings wired: a per-property ease is accepted, no refusal, still animates', async () => {
+test('a per-property ease is accepted with NOTHING wired for it — the browser is the solver', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } }, ease: 'ease-out' }">x</div>`);
   const el = host.querySelector('div');
+  /** The easings pack is RETIRED (the sweep): no module, no wiring step, no refusal. */
   assert.equal(rejections(el).length, 0, 'both ease slots accepted');
   /** Since easing groups this shape GENERATES — the browser is the solver, so the surface is the
    *  marker and the variable, not an inline filter (jsdom evaluates no CSS animation). */

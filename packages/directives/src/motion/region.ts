@@ -25,7 +25,7 @@ import { forgetSticky, forgetDirection } from './dom.js';
 import { supports, prefersReducedMotion, prefersCoarsePointer, onReducedMotionChange, onCoarsePointerChange } from './supports.js';
 import {
   createRuntimeElement, updateElement, resetElement, clearElement,
-  setElementStyles, setTransitions, readRootFontSize, cascadeTrouble,
+  setElementStyles, readRootFontSize,
 } from './runtime.js';
 import type { RuntimeElement, RuntimeSettings } from './runtime.js';
 import { insert, pageProblem } from './schema.js';
@@ -205,14 +205,6 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
   /* ── deferred paints and transitions — read-then-write across engine churn ── */
   const unpainted = new Set<RuntimeElement>();
   let painting = false;
-  const pendingTransitions = new Set<() => void>();
-  const stillHeld = (element: RuntimeElement): boolean => byNode.get(element.node) === element;
-
-  const queueTransitions = (list: readonly RuntimeElement[]): void => {
-    let cancel: () => void = () => {};
-    cancel = setTransitions(list, () => pendingTransitions.delete(cancel), stillHeld);
-    pendingTransitions.add(cancel);
-  };
 
   const paintPending = (): void => {
     painting = false;
@@ -222,19 +214,9 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     /** The read first, then every write — the same order, one level up. */
     const win = getWindowSize(runtimeSettings.scrollDirection, scroller);
     for (const element of list) setElementStyles(element, runtimeSettings);
-    queueTransitions(list);
     for (const element of list) {
       if (!enabled) return;
       updateElement(element, win, runtimeSettings, true);
-    }
-    /**
-     * Then ask whether those writes survived the page's CSS — a SECOND pass
-     * on purpose, one style recalculation for the whole set rather than one
-     * per element interleaved.
-     */
-    for (const element of list) {
-      if (!enabled) return;
-      element.cascadeBlocked = cascadeTrouble(element);
     }
   };
 
@@ -377,8 +359,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
   };
 
   const clear = (): void => {
-    for (const cancel of pendingTransitions) cancel();
-    pendingTransitions.clear();
+
     unpainted.clear();
     for (const element of elements) {
       runInserts('release', element.node);
@@ -407,6 +388,8 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
       const already = byNode.get(parsed.node);
       if (already) return already;
       const element = createRuntimeElement(parsed, runtimeSettings, rejectFor);
+      /** An inexpressible value refused in construction; its rejection is already recorded. */
+      if (!element) return null;
       elements.push(element);
       byNode.set(parsed.node, element);
       elementJoined();

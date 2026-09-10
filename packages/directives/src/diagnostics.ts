@@ -356,13 +356,14 @@ export const PROSE: Record<string, Prose> = {
   'motion-property-writes-nothing': (key) => [
     `wiring was given the property "${key}" with no cssProperty, cssFunction or apply, so it has no way to write anything.`,
   ],
-  'motion-paint-inline-path': (key) => [
-    `${key}: paint animates through generated CSS, and a geometry-unit position keeps this element on the inline path.`,
-    'Use % keyframe positions on this element.',
-  ],
   'motion-regenerate-failed': () => [
     'a re-measure produced no rules for this element; keeping the previous ones.',
     'This should be unreachable — please report the value that did this.',
+  ],
+  'motion-inexpressible': () => [
+    'this value has no CSS spelling: a composite target (transform or filter) whose properties ' +
+    'misalign under one non-linear ease, or a third-party discrete hold.',
+    'Give each property its own ease (or align the stops), and CSS carries it.',
   ],
   'motion-unsupported': () => ['required APIs unavailable, animation disabled.'],
   'motion-sequence-origins-not-list': (kind) => [
@@ -372,11 +373,6 @@ export const PROSE: Record<string, Prose> = {
   'motion-sequence-origin-not-url': (entry) => [
     `sequence allowedOrigins entry ${entry} is not a url; ignoring it.`,
     'Write the full origin, for example "https://cdn.example".',
-  ],
-  'motion-easing-threw': (named) => [`${named}: the easing module threw; the curve is linear.`],
-  'motion-easings-module-missing': (named) => [
-    `${named} needs the easings module; the curve is linear.`,
-    "Wire it: wireDirectives([motion({ easings })]).",
   ],
   'motion-path-no-selector': () => [
     'path needs path-selector — offset-distance travels along nothing without it.',

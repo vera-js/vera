@@ -955,7 +955,7 @@ one, `tick` may be the whole animation (no `keyframes` needed), and a throwing t
 its own element and reported, never the page. The escape hatch, not the road — it is a per-frame JS
 call, so prefer `keyframes` or `progress` wherever CSS can express the effect.
 `data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
-Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
+Vocabulary modules extend the object's KEYS, never the attribute space: `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (a tick consumer:
 `tick: 'sequence'` scrubs an image sequence onto a `<canvas>`, configured by `frame-*` settings), plus
 `data-vd-split` (chars/words/lines; pieces inherit the motion minus `stagger`).

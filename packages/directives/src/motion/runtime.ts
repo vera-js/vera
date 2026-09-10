@@ -9,7 +9,6 @@
  * one style write per category (principle #4).
  */
 import { getElementSize, getWindowSize, displacementOf, normalisePosition } from './dom.js';
-import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
 import { generateSimple, mergeBandsForWidth } from './generate.js';
 import { tickFor } from './ticks.js';
 import type { Generated } from './generate.js';
@@ -18,41 +17,20 @@ import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
 
 import { emit, EVENTS } from './events.js';
-import { composeTransform, composeFilter, applyProperty, sortForApply } from './apply.js';
+import { sortForApply } from './apply.js';
 import type { ParsedElement, ElementMotion } from './parse.js';
 import type { RawKeyframe } from './schema.js';
-import type { NumericCurve } from './curve.js';
-import type { Easing } from './timing.js';
-import { insert } from './schema.js';
 import type { WindowSize } from './dom.js';
 
-/**
- * An animation with its curve attached.
- *
- * The curve is built here rather than in `parse` because a keyframe position
- * in `vh`, `px` or `rem` only means something once the element and viewport
- * have been measured. Parse produces keyframes; the runtime resolves them.
- */
-interface PlanAnimation extends ElementMotion { curve: NumericCurve }
-
-/** Animations of one element, for one breakpoint, grouped for application. */
+/** Animations of one element, grouped for application — a curve-free INVENTORY since the
+ *  sweep: will-change hints, the translate-z check, geometry flags and teardown read the
+ *  buckets; nothing evaluates per frame any more. */
 interface ScreenPlan {
-  readonly transform: readonly PlanAnimation[];
-  readonly filter: readonly PlanAnimation[];
+  readonly all: readonly ElementMotion[];
+  readonly transform: readonly ElementMotion[];
+  readonly filter: readonly ElementMotion[];
   /** Plain CSS declarations — border radii and the like. */
-  readonly properties: readonly PlanAnimation[];
-
-  /**
-   * Scratch buffers, sized once so no frame allocates. Views into the
-   * element's arena (see `planFor`), which changes where the doubles live and
-   * nothing else — they index from 0 like the owned arrays they replaced.
-   */
-  readonly transformValues: Float64Array;
-  readonly filterValues: Float64Array;
-  /** Last value written per plain-CSS property, to skip unchanged writes. */
-  readonly lastProperties: Float64Array;
-  /** Every animation in this plan, in apply order — the list curves rebuild from. */
-  readonly all: readonly PlanAnimation[];
+  readonly properties: readonly ElementMotion[];
 }
 
 /**
@@ -88,8 +66,6 @@ export interface RuntimeElement {
    * loop reads a single plan and no longer asks which breakpoint applies.
    */
   readonly plan: ScreenPlan;
-  readonly transition: string | null;
-  readonly transformPrefix: string;
   /**
    * What the page had inline, for the properties this instance takes over.
    *
@@ -175,11 +151,8 @@ export interface RuntimeElement {
    * `resetElement` re-deriving it on every measure. A stylesheet rule is not
    * something a resize changes.
    */
-  cascadeBlocked: string | null;
 
   /** Last strings written, so an unchanged frame costs nothing. */
-  lastTransform: string;
-  lastFilter: string;
 
   readonly runOnce: boolean;
   /** Selector that drives this element instead of scroll, if any. */
@@ -203,13 +176,6 @@ export interface RuntimeElement {
     readonly drives: readonly { readonly driven: Driven; readonly tau: number }[];
     readonly play: number | null;
   } | null;
-  /**
-   * The element's contained tick closure — old-path elements call it at their write moment (raw
-   * timeline position; their smoothing is a CSS transition JS never sees). Generated elements
-   * carry it inside the base Driven instead, where the number lands post-chase/ramp. Null when
-   * no tick was named or the name resolved to nothing.
-   */
-  readonly tick: ((progress: number) => void) | null;
   /** A setup-carrying tick module's teardown, run at clearElement -- the drawer-drop moment. */
   readonly tickTeardown: (() => void) | null;
   /**
@@ -245,192 +211,26 @@ export interface RuntimeSettings {
   readonly transformOrigin?: string;
 }
 
-const planFor = (
-  animations: readonly ElementMotion[],
+const planFor = (animations: readonly ElementMotion[]): ScreenPlan => {
   /**
-   * The curve shaper for one animation. Per-animation rather than one value,
-   * because the nested value form — `opacity: { frames: '…', ease: '…' }` —
-   * gives a property its own; everything else shares the element's.
+   * CURVE-FREE since the sweep: the buckets survive because will-change hints, the translate-z
+   * check, geometry flags and teardown all read them — but nothing evaluates anything per frame
+   * any more, so the arena, the curves, the scratch views and the per-frame evaluate loop are
+   * gone with the inline write path. The browser interpolates; this is an inventory.
    */
-  easeFor: (animation: ElementMotion) => Easing | null
-): ScreenPlan => {
   const sorted = sortForApply(animations);
-
-  /**
-   * One Float64Array per element, holding every curve and all three scratch
-   * buffers, instead of three arrays per curve plus three per plan. Same
-   * evaluation code either way — `buildCurve` hands back persistent views —
-   * but the data is contiguous and the per-element cost measured at 2,084 B
-   * against 3,152 B for separate arrays (3 animations x 2 keyframes, Node 22).
-   * On the pages this library is sized for the difference is noise; at the
-   * thousands of elements the perf audit stresses it is megabytes.
-   *
-   * Each slice is sized for the first *real* fill, not the raw attribute:
-   * `mergeForWidth` always gives a lone keyframe a resting partner, so its
-   * curve is two keyframes from the first measure on — a slice sized 1 would
-   * be abandoned immediately. A width band that later changes a curve's
-   * keyframe count still rebuilds that curve standalone (see `refreshCurves`),
-   * stranding its slice — retained but bounded, and only on band edges.
-   */
-  /**
-   * How many doubles one animation's curve can ever need.
-   *
-   * Sized for the **widest merge**, not for the base. `mergeForWidth` merges
-   * every band whose range contains the width over the base keyframes, adding
-   * any at a position the base does not have — so an element whose band
-   * introduces a new keyframe needs more slots than its attribute lists, and
-   * sizing from `keyframes.length` alone meant such a curve was rebuilt
-   * standalone on its **first measure** and never returned to the arena. It
-   * cost both ways: the slice sat unused and the curve paid for three separate
-   * typed arrays anyway, which is the whole expense the arena exists to avoid.
-   * Measured before this comment was written, on the element the probe built:
-   * a band adding one position took its curve out of the arena at
-   * construction, not at a band edge.
-   *
-   * Distinct positions across the base and **all** bands, which is an upper
-   * bound rather than an exact count — two bands adding the same position, or
-   * bands that never both match, over-reserve by a few doubles. That is the
-   * cheap direction: eight bytes against a curve leaving the arena entirely.
-   */
-  /**
-   * How many doubles one animation's curve gets in the arena.
-   *
-   * Sized from the base keyframes — `mergeForWidth` gives a lone one a resting
-   * partner, so two is the floor. It is deliberately **not** sized for the
-   * widest possible merge: a curve's views are carved at one length, while the
-   * merged count changes with viewport width, so any fixed reservation is
-   * wrong at some width. Sizing for the maximum was tried and measured as a
-   * lateral move — it keeps a matching band's curve in the arena and pushes a
-   * *non*-matching one out, trading the same cost in the other direction. The
-   * real fix is re-carving views inside the reserved slice when the count
-   * changes; see the audit ledger.
-   */
-  const slice = (a: ElementMotion): number => curveDoubles(Math.max(2, a.keyframes.length));
-
-  let scratch = 0;
-  for (const a of sorted) {
-    /** A module property writes through `apply` and may name no CSS at all. */
-    if (a.property.category === 'transform' || a.property.category === 'filter' ||
-        a.property.cssProperty) scratch++;
-  }
-
-  let doubles = scratch;
-  for (const a of sorted) doubles += slice(a);
-  const arena = new Float64Array(doubles);
-
-  /**
-   * Curves are placed first and filled with placeholders; `refreshCurves` puts
-   * the real values in once geometry is known, before anything evaluates.
-   * Allocation happens once per element ever; refilling happens on every
-   * resize, which is why the two are separate.
-   */
-  let at = 0;
-  const numeric: readonly PlanAnimation[] = sorted.map((a) => {
-    const points = a.keyframes.map((k) => ({ position: 0, value: k.value }));
-    while (curveDoubles(points.length) < slice(a)) points.push({ position: 0, value: points[0]?.value ?? 0 });
-    const curve = buildCurve(points, easeFor(a), a.property.discrete, arena, at);
-    at += slice(a);
-    return { ...a, curve };
-  });
-
-  const transform = numeric.filter((a) => a.property.category === 'transform');
-  const filter = numeric.filter((a) => a.property.category === 'filter');
-  const properties = numeric.filter(
-    (a) =>
-      a.property.category !== 'transform' &&
-      a.property.category !== 'filter' &&
-      Boolean(a.property.cssProperty)
-  );
-
-  /**
-   * The scratch buffers are views too, after the curves. `lastProperties` is a
-   * view, so its `fill(NaN)` here and in `clearElement` stops at its own
-   * bounds — no curve data is reachable from it by construction.
-   */
-  const transformValues = arena.subarray(at, at + transform.length);
-  at += transform.length;
-  const filterValues = arena.subarray(at, at + filter.length);
-  at += filter.length;
-  const lastProperties = arena.subarray(at, at + properties.length);
-  lastProperties.fill(NaN);
-
-  return { all: numeric, transform, filter, properties, transformValues, filterValues, lastProperties };
+  return {
+    all: sorted,
+    transform: sorted.filter((a) => a.property.category === 'transform'),
+    filter: sorted.filter((a) => a.property.category === 'filter'),
+    properties: sorted.filter((a) =>
+      a.property.category !== 'transform' && a.property.category !== 'filter' &&
+      Boolean(a.property.cssProperty)),
+  };
 };
 
-/**
- * Builds the CSS transition that produces the damped follow.
- *
- * The runtime writes a *target* value each frame; this transition carries the
- * element there over `speed` seconds, so it perpetually chases the scroll.
- * Because transform/opacity/filter transitions are compositor-driven, that
- * smoothing runs off the main thread — which is why per-element inertia is
- * cheap here and why it cannot be expressed by a native scroll-driven
- * animation — an `animation-timeline` animation overrides a transition, so
- * the two cannot be combined.
- *
- * A speed of 0 means no transition: values track scroll position exactly.
- */
-const transitionFor = (
-  plan: ScreenPlan,
-  settings: RuntimeSettings,
-  element: ParsedElement
-): string | null => {
-  const ease = String(element.settings['inertia-ease'] ?? settings.inertiaEase);
-  /**
-   * **`play` IS the transition, when it is set.** A play walks the timeline end-to-end in one step
-   * and the transition is what makes that take time, so its duration is the playthrough's length —
-   * the same mechanism `when` has always used, with a name that says so.
-   *
-   * It overrides `inertia` rather than combining with it, and the two together are refused at parse
-   * time: they name the same number, so ranking them silently would leave an author tuning a value
-   * nothing reads.
-   */
-  const playing = element.settings['play'];
-  const base = playing !== undefined
-    ? Number(playing)
-    : Number(element.settings['inertia'] ?? settings.inertia);
 
-  /**
-   * Per-category inertia, so one element can move fast and fade slowly — the
-   * inertia capability the pre-rewrite code had as transformSpeed/filterSpeed.
-   *
-   * These were declared in the schema and parsed, and then never read: the
-   * transition was built from the base speed alone, so both attributes did
-   * nothing at all. An attribute that parses cleanly and is then ignored is the
-   * failure this codebase rejects elsewhere.
-   */
-  const speedFor = (category: string): number => {
-    /** A play has ONE duration. Per-category inertia is a scrub's smoothing, and letting it split a
-     *  playthrough would make transform and filter finish at different times mid-play. */
-    if (playing !== undefined) return base;
-    const override = element.settings[`${category}-inertia`];
-    return override === undefined ? base : Number(override);
-  };
 
-  /**
-   * Every breakpoint, not just desktop. The transition is set once and has to
-   * still be right after a resize switches the element to its tablet or mobile
-   * animations — a filter that only appears at tablet width would otherwise
-   * snap instead of easing.
-   */
-  const speeds = new Map<string, number>();
-  const consider = (cssProperty: string, seconds: number) => {
-    /** Inertia of 0 means "track exactly": no transition for that property. */
-    if (seconds > 0) speeds.set(cssProperty, seconds);
-  };
-
-  if (plan.transform.length) consider('transform', speedFor('transform'));
-  if (plan.filter.length) consider('filter', speedFor('filter'));
-  for (const animation of plan.properties) {
-    if (animation.property.cssProperty) consider(animation.property.cssProperty, base);
-  }
-
-  if (!speeds.size) return null;
-
-  return [...speeds]
-    .map(([property, speed]) => `${property} ${speed}s ${ease}`)
-    .join(', ');
-};
 
 
 /**
@@ -447,7 +247,7 @@ const transitionFor = (
  * value, and that happens *after* merging, so a band can supply the end the
  * base was missing.
  */
-const mergeForWidth = (animation: PlanAnimation, width: number): RawKeyframe[] => {
+const mergeForWidth = (animation: ElementMotion, width: number): RawKeyframe[] => {
   /** The band semantics live in generate.ts now, shared — one brain, two consumers. */
   const merged = mergeBandsForWidth(animation.keyframes, animation.bands, width);
 
@@ -518,11 +318,6 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
   const scrollWindow = element.size + win.size;
   const root = rootFontSize;
 
-  /**
-   * An ancestor's `stagger`, normalised here for the same reason the positions
-   * are: `40px` of stagger and a `50%` keyframe measure different things until
-   * both are timeline fractions, at which point they simply add.
-   */
   const stagger = element.parsed.stagger;
   const offset = stagger
     ? normalisePosition({ ...stagger, value: 0, unit: '' }, scrollWindow, win, root)
@@ -538,34 +333,20 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
     else element.node.style.removeProperty(STAGGER_PROPERTY);
   }
 
+  /**
+   * Timeline BOUNDS only — run-once and the unfinishable check read these. The curve refill
+   * that lived here died with the curves: positions normalise straight off the merged
+   * keyframes, and the browser does the rest.
+   */
   let lowest = Infinity;
   let highest = -Infinity;
-
   for (const animation of element.plan.all) {
-    const merged = mergeForWidth(animation, win.width);
-    /** Sorted after normalising, because the authored order is now DESCENDING (100% is the start)
-     *  and the curve builder wants positions ascending. This also makes keyframes written out of
-     *  order simply work, which they previously did not. */
-    const points = merged
-      .map((k) => ({ position: normalisePosition(k, scrollWindow, win, root) + offset, value: k.value }))
-      .sort((a, b) => a.position - b.position);
-
-    /**
-     * A band can add or remove keyframes, so the curve is only refilled in
-     * place when the count still matches. Band edges are only crossed on
-     * resize, so allocating there is not on any hot path. The rebuilt curve
-     * owns its arrays; the slice it had in the element's arena stays behind,
-     * unreferenced but retained — bounded by the plan's original size, and
-     * cheaper than compacting a buffer every other curve still points into.
-     */
-    if (points.length === animation.curve.positions.length) fillCurve(animation.curve, points);
-    else animation.curve = buildCurve(points, animation.curve.ease, animation.curve.hold);
-
-    lowest = Math.min(lowest, curveStart(animation.curve));
-    highest = Math.max(highest, curveEnd(animation.curve));
+    for (const k of mergeForWidth(animation, win.width)) {
+      const at = normalisePosition(k, scrollWindow, win, root) + offset;
+      lowest = Math.min(lowest, at);
+      highest = Math.max(highest, at);
+    }
   }
-
-  /** Defaults matter for an element whose only animation was rejected. */
   element.lowestStart = lowest === Infinity ? 0 : lowest;
   element.highestEnd = highest === -Infinity ? 1 : highest;
 };
@@ -739,59 +520,7 @@ const flatTrouble = (element: RuntimeElement, settings: RuntimeSettings): string
     : 'translate-z: no perspective';
 };
 
-/**
- * Whether the page's own CSS is discarding what this element writes.
- *
- * The runtime composes inline styles and never reads back — that skip is 94%
- * of frames — so it cannot tell a write that landed from one the cascade threw
- * away. Two things in a stylesheet do exactly that, measured in all three
- * engines (`spikes/cascade-override.mjs`): `transform: none !important` beats
- * any inline value that is not itself important, and a running CSS `animation`
- * on the same property beats both. Either way the attribute parses, validates,
- * animates internally and does *nothing*, with `rejected` empty because
- * nothing was refused — the quiet failure this library refuses everywhere else.
- *
- * **Only the unambiguous half is reported.** A composed string was written and
- * the computed value is `none`: that can only be an override, because every
- * value this runtime writes computes to a matrix, `translateY(0px)` included.
- * A CSS animation is deliberately *not* detected — telling one that touches
- * these properties from one that does not needs CSSOM keyframe inspection,
- * which cross-origin stylesheets make unreliable, and an author animating
- * `opacity` in CSS while animating `translate-y` here is doing nothing wrong.
- * A false accusation costs more than a missed one; same rule as `flatTrouble`.
- *
- * **The no-box guard is load-bearing, not defensive.** A `display: none`
- * element reports computed `transform: none` in Chromium and WebKit (Firefox
- * reports the matrix) — so without this, every element inside a closed
- * accordion, an inactive tab or a collapsed `<details>` would be accused, in
- * two engines out of three. Measured before this function was written.
- */
-export const cascadeTrouble = (element: RuntimeElement): string | null => {
-  const node = element.node;
-  /** Nothing written yet, so there is nothing to have been overridden. */
-  if (!element.lastTransform && !element.lastFilter) return null;
-  /** Not rendered: see above. It will be measured again when it is shown. */
-  if (!node.offsetWidth && !node.offsetHeight) return null;
 
-  const computed = getComputedStyle(node);
-  /**
-   * `undefined` means the engine does not report the property at all, which is
-   * not evidence of anything — happy-dom is one such engine. Say nothing.
-   */
-  const beaten = (written: string, value: string | undefined): boolean =>
-    written !== '' && value === 'none';
-
-  const property = beaten(element.lastTransform, computed.transform) ? 'transform'
-    : beaten(element.lastFilter, computed.filter) ? 'filter'
-    : null;
-  if (!property) return null;
-
-  return __DEV__
-    ? `this element's CSS is discarding the ${property} the runtime writes — a stylesheet ` +
-      `\`${property}: none !important\`, or a CSS \`animation\` on it, outranks an inline style. ` +
-      'Nothing here can animate until that rule goes.'
-    : `${property}: overridden by CSS`;
-};
 
 const pinTrouble = (element: RuntimeElement, settings: RuntimeSettings): string | null => {
   if (element.parsed.settings['pin'] === undefined) return null;
@@ -826,84 +555,7 @@ const pinTrouble = (element: RuntimeElement, settings: RuntimeSettings): string 
   return null;
 };
 
-/** Said once, not once per element — a page gets one line, not five hundred. */
-let warnedAboutEasing = false;
 
-/**
- * Resolves an `ease` value, or leaves the curve straight.
- *
- * `linear` needs nothing, which is why it stays the fast path and why the
- * solver is a separate import. Anything else needs the easings module
- * wired, and if it is not, the element still animates — on a straight line —
- * and the page is told exactly what to import — in the console once, and in
- * `rejected` per element, because a GUI reads one of those and not the other.
- * Failing loudly beats a curve that is quietly the wrong shape.
- */
-const resolveCurveEasing = (rejectFor: (code: string, args?: readonly string[]) => void, value: string, declared: boolean): Easing | null => {
-  /**
-   * How to name the value in a diagnostic.
-   *
-   * `ease` reaches here from the attribute *or* from the instance default, and
-   * the first version of this reported both as `data-vm-ease="…"` —
-   * so a page that set `createMotion({ ease: 'ease-out' })` without wiring the
-   * module got that message on every element, naming an attribute not one of
-   * them carried. A GUI would highlight markup that does not exist.
-   */
-  const named = declared ? `ease: '${value}'` : `ease "${value}" (an option, not authored)`;
-  if (value === 'linear') return null;
-  /**
-   * First resolver that answers wins; a module that does not know returns null.
-   *
-   * And one that *throws* resolves nothing, rather than taking the page with
-   * it. This is the fifth insert point and the one `runInserts` cannot cover,
-   * because it is the only chain whose links return a value. Unguarded, an
-   * exception here left `init()` with **no element adopted at all** — the same
-   * failure the other four had, in the only place a module runs per element
-   * rather than per page.
-   */
-  let threw = false;
-  for (const resolve of insert('easing')) {
-    try {
-      const shaped = resolve(value);
-      /**
-       * A function or nothing. A resolver answering a truthy non-function —
-       * a broken module returning `42` — sailed through here into the curve,
-       * and `evaluate` then threw `ease is not a function` out of `init()`
-       * on the first frame: the page-down failure the try above guards,
-       * arriving through the value instead of the throw. Same refusal as a
-       * throw, because a module answering nonsense is the same module.
-       */
-      if (typeof shaped === 'function') return shaped;
-      if (shaped) threw = true;
-    } catch {
-      threw = true;
-    }
-  }
-  if (threw) {
-    rejectFor('motion-easing-threw', [named]);
-    return null;
-  }
-  if (insert('easing').length) return null;
-  /**
-   * Per element, unlike the console line. This was console-only, and the
-   * README tells anyone whose element is not animating to check `rejected` and
-   * says it lists every refused attribute — while the most consequential
-   * quiet failure the library has, an `ease` that parses, validates and then
-   * does nothing, appeared there not at all. One line in a console the GUI
-   * cannot read is not a report.
-   */
-  rejectFor('motion-easings-module-missing', [named]);
-  if (!warnedAboutEasing) {
-    warnedAboutEasing = true;
-    console.warn(
-      `[vera] motion: ease "${value}" needs the easings module.${__DEV__
-        ? " import { easings } from '@verajs/directives/motion' and wireDirectives(easings). " +
-          'Until then every curve is linear.'
-        : ''}`
-    );
-  }
-  return null;
-};
 
 /**
  * Builds the runtime representation of one parsed element.
@@ -920,7 +572,7 @@ export const createRuntimeElement = (
   parsed: ParsedElement,
   settings: RuntimeSettings,
   rejectFor: (code: string, args?: readonly string[]) => void
-): RuntimeElement => {
+): RuntimeElement | null => {
   const node = parsed.node as HTMLElement;
 
   /**
@@ -949,25 +601,16 @@ export const createRuntimeElement = (
     scrollWindow: measured.size + measuredWin.size, win: measuredWin, root: rootFontSize,
   });
 
-  const declaredEase = parsed.settings['ease'];
-  const elementEase = generatedCss ? null
-    : resolveCurveEasing(rejectFor, String(declaredEase ?? settings.ease), declaredEase !== undefined);
-  const easeFor = (animation: ElementMotion): Easing | null =>
-    generatedCss ? null
-    : animation.ease !== undefined ? resolveCurveEasing(rejectFor, animation.ease, true) : elementEase;
-
   /**
-   * TEXT-valued properties (paint) exist only as generated keyframes — the inline path's curves
-   * are numeric and its discrete-hold machinery is gone (8c) — so an element kept inline (a
-   * geometry-unit position is what does that now) drops them BY NAME rather than animating a
-   * placeholder zero.
+   * NO INLINE PATH remains (the sweep): a value the generator cannot express refuses BY NAME
+   * and the element drops — the two shapes are a composite target (transform/filter) whose
+   * members misalign under one non-linear ease, and a third-party discrete hold.
    */
-  const inlineAnimations = generatedCss ? parsed.animations : parsed.animations.filter((a) => {
-    if (!a.property.parseText) return true;
-    rejectFor('motion-paint-inline-path', [a.property.key]);
-    return false;
-  });
-  const plan = planFor(inlineAnimations, easeFor);
+  if (!generatedCss) {
+    rejectFor('motion-inexpressible', []);
+    return null;
+  }
+  const plan = planFor(parsed.animations);
 
   const { start, end, size } = measured;
   /**
@@ -976,20 +619,7 @@ export const createRuntimeElement = (
    */
   const displaced = displacementOf(node, settings.scrollDirection, start, settings.scrollElement);
 
-  /**
-   * Leading transform functions the element needs regardless of its animation.
-   *
-   * `perspective()` first, because it applies to the functions that follow it —
-   * without it `translate-z` does nothing at all. `translateZ(0px)` promotes
-   * the element to its own compositor layer, and is a prefix rather than an
-   * animated function so it survives every rewrite of the transform string.
-   */
-  const perspective = parsed.settings['perspective'];
-  const transformPrefix =
-    (perspective ? `perspective(${perspective})` : '') +
-    (perspective && settings.translateZFix ? ' ' : '') +
-    (settings.translateZFix ? 'translateZ(0px)' : '');
-
+  
   /**
    * Read once, here, from the inline style only — a value from a stylesheet
    * needs no restoring, since removing the inline one uncovers it again.
@@ -1106,9 +736,7 @@ export const createRuntimeElement = (
     node,
     parsed,
     plan,
-    transition: generatedCss ? null : transitionFor(plan, settings, parsed),
     generated,
-    transformPrefix,
     restore,
     displaced,
     /** Both readings carry the correction, here and on every re-measure. */
@@ -1126,7 +754,6 @@ export const createRuntimeElement = (
     unfinishable: false,
     pinBlocked: null,
     flatBlocked: null,
-    cascadeBlocked: null,
     /**
      * A stagger in anything but `%` moves with the viewport, exactly as a
      * position does — and a width band moves with it by definition.
@@ -1136,13 +763,8 @@ export const createRuntimeElement = (
       plan.all.some((a) => a.geometryDependent || a.bands.length > 0),
     timelinePosition: 0,
     runOnceRan: false,
-    lastTransform: '',
-    lastFilter: '',
     runOnce: parsed.settings['run-once'] === true,
     when: typeof parsed.settings['when'] === 'string' ? parsed.settings['when'] : null,
-    /** On a generated element the tick rides the base Driven's writes instead — one number, one
-     *  moment, post-smoothing; this field is the OLD path's call and the teardown's handle. */
-    tick: generatedCss ? null : tick,
     tickTeardown,
     reject: rejectFor,
   };
@@ -1167,82 +789,15 @@ export const createRuntimeElement = (
  */
 export const animateElement = (element: RuntimeElement): void => {
   /**
-   * The flip's ONE branch, honouring every caller's contract in one place instead of four:
-   * generated elements own no inline values — CSS computes them from the variable — and a
-   * force-repaint of a latch is `syncTo`'s idle write-through. During a ramp, position updates
-   * are bookkeeping; the clock owns the pixels. A play's non-ramp writes (the gate's rest, a
-   * latch repaint) go through immediately — tau 0 — because the ramp IS that element's easing.
+   * The whole write path: hand every driver slice its target and let the drive loop (or the
+   * idle write-through) land the number. CSS computes the pixels — the evaluate/compose/apply
+   * loop that followed this branch for inline elements is DELETED with the inline path; there
+   * is exactly one way an element animates now.
    */
-  if (element.generated) {
-    for (const d of element.generated.drives) {
-      syncTo(d.driven, element.timelinePosition, element.generated.play !== null ? 0 : d.tau);
-    }
-    return;
+  if (!element.generated) return;
+  for (const d of element.generated.drives) {
+    syncTo(d.driven, element.timelinePosition, element.generated.play !== null ? 0 : d.tau);
   }
-
-  const { plan } = element;
-  const position = element.timelinePosition;
-
-  /**
-   * The progress custom property, when one was named. Written before the values rather than after,
-   * so a stylesheet reading it resolves in the same style pass as the inline writes below instead of
-   * lagging them by a frame.
-   */
-  if (element.progressProperty) {
-    element.node.style.setProperty(element.progressProperty, String(position));
-  }
-
-  const { transform, transformValues } = plan;
-  if (transform.length) {
-    for (let i = 0; i < transform.length; i++) {
-      transformValues[i] = evaluate(transform[i]!.curve, position);
-    }
-    const next = composeTransform(
-      { animations: transform, values: transformValues },
-      element.transformPrefix
-    );
-    /**
-     * Skip the write when nothing changed — most frames, in practice.
-     *
-     * The cache is what this element last *wrote*, not what the DOM currently
-     * holds, and closing that gap would mean reading the DOM every frame,
-     * which is the cost the cache exists to avoid. So the runtime owns the
-     * inline transform of an element it animates: if something else clears it,
-     * the value returns on the next frame where it actually changes, and not
-     * before. Documented in the README under "The runtime owns the inline
-     * styles it animates".
-     */
-    if (next !== element.lastTransform) {
-      element.node.style.transform = next;
-      element.lastTransform = next;
-    }
-  }
-
-  const { filter, filterValues } = plan;
-  if (filter.length) {
-    for (let i = 0; i < filter.length; i++) {
-      filterValues[i] = evaluate(filter[i]!.curve, position);
-    }
-    const next = composeFilter({ animations: filter, values: filterValues });
-    if (next !== element.lastFilter) {
-      element.node.style.filter = next;
-      element.lastFilter = next;
-    }
-  }
-
-  const { properties, lastProperties } = plan;
-  for (let i = 0; i < properties.length; i++) {
-    const animation = properties[i]!;
-    const value = evaluate(animation.curve, position);
-    /** NaN-initialised, so the first pass always writes. */
-    if (value === lastProperties[i]) continue;
-    lastProperties[i] = value;
-    /** A plain style write, always — the per-frame module containment that used to live here
-     *  guarded `PropertyDef.apply`, which stage 6 deleted; a tick's containment is its own. */
-    applyProperty(element.node, animation.property, animation.unit, value);
-  }
-
-  element.tick?.(position);
 };
 
 
@@ -1510,62 +1065,7 @@ export const setElementStyles = (element: RuntimeElement, settings: RuntimeSetti
   }
 };
 
-/**
- * Applies transitions after a tick, for a whole set of elements at once.
- *
- * Deferred by one frame because setting the transition in the same frame as the
- * element's first values would animate it in from wherever the browser happened
- * to think it was; the initial state needs to land untransitioned.
- *
- * Batched because the per-element version scheduled one animation frame each —
- * 200 elements meant 200 callbacks for 200 style writes that could share one,
- * and every DOM mutation scheduled another 200 on top.
- *
- * @returns a canceller for the pending frame
- */
-export const setTransitions = (
-  elements: Iterable<RuntimeElement>,
-  /**
-   * Called once the write has landed **or** been cancelled, so a caller
-   * holding a set of outstanding cancellers can drop this one. Without it a
-   * caller either forgets its cancellers — which is the bug this parameter
-   * exists for — or accumulates one per mutation batch for the life of the
-   * page.
-   */
-  settled?: () => void,
-  /**
-   * Whether an element is still the caller's to write, asked **at fire
-   * time**. The deferral opens a per-element window the cancellers cannot
-   * close: a batch is cancelled whole, so an element dropped between queue
-   * and frame — an attribute edit followed by removing the marker, which is
-   * two keystrokes in an editor — had its `clearElement` overwritten by this
-   * write, leaving an inline `transition` on a node no instance held and
-   * nothing could ever clean. Found by observer-path chaos; every seed hit it.
-   */
-  alive?: (element: RuntimeElement) => boolean
-): (() => void) => {
-  const pending = [...elements].filter((e) => e.transition);
-  if (!pending.length) return () => {};
 
-  const frame = requestAnimationFrame(() => {
-    for (const element of pending) {
-      if (alive && !alive(element)) continue;
-      element.node.style.transition = element.transition as string;
-    }
-    settled?.();
-  });
-
-  /**
-   * Cancellable, because the deferral opens a window: `destroy()` between this
-   * call and the frame would have `clearElement` strip the transition and then
-   * this write it straight back onto a torn-down element. `scrollListener`
-   * cancels its frame for exactly this reason; this one did not.
-   */
-  return () => {
-    cancelAnimationFrame(frame);
-    settled?.();
-  };
-};
 
 /**
  * Clears the *animated* styles and re-measures.
@@ -1634,10 +1134,10 @@ export const resetElement = (
  */
 const adopted = new WeakSet<Element>();
 
-const managedStyles = (plan: ScreenPlan): string[] => [
-  'transition', 'transform', 'filter', 'will-change', 'transform-origin',
-  'position', 'top', 'inset-inline-start',
-  ...plan.properties.map((a) => a.property.cssProperty ?? '').filter(Boolean),
+const managedStyles = (_plan: ScreenPlan): string[] => [
+  /** The inline write path is gone, so the instance's own writes are settings styles only —
+   *  animated values live in generated CSS the teardown releases by key, never inline. */
+  'will-change', 'transform-origin', 'position', 'top', 'inset-inline-start',
 ];
 
 /**
@@ -1664,21 +1164,10 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.style.removeProperty(STAGGER_PROPERTY);
     node.removeAttribute('data-vd-a');
   }
-  node.style.transition = '';
-  node.style.transform = '';
-  node.style.filter = '';
   /** The progress property too, or a torn-down element leaves a stale number behind for whatever
    *  CSS was reading it — visible as a bar frozen part-way rather than as nothing at all. */
   if (element.progressProperty) node.style.removeProperty(element.progressProperty);
 
-  /**
-   * Invalidate the write cache. Without this the next composed string would
-   * match what was last written, the write would be skipped, and the element
-   * would stay visually cleared — the failure mode of any such cache.
-   */
-  element.lastTransform = '';
-  element.lastFilter = '';
-  element.plan.lastProperties.fill(NaN);
 
   /**
    * **No re-measure here.** It used to call `resetElement`, three lines after
@@ -1701,9 +1190,6 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.style.removeProperty('position');
     /** The same axis it was written on, so an authored offset on the other survives. */
     node.style.removeProperty(settings.scrollDirection === 'horizontal' ? 'inset-inline-start' : 'top');
-  }
-  for (const animation of element.plan.properties) {
-    if (animation.property.cssProperty) node.style.removeProperty(animation.property.cssProperty);
   }
 
   /** Last, so it lands on top of every removal above. */

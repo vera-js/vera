@@ -39,9 +39,7 @@
  * repeated in every animation on the page.
  */
 
-import type { Easing } from './timing.js';
 /** Re-exported so a module names one import, not two. */
-export type { Easing } from './timing.js';
 
 /**
  * Page-level problems (a clash, a broken factory) reach the engine's
@@ -585,14 +583,12 @@ export const registerVocabulary = (item: WirableTree): void => {
  * system; these fire from the motion directive's lifecycle.
  */
 export interface InsertMap {
-  /** Turns an `ease` value into a curve shaper. The easings module. */
-  easing: (value: string) => Easing | null;
   /**
    * Turns a preset NAME into the motion value it stands for, or null if this pack does not know it.
    * The presets module — and, deliberately, anyone else's: the shipped table is one registration on
    * this point and carries no privilege over a third party's.
    *
-   * Like `easing`, and unlike the four below, this chain's links RETURN a value, so a resolver that
+   * Unlike the four below, this chain's links RETURN a value, so a resolver that
    * throws or answers nonsense has to be contained per link rather than per page.
    */
   preset: (name: string) => Readonly<Record<string, unknown>> | null;
