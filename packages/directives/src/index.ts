@@ -9,7 +9,7 @@
 export { wireDirectives, activate, deactivate, settled, rejections, describeDirectives, describePayloads, wirePayloads, wireActions, describeActions, stateOf, directives, renderDirectives, takeDirectiveNames } from './engine.js';
 export { interaction } from './interaction.js';
 export { expressions, compileExpression } from './expressions.js';
-export { motion, presets, motionExtension, easings, paint, path, sequence, split, enableMotion, disableMotion } from './motion/index.js';
+export { motion, presets, motionExtension, easings, paint, path, sequence, split, wireTicks, enableMotion, disableMotion } from './motion/index.js';
 export { remote } from './remote.js';
 export { query } from './query.js';
 export { sensors } from './sensors.js';

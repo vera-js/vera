@@ -88,11 +88,13 @@ export const applyProperty = (
   property: PropertyDef,
   unit: Unit,
   value: number
-): void | string => {
-  /** A returned string is a refusal, and the caller records it. */
-  if (property.apply) return property.apply(node, value);
+): void => {
+  /** ONE write path. The imperative `PropertyDef.apply` that used to sit here left with stage 6:
+   *  everything CSS cannot express goes through the `tick` door, a value that is an encoding
+   *  supplies its text through `css`, and the engine owns every write. */
   if (!property.cssProperty) return;
-  node.style.setProperty(property.cssProperty, `${format(value)}${unit}`);
+  const text = property.css ? property.css(value) : `${format(value)}${unit}`;
+  if (text !== null) node.style.setProperty(property.cssProperty, text);
 };
 
 

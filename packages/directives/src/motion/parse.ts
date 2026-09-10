@@ -206,7 +206,9 @@ interface Collected {
 const SHIPPED_PACK_KEYS: Record<string, string> = {
   background: 'paint', color: 'paint', 'border-color': 'paint', shadow: 'paint', 'text-shadow': 'paint',
   path: 'path', 'path-selector': 'path', 'path-rotate': 'path',
-  frame: 'sequence', 'frame-url': 'sequence', 'frame-count': 'sequence', 'frame-ext': 'sequence',
+  /** No `frame` PROPERTY row any more — sequence is a tick consumer since stage 6, so its
+   *  keyframes key is gone and only its settings remain to point at the pack. */
+  'frame-url': 'sequence', 'frame-count': 'sequence', 'frame-ext': 'sequence',
   'frame-pad': 'sequence', 'frame-tween': 'sequence',
 };
 
@@ -764,9 +766,10 @@ export const parseMotion = (
     /**
      * A stagger-only parent is a real shape now — `data-vd-motion="{
      * stagger: '10%' }"` animates nothing itself and cascades its children —
-     * so "no animations" is only a drop when nothing else was said either.
+     * and so is a tick-only element, whose whole animation is a function:
+     * "no animations" is only a drop when nothing else was said either.
      */
-    if (settings['stagger'] === undefined) {
+    if (settings['stagger'] === undefined && typeof settings['tick'] !== 'string') {
       if (rejected.length) context.dropped?.push({ node, rejected });
       return null;
     }

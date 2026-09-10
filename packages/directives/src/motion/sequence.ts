@@ -19,7 +19,8 @@
 import { createSequence } from './frames.js';
 import { parseUrl } from './url.js';
 import { pageProblem } from './schema.js';
-import type { PropertyDef, SettingDef, WirableTree } from './schema.js';
+import type { SettingDef, WirableTree } from './schema.js';
+import type { TickModule } from './ticks.js';
 import { MOTION_ATTR } from './parse.js';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
@@ -29,18 +30,24 @@ const FROM = '@verajs/directives/motion';
 type Drawer = { draw(index: number): void; destroy(): void };
 
 /**
- * One drawer per canvas, built on the first frame that asks for it — lazily,
- * so an element that never comes into view never allocates a decoder.
+ * One drawer per canvas, built on the first tick that asks for it — lazily,
+ * so an element that never comes into view never allocates a decoder. The
+ * frame count rides along because the tick receives PROGRESS (0-1) and the
+ * drawer wants an index; the scaling needs the count without re-reading the
+ * attribute per frame.
  */
-const drawers = new Map<Element, Drawer>();
+const drawers = new Map<Element, { drawer: Drawer; frames: number }>();
 /**
- * Canvases already refused, and why — `apply` hands the reason to the
- * runtime, which records it against the element where a GUI reads.
+ * Canvases already refused, and why — reported through the element's own
+ * refusal channel (captured at tick setup) where a GUI reads, besides the
+ * console line.
  */
 const refused = new Map<Element, string>();
+/** Each active element's refusal channel, captured by the tick's `setup`. */
+const rejecters = new Map<Element, (code: string, args?: readonly string[]) => void>();
 
 const forget = (node: Element): void => {
-  drawers.get(node)?.destroy();
+  drawers.get(node)?.drawer.destroy();
   drawers.delete(node);
   /** The refusal record too, or a refused canvas outlives its own removal. */
   refused.delete(node);
@@ -64,7 +71,10 @@ const frameSettings = (node: Element): Readonly<Record<string, unknown>> => {
   return {};
 };
 
-const drawerFor = (node: HTMLElement, allowedOrigins: readonly string[]): Drawer | null => {
+const drawerFor = (
+  node: HTMLElement,
+  allowedOrigins: readonly string[]
+): { drawer: Drawer; frames: number } | null => {
   const existing = drawers.get(node);
   if (existing) return existing;
   if (refused.has(node)) return null;
@@ -72,6 +82,8 @@ const drawerFor = (node: HTMLElement, allowedOrigins: readonly string[]): Drawer
   const fail = (message: string): null => {
     refused.set(node, message);
     console.warn(`[vera] motion: ${message}`);
+    /** The element's own diagnostics too — a console line is not a report a GUI can read. */
+    rejecters.get(node)?.('motion-sequence-refused', [message]);
     return null;
   };
 
@@ -108,8 +120,9 @@ const drawerFor = (node: HTMLElement, allowedOrigins: readonly string[]): Drawer
   });
   if (!drawer) return fail('this canvas has no 2D context.');
 
-  drawers.set(node, drawer);
-  return drawer;
+  const entry = { drawer, frames };
+  drawers.set(node, entry);
+  return entry;
 };
 
 export interface SequenceOptions {
@@ -121,24 +134,26 @@ export interface SequenceOptions {
   readonly allowedOrigins?: readonly string[];
 }
 
-/** The vocabulary rows for one policy. `sequence` (below) wraps this as the wirable. */
-export const sequenceRows = (options: SequenceOptions = {}): WirableTree => {
-  /**
-   * Normalised, and complained about when it cannot be. `parseUrl` compares
-   * against `URL.origin` — scheme + host + port, never a trailing slash —
-   * so three of the four ways a site owner plausibly writes an origin
-   * matched nothing, each failing CLOSED (right) and silently (wrong).
-   * `new URL(entry).origin` accepts those spellings and rejects a bare
-   * host, which cannot be resolved without guessing a scheme — not a favour
-   * to do silently on a security boundary. A lone string is refused rather
-   * than wrapped: two ways to write one thing is how a list of one and a
-   * list of many stop agreeing.
-   */
+/**
+ * Normalised, and complained about when it cannot be. `parseUrl` compares
+ * against `URL.origin` — scheme + host + port, never a trailing slash —
+ * so three of the four ways a site owner plausibly writes an origin
+ * matched nothing, each failing CLOSED (right) and silently (wrong).
+ * `new URL(entry).origin` accepts those spellings and rejects a bare
+ * host, which cannot be resolved without guessing a scheme — not a favour
+ * to do silently on a security boundary. A lone string is refused rather
+ * than wrapped: two ways to write one thing is how a list of one and a
+ * list of many stop agreeing.
+ *
+ * Its own function so the ROWS and the TICK normalise ONCE from one options
+ * object — two passes would double every complaint and could drift.
+ */
+const normalizeOrigins = (options: SequenceOptions): readonly string[] => {
   const declared = options.allowedOrigins;
   if (declared !== undefined && !Array.isArray(declared)) {
     pageProblem('motion-sequence-origins-not-list', [typeof declared]);
   }
-  const allowedOrigins = (Array.isArray(declared) ? declared : []).flatMap((entry) => {
+  return (Array.isArray(declared) ? declared : []).flatMap((entry) => {
     try {
       return [new URL(entry).origin];
     } catch {
@@ -146,40 +161,9 @@ export const sequenceRows = (options: SequenceOptions = {}): WirableTree => {
       return [];
     }
   });
+};
 
-  /**
-   * Frame index within an image sequence. Drives a canvas rather than a
-   * style, so it carries no `cssProperty` — the runtime routes it to this
-   * module's `apply` instead.
-   */
-  const frame: PropertyDef = {
-    key: 'frame',
-    from: FROM,
-    category: 'image',
-    defaultUnit: '',
-    units: [''],
-    min: 0,
-    initial: 0,
-    /** The engine's rebuild is the edit path: teardown drops the drawer,
-     *  the next draw rebuilds from the fresh value. */
-    setup(node) {
-      return () => forget(node);
-    },
-    /** No cssProperty: this paints a canvas rather than writing a style. */
-    apply(node, value) {
-      const drawer = drawerFor(node, allowedOrigins);
-      /**
-       * Drawn *and* asked whether anything has been refused since — a
-       * sequence that built a drawer and then failed every fetch (the
-       * likeliest shape of a wrong frame-url) reports through the same
-       * channel. Returned every frame it stays refused; deduplication
-       * lives with the recorder, the only place that sees every reporter.
-       */
-      if (drawer) drawer.draw(value);
-      return refused.get(node);
-    },
-  };
-
+const rowsFor = (allowedOrigins: readonly string[]): WirableTree => {
   const settings: readonly SettingDef[] = [
     {
       key: 'frame-url',
@@ -207,5 +191,42 @@ export const sequenceRows = (options: SequenceOptions = {}): WirableTree => {
     { key: 'frame-tween', from: FROM, type: 'boolean' },
   ];
 
-  return [frame, ...settings];
+  return [...settings];
 };
+
+/** The vocabulary rows for one policy — the artifact generator's door. */
+export const sequenceRows = (options: SequenceOptions = {}): WirableTree =>
+  rowsFor(normalizeOrigins(options));
+
+/** Rows and tick from ONE normalisation — what the wirable `sequence` installs. */
+export const sequenceModule = (
+  options: SequenceOptions = {}
+): { rows: WirableTree; tick: TickModule } => {
+  const origins = normalizeOrigins(options);
+  return { rows: rowsFor(origins), tick: sequenceTick(origins) };
+};
+
+/**
+ * The tick — sequence's whole runtime, since stage 6: an ordinary consumer of
+ * the named-JS door, drawing a canvas frame from the number like any other
+ * tick. Progress scales to a frame index here (`p * (frames - 1)`); tweening
+ * between frames stays the drawer's business and stays opt-in.
+ *
+ * `setup` captures the element's refusal channel (so a wrong `frame-url`
+ * reports where a GUI reads) and its teardown drops the drawer — the
+ * engine's rebuild-on-edit is the staleness story, exactly as it was when a
+ * `PropertyDef.setup` carried this.
+ */
+const sequenceTick = (allowedOrigins: readonly string[]): TickModule => ({
+  setup(node, _settings, reject) {
+    rejecters.set(node, reject);
+    return () => {
+      rejecters.delete(node);
+      forget(node);
+    };
+  },
+  tick(node, progress) {
+    const entry = drawerFor(node, allowedOrigins);
+    if (entry) entry.drawer.draw(progress * (entry.frames - 1));
+  },
+});

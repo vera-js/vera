@@ -1,5 +1,5 @@
 {
- "//": "Motion object grammar — refusal-order conformance. Contributed by omni 2026-09-09 per the fixtures flow (omni's 88-case corpus pins TS<->PHP byte-for-byte including refusal ORDER; these are the spec-level cases). Each case: raw input -> the refusal sequence (code + where, IN ORDER) and the settings that survive. Animations are deliberately omitted: each engine pins its own normalized shape; the SPEC pins what is refused, what is kept, and in what order it is reported. CODES NOTE: all codes are vera's own names mirrored into omni, except the motion-setting-<type> family, which omni spelled while vera's WHY table was unread - flagged for alignment on adoption.",
+ "//": "Motion object grammar — refusal-order conformance. Contributed by omni 2026-09-09, regenerated 2026-09-10 for the RATIFIED ANCHOR UNION (arbitrary selectors accepted; lists and :has() refused; child combinator legal — `<` and `\"` are the attribute-breakout characters, `>` is not) per the fixtures flow (omni's 92-case corpus pins TS<->PHP byte-for-byte including refusal ORDER; these are the spec-level cases). Each case: raw input -> the refusal sequence (code + where, IN ORDER) and the settings that survive. Animations are deliberately omitted: each engine pins its own normalized shape; the SPEC pins what is refused, what is kept, and in what order it is reported. CODES NOTE: all codes are vera's own names mirrored into omni, except the motion-setting-<type> family, which omni spelled while vera's WHY table was unread - flagged for alignment on adoption.",
  "cases": [
   {
    "name": "preset literal expands to its full body",
@@ -646,15 +646,12 @@
    "usable": true
   },
   {
-   "name": "anchor arbitrary selector refused",
+   "name": "anchor arbitrary selector accepted (ratified union)",
    "raw": "{ keyframes: { opacity: '0, 1' }, anchor: 'div > span' }",
-   "rejected": [
-    {
-     "code": "motion-setting-selector",
-     "where": "anchor"
-    }
-   ],
-   "settings": {},
+   "rejected": [],
+   "settings": {
+    "anchor": "div > span"
+   },
    "usable": true
   },
   {
@@ -920,6 +917,48 @@
     }
    ],
    "settings": {},
+   "usable": true
+  },
+  {
+   "name": "anchor list refused (querySelector first-of-any)",
+   "raw": "{ keyframes: { opacity: '0, 1' }, anchor: '.a, .b' }",
+   "rejected": [
+    {
+     "code": "motion-setting-selector",
+     "where": "anchor"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "anchor closest list accepted (Element.closest takes one)",
+   "raw": "{ keyframes: { opacity: '0, 1' }, anchor: 'closest(.a, .b)' }",
+   "rejected": [],
+   "settings": {
+    "anchor": "closest(.a, .b)"
+   },
+   "usable": true
+  },
+  {
+   "name": "anchor has() refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, anchor: 'section:has(img)' }",
+   "rejected": [
+    {
+     "code": "motion-setting-selector",
+     "where": "anchor"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "when with child combinator accepted",
+   "raw": "{ keyframes: { opacity: '0, 1' }, when: '.parent > .open' }",
+   "rejected": [],
+   "settings": {
+    "when": ".parent > .open"
+   },
    "usable": true
   }
  ]

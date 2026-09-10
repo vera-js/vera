@@ -224,21 +224,6 @@
       "fix": "The module must call wireDirectives with a matching directive."
     },
     {
-      "code": "motion-apply-refused",
-      "params": [
-        "key",
-        "why"
-      ],
-      "message": "{key}: {why}"
-    },
-    {
-      "code": "motion-apply-threw",
-      "params": [
-        "key"
-      ],
-      "message": "{key}: this module's apply threw."
-    },
-    {
       "code": "motion-bad-position",
       "params": [
         "where",
@@ -632,6 +617,13 @@
       "fix": "Write one origin as a list of one, for example [\"https://cdn.example\"]."
     },
     {
+      "code": "motion-sequence-refused",
+      "params": [
+        "why"
+      ],
+      "message": "{why}"
+    },
+    {
       "code": "motion-setting-alignment",
       "params": [
         "where"
@@ -735,6 +727,13 @@
       "message": "{where}: is not a selector this library will use — :has() and a few others are refused."
     },
     {
+      "code": "motion-setting-tick",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a registered tick's NAME — bare identifier, no parentheses, never code."
+    },
+    {
       "code": "motion-stagger-no-descendants",
       "params": [],
       "message": "stagger needs animated descendants — it goes on the parent."
@@ -744,6 +743,38 @@
       "params": [],
       "message": "stagger does nothing on a play — it offsets a scroll timeline, and a play has none.",
       "fix": "Remove one of them; a per-sibling time delay is not built yet."
+    },
+    {
+      "code": "motion-tick-not-function",
+      "params": [
+        "name",
+        "kind"
+      ],
+      "message": "wireTicks: '{name}' is {kind}, not a function or a { tick, setup } module; ignoring it."
+    },
+    {
+      "code": "motion-tick-redefined",
+      "params": [
+        "name"
+      ],
+      "message": "wireTicks: '{name}' is already registered; the first registration wins.",
+      "fix": "Rename one of them — a silent override would leave one module believing its tick runs."
+    },
+    {
+      "code": "motion-tick-threw",
+      "params": [
+        "name",
+        "error"
+      ],
+      "message": "tick '{name}' threw and is disabled for this element. {error}"
+    },
+    {
+      "code": "motion-tick-unknown",
+      "params": [
+        "name"
+      ],
+      "message": "tick: '{name}' names no registered tick.",
+      "fix": "Register it from page code, before elements activate: wireTicks({ {name}: (el, p) => { … } })."
     },
     {
       "code": "motion-too-many-bands",

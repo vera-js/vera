@@ -48,6 +48,7 @@ Progress runs 0–100 like CSS keyframes. The ±300% extrapolation range lives o
 | `progress` | `'--name'` → custom property; bare `name` → state key | **exposes the number**; destination by name shape |
 | `stagger` | offset, on the PARENT | offsets siblings — scroll-space under scrub; per-sibling time delay under play (pending) |
 | `preset` | name | expands FIRST wherever written; explicit keys always win; preset tables merge, explicit pack over shipped |
+| `tick` | bare identifier — a registered function's NAME, never code | the third destination: the element's number handed to registered JS (`wireTicks` in vera), for what CSS cannot express; may be the whole animation (no `keyframes`); a throwing tick is disabled per element and reported. Registry semantics: first registration wins, collisions reported. vera: shipped; omni: grammar reserved (see DIVERGENCES) |
 
 ## The engine sentence (shared, ratified)
 

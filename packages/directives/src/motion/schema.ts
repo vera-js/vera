@@ -98,15 +98,13 @@ export interface PropertyDef {
   readonly key: string;
   readonly parse?: (raw: string) => number | null;
   /**
-   * Writes the value. A returned string is a **refusal** — the reason reaches
-   * the rejections registry, recorded once however many frames later call
-   * this. Returning nothing is the ordinary case.
-   *
-   * Typed `void | string` rather than `void` on purpose: TypeScript lets a
-   * value-returning function satisfy a `void` return type, so a module could
-   * return a reason, typecheck cleanly, and have it silently dropped.
+   * Maps the curve's number to the CSS TEXT the engine writes — for properties whose number is an
+   * index or an encoding rather than a magnitude (paint's value slots). Null means "write
+   * nothing". A formatter, deliberately NOT a writer: the imperative `apply(node, value)` this
+   * replaces let a module touch the node, and stage 6 removed that so the engine owns every
+   * write — one write path, with modules supplying only text.
    */
-  readonly apply?: (node: HTMLElement, value: number) => void | string;
+  readonly css?: (value: number) => string | null;
   /**
    * Derived for built-ins, and free-form for a module — the union keeps
    * autocomplete for the known values while letting a module name its own
@@ -415,6 +413,16 @@ export const SETTINGS = [
   { key: 'progress', type: 'string', code: 'motion-setting-progress',
     parse: (raw) => (/^--[\w-]+$/.test(raw.trim()) ? raw.trim() : null) },
   { key: 'run-once', type: 'boolean' },
+  /**
+   * The THIRD destination for the element's number: a registered JavaScript function, for
+   * everything CSS cannot do at all — a canvas frame, text content, WebGL, audio. The attribute
+   * NAMES the function (`wireTicks({ drawFrame: (el, p) => … })` registers it from page code) and
+   * never contains one: attribute text is CMS-editable, and a value that could carry a function
+   * body would hand it the whole DOM API. The escape hatch, not the road — a tick is a per-frame
+   * JS call, the cost the generated path exists to remove.
+   */
+  { key: 'tick', type: 'string', code: 'motion-setting-tick',
+    parse: (raw) => (/^[A-Za-z_$][\w$-]*$/.test(raw.trim()) ? raw.trim() : null) },
   /**
    * **Gates the animation; it does not replace the driver.** While the element matches, it animates
    * normally — scrubbing on scroll, or playing if `play` is set; while it does not, it rests at its

@@ -32,7 +32,8 @@ import type { Ctx, Directive, EngineConnector } from '../types.js';
 import { resolveEasing } from './easings.js';
 import { paintRows } from './paint.js';
 import { pathRows } from './path.js';
-import { sequenceRows } from './sequence.js';
+import { sequenceRows, sequenceModule } from './sequence.js';
+import { wireTicks } from './ticks.js';
 import type { SequenceOptions } from './sequence.js';
 import { splitDirective } from './split.js';
 
@@ -497,7 +498,20 @@ export { PRESETS } from './presets.js';
 export type { Preset, PresetTable } from './presets.js';
 export const paint: EngineConnector = motionExtension(paintRows);
 export const path: EngineConnector = motionExtension(pathRows);
-export const sequence = dual<SequenceOptions>((options) => motionExtension(sequenceRows(options)));
+/**
+ * Sequence wires TWO things from one options object: its settings rows into the vocabulary, and
+ * its drawer into the tick registry under the name the attribute uses — `tick: 'sequence'`. A
+ * page's own `wireTicks({ sequence })` earlier would win the name and be reported, per the
+ * registry's first-wins rule.
+ */
+export const sequence = dual<SequenceOptions>((options) => {
+  const { rows, tick } = sequenceModule(options);
+  const connect = motionExtension(rows);
+  return (seams) => {
+    wireTicks({ sequence: tick });
+    return connect(seams);
+  };
+});
 export const split = splitDirective;
 /**
  * The write-path registry — INTERNAL until the rewrite's stage 4 wires activation through it.
@@ -505,6 +519,12 @@ export const split = splitDirective;
  * without a public surface committing to anything; not documented, not API, and its shape may
  * change with any stage.
  */
+/**
+ * The named-JS door — see `ticks.ts`. Public API: `wireTicks({ drawFrame: (el, p) => … })`
+ * registers what `tick: 'drawFrame'` names. The escape hatch, not the road.
+ */
+export { wireTicks } from './ticks.js';
+export type { TickFunction, TickModule } from './ticks.js';
 export * as keyframeRegistry from './registry.js';
 export * as writePath from './generate.js';
 /** Row tables for the vocabulary ARTIFACT generator only — data, not API; the connectors above are

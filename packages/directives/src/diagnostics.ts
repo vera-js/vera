@@ -252,6 +252,9 @@ export const PROSE: Record<string, Prose> = {
   'motion-setting-length': (where) => [`${where}: is not a length — use px, rem, em, %, vh or vw.`],
   'motion-setting-number': (where, range) => [`${where}: must be a number${range}.`],
   'motion-setting-progress': (where) => [`${where}: is not a custom property name (--like-this).`],
+  'motion-setting-tick': (where) => [
+    `${where}: is not a registered tick's NAME — bare identifier, no parentheses, never code.`,
+  ],
   'motion-setting-module-refused': (where) => [`${where}: was refused by the module that owns it.`],
   'motion-band-suffix-retired': (property, band) => [
     `a \`-${band}\` key suffix is no longer read — write the band in the value instead.`,
@@ -283,8 +286,21 @@ export const PROSE: Record<string, Prose> = {
   'motion-no-keyframes': (where) => [`${where ? `${where}: ` : ''}no keyframes.`],
   'motion-too-many-bands': (where, cap) => [`${where ? `${where}: ` : ''}more than ${cap} bands.`],
   'motion-too-many-keyframes': (where, cap) => [`${where ? `${where}: ` : ''}more than ${cap} keyframes.`],
-  'motion-apply-threw': (key) => [`${key}: this module's apply threw.`],
-  'motion-apply-refused': (key, why) => [`${key}: ${why}`],
+  'motion-tick-unknown': (name) => [
+    `tick: '${name}' names no registered tick.`,
+    `Register it from page code, before elements activate: wireTicks({ ${name}: (el, p) => { … } }).`,
+  ],
+  'motion-tick-threw': (name, error) => [
+    `tick '${name}' threw and is disabled for this element. ${error}`,
+  ],
+  'motion-tick-redefined': (name) => [
+    `wireTicks: '${name}' is already registered; the first registration wins.`,
+    'Rename one of them — a silent override would leave one module believing its tick runs.',
+  ],
+  'motion-tick-not-function': (name, kind) => [
+    `wireTicks: '${name}' is ${kind}, not a function or a { tick, setup } module; ignoring it.`,
+  ],
+  'motion-sequence-refused': (why) => [why],
   'motion-perspective-bad': (perspective) => [
     `perspective: "${perspective}" is not a length CSS will take — it must not be negative or a percentage.`,
     'An invalid perspective() drops the whole transform, so nothing on this element would animate.',

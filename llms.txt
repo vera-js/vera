@@ -947,10 +947,16 @@ is refused with `play` until a per-sibling time delay exists. `inertia` smooths 
 target, the one thing CSS scroll-driven animation cannot do — that is a pure function of scroll
 position. **`progress: '--p'`** writes the timeline position to a custom property so CSS can read it
 (opt-in; one write per element per frame), which is how anything outside the animatable-property
-table — gradients, shadows, `clip-path` — gets animated.
+table — gradients, shadows, `clip-path` — gets animated. **`tick: 'name'` hands the same number to a
+registered JavaScript function** — `wireTicks({ name: (el, p) => … })` from page code — for what CSS
+cannot do at all: a canvas, text content, WebGL. The attribute NAMES a function and never contains
+one, `tick` may be the whole animation (no `keyframes` needed), and a throwing tick is disabled for
+its own element and reported, never the page. The escape hatch, not the road — it is a per-frame JS
+call, so prefer `keyframes` or `progress` wherever CSS can express the effect.
 `data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
 Vocabulary modules extend the object's KEYS, never the attribute space: `easings`, `paint`
-(background/color/border-color/shadow/text-shadow), `path`, `sequence` (`frame-*`), plus
+(background/color/border-color/shadow/text-shadow), `path`, `sequence` (a tick consumer:
+`tick: 'sequence'` scrubs an image sequence onto a `<canvas>`, configured by `frame-*` settings), plus
 `data-vd-split` (chars/words/lines; pieces inherit the motion minus `stagger`).
 
 **`presets` is one of those modules, not a built-in list.** `wireDirectives([motion, presets])`

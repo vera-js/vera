@@ -350,17 +350,6 @@
       "max": 100,
       "initial": 0,
       "pack": "path"
-    },
-    {
-      "key": "frame",
-      "category": "image",
-      "defaultUnit": "",
-      "units": [
-        ""
-      ],
-      "min": 0,
-      "initial": 0,
-      "pack": "sequence"
     }
   ],
   "settings": [
@@ -419,6 +408,10 @@
     {
       "key": "run-once",
       "type": "boolean"
+    },
+    {
+      "key": "tick",
+      "type": "string"
     },
     {
       "key": "when",

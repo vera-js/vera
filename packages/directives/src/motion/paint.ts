@@ -107,14 +107,14 @@ const define = (key: string, cssProperty: string): PropertyDef => ({
     return slot;
   },
 
-  apply(node, value) {
+  css(value) {
     /**
      * `discrete` above is what makes the value land *on* a slot rather than
      * between two; the floor is what stops a fractional one from indexing
-     * nothing. The CSS transition carries the change.
+     * nothing. The CSS transition carries the change. A formatter since
+     * stage 6 — the engine does the write.
      */
-    const picked = values[Math.floor(value)];
-    if (picked !== undefined) node.style.setProperty(cssProperty, picked);
+    return values[Math.floor(value)] ?? null;
   },
 });
 

@@ -135,7 +135,11 @@ interface Grouped {
  */
 export const generateSimple = (parsed: ParsedElement): Generated | null => {
   if (parsed.stagger) return null;
-  if (!parsed.animations.length) return null;
+  /** A TICK-ONLY element is a real shape — `{ scroll: '…', tick: 'drawFrame' }` — and generates
+   *  no CSS at all: zero groups, zero rules. It rides this path for the drive machinery (chase,
+   *  ramp, the variable write) aimed at its function. Anything else with no animations is the
+   *  old path's problem. */
+  if (!parsed.animations.length && typeof parsed.settings['tick'] !== 'string') return null;
 
   /**
    * `progress: '--x'` renames the variable — one write serves the animation AND the author's CSS.
@@ -147,7 +151,7 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
   const varName = typeof progress === 'string' ? progress : PROGRESS_PROPERTY;
 
   for (const animation of parsed.animations) {
-    if (animation.property.setup || animation.property.apply || animation.property.discrete) return null;
+    if (animation.property.setup || animation.property.discrete || animation.property.css) return null;
     if (animation.keyframes.some((frame) => frame.positionUnit !== '%')) return null;
   }
 
@@ -379,7 +383,13 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
   const delayList = generatedGroups.map((g) => `calc(var(${g.varName}, 0) * -1s)`).join(', ');
   const declarations = `animation: ${animationList}; animation-delay: ${delayList};`;
 
-  const vars = [...new Set(generatedGroups.map((g) => g.varName))].map((name) => ({
+  /**
+   * The BASE variable is in the list unconditionally, not derived from the groups: a tick-only
+   * element has no groups at all, and an element whose every category carries its own inertia
+   * override has no GROUP seeking the base — but the base number is still the author-visible one
+   * (the `progress` rename reads it, the tick rides it), so its driver slice must exist.
+   */
+  const vars = [...new Set([varName, ...generatedGroups.map((g) => g.varName)])].map((name) => ({
     name,
     inertiaKey: (name === `${PROGRESS_PROPERTY}-transform` && wantsTransformVar ? 'transform-inertia'
       : name === `${PROGRESS_PROPERTY}-filter` && wantsFilterVar ? 'filter-inertia'
@@ -392,8 +402,10 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
     segments,
     vars,
     varName,
-    elementStyle: declarations,
-    elementRule: `[data-vd-a="${hash}"][data-vd-a] { ${declarations} }`,
+    /** Empty for a tick-only element — no animation list means no declarations to carry, and the
+     *  runtime skips delivery entirely on zero groups. */
+    elementStyle: generatedGroups.length ? declarations : '',
+    elementRule: generatedGroups.length ? `[data-vd-a="${hash}"][data-vd-a] { ${declarations} }` : '',
   };
 };
 

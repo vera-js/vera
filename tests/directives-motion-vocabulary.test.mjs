@@ -90,22 +90,24 @@ test('path without path-selector says so instead of travelling along nothing', a
 });
 
 test('sequence wired: the whole validation chain runs — a real canvas fails at the 2D context here', async () => {
+  /** The stage-6 shape: sequence is a TICK consumer — no `frame` keyframes key, the attribute
+   *  names the pack's registered tick and the frame-* settings configure it. */
   const host = await mount(
-    `<canvas data-vd-motion="{ keyframes: { frame: '0% 0, 100% 10' }, frame-url: '/seq/', frame-count: 10 }"></canvas>`);
+    `<canvas data-vd-motion="{ tick: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }"></canvas>`);
   const el = host.querySelector('canvas');
   const reasons = rejections(el);
   /** url passed policy, count parsed — jsdom's context-less canvas is the stop. */
-  assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'), JSON.stringify(reasons));
   if (!isProduction) assert.ok(reasons.some((r) => /no 2D context/.test(r.message)), 'reached createSequence');
   host.remove();
   await settled();
 });
 
-test('sequence: frame on a non-canvas is the first refusal', async () => {
+test('sequence: the tick on a non-canvas is the first refusal', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ keyframes: { frame: '0% 0, 100% 10' }, frame-url: '/seq/', frame-count: 10 }">x</div>`);
+    `<div data-vd-motion="{ tick: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'));
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs a <canvas>/.test(r.message)));
   host.remove();
   await settled();
@@ -113,9 +115,9 @@ test('sequence: frame on a non-canvas is the first refusal', async () => {
 
 test('sequence: a cross-origin frame-url is refused by the default policy', async () => {
   const host = await mount(
-    `<canvas data-vd-motion="{ keyframes: { frame: '0% 0, 100% 10' }, frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
+    `<canvas data-vd-motion="{ tick: 'sequence', scroll: '100%, 0%', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
   const reasons = rejections(host.querySelector('canvas'));
-  assert.ok(reasons.some((r) => r.code === 'motion-apply-refused'), 'same-origin unless the FACTORY allows');
+  assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'), 'same-origin unless the FACTORY allows');
   host.remove();
   await settled();
 });

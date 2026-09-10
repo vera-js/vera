@@ -12,6 +12,7 @@ import { getElementSize, getWindowSize, displacementOf } from './dom.js';
 import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
 import { generateSimple, mergeBandsForWidth } from './generate.js';
 import { staggerHost } from './parse.js';
+import { tickFor } from './ticks.js';
 import { acquire, release, ensureProperty, setTail } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
@@ -199,6 +200,15 @@ export interface RuntimeElement {
     readonly play: number | null;
   } | null;
   /**
+   * The element's contained tick closure — old-path elements call it at their write moment (raw
+   * timeline position; their smoothing is a CSS transition JS never sees). Generated elements
+   * carry it inside the base Driven instead, where the number lands post-chase/ramp. Null when
+   * no tick was named or the name resolved to nothing.
+   */
+  readonly tick: ((progress: number) => void) | null;
+  /** A setup-carrying tick module's teardown, run at clearElement -- the drawer-drop moment. */
+  readonly tickTeardown: (() => void) | null;
+  /**
    * Where this element's refusals go — the engine's rejections registry,
    * captured from the directive's `ctx.reject` at activation. A closure
    * rather than an import, because this pack is an additive bundle that
@@ -297,7 +307,7 @@ const planFor = (
   for (const a of sorted) {
     /** A module property writes through `apply` and may name no CSS at all. */
     if (a.property.category === 'transform' || a.property.category === 'filter' ||
-        a.property.cssProperty || a.property.apply) scratch++;
+        a.property.cssProperty) scratch++;
   }
 
   let doubles = scratch;
@@ -325,7 +335,7 @@ const planFor = (
     (a) =>
       a.property.category !== 'transform' &&
       a.property.category !== 'filter' &&
-      Boolean(a.property.cssProperty || a.property.apply)
+      Boolean(a.property.cssProperty)
   );
 
   /**
@@ -961,36 +971,78 @@ export const createRuntimeElement = (
    * mixed write paths inside a single cascade, found by the split suite. The ancestor check keeps
    * the group whole until stage 5 moves stagger itself.
    */
+  /**
+   * The tick, resolved ONCE — a Map hit at activation, never per frame. Containment is the
+   * closure: a throwing tick is dead from that frame on and reported through the rejections
+   * registry, so one bad tick costs its own element, never the page — and never a console storm,
+   * because a per-frame throw would otherwise report per frame. A `setup`-carrying module gets
+   * its lifecycle here too; the teardown runs from `clearElement`, so the engine's
+   * rebuild-on-edit is the staleness story exactly as it was for property modules.
+   */
+  let tick: ((progress: number) => void) | null = null;
+  let tickTeardown: (() => void) | null = null;
+  const tickName = parsed.settings['tick'];
+  if (typeof tickName === 'string') {
+    const module = tickFor(tickName);
+    if (!module) rejectFor('motion-tick-unknown', [tickName]);
+    else {
+      let dead = false;
+      tick = (progress: number): void => {
+        if (dead) return;
+        try {
+          module.tick(node as HTMLElement, progress);
+        } catch (error) {
+          dead = true;
+          rejectFor('motion-tick-threw', [tickName, String(error)]);
+        }
+      };
+      if (module.setup) {
+        try {
+          const off = module.setup(node as HTMLElement, parsed.settings, rejectFor);
+          if (typeof off === 'function') tickTeardown = off;
+        } catch (error) {
+          dead = true;
+          rejectFor('motion-tick-threw', [tickName, String(error)]);
+        }
+      }
+    }
+  }
+
   let generated: RuntimeElement['generated'] = null;
   if (generatedCss) {
     /** Every seek variable — the base, plus a per-category one per inertia override. */
     for (const v of generatedCss.vars) ensureProperty(v.name, node);
-    const sheetRoot = node.getRootNode() as SheetRoot;
-    /** Group rules and width-segment rules dedupe under their own content hashes — two elements
-     *  sharing an animation share its rule, and two groups differing only in ease share one body;
-     *  the marker hash still separates element identities. */
-    for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
-    for (const segment of generatedCss.segments) {
-      for (const r of segment.rules) acquire(sheetRoot, r.hash, r.rule);
+    /** A TICK-ONLY element generated no CSS — zero groups, nothing to deliver — and rides this
+     *  path for the drive machinery alone: the same chase, ramp and variable write, aimed at its
+     *  function instead of a rule. */
+    if (generatedCss.groups.length) {
+      const sheetRoot = node.getRootNode() as SheetRoot;
+      /** Group rules and width-segment rules dedupe under their own content hashes — two elements
+       *  sharing an animation share its rule, and two groups differing only in ease share one body;
+       *  the marker hash still separates element identities. */
+      for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
+      for (const segment of generatedCss.segments) {
+        for (const r of segment.rules) acquire(sheetRoot, r.hash, r.rule);
+      }
+      /** The element’s declarations are SHEET RULES now (bands switch animation-name under
+       *  @media, which inline cannot carry), counted under a derived key so the pair lives and
+       *  dies together. */
+      acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
+      /** AFTER the element rule, deliberately: the switch and the base rule tie on specificity,
+       *  so the sheet's source order decides — a switch inserted before `#el` loses to the base
+       *  `animation` shorthand everywhere and the band silently never applies. Keys derive from
+       *  the MARKER hash (the selector embeds this element's identity), not the shared segment hash. */
+      for (const [i, segment] of generatedCss.segments.entries()) {
+        acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
+      }
+      /**
+       * The no-JS guard, INVERTED — a neutraliser pinned last, never a gate: gating on
+       * `(scripting: enabled)` kills all motion on engines predating the feature (unknown media
+       * feature → query false), which is every older browser WITH JavaScript. Neutralised under
+       * `(scripting: none)`, the stranded corner shrinks to old-browser-AND-no-JS.
+       */
+      setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
     }
-    /** The element’s declarations are SHEET RULES now (bands switch animation-name under
-     *  @media, which inline cannot carry), counted under a derived key so the pair lives and
-     *  dies together. */
-    acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
-    /** AFTER the element rule, deliberately: the switch and the base rule tie on specificity,
-     *  so the sheet's source order decides — a switch inserted before `#el` loses to the base
-     *  `animation` shorthand everywhere and the band silently never applies. Keys derive from
-     *  the MARKER hash (the selector embeds this element's identity), not the shared segment hash. */
-    for (const [i, segment] of generatedCss.segments.entries()) {
-      acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
-    }
-    /**
-     * The no-JS guard, INVERTED — a neutraliser pinned last, never a gate: gating on
-     * `(scripting: enabled)` kills all motion on engines predating the feature (unknown media
-     * feature → query false), which is every older browser WITH JavaScript. Neutralised under
-     * `(scripting: none)`, the stranded corner shrinks to old-browser-AND-no-JS.
-     */
-    setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
     /**
      * The mark, AFTER acquire — the invariant. It is the observable "this element rides the
      * generated path": devtools reads it, the suites read it (jsdom drops the `animation`
@@ -1007,12 +1059,17 @@ export const createRuntimeElement = (
           node: node as HTMLElement, varName: v.name,
           written: null, target: 0, mode: 'idle' as const,
           tau: 0, rampFrom: 0, rampStart: 0, rampDuration: 0,
+          /** The tick rides the BASE variable's writes — the author-visible number, after
+           *  whatever chase or ramp is shaping it — never a per-category one. */
+          tick: v.name === generatedCss.varName ? tick : null,
         },
         tau: Number(parsed.settings[v.inertiaKey] ?? settings.inertia),
       })),
-      hashes: [...generatedCss.groups.map((g) => g.hash),
-        ...generatedCss.segments.flatMap((s, i) =>
-          [...s.rules.map((r) => r.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`],
+      hashes: generatedCss.groups.length
+        ? [...generatedCss.groups.map((g) => g.hash),
+          ...generatedCss.segments.flatMap((s, i) =>
+            [...s.rules.map((r) => r.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`]
+        : [],
       play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
     };
   }
@@ -1054,6 +1111,10 @@ export const createRuntimeElement = (
     lastFilter: '',
     runOnce: parsed.settings['run-once'] === true,
     when: typeof parsed.settings['when'] === 'string' ? parsed.settings['when'] : null,
+    /** On a generated element the tick rides the base Driven's writes instead — one number, one
+     *  moment, post-smoothing; this field is the OLD path's call and the teardown's handle. */
+    tick: generatedCss ? null : tick,
+    tickTeardown,
     reject: rejectFor,
   };
 
@@ -1146,31 +1207,12 @@ export const animateElement = (element: RuntimeElement): void => {
     /** NaN-initialised, so the first pass always writes. */
     if (value === lastProperties[i]) continue;
     lastProperties[i] = value;
-    /**
-     * A module can refuse at write time — `frame` on something that is not a
-     * canvas is only discoverable here. The reason goes to the instance's
-     * diagnostics rather than only to the console, which a GUI cannot read.
-     */
-    /**
-     * The fifth crossing, and the only one that runs per frame. A module's
-     * `apply` throwing left `init()` — and after init, every element *after*
-     * this one in the list, on every frame, for the life of the page. A throw
-     * becomes the refusal the return type already provides for.
-     *
-     * `lastProperties[i]` is written above, so a value that does not change
-     * does not call `apply` again: a throwing module costs one call per new
-     * value, not one per frame.
-     */
-    let refusal: void | string = undefined;
-    let threw = false;
-    try {
-      refusal = applyProperty(element.node, animation.property, animation.unit, value);
-    } catch {
-      threw = true;
-    }
-    if (threw) element.reject('motion-apply-threw', [animation.property.key]);
-    else if (refusal) element.reject('motion-apply-refused', [animation.property.key, refusal]);
+    /** A plain style write, always — the per-frame module containment that used to live here
+     *  guarded `PropertyDef.apply`, which stage 6 deleted; a tick's containment is its own. */
+    applyProperty(element.node, animation.property, animation.unit, value);
   }
+
+  element.tick?.(position);
 };
 
 
@@ -1579,6 +1621,7 @@ const managedStyles = (plan: ScreenPlan): string[] => [
  */
 export const clearElement = (element: RuntimeElement, settings: RuntimeSettings): void => {
   const { node } = element;
+  element.tickTeardown?.();
   if (element.generated) {
     /** Count out, stop the clock, strip the marks — the loop must never hold a removed element. */
     for (const key of element.generated.hashes) release(key);

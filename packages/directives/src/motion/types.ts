@@ -35,4 +35,10 @@ export interface Driven {
   rampFrom: number;
   rampStart: number;
   rampDuration: number;
+  /**
+   * The element's contained tick closure, or null — called with every value this slice writes,
+   * so a tick sees exactly the number CSS sees, at the same moment, post-chase and post-ramp.
+   * Pre-bound by the runtime (containment and reporting live there); the loop just calls it.
+   */
+  readonly tick: ((progress: number) => void) | null;
 }
