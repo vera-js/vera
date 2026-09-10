@@ -25,7 +25,7 @@ reads — working in development and silently doing nothing in production. Takin
 removes the question. Forget the wiring and core says so, once, in development.
 
 **Shadow DOM** — constructed sheets go to `shadowRoot.adoptedStyleSheets`; plain strings become a
-`<style vera-styles>` in the shadow root. Both are naturally scoped and safe to re-`init`.
+`<style data-vm-sheet="styles">` in the shadow root. Both are naturally scoped and safe to re-`init`.
 
 **Light DOM** — styles are hoisted to the document once per component class, wrapped in
 `@scope (tag-name) { … }` so they apply only inside that component's subtree: scoping without a

@@ -8,7 +8,7 @@
  * MODE DISPATCH FROM MARKUP is a structural contract with TWO clauses, and both are the
  * contract (the one-clause version had a hole the entry-flash fix itself created):
  *
- * 1. **Server-emitted markup**: the ARMED marker (`data-vera-t`, or the embedder's rename)
+ * 1. **Server-emitted markup**: the ARMED marker (`data-vm-armed`, or the embedder's rename)
  *    exists ONLY in transition-mode emission and every SSR writer PRE-ARMS — a writer
  *    obligation, stated here — so `hasAttribute(armed)` IS the transition-mode bit for any
  *    element that arrived in markup.

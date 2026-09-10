@@ -220,7 +220,7 @@ const regenerateRules = (element: RuntimeElement, win: WindowSize): void => {
   if (fresh.hash === element.generated.hash) return;
   const keys = deliverGenerated(element.node, fresh);
   /** New rules IN before old rules out — an element must never reference a name mid-swap. */
-  element.node.setAttribute('data-vd-a', fresh.hash);
+  element.node.setAttribute('data-vm-motion', fresh.hash);
   for (const key of element.generated.hashes) release(key);
   element.generated = {
     ...element.generated,
@@ -536,7 +536,7 @@ export const createRuntimeElement = (
      * shorthand, so the attribute is the honest surface there), and stage 6's rule-based
      * delivery will select on it.
      */
-    node.setAttribute('data-vd-a', generatedCss.hash);
+    node.setAttribute('data-vm-motion', generatedCss.hash);
     /**
      * ARM the transition only after the BASE state is committed. Activation-time rule injection
      * is itself a style change, so longhands live at delivery would animate every element in
@@ -546,9 +546,9 @@ export const createRuntimeElement = (
      * matches at activation still snaps to base first, exactly as a server-rendered page does
      * (which arrives pre-armed, its first paint already base).
      */
-    if (generatedCss.mode === 'transition' && !node.hasAttribute('data-vera-t')) {
+    if (generatedCss.mode === 'transition' && !node.hasAttribute('data-vm-armed')) {
       void getComputedStyle(node as Element).transitionProperty;
-      node.setAttribute('data-vera-t', '');
+      node.setAttribute('data-vm-armed', '');
     }
     const cascade = generatedCss.mode === 'seek' && generatedCss.groups.length > 0 &&
       tick === null && typeof parsed.settings['play'] !== 'number' &&
@@ -567,7 +567,7 @@ export const createRuntimeElement = (
       parsed.settings['scroll'] === undefined && parsed.settings['anchor'] === undefined &&
       settings.scrollDirection !== 'horizontal' && supportsViewTimeline(node) &&
       scrollerScrolls(settings)) {
-      node.setAttribute('data-vera-n', '');
+      node.setAttribute('data-vm-native', '');
     }
     generated = {
       hash: generatedCss.hash,
@@ -576,7 +576,7 @@ export const createRuntimeElement = (
       geometric: parsed.animations.some((a) =>
         a.keyframes.some((f) => f.positionUnit !== '%') ||
         a.bands.some((b) => b.keyframes.some((f) => f.positionUnit !== '%'))),
-      /** One driver slice per seek variable, each timed by ITS setting — `--vd-p-transform`
+      /** One driver slice per seek variable, each timed by ITS setting — `--vm-p-transform`
        *  chases at `transform-inertia`'s rate while the base follows `inertia`. */
       drives: generatedCss.vars.map((v) => ({
         driven: {
@@ -664,8 +664,8 @@ export const animateElement = (element: RuntimeElement): void => {
    * until the marker lived here).
    */
   if (element.generated.transition) {
-    if (element.timelinePosition >= element.highestEnd) element.node.setAttribute('data-vera-on', '');
-    else element.node.removeAttribute('data-vera-on');
+    if (element.timelinePosition >= element.highestEnd) element.node.setAttribute('data-vm-on', '');
+    else element.node.removeAttribute('data-vm-on');
     return;
   }
   /** Tier C: CSS already computed this frame's value from the scroller var — nothing to write. */
@@ -1032,10 +1032,10 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.style.removeProperty(STAGGER_PROPERTY);
     node.style.removeProperty(RANGE_START_PROPERTY);
     node.style.removeProperty(RANGE_SIZE_PROPERTY);
-    node.removeAttribute('data-vd-a');
-    node.removeAttribute('data-vera-on');
-    node.removeAttribute('data-vera-t');
-    node.removeAttribute('data-vera-n');
+    node.removeAttribute('data-vm-motion');
+    node.removeAttribute('data-vm-on');
+    node.removeAttribute('data-vm-armed');
+    node.removeAttribute('data-vm-native');
   }
 
 
@@ -1074,7 +1074,7 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
  * the scroller itself — `documentElement` for the window, the element for a container.
  */
 /**
- * The pinned TAILS — LAST in the sheet, and DOUBLED to `[data-vd-a][data-vd-a]` because that is
+ * The pinned TAILS — LAST in the sheet, and DOUBLED to `[data-vm-motion][data-vm-motion]` because that is
  * what makes them work at all: element rules use the doubled-attribute selector (0-2-0), so a
  * single-attribute neutraliser LOSES ON SPECIFICITY regardless of order — the shipped
  * (scripting: none) guard was inert from stage 5 until the reduced-motion build doubled it (no
@@ -1084,8 +1084,8 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
  * pin their END state per hash instead (their base is the hidden one).
  */
 const NEUTRALISERS: readonly string[] = [
-  '@media (prefers-reduced-motion: reduce) { [data-vd-a][data-vd-a] { animation: none; } }',
-  '@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }',
+  '@media (prefers-reduced-motion: reduce) { [data-vm-motion][data-vm-motion] { animation: none; } }',
+  '@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }',
 ];
 
 /** Native scroll-driven support, decided once per VIEW (a portaled document answers for

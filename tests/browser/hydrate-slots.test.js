@@ -30,7 +30,7 @@ const mount = () => {
 
 it('adopts the server\'s distributed markup in place, keeping every node', async () => {
   const host = mount();
-  expect(host.getAttribute('data-vera-slotted') ?? host.querySelector('[data-vera-slotted]')).to.not.equal(
+  expect(host.getAttribute('data-vm-slotted') ?? host.querySelector('[data-vm-slotted]')).to.not.equal(
     null,
     'CONTROL: the fixture really carries the server marker'
   );
@@ -45,7 +45,7 @@ it('adopts the server\'s distributed markup in place, keeping every node', async
   expect(host.querySelector('header').textContent).to.equal('Hydrated header');
   expect(host.querySelector('main').textContent).to.equal('plain bodybold');
   expect(host.querySelector('slot')).to.equal(null, 'no <slot> survives into the light DOM');
-  expect(host.querySelector('[data-vera-slotted]')).to.equal(null, 'and the marker is stripped');
+  expect(host.querySelector('[data-vm-slotted]')).to.equal(null, 'and the marker is stripped');
   host.remove();
 });
 
@@ -74,7 +74,7 @@ it('recovers the content the server parked for a slot this template does not hav
   await settle();
 
   expect(host.textContent).to.not.contain('parked', 'unassigned content is held, not rendered');
-  expect(host.querySelector('template[data-vera-unassigned]')).to.equal(null, 'the carrier is consumed');
+  expect(host.querySelector('template[data-vm-unassigned]')).to.equal(null, 'the carrier is consumed');
   expect(slotted(host, 'nowhere').map((n) => n.textContent)).to.deep.equal(['parked'],
     'and it is captured, ready for a state that has that slot');
 

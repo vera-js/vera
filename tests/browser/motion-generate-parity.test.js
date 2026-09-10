@@ -46,7 +46,7 @@ it('twin computed styles agree across scroll positions, on every engine', async 
   /** The whole new path, through the real parser: generate → acquire → THEN mark. */
   const generated = writePath.fromAttribute(b, VALUE);
   expect(generated, 'the fixture is inside generateSimple’s scope').to.not.equal(null);
-  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
+  keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
   for (const g of generated.groups) keyframeRegistry.acquire(document, g.hash, g.rule);
   b.style.cssText = `height:50px; ${generated.elementStyle}`;
 
@@ -61,7 +61,7 @@ it('twin computed styles agree across scroll positions, on every engine', async 
   const compared = [];
   for (const y of [0, 120, 260, 420, 600]) {
     await scrollTo(a.offsetTop - window.innerHeight + y);
-    b.style.setProperty('--vd-p', String(progress));
+    b.style.setProperty('--vm-p', String(progress));
     await frame();
 
     const opacityA = Number(getComputedStyle(a).opacity);
@@ -153,7 +153,7 @@ it('a band composes its own segment, switched by @media — and agrees with the 
 
   for (const [generated, expected, label] of [[applies, 0.1, 'band covers viewport'], [misses, 0.6, 'band misses viewport']]) {
     expect(generated.segments.length, `${label}: one segment generated`).to.be.above(0);
-    keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
+    keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
     for (const g of generated.groups) keyframeRegistry.acquire(document, g.hash, g.rule);
     for (const s of generated.segments) for (const r of s.rules) keyframeRegistry.acquire(document, r.hash, r.rule);
     keyframeRegistry.acquire(document, `${generated.hash}#el`, generated.elementRule);
@@ -162,8 +162,8 @@ it('a band composes its own segment, switched by @media — and agrees with the 
 
     const el = document.createElement('div');
     document.body.appendChild(el);
-    el.setAttribute('data-vd-a', generated.hash);
-    el.style.setProperty('--vd-p', '0.5');
+    el.setAttribute('data-vm-motion', generated.hash);
+    el.style.setProperty('--vm-p', '0.5');
     await frame();
     expect(Number(getComputedStyle(el).filter.match(/opacity\(([\d.]+)\)/)?.[1] ?? NaN), label)
       .to.be.closeTo(expected, 0.01);
@@ -199,7 +199,7 @@ const mountGenerated = (generated) => {
   generated.segments.forEach((s, i) => keyframeRegistry.acquire(document, `${generated.hash}#m${i}`, s.media));
   const el = document.createElement('div');
   document.body.appendChild(el);
-  el.setAttribute('data-vd-a', generated.hash);
+  el.setAttribute('data-vm-motion', generated.hash);
   return {
     el,
     done: () => {
@@ -221,7 +221,7 @@ it('a per-property ease is its own animation — two entries, one variable, diff
   expect(generated.groups.length, 'two timing functions, two list entries').to.equal(2);
 
   const { el, done } = mountGenerated(generated);
-  el.style.setProperty('--vd-p', '0.5');
+  el.style.setProperty('--vm-p', '0.5');
   await frame();
   /** ease-in at 0.5 sits well below linear; the linear translate sits exactly at its midpoint. */
   expect(filterOpacity(el), 'the eased entry follows ITS curve').to.be.below(0.4);
@@ -237,7 +237,7 @@ it('a transform split flips to independent properties — translate and rotate, 
   expect(generated.groups.length, 'the split that forces the flip').to.equal(2);
 
   const { el, done } = mountGenerated(generated);
-  el.style.setProperty('--vd-p', '0.5');
+  el.style.setProperty('--vm-p', '0.5');
   await frame();
   const style = getComputedStyle(el);
   expect(style.translate, 'translate is its own property now').to.equal('0px 40px');
@@ -251,14 +251,14 @@ it('a category inertia override seeks by its own variable, and only then', async
   const generated = writePath.fromAttribute(document.createElement('div'),
     "{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 80px, 100% 0px' }, transform-inertia: 0.5 }");
   expect(generated.vars.map((v) => v.name).sort(), 'base plus the transform override')
-    .to.deep.equal(['--vd-p', '--vd-p-transform']);
-  expect(generated.vars.find((v) => v.name === '--vd-p-transform').inertiaKey)
+    .to.deep.equal(['--vm-p', '--vm-p-transform']);
+  expect(generated.vars.find((v) => v.name === '--vm-p-transform').inertiaKey)
     .to.equal('transform-inertia');
 
   const { el, done } = mountGenerated(generated);
   /** Two variables, two numbers — the transform lags at 0.25 while opacity has arrived at 1. */
-  el.style.setProperty('--vd-p', '1');
-  el.style.setProperty('--vd-p-transform', '0.25');
+  el.style.setProperty('--vm-p', '1');
+  el.style.setProperty('--vm-p-transform', '0.25');
   await frame();
   expect(filterOpacity(el), 'the base variable drives filter').to.be.closeTo(1, 0.01);
   expect(numbers(getComputedStyle(el).transform)[5], 'its own variable drives transform')
@@ -292,8 +292,8 @@ it('tier N and tier C paint the SAME scrub — and N runs it with zero per-frame
   await settle();
 
   const native = CSS.supports('animation-timeline', 'view()');
-  expect(n.hasAttribute('data-vera-n'), 'opted into N exactly when the engine can').to.equal(native);
-  expect(c.hasAttribute('data-vera-n'), 'an explicit scroll window stays tier C').to.equal(false);
+  expect(n.hasAttribute('data-vm-native'), 'opted into N exactly when the engine can').to.equal(native);
+  expect(c.hasAttribute('data-vm-native'), 'an explicit scroll window stays tier C').to.equal(false);
 
   for (const y of [0, n.offsetTop - window.innerHeight + 100, n.offsetTop - window.innerHeight / 2]) {
     await scrollTo(y);

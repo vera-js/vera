@@ -138,7 +138,7 @@ customElements.define('vocab-table', class extends HTMLElement {
   connectedCallback() {
     const rows = describeDirectives()
       .filter((d) => d.summary)
-      .map((d) => `<tr><td><code>data-vd-${d.name}</code></td><td>${d.value}</td><td>${d.summary}</td></tr>`)
+      .map((d) => `<tr><td><code>data-vm-${d.name}</code></td><td>${d.value}</td><td>${d.summary}</td></tr>`)
       .join('');
     this.innerHTML = `<table class="vocab"><thead><tr><th>directive</th><th>value</th><th>does</th></tr></thead><tbody>${rows}</tbody></table>`;
   }

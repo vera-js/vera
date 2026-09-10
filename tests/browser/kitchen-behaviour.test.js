@@ -56,7 +56,7 @@ const settle = async (frame) => {
  *
  * The shell's banner reports which of the five modes is running — its whole job is to differ
  * between them — so comparing it would fail every comparison it appears in. It is environment
- * reporting, not application content, and is excluded for the same reason `<style vera-styles>` is.
+ * reporting, not application content, and is excluded for the same reason `<style data-vm-sheet="styles">` is.
  */
 const shape = (root) => canonical(root).replace(/<p [^>]*data-diagnostic[^>]*>[\s\S]*?<\/p>/g, '');
 

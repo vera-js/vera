@@ -131,7 +131,7 @@ it('directives showcase: routes render, the hello-world taps, motion clamps, the
    * pipeline, computed style proves the rule applied.
    */
   doc.querySelector('a[route][href$="/motion"]').click();
-  await until(() => doc.querySelector('[data-vd-motion="fade-up"][data-vd-a]'),
+  await until(() => doc.querySelector('[data-vd-motion="fade-up"][data-vm-motion]'),
     'a preset activated onto the generated path');
   /**
    * The COMPUTED FILTER, not the opacity property — the generated rule animates
@@ -147,7 +147,7 @@ it('directives showcase: routes render, the hello-world taps, motion clamps, the
     return match ? Number(match[1]) : null;
   };
   await until(() => {
-    const heroes = [...doc.querySelectorAll('[data-vd-motion="fade-up"][data-vd-a]')];
+    const heroes = [...doc.querySelectorAll('[data-vd-motion="fade-up"][data-vm-motion]')];
     const line = win.innerHeight * 0.85;
     return heroes.some((hero) => {
       const opacity = filterOpacity(hero);

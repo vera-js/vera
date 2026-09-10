@@ -45,7 +45,7 @@ test('a per-property ease is accepted with NOTHING wired for it — the browser 
   assert.equal(rejections(el).length, 0, 'both ease slots accepted');
   /** Since easing groups this shape GENERATES — the browser is the solver, so the surface is the
    *  marker and the variable, not an inline filter (jsdom evaluates no CSS animation). */
-  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'rides the generated path');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'rides the generated path');
   host.remove();
   await settled();
 });
@@ -57,8 +57,8 @@ test('paint wired: authored values are TEXT keyframes now — the browser blends
   /** The slot-and-step machinery is gone: the authored strings land in the generated rule at
    *  their authored stops and interpolation is the engine's own (value-level blend claims are
    *  browser truth). jsdom's honest surface is the marker and the rule text. */
-  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'paint rides the generated path');
-  const css = [...doc.querySelectorAll('style[data-vera-sheet]')].map((n) => n.textContent).join('\n');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'paint rides the generated path');
+  const css = [...doc.querySelectorAll('style[data-vm-sheet="motion"]')].map((n) => n.textContent).join('\n');
   assert.match(css, /background: red/, 'the authored start, verbatim');
   assert.match(css, /background: blue/, 'the authored end, verbatim');
   assert.equal(rejections(el).length, 0);
@@ -72,7 +72,7 @@ test('paint refuses the image-sourcing family even where CSS.supports is absent'
   const el = host.querySelector('div');
   assert.ok(rejections(el).some((r) => r.code === 'motion-bad-value'), 'the fetching value was dropped');
   /** The clean keyframe survives ALONE in the generated rule — the refused value reaches no CSS. */
-  const css = [...doc.querySelectorAll('style[data-vera-sheet]')].map((n) => n.textContent).join('\n');
+  const css = [...doc.querySelectorAll('style[data-vm-sheet="motion"]')].map((n) => n.textContent).join('\n');
   assert.match(css, /background: red/, 'the clean keyframe survived');
   assert.ok(!css.includes('image-set'), 'and the refused one is nowhere in any sheet');
   host.remove();
@@ -84,7 +84,7 @@ test('path GENERATES since 8b — setup still resolves the offset-path at activa
     <svg><path id="curve" d="M 0 0 C 10 10, 20 10, 30 0"></path></svg>
     <div data-vd-motion="{ keyframes: { path: '0% 0, 100% 100' }, path-selector: '#curve' }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'offset-distance rides the generated path');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'offset-distance rides the generated path');
   assert.ok(el.style.getPropertyValue('offset-path').includes('path('), 'while setup wrote the path inline');
   assert.equal(rejections(el).length, 0);
   host.remove();
@@ -157,7 +157,7 @@ test('split by words: pieces inherit the motion minus stagger, the sentence surv
      *  stage 5 — so the old inline surface is the correct instrument here, on purpose. */
     /** Staggered pieces GENERATE since 8a — the surface is the marker (jsdom evaluates no CSS
      *  animation), and every piece shares one identity because the offset is a per-element var. */
-    assert.match(piece.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'each piece rides the generated path');
+    assert.match(piece.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'each piece rides the generated path');
   }
   /**
    * THE CASCADE, observed on the 8a surface: the offset is a per-element VAR now, so "the pieces
@@ -165,10 +165,10 @@ test('split by words: pieces inherit the motion minus stagger, the sentence surv
    * one rule identity. Value-level truth (computed filter differing per piece) is the browser
    * parity suite's claim since the flip.
    */
-  const offsets = pieces.map((piece) => piece.style.getPropertyValue('--vd-so'));
+  const offsets = pieces.map((piece) => piece.style.getPropertyValue('--vm-so'));
   assert.equal(new Set(offsets).size, pieces.length,
     `each piece carries its own offset: ${offsets.join(' | ')}`);
-  assert.equal(new Set(pieces.map((piece) => piece.getAttribute('data-vd-a'))).size, 1,
+  assert.equal(new Set(pieces.map((piece) => piece.getAttribute('data-vm-motion'))).size, 1,
     'while all pieces share ONE rule identity — the var is what varies');
   assert.match(p.textContent, /quick brown fox/, 'the readable sentence survives');
   const copy = [...p.querySelectorAll('span')].find((span) => !span.hasAttribute('aria-hidden'));

@@ -71,7 +71,7 @@ test('wire takes them as a list, and styles adopts from it', () => {
   const element = document.createElement(tag);
   document.body.appendChild(element);
   /** The `init` insert runs synchronously inside `init`, before any frame. */
-  assert.match(element.shadowRoot.querySelector('style[vera-styles]').textContent, /rgb\(1, 2, 3\)/);
+  assert.match(element.shadowRoot.querySelector('style[data-vm-sheet="styles"]').textContent, /rgb\(1, 2, 3\)/);
 });
 
 test('the raw function next to each module says which name was meant', { skip: isProduction }, async () => {

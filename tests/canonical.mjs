@@ -51,7 +51,7 @@ export const canonical = (node) => {
     /** The template *is* the shadow root on the server side; it is not also a light-DOM child. */
     if (child.localName === 'template' && child.hasAttribute('shadowrootmode')) continue;
     /**
-     * `<style vera-styles>` is framework-injected, not content — the same category as the
+     * `<style data-vm-sheet="styles">` is framework-injected, not content — the same category as the
      * renderer's marker comments, and skipped for the same reason.
      *
      * Markup cannot carry a constructed stylesheet, so `@verajs/ssr` serializes one as an element;
@@ -60,7 +60,7 @@ export const canonical = (node) => {
      * make a correct pair look like a defect. That the count is exactly one is asserted separately,
      * where it is the subject rather than the noise.
      */
-    if (child.localName === 'style' && child.hasAttribute('vera-styles')) continue;
+    if (child.localName === 'style' && child.hasAttribute('data-vm-sheet')) continue;
 
     const mirrored = FORM_PROPERTIES[child.localName] ?? [];
     const attributes = [...child.attributes]

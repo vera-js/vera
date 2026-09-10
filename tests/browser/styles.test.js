@@ -46,7 +46,7 @@ it('a constructed stylesheet is adopted into the shadow root, not injected as <s
   const root = el.shadowRoot;
   expect(root.adoptedStyleSheets.length, 'a sheet was adopted').to.equal(1);
   expect(root.adoptedStyleSheets[0]).to.equal(sheet.styleSheet);
-  expect(root.querySelector('style[vera-styles]'), 'no <style> fallback was used').to.equal(null);
+  expect(root.querySelector('style[data-vm-sheet="styles"]'), 'no <style> fallback was used').to.equal(null);
   el.remove();
 });
 
@@ -151,7 +151,7 @@ it('applyStyles falls back to a <style> element for a plain string', () => {
   document.body.appendChild(el);
   el.attachShadow({ mode: 'open' });
   applyStyles('i { color: rgb(128, 0, 128); }', el);
-  const style = el.shadowRoot.querySelector('style[vera-styles]');
+  const style = el.shadowRoot.querySelector('style[data-vm-sheet="styles"]');
   expect(style, 'string styles use the <style> path even in a modern browser').to.not.equal(null);
   el.shadowRoot.innerHTML += '<i>x</i>';
   expect(getComputedStyle(el.shadowRoot.querySelector('i')).color).to.equal('rgb(128, 0, 128)');
@@ -190,7 +190,7 @@ it('escaped CSS renders identically to the unescaped original', () => {
  *
  * Two things went wrong on the string side, both invisible to a single-style test:
  *
- * - a `<style vera-styles>` was created only when none existed, and every later string in the same
+ * - a `<style data-vm-sheet="styles">` was created only when none existed, and every later string in the same
  *   array then found the one the first had just created and was dropped;
  * - the element was removed whenever any constructed sheet was adopted, on the reasoning that it
  *   must be the server's redundant copy of that sheet — which is true only when *every* style is a
@@ -199,7 +199,7 @@ it('escaped CSS renders identically to the unescaped original', () => {
  * Asserted through the shadow root's own contents rather than through computed style, because what
  * is being tested is which rules reached the root at all.
  */
-const styleText = (element) => element.shadowRoot.querySelector('style[vera-styles]')?.textContent ?? null;
+const styleText = (element) => element.shadowRoot.querySelector('style[data-vm-sheet="styles"]')?.textContent ?? null;
 
 const sheetFor = (cssText) => {
   const styleSheet = new CSSStyleSheet();
@@ -231,7 +231,7 @@ it('still drops a server-rendered copy when every style is a sheet', async () =>
   const element = define({ template: () => html`<p>x</p>` }, [sheetFor('.only { color: red }')]);
   /** What the server writes: markup cannot carry a constructed sheet, so it serializes one. */
   const server = document.createElement('style');
-  server.setAttribute('vera-styles', '');
+  server.setAttribute('data-vm-sheet', 'styles');
   server.textContent = '.only { color: red }';
   element.shadowRoot.appendChild(server);
 
@@ -246,7 +246,7 @@ it('repairs a server-rendered copy rather than duplicating it', async () => {
   await frame();
   applyStyles(element.constructor.styles, element);
   await frame();
-  expect(element.shadowRoot.querySelectorAll('style[vera-styles]').length, 'exactly one').to.equal(1);
+  expect(element.shadowRoot.querySelectorAll('style[data-vm-sheet="styles"]').length, 'exactly one').to.equal(1);
   expect(styleText(element)).to.contain('.text');
 });
 
@@ -269,7 +269,7 @@ describe('a mixed styles array cascades the same way on both sides', () => {
   const BLUE = 'rgb(0, 0, 255)';
 
   /** What `@verajs/ssr` writes for `[sheet(.probe red), '.probe blue']` — string first, sheet last. */
-  const SERVER = `<style vera-styles>.probe { color: ${BLUE} }</style><style vera-styles>.probe { color: ${RED} }</style><p class="probe">x</p>`;
+  const SERVER = `<style data-vm-sheet="styles">.probe { color: ${BLUE} }</style><style data-vm-sheet="styles">.probe { color: ${RED} }</style><p class="probe">x</p>`;
 
   it('the client resolves the adopted sheet as the winner', async () => {
     const element = define({ template: () => html`<p class="probe">x</p>` }, [

@@ -35,19 +35,19 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
   const grouped = host.querySelector('#grouped');
   expect(getComputedStyle(grouped).filter, 'an easing-group split paints frame 0 too')
     .to.match(/opacity\(0\)/);
-  expect(fade.getAttribute('data-vd-a'), 'marked by the server')
+  expect(fade.getAttribute('data-vm-motion'), 'marked by the server')
     .to.equal(MOTION_MARKERS.fade);
   /** Since 8a the stagger member paints frame 0 TOO — marked, its offset inline from the
    *  server, sharing rules with any twin (the offset is a var, not a rule fork). */
-  expect(host.querySelector('#member').getAttribute('data-vd-a'),
+  expect(host.querySelector('#member').getAttribute('data-vm-motion'),
     'the stagger member paints server-side since 8a').to.equal(MOTION_MARKERS.member);
   expect(MOTION_REPORT.rendered, 'the fixture really covered the page').to.equal(6);
 
   /** Transition-mode play arrives PRE-ARMED: base paints with the longhands already legal
    *  (first paint IS base, so nothing fires), and no seek variable exists for it. */
   const tplay = host.querySelector('#tplay');
-  expect(tplay.getAttribute('data-vd-a'), 'marked').to.equal(MOTION_MARKERS.tplay);
-  expect(tplay.hasAttribute('data-vera-t'), 'pre-armed in markup').to.equal(true);
+  expect(tplay.getAttribute('data-vm-motion'), 'marked').to.equal(MOTION_MARKERS.tplay);
+  expect(tplay.hasAttribute('data-vm-armed'), 'pre-armed in markup').to.equal(true);
   expect(getComputedStyle(tplay).filter, 'base paints — a play element arrives at its start')
     .to.match(/opacity\(0\.15/);
 
@@ -60,17 +60,17 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
   await frame();
 
   for (const [id, marker] of Object.entries(MOTION_MARKERS)) {
-    expect(host.querySelector(`#${id}`).getAttribute('data-vd-a'),
+    expect(host.querySelector(`#${id}`).getAttribute('data-vm-motion'),
       `${id}: the client re-derived the server's identity byte for byte`).to.equal(marker);
   }
   /** Tier C since the cede: the plain scrub's number is CASCADE-derived — the client's takeover
    *  surface is the per-element range constants plus the scroller's one written variable, and
    *  the ABSENCE of a per-frame inline write is itself the claim. */
-  expect(fade.style.getPropertyValue('--vd-r1'), 'the client measured and wrote the range constants')
+  expect(fade.style.getPropertyValue('--vm-r1'), 'the client measured and wrote the range constants')
     .to.not.equal('');
-  expect(document.documentElement.style.getPropertyValue('--vd-s'), 'and drives ONE scroller variable')
+  expect(document.documentElement.style.getPropertyValue('--vm-s'), 'and drives ONE scroller variable')
     .to.not.equal('');
-  expect(fade.style.getPropertyValue('--vd-p'), 'with no per-element per-frame write at all')
+  expect(fade.style.getPropertyValue('--vm-p'), 'with no per-element per-frame write at all')
     .to.equal('');
   /** The stagger member activates client-side as ever — the skipped shape still works. */
   expect(getComputedStyle(host.querySelector('#member')).filter).to.match(/opacity\(/);

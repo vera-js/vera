@@ -170,7 +170,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
     /**
      * The array is sorted into the two things a shadow root can hold, and **all** of each is kept.
      *
-     * Both halves used to be first-one-wins. A `<style vera-styles>` was created only when none
+     * Both halves used to be first-one-wins. A `<style data-vm-sheet="styles">` was created only when none
      * existed, so the second string in an array found the element the first had just created and
      * was dropped; and the element was removed whenever any sheet was adopted, on the reasoning
      * that it must be the server's redundant copy — true only when every style is a sheet, and in
@@ -190,7 +190,7 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
 
     if (styleSheets.length) shadowRoot.adoptedStyleSheets = [...styleSheets];
 
-    const existing = shadowRoot.querySelector('style[vera-styles]');
+    const existing = shadowRoot.querySelector('style[data-vm-sheet="styles"]');
     if (texts.length) {
       /**
        * Reused when one is already there — a re-`init`, or the server's own copy — so this is
@@ -202,12 +202,12 @@ export const applyStyles = (styles: CSSResultGroup | CSSResultGroup[] | string, 
       const text = texts.join('\n');
       if (styleElement.textContent !== text) styleElement.textContent = text;
       if (!existing) {
-        styleElement.setAttribute('vera-styles', '');
+        styleElement.setAttribute('data-vm-sheet', 'styles');
         shadowRoot.appendChild(styleElement);
       }
     } else {
       /**
-       * Nothing here is text, so a `<style vera-styles>` can only be the server's copy of a sheet,
+       * Nothing here is text, so a `<style data-vm-sheet="styles">` can only be the server's copy of a sheet,
        * and it is now redundant.
        *
        * Markup cannot carry a constructed sheet, so `@verajs/ssr` serializes one as an element —

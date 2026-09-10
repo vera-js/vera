@@ -44,14 +44,14 @@ const at = async (attr, top = 100) => {
 /** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
  *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
-const progressOf = (el) => Number(el.style.getPropertyValue('--vd-p'));
-const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
+const progressOf = (el) => Number(el.style.getPropertyValue('--vm-p'));
+const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
 const opacity = (el) => {
   /** Transition-mode play (the K fixture from→to compiles to it) has NO variable — its jsdom
    *  surface is the marker state: on = the authored end, off = the start. Seek elements keep
    *  the variable read. jsdom evaluates neither animation nor transition VALUES; both reads
    *  are the honest surface, and value truth is the browser suites'. */
-  if (el.hasAttribute('data-vera-t')) return el.hasAttribute('data-vera-on') ? '1' : '0';
+  if (el.hasAttribute('data-vm-armed')) return el.hasAttribute('data-vm-on') ? '1' : '0';
   const v = progressOf(el); return Number.isFinite(v) ? String(Math.min(1, Math.max(0, v))) : undefined; };
 
 test('the long form of scroll reproduces the defaults exactly', async () => {
@@ -190,7 +190,7 @@ test('scroll refuses a space where a comma belongs — because the space already
 test('progress renames the variable — one write serves the animation AND the author', async () => {
   /**
    * FLIP SEMANTICS: the variable is the ENGINE now, so every generated element carries one —
-   * `--vd-p` by default — and `progress: '--p'` RENAMES it rather than adding a second write.
+   * `--vm-p` by default — and `progress: '--p'` RENAMES it rather than adding a second write.
    * The old "nothing without the setting" claim inverted into "the default name, without it".
    */
   const named = await at(`{ ${K}, progress: '--p' }`);
@@ -199,7 +199,7 @@ test('progress renames the variable — one write serves the animation AND the a
   const value = Number(named.style.getPropertyValue('--p'));
   assert.ok(Number.isFinite(value) && value > 0 && value < 1,
     `the author's name carries the number (${value})`);
-  assert.equal(named.style.getPropertyValue('--vd-p'), '',
+  assert.equal(named.style.getPropertyValue('--vm-p'), '',
     'ONE write: the default name is not also written');
   assert.ok(Number.isFinite(progressOf(unnamed)), 'unnamed elements ride the default name');
 });
@@ -238,7 +238,7 @@ test('duplicate positions are a refusal with the LAST writer pinned — the from
     assert.ok(reasons.some((r) => /100%/.test(r.message)), 'names the position');
     assert.ok(reasons.some((r) => /positions/.test(r.fix ?? '')), 'and teaches the spelling');
   }
-  assert.ok(/^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? ''),
+  assert.ok(/^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? ''),
     'the value still resolves — last writer wins, like the band merge');
 });
 

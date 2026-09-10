@@ -213,7 +213,7 @@ it('transition-mode play: the compositor animates, reverses from current, and li
   const o = host.querySelector('#o');
   await scrollTo(0);
   await settle();
-  expect(t.hasAttribute('data-vera-on'), 'below the line: resting').to.equal(false);
+  expect(t.hasAttribute('data-vm-on'), 'below the line: resting').to.equal(false);
   expect(opacityOf(t), 'base paints, no entry flash').to.be.closeTo(0.1, 0.02);
 
   /** Cross the line: the marker flips and the compositor owns the next 500ms. */
@@ -228,7 +228,7 @@ it('transition-mode play: the compositor animates, reverses from current, and li
     const tf = getComputedStyle(o).transform;
     if (tf !== 'none' && new DOMMatrix(tf).m42 < -2) sawOvershoot = true;
   }
-  expect(t.hasAttribute('data-vera-on'), 'entered: one attribute flip IS the driver').to.equal(true);
+  expect(t.hasAttribute('data-vm-on'), 'entered: one attribute flip IS the driver').to.equal(true);
   expect(sawMid, 'the transition PASSED THROUGH the mid-range — animated, not snapped').to.equal(true);
   expect(opacityOf(t), 'and landed on the authored end').to.be.closeTo(0.9, 0.02);
   expect(sawOvershoot, 'the synthesized linear() carried the dip PAST the resting value').to.equal(true);

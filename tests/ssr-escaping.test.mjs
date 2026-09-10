@@ -130,7 +130,7 @@ test('a stylesheet keeps the characters CSS needs', async () => {
 
   for (const tag of ['cssselectors-ssr', 'css-string']) {
     const { html } = await renderToString(url, { tag });
-    const css = (html.match(/<style vera-styles>([\s\S]*?)<\/style>/) ?? [])[1];
+    const css = (html.match(/<style data-vm-sheet="styles">([\s\S]*?)<\/style>/) ?? [])[1];
 
     assert.ok(css, `${tag}: no stylesheet in the markup`);
     assert.ok(!css.includes('&#'), `${tag}: the stylesheet was HTML-escaped — ${css}`);

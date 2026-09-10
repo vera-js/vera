@@ -31,12 +31,12 @@ test('the CLI emits first-frame CSS into static HTML through the real pipeline',
   assert.match(out, /2 element\(s\) across 1 page\(s\)/, 'the preset and the scrub emitted; the tick is honestly JS-first');
 
   const html = readFileSync(file, 'utf8');
-  assert.match(html, /id="a" data-vd-motion="fade-up" data-vd-a="[0-9a-f]{8}"/, 'the preset is marked');
-  assert.match(html, /style data-vera-sheet/, 'the sheet landed in head');
-  assert.match(html, /@property --vd-p/, 'typed and defaulted — frame 0 with no JS');
+  assert.match(html, /id="a" data-vd-motion="fade-up" data-vm-motion="[0-9a-f]{8}"/, 'the preset is marked');
+  assert.match(html, /style data-vm-sheet/, 'the sheet landed in head');
+  assert.match(html, /@property --vm-p/, 'typed and defaulted — frame 0 with no JS');
   assert.match(html, /prefers-reduced-motion: reduce/, 'the reduced neutraliser rides');
   assert.match(html, /scripting: none/, 'and the no-JS guard');
-  assert.ok(!html.includes('id="c" data-vd-motion="{ tick') || !/id="c"[^>]*data-vd-a=/.test(html),
+  assert.ok(!html.includes('id="c" data-vd-motion="{ tick') || !/id="c"[^>]*data-vm-motion=/.test(html),
     'the tick element is unmarked — its first frame is JavaScript by definition');
 
   /** Idempotence with the CONTROL built in: the first run changed the file (asserted above), so

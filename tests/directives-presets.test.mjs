@@ -33,7 +33,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 /** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
  *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
-const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
+const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
 const { wireDirectives, motion, presets, motionExtension, settled, rejections } =
   await load('directives');
 
@@ -120,7 +120,7 @@ test('an explicit keyframe replaces the preset’s for that property, and keeps 
   pure.setAttribute('data-vd-motion', 'fade-up');
   host.appendChild(pure);
   await settled();
-  assert.notEqual(el.getAttribute('data-vd-a'), pure.getAttribute('data-vd-a'),
+  assert.notEqual(el.getAttribute('data-vm-motion'), pure.getAttribute('data-vm-motion'),
     'one byte of override is a different generated animation');
 });
 

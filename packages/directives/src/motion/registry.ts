@@ -108,13 +108,13 @@ export const ensureProperty = (
 };
 
 /** The engine's own variable — the one every generated rule seeks by unless `progress` renames it. */
-export const PROGRESS_PROPERTY = '--vd-p';
+export const PROGRESS_PROPERTY = '--vm-p';
 
-/** The per-element STAGGER offset, subtracted in every seek — `var(--vd-so, 0)`, so a
+/** The per-element STAGGER offset, subtracted in every seek — `var(--vm-so, 0)`, so a
  *  non-staggered element pays one fallback lookup and every sibling shares one rule set.
  *  A constant per element (written at measure time), never chased, so it is not a Driven and
  *  needs no registration: the calc fallback types it. */
-export const STAGGER_PROPERTY = '--vd-so';
+export const STAGGER_PROPERTY = '--vm-so';
 
 /**
  * Tier C — the one-write scroller (measured: typed division through the whole seek chain, 3/3
@@ -122,11 +122,11 @@ export const STAGGER_PROPERTY = '--vd-so';
  * derives its own progress in CSS from two per-element constants written at measure time. The
  * per-frame JS cost of a scrub stops scaling with element count.
  */
-export const SCROLL_PROPERTY = '--vd-s';
+export const SCROLL_PROPERTY = '--vm-s';
 /** Range start along the axis, px, per element — written at measure, re-written on re-measure. */
-export const RANGE_START_PROPERTY = '--vd-r0';
+export const RANGE_START_PROPERTY = '--vm-r0';
 /** Range size along the axis, px, per element. Registered initial 1: never divide by zero. */
-export const RANGE_SIZE_PROPERTY = '--vd-r1';
+export const RANGE_SIZE_PROPERTY = '--vm-r1';
 
 /** One rule's live bookkeeping. `cssText` is kept for two replays: a fallback root arriving after
  *  the rule, and rebuilding a fallback sheet on eviction. */
@@ -216,7 +216,7 @@ const fallbackText = (): string =>
 const isDocument = (root: SheetRoot): root is Document => root.nodeType === 9;
 
 /**
- * `data-vera-sheet`, deliberately OUTSIDE the `data-vd-*` prefix: the engine scans that namespace
+ * `data-vm-sheet`, deliberately OUTSIDE the `data-vd-*` prefix: the engine scans that namespace
  * for directives, and the first marker (`data-vd-sheet`) was picked up and refused as an unknown
  * directive — infrastructure leaking into the vocabulary it delivers. Found by a probe's rejection
  * list, which is what rejection lists are for.
@@ -224,10 +224,10 @@ const isDocument = (root: SheetRoot): root is Document => root.nodeType === 9;
 const fallbackStyleIn = (root: SheetRoot): HTMLStyleElement | null => {
   const doc = isDocument(root) ? root : root.ownerDocument;
   for (const child of (isDocument(root) ? root.head : root).children) {
-    if ((child as HTMLElement).dataset?.['veraSheet'] !== undefined) return child as HTMLStyleElement;
+    if ((child as HTMLElement).dataset?.['vmSheet'] === 'motion') return child as HTMLStyleElement;
   }
   const style = doc.createElement('style');
-  style.dataset['veraSheet'] = '';
+  style.dataset['vmSheet'] = 'motion';
   (isDocument(root) ? root.head : root).appendChild(style);
   return style;
 };

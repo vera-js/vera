@@ -581,7 +581,7 @@ export const serializeTemplate = (template) => {
  * escaped on the way in and unescaped on the way out; it is removed again by `resolveSelects`, and
  * removing it is what terminates that loop.
  */
-const SELECT_MARK = 'data-vera-select';
+const SELECT_MARK = 'data-vm-select';
 const MARKED_SELECT = new RegExp(`<select\\b[^>]*\\s${SELECT_MARK}="(\\d+)"[^>]*>`, 'i');
 const OPTION = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
 const OPTION_VALUE = /\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;

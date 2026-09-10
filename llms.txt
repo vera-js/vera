@@ -300,7 +300,7 @@ wire([renderer, styles]);
 `styles` is the module; `adoptStyles` is the function it registers. `wire({ on: 'init', fn:
 adoptStyles, priority: 50 })` is the same registration written out, for a non-default priority.
 
-Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style vera-styles>` for plain
+Shadow DOM gets constructed sheets on `adoptedStyleSheets` (or a `<style data-vm-sheet="styles">` for plain
 strings); light DOM is hoisted to the document once per component class, wrapped in
 `@scope (tag-name) { … }`. `applyStyles(styles, element)` is exported for manual use. Omit the
 wiring and a component with `static styles` renders unstyled — core warns once, in development.

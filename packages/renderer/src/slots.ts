@@ -1187,7 +1187,7 @@ export const slotted = (host: Element, name = ''): Node[] => {
  * (snapshotted before the template ran), and the host also contains the rendered template with
  * literal `<slot>` elements. Output: markerless distributed light DOM — each `<slot>` UNWRAPPED
  * to its assigned nodes (or its own fallback children), the source consumed, and one attribute
- * (`data-vera-slotted="offset,count"`) when the DEFAULT slot received content, which is all
+ * (`data-vm-slotted="offset,count"`) when the DEFAULT slot received content, which is all
  * hydration needs to tell assigned-from-fallback there.
  */
 /**
@@ -1204,7 +1204,7 @@ export const slotted = (host: Element, name = ''): Node[] => {
  * the user's nodes back out before the discard, no walk required, and the clean render
  * redistributes them exactly as it would on a first client render.
  */
-const SLOTTED_ATTR = 'data-vera-slotted';
+const SLOTTED_ATTR = 'data-vm-slotted';
 /**
  * Unassigned slot content is PRESERVED, not dropped — native leaves an unassigned light child in
  * the DOM (present, unrendered), and a light host has no second tree to hide it in, so the server
@@ -1212,7 +1212,7 @@ const SLOTTED_ATTR = 'data-vera-slotted';
  * Hydration drains it back into holding, so content for a slot that only appears in another state
  * survives the round trip instead of vanishing from the HTML forever.
  */
-const UNASSIGNED_MARK = 'data-vera-unassigned';
+const UNASSIGNED_MARK = 'data-vm-unassigned';
 const serverDistribute = (host: Element, source: Node[]) => {
   const buckets = new Map<string, Node[]>();
   for (const node of source) {
@@ -1438,7 +1438,7 @@ const adoptSlot = (
  *
  * This un-distributes instead: it lifts the user's nodes back out, using exactly the two things
  * the server states about them — a named node carries its own `slot`, and the default slot's
- * parent carries `data-vera-slotted="offset,count"` — and returns them for the caller to re-attach
+ * parent carries `data-vm-slotted="offset,count"` — and returns them for the caller to re-attach
  * as the host's children. From there nothing is special-cased: the clean render captures them the
  * way it captures any first client render.
  *
@@ -1475,7 +1475,7 @@ const rescue = (host: Element): Node[] | null => {
        * `content`, not `childNodes`.
        *
        * **The tag is checked, not just the attribute.** This walks the SERVER's subtree, which is
-       * full of the user's own markup, and `data-vera-unassigned` on anything that is not a
+       * full of the user's own markup, and `data-vm-unassigned` on anything that is not a
        * `<template>` reached `.content` on an element that has none: a TypeError thrown out of
        * `renderInto`, so the mismatch never finished falling back and the page was left with no
        * client render at all. Reserved attribute or not, a user's markup cannot be allowed to do

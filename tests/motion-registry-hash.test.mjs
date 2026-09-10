@@ -16,10 +16,10 @@ import { load } from './dist.mjs';
 const { keyframeRegistry } = await load('directives/motion');
 
 /** Byte-identical to the browser suite's fixture. */
-const CSS = '@keyframes vd-probe { 0% { opacity: 0 } 100% { opacity: 1 } }';
+const CSS = '@keyframes vm-probe { 0% { opacity: 0 } 100% { opacity: 1 } }';
 
 test('the content hash is the same number the browser derives', () => {
-  assert.equal(keyframeRegistry.contentHash(CSS), 'fd6bc413',
+  assert.equal(keyframeRegistry.contentHash(CSS), 'd2db0bb4',
     'the SSR contract: server-rendered names must be re-derivable client-side, byte for byte');
 });
 

@@ -104,11 +104,11 @@ test('re-render after hydration keeps user nodes in place', async () => {
 
 test('AUDIT — hydration recovers server-parked unassigned content into the capture map', async () => {
   const serverHtml = server('<h2 slot="header">Hi</h2><p slot="nowhere">Recovered</p>');
-  assert.ok(serverHtml.includes('data-vera-unassigned'), 'the server parked it');
+  assert.ok(serverHtml.includes('data-vm-unassigned'), 'the server parked it');
   const host = hostFromServer(serverHtml);
   renderInto(card(), host);
   await settle();
-  assert.equal(host.querySelector('template[data-vera-unassigned]'), null, 'the carrier is consumed');
+  assert.equal(host.querySelector('template[data-vm-unassigned]'), null, 'the carrier is consumed');
   assert.equal(slotted(host, 'nowhere').length, 1, 'and its content is captured, ready for its slot');
   assert.equal(host.textContent.includes('Recovered'), false, 'still unrendered, as native leaves it');
 });
@@ -125,7 +125,7 @@ test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry
   const host = dom.window.document.createElement('div');
   host.innerHTML =
     '<article><header><h2 slot="header">MY HEADER</h2></header>' +
-    '<main data-vera-slotted="0,1">MY BODY</main></article>';
+    '<main data-vm-slotted="0,1">MY BODY</main></article>';
   dom.window.document.getElementById('root').appendChild(host);
   // a client template the server never produced (version skew / state difference)
   renderInto(html`<article><header><slot name="header">fbh</slot></header><main><slot>fbd</slot></main><footer>NEW</footer></article>`, host);
@@ -138,20 +138,20 @@ test('AUDIT — a hydration MISMATCH must not destroy slotted content (the entry
 });
 
 /**
- * **The server's delimiter must not outlive the adoption it delivered.** `data-vera-slotted`
+ * **The server's delimiter must not outlive the adoption it delivered.** `data-vm-slotted`
  * describes what the server emitted; once those nodes are adopted it is meaningless, and leaving
- * it behind puts a framework marker in the user's live DOM permanently. `data-vera-select` sets
+ * it behind puts a framework marker in the user's live DOM permanently. `data-vm-select` sets
  * the precedent — `ssr-select-parity` asserts "the mark must not survive".
  */
-test('AUDIT — the data-vera-slotted delimiter is stripped once adopted', async () => {
+test('AUDIT — the data-vm-slotted delimiter is stripped once adopted', async () => {
   const serverHtml = server('plain body<b>bold</b>');
-  assert.match(serverHtml, /<main data-vera-slotted="0,2">/,
+  assert.match(serverHtml, /<main data-vm-slotted="0,2">/,
     'CONTROL: the server did emit the mark, on the slot\'s parent (or this test proves nothing)');
   const host = hostFromServer(serverHtml);
   const bBefore = host.querySelector('b');
   renderInto(card(), host);
   await settle();
-  assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and the hydrator strips it');
+  assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and the hydrator strips it');
   assert.equal(host.querySelector('b'), bBefore, 'while still adopting in place — identity preserved');
   assert.equal(slotted(host).length, 2, 'and the capture map holds both default nodes');
 });
@@ -178,7 +178,7 @@ test('AUDIT — a mismatch BEFORE any slot is adopted still keeps every slotted 
   assert.ok(host.textContent.includes('USER BODY'), 'default text survived');
   assert.ok(host.querySelector('b'), 'and the rest of the default run');
   assert.equal(host.querySelector('section > header > h2').textContent, 'USER HEADER', 'redistributed, not merely present');
-  assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and no marker is left behind');
+  assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and no marker is left behind');
 
   /** Live afterwards, like any client render — and content for a slot this state does not have
    *  is in holding rather than destroyed. */
@@ -216,14 +216,14 @@ test('AUDIT — nested light-slot components hydrate in place, both levels', asy
   assert.equal(outer.querySelector('header').textContent, 'OUTER HEAD');
   assert.equal(inner.querySelector('i').textContent, 'TAG', 'inner named slot adopted');
   assert.equal(inner.querySelector('u').textContent, 'INNER BODY', 'inner default slot adopted');
-  assert.equal(outer.querySelector('[data-vera-slotted]'), null, 'markers stripped at both levels');
+  assert.equal(outer.querySelector('[data-vm-slotted]'), null, 'markers stripped at both levels');
   assert.deepEqual(slotted(inner, 'tag').map((n) => n.textContent), ['TAG'], 'the inner capture map is live');
   outer.remove();
 });
 
 /**
  * **The rescue walks the SERVER's subtree, which is full of the user's own markup**, so it may not
- * assume anything about what it finds there. `data-vera-unassigned` on an element that is not a
+ * assume anything about what it finds there. `data-vm-unassigned` on an element that is not a
  * `<template>` reached `.content` on an element that has none — a TypeError thrown straight out of
  * `renderInto`, so the mismatch never finished falling back and the page was left with no client
  * render at all. Reserved attribute or not, a page's markup cannot be allowed to do that.
@@ -232,7 +232,7 @@ test('AUDIT — a reserved marker on a non-template element does not break the r
   const host = dom.window.document.createElement('my-host');
   host.innerHTML =
     '<article><header><h2 slot="h">KEEP</h2></header>' +
-    '<aside><div data-vera-unassigned>USER DIV</div></aside></article>';
+    '<aside><div data-vm-unassigned>USER DIV</div></aside></article>';
   dom.window.document.getElementById('root').appendChild(host);
   /** Disagrees at the root, so the rescue runs over that subtree. */
   renderInto(html`<section><header><slot name="h">fb</slot></header></section>`, host);
@@ -329,14 +329,14 @@ test('AUDIT — three levels of light-slot components hydrate in place, all at o
   assert.equal(host.querySelector('a1').textContent, 'A-NAMED');
   assert.equal(host.querySelector('b1').textContent, 'B-NAMED');
   assert.equal(host.querySelector('c').textContent, 'C-NAMED');
-  assert.equal(host.querySelector('[data-vera-slotted]'), null, 'and every marker is stripped');
+  assert.equal(host.querySelector('[data-vm-slotted]'), null, 'and every marker is stripped');
   host.remove();
 });
 
 /**
  * **The offset/count mark is a NUMBER PAIR parsed out of markup, and markup is not trustworthy.**
  *
- * `data-vera-slotted="offset,count"` is the server's own handoff, but the rescue and the adopt walk
+ * `data-vm-slotted="offset,count"` is the server's own handoff, but the rescue and the adopt walk
  * read it from whatever is in the page — and a user can paste content carrying that attribute, or
  * a proxy can mangle it. The pair is turned into a range and used to slice a child list, which is
  * exactly the shape that hangs, throws, or quietly captures somebody else's nodes when the numbers
@@ -356,7 +356,7 @@ for (const [label, value] of [
 ])
   test(`AUDIT — a hostile slotted mark (${label}) degrades safely`, async () => {
     const host = dom.window.document.createElement('my-host');
-    host.innerHTML = `<article><main data-vera-slotted="${value}">USER</main></article>`;
+    host.innerHTML = `<article><main data-vm-slotted="${value}">USER</main></article>`;
     dom.window.document.getElementById('root').appendChild(host);
     /** Disagrees at the root, so the rescue reads the mark on the way to a clean render. */
     renderInto(html`<section><main><slot>fb</slot></main></section>`, host);
@@ -369,7 +369,7 @@ for (const [label, value] of [
   });
 
 /**
- * **The OFFSET half of `data-vera-slotted="offset,count"`, which nothing exercised.**
+ * **The OFFSET half of `data-vm-slotted="offset,count"`, which nothing exercised.**
  *
  * The mark tells a failed adoption which of the parent's children were the user's. Adoption itself
  * only needs the count — the walk is already standing in the right place — so the offset is used by
@@ -384,7 +384,7 @@ for (const [label, value] of [
  */
 test('AUDIT — a non-zero slotted offset rescues the user content, not the component\'s', async () => {
   const serverHtml = server('USER BODY', 'slot-offset-ssr');
-  const mark = /data-vera-slotted="(\d+),(\d+)"/.exec(serverHtml);
+  const mark = /data-vm-slotted="(\d+),(\d+)"/.exec(serverHtml);
   assert.ok(mark, `the server emitted no slotted mark: ${serverHtml}`);
   assert.notEqual(mark[1], '0', 'CONTROL: this fixture exists to produce a NON-ZERO offset');
 
@@ -404,7 +404,7 @@ test('AUDIT — a non-zero slotted offset rescues the user content, not the comp
 /**
  * **Serialisation is where node identity dies, and the mark counts nodes.**
  *
- * `data-vera-slotted="offset,count"` addresses the user's content by position among the parent's
+ * `data-vm-slotted="offset,count"` addresses the user's content by position among the parent's
  * children — as they are ON THE SERVER. The client's parser joins adjacent text into one node, so
  * wherever the user's slotted text touches text the component contributed, the mark addresses a
  * node spanning a boundary it cannot see. Both edges break, and each corrupts a different reader:
@@ -485,7 +485,7 @@ const SHAPES = {
  * **Deploy skew preserves EVERYTHING — unnamed content and bare text included, not just the named
  * nodes the older mismatch tests used.** The client's template changed since the server rendered
  * (the realistic mismatch: a deploy between render and load), adoption bails, and the rescue reads
- * the `data-vera-slotted` marks — which is why it can save content that carries no `slot`
+ * the `data-vm-slotted` marks — which is why it can save content that carries no `slot`
  * attribute and could never be told apart from template output by inspection. Identity is asserted,
  * not just text: a rescue that re-created equivalent nodes would pass a textContent check while
  * breaking every reference the page holds.
@@ -515,7 +515,7 @@ test('AUDIT — a template-changed mismatch preserves unnamed content and bare t
 
 /**
  * **The one shape where content IS lost, and the warning that now says so.** A container holding
- * children that were never server output — no `data-vera-slotted`, no carrier — hands the rescue
+ * children that were never server output — no `data-vm-slotted`, no carrier — hands the rescue
  * nothing to prove ownership with: an unnamed `<span>` is structurally indistinguishable from the
  * stale template markup being discarded, so it goes with it. That line is deliberate (the
  * alternative is resurrecting stale server DOM as slot content), but the old message promised "the

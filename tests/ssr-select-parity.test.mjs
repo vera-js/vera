@@ -104,7 +104,7 @@ test('a select with no binding is untouched', () => {
   const template = html`<select><option value="a">A</option><option value="b">B</option></select>`;
   assert.deepEqual(onServer(template), onClient(template));
   assert.doesNotMatch(serializeTemplate(template), /selected/, 'nothing should be marked');
-  assert.doesNotMatch(serializeTemplate(template), /data-vera-select/, 'and the mark must not survive');
+  assert.doesNotMatch(serializeTemplate(template), /data-vm-select/, 'and the mark must not survive');
 });
 
 /**

@@ -11,7 +11,7 @@
  * match byte-for-byte (else bail), and at each slot the live text is split so the renderer's own
  * anchors (primed texts, marker comments) are installed into the adopted DOM. Server HTML stays
  * free of framework comments; the client repairs its anchors in. Any mismatch clears the
- * container (preserving `<style vera-styles>` tags) and the caller renders fresh — correctness
+ * container (preserving `<style data-vm-sheet="styles">` tags) and the caller renders fresh — correctness
  * never depends on the server markup.
  *
  * This entry re-exports the public API, so a CDN importmap can point `@verajs/renderer` at the
@@ -229,8 +229,8 @@ const accountSubtree = (node: Node, state: AdoptState) => {
 
 /**
  * Reconcile a canonical `<slot>` against server-distributed DOM. Named slots take the consecutive
- * cursor nodes carrying `slot="name"`; the default slot takes the host-count nodes (`data-vera-
- * slotted="N"`). Found nodes are wrapped in place as a live binding (identity/state preserved);
+ * cursor nodes carrying `slot="name"`; the default slot takes the host-count nodes
+ * (`data-vm-slotted="N"`). Found nodes are wrapped in place as a live binding (identity/state preserved);
  * an unassigned slot adopts its server-rendered fallback children normally. The slots module's
  * `_$adopt$` (off the template's own seam fn) does the registration.
  */
@@ -285,7 +285,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
      * `_defaultTaken` still guards: two default slots sharing a parent would otherwise both read
      * the one mark, and by native semantics only the first receives anything.
      */
-    const mark = (parent as Element).getAttribute?.('data-vera-slotted');
+    const mark = (parent as Element).getAttribute?.('data-vm-slotted');
     const count = mark === undefined || mark === null ? 0 : Number(mark.slice(mark.indexOf(',') + 1));
     if (count > 0) {
       _defaultTaken = true;
@@ -293,10 +293,10 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
        * **The mark does not survive the page it delivered.** It describes what the SERVER emitted
        * and is meaningless the moment those nodes are adopted, so leaving it behind would put a
        * framework marker in the user's live DOM permanently — queryable, stylable, and stale.
-       * `data-vera-select` sets the precedent: it is stripped before the markup even ships, with
+       * `data-vm-select` sets the precedent: it is stripped before the markup even ships, with
        * a test asserting the mark must not survive.
        */
-      (parent as Element).removeAttribute('data-vera-slotted');
+      (parent as Element).removeAttribute('data-vm-slotted');
       for (let i = 0; i < count; i++) {
         const node = cursorSplit(cursor);
         if (node === null) break;
@@ -597,13 +597,13 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
 /**
  * Attempts to adopt a container's existing (server-rendered) children for `result`. Returns the
  * root part on success; null on any mismatch, leaving the caller to clean-render. Leading
- * `<style vera-styles>` tags (the SSR style serialization) are skipped and preserved.
+ * `<style data-vm-sheet="styles">` tags (the SSR style serialization) are skipped and preserved.
  */
 const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => {
   /** Only the SSR-serialized style tags are skipped — templates may legitimately start with
    * whitespace or even their own static `<style>`, which must align against the canonical walk. */
   let first = container.firstChild;
-  while (first !== null && first.nodeType === 1 && (first as Element).hasAttribute('vera-styles')) {
+  while (first !== null && first.nodeType === 1 && (first as Element).hasAttribute('data-vm-sheet')) {
     first = first.nextSibling;
   }
   if (__DEV__) why = '';
@@ -649,14 +649,14 @@ const clearPreservingStyles = (container: Node) => {
     /** `nextSibling` already yields `ChildNode | null`; annotating it `Node` widened it and broke
      * the assignment back into `node`, which `firstChild` typed as `ChildNode | null`. */
     const next: ChildNode | null = node.nextSibling;
-    if (!(node.nodeType === 1 && (node as Element).hasAttribute('vera-styles'))) container.removeChild(node);
+    if (!(node.nodeType === 1 && (node as Element).hasAttribute('data-vm-sheet'))) container.removeChild(node);
     node = next;
   }
 };
 
 /**
  * The hydrating `render`: a drop-in for the base entry's. The first render into a container that
- * already has children adopts them; any mismatch clears (keeping `<style vera-styles>`) and falls
+ * already has children adopts them; any mismatch clears (keeping `<style data-vm-sheet="styles">`) and falls
  * through to a clean base render. After the first render, this IS the base render.
  */
 export const renderInto = (result: unknown, container: Node) => {
@@ -696,13 +696,13 @@ export const renderInto = (result: unknown, container: Node) => {
      * element, so the advice can be local.
      *
      * It also said the markup was discarded, full stop; `clearPreservingStyles` keeps
-     * `<style vera-styles>`, which is the whole reason that function exists.
+     * `<style data-vm-sheet="styles">`, which is the whole reason that function exists.
      */
     if (__DEV__) {
       /**
        * **"The page is correct" is a promise this message must not make blindly.** The bail rescue
-       * preserves everything it can PROVE is the user's: content inside `data-vera-slotted` marks,
-       * the `data-vera-unassigned` carrier, and elements carrying a `slot` attribute. Real server
+       * preserves everything it can PROVE is the user's: content inside `data-vm-slotted` marks,
+       * the `data-vm-unassigned` carrier, and elements carrying a `slot` attribute. Real server
        * output always marks its distributed default-slot content, so on genuine deploy skew the
        * rescue is complete and the promise holds — measured, named and unnamed and bare text alike.
        * But a container holding CLIENT-side markup that was never server output has no marks, and
@@ -713,7 +713,7 @@ export const renderInto = (result: unknown, container: Node) => {
        */
       const unmarked =
         container.nodeType === 1 &&
-        (container as Element).querySelector('[data-vera-slotted],[data-vera-unassigned]') === null;
+        (container as Element).querySelector('[data-vm-slotted],[data-vm-unassigned]') === null;
       console.warn(
         `[vera] hydration fell back to a client render: ${why}. This container's server markup was ` +
           `discarded and rebuilt (its SSR <style> is kept), ` +

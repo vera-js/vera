@@ -2,7 +2,7 @@
  * Does a component with `static styles` actually hydrate, or does it silently re-render?
  *
  * The server cannot put a constructed stylesheet into markup, so `@verajs/styles` serializes one as
- * a `<style vera-styles>` element inside the shadow root. The client, where constructed sheets
+ * a `<style data-vm-sheet="styles">` element inside the shadow root. The client, where constructed sheets
  * exist, uses `adoptedStyleSheets` and creates no element — so the shadow root the hydrating
  * renderer adopts begins with a node its template does not describe.
  *
@@ -22,7 +22,7 @@ wire({ on: 'init', fn: adoptStyles, priority: 50 });
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** Exactly what `@verajs/ssr` emits for this component, style element and all. */
-const STYLE = `<style vera-styles>.badge { color: teal }</style>`;
+const STYLE = `<style data-vm-sheet="styles">.badge { color: teal }</style>`;
 const server = (body) => `<template shadowrootmode="open">${STYLE}${body}</template>`;
 
 /**
@@ -88,7 +88,7 @@ for (const [name, shape] of Object.entries(SHAPES)) {
   it(`${name}: applies the styles exactly once`, async () => {
     const { element } = await mount();
     const root = element.shadowRoot;
-    const tags = root.querySelectorAll('style[vera-styles]').length;
+    const tags = root.querySelectorAll('style[data-vm-sheet="styles"]').length;
     const sheets = root.adoptedStyleSheets.length;
     expect(
       tags + sheets,

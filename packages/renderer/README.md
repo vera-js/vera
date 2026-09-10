@@ -554,7 +554,7 @@ same template: node identity is preserved, listeners attach, and updates mutate 
 Hydration here is **markerless** — server HTML carries no framework comments, and the client repairs
 its own anchors into the adopted DOM.
 
-Any disagreement with the server markup clears the container (keeping `<style vera-styles>` tags)
+Any disagreement with the server markup clears the container (keeping `<style data-vm-sheet="styles">` tags)
 and renders fresh, so correctness never depends on the server output being right. A DOM node at a
 child position is the one thing the server cannot have rendered; it is inserted without giving up
 adoption of everything around it.

@@ -23,7 +23,7 @@ assert.ok(nested.html.includes('<li>a &#60;b&#62;</li>'), 'interpolated values e
 assert.ok(nested.html.includes('<h2>nested</h2>'), '@event binding fully stripped');
 assert.ok(!nested.html.includes('onClick') && !nested.html.includes('onclick'),
   'onClick-shaped bindings stripped server-side too');
-assert.ok(/<template shadowrootmode="open"><style>h2 \{ color: teal \}<\/style>/.test(nested.html.replace('<nested-ssr>', '')) || nested.html.includes('<style vera-styles>h2 { color: teal }</style>'),
+assert.ok(/<template shadowrootmode="open"><style>h2 \{ color: teal \}<\/style>/.test(nested.html.replace('<nested-ssr>', '')) || nested.html.includes('<style data-vm-sheet="styles">h2 { color: teal }</style>'),
   'shadow static styles serialized into the shadow root');
 
 /**

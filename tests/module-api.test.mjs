@@ -114,7 +114,7 @@ test('applyStyles puts a plain-string style into a shadow root, once', async () 
   el.attachShadow({ mode: 'open' });
 
   applyStyles('p { color: red }', el);
-  const styles = () => el.shadowRoot.querySelectorAll('style[vera-styles]');
+  const styles = () => el.shadowRoot.querySelectorAll('style[data-vm-sheet="styles"]');
   assert.equal(styles().length, 1, 'a style element was added');
   assert.match(styles()[0].innerHTML, /color: red/);
 

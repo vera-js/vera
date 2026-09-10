@@ -116,7 +116,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
   const ease = parsed.settings['ease'];
   const elementEase = typeof ease === 'string' ? ease : 'linear';
   /**
-   * Per-category smoothing seeks a category's animations by its OWN variable — `--vd-p-transform`
+   * Per-category smoothing seeks a category's animations by its OWN variable — `--vm-p-transform`
    * chases at `transform-inertia`'s rate while everything else follows the base — so the variable
    * is part of the group key below. The per-category names are the engine's, never the renamed
    * base: the author's `progress` property keeps carrying the one unsmoothed number.
@@ -316,15 +316,15 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
       elementStyle: '',
       nativeRule: '',
       elementRule:
-        `[data-vd-a="${hash}"][data-vd-a] { ${baseDecls} }`,
+        `[data-vm-motion="${hash}"][data-vm-motion] { ${baseDecls} }`,
       armedRule:
-        `[data-vd-a="${hash}"][data-vera-t] { ${longhands} }`,
+        `[data-vm-motion="${hash}"][data-vm-armed] { ${longhands} }`,
       activeRule:
-        `[data-vd-a="${hash}"][data-vera-on] { ${activeDecls} }`,
+        `[data-vm-motion="${hash}"][data-vm-on] { ${activeDecls} }`,
       noJsRule:
-        `@media (scripting: none) { [data-vd-a="${hash}"][data-vd-a] { ${activeDecls} transition: none; } }`,
+        `@media (scripting: none) { [data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} transition: none; } }`,
       reducedRule:
-        `@media (prefers-reduced-motion: reduce) { [data-vd-a="${hash}"][data-vd-a] { ${activeDecls} transition: none; } }`,
+        `@media (prefers-reduced-motion: reduce) { [data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} transition: none; } }`,
     };
   })();
   if (transitionEmission) return transitionEmission;
@@ -490,8 +490,8 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     const body = composeGroupBody(group, (a) => a.keyframes);
     if (body === null) return null;
     const groupHash = contentHash(body);
-    generatedGroups.push({ hash: groupHash, name: `vd-${groupHash}`,
-      rule: `@keyframes vd-${groupHash} { ${body} }`, ease: group.ease, varName: group.varName });
+    generatedGroups.push({ hash: groupHash, name: `vm-${groupHash}`,
+      rule: `@keyframes vm-${groupHash} { ${body} }`, ease: group.ease, varName: group.varName });
   }
 
   /**
@@ -518,9 +518,9 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
         const segBody = composeGroupBody(group, (a) => mergeBandsForWidth(a.keyframes, a.bands, min));
         if (segBody === null) return null;
         const segHash = contentHash(segBody);
-        names.push(`vd-${segHash}`);
+        names.push(`vm-${segHash}`);
         if (!rules.some((r) => r.hash === segHash)) {
-          rules.push({ hash: segHash, rule: `@keyframes vd-${segHash} { ${segBody} }` });
+          rules.push({ hash: segHash, rule: `@keyframes vm-${segHash} { ${segBody} }` });
         }
       }
       segments.push({ min, max, rules, media: '' });
@@ -542,7 +542,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     const query = [segment.min > 0 ? `(min-width: ${segment.min}px)` : '',
       Number.isFinite(segment.max) ? `(max-width: ${segment.max}px)` : ''].filter(Boolean).join(' and ');
     segment.media =
-      `@media ${query} { [data-vd-a="${hash}"][data-vd-a] { animation-name: ${segmentNames[i]!.join(', ')}; } }`;
+      `@media ${query} { [data-vm-motion="${hash}"][data-vm-motion] { animation-name: ${segmentNames[i]!.join(', ')}; } }`;
   }
 
   /**
@@ -610,7 +610,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     noJsRule: '',
     reducedRule: '',
     nativeRule: generatedGroups.length
-      ? `@supports (animation-timeline: view()) { [data-vd-a="${hash}"][data-vera-n] { ` +
+      ? `@supports (animation-timeline: view()) { [data-vm-motion="${hash}"][data-vm-native] { ` +
         `animation-delay: ${per('0s')}; animation-duration: ${per('auto')}; ` +
         `animation-play-state: ${per('running')}; ` +
         `animation-timeline: ${per('view(block)')}; ` +
@@ -623,7 +623,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     /** Empty for a tick-only element — no animation list means no declarations to carry, and the
      *  runtime skips delivery entirely on zero groups. */
     elementStyle: generatedGroups.length ? declarations : '',
-    elementRule: generatedGroups.length ? `[data-vd-a="${hash}"][data-vd-a] { ${declarations} }` : '',
+    elementRule: generatedGroups.length ? `[data-vm-motion="${hash}"][data-vm-motion] { ${declarations} }` : '',
   };
 };
 

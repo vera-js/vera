@@ -585,7 +585,7 @@ const prepareInstance = (element, tag, props, children) => {
 /**
  * After a LIGHT component's template has rendered (its `<slot>`s now sit after the snapshotted
  * source children), hand both to the slots module's server distributor: it unwraps each `<slot>`
- * to its assigned nodes or fallback and stamps `data-vera-slotted` on the host for the default
+ * to its assigned nodes or fallback and stamps `data-vm-slotted` on the host for the default
  * slot. No-op unless the app wired slots and this element had children.
  */
 const distributeLightSlots = (element) => {

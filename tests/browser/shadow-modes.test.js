@@ -63,7 +63,7 @@ for (const { name, props, reachable } of MODES) {
     await frame();
     await frame();
 
-    const adopted = root.adoptedStyleSheets?.length > 0 || root.querySelector('style[vera-styles]');
+    const adopted = root.adoptedStyleSheets?.length > 0 || root.querySelector('style[data-vm-sheet="styles"]');
     expect(adopted, 'styles reached the root').to.be.ok;
     /** And they apply — the point of adopting them. */
     expect(getComputedStyle(root.querySelector('.marker')).color).to.equal('rgb(1, 2, 3)');

@@ -24,7 +24,7 @@ export type SheetRoot = Document | ShadowRoot;
  */
 export interface Driven {
   readonly node: HTMLElement;
-  /** The custom property this element's animation seeks by — `--vd-p`, or the author's rename. */
+  /** The custom property this element's animation seeks by — `--vm-p`, or the author's rename. */
   readonly varName: string;
   written: number | null;
   target: number;
@@ -452,7 +452,7 @@ export interface GeneratedGroup {
 
 /** What generation hands the caller: the rules to acquire, and the declarations the element carries. */
 export interface Generated {
-  /** The MARKER — content hash over the whole identity (groups × segments), the `data-vd-a` value. */
+  /** The MARKER — content hash over the whole identity (groups × segments), the `data-vm-motion` value. */
   readonly hash: string;
   /**
    * How this element is DRIVEN. `seek`: the paused-animation delay-seek, one number per frame
@@ -466,7 +466,7 @@ export interface Generated {
    *  AFTER the base rule — they tie on specificity, and order is the tiebreak. */
   readonly activeRule: string;
   /**
-   * Transition mode only: the transition LONGHANDS, under the ARMED marker (`data-vera-t`) —
+   * Transition mode only: the transition LONGHANDS, under the ARMED marker (`data-vm-armed`) —
    * separate from the base on purpose, measured: rules injected at ACTIVATION time arrive as a
    * style change, so longhands living on the base rule animate every element in from its
    * natural state (0.91 sampled en route to a 0.1 base). The runtime arms one frame after base
@@ -508,11 +508,11 @@ export interface Generated {
    */
   readonly vars: readonly { readonly name: string;
     readonly inertiaKey: 'inertia' | 'transform-inertia' | 'filter-inertia' }[];
-  /** The base variable — `--vd-p`, or the author's `progress` rename. The author-visible one. */
+  /** The base variable — `--vm-p`, or the author's `progress` rename. The author-visible one. */
   readonly varName: string;
   /**
    * TIER N — the endgame rule, shipped UNCONDITIONALLY inside @supports: on engines with native
-   * scroll-driven animations, an element the runtime opts in (`data-vera-n`) swaps the delay-seek
+   * scroll-driven animations, an element the runtime opts in (`data-vm-native`) swaps the delay-seek
    * for `animation-timeline: view()` with `animation-range: cover 0%→100%` — which IS our default
    * scroll window, keyframe percentages mapping 1:1. Zero per-frame JS, and from SSR markup zero
    * JS at all. Engines without support ignore the block and the element rides tier C; the tiers

@@ -3,7 +3,7 @@
  *
  * Motion had no server story at all: a `fade-up` element arrived visible, snapped hidden when JS
  * activated, then animated. Under generated CSS the animation IS the initial frame — the seek is
- * `animation-delay: calc(var(--vd-p, 0) * -1s)`, the variable's initial value is 0 by `@property`
+ * `animation-delay: calc(var(--vm-p, 0) * -1s)`, the variable's initial value is 0 by `@property`
  * (and by the calc's own fallback where `@property` is unsupported or stripped), so a
  * server-rendered page paints frame 0 correctly with no JavaScript. No second mechanism to keep
  * in step: this pass runs the SAME parser and the SAME generator the client runs, and the content
@@ -11,7 +11,7 @@
  * own delivery simply takes over.
  *
  * **The no-JS guard is a neutraliser, never a gate** (§7, measured reasoning): rules are emitted
- * unguarded and `@media (scripting: none) { [data-vd-a] { animation: none } }` lands LAST in each
+ * unguarded and `@media (scripting: none) { [data-vm-motion] { animation: none } }` lands LAST in each
  * emitted sheet, so a no-JS visitor sees the natural state — while an engine predating the
  * `scripting` feature (unknown feature → query false → neutraliser inert) still animates when JS
  * runs. Gating on `(scripting: enabled)` would have killed all motion on every older browser WITH
@@ -50,8 +50,8 @@ type Sheet = Map<string, string>;
  *  (0-1-0 vs 0-2-0); doubled it ties and wins on order. Reduced motion first, scripting last —
  *  order between them is indifferent (both neutralise), the pair pins after every rule. */
 const NEUTRALISERS =
-  '@media (prefers-reduced-motion: reduce) { [data-vd-a][data-vd-a] { animation: none; } }\n' +
-  '@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }';
+  '@media (prefers-reduced-motion: reduce) { [data-vm-motion][data-vm-motion] { animation: none; } }\n' +
+  '@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }';
 
 /**
  * Collects one element's rules into its root's sheet, in the client's acquisition order — groups,
@@ -83,17 +83,17 @@ const collect = (sheet: Sheet, generated: Generated): void => {
 
 /**
  * The one style element this pass owns in a root, marked exactly as the client's fallback path
- * marks its own (`data-vera-sheet`) — deliberately the SAME marker: on an engine without
+ * marks its own (`data-vm-sheet`) — deliberately the SAME marker: on an engine without
  * constructed sheets the client finds this element and takes it over, and on one with them the
  * adopted sheet simply outranks it on cascade order.
  */
 const styleIn = (root: Document | ShadowRoot, doc: Document): HTMLStyleElement => {
   const parent = root.nodeType === 9 ? (root as Document).head : (root as ShadowRoot);
   for (const child of parent.children) {
-    if ((child as HTMLElement).dataset?.['veraSheet'] !== undefined) return child as HTMLStyleElement;
+    if ((child as HTMLElement).dataset?.['vmSheet'] === 'motion') return child as HTMLStyleElement;
   }
   const style = doc.createElement('style');
-  style.dataset['veraSheet'] = '';
+  style.dataset['vmSheet'] = 'motion';
   parent.appendChild(style);
   return style;
 };
@@ -101,8 +101,8 @@ const styleIn = (root: Document | ShadowRoot, doc: Document): HTMLStyleElement =
 /**
  * Emits generated motion CSS for a server-rendered document, in place.
  *
- * Marks every in-scope `data-vd-motion` element with its content-hash identity (`data-vd-a`) and
- * writes one `<style data-vera-sheet>` per tree that needs one — the document's into `<head>`,
+ * Marks every in-scope `data-vd-motion` element with its content-hash identity (`data-vm-motion`) and
+ * writes one `<style data-vm-sheet>` per tree that needs one — the document's into `<head>`,
  * and one INSIDE each open shadow root holding motion elements, because keyframes resolve per
  * tree scope (measured; the same fact that shapes the client registry). `@property` declarations
  * go in the document sheet only — registration is document-global in every engine — and each
@@ -155,10 +155,10 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
       if (!sheet) sheets.set(root, (sheet = new Map()));
       collect(sheet, generated);
       for (const v of generated.vars) varNames.add(v.name);
-      el.setAttribute('data-vd-a', generated.hash);
+      el.setAttribute('data-vm-motion', generated.hash);
       /** Pre-ARMED on the server: first paint already has base, so no change ever fires and
        *  the client's arming frame is unnecessary — reversals work from the first script. */
-      if (generated.mode === 'transition') el.setAttribute('data-vera-t', '');
+      if (generated.mode === 'transition') el.setAttribute('data-vm-armed', '');
       rendered++;
     }
     for (const el of root.querySelectorAll('*')) {

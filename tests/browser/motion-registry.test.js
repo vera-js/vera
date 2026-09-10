@@ -16,8 +16,8 @@ const { contentHash, acquire, release } = keyframeRegistry;
 /** The rule under test, and the fixture the fast suite hashes on the SERVER. Named RULE, not CSS:
  *  a `const CSS` here SHADOWED the global `CSS` object, so `CSS.registerProperty` below was called
  *  on a string and threw "not a function" — while the bundle's own realm saw the real global. */
-const RULE = '@keyframes vd-probe { 0% { opacity: 0 } 100% { opacity: 1 } }';
-const SEEK = 'animation: vd-probe 1s linear both paused; animation-delay: -0.5s;';
+const RULE = '@keyframes vm-probe { 0% { opacity: 0 } 100% { opacity: 1 } }';
+const SEEK = 'animation: vm-probe 1s linear both paused; animation-delay: -0.5s;';
 
 const hosts = [];
 const host = () => {
@@ -41,7 +41,7 @@ it('the hash agrees with the server, byte for byte', () => {
    * carries names the client must independently re-derive, so the two runtimes agreeing on one
    * fixture is the whole requirement, pinned from both sides.
    */
-  expect(contentHash(RULE)).to.equal('fd6bc413');
+  expect(contentHash(RULE)).to.equal('d2db0bb4');
 });
 
 it('CONTROL: the name resolves nowhere before any acquire', async () => {
@@ -109,9 +109,9 @@ it('eviction removes the RIGHT rule when several are live', async () => {
    * deletes a NEIGHBOUR's animation — the failure would land on whichever element activated next
    * to the one torn down, which is as misleading as bugs get.
    */
-  const a = '@keyframes vd-a { 0% { opacity: 0.1 } 100% { opacity: 0.1 } }';
-  const b = '@keyframes vd-b { 0% { opacity: 0.2 } 100% { opacity: 0.2 } }';
-  const c = '@keyframes vd-c { 0% { opacity: 0.3 } 100% { opacity: 0.3 } }';
+  const a = '@keyframes vm-a { 0% { opacity: 0.1 } 100% { opacity: 0.1 } }';
+  const b = '@keyframes vm-b { 0% { opacity: 0.2 } 100% { opacity: 0.2 } }';
+  const c = '@keyframes vm-c { 0% { opacity: 0.3 } 100% { opacity: 0.3 } }';
   for (const text of [a, b, c]) acquire(document, contentHash(text), text);
   const sheet = document.adoptedStyleSheets.at(-1);
   expect(sheet.cssRules.length).to.equal(3);
@@ -119,7 +119,7 @@ it('eviction removes the RIGHT rule when several are live', async () => {
   release(contentHash(b));
   expect(sheet.cssRules.length).to.equal(2);
   const names = [...sheet.cssRules].map((rule) => rule.name);
-  expect(names, 'the middle one went; its neighbours did not').to.deep.equal(['vd-a', 'vd-c']);
+  expect(names, 'the middle one went; its neighbours did not').to.deep.equal(['vm-a', 'vm-c']);
 
   release(contentHash(a));
   release(contentHash(c));
@@ -143,22 +143,22 @@ it('a registered property INTERPOLATES where an unregistered one flips', async (
   };
 
   /** The CONTROL: without it, "interpolated" below could be a probe that measures nothing. */
-  expect(await run(flip, '--vd-unregistered'), 'unregistered: flips at the midpoint').to.equal(false);
+  expect(await run(flip, '--vm-unregistered'), 'unregistered: flips at the midpoint').to.equal(false);
 
-  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
-  expect(await run(ease, '--vd-p'), 'registered: a real mid transition value').to.equal(true);
+  keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
+  expect(await run(ease, '--vm-p'), 'registered: a real mid transition value').to.equal(true);
 });
 
 it('a duplicate ensureProperty is a no-op, and a foreign SAME-NAME registration is tolerated', () => {
-  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
-  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
+  keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
+  keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
 
   /**
    * The cross-bundle condition, simulated: a second inlined copy of the pack has its own Set, so
    * its registration reaches the platform and throws there. Register the name FIRST as the other
    * bundle would — identically — then ensure: the catch must classify it harmless.
    */
-  const name = `--vd-p2-${Math.floor(Math.random() * 1e9)}`;
+  const name = `--vm-p2-${Math.floor(Math.random() * 1e9)}`;
   CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
   expect(() => keyframeRegistry.ensureProperty(name, document.documentElement)).to.not.throw();
 });
@@ -185,7 +185,7 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
   /**
    * Stage 4's play mechanism, measured before anything was built on it — and the answer came back
    * NEGATIVE for the design both repos had converged on. A transition on the registered variable
-   * runs (the computed value reads mid-flight) but `animation-delay: calc(var(--vd-p) * -1s)` does
+   * runs (the computed value reads mid-flight) but `animation-delay: calc(var(--vm-p) * -1s)` does
    * NOT retime the paused animation from the transitioning intermediates: measured at p=0.1665,
    * opacity read 1 — the END value — in Chromium, Firefox AND WebKit. CSS-as-the-clock is dead.
    *
@@ -204,14 +204,14 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
    * segment where endpoint interpolation would read ≈p. The two cannot be confused. Captured by
    * polling the variable itself, never by sleeping to a chosen instant.
    */
-  const bent = '@keyframes vd-sweep { 0% { opacity: 0 } 50% { opacity: 0.2 } 100% { opacity: 1 } }';
+  const bent = '@keyframes vm-sweep { 0% { opacity: 0 } 50% { opacity: 0.2 } 100% { opacity: 1 } }';
   const hash = contentHash(bent);
-  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
+  keyframeRegistry.ensureProperty('--vm-p', document.documentElement);
   acquire(document, hash, bent);
 
   const el = host();
   el.style.cssText =
-    'animation: vd-sweep 1s linear both paused; animation-delay: calc(var(--vd-p, 0) * -1s);';
+    'animation: vm-sweep 1s linear both paused; animation-delay: calc(var(--vm-p, 0) * -1s);';
 
   /** The ramp: what the play engine will do. Duration irrelevant to the claim — only the sweep is. */
   const t0 = performance.now();
@@ -219,7 +219,7 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
   let seenOpacity = -1;
   while (true) {
     const p = Math.min(1, (performance.now() - t0) / 500);
-    el.style.setProperty('--vd-p', String(p));
+    el.style.setProperty('--vm-p', String(p));
     await frame();
     if (seenOpacity === -1 && p > 0.15 && p < 0.45) {
       seenP = p;
@@ -243,11 +243,11 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
 
 it('the neutraliser tails stay LAST through later inserts, doubled so ties actually lose', async () => {
   keyframeRegistry.setTails([
-    '@media (prefers-reduced-motion: reduce) { [data-vd-a][data-vd-a] { animation: none; } }',
-    '@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }',
+    '@media (prefers-reduced-motion: reduce) { [data-vm-motion][data-vm-motion] { animation: none; } }',
+    '@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }',
   ]);
   const before = contentHash(RULE) + Math.random().toString(36).slice(2);
-  acquire(document, before, `@keyframes vd-tail-probe { 0% { opacity: 0.5 } 100% { opacity: 0.5 } }`);
+  acquire(document, before, `@keyframes vm-tail-probe { 0% { opacity: 0.5 } 100% { opacity: 0.5 } }`);
   const sheet = document.adoptedStyleSheets.at(-1);
   const last = sheet.cssRules[sheet.cssRules.length - 1];
   const secondLast = sheet.cssRules[sheet.cssRules.length - 2];
@@ -257,17 +257,17 @@ it('the neutraliser tails stay LAST through later inserts, doubled so ties actua
    *  selector text is the only possible witness). */
   expect(last.cssText, 'the scripting tail out-lasts inserts arriving after it').to.include('scripting: none');
   expect(secondLast.cssText, 'the reduced-motion tail rides with it').to.include('prefers-reduced-motion');
-  expect(last.cssText + secondLast.cssText).to.not.match(/\{\s*\[data-vd-a\]\s*\{/);
+  expect(last.cssText + secondLast.cssText).to.not.match(/\{\s*\[data-vm-motion\]\s*\{/);
   release(before);
 });
 
 it('the doubled-attribute rule beats an author class tie', async () => {
-  const css = '@keyframes vd-spec { 0% { opacity: 0.25 } 100% { opacity: 0.25 } }';
+  const css = '@keyframes vm-spec { 0% { opacity: 0.25 } 100% { opacity: 0.25 } }';
   const hash = contentHash(css);
   acquire(document, hash, css);
   acquire(document, `${hash}#el`,
-    `[data-vd-a="${hash}"][data-vd-a] { animation: vd-spec 1s linear both paused; ` +
-    `animation-delay: calc(var(--vd-p, 0) * -1s); }`);
+    `[data-vm-motion="${hash}"][data-vm-motion] { animation: vm-spec 1s linear both paused; ` +
+    `animation-delay: calc(var(--vm-p, 0) * -1s); }`);
 
   /** The author's competing single-class rule, added LATER — order would favour it on a tie. */
   const author = document.createElement('style');
@@ -276,7 +276,7 @@ it('the doubled-attribute rule beats an author class tie', async () => {
 
   const el = host();
   el.className = 'card';
-  el.setAttribute('data-vd-a', hash);
+  el.setAttribute('data-vm-motion', hash);
   await frame();
   expect(Number(getComputedStyle(el).opacity), '0-2-0 wins where 0-1-0 would tie and lose on order')
     .to.be.closeTo(0.25, 0.01);

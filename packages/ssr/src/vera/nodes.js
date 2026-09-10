@@ -1258,7 +1258,7 @@ export class ShadowRootShim extends ContainerShim {
      */
     return [...this._styles, ...sheets]
       .filter(Boolean)
-      .map((css) => `<style vera-styles>${escapeStyleText(css)}</style>`)
+      .map((css) => `<style data-vm-sheet="styles">${escapeStyleText(css)}</style>`)
       .join('');
   }
 }

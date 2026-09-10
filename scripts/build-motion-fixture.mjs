@@ -52,10 +52,10 @@ if (report.problems.length) {
   process.exit(1);
 }
 
-const style = doc.head.querySelector('style[data-vera-sheet]');
+const style = doc.head.querySelector('style[data-vm-sheet="motion"]');
 const markers = {};
-for (const el of doc.querySelectorAll('[data-vd-a]')) {
-  markers[el.id] = el.getAttribute('data-vd-a');
+for (const el of doc.querySelectorAll('[data-vm-motion]')) {
+  markers[el.id] = el.getAttribute('data-vm-motion');
 }
 
 const contents =

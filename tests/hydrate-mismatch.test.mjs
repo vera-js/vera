@@ -197,13 +197,13 @@ test('a fallback keeps the SSR stylesheet, and the message says so', { skip }, (
   const original = console.warn;
   console.warn = (...args) => said.push(args.join(' '));
   const host = document.createElement('div');
-  host.innerHTML = `<style vera-styles>p{color:red}</style><p>x</p><span>undescribed</span>`;
+  host.innerHTML = `<style data-vm-sheet="styles">p{color:red}</style><p>x</p><span>undescribed</span>`;
   try {
     renderInto(html`<p>x</p>`, host);
   } finally {
     console.warn = original;
   }
-  assert.ok(host.querySelector('style[vera-styles]'), 'the SSR stylesheet was thrown away with the rest');
+  assert.ok(host.querySelector('style[data-vm-sheet="styles"]'), 'the SSR stylesheet was thrown away with the rest');
   assert.equal(host.querySelector('span'), null);
   assert.match(said[0], /SSR <style> is kept/, 'the message says the markup was discarded without the exception');
 });

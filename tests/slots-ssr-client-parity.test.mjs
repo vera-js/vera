@@ -49,7 +49,7 @@ const SHAPES = {
 /**
  * Three things differ legitimately and are normalised away — nothing else is.
  *
- * The server's `data-vera-slotted` markers are the hydration handoff and the hydrator strips them.
+ * The server's `data-vm-slotted` markers are the hydration handoff and the hydrator strips them.
  * The client's anchors are comments it never serialises. And the unassigned CARRIER is the server's
  * serialisation of state the client holds in memory: a server render has no holding fragment, so
  * content no slot claimed has to persist in the HTML for hydration to recover it, and it goes in an
@@ -59,11 +59,11 @@ const SHAPES = {
  * `retained()` below does — otherwise this would be hiding exactly the kind of difference the file
  * exists to find.
  */
-const CARRIER = /<template data-vera-unassigned="?"?>([\s\S]*?)<\/template>/g;
+const CARRIER = /<template data-vm-unassigned="?"?>([\s\S]*?)<\/template>/g;
 const normalise = (markup) =>
   markup
     .replace(CARRIER, '')
-    .replace(/ data-vera-slotted="[^"]*"/g, '')
+    .replace(/ data-vm-slotted="[^"]*"/g, '')
     .replace(/<!---->/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -245,7 +245,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     assert.equal(serverLight, normalise(host.innerHTML),
       `the server and the client disagree about a shadow host's own light DOM.\n` +
         `  server: ${serverLight}\n  client: ${normalise(host.innerHTML)}`);
-    assert.doesNotMatch(fromServer, /data-vera-slotted|data-vera-unassigned/,
+    assert.doesNotMatch(fromServer, /data-vm-slotted|data-vm-unassigned/,
       'and no light-slots marker belongs on a component the platform slots');
     host.remove();
   });

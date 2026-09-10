@@ -51,8 +51,8 @@ using the feature at all — completely untouched by the module being wired?
 Server output carries no wrapper elements: each `<slot>` is unwrapped to its assigned nodes or
 its fallback, in place. The handoff to hydration is three small things, each present only when the
 markup needs it and each consumed on adoption — measured, not assumed: a
-`data-vera-slotted="offset,count"` attribute where the default slot took content; one inert
-`<template data-vera-unassigned>` holding children no slot claimed, so content meant for a slot
+`data-vm-slotted="offset,count"` attribute where the default slot took content; one inert
+`<template data-vm-unassigned>` holding children no slot claimed, so content meant for a slot
 that only appears in another state survives the round trip instead of vanishing from the HTML; and
 a `<!---->` separator where two text runs would otherwise merge in the parser and corrupt the
 offset. Adoption is in place, so node identity survives and with it focus, input values and scroll

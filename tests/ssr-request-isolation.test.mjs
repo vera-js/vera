@@ -118,7 +118,7 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 {
   const { html: markup } = await renderToString(fixture('css-tagname-ssr.js'));
   assert.ok(!markup.includes('INJECTED'), `a component was rendered inside CSS: ${markup}`);
-  assert.match(markup, /<style vera-styles>/, 'the styles are still there');
+  assert.match(markup, /<style data-vm-sheet="styles">/, 'the styles are still there');
   assert.match(markup, /injected-comp/, 'and the tag name is still in the CSS text, as written');
 }
 

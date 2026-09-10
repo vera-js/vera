@@ -62,7 +62,7 @@ test('so the count is three rather than one', () => {
 });
 
 test('shadow-DOM subclasses are scoped by their root instead, and are unaffected', () => {
-  const roots = [...rendered.html.matchAll(/<(shadow-[a-z]+)[^>]*>\s*<template shadowrootmode="open">\s*<style vera-styles>([^<]*)</g)];
+  const roots = [...rendered.html.matchAll(/<(shadow-[a-z]+)[^>]*>\s*<template shadowrootmode="open">\s*<style data-vm-sheet="styles">([^<]*)</g)];
   const byTag = Object.fromEntries(roots.map(([, tag, css]) => [tag, css]));
 
   assert.match(byTag['shadow-base'] ?? '', /color: green/, 'the base styled its own root');

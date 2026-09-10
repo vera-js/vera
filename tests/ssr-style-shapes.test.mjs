@@ -3,7 +3,7 @@
  *
  * The documented surface is "an object with `styleSheet` and `cssText`, an array of those, or a
  * string" — and the array form is the one a component reaches for the moment it shares a base
- * stylesheet with a sibling. Server-side each becomes a `<style vera-styles>` in the shadow root,
+ * stylesheet with a sibling. Server-side each becomes a `<style data-vm-sheet="styles">` in the shadow root,
  * because markup cannot carry a constructed sheet; a shape that silently contributed nothing would
  * ship a component with half its CSS and look perfectly fine doing it.
  */
@@ -52,7 +52,7 @@ export default customElements.get('shape-result');
     'shape-hostile',
   ]) {
     const { html: markup } = await renderToString(new URL(`file://${dir}/shapes.js`), { tag });
-    results[tag] = [...markup.matchAll(/<style vera-styles>([\s\S]*?)<\/style>/g)].map(([, css]) =>
+    results[tag] = [...markup.matchAll(/<style data-vm-sheet="styles">([\s\S]*?)<\/style>/g)].map(([, css]) =>
       css.replace(/\s+/g, ' ').trim()
     );
   }

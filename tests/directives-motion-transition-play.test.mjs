@@ -2,7 +2,7 @@
  * TRANSITION-MODE PLAY — compile-time dispatch, no authoring surface.
  *
  * A play whose value CSS transitions can express emits base declarations + an active state and
- * the driver's whole job is ONE attribute flip (`data-vera-on`); the compositor owns the clock
+ * the driver's whole job is ONE attribute flip (`data-vm-on`); the compositor owns the clock
  * (the jank harness's numbers are the decision record). Everything transitions cannot carry
  * keeps the seek-mode ramp: progress/tick riders, pulse shapes, bands, mixed-shape composites.
  *
@@ -30,7 +30,7 @@ wireTicks({ noop: () => {} });
 
 const doc = dom.window.document;
 const sheetText = () =>
-  [...doc.querySelectorAll('style[data-vera-sheet]')].map((n) => n.textContent).join('\n');
+  [...doc.querySelectorAll('style[data-vm-sheet="motion"]')].map((n) => n.textContent).join('\n');
 
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => r()));
 const mount = async (html) => {
@@ -51,42 +51,42 @@ test('a from→to play compiles to TRANSITION mode: three rules, longhands, no v
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: '0% 0.2, 100% 1', translate-y: '0% 40px, 100% 0px' }, when: '.go', play: 0.6, ease: 'ease-out' }">x</div>`);
   const el = host.querySelector('div');
-  const hash = el.getAttribute('data-vd-a');
+  const hash = el.getAttribute('data-vm-motion');
   assert.match(hash ?? '', /^[0-9a-f]{8}$/, 'marked');
-  assert.equal(el.style.getPropertyValue('--vd-p'), '', 'no seek variable exists in this mode');
+  assert.equal(el.style.getPropertyValue('--vm-p'), '', 'no seek variable exists in this mode');
 
   const css = sheetText();
   /** Target order follows authored order — opacity first here, so filter leads. */
-  assert.match(css, new RegExp(`\\[data-vd-a="${hash}"\\]\\[data-vd-a\\] \\{ filter: `), 'base rule');
+  assert.match(css, new RegExp(`\\[data-vm-motion="${hash}"\\]\\[data-vm-motion\\] \\{ filter: `), 'base rule');
   assert.match(css, /transition-property: filter, transform;/, 'longhands, never the shorthand');
   assert.match(css, /transition-duration: 0\.6s, 0\.6s;/, 'the authored seconds per target');
   assert.match(css, /transition-timing-function: ease-out, ease-out;/, 'author ease times plain targets');
-  assert.match(css, new RegExp(`\\[data-vd-a="${hash}"\\]\\[data-vera-on\\]`), 'the active rule');
+  assert.match(css, new RegExp(`\\[data-vm-motion="${hash}"\\]\\[data-vm-on\\]`), 'the active rule');
   assert.match(css, /@media \(scripting: none\)[^}]*transition: none/, 'no-JS gets the END state statically');
-  assert.ok(css.indexOf('[data-vera-on]') > css.indexOf('transition-property'),
+  assert.ok(css.indexOf('[data-vm-on]') > css.indexOf('transition-property'),
     'active AFTER base — order is the flip mechanism');
 
   /** The toggle: gate opens → marker on; closes → off (native reversal carries the values). */
-  assert.equal(el.hasAttribute('data-vera-on'), false, 'resting below the gate');
+  assert.equal(el.hasAttribute('data-vm-on'), false, 'resting below the gate');
   el.classList.add('go');
   await settled();
   await new Promise((r) => setTimeout(r, 40));
-  assert.equal(el.hasAttribute('data-vera-on'), true, 'entered: one attribute flip IS the driver');
+  assert.equal(el.hasAttribute('data-vm-on'), true, 'entered: one attribute flip IS the driver');
   el.classList.remove('go');
   await settled();
   await new Promise((r) => setTimeout(r, 40));
-  assert.equal(el.hasAttribute('data-vera-on'), false, 'left: the platform reverses from current');
+  assert.equal(el.hasAttribute('data-vm-on'), false, 'left: the platform reverses from current');
 
   host.remove();
   await settled();
-  assert.equal(el.hasAttribute('data-vera-on'), false, 'teardown strips the marker');
+  assert.equal(el.hasAttribute('data-vm-on'), false, 'teardown strips the marker');
 });
 
 test('a shaped single member synthesizes linear() — overshoot points and all', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { translate-y: '0% 24px, 70% -5px, 100% 0px' }, when: '.go', play: 0.55 }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/);
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/);
   const css = sheetText();
   /** Normalised (v−v0)/(vN−v0): 24→0 over the run, so the −5 dip lands PAST 1 — overshoot. */
   assert.match(css, /transition-timing-function: linear\(0 0%, 1\.20[0-9]* 70%, 1 100%\)/,
@@ -102,11 +102,11 @@ test('run-once latches the marker through the gate closing', async () => {
   el.classList.add('go');
   await settled();
   await new Promise((r) => setTimeout(r, 40));
-  assert.equal(el.hasAttribute('data-vera-on'), true);
+  assert.equal(el.hasAttribute('data-vm-on'), true);
   el.classList.remove('go');
   await settled();
   await new Promise((r) => setTimeout(r, 40));
-  assert.equal(el.hasAttribute('data-vera-on'), true, 'latched: run-once never lets go');
+  assert.equal(el.hasAttribute('data-vm-on'), true, 'latched: run-once never lets go');
   host.remove();
   await settled();
 });
@@ -123,9 +123,9 @@ test('the ramp fallback holds exactly the agreed matrix', async () => {
   ]) {
     const host = await mount(`<div data-vd-motion="${raw.replaceAll('"', '&quot;')}">x</div>`);
     const el = host.querySelector('div');
-    assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, `${why}: still animates`);
+    assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, `${why}: still animates`);
     const css = sheetText();
-    assert.ok(!new RegExp(`\\[data-vd-a="${el.getAttribute('data-vd-a')}"\\]\\[data-vera-on\\]`).test(css),
+    assert.ok(!new RegExp(`\\[data-vm-motion="${el.getAttribute('data-vm-motion')}"\\]\\[data-vm-on\\]`).test(css),
       `${why}: seek mode, no active rule`);
     host.remove();
     await settled();
@@ -144,7 +144,7 @@ test('pulse shapes still PLAY on the ramp — the fallback is behaviour, not a r
   let done = false;
   for (let i = 0; i < 300 && !done; i++) {
     await frame();
-    done = Number(el.style.getPropertyValue('--vd-p')) > 0.9;
+    done = Number(el.style.getPropertyValue('--vm-p')) > 0.9;
   }
   assert.ok(done, 'the ramp drove the pulse to the timeline end');
   host.remove();
@@ -154,16 +154,16 @@ test('pulse shapes still PLAY on the ramp — the fallback is behaviour, not a r
 test('TIER C: a plain scrub is cascade-driven — constants written once, the variable never inline', async () => {
   /** The dispatch's positive control (a tier that never engages looks identical to one that
    *  works): marker present, range constants inline, the shared rule carrying the clamp/divide,
-   *  and NO per-frame --vd-p write — CSS derives it from the scroller's one variable. This
+   *  and NO per-frame --vm-p write — CSS derives it from the scroller's one variable. This
    *  suite wires inertia 0, which is tier C's condition; the scroll suite's default inertia is
    *  the tier-J layering case. Value truth: the browser parity suite's twin A rides this tier. */
   const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'generated');
-  assert.equal(el.style.getPropertyValue('--vd-p'), '', 'no inline seek write');
-  assert.notEqual(el.style.getPropertyValue('--vd-r0'), '', 'range start constant');
-  assert.notEqual(el.style.getPropertyValue('--vd-r1'), '', 'range size constant');
-  assert.ok(sheetText().includes('clamp(0, calc((var(--vd-s, 0)'), 'the shared rule derives the number');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'generated');
+  assert.equal(el.style.getPropertyValue('--vm-p'), '', 'no inline seek write');
+  assert.notEqual(el.style.getPropertyValue('--vm-r0'), '', 'range start constant');
+  assert.notEqual(el.style.getPropertyValue('--vm-r1'), '', 'range size constant');
+  assert.ok(sheetText().includes('clamp(0, calc((var(--vm-s, 0)'), 'the shared rule derives the number');
   host.remove();
   await settled();
 
@@ -171,7 +171,7 @@ test('TIER C: a plain scrub is cascade-driven — constants written once, the va
   const chased = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0.2 }">x</div>`);
   const el2 = chased.querySelector('div');
   await new Promise((r) => setTimeout(r, 60));
-  assert.notEqual(el2.style.getPropertyValue('--vd-p'), '', 'a chase writes inline over the rule');
+  assert.notEqual(el2.style.getPropertyValue('--vm-p'), '', 'a chase writes inline over the rule');
   chased.remove();
   await settled();
 });

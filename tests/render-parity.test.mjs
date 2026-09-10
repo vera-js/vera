@@ -175,7 +175,7 @@ const CASES = {
   /**
    * **The framework's own attribute conventions, bound rather than written.**
    *
-   * `view`, `route`, `autoloader`, `slot` and `vera-styles` all mean something to a Vera module, and
+   * `view`, `route`, `autoloader`, `slot` and `data-vm-sheet` all mean something to a Vera module, and
    * every one of them is also an attribute an author may bind. A serializer that treated any of them
    * specially — or a client that did — would make the two sides disagree about markup that looks
    * entirely ordinary.
@@ -184,7 +184,7 @@ const CASES = {
   'a bound route attribute': 'html`<a route=${""} href=${"/x"}>x</a>`',
   'a bound autoloader attribute': 'html`<div autoloader=${""}>x</div>`',
   'a bound slot attribute': 'html`<span slot=${"title"}>x</span>`',
-  'a bound vera-styles attribute': 'html`<b vera-styles=${""}>x</b>`',
+  'a bound data-vm-sheet attribute': 'html`<b data-vm-sheet=${""}>x</b>`',
   'a bound is attribute': 'html`<button is=${"my-button"}>x</button>`',
   'a bound autoload-dir attribute': 'html`<my-widget autoload-dir=${"alt"}></my-widget>`',
   'nested slots with fallback': 'html`<div><slot name=${"outer"}><slot name="inner">fallback</slot></slot></div>`',

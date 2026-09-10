@@ -108,8 +108,8 @@ premise of VeraJS is that the platform is now good enough; act like it.
   retaining detached elements. Anything holding an element reference must not defeat that.
 - **Do not leak the framework into the DOM.** The attribute conventions (`.prop`, `?bool`, `@event`,
   `route`, `view`, `autoloader`) are the public contract; keep them documented and stable. A marker
-  the framework writes for its own use is removed once it has been used — `data-vera-select` never
-  reaches the page, and `data-vera-slotted` is stripped the moment hydration adopts the nodes it
+  the framework writes for its own use is removed once it has been used — `data-vm-select` never
+  reaches the page, and `data-vm-slotted` is stripped the moment hydration adopts the nodes it
   delimits.
 - **Derive `document` and `window` from the node, never from the module global — and treat every
   REALM-BOUND API the same way.** An element can live in a document that is not the one your code
