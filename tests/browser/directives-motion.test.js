@@ -10,9 +10,9 @@
  * waits on a transition it cannot see finish deterministically.
  */
 import { expect } from '@esm-bundle/chai';
-import { wireDirectives, motion, presets, settled } from '../../packages/directives/dist/development/vera-directives.js';
+import { wireDirectives, motion, presets, paint, settled } from '../../packages/directives/dist/development/vera-directives.js';
 
-wireDirectives([motion, presets]);
+wireDirectives([motion, presets, paint]);
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const settle = async () => {
@@ -188,6 +188,20 @@ it('ease composes with play: the ramp sweeps, so mid-play sits on the CURVE, not
   await settle();
   await new Promise((r) => setTimeout(r, 700));
   expect(opacityOf(eased), 'and the ramp still lands on the authored end').to.equal(1);
+});
+
+it('paint blends natively (8c): red→blue reads MIXED mid-scroll, not stepped', async () => {
+  const host = page(`<div id="pb" data-vd-motion="{ keyframes: { background: '0% rgb(255, 0, 0), 100% rgb(0, 0, 255)' }, inertia: 0 }" style="height:50px">x</div>`);
+  const el = host.querySelector('#pb');
+  await settle();
+  /** Park mid-viewport, mid-timeline. The retired slot machinery would read pure red or pure
+   *  blue anywhere; the native blend reads BOTH channels mid-range. Bounds, not exact numbers —
+   *  engines blend in their own colour space. */
+  await scrollTo(el.offsetTop - window.innerHeight / 2);
+  await settle();
+  const rgb = (getComputedStyle(el).backgroundColor.match(/[\d.]+/g) ?? []).map(Number);
+  expect(rgb[0], 'red is leaving').to.be.above(40).and.below(230);
+  expect(rgb[2], 'blue is arriving').to.be.above(40).and.below(230);
 });
 
 it('teardown returns the element to its natural state with the page scrolled anywhere', async () => {

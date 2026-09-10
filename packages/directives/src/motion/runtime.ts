@@ -925,7 +925,18 @@ export const createRuntimeElement = (
     generatedCss ? null
     : animation.ease !== undefined ? resolveCurveEasing(rejectFor, animation.ease, true) : elementEase;
 
-  const plan = planFor(parsed.animations, easeFor);
+  /**
+   * TEXT-valued properties (paint) exist only as generated keyframes — the inline path's curves
+   * are numeric and its discrete-hold machinery is gone (8c) — so an element kept inline (a
+   * geometry-unit position is what does that now) drops them BY NAME rather than animating a
+   * placeholder zero.
+   */
+  const inlineAnimations = generatedCss ? parsed.animations : parsed.animations.filter((a) => {
+    if (!a.property.parseText) return true;
+    rejectFor('motion-paint-inline-path', [a.property.key]);
+    return false;
+  });
+  const plan = planFor(inlineAnimations, easeFor);
 
   const { start, end, size } = getElementSize(node, settings.scrollDirection, settings.scrollElement);
   /**

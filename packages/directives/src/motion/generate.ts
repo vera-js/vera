@@ -150,7 +150,10 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
   const varName = typeof progress === 'string' ? progress : PROGRESS_PROPERTY;
 
   for (const animation of parsed.animations) {
-    if (animation.property.setup || animation.property.discrete || animation.property.css) return null;
+    /** `setup` is NOT a gate (8b): it runs at activation through the directive layer regardless
+     *  of write path. `discrete` still refuses — a third-party module may hold values the
+     *  browser must not blend; nothing shipped carries it since paint went native (8c). */
+    if (animation.property.discrete) return null;
     if (animation.keyframes.some((frame) => frame.positionUnit !== '%')) return null;
   }
 
@@ -297,6 +300,19 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
           { animations: filter, values: filter.map((a) => at(a, stop)) })}`);
       }
       for (const animation of plain) {
+        if (animation.property.parseText) {
+          /**
+           * TEXT values declare at their AUTHORED stops only — a keyframe that omits a property
+           * interpolates across the gap natively, so union-resampling (a numbers-only need)
+           * never has to invent a string it cannot compute. The browser blends in its own
+           * colour-space rules.
+           */
+          const frame = framesOf(animation).find((f) => f.position === stop);
+          if (frame?.text !== undefined) {
+            declarations.push(`${animation.property.cssProperty}: ${frame.text}`);
+          }
+          continue;
+        }
         declarations.push(
           `${animation.property.cssProperty}: ${format(at(animation, stop))}${animation.unit}`);
       }

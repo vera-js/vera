@@ -19,32 +19,12 @@
  * ```
  */
 import type { PropertyDef, WirableTree } from './schema.js';
-import { pageProblem } from './schema.js';
 
 /** What a GUI panel tells an author to wire to make these keys work. */
 const FROM = '@verajs/directives/motion';
 
-/**
- * Authored values, and the slot each was given. Bounded by the number of
- * *distinct* values on the page, not by elements or frames: two hundred
- * cards sharing one gradient share one slot.
- */
-const values: string[] = [];
-const slots = new Map<string, number>();
-
-/** Longer than any real colour, gradient or shadow, and short enough to bound the map. */
+/** Longer than any real colour, gradient or shadow. */
 const MAX_LENGTH = 400;
-
-/**
- * And a bound on how *many*, which is the half that gets forgotten. A slot
- * can never be reclaimed while a curve might hold the number — the table
- * only grows, and its input is every distinct value ever *parsed*: the GUI
- * this vocabulary exists for rewrites the value on every drag of a colour
- * picker. Refusing past the bound costs an author who genuinely has more
- * than a thousand distinct paint values one animation, and says so.
- */
-const MAX_VALUES = 1024;
-let warnedAboutCount = false;
 
 const define = (key: string, cssProperty: string): PropertyDef => ({
   key,
@@ -54,15 +34,8 @@ const define = (key: string, cssProperty: string): PropertyDef => ({
   defaultUnit: '',
   units: [''],
   initial: 0,
-  /**
-   * The number on the curve is an index into `values`, and the indices one
-   * element uses are not adjacent — the table is shared by every paint key
-   * on the page, and deduped. Interpolating between two slots painted a
-   * colour the element never mentioned, usually another element's.
-   */
-  discrete: true,
 
-  parse(raw) {
+  parseText(raw) {
     const value = raw.trim();
     if (value === '' || value.length > MAX_LENGTH) return null;
 
@@ -85,64 +58,24 @@ const define = (key: string, cssProperty: string): PropertyDef => ({
       return null;
     }
 
-    let slot = slots.get(value);
-    if (slot === undefined) {
-      if (values.length >= MAX_VALUES) {
-        /**
-         * A page-level problem — every LATER value is refused, not this one
-         * — landing in the engine's registry where a GUI reads. Append-only
-         * there, so the recovery (below) announces itself rather than
-         * retracting; both sentences are true at the moment each is said.
-         */
-        if (!warnedAboutCount) {
-          warnedAboutCount = true;
-          pageProblem('motion-paint-slots-full', [String(MAX_VALUES)]);
-        }
-        return null;
-      }
-      slot = values.length;
-      values.push(value);
-      slots.set(value, slot);
-    }
-    return slot;
-  },
-
-  css(value) {
     /**
-     * `discrete` above is what makes the value land *on* a slot rather than
-     * between two; the floor is what stops a fractional one from indexing
-     * nothing. The CSS transition carries the change. A formatter since
-     * stage 6 — the engine does the write.
+     * The validated TEXT is the value now (8c). The slot table this returned indices into —
+     * with its MAX_VALUES cap, its can-never-reclaim lifetime rule and its two diagnostics —
+     * existed because numeric curves could not carry a string. Generated keyframes can:
+     * `0% { background: red } 100% { background: blue }`, and the browser blends in its own
+     * colour-space rules, which is what an author writing that value meant. Deduplication is
+     * the content hash's job, like every other rule.
      */
-    return values[Math.floor(value)] ?? null;
+    return value;
   },
 });
 
-/** The vocabulary rows — `wireDirectives([motion, paint])` registers them. */
+/** The vocabulary rows — `wireDirectives([motion, paint])` registers them. The `forget` hook the
+ *  slot table needed is gone with the table: text keyframes hold nothing page-wide to reclaim. */
 export const paintRows: WirableTree = [
   define('background', 'background'),
   define('color', 'color'),
   define('border-color', 'border-color'),
   define('shadow', 'box-shadow'),
   define('text-shadow', 'text-shadow'),
-  /**
-   * Empty the table when nothing on the page is animating. A slot can never
-   * be reclaimed *while a curve might hold the number*; with zero live
-   * elements no curve exists, so the table is safe to empty whole. The
-   * region layer fires this on the transition to zero elements — an editor
-   * emptying and refilling the page recovers automatically, which is
-   * strictly more often than the old last-instance-destroy semantics.
-   */
-  {
-    on: 'forget',
-    fn: () => {
-      values.length = 0;
-      slots.clear();
-      /** Or a page that filled the table once would exhaust it again in silence. */
-      if (warnedAboutCount) {
-        warnedAboutCount = false;
-        pageProblem('motion-paint-slots-recovered');
-      }
-    },
-  },
 ];

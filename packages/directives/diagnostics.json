@@ -425,17 +425,12 @@
       "fix": "Wire it: wireDirectives([motion, {pack}])."
     },
     {
-      "code": "motion-paint-slots-full",
+      "code": "motion-paint-inline-path",
       "params": [
-        "cap"
+        "key"
       ],
-      "message": "more than {cap} distinct paint values on this page; later ones are ignored.",
-      "fix": "A slot cannot be reclaimed, so the table is capped."
-    },
-    {
-      "code": "motion-paint-slots-recovered",
-      "params": [],
-      "message": "the paint table was emptied; earlier cap refusals no longer apply."
+      "message": "{key}: paint animates through generated CSS, and a geometry-unit position keeps this element on the inline path.",
+      "fix": "Use % keyframe positions on this element."
     },
     {
       "code": "motion-parse-failed",

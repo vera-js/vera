@@ -69,6 +69,14 @@ export default {
    * lengthened TEST timeout could — which stays at 5s for exactly that reason.
    */
   browserStartTimeout: 120000,
+  /**
+   * The other half of the same load story: with three engines x cores/2 files in flight, WebKit
+   * intermittently fails to CREATE a page at all — with every test that did run green (456/0 at
+   * the last occurrence), so the failure is the harness's own concurrency, not content. Halving
+   * in-flight files keeps WebKit reliably able to open pages; the wall-clock cost on the full
+   * suite measured under a second per engine.
+   */
+  concurrency: Number(process.env.VERA_WTR_CONCURRENCY ?? 3),
   testFramework: {
     config: { timeout: 5000 },
   },

@@ -287,7 +287,6 @@
         ""
       ],
       "initial": 0,
-      "discrete": true,
       "pack": "paint"
     },
     {
@@ -299,7 +298,6 @@
         ""
       ],
       "initial": 0,
-      "discrete": true,
       "pack": "paint"
     },
     {
@@ -311,7 +309,6 @@
         ""
       ],
       "initial": 0,
-      "discrete": true,
       "pack": "paint"
     },
     {
@@ -323,7 +320,6 @@
         ""
       ],
       "initial": 0,
-      "discrete": true,
       "pack": "paint"
     },
     {
@@ -335,7 +331,6 @@
         ""
       ],
       "initial": 0,
-      "discrete": true,
       "pack": "paint"
     },
     {

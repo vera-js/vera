@@ -98,13 +98,13 @@ export interface PropertyDef {
   readonly key: string;
   readonly parse?: (raw: string) => number | null;
   /**
-   * Maps the curve's number to the CSS TEXT the engine writes — for properties whose number is an
-   * index or an encoding rather than a magnitude (paint's value slots). Null means "write
-   * nothing". A formatter, deliberately NOT a writer: the imperative `apply(node, value)` this
-   * replaces let a module touch the node, and stage 6 removed that so the engine owns every
-   * write — one write path, with modules supplying only text.
+   * A TEXT property's validator (8c): the authored value in, the validated CSS text out (or null,
+   * refused). The text lands in generated keyframes at its authored stops and the BROWSER
+   * interpolates — which retired both imperative writers this slot has held: `apply(node, value)`
+   * (stage 6) and the `css(value)` slot-formatter that briefly replaced it. Text properties ride
+   * the generated path only; the inline path refuses them by name.
    */
-  readonly css?: (value: number) => string | null;
+  readonly parseText?: (raw: string) => string | null;
   /**
    * Derived for built-ins, and free-form for a module — the union keeps
    * autocomplete for the known values while letting a module name its own
@@ -682,6 +682,14 @@ export interface RawKeyframe {
   readonly value: number;
   /** The value's own unit, from the property's allowlist. */
   readonly unit: Unit;
+  /**
+   * A TEXT-valued keyframe (8c): the validated CSS text of a `parseText` property — a colour, a
+   * gradient, a shadow. Present only for those; `value`/`unit` are 0/'' placeholders then. Text
+   * values are declared at their AUTHORED stops only and the browser interpolates between them —
+   * which is the entire point: the slot-and-step machinery this replaces existed because numeric
+   * curves could not carry a string, not because stepping was wanted.
+   */
+  readonly text?: string;
 }
 
 /**
@@ -1067,10 +1075,11 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
       { const why = whyRefused(rawValue, property); rejected.push({ code: why.code, args: [trimmed, ...why.args] }); }
       continue;
     }
-    const { value, unit } = measure;
+    const { value, unit, text } = measure;
+    const textField = text !== undefined ? { text } : {};
 
     if (!hasPosition) {
-      keyframes.push({ position: 100, positionUnit: '%', value, unit });
+      keyframes.push({ position: 100, positionUnit: '%', value, unit, ...textField });
       continue;
     }
 
@@ -1089,14 +1098,15 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
        */
       const whole = parseMeasure(trimmed, property);
       if (whole) {
-        keyframes.push({ position: 100, positionUnit: '%', value: whole.value, unit: whole.unit });
+        keyframes.push({ position: 100, positionUnit: '%', value: whole.value, unit: whole.unit,
+          ...(whole.text !== undefined ? { text: whole.text } : {}) });
         continue;
       }
       rejected.push({ code: 'motion-bad-position', args: [trimmed, String(MIN_PERCENT), String(MAX_PERCENT)] });
       continue;
     }
     if (position.positionUnit !== '%') geometryDependent = true;
-    keyframes.push({ ...position, value, unit });
+    keyframes.push({ ...position, value, unit, ...textField });
   }
 
   /**
@@ -1126,7 +1136,13 @@ const MAX_MEASURE = 1e9;
 export const parseMeasure = (
   raw: string,
   property: PropertyDef
-): { value: number; unit: Unit } | null => {
+): { value: number; unit: Unit; text?: string } | null => {
+  if (property.parseText) {
+    /** A module wrote this too — a throw is the same answer as null, as below. */
+    let text: string | null = null;
+    try { text = property.parseText(raw); } catch { /* refused */ }
+    return typeof text === 'string' ? { value: 0, unit: '', text } : null;
+  }
   if (property.parse) {
     /**
      * A module wrote this, and a throw here is the same answer as `null`.

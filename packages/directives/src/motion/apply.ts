@@ -89,12 +89,11 @@ export const applyProperty = (
   unit: Unit,
   value: number
 ): void => {
-  /** ONE write path. The imperative `PropertyDef.apply` that used to sit here left with stage 6:
-   *  everything CSS cannot express goes through the `tick` door, a value that is an encoding
-   *  supplies its text through `css`, and the engine owns every write. */
+  /** ONE write path, no formatter (8c): the imperative `apply` left with stage 6, the `css`
+   *  slot-formatter left with paint's move to text keyframes, and a property write is a
+   *  number and a unit, always. Text values never reach here — the inline path refuses them. */
   if (!property.cssProperty) return;
-  const text = property.css ? property.css(value) : `${format(value)}${unit}`;
-  if (text !== null) node.style.setProperty(property.cssProperty, text);
+  node.style.setProperty(property.cssProperty, `${format(value)}${unit}`);
 };
 
 

@@ -356,11 +356,10 @@ export const PROSE: Record<string, Prose> = {
   'motion-property-writes-nothing': (key) => [
     `wiring was given the property "${key}" with no cssProperty, cssFunction or apply, so it has no way to write anything.`,
   ],
-  'motion-paint-slots-full': (cap) => [
-    `more than ${cap} distinct paint values on this page; later ones are ignored.`,
-    'A slot cannot be reclaimed, so the table is capped.',
+  'motion-paint-inline-path': (key) => [
+    `${key}: paint animates through generated CSS, and a geometry-unit position keeps this element on the inline path.`,
+    'Use % keyframe positions on this element.',
   ],
-  'motion-paint-slots-recovered': () => ['the paint table was emptied; earlier cap refusals no longer apply.'],
   'motion-unsupported': () => ['required APIs unavailable, animation disabled.'],
   'motion-sequence-origins-not-list': (kind) => [
     `sequence allowedOrigins must be a list, not ${kind}; ignoring it.`,

@@ -49,12 +49,17 @@ test('easings wired: a per-property ease is accepted, no refusal, still animates
   await settled();
 });
 
-test('paint wired: background animates by slot, written as the authored string', async () => {
+test('paint wired: authored values are TEXT keyframes now — the browser blends them (8c)', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { background: '0% red, 100% blue' } }">x</div>`);
   const el = host.querySelector('div');
-  /** Timeline sits past the end in jsdom, so the LAST slot's string lands. */
-  assert.equal(el.style.getPropertyValue('background'), 'blue', 'the slot table round-tripped');
+  /** The slot-and-step machinery is gone: the authored strings land in the generated rule at
+   *  their authored stops and interpolation is the engine's own (value-level blend claims are
+   *  browser truth). jsdom's honest surface is the marker and the rule text. */
+  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'paint rides the generated path');
+  const css = [...doc.querySelectorAll('style[data-vera-sheet]')].map((n) => n.textContent).join('\n');
+  assert.match(css, /background: red/, 'the authored start, verbatim');
+  assert.match(css, /background: blue/, 'the authored end, verbatim');
   assert.equal(rejections(el).length, 0);
   host.remove();
   await settled();
@@ -65,7 +70,22 @@ test('paint refuses the image-sourcing family even where CSS.supports is absent'
     `<div data-vd-motion="{ keyframes: { background: '0% red, 100% image-set(&quot;https://evil.test/x&quot; 1x)' } }">x</div>`);
   const el = host.querySelector('div');
   assert.ok(rejections(el).some((r) => r.code === 'motion-bad-value'), 'the fetching value was dropped');
-  assert.equal(el.style.getPropertyValue('background'), 'red', 'the clean keyframe survived alone');
+  /** The clean keyframe survives ALONE in the generated rule — the refused value reaches no CSS. */
+  const css = [...doc.querySelectorAll('style[data-vera-sheet]')].map((n) => n.textContent).join('\n');
+  assert.match(css, /background: red/, 'the clean keyframe survived');
+  assert.ok(!css.includes('image-set'), 'and the refused one is nowhere in any sheet');
+  host.remove();
+  await settled();
+});
+
+test('path GENERATES since 8b — setup still resolves the offset-path at activation', async () => {
+  const host = await mount(`
+    <svg><path id="curve" d="M 0 0 C 10 10, 20 10, 30 0"></path></svg>
+    <div data-vd-motion="{ keyframes: { path: '0% 0, 100% 100' }, path-selector: '#curve' }">x</div>`);
+  const el = host.querySelector('div');
+  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'offset-distance rides the generated path');
+  assert.ok(el.style.getPropertyValue('offset-path').includes('path('), 'while setup wrote the path inline');
+  assert.equal(rejections(el).length, 0);
   host.remove();
   await settled();
 });
