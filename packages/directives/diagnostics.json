@@ -436,6 +436,16 @@
       "message": "{where}: {segment} — {key} takes {low} to {high}."
     },
     {
+      "code": "motion-pack-unwired",
+      "params": [
+        "where",
+        "key",
+        "pack"
+      ],
+      "message": "{where}: \"{key}\" belongs to the {pack} pack, which is not wired.",
+      "fix": "Wire it: wireDirectives([motion, {pack}])."
+    },
+    {
       "code": "motion-paint-slots-full",
       "params": [
         "cap"

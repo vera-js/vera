@@ -207,6 +207,10 @@ export const PROSE: Record<string, Prose> = {
     'interpolate — a play on this element snaps instead of easing.',
     'Pick an unregistered name in progress:, or align your own @property registration to <number>.',
   ],
+  'motion-pack-unwired': (where, key, pack) => [
+    `${where ? `${where}: ` : ''}"${key}" belongs to the ${pack} pack, which is not wired.`,
+    `Wire it: wireDirectives([motion, ${pack}]).`,
+  ],
   'motion-presets-unwired': (where, text) => [
     `${where ? `${where}: ` : ''}"${text}" needs a preset pack, and none is wired.`,
     "Wire one: wireDirectives([motion, presets]) — or your own.",

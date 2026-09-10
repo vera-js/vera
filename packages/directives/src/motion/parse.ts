@@ -201,6 +201,15 @@ interface Collected {
   ease?: string;
 }
 
+/** The shipped packs' keys, by pack — for the refusal above only. Literal, never imported (the
+ *  additive-bundle rule), and pinned against motion-vocabulary.json by the drift test. */
+const SHIPPED_PACK_KEYS: Record<string, string> = {
+  background: 'paint', color: 'paint', 'border-color': 'paint', shadow: 'paint', 'text-shadow': 'paint',
+  path: 'path', 'path-selector': 'path', 'path-rotate': 'path',
+  frame: 'sequence', 'frame-url': 'sequence', 'frame-count': 'sequence', 'frame-ext': 'sequence',
+  'frame-pad': 'sequence', 'frame-tween': 'sequence',
+};
+
 const slotFor = (into: Map<string, Collected>, property: string): Collected => {
   let slot = into.get(property);
   if (!slot) {
@@ -671,6 +680,19 @@ export const parseMotion = (
         if (retired) {
           rejected.push({ code: 'motion-band-suffix-retired', where: key,
                           args: [retired.property, retired.band] });
+          continue;
+        }
+        /**
+         * A key belonging to a SHIPPED pack nobody wired gets its own code — the unwired-module
+         * rule (`motion-presets-unwired` is the same rule for names): `background` is real and
+         * correctly spelled, and "no such key" sends its author hunting for a typo in the one
+         * thing that is not wrong. The map is a literal on purpose — importing the packs' row
+         * tables here would drag every pack into the base bundle, undoing the per-entry sizes —
+         * and a test pins it against the generated vocabulary so it cannot drift.
+         */
+        const pack = SHIPPED_PACK_KEYS[key];
+        if (pack) {
+          rejected.push({ code: 'motion-pack-unwired', where: key, args: [key, pack] });
           continue;
         }
         /** One code in both builds — see the preset branch above; only the SUGGESTION is dev-only,

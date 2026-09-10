@@ -43,7 +43,9 @@ const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '
  * deterministic under a generous bound; timing SHAPE stays the browser sweep test's business.
  */
 const until = async (fn, what) => {
-  for (let i = 0; i < 120; i++) {
+  /** 300 frames ≈ 5s of real timers: a 0.6s ramp with headroom for a loaded machine — the
+   *  120-frame bound flaked under parallel load, which is a recording of the machine's speed. */
+  for (let i = 0; i < 300; i++) {
     if (fn()) return;
     await frame();
   }
@@ -253,4 +255,31 @@ test('attribute edits rebuild through the engine, and the run-once latch survive
   await until(() => progressOf(el) === 1, 'latched means latched: the rebuild carried it');
   host.remove();
   await settled();
+});
+
+test('an unwired pack key names the PACK, and the literal map cannot drift from the vocabulary', async () => {
+  /** This suite wires motion + presets and no packs — the fixture is the wiring's absence. */
+  const host = await mount(`<div data-vd-motion="{ keyframes: { background: '0% red, 100% blue' } }">x</div>`);
+  const reasons = rejections(host.querySelector('div'));
+  assert.ok(reasons.some((r) => r.code === 'motion-pack-unwired'),
+    'the unwired-module rule, one level down from preset names');
+  assert.ok(!reasons.some((r) => r.code === 'motion-no-such-key'),
+    'and NOT no-such-key: background is real and correctly spelled');
+  if (!isProduction) {
+    assert.ok(reasons.some((r) => /paint/.test(r.message)), 'the pack is named');
+    assert.ok(reasons.some((r) => /wireDirectives\(\[motion, paint\]\)/.test(r.fix ?? '')), 'with the line to write');
+  }
+  host.remove();
+  await settled();
+
+  /** The drift pin: the literal map in parse.ts must equal the generated vocabulary's pack rows. */
+  const { readFileSync } = await import('node:fs');
+  const vocabulary = JSON.parse(readFileSync(new URL('../packages/directives/motion-vocabulary.json', import.meta.url), 'utf8'));
+  const fromArtifact = Object.fromEntries(
+    [...vocabulary.properties, ...vocabulary.settings].filter((row) => row.pack).map((row) => [row.key, row.pack]));
+  const source = readFileSync(new URL('../packages/directives/src/motion/parse.ts', import.meta.url), 'utf8');
+  for (const [key, pack] of Object.entries(fromArtifact)) {
+    assert.ok(new RegExp(`['\\\`"]?${key}['\\\`"]?: '${pack}'`).test(source),
+      `SHIPPED_PACK_KEYS is missing ${key} → ${pack}; the literal drifted from motion-vocabulary.json`);
+  }
 });
