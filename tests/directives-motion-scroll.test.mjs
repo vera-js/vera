@@ -227,3 +227,28 @@ test('teardown removes the progress property', async () => {
     'a stale number reads as a bar frozen part-way rather than as nothing');
 });
 
+
+test('duplicate positions are a refusal with the LAST writer pinned — the from→to trap is TOLD', async () => {
+  /** Three independent strikes bought this rule: the grammar's own author wrote '0deg, 360deg'
+   *  meaning from→to, both lone values landed at 100%, and the rotation silently did nothing. */
+  const el = await at(`{ keyframes: { rotate: '0deg, 360deg' } }`);
+  const reasons = rejections(el);
+  assert.ok(reasons.some((r) => r.code === 'motion-duplicate-position'), 'a contradiction, not an omission');
+  if (!isProduction) {
+    assert.ok(reasons.some((r) => /100%/.test(r.message)), 'names the position');
+    assert.ok(reasons.some((r) => /positions/.test(r.fix ?? '')), 'and teaches the spelling');
+  }
+  assert.ok(/^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? ''),
+    'the value still resolves — last writer wins, like the band merge');
+});
+
+test('bare keywords, ratified narrow: a closed-vocabulary word needs no quotes; everything else does', async () => {
+  const bare = await at(`{ keyframes: { opacity: '0% 0, 100% 1' }, ease: ease-in-out }`);
+  assert.equal(rejections(bare).filter((r) => r.code !== 'motion-ease-with-play').length, 0,
+    'ease-in-out unquoted reads as the keyword — what a human types');
+
+  /** The rule's edge holds: a bare word OUTSIDE the vocabulary still asks for quotes. */
+  const junk = await at(`{ keyframes: { opacity: '0% 0, 100% 1' }, ease: wobbly }`);
+  assert.ok(rejections(junk).some((r) => r.code === 'motion-setting-easing' || r.code === 'motion-setting-not-plain'),
+    'an unknown bare word is refused, never guessed');
+});

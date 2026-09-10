@@ -268,6 +268,10 @@ export const PROSE: Record<string, Prose> = {
   'motion-second-base': (where, segment) => [
     `${where ? `${where}: ` : ''}${segment} — an unbracketed segment is the base, and there is already one.`,
   ],
+  'motion-duplicate-position': (where, position) => [
+    `${where ? `${where}: ` : ''}two keyframes at ${position} — the later one is used.`,
+    "Two lone values both mean the END: write positions, e.g. '0% 0deg, 100% 360deg'.",
+  ],
   'motion-mixed-units': (where, first, used) => [
     `${where}: ${first} and ${used} in one animation; ${used} is used throughout.`,
   ],

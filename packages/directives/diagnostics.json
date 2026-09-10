@@ -278,6 +278,15 @@
       "message": "breakpoint {name} is not a usable [min, max]; ignoring it."
     },
     {
+      "code": "motion-duplicate-position",
+      "params": [
+        "where",
+        "position"
+      ],
+      "message": "{where}: two keyframes at {position} — the later one is used.",
+      "fix": "Two lone values both mean the END: write positions, e.g. '0% 0deg, 100% 360deg'."
+    },
+    {
       "code": "motion-inertia-ease-at-zero",
       "params": [],
       "message": "inertia-ease does nothing at inertia: 0 — it shapes the catch-up, and 0 means the values track scroll exactly with no transition to shape.",

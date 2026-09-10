@@ -1117,6 +1117,23 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
   }
 
   /**
+   * DUPLICATE POSITIONS are a contradiction, not an omission (the mixed-units rule's sibling,
+   * with three independent strikes behind it: the grammar's own author wrote `'0deg, 360deg'`
+   * meaning from→to, both lone values landed at 100%, and the animation silently degenerated to
+   * one frame). The LAST writer is pinned — matching the band merge's replace semantics — and
+   * the author is TOLD.
+   */
+  for (let i = keyframes.length - 1; i >= 0; i--) {
+    const k = keyframes[i]!;
+    const later = keyframes.findIndex((other, j) =>
+      j > i && other.position === k.position && other.positionUnit === k.positionUnit);
+    if (later !== -1) {
+      rejected.push({ code: 'motion-duplicate-position', args: [`${k.position}${k.positionUnit}`] });
+      keyframes.splice(i, 1);
+    }
+  }
+
+  /**
    * A list whose every segment was empty is the empty-value mistake wearing a
    * separator: `translate-y: ','` carries no keyframe, refuses nothing, and
    * so reported nothing at all.

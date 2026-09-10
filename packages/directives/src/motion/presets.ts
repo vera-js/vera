@@ -62,17 +62,24 @@ export type PresetTable = Readonly<Record<string, Preset>>;
  * fade-up arriving earlier, because the expansion runs before every other key.
  */
 const REVEAL = { scroll: '85%', play: 0.6 } as const;
+/**
+ * EASES, since the lift (ease composes with play now): entrances decelerate (`ease-out` — the
+ * element arrives and settles), the zooms carry a small back-out overshoot (the pop a scale
+ * wants), and the slides stay `ease-out` rather than back-out because 100px of travel
+ * overshooting reads as a mistake where 0.8→1 of scale reads as life. A preset is a taste
+ * decision by design — override any of it with `presets(table)`.
+ */
 export const PRESETS: PresetTable = {
-  'fade': { keyframes: { opacity: '0% 0, 100% 1' }, ...REVEAL },
-  'fade-up': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% 40px, 100% 0px' }, ...REVEAL },
-  'fade-down': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% -40px, 100% 0px' }, ...REVEAL },
-  'fade-left': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% 40px, 100% 0px' }, ...REVEAL },
-  'fade-right': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% -40px, 100% 0px' }, ...REVEAL },
-  'zoom-in': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 0.8, 100% 1' }, ...REVEAL },
-  'zoom-out': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 1.2, 100% 1' }, ...REVEAL },
-  'slide-up': { keyframes: { 'translate-y': '0% 100px, 100% 0px' }, ...REVEAL },
-  'slide-down': { keyframes: { 'translate-y': '0% -100px, 100% 0px' }, ...REVEAL },
-  'blur-in': { keyframes: { opacity: '0% 0, 100% 1', blur: '0% 12px, 100% 0px' }, ...REVEAL },
+  'fade': { keyframes: { opacity: '0% 0, 100% 1' }, ease: 'ease-out', ...REVEAL },
+  'fade-up': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% 40px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
+  'fade-down': { keyframes: { opacity: '0% 0, 100% 1', 'translate-y': '0% -40px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
+  'fade-left': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% 40px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
+  'fade-right': { keyframes: { opacity: '0% 0, 100% 1', 'translate-x': '0% -40px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
+  'zoom-in': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 0.8, 100% 1' }, ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)', ...REVEAL },
+  'zoom-out': { keyframes: { opacity: '0% 0, 100% 1', scale: '0% 1.2, 100% 1' }, ease: 'cubic-bezier(0.34, 1.56, 0.64, 1)', ...REVEAL },
+  'slide-up': { keyframes: { 'translate-y': '0% 100px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
+  'slide-down': { keyframes: { 'translate-y': '0% -100px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
+  'blur-in': { keyframes: { opacity: '0% 0, 100% 1', blur: '0% 12px, 100% 0px' }, ease: 'ease-out', ...REVEAL },
 };
 
 /**

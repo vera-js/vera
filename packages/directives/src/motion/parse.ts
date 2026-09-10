@@ -24,12 +24,12 @@ import type { Refusal } from './schema.js';
 import { at } from './schema.js';
 import {
   getSetting, getProperty, insert,
-  parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin,
+  parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin, EASING_KEYWORDS,
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
 import type { PropertyDef, Unit, RawKeyframe, PositionUnit, Band, Range } from './schema.js';
 import { parseValue, isObject, isPath } from '../parse.js';
-import type { Parsed, ParsedObject } from '../parse.js';
+import type { Parsed, ParsedObject, Path } from '../parse.js';
 
 /** The one attribute. Exported so runtime walks (`stagger`) select by it. */
 export const MOTION_ATTR = 'data-vd-motion';
@@ -634,7 +634,10 @@ export const parseMotion = (
       }
     }
 
-    for (const [key, value, inKeyframes] of entries) {
+    for (const entry of entries) {
+      const [key, , inKeyframes] = entry;
+      /** `let`, alone of the three: a bare keyword resolves to its word below. */
+      let value = entry[1];
       const settingDef = getSetting(key);
       if (settingDef && inKeyframes) {
         /** A setting written among the keyframes. Named rather than treated as an unknown property,
@@ -653,6 +656,24 @@ export const parseMotion = (
         continue;
       }
       if (settingDef) {
+        /**
+         * BARE KEYWORDS, ratified narrow (2026-09-10, both owners): a single bare token that
+         * exactly matches a setting's CLOSED vocabulary reads as that word — `ease: ease-in-out`
+         * unquoted is what a human types, and motion settings never consume state so no
+         * ambiguity exists. SINGLE tokens only: anything with spaces, parens or commas takes
+         * quotes (which keeps cubic-bezier() quoted with no special case), and the
+         * reinterpretation lives HERE in the settings layer — the base grammar's one-rule story
+         * is untouched, on both engines, in the same place.
+         */
+        const bare = isPath(value as Parsed) && (value as Path).segments.length === 1 &&
+          !(value as Path).negate && !(value as Path).global
+          ? (value as Path).segments[0]! : null;
+        if (bare !== null && (
+          (settingDef.type === 'easing' && (EASING_KEYWORDS as readonly string[]).includes(bare)) ||
+          settingDef.allowed?.includes(bare) === true ||
+          (settingDef.type === 'origin' && parseOrigin(bare) !== null))) {
+          value = bare;
+        }
         if (typeof value === 'object' && value !== null) {
           rejected.push({ code: 'motion-setting-not-plain', args: [], where: key });
           continue;

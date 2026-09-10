@@ -477,6 +477,7 @@
       "keyframes": {
         "opacity": "0% 0, 100% 1"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -485,6 +486,7 @@
         "opacity": "0% 0, 100% 1",
         "translate-y": "0% 40px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -493,6 +495,7 @@
         "opacity": "0% 0, 100% 1",
         "translate-y": "0% -40px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -501,6 +504,7 @@
         "opacity": "0% 0, 100% 1",
         "translate-x": "0% 40px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -509,6 +513,7 @@
         "opacity": "0% 0, 100% 1",
         "translate-x": "0% -40px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -517,6 +522,7 @@
         "opacity": "0% 0, 100% 1",
         "scale": "0% 0.8, 100% 1"
       },
+      "ease": "cubic-bezier(0.34, 1.56, 0.64, 1)",
       "scroll": "85%",
       "play": 0.6
     },
@@ -525,6 +531,7 @@
         "opacity": "0% 0, 100% 1",
         "scale": "0% 1.2, 100% 1"
       },
+      "ease": "cubic-bezier(0.34, 1.56, 0.64, 1)",
       "scroll": "85%",
       "play": 0.6
     },
@@ -532,6 +539,7 @@
       "keyframes": {
         "translate-y": "0% 100px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -539,6 +547,7 @@
       "keyframes": {
         "translate-y": "0% -100px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     },
@@ -547,6 +556,7 @@
         "opacity": "0% 0, 100% 1",
         "blur": "0% 12px, 100% 0px"
       },
+      "ease": "ease-out",
       "scroll": "85%",
       "play": 0.6
     }
