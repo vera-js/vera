@@ -54,9 +54,7 @@ export interface MotionOptions {
    * never by an attribute.
    */
   breakpoints?: Readonly<Record<string, readonly [number, number | null]>>;
-  respectReducedMotion?: boolean;
   disableOnTouch?: boolean;
-  willChange?: boolean;
   translateZFix?: boolean;
   transformOrigin?: string;
   /** Per-frame progress callback — a callback rather than an event; see events.ts. */
@@ -68,9 +66,7 @@ const DEFAULTS = {
   inertiaEase: 'cubic-bezier(0.33, 1, 0.68, 1)',
   ease: 'linear',
   breakpoints: { mobile: [0, 640], tablet: [641, 1024] } as Readonly<Record<string, readonly [number, number | null]>>,
-  respectReducedMotion: true,
   disableOnTouch: false,
-  willChange: false,
   translateZFix: false,
   transformOrigin: '',
 } as const;
@@ -166,7 +162,7 @@ const resolveOptions = (options: MotionOptions): void => {
   defaults = merged;
   breakpoints = usableBreakpoints(options.breakpoints ?? DEFAULTS.breakpoints);
   onProgress = guarded(options.onProgress);
-  configurePreferences(merged.respectReducedMotion, merged.disableOnTouch);
+  configurePreferences(merged.disableOnTouch);
 };
 
 /* ── regions ──────────────────────────────────────────────────────────────── */
@@ -213,7 +209,6 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
     inertia: number('inertia', defaults.inertia),
     inertiaEase: easing('inertia-ease', defaults.inertiaEase),
     ease: easing('ease', defaults.ease),
-    willChange: typeof config['will-change'] === 'boolean' ? (config['will-change'] as boolean) : defaults.willChange,
     translateZFix: typeof config['translate-z-fix'] === 'boolean' ? (config['translate-z-fix'] as boolean) : defaults.translateZFix,
     transformOrigin: defaults.transformOrigin,
     onProgress,

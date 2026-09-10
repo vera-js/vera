@@ -79,22 +79,7 @@ export const composeTransform = (write: CategoryWrite, prefix = ''): string =>
 export const composeFilter = (write: CategoryWrite): string =>
   composeFunctions(write.animations, write.values, '');
 
-/**
- * Applies a property that is a plain CSS declaration rather than a function —
- * border radii, and anything else that sets a named property directly.
- */
-export const applyProperty = (
-  node: HTMLElement,
-  property: PropertyDef,
-  unit: Unit,
-  value: number
-): void => {
-  /** ONE write path, no formatter (8c): the imperative `apply` left with stage 6, the `css`
-   *  slot-formatter left with paint's move to text keyframes, and a property write is a
-   *  number and a unit, always. Text values never reach here — the inline path refuses them. */
-  if (!property.cssProperty) return;
-  node.style.setProperty(property.cssProperty, `${format(value)}${unit}`);
-};
+
 
 
 /**

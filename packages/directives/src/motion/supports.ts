@@ -39,9 +39,14 @@ const COARSE_POINTER = '(pointer: coarse)';
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
-/** The visitor's current reduced-motion preference, sampled once. */
-export const prefersReducedMotion = (): boolean =>
-  typeof window !== 'undefined' && 'matchMedia' in window && window.matchMedia(REDUCED_MOTION).matches;
+/** The visitor's current reduced-motion preference, sampled once — from the NODE'S OWN view
+ *  when one is in hand (CODE-PRINCIPLES §2: a portaled document answers for itself), the module
+ *  global only as the no-node fallback (page-level watchers have no node to ask). */
+export const prefersReducedMotion = (node?: Element): boolean => {
+  const view = node?.ownerDocument?.defaultView ??
+    (typeof window !== 'undefined' ? window : undefined);
+  return view?.matchMedia?.(REDUCED_MOTION).matches === true;
+};
 
 /** Whether the primary pointer is a finger, sampled once. */
 export const prefersCoarsePointer = (): boolean =>

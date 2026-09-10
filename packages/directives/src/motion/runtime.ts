@@ -17,21 +17,11 @@ import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
 
 import { emit, EVENTS } from './events.js';
-import { sortForApply } from './apply.js';
 import type { ParsedElement, ElementMotion } from './parse.js';
 import type { RawKeyframe } from './schema.js';
 import type { WindowSize } from './dom.js';
 
-/** Animations of one element, grouped for application — a curve-free INVENTORY since the
- *  sweep: will-change hints, the translate-z check, geometry flags and teardown read the
- *  buckets; nothing evaluates per frame any more. */
-interface ScreenPlan {
-  readonly all: readonly ElementMotion[];
-  readonly transform: readonly ElementMotion[];
-  readonly filter: readonly ElementMotion[];
-  /** Plain CSS declarations — border radii and the like. */
-  readonly properties: readonly ElementMotion[];
-}
+
 
 /**
  * The public face of an animated element — the shape `instance.elements`
@@ -65,7 +55,6 @@ export interface RuntimeElement {
    * ranges are resolved when the element is measured instead, so the frame
    * loop reads a single plan and no longer asks which breakpoint applies.
    */
-  readonly plan: ScreenPlan;
   /**
    * What the page had inline, for the properties this instance takes over.
    *
@@ -95,7 +84,6 @@ export interface RuntimeElement {
   /** `play` is set: this element runs its keyframes over time at a threshold rather than scrubbing. */
   readonly playing: boolean;
   /** The custom property progress is written to, or null. Opt-in — see the `progress` setting. */
-  readonly progressProperty: string | null;
   /**
    * Where a PLAY reverses, or null for a single threshold crossed both ways. Resolved with the range
    * because it is the far end of it — kept apart from `rangeSize` because a play with one half still
@@ -218,30 +206,8 @@ export interface RuntimeSettings {
    */
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
   readonly translateZFix?: boolean;
-  readonly willChange?: boolean;
   readonly transformOrigin?: string;
 }
-
-const planFor = (animations: readonly ElementMotion[]): ScreenPlan => {
-  /**
-   * CURVE-FREE since the sweep: the buckets survive because will-change hints, the translate-z
-   * check, geometry flags and teardown all read them — but nothing evaluates anything per frame
-   * any more, so the arena, the curves, the scratch views and the per-frame evaluate loop are
-   * gone with the inline write path. The browser interpolates; this is an inventory.
-   */
-  const sorted = sortForApply(animations);
-  return {
-    all: sorted,
-    transform: sorted.filter((a) => a.property.category === 'transform'),
-    filter: sorted.filter((a) => a.property.category === 'filter'),
-    properties: sorted.filter((a) =>
-      a.property.category !== 'transform' && a.property.category !== 'filter' &&
-      Boolean(a.property.cssProperty)),
-  };
-};
-
-
-
 
 
 /**
@@ -351,7 +317,7 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
    */
   let lowest = Infinity;
   let highest = -Infinity;
-  for (const animation of element.plan.all) {
+  for (const animation of element.parsed.animations) {
     for (const k of mergeForWidth(animation, win.width)) {
       const at = normalisePosition(k, scrollWindow, win, root) + offset;
       lowest = Math.min(lowest, at);
@@ -528,7 +494,7 @@ const markUnfinishable = (element: RuntimeElement, win: WindowSize): void => {
  */
 const flatTrouble = (element: RuntimeElement, settings: RuntimeSettings): string | null => {
   if (element.parsed.settings['perspective'] !== undefined) return null;
-  if (!element.plan.transform.some((one) => one.property.key === 'translate-z')) return null;
+  if (!element.parsed.animations.some((one) => one.property.key === 'translate-z')) return null;
   const stop = settings.scrollElement as unknown;
   for (let up = (element.node as HTMLElement).parentElement; up; up = up.parentElement) {
     const perspective = getComputedStyle(up).perspective;
@@ -636,7 +602,6 @@ export const createRuntimeElement = (
     rejectFor('motion-inexpressible', []);
     return null;
   }
-  const plan = planFor(parsed.animations);
 
   const { start, end, size } = measured;
   /**
@@ -661,7 +626,7 @@ export const createRuntimeElement = (
   const restore: string[] = [];
   if (!adopted.has(node)) {
     adopted.add(node);
-    for (const name of managedStyles(plan)) {
+    for (const name of managedStyles()) {
       const had = node.style.getPropertyValue(name);
       if (had) restore.push(name, had);
     }
@@ -790,17 +755,15 @@ export const createRuntimeElement = (
         tau: Number(parsed.settings[v.inertiaKey] ?? settings.inertia),
       })),
       hashes: acquiredKeys,
-      /** Reduced motion pins JS-driven plays to instant — the ramp jumps to its target, so
-       *  tick consumers and progress readers land on the end state at once. Transition-mode
-       *  needs nothing here: its per-hash reduced block pins the end in CSS. */
-      play: typeof parsed.settings['play'] === 'number'
-        ? (prefersReducedMotion(node) ? 0 : parsed.settings['play']) : null,
+      /** No reduced-motion pin here, deliberately: under `reduce` the region disables before
+       *  any play can trigger (always-respected since the audit), and emission covers paint
+       *  with JS off — a pin at activation was dead code between two live layers. */
+      play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
     };
   }
     const element: RuntimeElement = {
     node,
     parsed,
-    plan,
     generated,
     restore,
     displaced,
@@ -809,8 +772,6 @@ export const createRuntimeElement = (
     rangeStart: 0,
     rangeSize: 0,
     playing: parsed.settings['play'] !== undefined,
-    progressProperty:
-      typeof parsed.settings['progress'] === 'string' ? parsed.settings['progress'] : null,
     exitAt: null,
     end: end + displaced,
     size,
@@ -825,7 +786,7 @@ export const createRuntimeElement = (
      */
     geometryDependent:
       (parsed.stagger !== undefined && parsed.stagger.positionUnit !== '%') ||
-      plan.all.some((a) => a.geometryDependent || a.bands.length > 0),
+      parsed.animations.some((a) => a.geometryDependent || a.bands.length > 0),
     timelinePosition: 0,
     runOnceRan: false,
     runOnce: parsed.settings['run-once'] === true,
@@ -1106,27 +1067,8 @@ export const updateElement = (
 /** Applies settings-derived styles that do not animate. */
 export const setElementStyles = (element: RuntimeElement, settings: RuntimeSettings): void => {
   const { node } = element;
-  if (element.parsed.settings['will-change'] ?? settings.willChange) {
-    /**
-     * Composed from what this element actually animates.
-     *
-     * `transform, filter` was written out flat, which is wrong in both
-     * directions at once: an element animating only `opacity` asked the
-     * compositor to prepare for two properties it never touches — a layer
-     * promotion, with the memory that costs — and did not name the one
-     * property it does. A `background` from `@verajs/motion/paint` was never
-     * hinted at all.
-     *
-     * Deduped because nothing stops two attributes driving one CSS property.
-     */
-    const hints = new Set<string>();
-    if (element.plan.transform.length) hints.add('transform');
-    if (element.plan.filter.length) hints.add('filter');
-    for (const animation of element.plan.properties) {
-      if (animation.property.cssProperty) hints.add(animation.property.cssProperty);
-    }
-    if (hints.size) node.style.willChange = [...hints].join(', ');
-  }
+  /** The will-change hint lives in EMISSION now (author opt-in, per hash) — the derivation
+   *  machinery that composed it here from plan buckets left with the plan. */
   const origin = element.parsed.settings['transform-origin'] ?? settings.transformOrigin;
   if (origin) node.style.transformOrigin = String(origin);
 
@@ -1226,10 +1168,10 @@ export const resetElement = (
  */
 const adopted = new WeakSet<Element>();
 
-const managedStyles = (_plan: ScreenPlan): string[] => [
+const managedStyles = (): string[] => [
   /** The inline write path is gone, so the instance's own writes are settings styles only —
    *  animated values live in generated CSS the teardown releases by key, never inline. */
-  'will-change', 'transform-origin', 'position', 'top', 'inset-inline-start',
+  'transform-origin', 'position', 'top', 'inset-inline-start',
 ];
 
 /**
@@ -1261,9 +1203,6 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.removeAttribute('data-vera-t');
     node.removeAttribute('data-vera-n');
   }
-  /** The progress property too, or a torn-down element leaves a stale number behind for whatever
-   *  CSS was reading it — visible as a bar frozen part-way rather than as nothing at all. */
-  if (element.progressProperty) node.style.removeProperty(element.progressProperty);
 
 
   /**
@@ -1281,7 +1220,6 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
    * list, with one window read for all of them instead of one each.
    */
 
-  node.style.removeProperty('will-change');
   node.style.removeProperty('transform-origin');
   if (element.parsed.settings['pin'] !== undefined) {
     node.style.removeProperty('position');
@@ -1332,11 +1270,6 @@ const scrollerScrolls = (settings: RuntimeSettings): boolean => {
   return settings.scrollDirection === 'horizontal'
     ? el.scrollWidth > el.clientWidth
     : el.scrollHeight > el.clientHeight;
-};
-
-const prefersReducedMotion = (node: Element): boolean => {
-  const view = node.ownerDocument?.defaultView;
-  return view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 };
 
 const viewTimelineSupport = new WeakMap<object, boolean>();

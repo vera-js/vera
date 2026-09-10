@@ -28,6 +28,9 @@ export default [
    *  the bundle whose published size the adoption calculus runs on. */
   defaultRollupConfig(`${pkg.filename}-motion-core`, [], /^_[a-z]/, { input: 'src/motion/core-entry.ts' }),
   defaultRollupConfig(`${pkg.filename}-motion-ssr`, [], /^_[a-z]/, { input: 'src/motion/ssr-entry.ts' }),
+  /** The READER's entry: delivery + drive + ticks, NO compiler — the front-end adoption cost
+   *  for embedders whose server generates everything. */
+  defaultRollupConfig(`${pkg.filename}-motion-client`, [], /^_[a-z]/, { input: 'src/motion/client-entry.ts' }),
   defaultRollupConfig(`${pkg.filename}-remote`, [], /^_[a-z]/, { input: 'src/remote.ts' }),
   defaultRollupConfig(`${pkg.filename}-query`, [], /^_[a-z]/, { input: 'src/query.ts' }),
   defaultRollupConfig(`${pkg.filename}-sensors`, [], /^_[a-z]/, { input: 'src/sensors.ts' }),

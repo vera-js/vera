@@ -58,6 +58,11 @@
       "development": "./dist/development/vera-directives-motion-ssr.js",
       "default": "./dist/vera-directives-motion-ssr.min.js"
     },
+    "./motion-client": {
+      "types": "./dist/development/vera-directives-motion-client.d.ts",
+      "development": "./dist/development/vera-directives-motion-client.js",
+      "default": "./dist/vera-directives-motion-client.min.js"
+    },
     "./remote": {
       "types": "./dist/development/vera-directives-remote.d.ts",
       "development": "./dist/development/vera-directives-remote.js",

@@ -39,7 +39,6 @@ export interface RegionOptions {
   readonly inertia: number;
   readonly inertiaEase: string;
   readonly ease: string;
-  readonly willChange: boolean;
   readonly translateZFix: boolean;
   readonly transformOrigin: string;
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
@@ -107,7 +106,6 @@ let wanted = true;
 let reducedMotion = false;
 let touchDisabled = false;
 let following = true;
-let respectReduced = true;
 let watchTouch = false;
 const liveRegionSet = new Set<Region>();
 let preferencesWatched = false;
@@ -122,7 +120,14 @@ const resolvePreferences = (): void => {
 const watchPreferences = (): void => {
   if (preferencesWatched || typeof window === 'undefined') return;
   preferencesWatched = true;
-  reducedMotion = respectReduced && prefersReducedMotion();
+  /**
+   * ALWAYS respected — the opt-out knob died in the audit: emission carries always-on reduced
+   * blocks (the pre-JS/no-JS truth), so a JS-side opt-out was structurally half-broken, and an
+   * ignore-accessibility-preferences option is not a knob this library wants to own. THE
+   * LAYERING, stated once: emission neutralises paint (works with JS off); THIS disable stops
+   * the JS work — the drive loop, tick consumers a stylesheet cannot reach, the scroll writes.
+   */
+  reducedMotion = prefersReducedMotion();
   touchDisabled = watchTouch && prefersCoarsePointer();
   /** Live toggles on both macOS and Windows, so watched rather than sampled. */
   onReducedMotionChange((reduced) => {
@@ -136,8 +141,7 @@ const watchPreferences = (): void => {
 };
 
 /** Page-level factory knobs the pack's connector sets before any region exists. */
-export const configurePreferences = (respect: boolean, touch: boolean): void => {
-  respectReduced = respect;
+export const configurePreferences = (touch: boolean): void => {
   watchTouch = touch;
 };
 
@@ -183,7 +187,6 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     ease: options.ease,
     onProgress: options.onProgress,
     translateZFix: options.translateZFix,
-    willChange: options.willChange,
     transformOrigin: options.transformOrigin,
   };
   const scroller: Window | HTMLElement = options.scrollElement;

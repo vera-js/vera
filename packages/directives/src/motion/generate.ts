@@ -399,7 +399,9 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     }
     if (!targets.length) return null;
 
-    const baseDecls = targets.map((t) => `${t.property}: ${t.base};`).join(' ');
+    const hint = parsed.settings['will-change'] === true
+      ? ` will-change: ${targets.map((t) => t.property).join(', ')};` : '';
+    const baseDecls = targets.map((t) => `${t.property}: ${t.base};`).join(' ') + hint;
     const activeDecls = targets.map((t) => `${t.property}: ${t.active};`).join(' ');
     const longhands =
       `transition-property: ${targets.map((t) => t.property).join(', ')}; ` +
@@ -674,7 +676,20 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    */
   const cascade = `${varName}: clamp(0, calc((var(${SCROLL_PROPERTY}, 0) - ` +
     `var(${RANGE_START_PROPERTY}, 0)) / var(${RANGE_SIZE_PROPERTY}, 1)), 1); `;
-  const declarations = `${cascade}animation: ${animationList}; animation-delay: ${delayList};`;
+  /**
+   * `will-change` is AUTHOR OPT-IN only, emitted per hash (the vocabulary key existed and
+   * routed nowhere — the accepted-and-inert find). Deliberately never a default: a page-wide
+   * layer promotion held for page lifetime is the compositor-explosion the spec warns about,
+   * and "a running animation promotes anyway" is only half-true on the seek path (a PAUSED
+   * animation's promotion differs per engine — a measured follow-up may flip this one line).
+   */
+  const hints = parsed.settings['will-change'] === true
+    ? `will-change: ${[...new Set(parsed.animations.map((a) =>
+      a.property.category === 'transform' ? 'transform'
+      : a.property.category === 'filter' ? 'filter'
+      : a.property.cssProperty!))].join(', ')}; `
+    : '';
+  const declarations = `${cascade}${hints}animation: ${animationList}; animation-delay: ${delayList};`;
 
   /**
    * The BASE variable is in the list unconditionally, not derived from the groups: a tick-only
