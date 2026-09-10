@@ -959,6 +959,16 @@ cannot do at all: a canvas, text content, WebGL. The attribute NAMES a function 
 one, `tick` may be the whole animation (no `keyframes` needed), and a throwing tick is disabled for
 its own element and reported, never the page. The escape hatch, not the road — it is a per-frame JS
 call, so prefer `keyframes` or `progress` wherever CSS can express the effect.
+**First frame everywhere** — the page is designed complete and motion derives from it, so the
+first frame can be server-made in ANY stack: vera SSR calls `renderMotion(document, { wire })`
+(host-agnostic — jsdom at build works for Astro/Next/Eleventy/anything); static HTML gets
+`npx vera-motion-emit dist/**/*.html` (jsdom as a devDependency), which post-processes built
+files through the same pipeline; buildless pages either load the script as a BLOCKING tag at the
+end of `<body>` (beats first paint on most pages), opt into `data-vd-cloak` (hidden until
+activation), or accept a cosmetic flash — cosmetic because the resting page is complete by
+design. Reduced-motion visitors always get the designed page: emitted `@media
+(prefers-reduced-motion: reduce)` blocks neutralise seek animations and pin transition-mode
+plays to their END state — no driver involvement, so it holds with JavaScript off too.
 `data-vd-motion-region` on a container makes a region (own axis, scroller, defaults).
 Vocabulary modules extend the object's KEYS, never the attribute space: `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (a tick consumer:

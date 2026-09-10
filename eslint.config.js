@@ -148,6 +148,8 @@ export default [
       'scripts/**/*.{js,mjs}',
       // Per-package tooling (the ui manifest generator) — Node programs like the root scripts.
       'packages/*/scripts/**/*.{js,mjs}',
+      // Published CLIs (vera-motion-emit) — Node programs that SHIP, same globals either way.
+      'packages/*/bin/**/*.{js,mjs}',
       'bench/**/*.{js,mjs}',
       'tests/**/*.{js,mjs}',
       'packages/*/rollup.config.js',

@@ -543,10 +543,13 @@ export const parseMotion = (
    * was adopted, measured to `start: null`, and written `translateY(NaNpx)`
    * every frame — a declaration the CSSOM drops, so nothing moved, nothing
    * was reported, and the value looked right. Refused rather than
-   * supported. (`typeof` first, because this can run outside a browser; a
-   * realm caveat rides `instanceof`, recorded in the fold-in source.)
+   * supported. The class comes from the NODE'S OWN realm (CODE-PRINCIPLES §2) — the module
+   * global refused every element of a second document: the emit-anywhere CLI hosts pages in
+   * their own JSDOM realms, and cross-realm `instanceof` is how its first run emitted nothing.
    */
-  if (typeof HTMLElement === 'function' && !(node instanceof HTMLElement)) {
+  const OwnHTMLElement = (node.ownerDocument?.defaultView as
+    (typeof globalThis) | null | undefined)?.HTMLElement;
+  if (typeof OwnHTMLElement === 'function' && !(node instanceof OwnHTMLElement)) {
     rejected.push({ code: 'motion-not-html', args: [node.tagName.toLowerCase()] });
     context.dropped?.push({ node, rejected });
     return null;

@@ -187,7 +187,8 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
   if (scrollerGiven !== undefined) {
     const selector = typeof scrollerGiven === 'string' ? parseSelector(scrollerGiven) : null;
     const found = selector ? document.querySelector(selector) : null;
-    if (found instanceof HTMLElement) scrollElement = found;
+    /** The node's own realm's class — a portaled or second-document scroller must qualify. */
+    if (found && found.nodeType === 1 && 'offsetTop' in found) scrollElement = found as HTMLElement;
     else reportKey('scroller', 'motion-region-scroller');
   }
   const number = (key: 'inertia', fallback: number): number => {

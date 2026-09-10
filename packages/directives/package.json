@@ -65,7 +65,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "scripts": {
     "build": "wireit"
@@ -146,5 +147,8 @@
     "interactivity",
     "web-components"
   ],
-  "sideEffects": false
+  "sideEffects": false,
+  "bin": {
+    "vera-motion-emit": "./bin/motion-emit.mjs"
+  }
 }
