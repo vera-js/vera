@@ -405,7 +405,7 @@
       "type": "boolean"
     },
     {
-      "key": "tick",
+      "key": "function",
       "type": "string"
     },
     {

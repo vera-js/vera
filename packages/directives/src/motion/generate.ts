@@ -86,11 +86,11 @@ interface Grouped {
 
 
 export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext): Generated | null => {
-  /** A TICK-ONLY element is a real shape — `{ scroll: '…', tick: 'drawFrame' }` — and generates
+  /** A TICK-ONLY element is a real shape — `{ scroll: '…', function: 'drawFrame' }` — and generates
    *  no CSS at all: zero groups, zero rules. It rides this path for the drive machinery (chase,
    *  ramp, the variable write) aimed at its function. Anything else with no animations is the
    *  old path's problem. */
-  if (!parsed.animations.length && typeof parsed.settings['tick'] !== 'string') return null;
+  if (!parsed.animations.length && typeof parsed.settings['function'] !== 'string') return null;
 
   /**
    * `progress: '--x'` renames the variable — one write serves the animation AND the author's CSS.
@@ -213,7 +213,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
   const transitionEmission = ((): Generated | null => {
     const play = parsed.settings['play'];
     if (typeof play !== 'number') return null;
-    if (typeof parsed.settings['tick'] === 'string' || parsed.settings['progress'] !== undefined) return null;
+    if (typeof parsed.settings['function'] === 'string' || parsed.settings['progress'] !== undefined) return null;
     if (wantsTransformVar || wantsFilterVar) return null;
     if (!parsed.animations.length) return null;
     for (const a of parsed.animations) {

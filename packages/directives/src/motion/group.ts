@@ -1,7 +1,7 @@
 /**
  * A REGION is what a `createMotion` instance used to be, minus everything the
  * directives engine now owns. One region = one scroll context: the page by
- * default, or any container carrying `data-vd-motion-region` — its own axis,
+ * default, or any container carrying `data-vd-motion-group` — its own axis,
  * its own scroller, its own defaults, its own frame loop and visibility
  * tracker. Elements join the nearest region above them and leave it on
  * teardown; the engine's churn activation replaced the scanning, signature

@@ -224,14 +224,14 @@ test('the nested form refuses junk keys and a band key carrying its own ease', a
 
 test('motion-config: a bad axis is refused with the region still working on defaults', async () => {
   const host = await mount(`
-    <section data-vd-motion-region="{ axis: 'diagonal' }">
+    <section data-vd-motion-group="{ axis: 'diagonal' }">
       <div data-vd-motion="fade">x</div>
     </section>`);
   const el = host.querySelector('div');
   await until(() => animating(el) && (el.hasAttribute('data-vm-on') || progressOf(el) === 1),
     'the member still animates on defaults');
   const reasons = rejections(el);
-  assert.ok(reasons.some((r) => r.code === 'motion-region-axis'), 'the config refusal recorded');
+  assert.ok(reasons.some((r) => r.code === 'motion-group-axis'), 'the config refusal recorded');
   if (!isProduction) assert.ok(reasons.some((r) => /axis/.test(r.message)), 'and names the key');
   host.remove();
   await settled();

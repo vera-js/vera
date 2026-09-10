@@ -1,7 +1,7 @@
 /**
  * The tick door — stage 6's named-JS destination.
  *
- * `wireTicks({ name: fn })` registers what `tick: 'name'` in the attribute names; the attribute
+ * `wireFunctions({ name: fn })` registers what `function: 'name'` in the attribute names; the attribute
  * NAMES a function and never contains one. These are the door's own guarantees: registration
  * semantics (first wins, junk refused), delivery (the tick sees the same number CSS sees, at the
  * write moment), containment (a throwing tick dies alone, once), and the `{ tick, setup }`
@@ -24,18 +24,18 @@ for (const k of ['window', 'document', 'HTMLElement', 'HTMLCanvasElement', 'cust
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, motion, wireTicks, settled, rejections } = await load('directives');
+const { wireDirectives, motion, wireFunctions, settled, rejections } = await load('directives');
 
 const seen = [];
 let throws = 0;
 let setups = 0;
 let teardowns = 0;
 wireDirectives([motion({ inertia: 0 })]);
-wireTicks({
+wireFunctions({
   probe: (el, p) => seen.push({ el, p }),
   thrower: () => { throws++; throw new Error('boom'); },
   lifecycled: {
-    tick: () => {},
+    run: () => {},
     setup: () => { setups++; return () => { teardowns++; }; },
   },
 });
@@ -54,7 +54,7 @@ const mount = async (markup) => {
 };
 
 test('a tick-only element is a real shape: the function IS the animation, and it sees the number', async () => {
-  const host = await mount(`<div data-vd-motion="{ tick: 'probe', scroll: '100%, 0%' }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ function: 'probe', scroll: '100%, 0%' }">x</div>`);
   const el = host.querySelector('div');
 
   assert.ok(seen.length > 0, 'the CONTROL: the tick actually ran');
@@ -72,13 +72,13 @@ test('a tick-only element is a real shape: the function IS the animation, and it
 
 test('a throwing tick dies alone, once — no console storm, no page damage', async () => {
   const host = await mount(`
-    <div id="bad" data-vd-motion="{ tick: 'thrower', scroll: '100%, 0%' }">x</div>
+    <div id="bad" data-vd-motion="{ function: 'thrower', scroll: '100%, 0%' }">x</div>
     <div id="good" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>`);
   const bad = host.querySelector('#bad');
 
   assert.equal(throws, 1, 'called once, dead from that frame on');
   const reasons = rejections(bad);
-  assert.ok(reasons.some((r) => r.code === 'motion-tick-threw'), 'reported where a GUI reads');
+  assert.ok(reasons.some((r) => r.code === 'motion-function-threw'), 'reported where a GUI reads');
   if (!isProduction) assert.ok(reasons.some((r) => /boom/.test(r.message)), 'carrying the error');
   /** The neighbour is untouched — one bad tick costs its own element, never the page. */
   assert.match(host.querySelector('#good').getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/);
@@ -88,17 +88,17 @@ test('a throwing tick dies alone, once — no console storm, no page damage', as
 });
 
 test('an unregistered name is refused by name, with the wiring line', async () => {
-  const host = await mount(`<div data-vd-motion="{ tick: 'nobody' }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ function: 'nobody' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-tick-unknown'));
-  if (!isProduction) assert.ok(reasons.some((r) => /wireTicks/.test(r.fix ?? r.message ?? '')), 'told how');
+  assert.ok(reasons.some((r) => r.code === 'motion-function-unknown'));
+  if (!isProduction) assert.ok(reasons.some((r) => /wireFunctions/.test(r.fix ?? r.message ?? '')), 'told how');
   host.remove();
   await settled();
 });
 
 test('a { tick, setup } module gets its lifecycle: setup at activation, teardown at removal', async () => {
   const before = { setups, teardowns };
-  const host = await mount(`<div data-vd-motion="{ tick: 'lifecycled', scroll: '100%, 0%' }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ function: 'lifecycled', scroll: '100%, 0%' }">x</div>`);
   assert.equal(setups, before.setups + 1, 'setup ran once at activation');
   assert.equal(teardowns, before.teardowns, 'no teardown while alive');
   host.remove();
@@ -108,17 +108,17 @@ test('a { tick, setup } module gets its lifecycle: setup at activation, teardown
 
 test('registration is first-wins and junk is refused, both reported', async () => {
   const countBefore = rejections().length;
-  wireTicks({ probe: () => {} });
-  wireTicks({ junk: 42 });
+  wireFunctions({ probe: () => {} });
+  wireFunctions({ junk: 42 });
   const added = rejections().slice(countBefore);
-  assert.ok(added.some((r) => r.code === 'motion-tick-redefined'), 'a taken name is refused');
-  assert.ok(added.some((r) => r.code === 'motion-tick-not-function'), 'a non-function is refused');
+  assert.ok(added.some((r) => r.code === 'motion-function-redefined'), 'a taken name is refused');
+  assert.ok(added.some((r) => r.code === 'motion-function-not-function'), 'a non-function is refused');
 });
 
 test('a bad tick VALUE is refused as grammar — parentheses are code, and code never rides an attribute', async () => {
-  const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0, 1' }, tick: 'alert(1)' }">x</div>`);
+  const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0, 1' }, function: 'alert(1)' }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
-  assert.ok(reasons.some((r) => r.code === 'motion-setting-tick'), JSON.stringify(reasons.map((r) => r.code)));
+  assert.ok(reasons.some((r) => r.code === 'motion-setting-function'), JSON.stringify(reasons.map((r) => r.code)));
   host.remove();
   await settled();
 });
@@ -126,7 +126,7 @@ test('a bad tick VALUE is refused as grammar — parentheses are code, and code 
 test('tick beside keyframes: both destinations fire from one number', async () => {
   const before = seen.length;
   const host = await mount(
-    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, tick: 'probe', scroll: '100%, 0%' }">x</div>`);
+    `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, function: 'probe', scroll: '100%, 0%' }">x</div>`);
   const el = host.querySelector('div');
   assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'the CSS half generated');
   assert.ok(seen.length > before, 'and the tick half ran beside it');

@@ -580,7 +580,7 @@ const MOTION = `
   </demo-block>
   <h2>Regions — motion-config replaces instances</h2>
   <demo-block caption="A container with motion-config is its own scroll world: this rail is a HORIZONTAL region with its own scroller. Scroll it sideways.">
-    <div id="rail" class="gallery" data-vd-motion-region="{ axis: 'horizontal', scroller: '#rail', inertia: 0 }">
+    <div id="rail" class="gallery" data-vd-motion-group="{ axis: 'horizontal', scroller: '#rail', inertia: 0 }">
       <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">A</div>
       <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">B</div>
       <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">C</div>

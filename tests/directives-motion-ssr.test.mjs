@@ -87,7 +87,7 @@ test('stagger renders SERVER-SIDE since 8a — % offsets go out inline; tick-onl
       <div id="m0" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>
       <div id="m1" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>
     </div>
-    <div data-vd-motion="{ tick: 'drawFrame', scroll: '100%, 0%' }">x</div>`;
+    <div data-vd-motion="{ function: 'drawFrame', scroll: '100%, 0%' }">x</div>`;
   const report = renderMotion(doc);
   assert.equal(report.rendered, 2, 'both members paint frame 0 now');
   /** Two skips: the stagger HOST (a real shape, animates nothing itself) and the tick element. */

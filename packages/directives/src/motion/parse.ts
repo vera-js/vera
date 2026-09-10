@@ -709,7 +709,7 @@ export const parseMotion = (
      * and so is a tick-only element, whose whole animation is a function:
      * "no animations" is only a drop when nothing else was said either.
      */
-    if (settings['stagger'] === undefined && typeof settings['tick'] !== 'string') {
+    if (settings['stagger'] === undefined && typeof settings['function'] !== 'string') {
       if (rejected.length) context.dropped?.push({ node, rejected });
       return null;
     }

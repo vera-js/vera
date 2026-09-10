@@ -31,9 +31,9 @@ export { syncTo, rampTo, dispose } from './drive.js';
 
 
 /** The named-JS door. */
-export { wireTicks, tickFor } from './ticks.js';
+export { wireFunctions, functionFor } from './functions.js';
 
 /** The server half lives in its OWN subpath (`/motion-ssr`): an embedder's CLIENT bundle never
  *  ships the emitter, and a server never minds the extra import. */
 
-export type { ParsedElement, ElementMotion, ParseContext, Generated, GeneratedGroup, GeometryContext, Driven, SheetRoot, TickFunction, TickModule } from './types.js';
+export type { ParsedElement, ElementMotion, ParseContext, Generated, GeneratedGroup, GeometryContext, Driven, SheetRoot, MotionFunction, MotionFunctionModule } from './types.js';

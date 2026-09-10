@@ -114,7 +114,7 @@ test('sequence wired: the whole validation chain runs — a real canvas fails at
   /** The stage-6 shape: sequence is a TICK consumer — no `frame` keyframes key, the attribute
    *  names the pack's registered tick and the frame-* settings configure it. */
   const host = await mount(
-    `<canvas data-vd-motion="{ tick: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }"></canvas>`);
+    `<canvas data-vd-motion="{ function: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }"></canvas>`);
   const el = host.querySelector('canvas');
   const reasons = rejections(el);
   /** url passed policy, count parsed — jsdom's context-less canvas is the stop. */
@@ -126,7 +126,7 @@ test('sequence wired: the whole validation chain runs — a real canvas fails at
 
 test('sequence: the tick on a non-canvas is the first refusal', async () => {
   const host = await mount(
-    `<div data-vd-motion="{ tick: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }">x</div>`);
+    `<div data-vd-motion="{ function: 'sequence', scroll: '100%, 0%', frame-url: '/seq/', frame-count: 10 }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'));
   if (!isProduction) assert.ok(reasons.some((r) => /needs a <canvas>/.test(r.message)));
@@ -136,7 +136,7 @@ test('sequence: the tick on a non-canvas is the first refusal', async () => {
 
 test('sequence: a cross-origin frame-url is refused by the default policy', async () => {
   const host = await mount(
-    `<canvas data-vd-motion="{ tick: 'sequence', scroll: '100%, 0%', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
+    `<canvas data-vd-motion="{ function: 'sequence', scroll: '100%, 0%', frame-url: 'https://cdn.example/seq/', frame-count: 10 }"></canvas>`);
   const reasons = rejections(host.querySelector('canvas'));
   assert.ok(reasons.some((r) => r.code === 'motion-sequence-refused'), 'same-origin unless the FACTORY allows');
   host.remove();

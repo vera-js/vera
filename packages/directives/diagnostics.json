@@ -17,6 +17,15 @@
       "fix": "A reflection re-runs whenever its inputs change, so an action there would fire over and over."
     },
     {
+      "code": "array-not-literal",
+      "params": [
+        "raw",
+        "detail"
+      ],
+      "message": "could not parse \"{raw}\": {detail}.",
+      "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
       "code": "array-unterminated",
       "params": [
         "raw",
@@ -300,6 +309,76 @@
       "fix": "Two lone values both mean the END: write positions, e.g. '0% 0deg, 100% 360deg'."
     },
     {
+      "code": "motion-function-not-function",
+      "params": [
+        "name",
+        "kind"
+      ],
+      "message": "wireFunctions: '{name}' is {kind}, not a function or a { run, setup } module; ignoring it."
+    },
+    {
+      "code": "motion-function-redefined",
+      "params": [
+        "name"
+      ],
+      "message": "wireFunctions: '{name}' is already registered; the first registration wins.",
+      "fix": "Rename one of them — a silent override would leave one module believing its function runs."
+    },
+    {
+      "code": "motion-function-threw",
+      "params": [
+        "name",
+        "error"
+      ],
+      "message": "function '{name}' threw and is disabled for this element. {error}"
+    },
+    {
+      "code": "motion-function-unknown",
+      "params": [
+        "name"
+      ],
+      "message": "function: '{name}' names no registered function.",
+      "fix": "Register it from page code, before elements activate: wireFunctions({ {name}: (el, p) => { … } })."
+    },
+    {
+      "code": "motion-group-axis",
+      "params": [
+        "key"
+      ],
+      "message": "motion-group {key}: is 'vertical' or 'horizontal'."
+    },
+    {
+      "code": "motion-group-duration",
+      "params": [
+        "key"
+      ],
+      "message": "motion-group {key}: must be a number from 0 to 3600."
+    },
+    {
+      "code": "motion-group-not-object",
+      "params": [],
+      "message": "motion-group takes a braced object."
+    },
+    {
+      "code": "motion-group-on-member",
+      "params": [],
+      "message": "motion-group configures a REGION for descendants; the element carrying it animates in the region above."
+    },
+    {
+      "code": "motion-group-parse-failed",
+      "params": [
+        "detail"
+      ],
+      "message": "motion-group could not parse: {detail}"
+    },
+    {
+      "code": "motion-group-scroller",
+      "params": [
+        "key"
+      ],
+      "message": "motion-group {key}: is a selector matching one element on the page."
+    },
+    {
       "code": "motion-inertia-ease-at-zero",
       "params": [],
       "message": "inertia-ease does nothing at inertia: 0 — it shapes the catch-up, and 0 means the values track scroll exactly with no transition to shape.",
@@ -555,44 +634,6 @@
       "fix": "This should be unreachable — please report the value that did this."
     },
     {
-      "code": "motion-region-axis",
-      "params": [
-        "key"
-      ],
-      "message": "motion-region {key}: is 'vertical' or 'horizontal'."
-    },
-    {
-      "code": "motion-region-duration",
-      "params": [
-        "key"
-      ],
-      "message": "motion-region {key}: must be a number from 0 to 3600."
-    },
-    {
-      "code": "motion-region-not-object",
-      "params": [],
-      "message": "motion-region takes a braced object."
-    },
-    {
-      "code": "motion-region-on-member",
-      "params": [],
-      "message": "motion-region configures a REGION for descendants; the element carrying it animates in the region above."
-    },
-    {
-      "code": "motion-region-parse-failed",
-      "params": [
-        "detail"
-      ],
-      "message": "motion-region could not parse: {detail}"
-    },
-    {
-      "code": "motion-region-scroller",
-      "params": [
-        "key"
-      ],
-      "message": "motion-region {key}: is a selector matching one element on the page."
-    },
-    {
       "code": "motion-second-base",
       "params": [
         "where",
@@ -652,6 +693,13 @@
         "where"
       ],
       "message": "{where}: is not an easing name or a cubic-bezier()."
+    },
+    {
+      "code": "motion-setting-function",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a registered function's NAME — bare identifier, no parentheses, never code."
     },
     {
       "code": "motion-setting-in-keyframes",
@@ -734,13 +782,6 @@
       "message": "{where}: is not a selector this library will use — :has() and a few others are refused."
     },
     {
-      "code": "motion-setting-tick",
-      "params": [
-        "where"
-      ],
-      "message": "{where}: is not a registered tick's NAME — bare identifier, no parentheses, never code."
-    },
-    {
       "code": "motion-stagger-no-descendants",
       "params": [],
       "message": "stagger needs animated descendants — it goes on the parent."
@@ -750,38 +791,6 @@
       "params": [],
       "message": "stagger does nothing on a play — it offsets a scroll timeline, and a play has none.",
       "fix": "Remove one of them; a per-sibling time delay is not built yet."
-    },
-    {
-      "code": "motion-tick-not-function",
-      "params": [
-        "name",
-        "kind"
-      ],
-      "message": "wireTicks: '{name}' is {kind}, not a function or a { tick, setup } module; ignoring it."
-    },
-    {
-      "code": "motion-tick-redefined",
-      "params": [
-        "name"
-      ],
-      "message": "wireTicks: '{name}' is already registered; the first registration wins.",
-      "fix": "Rename one of them — a silent override would leave one module believing its tick runs."
-    },
-    {
-      "code": "motion-tick-threw",
-      "params": [
-        "name",
-        "error"
-      ],
-      "message": "tick '{name}' threw and is disabled for this element. {error}"
-    },
-    {
-      "code": "motion-tick-unknown",
-      "params": [
-        "name"
-      ],
-      "message": "tick: '{name}' names no registered tick.",
-      "fix": "Register it from page code, before elements activate: wireTicks({ {name}: (el, p) => { … } })."
     },
     {
       "code": "motion-too-many-bands",

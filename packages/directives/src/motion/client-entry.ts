@@ -24,6 +24,6 @@ export {
 } from './registry.js';
 export { syncTo, rampTo, dispose } from './drive.js';
 
-export { wireTicks, tickFor } from './ticks.js';
+export { wireFunctions, functionFor } from './functions.js';
 
-export type { Driven, SheetRoot, TickFunction, TickModule } from './types.js';
+export type { Driven, SheetRoot, MotionFunction, MotionFunctionModule } from './types.js';

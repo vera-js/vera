@@ -40,7 +40,7 @@ export interface Driven {
    * so a tick sees exactly the number CSS sees, at the same moment, post-chase and post-ramp.
    * Pre-bound by the runtime (containment and reporting live there); the loop just calls it.
    */
-  readonly tick: ((progress: number) => void) | null;
+  readonly run: ((progress: number) => void) | null;
 }
 
 /** Value units the grammar accepts — LITERAL here (types.ts imports nothing); the runtime
@@ -532,7 +532,7 @@ export interface Generated {
 
 /** What a tick receives: the element and how far through its range it is. Nothing else — no
  *  scroll position (the framework's business), no curve (there is none), no return value. */
-export type TickFunction = (node: HTMLElement, progress: number) => void;
+export type MotionFunction = (node: HTMLElement, progress: number) => void;
 
 /**
  * A tick with a lifecycle — for consumers holding per-element resources (a canvas decoder, an
@@ -541,8 +541,8 @@ export type TickFunction = (node: HTMLElement, progress: number) => void;
  * edited — the engine's rebuild-on-edit is the staleness story, exactly as it was for property
  * modules. A bare function is the common case; the descriptor is the one shape richer.
  */
-export interface TickModule {
-  readonly tick: TickFunction;
+export interface MotionFunctionModule {
+  readonly run: MotionFunction;
   readonly setup?: (
     node: HTMLElement,
     settings: Readonly<Record<string, string | number | boolean>>,

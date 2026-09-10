@@ -26,7 +26,7 @@ import { MOTION_ATTR } from './parse.js';
 
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
-import type { SettingDef, TickModule, WirableTree } from './types.js';
+import type { SettingDef, MotionFunctionModule, WirableTree } from './types.js';
 
 const FROM = '@verajs/directives/motion';
 
@@ -204,7 +204,7 @@ export const sequenceRows = (options: SequenceOptions = {}): WirableTree =>
 /** Rows and tick from ONE normalisation — what the wirable `sequence` installs. */
 export const sequenceModule = (
   options: SequenceOptions = {}
-): { rows: WirableTree; tick: TickModule } => {
+): { rows: WirableTree; tick: MotionFunctionModule } => {
   const origins = normalizeOrigins(options);
   return { rows: rowsFor(origins), tick: sequenceTick(origins) };
 };
@@ -220,7 +220,7 @@ export const sequenceModule = (
  * engine's rebuild-on-edit is the staleness story, exactly as it was when a
  * `PropertyDef.setup` carried this.
  */
-const sequenceTick = (allowedOrigins: readonly string[]): TickModule => ({
+const sequenceTick = (allowedOrigins: readonly string[]): MotionFunctionModule => ({
   setup(node, _settings, reject) {
     rejecters.set(node, reject);
     return () => {
@@ -228,7 +228,7 @@ const sequenceTick = (allowedOrigins: readonly string[]): TickModule => ({
       forget(node);
     };
   },
-  tick(node, progress) {
+  run(node, progress) {
     const entry = drawerFor(node, allowedOrigins);
     if (entry) entry.drawer.draw(progress * (entry.frames - 1));
   },

@@ -27,8 +27,8 @@ let last = 0;
 const write = (driven: Driven, value: number): void => {
   driven.written = value;
   driven.node.style.setProperty(driven.varName, String(value));
-  /** The tick door — same number, same moment as the variable write, contained upstream. */
-  driven.tick?.(value);
+  /** The function door — same number, same moment as the variable write, contained upstream. */
+  driven.run?.(value);
 };
 
 const tick = (now: number): void => {

@@ -24,9 +24,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, motion, wireTicks, settled, rejections } = await load('directives');
+const { wireDirectives, motion, wireFunctions, settled, rejections } = await load('directives');
 wireDirectives([motion({ inertia: 0 })]);
-wireTicks({ noop: () => {} });
+wireFunctions({ noop: () => {} });
 
 const doc = dom.window.document;
 const sheetText = () =>
@@ -115,7 +115,7 @@ test('the ramp fallback holds exactly the agreed matrix', async () => {
   /** Each of these plays, but through the SEEK mode — the variable exists, no active rule does. */
   for (const [raw, why] of [
     [`{ keyframes: { opacity: '0% 0, 100% 1' }, play: 0.3, progress: '--x' }`, 'a progress rider needs the live number'],
-    [`{ keyframes: { opacity: '0% 0, 100% 1' }, tick: 'noop', play: 0.3 }`, 'a tick rider needs the live number'],
+    [`{ keyframes: { opacity: '0% 0, 100% 1' }, function: 'noop', play: 0.3 }`, 'a tick rider needs the live number'],
     [`{ keyframes: { opacity: '0% 0, 50% 1, 100% 0' }, play: 0.3 }`, 'a pulse has no net change to transition'],
     [`{ keyframes: { opacity: '0% 0, 100% 1; [0-560]: 0% 0.5, 100% 1' }, play: 0.3 }`, 'bands stay seek-mode in v1'],
     [`{ keyframes: { translate-y: '0% 40px, 50% 10px, 100% 0px', rotate: '0% 0deg, 100% 90deg' }, play: 0.3 }`,

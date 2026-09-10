@@ -15,7 +15,7 @@ import { join } from 'node:path';
 const PAGE = `<!doctype html><html><head><title>t</title></head><body>
 <div id="a" data-vd-motion="fade-up">hello</div>
 <div id="b" data-vd-motion="{ keyframes: { opacity: '0% 0.15, 100% 0.85' } }">scrubs</div>
-<div id="c" data-vd-motion="{ tick: 'draw', scroll: '100%, 0%' }">js-first</div>
+<div id="c" data-vd-motion="{ function: 'draw', scroll: '100%, 0%' }">js-first</div>
 </body></html>`;
 
 test('the CLI emits first-frame CSS into static HTML through the real pipeline', () => {

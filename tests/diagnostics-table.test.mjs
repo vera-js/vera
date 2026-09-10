@@ -125,8 +125,8 @@ for (const path of files(new URL('../packages/directives/src', import.meta.url).
    * a route and reports live prose as orphaned.
    */
   if (rel.startsWith('motion/')) {
-    /** A directive's own NAME looks exactly like a code — `data-vd-motion-region` declares
-     *  `name: 'motion-region'` — so the names are subtracted rather than reported as codes with
+    /** A directive's own NAME looks exactly like a code — `data-vd-motion-group` declares
+     *  `name: 'motion-group'` — so the names are subtracted rather than reported as codes with
      *  no prose, which is what the broad scan first did. */
     const names = new Set([...text.matchAll(/name:\s*'([a-z][a-z0-9-]*)'/g)].map((m) => m[1]));
     for (const match of text.matchAll(/'((?:motion|split)-[a-z0-9-]+)'/g)) {

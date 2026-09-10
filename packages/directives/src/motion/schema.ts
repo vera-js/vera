@@ -317,12 +317,12 @@ export const SETTINGS = [
   /**
    * The THIRD destination for the element's number: a registered JavaScript function, for
    * everything CSS cannot do at all — a canvas frame, text content, WebGL, audio. The attribute
-   * NAMES the function (`wireTicks({ drawFrame: (el, p) => … })` registers it from page code) and
+   * NAMES the function (`wireFunctions({ drawFrame: (el, p) => … })` registers it from page code) and
    * never contains one: attribute text is CMS-editable, and a value that could carry a function
-   * body would hand it the whole DOM API. The escape hatch, not the road — a tick is a per-frame
+   * body would hand it the whole DOM API. The escape hatch, not the road — a motion function is a per-frame
    * JS call, the cost the generated path exists to remove.
    */
-  { key: 'tick', type: 'string', code: 'motion-setting-tick',
+  { key: 'function', type: 'string', code: 'motion-setting-function',
     parse: (raw) => (/^[A-Za-z_$][\w$-]*$/.test(raw.trim()) ? raw.trim() : null) },
   /**
    * **Gates the animation; it does not replace the driver.** While the element matches, it animates

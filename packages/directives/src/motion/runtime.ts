@@ -12,7 +12,7 @@ import { getElementSize, getWindowSize, displacementOf, normalisePosition } from
 
 import { generateSimple, mergeBandsForWidth } from './generate.js';
 
-import { tickFor } from './ticks.js';
+import { functionFor } from './functions.js';
 
 import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 
@@ -490,19 +490,19 @@ export const createRuntimeElement = (
    */
   let tick: ((progress: number) => void) | null = null;
   let tickTeardown: (() => void) | null = null;
-  const tickName = parsed.settings['tick'];
+  const tickName = parsed.settings['function'];
   if (typeof tickName === 'string') {
-    const module = tickFor(tickName);
-    if (!module) rejectFor('motion-tick-unknown', [tickName]);
+    const module = functionFor(tickName);
+    if (!module) rejectFor('motion-function-unknown', [tickName]);
     else {
       let dead = false;
       tick = (progress: number): void => {
         if (dead) return;
         try {
-          module.tick(node as HTMLElement, progress);
+          module.run(node as HTMLElement, progress);
         } catch (error) {
           dead = true;
-          rejectFor('motion-tick-threw', [tickName, String(error)]);
+          rejectFor('motion-function-threw', [tickName, String(error)]);
         }
       };
       if (module.setup) {
@@ -511,7 +511,7 @@ export const createRuntimeElement = (
           if (typeof off === 'function') tickTeardown = off;
         } catch (error) {
           dead = true;
-          rejectFor('motion-tick-threw', [tickName, String(error)]);
+          rejectFor('motion-function-threw', [tickName, String(error)]);
         }
       }
     }
@@ -585,7 +585,7 @@ export const createRuntimeElement = (
           tau: 0, rampFrom: 0, rampStart: 0, rampDuration: 0,
           /** The tick rides the BASE variable's writes — the author-visible number, after
            *  whatever chase or ramp is shaping it — never a per-category one. */
-          tick: v.name === generatedCss.varName ? tick : null,
+          run: v.name === generatedCss.varName ? tick : null,
         },
         tau: Number(parsed.settings[v.inertiaKey] ?? settings.inertia),
       })),

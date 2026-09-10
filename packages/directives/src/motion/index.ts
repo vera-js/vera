@@ -1,5 +1,5 @@
 /**
- * The MOTION PACK — `data-vd-motion` and `data-vd-motion-region`, riding the
+ * The MOTION PACK — `data-vd-motion` and `data-vd-motion-group`, riding the
  * directives engine. Design §16b: motion is a directive set, not a parallel
  * system; this file is the whole of its structural existence.
  *
@@ -11,7 +11,7 @@
  *
  * Security boundary, kept from the design pass: `breakpoints` registration
  * and everything policy-shaped stay FACTORY-ONLY. An attribute is untrusted
- * input — `data-vd-motion-region` may set an axis or an inertia, never widen
+ * input — `data-vd-motion-group` may set an axis or an inertia, never widen
  * an allowlist.
  */
 import { dual } from '../dual.js';
@@ -19,8 +19,8 @@ import { parseMotion, forgetStagger, staggerHost, MOTION_ATTR } from './parse.js
 
 import {
   createRegion, enableMotion, disableMotion, configurePreferences, runInserts,
-} from './region.js';
-import type { RegionOptions } from './region.js';
+} from './group.js';
+import type { RegionOptions } from './group.js';
 import {
   registerVocabulary, setProblemReporter, parseEasing, parseSelector, parseOrigin,
   properties, settings as vocabulary, parseMeasure, pageProblem,
@@ -34,13 +34,13 @@ import { pathRows } from './path.js';
 
 import { sequenceRows, sequenceModule } from './sequence.js';
 
-import { wireTicks } from './ticks.js';
+import { wireFunctions } from './functions.js';
 
 import type { SequenceOptions } from './sequence.js';
 import { splitDirective } from './split.js';
 
 
-const CONFIG_ATTR = 'data-vd-motion-region';
+const CONFIG_ATTR = 'data-vd-motion-group';
 
 
 /* ── factory options and page defaults ────────────────────────────────────── */
@@ -180,7 +180,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
   const axisGiven = config['axis'];
   if (axisGiven !== undefined) {
     if (axisGiven === 'vertical' || axisGiven === 'horizontal') axis = axisGiven;
-    else reportKey('axis', 'motion-region-axis');
+    else reportKey('axis', 'motion-group-axis');
   }
   let scrollElement: Window | HTMLElement = window;
   const scrollerGiven = config['scroller'];
@@ -189,14 +189,14 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
     const found = selector ? document.querySelector(selector) : null;
     /** The node's own realm's class — a portaled or second-document scroller must qualify. */
     if (found && found.nodeType === 1 && 'offsetTop' in found) scrollElement = found as HTMLElement;
-    else reportKey('scroller', 'motion-region-scroller');
+    else reportKey('scroller', 'motion-group-scroller');
   }
   const number = (key: 'inertia', fallback: number): number => {
     const given = config[key];
     if (given === undefined) return fallback;
     const n = Number(given);
     if (Number.isFinite(n) && n >= 0 && n <= 3600) return n;
-    reportKey(key, 'motion-region-duration');
+    reportKey(key, 'motion-group-duration');
     return fallback;
   };
   const easing = (key: 'inertia-ease' | 'ease', fallback: string): string => {
@@ -220,7 +220,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
 };
 
 /**
- * The region an element animates in: the nearest `data-vd-motion-region`
+ * The region an element animates in: the nearest `data-vd-motion-group`
  * ancestor's, else the page's. Members create their region lazily, so
  * activation order between a config container and its descendants never
  * matters. The config text is parsed through the base grammar's cache, so
@@ -229,7 +229,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
 const regionFor = (el: Element, reject: (code: string, args?: readonly string[]) => void): Region => {
   const host = el.closest(`[${CONFIG_ATTR}]`);
   if (!host || host === el) {
-    if (host === el) reject('motion-region-on-member');
+    if (host === el) reject('motion-group-on-member');
     return (pageRegion ??= createRegion(regionOptions({}, () => {}), breakpoints));
   }
   const existing = regions.get(host);
@@ -241,9 +241,9 @@ const regionFor = (el: Element, reject: (code: string, args?: readonly string[])
     try {
       const parsed = parseValue(raw) as Parsed;
       if (isObject(parsed)) config = parsed as ParsedObject;
-      else reject('motion-region-not-object');
+      else reject('motion-group-not-object');
     } catch (error) {
-      reject('motion-region-parse-failed', [String((error as Error).message ?? error)]);
+      reject('motion-group-parse-failed', [String((error as Error).message ?? error)]);
     }
   }
   const region = createRegion(
@@ -395,12 +395,12 @@ const motionDirective: Directive = {
 };
 
 const configDirective: Directive = {
-  name: 'motion-region',
+  name: 'motion-group',
   value: 'literal',
   priority: 20,
   docs: {
     summary: 'Configures a motion REGION for this container\'s descendants: axis, scroller, defaults.',
-    example: 'data-vd-motion-region="{ axis: \'horizontal\', scroller: \'#pane\', inertia: 0 }"',
+    example: 'data-vd-motion-group="{ axis: \'horizontal\', scroller: \'#pane\', inertia: 0 }"',
   },
   setup(el) {
     /**
@@ -501,15 +501,15 @@ export const paint: EngineConnector = motionExtension(paintRows);
 export const path: EngineConnector = motionExtension(pathRows);
 /**
  * Sequence wires TWO things from one options object: its settings rows into the vocabulary, and
- * its drawer into the tick registry under the name the attribute uses — `tick: 'sequence'`. A
- * page's own `wireTicks({ sequence })` earlier would win the name and be reported, per the
+ * its drawer into the tick registry under the name the attribute uses — `function: 'sequence'`. A
+ * page's own `wireFunctions({ sequence })` earlier would win the name and be reported, per the
  * registry's first-wins rule.
  */
 export const sequence = dual<SequenceOptions>((options) => {
   const { rows, tick } = sequenceModule(options);
   const connect = motionExtension(rows);
   return (seams) => {
-    wireTicks({ sequence: tick });
+    wireFunctions({ sequence: tick });
     return connect(seams);
   };
 });
@@ -521,10 +521,10 @@ export const split = splitDirective;
  * change with any stage.
  */
 /**
- * The named-JS door — see `ticks.ts`. Public API: `wireTicks({ drawFrame: (el, p) => … })`
- * registers what `tick: 'drawFrame'` names. The escape hatch, not the road.
+ * The named-JS door — see `ticks.ts`. Public API: `wireFunctions({ drawFrame: (el, p) => … })`
+ * registers what `function: 'drawFrame'` names. The escape hatch, not the road.
  */
-export { wireTicks } from './ticks.js';
+export { wireFunctions } from './functions.js';
 /**
  * SSR emission — stage 7: mark in-scope elements and emit their generated CSS so a
  * server-rendered page paints frame 0 with no JavaScript. Runs under any DOM (the vera SSR shim,

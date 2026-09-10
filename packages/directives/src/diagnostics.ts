@@ -256,8 +256,8 @@ export const PROSE: Record<string, Prose> = {
     `${where}: must be a positive length — zero and negatives are invalid CSS, and an invalid ` +
     'perspective() silently kills the whole transform.',
   ],
-  'motion-setting-tick': (where) => [
-    `${where}: is not a registered tick's NAME — bare identifier, no parentheses, never code.`,
+  'motion-setting-function': (where) => [
+    `${where}: is not a registered function's NAME — bare identifier, no parentheses, never code.`,
   ],
   'motion-setting-module-refused': (where) => [`${where}: was refused by the module that owns it.`],
   'motion-band-suffix-retired': (property, band) => [
@@ -294,19 +294,19 @@ export const PROSE: Record<string, Prose> = {
   'motion-no-keyframes': (where) => [`${where ? `${where}: ` : ''}no keyframes.`],
   'motion-too-many-bands': (where, cap) => [`${where ? `${where}: ` : ''}more than ${cap} bands.`],
   'motion-too-many-keyframes': (where, cap) => [`${where ? `${where}: ` : ''}more than ${cap} keyframes.`],
-  'motion-tick-unknown': (name) => [
-    `tick: '${name}' names no registered tick.`,
-    `Register it from page code, before elements activate: wireTicks({ ${name}: (el, p) => { … } }).`,
+  'motion-function-unknown': (name) => [
+    `function: '${name}' names no registered function.`,
+    `Register it from page code, before elements activate: wireFunctions({ ${name}: (el, p) => { … } }).`,
   ],
-  'motion-tick-threw': (name, error) => [
-    `tick '${name}' threw and is disabled for this element. ${error}`,
+  'motion-function-threw': (name, error) => [
+    `function '${name}' threw and is disabled for this element. ${error}`,
   ],
-  'motion-tick-redefined': (name) => [
-    `wireTicks: '${name}' is already registered; the first registration wins.`,
-    'Rename one of them — a silent override would leave one module believing its tick runs.',
+  'motion-function-redefined': (name) => [
+    `wireFunctions: '${name}' is already registered; the first registration wins.`,
+    'Rename one of them — a silent override would leave one module believing its function runs.',
   ],
-  'motion-tick-not-function': (name, kind) => [
-    `wireTicks: '${name}' is ${kind}, not a function or a { tick, setup } module; ignoring it.`,
+  'motion-function-not-function': (name, kind) => [
+    `wireFunctions: '${name}' is ${kind}, not a function or a { run, setup } module; ignoring it.`,
   ],
   'motion-sequence-refused': (why) => [why],
   'motion-perspective-bad': (perspective) => [
@@ -334,14 +334,14 @@ export const PROSE: Record<string, Prose> = {
   'motion-stagger-no-descendants': () => [
     'stagger needs animated descendants — it goes on the parent.',
   ],
-  'motion-region-on-member': () => [
-    'motion-region configures a REGION for descendants; the element carrying it animates in the region above.',
+  'motion-group-on-member': () => [
+    'motion-group configures a REGION for descendants; the element carrying it animates in the region above.',
   ],
-  'motion-region-not-object': () => ['motion-region takes a braced object.'],
-  'motion-region-parse-failed': (detail) => [`motion-region could not parse: ${detail}`],
-  'motion-region-axis': (key) => [`motion-region ${key}: is 'vertical' or 'horizontal'.`],
-  'motion-region-scroller': (key) => [`motion-region ${key}: is a selector matching one element on the page.`],
-  'motion-region-duration': (key) => [`motion-region ${key}: must be a number from 0 to 3600.`],
+  'motion-group-not-object': () => ['motion-group takes a braced object.'],
+  'motion-group-parse-failed': (detail) => [`motion-group could not parse: ${detail}`],
+  'motion-group-axis': (key) => [`motion-group ${key}: is 'vertical' or 'horizontal'.`],
+  'motion-group-scroller': (key) => [`motion-group ${key}: is a selector matching one element on the page.`],
+  'motion-group-duration': (key) => [`motion-group ${key}: must be a number from 0 to 3600.`],
   'motion-breakpoint-unusable': (name) => [`breakpoint ${name} is not a usable [min, max]; ignoring it.`],
   'motion-unknown-option': (key) => [`motion() was given "${key}", which is not an option this pack has.`],
   'motion-option-not-boolean': (key, given) => [`${key} must be true or false, not ${given}; using the default.`],

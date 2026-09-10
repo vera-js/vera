@@ -1165,12 +1165,12 @@
   },
   {
    "name": "tick refuses while the door is unwired",
-   "raw": "{ keyframes: { opacity: '0, 1' }, tick: 'sequence' }",
+   "raw": "{ keyframes: { opacity: '0, 1' }, function: 'sequence' }",
    "engines": {
     "omni": {
      "rejected": [
       {
-       "code": "motion-tick-unknown",
+       "code": "motion-function-unknown",
        "where": "tick"
       },
       {
