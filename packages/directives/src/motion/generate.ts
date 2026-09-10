@@ -36,6 +36,13 @@ export interface Generated {
   readonly varName: string;
   /** The element's own declarations: the paused animation, seeked by the progress property. */
   readonly elementStyle: string;
+  /**
+   * The same declarations as a SHEET RULE on the doubled-attribute selector — 0-2-0, beating an
+   * author's single-class tie for free — which is what lets bands and easing groups switch
+   * `animation-name` under `@media`. `elementStyle` stays for consumers that inline (the parity
+   * twin); the runtime delivers THIS.
+   */
+  readonly elementRule: string;
 }
 
 /** Linear value of one animation at `position`, clamped at the authored ends — the same math
@@ -142,6 +149,9 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
      * else here changes.
      */
     varName,
+    elementRule:
+      `[data-vd-a="${hash}"][data-vd-a] { animation: ${name} 1s ${eased ?? 'linear'} both paused; ` +
+      `animation-delay: calc(var(${varName}, 0) * -1s); }`,
     elementStyle:
       `animation: ${name} 1s ${eased ?? 'linear'} both paused; ` +
       `animation-delay: calc(var(${varName}, 0) * -1s);`,

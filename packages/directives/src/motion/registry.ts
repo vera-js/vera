@@ -157,7 +157,22 @@ let usable: boolean | null = null;
 const fallbackStyles = new WeakSet<SheetRoot>();
 const fallbackRoots: (WeakRef<SheetRoot>)[] = [];
 
-const fallbackText = (): string => order.map((hash) => entries.get(hash)!.cssText).join('\n');
+/**
+ * The pinned TAIL — the `(scripting: none)` neutraliser. Its whole design is being LAST in the
+ * sheet so specificity-tied rules lose to it on order; every later insert would unseat a plain
+ * append, so the registry owns the pinning: inserts land BEFORE the tail, and the fallback text
+ * appends it after everything.
+ */
+let tail: string | null = null;
+export const setTail = (cssText: string): void => {
+  if (tail === cssText) return;
+  tail = cssText;
+  if (usable && shared) shared.insertRule(cssText, shared.cssRules.length);
+  else refreshFallbacks();
+};
+
+const fallbackText = (): string =>
+  order.map((hash) => entries.get(hash)!.cssText).join('\n') + (tail ? `\n${tail}` : '');
 
 /**
  * Realm-free document test (CODE-PRINCIPLES: derive from the node, never the module global).
@@ -214,7 +229,8 @@ export const acquire = (root: SheetRoot, hash: string, cssText: string): void =>
     order.push(hash);
     if (usable) {
       shared ??= new CSSStyleSheet();
-      shared.insertRule(cssText, shared.cssRules.length);
+      /** Before the tail, always — the tail’s position IS its function. */
+      shared.insertRule(cssText, shared.cssRules.length - (tail ? 1 : 0));
     }
   }
 

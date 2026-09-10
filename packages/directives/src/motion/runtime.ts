@@ -12,7 +12,7 @@ import { getElementSize, getWindowSize, displacementOf } from './dom.js';
 import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
 import { generateSimple } from './generate.js';
 import { staggerHost } from './parse.js';
-import { acquire, release, ensureProperty } from './registry.js';
+import { acquire, release, ensureProperty, setTail } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
 
@@ -962,9 +962,19 @@ export const createRuntimeElement = (
   let generated: RuntimeElement['generated'] = null;
   if (generatedCss) {
     ensureProperty(generatedCss.varName, node);
-    acquire(node.getRootNode() as SheetRoot, generatedCss.hash, generatedCss.keyframesRule);
-    /** Appended, not assigned: the author's own inline styles are not ours to clobber. */
-    node.style.cssText += `; ${generatedCss.elementStyle}`;
+    const sheetRoot = node.getRootNode() as SheetRoot;
+    acquire(sheetRoot, generatedCss.hash, generatedCss.keyframesRule);
+    /** The element’s declarations are SHEET RULES now (bands switch animation-name under
+     *  @media, which inline cannot carry), counted under a derived key so the pair lives and
+     *  dies together. */
+    acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
+    /**
+     * The no-JS guard, INVERTED — a neutraliser pinned last, never a gate: gating on
+     * `(scripting: enabled)` kills all motion on engines predating the feature (unknown media
+     * feature → query false), which is every older browser WITH JavaScript. Neutralised under
+     * `(scripting: none)`, the stranded corner shrinks to old-browser-AND-no-JS.
+     */
+    setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
     /**
      * The mark, AFTER acquire — the invariant. It is the observable "this element rides the
      * generated path": devtools reads it, the suites read it (jsdom drops the `animation`
@@ -1545,9 +1555,8 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
   if (element.generated) {
     /** Count out, stop the clock, strip the marks — the loop must never hold a removed element. */
     release(element.generated.hash);
+    release(`${element.generated.hash}#el`);
     dispose(element.generated.drive);
-    node.style.animation = '';
-    node.style.animationDelay = '';
     node.style.removeProperty(element.generated.drive.varName);
     node.removeAttribute('data-vd-a');
   }

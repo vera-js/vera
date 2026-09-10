@@ -275,8 +275,12 @@ test('an unwired pack key names the PACK, and the literal map cannot drift from 
    */
   const half = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, frame-url: 'seq/' }">x</div>`);
   const halfReasons = rejections(half.querySelector('div'));
-  assert.ok(halfReasons.some((r) => r.code === 'motion-pack-unwired' && /sequence/.test(r.message ?? 'sequence')),
-    'an unwired pack SETTING refuses like its property, naming the pack');
+  assert.ok(halfReasons.some((r) => r.code === 'motion-pack-unwired'),
+    'an unwired pack SETTING refuses like its property');
+  if (!isProduction) {
+    /** Prod folds prose to the empty string — a ?? fallback never fires on ''. Guard, not coalesce. */
+    assert.ok(halfReasons.some((r) => /sequence/.test(r.message)), 'naming the pack');
+  }
   half.remove();
   await settled();
   if (!isProduction) {

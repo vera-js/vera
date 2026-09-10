@@ -238,3 +238,41 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
   expect(toSwept, 'unambiguously the sweep, not endpoint interpolation')
     .to.be.below(Math.abs(seenOpacity - endpoint));
 });
+
+/* ── stage 5 prerequisite: sheet-rule delivery's two cascade claims ──────────────────────────── */
+
+it('the neutraliser tail stays LAST through later inserts, and its guard is inert with JS on', async () => {
+  keyframeRegistry.setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
+  const before = contentHash(RULE) + Math.random().toString(36).slice(2);
+  acquire(document, before, `@keyframes vd-tail-probe { 0% { opacity: 0.5 } 100% { opacity: 0.5 } }`);
+  const sheet = document.adoptedStyleSheets.at(-1);
+  const last = sheet.cssRules[sheet.cssRules.length - 1];
+  /** Position IS the function: a specificity-tied override must lose to it on order alone. */
+  expect(last.cssText, 'the tail out-lasts inserts that arrive after it').to.include('scripting: none');
+  release(before);
+});
+
+it('the doubled-attribute rule beats an author class tie', async () => {
+  const css = '@keyframes vd-spec { 0% { opacity: 0.25 } 100% { opacity: 0.25 } }';
+  const hash = contentHash(css);
+  acquire(document, hash, css);
+  acquire(document, `${hash}#el`,
+    `[data-vd-a="${hash}"][data-vd-a] { animation: vd-spec 1s linear both paused; ` +
+    `animation-delay: calc(var(--vd-p, 0) * -1s); }`);
+
+  /** The author's competing single-class rule, added LATER — order would favour it on a tie. */
+  const author = document.createElement('style');
+  author.textContent = '.card { animation: none; }';
+  document.head.appendChild(author);
+
+  const el = host();
+  el.className = 'card';
+  el.setAttribute('data-vd-a', hash);
+  await frame();
+  expect(Number(getComputedStyle(el).opacity), '0-2-0 wins where 0-1-0 would tie and lose on order')
+    .to.be.closeTo(0.25, 0.01);
+
+  author.remove();
+  release(hash);
+  release(`${hash}#el`);
+});
