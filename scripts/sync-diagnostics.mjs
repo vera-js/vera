@@ -76,15 +76,49 @@ const payloads = [
  */
 const { PROPERTIES, SETTINGS } = await import('../packages/directives/src/motion/schema.ts');
 const { PRESETS } = await import('../packages/directives/src/motion/presets.ts');
+/** From the BUILT bundle: the pack modules carry runtime imports Node's type-stripper cannot
+ *  follow from source (it strips types but never rewrites `./x.js` specifiers). The gate builds
+ *  before it checks diagnostics, so the artifact is always fresher than this read. */
+const { paintRows, pathRows, sequenceRows } =
+  await import('../packages/directives/dist/development/vera-directives-motion.js');
 const VOCAB_OUT = new URL('../packages/directives/motion-vocabulary.json', import.meta.url);
+
+/**
+ * `cssFunction`/`cssProperty` are INCLUDED on purpose, second thoughts overruled: which CSS a key
+ * lands in (`opacity` → `filter: opacity()`) is observable surface a conforming generator must
+ * reproduce — reading the `opacity` PROPERTY where the rule animates `filter` cost this repo a
+ * day-long phantom WebKit hunt. Pack rows ride along flagged by `pack`, so a consumer can say
+ * "pack not enabled" instead of "unknown property". Row-shaped pack entries only; insert hooks are
+ * implementation.
+ */
+const packRow = (pack) => (row) => ({ pack, row });
+const flat = (tree) => [tree].flat(Infinity).filter((one) => one && typeof one === 'object' && 'key' in one);
+const packRows = [
+  ...flat(paintRows).map(packRow('paint')),
+  ...flat(pathRows).map(packRow('path')),
+  ...flat(sequenceRows({})).map(packRow('sequence')),
+];
+const propertyJson = ({ key, category, cssFunction, cssProperty, defaultUnit, units, min, max, initial, discrete }, pack) =>
+  ({ key, category, ...(cssFunction ? { cssFunction } : {}), ...(cssProperty ? { cssProperty } : {}),
+     defaultUnit, units, ...(min !== undefined ? { min } : {}),
+     ...(max !== undefined ? { max } : {}), initial, ...(discrete ? { discrete } : {}),
+     ...(pack ? { pack } : {}) });
 const vocabulary = {
-  properties: PROPERTIES.map(({ key, category, defaultUnit, units, min, max, initial, discrete }) =>
-    ({ key, category, defaultUnit, units, ...(min !== undefined ? { min } : {}),
-       ...(max !== undefined ? { max } : {}), initial, ...(discrete ? { discrete } : {}) })),
-  settings: SETTINGS.map(({ key, type, min, max, allowed }) =>
-    ({ key, type, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}),
-       ...(allowed ? { allowed } : {}) })),
+  properties: [
+    ...PROPERTIES.map((row) => propertyJson(row)),
+    ...packRows.filter(({ row }) => 'category' in row).map(({ pack, row }) => propertyJson(row, pack)),
+  ],
+  settings: [
+    ...SETTINGS.map(({ key, type, min, max, allowed }) =>
+      ({ key, type, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}),
+         ...(allowed ? { allowed } : {}) })),
+    ...packRows.filter(({ row }) => 'type' in row && !('category' in row))
+      .map(({ pack, row }) => ({ key: row.key, type: row.type, pack })),
+  ],
   presets: Object.keys(PRESETS).sort(),
+  /** Full bodies, not just names — a preset is a motion value with a name, and a conforming
+   *  implementation expands the same value. */
+  presetDefinitions: PRESETS,
 };
 const vocabJson = `${JSON.stringify(vocabulary, null, 2)}\n`;
 

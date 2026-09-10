@@ -507,6 +507,10 @@ export const split = splitDirective;
  */
 export * as keyframeRegistry from './registry.js';
 export * as writePath from './generate.js';
+/** Row tables for the vocabulary ARTIFACT generator only — data, not API; the connectors above are
+ *  the way packs are wired. Exported so `sync-diagnostics.mjs` reads rows from the BUILT bundle,
+ *  where Node's source-loader cannot follow the packs' runtime imports. */
+export { paintRows, pathRows, sequenceRows };
 export { parsePathData } from './path.js';
 
 export { enableMotion, disableMotion, runInserts };

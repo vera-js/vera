@@ -3,6 +3,7 @@
     {
       "key": "translate-x",
       "category": "transform",
+      "cssFunction": "translateX",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -17,6 +18,7 @@
     {
       "key": "translate-y",
       "category": "transform",
+      "cssFunction": "translateY",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -31,6 +33,7 @@
     {
       "key": "translate-z",
       "category": "transform",
+      "cssFunction": "translateZ",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -45,6 +48,7 @@
     {
       "key": "rotate",
       "category": "transform",
+      "cssFunction": "rotate",
       "defaultUnit": "deg",
       "units": [
         "deg"
@@ -54,6 +58,7 @@
     {
       "key": "rotate-x",
       "category": "transform",
+      "cssFunction": "rotateX",
       "defaultUnit": "deg",
       "units": [
         "deg"
@@ -63,6 +68,7 @@
     {
       "key": "rotate-y",
       "category": "transform",
+      "cssFunction": "rotateY",
       "defaultUnit": "deg",
       "units": [
         "deg"
@@ -72,6 +78,7 @@
     {
       "key": "scale",
       "category": "transform",
+      "cssFunction": "scale",
       "defaultUnit": "",
       "units": [
         ""
@@ -82,6 +89,7 @@
     {
       "key": "scale-x",
       "category": "transform",
+      "cssFunction": "scaleX",
       "defaultUnit": "",
       "units": [
         ""
@@ -92,6 +100,7 @@
     {
       "key": "scale-y",
       "category": "transform",
+      "cssFunction": "scaleY",
       "defaultUnit": "",
       "units": [
         ""
@@ -102,6 +111,7 @@
     {
       "key": "skew-x",
       "category": "transform",
+      "cssFunction": "skewX",
       "defaultUnit": "deg",
       "units": [
         "deg"
@@ -111,6 +121,7 @@
     {
       "key": "skew-y",
       "category": "transform",
+      "cssFunction": "skewY",
       "defaultUnit": "deg",
       "units": [
         "deg"
@@ -120,6 +131,7 @@
     {
       "key": "opacity",
       "category": "filter",
+      "cssFunction": "opacity",
       "defaultUnit": "",
       "units": [
         ""
@@ -131,6 +143,7 @@
     {
       "key": "blur",
       "category": "filter",
+      "cssFunction": "blur",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -143,6 +156,7 @@
     {
       "key": "brightness",
       "category": "filter",
+      "cssFunction": "brightness",
       "defaultUnit": "",
       "units": [
         ""
@@ -153,6 +167,7 @@
     {
       "key": "contrast",
       "category": "filter",
+      "cssFunction": "contrast",
       "defaultUnit": "",
       "units": [
         ""
@@ -163,6 +178,7 @@
     {
       "key": "saturate",
       "category": "filter",
+      "cssFunction": "saturate",
       "defaultUnit": "",
       "units": [
         ""
@@ -173,6 +189,7 @@
     {
       "key": "grayscale",
       "category": "filter",
+      "cssFunction": "grayscale",
       "defaultUnit": "",
       "units": [
         ""
@@ -184,6 +201,7 @@
     {
       "key": "radius",
       "category": "border",
+      "cssProperty": "border-radius",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -199,6 +217,7 @@
     {
       "key": "radius-top-left",
       "category": "border",
+      "cssProperty": "border-top-left-radius",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -214,6 +233,7 @@
     {
       "key": "radius-top-right",
       "category": "border",
+      "cssProperty": "border-top-right-radius",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -229,6 +249,7 @@
     {
       "key": "radius-bottom-left",
       "category": "border",
+      "cssProperty": "border-bottom-left-radius",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -244,6 +265,7 @@
     {
       "key": "radius-bottom-right",
       "category": "border",
+      "cssProperty": "border-bottom-right-radius",
       "defaultUnit": "px",
       "units": [
         "px",
@@ -255,6 +277,90 @@
       ],
       "min": 0,
       "initial": 0
+    },
+    {
+      "key": "background",
+      "category": "paint",
+      "cssProperty": "background",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "initial": 0,
+      "discrete": true,
+      "pack": "paint"
+    },
+    {
+      "key": "color",
+      "category": "paint",
+      "cssProperty": "color",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "initial": 0,
+      "discrete": true,
+      "pack": "paint"
+    },
+    {
+      "key": "border-color",
+      "category": "paint",
+      "cssProperty": "border-color",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "initial": 0,
+      "discrete": true,
+      "pack": "paint"
+    },
+    {
+      "key": "shadow",
+      "category": "paint",
+      "cssProperty": "box-shadow",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "initial": 0,
+      "discrete": true,
+      "pack": "paint"
+    },
+    {
+      "key": "text-shadow",
+      "category": "paint",
+      "cssProperty": "text-shadow",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "initial": 0,
+      "discrete": true,
+      "pack": "paint"
+    },
+    {
+      "key": "path",
+      "category": "svgPath",
+      "cssProperty": "offset-distance",
+      "defaultUnit": "%",
+      "units": [
+        "%"
+      ],
+      "min": 0,
+      "max": 100,
+      "initial": 0,
+      "pack": "path"
+    },
+    {
+      "key": "frame",
+      "category": "image",
+      "defaultUnit": "",
+      "units": [
+        ""
+      ],
+      "min": 0,
+      "initial": 0,
+      "pack": "sequence"
     }
   ],
   "settings": [
@@ -329,6 +435,41 @@
     {
       "key": "transform-origin",
       "type": "origin"
+    },
+    {
+      "key": "path-selector",
+      "type": "selector",
+      "pack": "path"
+    },
+    {
+      "key": "path-rotate",
+      "type": "string",
+      "pack": "path"
+    },
+    {
+      "key": "frame-url",
+      "type": "string",
+      "pack": "sequence"
+    },
+    {
+      "key": "frame-count",
+      "type": "number",
+      "pack": "sequence"
+    },
+    {
+      "key": "frame-pad",
+      "type": "number",
+      "pack": "sequence"
+    },
+    {
+      "key": "frame-ext",
+      "type": "string",
+      "pack": "sequence"
+    },
+    {
+      "key": "frame-tween",
+      "type": "boolean",
+      "pack": "sequence"
     }
   ],
   "presets": [
@@ -342,5 +483,84 @@
     "slide-up",
     "zoom-in",
     "zoom-out"
-  ]
+  ],
+  "presetDefinitions": {
+    "fade": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "fade-up": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "translate-y": "0% 40px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "fade-down": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "translate-y": "0% -40px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "fade-left": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "translate-x": "0% 40px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "fade-right": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "translate-x": "0% -40px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "zoom-in": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "scale": "0% 0.8, 100% 1"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "zoom-out": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "scale": "0% 1.2, 100% 1"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "slide-up": {
+      "keyframes": {
+        "translate-y": "0% 100px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "slide-down": {
+      "keyframes": {
+        "translate-y": "0% -100px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    },
+    "blur-in": {
+      "keyframes": {
+        "opacity": "0% 0, 100% 1",
+        "blur": "0% 12px, 100% 0px"
+      },
+      "scroll": "85%",
+      "play": 0.6
+    }
+  }
 }
