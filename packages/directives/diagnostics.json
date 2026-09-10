@@ -683,6 +683,13 @@
       "message": "{where}: is not a transform-origin."
     },
     {
+      "code": "motion-setting-perspective",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: must be a positive length — zero and negatives are invalid CSS, and an invalid perspective() silently kills the whole transform."
+    },
+    {
       "code": "motion-setting-progress",
       "params": [
         "where"

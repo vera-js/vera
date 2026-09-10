@@ -1020,6 +1020,58 @@
    "rejected": [],
    "settings": {},
    "usable": true
+  },
+  {
+   "name": "perspective composes inside transform keyframes (scrub)",
+   "raw": "{ keyframes: { rotate-x: '0% 0deg, 100% 45deg' }, perspective: '800' }",
+   "rejected": [],
+   "settings": {
+    "perspective": "800px"
+   },
+   "usable": true
+  },
+  {
+   "name": "perspective composes in transition mode too",
+   "raw": "{ keyframes: { rotate-y: '0% -30deg, 100% 0deg' }, play: 0.4, perspective: '600' }",
+   "rejected": [],
+   "settings": {
+    "play": 0.4,
+    "perspective": "600px"
+   },
+   "usable": true
+  },
+  {
+   "name": "perspective negative refused (would kill the whole transform)",
+   "raw": "{ keyframes: { rotate-x: '0% 0deg, 100% 45deg' }, perspective: '-100' }",
+   "rejected": [
+    {
+     "code": "motion-setting-perspective",
+     "where": "perspective"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "perspective zero refused",
+   "raw": "{ keyframes: { rotate-x: '0% 0deg, 100% 45deg' }, perspective: 0 }",
+   "rejected": [
+    {
+     "code": "motion-setting-perspective",
+     "where": "perspective"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "perspective gated off 2D-only transforms",
+   "raw": "{ keyframes: { translate-y: '0% 40px, 100% 0px' }, perspective: '800' }",
+   "rejected": [],
+   "settings": {
+    "perspective": "800px"
+   },
+   "usable": true
   }
  ]
 }

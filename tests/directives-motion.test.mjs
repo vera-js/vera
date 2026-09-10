@@ -73,11 +73,13 @@ test('a preset literal activates and writes the composed style at the clamped en
    * point: they prove parse → preset expansion → curve → compose → write.
    */
   assert.ok(animating(el), 'the generated animation is marked on the element');
-  await until(() => progressOf(el) === 1, 'the preset ramp (play: 0.6) completed at the clamped end');
+  /** The shipped presets play from→to, which compiles to TRANSITION mode now: the jsdom surface
+   *  is the marker state, and jsdom's zero geometry puts the threshold behind us — played. */
+  await until(() => el.hasAttribute('data-vera-on'), 'the play entered at the clamped end');
   host.remove();
   await settled();
   assert.ok(!animating(el), 'teardown cleared what it wrote');
-  assert.equal(el.style.getPropertyValue('--vd-p'), '', 'the variable too');
+  assert.equal(el.hasAttribute('data-vera-on'), false, 'the state marker too');
 });
 
 test('an object value with per-property keyframes writes both categories', async () => {
@@ -226,7 +228,8 @@ test('motion-config: a bad axis is refused with the region still working on defa
       <div data-vd-motion="fade">x</div>
     </section>`);
   const el = host.querySelector('div');
-  await until(() => animating(el) && progressOf(el) === 1, 'the member still animates on defaults');
+  await until(() => animating(el) && (el.hasAttribute('data-vera-on') || progressOf(el) === 1),
+    'the member still animates on defaults');
   const reasons = rejections(el);
   assert.ok(reasons.some((r) => r.code === 'motion-region-axis'), 'the config refusal recorded');
   if (!isProduction) assert.ok(reasons.some((r) => /axis/.test(r.message)), 'and names the key');
@@ -260,7 +263,7 @@ test('attribute edits rebuild through the engine, and the run-once latch survive
   el.classList.add('go');
   await settled();
   await frame();
-  await until(() => progressOf(el) === 1, 'played through and latched');
+  await until(() => el.hasAttribute('data-vera-on') || progressOf(el) === 1, 'played through and latched');
   /** Edit the value: the engine tears down and reactivates this directive. */
   /** play: 0 here too — the claim under test is the LATCH surviving the rebuild, and a 0.2s ramp
    *  would still be mid-flight when jsdom's next frame samples it. Duration is the ramp's own
@@ -272,7 +275,8 @@ test('attribute edits rebuild through the engine, and the run-once latch survive
   el.classList.remove('go');
   await settled();
   await frame();
-  await until(() => progressOf(el) === 1, 'latched means latched: the rebuild carried it');
+  await until(() => el.hasAttribute('data-vera-on') || progressOf(el) === 1,
+    'latched means latched: the rebuild carried it');
   host.remove();
   await settled();
 });

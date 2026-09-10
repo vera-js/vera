@@ -938,7 +938,12 @@ scrubbing spreads it across that span, playing runs it at each end.** Each half 
 already a legal single alignment.
 
 **`play` (SECONDS, like `inertia`) makes it a playthrough instead of a scrub** — crossing a threshold
-runs the keyframes over time. One `scroll` half is one line crossed both ways (in going down, out
+runs the keyframes over time. Where transitions can express the value (the common from→to shapes),
+play compiles to CSS TRANSITIONS — the compositor owns the clock, and reversing mid-flight follows
+the platform's reversing algorithm (from the current value, retimed — faster than the forward run,
+and a y>1 curve may reverse-overshoot). Everything else (multi-stop pulses, `progress`/`tick`
+riders, width bands, mixed-shape composites) keeps the linear ramp; the dispatch is compile-time
+and has no authoring surface. One `scroll` half is one line crossed both ways (in going down, out
 coming back up past it); two halves are an entrance and an exit. `run-once` latches after the first
 play. `play` beside `inertia` is refused (same transition); `ease` composes with a play — the clock is
 linear over `play` seconds and the easing reshapes each segment as it is swept, so

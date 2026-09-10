@@ -71,6 +71,33 @@ export interface Generated {
   /** The MARKER — content hash over the whole identity (groups × segments), the `data-vd-a` value. */
   readonly hash: string;
   /**
+   * How this element is DRIVEN. `seek`: the paused-animation delay-seek, one number per frame
+   * (scrub, and play's ramp fallback). `transition`: play emission as CSS transitions — base
+   * declarations plus an active state toggled by ONE attribute flip, the compositor owning the
+   * clock and reversal following the platform's reversing algorithm (ratified: retimed,
+   * curve-mirrored, may reverse-overshoot). Dispatch is compile-time with no authoring surface.
+   */
+  readonly mode: 'seek' | 'transition';
+  /** Transition mode only: the ACTIVE state's declarations, empty otherwise. Enters the sheet
+   *  AFTER the base rule — they tie on specificity, and order is the tiebreak. */
+  readonly activeRule: string;
+  /**
+   * Transition mode only: the transition LONGHANDS, under the ARMED marker (`data-vera-t`) —
+   * separate from the base on purpose, measured: rules injected at ACTIVATION time arrive as a
+   * style change, so longhands living on the base rule animate every element in from its
+   * natural state (0.91 sampled en route to a 0.1 base). The runtime arms one frame after base
+   * paints; the server pre-arms in markup, where first paint already has base and no change
+   * ever fires.
+   */
+  readonly armedRule: string;
+  /**
+   * Transition mode only: active values under `@media (scripting: none)` with `transition:
+   * none` — the no-JS story INVERTED for transitions (omni's shape, mirrored): the base state
+   * is the hidden one, no JS ever flips the marker, so a no-JS visitor gets the END state
+   * statically and the content is readable.
+   */
+  readonly noJsRule: string;
+  /**
    * Easing groups, author order. One group is the common case; a value whose properties carry
    * their own `ease`, or whose categories smooth at their own `inertia`, splits — `animation-name`
    * takes a list, and each group is one entry with its own timing function and seek variable.
@@ -255,7 +282,137 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    * silently opened.) It has no independent-property spelling, so it refuses the flip.
    */
   const perspective = parsed.settings['perspective'];
-  const transformPrefix = perspective !== undefined ? `perspective(${perspective}) ` : '';
+  /** GATED on a 3D member: with only 2D functions after it, perspective() is visually inert —
+   *  noise bytes and a rendering-context trigger for nothing. (Parity-agreed with omni; both
+   *  emissions carry this gate.) */
+  const wantsDepth = parsed.animations.some((a) =>
+    a.property.key === 'translate-z' || a.property.key === 'rotate-x' || a.property.key === 'rotate-y');
+  const transformPrefix = perspective !== undefined && wantsDepth ? `perspective(${perspective}) ` : '';
+
+  /* ── TRANSITION-MODE PLAY (compile-time dispatch, no authoring surface) ──────────────────────
+   *
+   * A play whose value CSS transitions can express skips keyframes entirely: base declarations
+   * plus an active state, one attribute flip, the compositor owning the clock (measured: under
+   * main-thread load at scale, transitions held vsync where the ramp dropped to ~26fps — the
+   * jank harness in the decision log). The RAMP FALLBACK stays for what transitions cannot
+   * carry: progress/tick riders (no live number exists during a transition), pulse shapes
+   * (first==last — no net change, nothing fires), width bands and geometry positions (v1),
+   * per-category smoothing, and any multi-member target mixing shapes (refuse-don't-distort).
+   * Dispatch matrix is parity-agreed with omni's shipped v1.
+   */
+  const transitionEmission = ((): Generated | null => {
+    const play = parsed.settings['play'];
+    if (typeof play !== 'number') return null;
+    if (typeof parsed.settings['tick'] === 'string' || parsed.settings['progress'] !== undefined) return null;
+    if (wantsTransformVar || wantsFilterVar) return null;
+    if (!parsed.animations.length) return null;
+    for (const a of parsed.animations) {
+      if (a.bands.length) return null;
+      if (a.keyframes.some((f) => f.positionUnit !== '%')) return null;
+    }
+
+    /** Targets: the CSS property each member writes — transform and filter composite. */
+    const buckets = new Map<string, ElementMotion[]>();
+    for (const member of parsed.animations) {
+      const target = member.property.category === 'transform' ? 'transform'
+        : member.property.category === 'filter' ? 'filter'
+        : member.property.cssProperty!;
+      const bucket = buckets.get(target);
+      if (bucket) bucket.push(member);
+      else buckets.set(target, [member]);
+    }
+
+    const plainMember = (m: ElementMotion): boolean =>
+      m.keyframes.length <= 2 &&
+      m.keyframes.every((f) => f.position === 0 || f.position === 100);
+
+    const at = (m: ElementMotion, stop: number): number => valueAtFrames(m.keyframes, stop);
+    const composedAt = (target: string, members: ElementMotion[], stop: number): string => {
+      if (target === 'transform') {
+        const sorted = sortForApply(members);
+        return `${transformPrefix}${composeTransform(
+          { animations: sorted, values: sorted.map((m) => at(m, stop)) })}`;
+      }
+      if (target === 'filter') {
+        const sorted = sortForApply(members);
+        return composeFilter({ animations: sorted, values: sorted.map((m) => at(m, stop)) });
+      }
+      const m = members[0]!;
+      if (m.property.parseText) {
+        const frame = stop === 0 ? m.keyframes[0]! : m.keyframes[m.keyframes.length - 1]!;
+        return frame.text ?? '';
+      }
+      return `${format(at(m, stop))}${m.unit}`;
+    };
+
+    /** The synthesized easing: a shaped member's value trajectory as linear() control points —
+     *  normalised (v−v0)/(vN−v0), overshoot legal, ends pinned at 0% and 100%. LONGHAND
+     *  emission only: the shorthand carrying linear() diverges across engines (measured). */
+    const linearFor = (m: ElementMotion): string | null => {
+      const frames = [...m.keyframes].sort((x, y) => x.position - y.position);
+      const v0 = frames[0]!.value;
+      const vN = frames[frames.length - 1]!.value;
+      if (v0 === vN) return null;
+      const points = frames.map((f) =>
+        `${format((f.value - v0) / (vN - v0))} ${format(f.position)}%`);
+      if (frames[0]!.position > 0) points.unshift(`0 0%`);
+      if (frames[frames.length - 1]!.position < 100) points.push(`1 100%`);
+      return `linear(${points.join(', ')})`;
+    };
+
+    const targets: { property: string; base: string; active: string; timing: string }[] = [];
+    for (const [target, members] of buckets) {
+      let timing: string | null;
+      if (members.length === 1) {
+        const m = members[0]!;
+        if (m.property.parseText && !plainMember(m)) return null;
+        timing = plainMember(m)
+          ? (m.ease ?? elementEase)
+          : linearFor(m);
+        if (timing === null) return null;
+      } else {
+        /** Multi-member composite: every member strict from→to and ONE agreed timing, or the
+         *  ramp keeps it — a shaped member's curve smeared over co-members is the distortion
+         *  both engines refuse. */
+        if (!members.every(plainMember)) return null;
+        const eases = new Set(members.map((m) => m.ease ?? elementEase));
+        if (eases.size > 1) return null;
+        timing = [...eases][0]!;
+      }
+      const baseValue = composedAt(target, members, 0);
+      const activeValue = composedAt(target, members, 100);
+      if (baseValue === activeValue) return null;
+      targets.push({ property: target, base: baseValue, active: activeValue, timing });
+    }
+    if (!targets.length) return null;
+
+    const baseDecls = targets.map((t) => `${t.property}: ${t.base};`).join(' ');
+    const activeDecls = targets.map((t) => `${t.property}: ${t.active};`).join(' ');
+    const longhands =
+      `transition-property: ${targets.map((t) => t.property).join(', ')}; ` +
+      `transition-duration: ${targets.map(() => `${format(play)}s`).join(', ')}; ` +
+      `transition-timing-function: ${targets.map((t) => t.timing).join(', ')};`;
+    const hash = contentHash(`${baseDecls} ${longhands}||${activeDecls}`);
+
+    return {
+      hash,
+      mode: 'transition',
+      groups: [],
+      segments: [],
+      vars: [],
+      varName: PROGRESS_PROPERTY,
+      elementStyle: '',
+      elementRule:
+        `[data-vd-a="${hash}"][data-vd-a] { ${baseDecls} }`,
+      armedRule:
+        `[data-vd-a="${hash}"][data-vera-t] { ${longhands} }`,
+      activeRule:
+        `[data-vd-a="${hash}"][data-vera-on] { ${activeDecls} }`,
+      noJsRule:
+        `@media (scripting: none) { [data-vd-a="${hash}"][data-vd-a] { ${activeDecls} transition: none; } }`,
+    };
+  })();
+  if (transitionEmission) return transitionEmission;
 
   const transformMembers = parsed.animations.filter((a) => a.property.category === 'transform');
   const flip = new Set(transformMembers.map((a) => keyOf.get(a)!)).size > 1;
@@ -508,6 +665,10 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
 
   return {
     hash,
+    mode: 'seek',
+    activeRule: '',
+    armedRule: '',
+    noJsRule: '',
     groups: generatedGroups,
     segments,
     vars,

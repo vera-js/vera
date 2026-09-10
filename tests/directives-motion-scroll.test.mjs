@@ -46,7 +46,13 @@ const at = async (attr, top = 100) => {
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
 const progressOf = (el) => Number(el.style.getPropertyValue('--vd-p'));
 const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
-const opacity = (el) => { const v = progressOf(el); return Number.isFinite(v) ? String(Math.min(1, Math.max(0, v))) : undefined; };
+const opacity = (el) => {
+  /** Transition-mode play (the K fixture from→to compiles to it) has NO variable — its jsdom
+   *  surface is the marker state: on = the authored end, off = the start. Seek elements keep
+   *  the variable read. jsdom evaluates neither animation nor transition VALUES; both reads
+   *  are the honest surface, and value truth is the browser suites'. */
+  if (el.hasAttribute('data-vera-t')) return el.hasAttribute('data-vera-on') ? '1' : '0';
+  const v = progressOf(el); return Number.isFinite(v) ? String(Math.min(1, Math.max(0, v))) : undefined; };
 
 test('the long form of scroll reproduces the defaults exactly', async () => {
   const written = await at(`{ ${K}, scroll: 'top bottom, bottom top' }`);

@@ -204,6 +204,57 @@ it('paint blends natively (8c): red→blue reads MIXED mid-scroll, not stepped',
   expect(rgb[2], 'blue is arriving').to.be.above(40).and.below(230);
 });
 
+it('transition-mode play: the compositor animates, reverses from current, and linear() overshoots', async function () {
+  this.timeout(15000);
+  const host = page(`
+    <div id="t" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, scroll: '50%', play: 0.5 }" style="height:40px">x</div>
+    <div id="o" data-vd-motion="{ keyframes: { translate-y: '0% 24px, 70% -12px, 100% 0px' }, scroll: '50%', play: 0.5 }" style="height:40px">x</div>`);
+  const t = host.querySelector('#t');
+  const o = host.querySelector('#o');
+  await scrollTo(0);
+  await settle();
+  expect(t.hasAttribute('data-vera-on'), 'below the line: resting').to.equal(false);
+  expect(opacityOf(t), 'base paints, no entry flash').to.be.closeTo(0.1, 0.02);
+
+  /** Cross the line: the marker flips and the compositor owns the next 500ms. */
+  await scrollTo(t.offsetTop);
+  let sawMid = false;
+  let sawOvershoot = false;
+  const t0 = performance.now();
+  while (performance.now() - t0 < 1200) {
+    await new Promise((r) => requestAnimationFrame(r));
+    const v = opacityOf(t);
+    if (v > 0.25 && v < 0.75) sawMid = true;
+    const tf = getComputedStyle(o).transform;
+    if (tf !== 'none' && new DOMMatrix(tf).m42 < -2) sawOvershoot = true;
+  }
+  expect(t.hasAttribute('data-vera-on'), 'entered: one attribute flip IS the driver').to.equal(true);
+  expect(sawMid, 'the transition PASSED THROUGH the mid-range — animated, not snapped').to.equal(true);
+  expect(opacityOf(t), 'and landed on the authored end').to.be.closeTo(0.9, 0.02);
+  expect(sawOvershoot, 'the synthesized linear() carried the dip PAST the resting value').to.equal(true);
+
+  /** Reverse mid-flight: back above the line partway through a fresh run — the platform
+   *  reverses from the CURRENT value, retimed (the ratified semantics). */
+  await scrollTo(0);
+  await settle();
+  window.scrollTo(0, t.offsetTop);
+  await new Promise((r) => setTimeout(r, 150));
+  const midFlight = opacityOf(t);
+  window.scrollTo(0, 0);
+  await new Promise((r) => requestAnimationFrame(r));
+  await new Promise((r) => requestAnimationFrame(r));
+  const justAfter = opacityOf(t);
+  expect(Math.abs(justAfter - midFlight), 'reversal starts FROM the current value, never an endpoint')
+    .to.be.below(0.2);
+  const t1 = performance.now();
+  let back = false;
+  while (performance.now() - t1 < 2000) {
+    await new Promise((r) => requestAnimationFrame(r));
+    if (Math.abs(opacityOf(t) - 0.1) < 0.02) { back = true; break; }
+  }
+  expect(back, 'and settles back at the start').to.equal(true);
+});
+
 it('teardown returns the element to its natural state with the page scrolled anywhere', async () => {
   const host = page(`<div id="d" data-vd-motion="fade-up" style="height:100px">x</div>`);
   const el = host.querySelector('#d');

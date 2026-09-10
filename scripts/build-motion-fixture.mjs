@@ -41,6 +41,7 @@ doc.body.innerHTML = `
   <div id="preset" data-vd-motion="fade-up">preset</div>
   <div id="grouped" data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' }, translate-y: '0% 80px, 100% 0px' } }">grouped</div>
   <div id="banded" data-vd-motion="{ keyframes: { opacity: '0% 0.6, 100% 0.6; [0-560]: 0% 0.1, 100% 0.1' } }">banded</div>
+  <div id="tplay" data-vd-motion="{ keyframes: { opacity: '0% 0.15, 100% 0.85' }, scroll: '50%', play: 0.4 }">plays</div>
   <div id="group" data-vd-motion="{ stagger: '10%' }">
     <div id="member" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">member</div>
   </div>`;

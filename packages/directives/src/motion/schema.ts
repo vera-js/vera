@@ -328,7 +328,18 @@ export const SETTINGS = [
    * on the element itself, so an author needs no cooperation from the
    * surrounding markup.
    */
-  { key: 'perspective', type: 'length' },
+  /**
+   * Strictly positive by its own parse: `perspective(0)` and negatives are invalid CSS, and an
+   * invalid function silently drops the WHOLE transform declaration — the element loses its
+   * animation with nothing said, which is the worst failure shape this grammar knows. The
+   * setting is the SELF vanishing point (the function form); a shared-scene vanishing point is
+   * the parent's `perspective` property, written as ordinary CSS.
+   */
+  { key: 'perspective', type: 'length', code: 'motion-setting-perspective',
+    parse: (raw) => {
+      const m = /^(\d*\.?\d+)(px|rem|em|vh|vw)?$/.exec(raw.trim());
+      return m && Number(m[1]) > 0 ? `${m[1]}${m[2] ?? 'px'}` : null;
+    } },
   /** Per-category overrides, so one element can move fast and fade slowly. */
   { key: 'transform-inertia', type: 'number', min: 0, max: 3600 },
   { key: 'filter-inertia', type: 'number', min: 0, max: 3600 },

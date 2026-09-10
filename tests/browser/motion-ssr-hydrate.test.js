@@ -41,7 +41,15 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
    *  server, sharing rules with any twin (the offset is a var, not a rule fork). */
   expect(host.querySelector('#member').getAttribute('data-vd-a'),
     'the stagger member paints server-side since 8a').to.equal(MOTION_MARKERS.member);
-  expect(MOTION_REPORT.rendered, 'the fixture really covered the page').to.equal(5);
+  expect(MOTION_REPORT.rendered, 'the fixture really covered the page').to.equal(6);
+
+  /** Transition-mode play arrives PRE-ARMED: base paints with the longhands already legal
+   *  (first paint IS base, so nothing fires), and no seek variable exists for it. */
+  const tplay = host.querySelector('#tplay');
+  expect(tplay.getAttribute('data-vd-a'), 'marked').to.equal(MOTION_MARKERS.tplay);
+  expect(tplay.hasAttribute('data-vera-t'), 'pre-armed in markup').to.equal(true);
+  expect(getComputedStyle(tplay).filter, 'base paints — a play element arrives at its start')
+    .to.match(/opacity\(0\.15/);
 
   /** CLAIM 2 — wire the client on top of the server's page. */
   const { wireDirectives, motion, presets } = await import(

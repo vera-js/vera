@@ -252,6 +252,10 @@ export const PROSE: Record<string, Prose> = {
   'motion-setting-length': (where) => [`${where}: is not a length — use px, rem, em, %, vh or vw.`],
   'motion-setting-number': (where, range) => [`${where}: must be a number${range}.`],
   'motion-setting-progress': (where) => [`${where}: is not a custom property name (--like-this).`],
+  'motion-setting-perspective': (where) => [
+    `${where}: must be a positive length — zero and negatives are invalid CSS, and an invalid ` +
+    'perspective() silently kills the whole transform.',
+  ],
   'motion-setting-tick': (where) => [
     `${where}: is not a registered tick's NAME — bare identifier, no parentheses, never code.`,
   ],

@@ -165,6 +165,9 @@ export interface RuntimeElement {
    */
   generated: {
     readonly hash: string;
+    /** Transition-mode play: the write is ONE attribute flip and the compositor owns the
+     *  clock; no drives run and no variable exists. */
+    readonly transition: boolean;
     /** True when any keyframe position is a LENGTH — those rules are per-geometry-bucket and a
      *  re-measure regenerates them (release old, acquire new, re-mark). Bands are NOT this:
      *  their width switching is @media's job. */
@@ -356,6 +359,17 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
  *  the element rule on specificity, so sheet source order decides). Returns the teardown keys. */
 const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
   const sheetRoot = node.getRootNode() as SheetRoot;
+  /** Transition mode is three rules, ORDER-SENSITIVE: base, then active (they tie on
+   *  specificity — the flip's whole mechanism is the later rule winning while the marker is
+   *  present), then the no-JS block. */
+  if (generatedCss.mode === 'transition') {
+    acquire(sheetRoot, `${generatedCss.hash}#b`, generatedCss.elementRule);
+    acquire(sheetRoot, `${generatedCss.hash}#t`, generatedCss.armedRule);
+    acquire(sheetRoot, `${generatedCss.hash}#on`, generatedCss.activeRule);
+    acquire(sheetRoot, `${generatedCss.hash}#nj`, generatedCss.noJsRule);
+    return [`${generatedCss.hash}#b`, `${generatedCss.hash}#t`,
+      `${generatedCss.hash}#on`, `${generatedCss.hash}#nj`];
+  }
   for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
   for (const segment of generatedCss.segments) {
     for (const rule of segment.rules) acquire(sheetRoot, rule.hash, rule.rule);
@@ -694,12 +708,13 @@ export const createRuntimeElement = (
   let generated: RuntimeElement['generated'] = null;
   let acquiredKeys: string[] = [];
   if (generatedCss) {
-    /** Every seek variable — the base, plus a per-category one per inertia override. */
+    /** Every seek variable — the base, plus a per-category one per inertia override.
+     *  Transition mode has none: no variable, no registration, no drives. */
     for (const v of generatedCss.vars) ensureProperty(v.name, node);
     /** A TICK-ONLY element generated no CSS — zero groups, nothing to deliver — and rides this
      *  path for the drive machinery alone: the same chase, ramp and variable write, aimed at its
      *  function instead of a rule. */
-    if (generatedCss.groups.length) {
+    if (generatedCss.groups.length || generatedCss.mode === 'transition') {
       acquiredKeys = deliverGenerated(node, generatedCss);
       setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
     }
@@ -710,8 +725,22 @@ export const createRuntimeElement = (
      * delivery will select on it.
      */
     node.setAttribute('data-vd-a', generatedCss.hash);
+    /**
+     * ARM the transition only after the BASE state is committed. Activation-time rule injection
+     * is itself a style change, so longhands live at delivery would animate every element in
+     * from its natural state (measured: 0.91 sampled en route to a 0.1 base). The forced read
+     * here makes the engine resolve the un-armed base as its own style state; arming then adds
+     * longhands with no value change, so nothing fires and no frame-race exists — a gate that
+     * matches at activation still snaps to base first, exactly as a server-rendered page does
+     * (which arrives pre-armed, its first paint already base).
+     */
+    if (generatedCss.mode === 'transition' && !node.hasAttribute('data-vera-t')) {
+      void getComputedStyle(node as Element).transitionProperty;
+      node.setAttribute('data-vera-t', '');
+    }
     generated = {
       hash: generatedCss.hash,
+      transition: generatedCss.mode === 'transition',
       geometric: parsed.animations.some((a) =>
         a.keyframes.some((f) => f.positionUnit !== '%') ||
         a.bands.some((b) => b.keyframes.some((f) => f.positionUnit !== '%'))),
@@ -795,6 +824,18 @@ export const animateElement = (element: RuntimeElement): void => {
    * is exactly one way an element animates now.
    */
   if (!element.generated) return;
+  /**
+   * Transition mode's paint IS the marker: position at the end → on, anywhere else → off. ONE
+   * home for the toggle, so every caller's contract holds for free — the play block's crossing,
+   * the gate's rest, and the run-once latch's force-repaint (which burned this in: the latch
+   * short-circuits to animateElement alone, and a rebuilt latched element re-painted NOTHING
+   * until the marker lived here).
+   */
+  if (element.generated.transition) {
+    if (element.timelinePosition >= element.highestEnd) element.node.setAttribute('data-vera-on', '');
+    else element.node.removeAttribute('data-vera-on');
+    return;
+  }
   for (const d of element.generated.drives) {
     syncTo(d.driven, element.timelinePosition, element.generated.play !== null ? 0 : d.tau);
   }
@@ -976,8 +1017,10 @@ export const updateElement = (
     const exited = element.exitAt !== null && win.start >= element.exitAt;
     const target = entered && !exited ? element.highestEnd : element.lowestStart;
     if (!force && target === element.timelinePosition) return;
-    /** The clock, armed before the bookkeeping below — `animateElement`'s sync then defers to it. */
-    if (element.generated) {
+    /** The clock, armed before the bookkeeping below — `animateElement`'s sync then defers to
+     *  it. Transition mode needs no clock at all: the marker flip in `animateElement` is the
+     *  whole driver, and the platform owns the time. */
+    if (element.generated && !element.generated.transition) {
       for (const d of element.generated.drives) rampTo(d.driven, target, element.generated.play ?? 0);
     }
     element.timelinePosition = target;
@@ -1163,6 +1206,8 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     }
     node.style.removeProperty(STAGGER_PROPERTY);
     node.removeAttribute('data-vd-a');
+    node.removeAttribute('data-vera-on');
+    node.removeAttribute('data-vera-t');
   }
   /** The progress property too, or a torn-down element leaves a stale number behind for whatever
    *  CSS was reading it — visible as a bar frozen part-way rather than as nothing at all. */

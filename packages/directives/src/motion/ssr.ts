@@ -76,6 +76,15 @@ const NEUTRALISER = '@media (scripting: none) { [data-vd-a] { animation: none; }
  * decides, and a switch emitted first loses everywhere, silently.
  */
 const collect = (sheet: Sheet, generated: Generated): void => {
+  if (generated.mode === 'transition') {
+    /** Base, active, no-JS — the order IS the mechanism (specificity ties, later wins). A
+     *  no-JS visitor gets the ACTIVE values statically: the base state is the hidden one. */
+    sheet.set(`${generated.hash}#b`, generated.elementRule);
+    sheet.set(`${generated.hash}#t`, generated.armedRule);
+    sheet.set(`${generated.hash}#on`, generated.activeRule);
+    sheet.set(`${generated.hash}#nj`, generated.noJsRule);
+    return;
+  }
   for (const group of generated.groups) sheet.set(group.hash, group.rule);
   for (const segment of generated.segments) {
     for (const rule of segment.rules) sheet.set(rule.hash, rule.rule);
@@ -135,7 +144,7 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
     for (const el of root.querySelectorAll(`[${MOTION_ATTR}]`)) {
       const parsed = parseMotion(el, el.getAttribute(MOTION_ATTR) ?? '', {});
       const generated = parsed ? generateSimple(parsed) : null;
-      if (!generated || !generated.groups.length) {
+      if (!generated || (!generated.groups.length && generated.mode !== 'transition')) {
         skipped++;
         continue;
       }
@@ -153,6 +162,9 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
       collect(sheet, generated);
       for (const v of generated.vars) varNames.add(v.name);
       el.setAttribute('data-vd-a', generated.hash);
+      /** Pre-ARMED on the server: first paint already has base, so no change ever fires and
+       *  the client's arming frame is unnecessary — reversals work from the first script. */
+      if (generated.mode === 'transition') el.setAttribute('data-vera-t', '');
       rendered++;
     }
     for (const el of root.querySelectorAll('*')) {
