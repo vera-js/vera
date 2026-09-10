@@ -1152,7 +1152,7 @@
    "usable": true
   },
   {
-   "name": "retired frame keyframes key is unknown (tick era)",
+   "name": "retired frame keyframes key is unknown (function era)",
    "raw": "{ keyframes: { frame: '0, 120' } }",
    "rejected": [
     {
@@ -1164,14 +1164,14 @@
    "usable": false
   },
   {
-   "name": "tick refuses while the door is unwired",
+   "name": "function refuses while the door is unwired",
    "raw": "{ keyframes: { opacity: '0, 1' }, function: 'sequence' }",
    "engines": {
     "omni": {
      "rejected": [
       {
        "code": "motion-function-unknown",
-       "where": "tick"
+       "where": "function"
       },
       {
        "code": "motion-duplicate-position",
@@ -1181,12 +1181,12 @@
      "settings": {},
      "usable": true,
      "layer": "parse",
-     "note": "no tick door wired — every name is unknown at parse, by construction"
+     "note": "no function door wired — every name is unknown at parse, by construction"
     },
     "vera": {
      "rejected": [],
      "settings": {
-      "tick": "sequence"
+      "function": "sequence"
      },
      "usable": true,
      "layer": "parse",

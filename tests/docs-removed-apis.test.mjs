@@ -54,6 +54,18 @@ const REMOVED = {
   /** Renamed so "directive" means exactly one thing product-wide: the attribute system
    *  (`@verajs/directives`). The renderer's template-protocol extension is an APPLIER. */
   ChildDirective: 'Applier',
+  /** The naming audit (2026-09-10). Machine-emitted names moved to the vm namespace: authors
+   *  write data-vd-* and --vera-*, the machine writes data-vm-* and --vm-*. */
+  'data-vd-a': 'data-vm-motion — machine markers are data-vm-*',
+  'data-vera-sheet': 'data-vm-sheet="motion"',
+  'data-vera-slotted': 'data-vm-slotted',
+  /** The same audit's author-facing renames. */
+  'data-vd-region': 'data-vd-list',
+  'data-vd-measure': 'data-vd-size',
+  'data-vd-motion-region': 'data-vd-motion-group',
+  wireTicks: 'wireFunctions — the settings key is function:',
+  tickFor: 'functionFor',
+  TickModule: 'MotionFunctionModule ({ run, setup })',
 };
 
 /**

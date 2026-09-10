@@ -17,6 +17,16 @@ import { MOTION_CSS, MOTION_BODY, MOTION_MARKERS, MOTION_REPORT } from './fixtur
 
 const frame = () => new Promise((r) => requestAnimationFrame(r));
 
+/**
+ * **Hydrating a server page must be console-silent, and that is an assertion, not a hope.**
+ * The `data-vd-a` marker — since renamed data-vm-motion — sat in the scanned namespace and warned
+ * on every SSR'd page — through weeks of green runs, because this suite checked markers and
+ * variables and never once listened. The accepted-and-inert class, in test form.
+ */
+const warned = [];
+const realWarn = console.warn;
+console.warn = (...args) => { warned.push(args.join(' ')); realWarn(...args); };
+
 it('frame 0 paints from server CSS alone, and the client takes over the same identities', async () => {
   /** The server's page, verbatim — style first, exactly as <head> precedes <body>. */
   const style = document.createElement('style');
@@ -81,4 +91,7 @@ it('frame 0 paints from server CSS alone, and the client takes over the same ide
     '../../packages/directives/dist/development/vera-directives.js');
   expect(rejections().some((r) => r.code === 'motion-progress-property-taken'),
     'declarative @property and API registration coexist').to.equal(false);
+
+  expect(warned.filter((line) => line.includes('[vera]')),
+    'hydrating the server page is console-silent').to.deep.equal([]);
 });

@@ -144,3 +144,25 @@ on it: after a spell inside core it moved out to `@verajs/reactivity/collections
 **type-keyed `'collection'` insert point** — core computes `isSetOrMap` once and only collection
 reads ever reach the chain, which is what makes reactive collections affordable outside core where
 the per-read `'proxy-handler'` walk was not.
+
+## Naming namespaces — who writes what
+
+Every name the framework puts into a page's shared namespaces follows one rule, enforced by the
+naming audit of 2026-09-10:
+
+- **Authors write `data-vd-*` and `--vera-*`.** `data-vd-*` is the directives vocabulary (the
+  engine scans exactly this prefix); `--vera-*` are the published theming variables. Packages
+  with their own authored attributes self-namespace under `data-` with the package word
+  (`data-autoload`, `data-autoload-dir`, `data-autoload-ignore`).
+- **The machine writes `data-vm-*` and `--vm-*`, and an author never does.** Markers
+  (`data-vm-motion`, `data-vm-native`, `data-vm-armed`, `data-vm-on`, `data-vm-slotted`,
+  `data-vm-unassigned`, `data-vm-select`, and the value-discriminated `data-vm-sheet="motion"` /
+  `data-vm-sheet="styles"`), plumbing variables (`--vm-p`, `--vm-s`, `--vm-so`, `--vm-r0`,
+  `--vm-r1`), and generated keyframes names (`vm-<hash>`). The test: if a name appears in an
+  author's code, it is not `vm`. Keeping machine names out of the scanned `data-vd-*` prefix is
+  load-bearing — a marker inside it files an `unknown-directive` refusal on every page
+  (`data-vd-a` did exactly that until this audit).
+- **Events carry the prefix of the package's authored family**, because authors listen for them
+  by name: core/router dispatch `vera:*` (`vera:route-error`, `vera:after-route`), directives
+  dispatch `vd:*` (`vd:motion:active`). Custom element tags are `vera-*`; per-element component
+  attributes are bare, platform-style (`<vera-select multi>`).

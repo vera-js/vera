@@ -9,9 +9,9 @@ component framework where state reaches the DOM as classes. **Omni takes a state
 accepts both languages in one attribute; a leading-character sniff was considered and rejected as
 two condition systems in one key.
 
-## `tick` — the registered-JS door
+## `function` — the registered-JS door
 Vera ships it (stage 6, 2026-09-10): the attribute NAMES a function registered from page code
-(`wireFunctions({ name: fn })`, or `{ tick, setup }` for consumers holding per-element resources) and
+(`wireFunctions({ name: fn })`, or `{ run, setup }` for consumers holding per-element resources) and
 never contains one. Vera's `sequence` is its first consumer — `function: 'sequence'` + `frame-*`
 settings; the `frame` keyframes key is retired. Omni reserves the grammar but defers implementation until its WP-side
 registration surface is designed — a sequencing posture, not a security one (a registry-named

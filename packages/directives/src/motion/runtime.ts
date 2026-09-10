@@ -434,6 +434,14 @@ export const createRuntimeElement = (
    * members misalign under one non-linear ease, and a third-party discrete hold.
    */
   if (!generatedCss) {
+    /**
+     * A GROUP HOST — `{ stagger: '10%' }` with nothing of its own to animate — generates
+     * nothing BY DESIGN: members read their offset through `staggerHost`, and the server counts
+     * the same shape as skipped, silently. It used to fall through to the refusal below and
+     * printed a wrong diagnosis on every page with a stagger group — found by the hydrate
+     * suite's console-silence assertion on its first run.
+     */
+    if (!parsed.animations.length) return null;
     rejectFor('motion-inexpressible', []);
     return null;
   }
