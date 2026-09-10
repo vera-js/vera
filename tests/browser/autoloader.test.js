@@ -33,7 +33,7 @@ const settle = () => new Promise((r) => setTimeout(r, 300));
 
 const host = (html) => {
   const element = document.createElement('div');
-  element.setAttribute('autoloader', '');
+  element.setAttribute('data-autoload', '');
   element.innerHTML = html;
   document.body.appendChild(element);
   return element;
@@ -78,16 +78,16 @@ it('discovers an undefined element and defines it from its module', async () => 
   element.remove();
 });
 
-it('autoload-dir moves one element to another directory inside the base', async () => {
-  const element = host('<alt-widget autoload-dir="alt"></alt-widget>');
+it('data-autoload-dir moves one element to another directory inside the base', async () => {
+  const element = host('<alt-widget data-autoload-dir="alt"></alt-widget>');
   autoloader(entry, 'components')(element);
   await until(() => customElements.get('alt-widget'));
   expect(customElements.get('alt-widget')).to.be.a('function');
   element.remove();
 });
 
-it('an element marked autoload-ignore is left alone', async () => {
-  const element = host('<skipped-widget autoload-ignore></skipped-widget>');
+it('an element marked data-autoload-ignore is left alone', async () => {
+  const element = host('<skipped-widget data-autoload-ignore></skipped-widget>');
   autoloader(entry, 'components')(element);
   await settle();
   expect(customElements.get('skipped-widget')).to.equal(undefined);
@@ -148,7 +148,7 @@ it('autoload() finds markup it was never handed, and only when asked', async () 
 
 /* ── one tag, one module ─────────────────────────────────────────────────────────────────────── */
 /**
- * `<x-y>` and `<x-y autoload-dir="alt">` are two URLs for one tag. Both used to import, and the
+ * `<x-y>` and `<x-y data-autoload-dir="alt">` are two URLs for one tag. Both used to import, and the
  * second module's `customElements.define` threw — reported as a failed load for a component that
  * had loaded fine.
  */
@@ -156,7 +156,7 @@ it('does not fetch a second directory for a tag already being loaded', async () 
   const failures = [];
   const original = console.error;
   console.error = (...args) => failures.push(args.join(' '));
-  const element = host('<dual-widget></dual-widget><dual-widget autoload-dir="alt"></dual-widget>');
+  const element = host('<dual-widget></dual-widget><dual-widget data-autoload-dir="alt"></dual-widget>');
   autoloader(entry, 'components')(element);
   await until(() => customElements.get('dual-widget'));
   await settle();
@@ -188,14 +188,14 @@ it('dispatches vera:autoload-error when a component never arrives', async () => 
 });
 
 /* ── bounding ────────────────────────────────────────────────────────────────────────────────── */
-it('refuses an autoload-dir that resolves outside the entry directory', async () => {
+it('refuses an data-autoload-dir that resolves outside the entry directory', async () => {
   const refused = [];
   const original = console.error;
   console.error = (...args) => refused.push(args.join(' '));
   const element = host(`
-    <esc-one autoload-dir="https://example.invalid/x"></esc-one>
-    <esc-two autoload-dir="//example.invalid/x"></esc-two>
-    <esc-three autoload-dir="../../.."></esc-three>`);
+    <esc-one data-autoload-dir="https://example.invalid/x"></esc-one>
+    <esc-two data-autoload-dir="//example.invalid/x"></esc-two>
+    <esc-three data-autoload-dir="../../.."></esc-three>`);
   autoloader(entry, 'components')(element);
   await until(() => refused.filter((m) => m.includes('refused')).length === 3);
   console.error = original;
@@ -291,7 +291,7 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
 
 /* ── a document is a document before it has a body ───────────────────────────────────────────── */
 /**
- * `autoload()` means "sweep the page for `[autoloader]` hosts". A document used to be recognised by
+ * `autoload()` means "sweep the page for `[data-autoload]` hosts". A document used to be recognised by
  * having a `body`, which is null until the parser reaches it — so the same call from a classic or
  * `async` module script in `<head>` fell through to the branch that watches a *root*, and quietly
  * put a `subtree: true` observer on `document` itself. That is the whole-document shape this module

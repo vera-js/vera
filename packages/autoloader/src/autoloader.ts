@@ -19,7 +19,7 @@ import type { AutoloaderInstance, AutoloaderOptions } from './types.js';
  *
  * @param rootDir The root directory of all components. Should almost always be import.meta.url unless you are using
  * absolute paths
- * @param componentsDir The relative directory from the root directory. If element has an "autoload-dir" attribute, the
+ * @param componentsDir The relative directory from the root directory. If element has an "data-autoload-dir" attribute, the
  * autoloader will read from that first
  * @param options Autoloader options. `extension` sets the file extension appended to the tag name, which lets
  * TypeScript projects autoload `.ts` sources during dev (a dev server will not serve `foo.js` when only `foo.ts`
@@ -65,7 +65,7 @@ export const autoloader = (
 
   /**
    * Every resolved URL must stay inside the entry's own directory. Tag names cannot carry `/`
-   * (the HTML parser won't produce one), but the `autoload-dir` override is free text — and
+   * (the HTML parser won't produce one), but the `data-autoload-dir` override is free text — and
    * CODE-PRINCIPLES #8 requires bounding anything that turns markup into a module URL. An
    * absolute, protocol-relative, or upward-traversing value resolves outside this prefix and is
    * refused.
@@ -96,7 +96,7 @@ export const autoloader = (
   /**
    * Tags already being loaded, which is a different question from URLs already fetched.
    *
-   * `<x-y>` and `<x-y autoload-dir="alt">` are two URLs for one tag. Both used to import, and the
+   * `<x-y>` and `<x-y data-autoload-dir="alt">` are two URLs for one tag. Both used to import, and the
    * second module's `customElements.define('x-y')` threw `NotSupportedError` — surfacing as a
    * "Failed to load" for a component that had in fact loaded. A tag can only be defined once, so
    * the second URL could never have helped. It is released again if the first attempt fails, so a
@@ -120,7 +120,7 @@ export const autoloader = (
   /**
    * Creates the expected element url location to be appended to the root dir.
    *
-   * The per-element override attribute is `autoload-dir` — NOT `dir`, which is HTML's global
+   * The per-element override attribute is `data-autoload-dir` — NOT `dir`, which is HTML's global
    * text-direction attribute (`dir="rtl"` on any i18n page would have silently redirected
    * component loading).
    *
@@ -130,7 +130,7 @@ export const autoloader = (
    * *that*?" — the question this module gets asked most.
    *
    * @param tag The element's name
-   * @param element The element being discovered, when there is one — only it can carry `autoload-dir`
+   * @param element The element being discovered, when there is one — only it can carry `data-autoload-dir`
    * @return The absolute URL this autoloader would fetch
    */
   const url = (tag: string, element?: Element) => {
@@ -141,15 +141,15 @@ export const autoloader = (
      * The default used to be `/`, which built `//tag.js`: a **protocol-relative** URL, so
      * `new URL` read `tag.js` as a *host*. `autoloader(import.meta.url)` — the documented call
      * for components sitting beside the entry, since `componentsDir` is optional — therefore
-     * refused every component it was asked for. `autoload-dir="/"` did the same.
+     * refused every component it was asked for. `data-autoload-dir="/"` did the same.
      */
-    const dir = (element?.getAttribute('autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
+    const dir = (element?.getAttribute('data-autoload-dir') ?? componentsDir ?? '.').replace(/\/+$/, '') || '.';
     const href = new URL(resolve ? resolve(tag, dir) : `${dir}/${tag}${extension}`, rootDir).href;
     /**
      * **`?` and `#` end the path, so a directory cannot contain either.**
      *
      * The default layout builds `${dir}/${tag}${extension}` as text, and URL syntax then reads the
-     * result rather than the intent. `autoload-dir="components?v=2"` — an ordinary cache-buster, and
+     * result rather than the intent. `data-autoload-dir="components?v=2"` — an ordinary cache-buster, and
      * the reason this is a mistake someone makes rather than an attack — resolves to
      * `site/components?v=2/my-widget.js`, so the request goes to `site/components` with the **tag
      * name inside the query string**. The component file is never asked for. `#` is worse: the
@@ -157,7 +157,7 @@ export const autoloader = (
      *
      * That is a wrong module, not a missing one, which is why it is refused rather than left to
      * 404. Containment does not catch it — the URL is genuinely inside the entry's directory, and
-     * `autoload-dir="?"` resolves to the entry file itself, re-importing the whole application under
+     * `data-autoload-dir="?"` resolves to the entry file itself, re-importing the whole application under
      * a URL distinct enough to evaluate a second time.
      *
      * Only the default path is checked. `resolve` replaces URL building entirely and is documented
@@ -167,7 +167,7 @@ export const autoloader = (
     if (!resolve && /[?#]/.test(dir)) {
       const url = new URL(href);
       const refusal = new Error(
-        `[vera] autoloader: refused ${href} for <${tag}> — autoload-dir "${dir}" contains ? or #, ` +
+        `[vera] autoloader: refused ${href} for <${tag}> — data-autoload-dir "${dir}" contains ? or #, ` +
           `which ends the path, so <${tag}> lands in the query or fragment and ` +
           `${url.origin}${url.pathname} would be fetched instead. Use \`resolve\` to add a query.`
       );
@@ -180,7 +180,7 @@ export const autoloader = (
      * The URL parser handles every literal form: `..`, `..\\` and `%2e%2e/` all normalize into
      * genuine traversals that resolve outside `base` and fail the prefix test below — measured,
      * all three. But `%2F` and `%5C` survive resolution as DATA inside one path segment, so
-     * `autoload-dir="..%2F..%2Fuploads"` is textually inside the prefix while naming the exact
+     * `data-autoload-dir="..%2F..%2Fuploads"` is textually inside the prefix while naming the exact
      * traversal a decode-then-resolve server turns real — and on a page whose markup is partly
      * authored elsewhere, that is an attacker importing an uploaded file as a same-origin module.
      * The URL standard is on the server's side here; principle #8 is not interested — this module
@@ -197,9 +197,9 @@ export const autoloader = (
     /**
      * **Containment belongs here, not only at the fetch.**
      *
-     * `autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
+     * `data-autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
      * elsewhere — a CMS, a sanitizer that keeps attributes, a template someone else fills — it is
-     * an input. `autoload-dir="//evil.test"` resolves to a different **origin** entirely, and
+     * an input. `data-autoload-dir="//evil.test"` resolves to a different **origin** entirely, and
      * `..` walks out of the app.
      *
      * `load` always checked. This function is public and documented for preloading — warming a URL
@@ -213,7 +213,7 @@ export const autoloader = (
     if (!href.startsWith(base)) {
       /**
        * The refused URL rides on the error, so discovery can dedupe on it exactly as it dedupes a
-       * fetch. Keying the refusal on the *tag* instead would be wrong: `autoload-dir` is watched
+       * fetch. Keying the refusal on the *tag* instead would be wrong: `data-autoload-dir` is watched
        * precisely so it can be pointed somewhere else after a first attempt failed, and a tag
        * marked spent never looks again.
        */
@@ -238,7 +238,7 @@ export const autoloader = (
     } catch (error) {
       /**
        * Deduped on the refused URL, so it is reported once rather than on every scan — and so
-       * pointing `autoload-dir` at a valid directory afterwards is a different URL and tries.
+       * pointing `data-autoload-dir` at a valid directory afterwards is a different URL and tries.
        */
       const href = (error as Error & { href?: string }).href;
       if (href !== undefined) {
@@ -304,7 +304,7 @@ export const autoloader = (
 
   /** Loads one candidate, unless it has opted out. */
   const consider = (element: Element) => {
-    if (element.getAttribute('autoload-ignore') == null) load(element, element.localName);
+    if (element.getAttribute('data-autoload-ignore') == null) load(element, element.localName);
   };
 
   /**
@@ -337,14 +337,14 @@ export const autoloader = (
       for (const record of records) {
         /**
          * The three attributes are as much a part of discovery as insertion is. `autoloader` can be
-         * put on a component that only becomes a lazy host once some state flips; `autoload-dir` can
-         * be pointed somewhere else after a first attempt failed; `autoload-ignore` can be lifted.
+         * put on a component that only becomes a lazy host once some state flips; `data-autoload-dir` can
+         * be pointed somewhere else after a first attempt failed; `data-autoload-ignore` can be lifted.
          * Without watching them, all three needed the element to be inserted again before anything
          * noticed, which is not a thing that happens.
          */
         if (record.type === 'attributes') {
           const target = record.target as Element;
-          if (record.attributeName === 'autoloader') watch(target);
+          if (record.attributeName === 'data-autoload') watch(target);
           else consider(target);
           continue;
         }
@@ -388,7 +388,7 @@ export const autoloader = (
      * document, and nothing said it had happened. `nodeType` is 9 from the moment the document is.
      */
     if ((target as Document).nodeType === 9)
-      return (target as Document).querySelectorAll('[autoloader]').forEach((el) => watch(el));
+      return (target as Document).querySelectorAll('[data-autoload]').forEach((el) => watch(el));
     let root = target as Element | ShadowRoot;
     /**
      * An `Element` has to opt in; a `ShadowRoot` handed over directly does not, because handing it
@@ -397,8 +397,8 @@ export const autoloader = (
      */
     if ((target as Element).getAttribute) {
       const element = target as Element;
-      if (element.getAttribute('autoloader') == null) return;
-      if (element.getAttribute('autoload-ignore') != null) return;
+      if (element.getAttribute('data-autoload') == null) return;
+      if (element.getAttribute('data-autoload-ignore') != null) return;
       root = element.shadowRoot ?? element;
     }
     if (watched.has(root)) return;
@@ -407,7 +407,7 @@ export const autoloader = (
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['autoloader', 'autoload-dir', 'autoload-ignore'],
+      attributeFilter: ['data-autoload', 'data-autoload-dir', 'data-autoload-ignore'],
     });
     scan(root);
   };

@@ -32,7 +32,7 @@ it('a real component renders a lazy child, and the child loads and upgrades', as
     class extends HTMLElement {
       connectedCallback() {
         init(this, { mode: 'open' });
-        this.setAttribute('autoloader', '');
+        this.setAttribute('data-autoload', '');
         render(() => html`<section><lazy-child></lazy-child></section>`);
       }
     }
@@ -62,7 +62,7 @@ it('a lazy child appearing on a later render is found too', async () => {
     class extends HTMLElement {
       connectedCallback() {
         init(this, { mode: 'open' });
-        this.setAttribute('autoloader', '');
+        this.setAttribute('data-autoload', '');
         render(() => html`<div>${state.show ? html`<nested-grandchild></nested-grandchild>` : ''}</div>`);
       }
     }
@@ -83,12 +83,12 @@ it('a lazy child appearing on a later render is found too', async () => {
 /**
  * A marked root already covers its whole subtree, so marking something *inside* one changes
  * nothing. The case that needs the attribute watched is a **shadow host**: an observer cannot see
- * into a shadow root, so a component that gains `autoloader` after it already has one has to be
+ * into a shadow root, so a component that gains `data-autoload` after it already has one has to be
  * noticed by its attribute or not at all.
  */
 it('marking a shadow host later reaches inside its shadow root', async () => {
   const outer = document.createElement('div');
-  outer.setAttribute('autoloader', '');
+  outer.setAttribute('data-autoload', '');
   document.body.appendChild(outer);
   autoload(outer);
 
@@ -99,42 +99,42 @@ it('marking a shadow host later reaches inside its shadow root', async () => {
   expect(customElements.get('attr-late'), 'an observer cannot see into a shadow root')
     .to.equal(undefined);
 
-  inner.setAttribute('autoloader', '');
+  inner.setAttribute('data-autoload', '');
   await until(() => customElements.get('attr-late'));
   expect(customElements.get('attr-late'), 'the attribute is what reaches it').to.be.a('function');
   outer.remove();
 });
 
-it('repointing autoload-dir after a failure tries the new location', async () => {
+it('repointing data-autoload-dir after a failure tries the new location', async () => {
   const original = console.error;
   const errors = [];
   console.error = (...args) => errors.push(args.join(' '));
 
   const host = document.createElement('div');
-  host.setAttribute('autoloader', '');
-  host.innerHTML = '<moved-widget autoload-dir="nowhere"></moved-widget>';
+  host.setAttribute('data-autoload', '');
+  host.innerHTML = '<moved-widget data-autoload-dir="nowhere"></moved-widget>';
   document.body.appendChild(host);
   autoload(host);
   await until(() => errors.length > 0);
   expect(customElements.get('moved-widget'), 'the first location has nothing').to.equal(undefined);
 
-  host.querySelector('moved-widget').setAttribute('autoload-dir', '.');
+  host.querySelector('moved-widget').setAttribute('data-autoload-dir', '.');
   await until(() => customElements.get('moved-widget'));
   console.error = original;
   expect(customElements.get('moved-widget'), 'repointing it is enough').to.be.a('function');
   host.remove();
 });
 
-it('lifting autoload-ignore lets an element load', async () => {
+it('lifting data-autoload-ignore lets an element load', async () => {
   const host = document.createElement('div');
-  host.setAttribute('autoloader', '');
-  host.innerHTML = '<ignored-then-not autoload-ignore></ignored-then-not>';
+  host.setAttribute('data-autoload', '');
+  host.innerHTML = '<ignored-then-not data-autoload-ignore></ignored-then-not>';
   document.body.appendChild(host);
   autoload(host);
   await settle();
   expect(customElements.get('ignored-then-not'), 'opted out').to.equal(undefined);
 
-  host.querySelector('ignored-then-not').removeAttribute('autoload-ignore');
+  host.querySelector('ignored-then-not').removeAttribute('data-autoload-ignore');
   await until(() => customElements.get('ignored-then-not'));
   expect(customElements.get('ignored-then-not'), 'opting back in is enough').to.be.a('function');
   host.remove();

@@ -73,7 +73,7 @@ describe('the autoloader', () => {
     const autoload = autoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
 
     const host = frame.contentDocument.createElement('div');
-    host.setAttribute('autoloader', '');
+    host.setAttribute('data-autoload', '');
     frame.contentDocument.body.appendChild(host);
     const failures = [];
     host.addEventListener('vera:autoload-error', (event) => failures.push(event.detail));
@@ -97,19 +97,19 @@ describe('the autoloader', () => {
     expect(autoload.url('sink-lazy')).to.contain('/examples/kitchen-sink/lazy/sink-lazy.js');
   });
 
-  it('autoload-ignore excludes that element only', async () => {
+  it('data-autoload-ignore excludes that element only', async () => {
     const { autoloader } = await view.eval(
       "import('/packages/autoloader/dist/development/vera-autoloader.js')"
     );
     const autoload = autoloader(new URL('/examples/kitchen-sink/entry-client.js', view.location.href).href, 'lazy');
     const host = frame.contentDocument.createElement('div');
-    host.setAttribute('autoloader', '');
+    host.setAttribute('data-autoload', '');
     frame.contentDocument.body.appendChild(host);
     const failures = [];
     host.addEventListener('vera:autoload-error', (event) => failures.push(event.detail.tag));
 
     host.innerHTML =
-      '<ignored-widget autoload-ignore></ignored-widget><wanted-widget></wanted-widget>';
+      '<ignored-widget data-autoload-ignore></ignored-widget><wanted-widget></wanted-widget>';
     autoload(host);
     await until(() => failures.includes('wanted-widget'), 'the un-ignored element to be tried');
     /** Given the ignored one was in the same batch, it has had every chance to be attempted. */

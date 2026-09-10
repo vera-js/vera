@@ -92,7 +92,7 @@ code, so they are not re-litigated.
   are ignored, so a recovery probe read `0` before and `0` after and looked like "nothing recovered"
   when it meant **nothing ran**; plain `<div>`s never fire `disconnectedCallback`, so a teardown probe
   reported every cleanup balanced while running none; `watch()` returns early on an element with no
-  `autoloader` attribute, so an idempotence check counted `observe()` at 0 twice and called it
+  `data-autoload` attribute, so an idempotence check counted `observe()` at 0 twice and called it
   idempotent; and a glob that matched no files reports zero stranded artifacts. **An idempotence or
   no-op check is uniquely exposed to this** — *"the same after twice as after once"* is satisfied
   perfectly by an entry that never ran at all.

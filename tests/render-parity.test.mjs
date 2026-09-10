@@ -182,11 +182,11 @@ const CASES = {
    */
   'a bound view attribute': 'html`<div view=${"main"}>x</div>`',
   'a bound route attribute': 'html`<a route=${""} href=${"/x"}>x</a>`',
-  'a bound autoloader attribute': 'html`<div autoloader=${""}>x</div>`',
+  'a bound data-autoload attribute': 'html`<div data-autoload=${""}>x</div>`',
   'a bound slot attribute': 'html`<span slot=${"title"}>x</span>`',
   'a bound data-vm-sheet attribute': 'html`<b data-vm-sheet=${""}>x</b>`',
   'a bound is attribute': 'html`<button is=${"my-button"}>x</button>`',
-  'a bound autoload-dir attribute': 'html`<my-widget autoload-dir=${"alt"}></my-widget>`',
+  'a bound data-autoload-dir attribute': 'html`<my-widget data-autoload-dir=${"alt"}></my-widget>`',
   'nested slots with fallback': 'html`<div><slot name=${"outer"}><slot name="inner">fallback</slot></slot></div>`',
 
   /**

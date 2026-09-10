@@ -164,11 +164,11 @@ export default class SinkShell extends HTMLElement {
   connectedCallback() {
     /**
      * The autoloader watches a **component**, and the opt-in is an attribute on the host — not on
-     * something the component renders. An `autoloader` attribute on an inner `<div>` is invisible:
-     * the `'render'` insert offers up this element, and `document.querySelectorAll('[autoloader]')`
+     * something the component renders. An `data-autoload` attribute on an inner `<div>` is invisible:
+     * the `'render'` insert offers up this element, and `document.querySelectorAll('[data-autoload]')`
      * cannot see into a shadow root. Set here so the server emits it too.
      */
-    this.setAttribute('autoloader', '');
+    this.setAttribute('data-autoload', '');
     init(this, { mode: 'open' });
     const state = createStore({ heading: 'Vera kitchen sink', mode: 'server-rendered' });
     this.state = state;

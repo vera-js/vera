@@ -45,7 +45,7 @@ console.error = (...a) => errs.push(a.join(' '));
 const hosts = [];
 const host = (html = '') => {
   const element = window.document.createElement('div');
-  element.setAttribute('autoloader', '');
+  element.setAttribute('data-autoload', '');
   element.innerHTML = html;
   window.document.body.appendChild(element);
   hosts.push(element);
@@ -169,7 +169,7 @@ clearHosts();
   errs.length = 0;
   const app = host(
     ['https://example.invalid/x', '//example.invalid/x', '../../outside']
-      .map((bad, i) => `<esc${i}-widget autoload-dir="${bad}"></esc${i}-widget>`)
+      .map((bad, i) => `<esc${i}-widget data-autoload-dir="${bad}"></esc${i}-widget>`)
       .join('')
   );
   autoloader(rootDir, 'components')(app);
@@ -208,13 +208,13 @@ clearHosts();
 //
 // The default was `/`, which built `//tag.js`: protocol-relative, so `new URL` read the tag as a
 // HOST. `autoloader(import.meta.url)` refused every component it was asked for, and so did
-// `autoload-dir="/"`. Asserted on the URL, so the check does not need a fixture beside the entry.
+// `data-autoload-dir="/"`. Asserted on the URL, so the check does not need a fixture beside the entry.
 {
   for (const [label, dir, attr] of [
     ['componentsDir omitted', undefined, ''],
     ['componentsDir "/"', '/', ''],
     ['componentsDir "components/"', 'components/', ''],
-    ['autoload-dir="/"', 'components', ' autoload-dir="/"'],
+    ['data-autoload-dir="/"', 'components', ' data-autoload-dir="/"'],
   ]) {
     errs.length = 0;
     const tag = `beside${label.replace(/\W+/g, '')}-widget`.toLowerCase();
@@ -260,7 +260,7 @@ clearHosts();
 // reported as a failed load for a component that had in fact loaded fine.
 {
   errs.length = 0;
-  const app = host('<probe-widget></probe-widget><probe-widget autoload-dir="alt"></probe-widget>');
+  const app = host('<probe-widget></probe-widget><probe-widget data-autoload-dir="alt"></probe-widget>');
   autoloader(rootDir, 'components')(app);
   await tick();
   check('a second directory for a defined tag is not fetched',

@@ -758,7 +758,7 @@ wire([autoloader(import.meta.url, 'components', { extension: '.js' })]);
 ```
 
 Fetches `components/<tag-name><extension>` the first time an undefined element appears inside an
-element carrying the `autoloader` attribute. Use `extension: '.ts'` in a TypeScript dev server.
+element carrying the `data-autoload` attribute. Use `extension: '.ts'` in a TypeScript dev server.
 `componentsDir` is optional — omit it for components beside the entry file.
 
 Semantics worth stating:
@@ -767,29 +767,29 @@ Semantics worth stating:
   `innerHTML`, by a third-party widget, or by being in the HTML file already. Creating an
   `autoload()` scans the page on demand, so hand-written static markup works with nothing rendering.
 - Watching is **per-component opt-in**: each component hosting lazily-loaded children needs the
-  `autoloader` attribute. All three attributes are watched, not read once — marking a component
-  `autoloader` later reaches inside a shadow root it already had, repointing `autoload-dir` retries
-  from the new location, and removing `autoload-ignore` lets an element load.
+  `data-autoload` attribute. All three attributes are watched, not read once — marking a component
+  `autoloader` later reaches inside a shadow root it already had, repointing `data-autoload-dir` retries
+  from the new location, and removing `data-autoload-ignore` lets an element load.
 - Server-rendered pages work: `autoload()` reaches through declarative shadow DOM, so components
   inside `<template shadowrootmode="open">` load with nothing rendering. An observer cannot cross into a descendant's shadow root, so that child
   marks itself (Vera components are offered up automatically by the `'render'` insert).
-- `autoload-dir="alt"` overrides the directory per element; it must resolve **inside the entry
+- `data-autoload-dir="alt"` overrides the directory per element; it must resolve **inside the entry
   file's directory** — absolute URLs, `//host`, and `../` escapes are refused. (It is
-  `autoload-dir`, never HTML's global `dir` attribute.)
+  `data-autoload-dir`, never HTML's global `dir` attribute.)
 - One load attempt per URL per page load, and one module per **tag** — `<x-y>` and
-  `<x-y autoload-dir="alt">` are two URLs for one tag, and a tag can only be defined once. The
+  `<x-y data-autoload-dir="alt">` are two URLs for one tag, and a tag can only be defined once. The
   second location is tried only if the first fails.
 - A failed load dispatches `vera:autoload-error` on the element (bubbles, composed,
   `detail: { tag, src, error, element }`) as well as logging, so an app can render a fallback.
 - `autoloader` returns ONE function with three shapes: `autoload()` scans the page for
-  `[autoloader]` hosts, `autoload(element)` watches that component, `autoload(shadowRoot)` watches
+  `[data-autoload]` hosts, `autoload(element)` watches that component, `autoload(shadowRoot)` watches
   that root (no attribute — handing it over is the opt-in, and the only way into a component that
   never marked itself). Creating an autoloader has no side effects; `autoload()` is what makes
   hand-written static markup work, and can be called again whenever new markup lands.
 - It carries `url(tag)` — the absolute URL it would fetch, for warming with `modulepreload`, a
   prefetch, a service worker, or just to answer "why that URL?" — and `retry(element)`, which
   forgets that element's tag failed and tries again.
-- `autoload-ignore` excludes that element only, not its subtree.
+- `data-autoload-ignore` excludes that element only, not its subtree.
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.
 

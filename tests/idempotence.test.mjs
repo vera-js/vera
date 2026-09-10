@@ -15,7 +15,7 @@
  *
  * "The same after twice as after once" is satisfied trivially by an entry that never worked. The
  * first draft of this had precisely that bug: the `autoload` case watched an element with no
- * `autoloader` attribute, so `watch` returned early, `observe()` was **0** both times, and the row
+ * `data-autoload` attribute, so `watch` returned early, `observe()` was **0** both times, and the row
  * reported perfect idempotence while measuring nothing at all. Each case below pins the once-value to
  * something non-trivial first.
  */
@@ -96,7 +96,7 @@ test('but two different callbacks at one priority replace, and say so', { skip: 
 test('watching a root twice observes it once', () => {
   const host = element();
   /** `watch` returns early without this, and then the whole case measures nothing. */
-  host.setAttribute('autoloader', '');
+  host.setAttribute('data-autoload', '');
   dom.window.document.body.appendChild(host);
 
   let observed = 0;

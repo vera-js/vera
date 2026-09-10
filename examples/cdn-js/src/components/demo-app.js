@@ -6,7 +6,7 @@ import { initRouter } from '@verajs/router';
  *
  * Plain JavaScript, plain custom element, no compile step. `<demo-counter>` is never imported
  * here — the autoloader fetches `components/demo-counter.js` the first time it appears in a
- * render, because this element carries the `autoloader` attribute in index.html.
+ * render, because this element carries the `data-autoload` attribute in index.html.
  */
 class DemoApp extends HTMLElement {
   connectedCallback() {

@@ -17,24 +17,24 @@ const { autoloader } = await load('autoloader');
 const instance = autoloader('https://x.test/app/entry.js', 'components');
 const withDir = (dir) => {
   const element = document.createElement('div');
-  element.setAttribute('autoload-dir', dir);
+  element.setAttribute('data-autoload-dir', dir);
   return element;
 };
 
 /* ── containment is enforced where URLs are built ────────────────────────────────────────────── */
 
 /**
- * `autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
+ * `data-autoload-dir` is an ordinary HTML attribute, so on any page whose markup is partly authored
  * elsewhere it is an input. `load` always refused an out-of-base URL — but `url()` is public and
  * documented for preloading, and it returned one, handing the caller the fetch this module declines
- * to make. `autoload-dir="//evil.test"` reaches a different **origin**.
+ * to make. `data-autoload-dir="//evil.test"` reaches a different **origin**.
  */
 test('url() refuses a directory that escapes the base', () => {
   for (const dir of ['//evil.test', '../../evil', '..', '../', 'https://evil.test/x', 'HTTPS://evil.test/x']) {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
       /resolves outside https:\/\/x\.test\/app\//,
-      `autoload-dir=${JSON.stringify(dir)} must be refused`
+      `data-autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
 });
@@ -49,7 +49,7 @@ test('backslash and encoded-dot traversals normalize into refusals', () => {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
       /resolves outside/,
-      `autoload-dir=${JSON.stringify(dir)} must be refused`
+      `data-autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
 });
@@ -64,7 +64,7 @@ test('url() refuses an encoded path separator', () => {
     assert.throws(
       () => instance.url('my-card', withDir(dir)),
       /encoded path separator/,
-      `autoload-dir=${JSON.stringify(dir)} must be refused`
+      `data-autoload-dir=${JSON.stringify(dir)} must be refused`
     );
   }
   /** CONTROL for the whole family: percent alone is not a separator and still builds. */
@@ -96,21 +96,21 @@ test('a custom resolve cannot escape either', () => {
 });
 
 /**
- * `autoload-dir` is watched precisely so it can be pointed somewhere else after a first attempt
+ * `data-autoload-dir` is watched precisely so it can be pointed somewhere else after a first attempt
  * failed. Keying a refusal on the **tag** would mark it spent and it would never look again — so
  * the refused URL rides on the error and discovery dedupes on that, exactly as it dedupes a fetch.
  */
 test('a refused directory can be corrected and retried', () => {
   const element = withDir('../../evil');
   assert.throws(() => instance.url('later-card', element), /resolves outside/);
-  element.setAttribute('autoload-dir', 'components');
+  element.setAttribute('data-autoload-dir', 'components');
   assert.equal(instance.url('later-card', element), 'https://x.test/app/components/later-card.js');
 });
 
 /**
  * **Every other way into the URL builder, held to the same boundary.**
  *
- * The test above covers `autoload-dir`, which is the untrusted vector — an ordinary HTML attribute
+ * The test above covers `data-autoload-dir`, which is the untrusted vector — an ordinary HTML attribute
  * on a page whose markup may be partly authored elsewhere. The guard it exercises also sits in front
  * of the tag name, the `resolve` option, the `extension` option and `componentsDir`, and none of
  * those had a test. They are all refused today; this is what keeps that true, since a containment
@@ -124,7 +124,7 @@ test('the containment boundary holds for every input that reaches it', () => {
   const base = 'https://x.test/app/entry.js';
   const outside = /resolves outside https:\/\/x\.test\/app\//;
 
-  /** A tag name arrives from markup, so it gets the same treatment as `autoload-dir`. */
+  /** A tag name arrives from markup, so it gets the same treatment as `data-autoload-dir`. */
   for (const tag of ['../../../etc/passwd', '../../../../x', '../../etc/passwd'])
     assert.throws(() => instance.url(tag), outside, `the tag ${JSON.stringify(tag)} must be refused`);
 
@@ -209,7 +209,7 @@ test('a custom resolve that stays inside is built as it asked', () => {
  * what the check **allowed** rather than what it refused — the refusals were all correct, and the
  * defect was sitting in the other column.
  *
- * `autoload-dir="components?v=2"` is the case that matters, because it is a cache-buster someone
+ * `data-autoload-dir="components?v=2"` is the case that matters, because it is a cache-buster someone
  * writes on purpose rather than an attack: it fetches `app/components` with `<my-card>` inside the
  * query string, so the component file is never requested at all.
  */
@@ -229,7 +229,7 @@ test('and so is one containing a fragment', () => {
 });
 
 /**
- * `autoload-dir="?"` resolves to the **entry file itself** under a URL distinct enough to evaluate a
+ * `data-autoload-dir="?"` resolves to the **entry file itself** under a URL distinct enough to evaluate a
  * second time — the whole application re-imported from an attribute in markup.
  */
 test('and one that resolves to the entry module itself', () => {

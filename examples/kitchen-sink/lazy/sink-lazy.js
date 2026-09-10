@@ -1,5 +1,5 @@
 /**
- * Fetched by `@verajs/autoloader` the first time it appears inside an `[autoloader]` host.
+ * Fetched by `@verajs/autoloader` the first time it appears inside an `[data-autoload]` host.
  *
  * It lives in its own directory precisely so the URL it is fetched from is the thing under test:
  * the autoloader builds `lazy/<tag>.js` and refuses anything resolving outside the entry's own

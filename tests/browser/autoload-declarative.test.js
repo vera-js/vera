@@ -4,7 +4,7 @@
  * A server-rendered page's components live inside `<template shadowrootmode>`, parsed into shadow
  * roots before any script runs. Nothing renders them, so the `'render'` insert never offers them
  * up, and a `MutationObserver` cannot cross into a shadow root it is not watching. `autoload()`
- * with no argument is the documented answer: it scans the page for `[autoloader]` hosts, and a
+ * with no argument is the documented answer: it scans the page for `[data-autoload]` hosts, and a
  * server-rendered host is one.
  *
  * That claim is the difference between a server-rendered page loading its lazy components and
@@ -91,7 +91,7 @@ describe('a server-rendered page finds its lazy components', () => {
     /** Nothing should have happened yet — the host is not marked. */
     expect(customElements.get('late-widget'), 'an unmarked host was scanned').to.equal(undefined);
 
-    marked.setAttribute('autoloader', '');
+    marked.setAttribute('data-autoload', '');
     autoload();
     await until(() => customElements.get('late-widget'), 'the newly marked host to be scanned');
   });

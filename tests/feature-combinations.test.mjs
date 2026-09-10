@@ -195,7 +195,7 @@ test('slots + hold: a held subtree keeps its slot binding and the node inside it
  * load while displaced — and the restore re-enters the autoloader's subtree, where discovery MUST
  * fire or a lazy component in a toggled-away branch never appears. Discovery in jsdom needs the
  * suite-standard `:not(:defined)` emulation (jsdom lacks the selector; the browser autoloader
- * suite owns real discovery) and the `autoloader` attribute on the host (`watch()` returns early
+ * suite owns real discovery) and the `data-autoload` attribute on the host (`watch()` returns early
  * without it — both are the recorded probe traps, walked into again finding this).
  */
 test('autoloader + slots: parked content stays dormant, restored content loads', async () => {
@@ -213,7 +213,7 @@ test('autoloader + slots: parked content stays dormant, restored content loads',
     const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 
     const host = div();
-    host.setAttribute('autoloader', '');
+    host.setAttribute('data-autoload', '');
     dom.window.document.body.append(host);
     autoloader(rootDir, 'components')(host);
 

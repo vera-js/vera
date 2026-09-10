@@ -88,7 +88,7 @@
         `;
 
         connectedCallback() {
-          this.setAttribute('autoloader', '');
+          this.setAttribute('data-autoload', '');
           init(this, { mode: 'open' });
           const state = createStore({ rows: ['a', 'b', 'c'], n: 0, title: 'spread title' });
           this.state = state;

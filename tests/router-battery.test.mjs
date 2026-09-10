@@ -176,7 +176,7 @@ test('a cold load with query and fragment routes, mounted, with everything intac
  * (routed markup is autoloaded like any other), a round trip re-imports nothing, and — the race —
  * leaving the route while the import is in flight lets the late definition land WITHOUT touching
  * the new route's view, defined for an instant return. jsdom needs the suite-standard
- * `:not(:defined)` emulation and the `autoloader` attribute (both recorded traps).
+ * `:not(:defined)` emulation and the `data-autoload` attribute (both recorded traps).
  */
 test('a lazy route component loads in the outlet, survives the away-race, returns instantly', async () => {
   for (const key of ['customElements', 'MutationObserver', 'Element', 'Node', 'DocumentFragment', 'Text', 'Comment'])
@@ -194,7 +194,7 @@ test('a lazy route component loads in the outlet, survives the away-race, return
     const { autoloader } = await load('autoloader');
     const rootDir = new URL('./fixtures/autoloader/entry.js', import.meta.url).href;
     const shell = doc.createElement('div');
-    shell.setAttribute('autoloader', '');
+    shell.setAttribute('data-autoload', '');
     const outlet = doc.createElement('main');
     shell.appendChild(outlet);
     doc.body.appendChild(shell);
