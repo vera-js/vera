@@ -481,32 +481,12 @@
   {
    "name": "ease with play composes (ratified lift, 2026-09-10)",
    "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3, ease: 'ease-out' }",
-   "engines": {
-    "omni": {
-     "rejected": [],
-     "settings": {
-      "play": 0.3,
-      "ease": "ease-out"
-     },
-     "usable": true,
-     "layer": "parse",
-     "note": "lift executed 2026-09-10 on owner direction; the pair composes (linear clock, eased keyframes)"
-    },
-    "vera": {
-     "rejected": [
-      {
-       "code": "motion-ease-with-play"
-      }
-     ],
-     "settings": {
-      "play": 0.3,
-      "ease": "ease-out"
-     },
-     "usable": true,
-     "layer": "parse",
-     "note": "lift ratified by the SPEC's ease row (post write-path flip, it composes) but unexecuted at vera HEAD — promote to convergent when their parse drops the refusal"
-    }
-   }
+   "rejected": [],
+   "settings": {
+    "play": 0.3,
+    "ease": "ease-out"
+   },
+   "usable": true
   },
   {
    "name": "ease cubic bezier valid",
