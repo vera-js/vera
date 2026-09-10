@@ -940,8 +940,9 @@ already a legal single alignment.
 **`play` (SECONDS, like `inertia`) makes it a playthrough instead of a scrub** — crossing a threshold
 runs the keyframes over time. One `scroll` half is one line crossed both ways (in going down, out
 coming back up past it); two halves are an entrance and an exit. `run-once` latches after the first
-play. `play` beside `inertia` is refused (same transition), and `ease` is refused for a play (it
-never visits the keyframes between). **`when: '.selector'` GATES** — it animates while matching and
+play. `play` beside `inertia` is refused (same transition); `ease` composes with a play — the clock is
+linear over `play` seconds and the easing reshapes each segment as it is swept, so
+`keyframes: { scale: '0% 0, 100% 1' }, ease: 'ease-in-out', play: 0.6` reads exactly as written. **`when: '.selector'` GATES** — it animates while matching and
 rests at its start otherwise; `when` + `play` is a UI transition. `stagger` goes on the PARENT, and
 is refused with `play` until a per-sibling time delay exists. `inertia` smooths the value toward its
 target, the one thing CSS scroll-driven animation cannot do — that is a pure function of scroll

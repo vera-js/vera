@@ -829,19 +829,14 @@ export const parseMotion = (
   }
 
   /**
-   * `ease` shapes the curve *between* keyframes, and a PLAY is never between them: it steps the
-   * timeline end-to-end and lets the transition carry the values, so intermediate keyframes are
-   * never visited. `inertia-ease` is the one that works — it shapes that change, and applies to a
-   * play exactly as to a scrub.
-   *
-   * This used to be refused for `when` rather than `play`, on the same reasoning, and the reasoning
-   * moved with the behaviour: `when` now GATES a scrub instead of replacing it, so a gated element
-   * is between keyframes like any other and `ease` is meaningful again.
+   * `ease` beside `play` COMPOSES since the write-path flip (the ratified lift, executed
+   * 2026-09-10 on the owner's direction). The refusal that stood here guarded the OLD play — a
+   * transition stepping the timeline end-to-end without visiting the keyframes between — and the
+   * ramp killed its premise: play's clock is a linear rAF ramp that SWEEPS the animation, so
+   * per-segment CSS easing applies during a play exactly as during a scrub (measured: the sweep
+   * test, and the mid-play value assertion in the browser suite). `when` was un-refused first,
+   * on the same reasoning at its own flip.
    */
-  if (typeof settings['ease'] === 'string' && settings['play'] !== undefined) {
-    rejected.push({ code: 'motion-ease-with-play', args: [] });
-  }
-
   /**
    * `play` and `inertia` name the SAME number — the transition that carries the values — so writing
    * both is a contradiction rather than a combination. Refused instead of ranked: silently

@@ -310,11 +310,6 @@ export const PROSE: Record<string, Prose> = {
     'selector when an attribute changes, and that state is not an attribute.',
     'Use CSS for it. This element animates on scroll instead.',
   ],
-  'motion-ease-with-play': () => [
-    'ease does nothing on a play — it shapes the curve between keyframes, and a play steps ' +
-    'end-to-end without visiting them.',
-    'Use inertia-ease to shape the change.',
-  ],
   'motion-play-with-inertia': () => [
     'play and inertia name the same transition, so only one of them can be in force.',
     'Keep play for a timed playthrough, or inertia for a smoothed scrub.',

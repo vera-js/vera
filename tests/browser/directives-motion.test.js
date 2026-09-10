@@ -153,6 +153,43 @@ it('play runs end-to-end at a threshold, and reverses coming back up past it', a
   expect(opacityOf(el), 'back above the line: reversed').to.equal(0.2);
 });
 
+it('ease composes with play: the ramp sweeps, so mid-play sits on the CURVE, not the line', async () => {
+  /**
+   * The ratified lift's value half. The refusal this replaces guarded the old play — a transition
+   * stepping end-to-end without visiting the keyframes — and the rAF ramp killed its premise: the
+   * ramp writes the seek linearly over `play` seconds, and the CSS timing function reshapes each
+   * segment as it is swept. Sampled mid-ramp: under ease-in the value must sit WELL below the
+   * linear midpoint. The control is the same play with no ease, read at the same instant — the
+   * comparison is what makes a slow machine unable to fake a pass in either direction.
+   */
+  const host = page(`
+    <div id="eased" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, scroll: '50%', play: 0.6, ease: 'ease-in' }" style="height:50px">x</div>
+    <div id="line" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, scroll: '50%', play: 0.6 }" style="height:50px">x</div>`);
+  const eased = host.querySelector('#eased');
+  const line = host.querySelector('#line');
+  await scrollTo(0);
+  await settle();
+  expect(opacityOf(eased), 'zero refusals, the authored start paints').to.equal(0);
+
+  await scrollTo(eased.offsetTop);
+  /** Sample while BOTH ramps run, no chosen instant: wait until the control is mid-flight. */
+  let guard = 200;
+  while (guard-- > 0) {
+    await new Promise((r) => requestAnimationFrame(r));
+    const at = opacityOf(line);
+    if (at > 0.35 && at < 0.75) break;
+  }
+  const linear = opacityOf(line);
+  expect(linear, 'the CONTROL entered the mid-range — the sample measured something')
+    .to.be.within(0.3, 0.8);
+  expect(opacityOf(eased), 'ease-in lags the line — the curve is real during a play')
+    .to.be.below(linear - 0.05);
+
+  await settle();
+  await new Promise((r) => setTimeout(r, 700));
+  expect(opacityOf(eased), 'and the ramp still lands on the authored end').to.equal(1);
+});
+
 it('teardown returns the element to its natural state with the page scrolled anywhere', async () => {
   const host = page(`<div id="d" data-vd-motion="fade-up" style="height:100px">x</div>`);
   const el = host.querySelector('#d');

@@ -131,14 +131,17 @@ test('play and inertia name the same transition, so both is refused', async () =
   }
 });
 
-test('ease is refused for a play, and no longer refused for a gate', async () => {
+test('ease composes with a play now, and with a gate — zero refusals either way', async () => {
+  /** The ratified lift (2026-09-10): play's clock is a rAF ramp that SWEEPS the animation, so
+   *  per-segment easing applies during a play exactly as during a scrub. The old refusal
+   *  guarded a play that stepped end-to-end without visiting the keyframes — that play is gone.
+   *  The VALUE claim (mid-play sits below linear under ease-in) is browser truth, in
+   *  `tests/browser/directives-motion.test.js`. */
   const played = rejections(await at(`{ ${K}, play: 0.5, ease: 'ease-in' }`));
   const gated = rejections(await at(`{ ${K}, when: '.x', ease: 'ease-in' }`));
 
-  assert.ok(played.some((r) => r.code === 'motion-ease-with-play'),
-    'a play steps end-to-end and never visits the keyframes between');
-  assert.ok(!gated.some((r) => r.code === 'motion-ease-with-play'),
-    'a GATED element still scrubs, so its curve is traversed and ease means something again');
+  assert.equal(played.length, 0, 'humans write keyframes plus ease and just see it happen');
+  assert.equal(gated.length, 0, 'gates kept their un-refusal from their own flip');
 });
 
 test('keyframe positions are 0-100, like CSS keyframes', async () => {
