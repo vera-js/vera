@@ -544,6 +544,12 @@
       "fix": "Like {key}: '0% 0, 100% 1'."
     },
     {
+      "code": "motion-regenerate-failed",
+      "params": [],
+      "message": "a re-measure produced no rules for this element; keeping the previous ones.",
+      "fix": "This should be unreachable — please report the value that did this."
+    },
+    {
       "code": "motion-region-axis",
       "params": [
         "key"

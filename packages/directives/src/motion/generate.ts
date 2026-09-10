@@ -23,6 +23,8 @@ import type { RawKeyframe, Band } from './schema.js';
 import { parseMotion } from './parse.js';
 import { composeTransform, composeFilter, format, sortForApply } from './apply.js';
 import { contentHash, PROGRESS_PROPERTY, STAGGER_PROPERTY } from './registry.js';
+import type { WindowSize } from './dom.js';
+import { normalisePosition } from './dom.js';
 
 /**
  * Band merge for one width — THE band semantics, shared with the runtime (it imports this; the
@@ -133,7 +135,20 @@ interface Grouped {
  * Null is the contract, not a failure: it routes the element to the old write path, which stays
  * authoritative for everything outside this scope until later stages widen it.
  */
-export const generateSimple = (parsed: ParsedElement): Generated | null => {
+/**
+ * The element's measured geometry, for values whose keyframe POSITIONS are lengths (vh/px/rem) —
+ * those normalise against the scroll window, so their rules are PER-GEOMETRY-BUCKET: the hash
+ * covers the normalised text, identical geometries still share, and a re-measure regenerates.
+ * Absent (the SSR pass, the test door), geometry-position values answer null and wait for the
+ * client's first measure — frame 0 is the natural state there, honestly.
+ */
+export interface GeometryContext {
+  readonly scrollWindow: number;
+  readonly win: WindowSize;
+  readonly root: number;
+}
+
+export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext): Generated | null => {
   /** A TICK-ONLY element is a real shape — `{ scroll: '…', tick: 'drawFrame' }` — and generates
    *  no CSS at all: zero groups, zero rules. It rides this path for the drive machinery (chase,
    *  ramp, the variable write) aimed at its function. Anything else with no animations is the
@@ -145,8 +160,9 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
    * The bare-identifier form is the STATE destination, which does not exist yet; those elements
    * stay on the old path, whose `progressProperty` machinery they never used anyway.
    */
+  /** The bare-identifier progress form is refused at PARSE (motion-setting-progress guards the
+   *  name grammar), so no gate is needed here — the setting is always a custom property name. */
   const progress = parsed.settings['progress'];
-  if (typeof progress === 'string' && !progress.startsWith('--')) return null;
   const varName = typeof progress === 'string' ? progress : PROGRESS_PROPERTY;
 
   for (const animation of parsed.animations) {
@@ -154,7 +170,10 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
      *  of write path. `discrete` still refuses — a third-party module may hold values the
      *  browser must not blend; nothing shipped carries it since paint went native (8c). */
     if (animation.property.discrete) return null;
-    if (animation.keyframes.some((frame) => frame.positionUnit !== '%')) return null;
+    /** Geometry positions generate WITH geometry (8d) and wait for the client without it. */
+    if (!geometry &&
+      (animation.keyframes.some((frame) => frame.positionUnit !== '%') ||
+        animation.bands.some((b) => b.keyframes.some((frame) => frame.positionUnit !== '%')))) return null;
   }
 
   const ease = parsed.settings['ease'];
@@ -254,10 +273,33 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
    * what the author wrote — aligned stops only, PER GROUP, which is exactly what lets a misaligned
    * pair graduate by each carrying its own ease.
    */
+  /**
+   * Geometry normalisation (8d): a length position becomes its timeline fraction against the
+   * measured scroll window, clamped into the keyframe range — a stop past the timeline's end is
+   * unreachable, and clamping to 100 with its authored value is what the old curve's clamped
+   * evaluation painted there anyway. Sorted after, because normalisation can reorder mixed
+   * authored units.
+   */
+  const percentised = (frames: readonly RawKeyframe[]): readonly RawKeyframe[] => {
+    if (!geometry || !frames.some((f) => f.positionUnit !== '%')) return frames;
+    return frames
+      .map((f) => f.positionUnit === '%' ? f : {
+        ...f,
+        position: Math.min(100, Math.max(0,
+          normalisePosition(f, geometry.scrollWindow, geometry.win, geometry.root) * 100)),
+        positionUnit: '%' as const,
+      })
+      .slice()
+      .sort((a, b) => a.position - b.position);
+  };
+
   const composeGroupBody = (
     group: Grouped,
     framesOf: (a: ElementMotion) => readonly RawKeyframe[]
   ): string | null => {
+    const raw = framesOf;
+    const framesOfN = (a: ElementMotion): readonly RawKeyframe[] => percentised(raw(a));
+    framesOf = framesOfN;
     const stops = [...new Set(group.members.flatMap((a) => framesOf(a).map((f) => f.position)))]
       .sort((x, y) => x - y);
     if (group.ease !== 'linear') {

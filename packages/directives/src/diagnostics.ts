@@ -360,6 +360,10 @@ export const PROSE: Record<string, Prose> = {
     `${key}: paint animates through generated CSS, and a geometry-unit position keeps this element on the inline path.`,
     'Use % keyframe positions on this element.',
   ],
+  'motion-regenerate-failed': () => [
+    'a re-measure produced no rules for this element; keeping the previous ones.',
+    'This should be unreachable — please report the value that did this.',
+  ],
   'motion-unsupported': () => ['required APIs unavailable, animation disabled.'],
   'motion-sequence-origins-not-list': (kind) => [
     `sequence allowedOrigins must be a list, not ${kind}; ignoring it.`,

@@ -8,10 +8,11 @@
  * pre-allocated value buffers at build time, so a frame is an evaluate loop and
  * one style write per category (principle #4).
  */
-import { getElementSize, getWindowSize, displacementOf } from './dom.js';
+import { getElementSize, getWindowSize, displacementOf, normalisePosition } from './dom.js';
 import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
 import { generateSimple, mergeBandsForWidth } from './generate.js';
 import { tickFor } from './ticks.js';
+import type { Generated } from './generate.js';
 import { acquire, release, ensureProperty, setTail, STAGGER_PROPERTY } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
@@ -189,8 +190,12 @@ export interface RuntimeElement {
    * frame path re-derives nothing: the registry hash to release, the driver's slice, and the two
    * clocks — `tau` for a scrub's chase, `play` for a ramp.
    */
-  readonly generated: {
+  generated: {
     readonly hash: string;
+    /** True when any keyframe position is a LENGTH — those rules are per-geometry-bucket and a
+     *  re-measure regenerates them (release old, acquire new, re-mark). Bands are NOT this:
+     *  their width switching is @media's job. */
+    readonly geometric: boolean;
     /** Every registry key this element holds — groups, segments, switches, element rule — for
      *  teardown. */
     readonly hashes: readonly string[];
@@ -427,38 +432,6 @@ const transitionFor = (
     .join(', ');
 };
 
-/**
- * Resolves a keyframe's authored position onto the 0-1 timeline.
- *
- * 0 is the moment the element begins entering the scroll window and 1 the
- * moment it has completely left, so the window an absolute distance is
- * measured against is the element's own size plus the viewport's — the same
- * quantity `updateTimelinePosition` divides by.
- *
- * `%` is already that fraction and needs no geometry at all, which is why the
- * common page never rebuilds a curve. Every other unit is a length, converted
- * to pixels and then divided by the window.
- *
- * @param root the root font size in pixels, read once per rebuild for `rem`
- */
-const normalisePosition = (
-  keyframe: RawKeyframe,
-  scrollWindow: number,
-  win: WindowSize,
-  root: number
-): number => {
-  const { position, positionUnit } = keyframe;
-  if (positionUnit === '%') return position / 100;
-  if (scrollWindow === 0) return 0;
-
-  const pixels =
-    positionUnit === 'vh' ? (position * win.height) / 100
-      : positionUnit === 'vw' ? (position * win.width) / 100
-      : positionUnit === 'rem' ? position * root
-      : position;
-
-  return pixels / scrollWindow;
-};
 
 /**
  * The keyframes that apply at this viewport width: the base, with every band
@@ -595,6 +568,55 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
   /** Defaults matter for an element whose only animation was rejected. */
   element.lowestStart = lowest === Infinity ? 0 : lowest;
   element.highestEnd = highest === -Infinity ? 1 : highest;
+};
+
+/** The client-side acquisition order, in one place — construction and regeneration must never
+ *  drift on it: groups, segment keyframes, the element rule, THEN the media switches (they tie
+ *  the element rule on specificity, so sheet source order decides). Returns the teardown keys. */
+const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
+  const sheetRoot = node.getRootNode() as SheetRoot;
+  for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
+  for (const segment of generatedCss.segments) {
+    for (const rule of segment.rules) acquire(sheetRoot, rule.hash, rule.rule);
+  }
+  acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
+  for (const [i, segment] of generatedCss.segments.entries()) {
+    acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
+  }
+  return [...generatedCss.groups.map((g) => g.hash),
+    ...generatedCss.segments.flatMap((seg, i) =>
+      [...seg.rules.map((rule) => rule.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`];
+};
+
+/**
+ * Re-measure for a GEOMETRIC generated element (8d): length positions normalised against the new
+ * scroll window mean new rule text, a new hash, a new identity. Regenerates through the same
+ * generator and the same delivery order as construction; an unchanged hash (the common resize —
+ * geometry buckets are coarse) costs one generate call and nothing else. Drives and the tick are
+ * untouched: the VARIABLES are the element's identity to the driver, and none of them change.
+ */
+const regenerateRules = (element: RuntimeElement, win: WindowSize): void => {
+  if (!element.generated || !element.generated.geometric) return;
+  const fresh = generateSimple(element.parsed, {
+    scrollWindow: element.size + win.size, win, root: rootFontSize,
+  });
+  /** A regeneration that falls out of scope would strand the element silently — keep the last
+   *  good rules instead; the next measure retries. Should be unreachable (geometry only moves
+   *  numbers), so say so if it happens. */
+  if (!fresh || !fresh.groups.length) {
+    element.reject('motion-regenerate-failed', []);
+    return;
+  }
+  if (fresh.hash === element.generated.hash) return;
+  const keys = deliverGenerated(element.node, fresh);
+  /** New rules IN before old rules out — an element must never reference a name mid-swap. */
+  element.node.setAttribute('data-vd-a', fresh.hash);
+  for (const key of element.generated.hashes) release(key);
+  element.generated = {
+    ...element.generated,
+    hash: fresh.hash,
+    hashes: keys,
+  };
 };
 
 /**
@@ -916,7 +938,16 @@ export const createRuntimeElement = (
    */
   /** Stagger generates too since 8a — the offset is a per-element var the seek subtracts, so
    *  the whole-group-one-path rule is satisfied ON the generated path now. */
-  const generatedCss = generateSimple(parsed);
+  /**
+   * Measured BEFORE generation since 8d: geometry-position values normalise against the scroll
+   * window, so the generator needs the element's size in hand. Still before any style write —
+   * the displacement contract below is unchanged.
+   */
+  const measured = getElementSize(node, settings.scrollDirection, settings.scrollElement);
+  const measuredWin = getWindowSize(settings.scrollDirection, settings.scrollElement ?? window);
+  const generatedCss = generateSimple(parsed, {
+    scrollWindow: measured.size + measuredWin.size, win: measuredWin, root: rootFontSize,
+  });
 
   const declaredEase = parsed.settings['ease'];
   const elementEase = generatedCss ? null
@@ -938,7 +969,7 @@ export const createRuntimeElement = (
   });
   const plan = planFor(inlineAnimations, easeFor);
 
-  const { start, end, size } = getElementSize(node, settings.scrollDirection, settings.scrollElement);
+  const { start, end, size } = measured;
   /**
    * Before anything is written, which is what makes this the displacement
    * caused by everything *except* this instance.
@@ -1031,6 +1062,7 @@ export const createRuntimeElement = (
   }
 
   let generated: RuntimeElement['generated'] = null;
+  let acquiredKeys: string[] = [];
   if (generatedCss) {
     /** Every seek variable — the base, plus a per-category one per inertia override. */
     for (const v of generatedCss.vars) ensureProperty(v.name, node);
@@ -1038,31 +1070,7 @@ export const createRuntimeElement = (
      *  path for the drive machinery alone: the same chase, ramp and variable write, aimed at its
      *  function instead of a rule. */
     if (generatedCss.groups.length) {
-      const sheetRoot = node.getRootNode() as SheetRoot;
-      /** Group rules and width-segment rules dedupe under their own content hashes — two elements
-       *  sharing an animation share its rule, and two groups differing only in ease share one body;
-       *  the marker hash still separates element identities. */
-      for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
-      for (const segment of generatedCss.segments) {
-        for (const r of segment.rules) acquire(sheetRoot, r.hash, r.rule);
-      }
-      /** The element’s declarations are SHEET RULES now (bands switch animation-name under
-       *  @media, which inline cannot carry), counted under a derived key so the pair lives and
-       *  dies together. */
-      acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
-      /** AFTER the element rule, deliberately: the switch and the base rule tie on specificity,
-       *  so the sheet's source order decides — a switch inserted before `#el` loses to the base
-       *  `animation` shorthand everywhere and the band silently never applies. Keys derive from
-       *  the MARKER hash (the selector embeds this element's identity), not the shared segment hash. */
-      for (const [i, segment] of generatedCss.segments.entries()) {
-        acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
-      }
-      /**
-       * The no-JS guard, INVERTED — a neutraliser pinned last, never a gate: gating on
-       * `(scripting: enabled)` kills all motion on engines predating the feature (unknown media
-       * feature → query false), which is every older browser WITH JavaScript. Neutralised under
-       * `(scripting: none)`, the stranded corner shrinks to old-browser-AND-no-JS.
-       */
+      acquiredKeys = deliverGenerated(node, generatedCss);
       setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
     }
     /**
@@ -1074,6 +1082,9 @@ export const createRuntimeElement = (
     node.setAttribute('data-vd-a', generatedCss.hash);
     generated = {
       hash: generatedCss.hash,
+      geometric: parsed.animations.some((a) =>
+        a.keyframes.some((f) => f.positionUnit !== '%') ||
+        a.bands.some((b) => b.keyframes.some((f) => f.positionUnit !== '%'))),
       /** One driver slice per seek variable, each timed by ITS setting — `--vd-p-transform`
        *  chases at `transform-inertia`'s rate while the base follows `inertia`. */
       drives: generatedCss.vars.map((v) => ({
@@ -1087,11 +1098,7 @@ export const createRuntimeElement = (
         },
         tau: Number(parsed.settings[v.inertiaKey] ?? settings.inertia),
       })),
-      hashes: generatedCss.groups.length
-        ? [...generatedCss.groups.map((g) => g.hash),
-          ...generatedCss.segments.flatMap((s, i) =>
-            [...s.rules.map((r) => r.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`]
-        : [],
+      hashes: acquiredKeys,
       play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
     };
   }
@@ -1142,6 +1149,7 @@ export const createRuntimeElement = (
 
   const win = getWindowSize(settings.scrollDirection, settings.scrollElement ?? window);
   refreshCurves(element, win);
+  regenerateRules(element, win);
   markUnfinishable(element, win);
   element.pinBlocked = pinTrouble(element, settings);
   element.flatBlocked = flatTrouble(element, settings);
@@ -1608,7 +1616,9 @@ export const resetElement = (
    * is every element on the usual page.
    */
   if (element.geometryDependent) {
-    refreshCurves(element, win ?? getWindowSize(settings.scrollDirection, settings.scrollElement ?? window));
+    const winNow = win ?? getWindowSize(settings.scrollDirection, settings.scrollElement ?? window);
+    refreshCurves(element, winNow);
+    regenerateRules(element, winNow);
   }
 };
 

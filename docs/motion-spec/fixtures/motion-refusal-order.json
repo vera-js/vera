@@ -531,15 +531,12 @@
    "usable": true
   },
   {
-   "name": "ease unquoted keyword refused",
+   "name": "ease unquoted keyword accepted (bare-keyword rule, 2026-09-10)",
    "raw": "{ keyframes: { opacity: '0, 1' }, ease: ease-in }",
-   "rejected": [
-    {
-     "code": "motion-quote-the-value",
-     "where": "ease"
-    }
-   ],
-   "settings": {},
+   "rejected": [],
+   "settings": {
+    "ease": "ease-in"
+   },
    "usable": true
   },
   {
@@ -995,6 +992,34 @@
      "note": "unknown-name refusal is ACTIVATION-time (registry lookup), outside this corpus"
     }
    }
+  },
+  {
+   "name": "origin bare single keyword accepted",
+   "raw": "{ keyframes: { rotate: '0% 0deg, 100% 90deg' }, transform-origin: center }",
+   "rejected": [],
+   "settings": {
+    "transform-origin": "center"
+   },
+   "usable": true
+  },
+  {
+   "name": "bare non-keyword still asks for quotes",
+   "raw": "{ keyframes: { opacity: '0% 0, 100% 1' }, progress: q }",
+   "rejected": [
+    {
+     "code": "motion-quote-the-value",
+     "where": "progress"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "nested bare ease accepted",
+   "raw": "{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: ease-out } } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
   }
  ]
 }

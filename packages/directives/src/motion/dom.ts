@@ -1,3 +1,4 @@
+import type { RawKeyframe } from './schema.js';
 /**
  * Geometry: every reading the runtime takes from the page.
  *
@@ -563,3 +564,37 @@ export const resolveScrollElement = (
   return window;
 };
 
+
+
+/**
+ * Resolves a keyframe's authored position onto the 0-1 timeline.
+ *
+ * 0 is the moment the element begins entering the scroll window and 1 the
+ * moment it has completely left, so the window an absolute distance is
+ * measured against is the element's own size plus the viewport's — the same
+ * quantity `updateTimelinePosition` divides by.
+ *
+ * `%` is already that fraction and needs no geometry at all, which is why the
+ * common page never rebuilds a curve. Every other unit is a length, converted
+ * to pixels and then divided by the window.
+ *
+ * @param root the root font size in pixels, read once per rebuild for `rem`
+ */
+export const normalisePosition = (
+  keyframe: RawKeyframe,
+  scrollWindow: number,
+  win: WindowSize,
+  root: number
+): number => {
+  const { position, positionUnit } = keyframe;
+  if (positionUnit === '%') return position / 100;
+  if (scrollWindow === 0) return 0;
+
+  const pixels =
+    positionUnit === 'vh' ? (position * win.height) / 100
+      : positionUnit === 'vw' ? (position * win.width) / 100
+      : positionUnit === 'rem' ? position * root
+      : position;
+
+  return pixels / scrollWindow;
+};
