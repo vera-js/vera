@@ -10,7 +10,7 @@
  */
 import { getElementSize, getWindowSize, displacementOf } from './dom.js';
 import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
-import { generateSimple } from './generate.js';
+import { generateSimple, mergeBandsForWidth } from './generate.js';
 import { staggerHost } from './parse.js';
 import { acquire, release, ensureProperty, setTail } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
@@ -191,6 +191,8 @@ export interface RuntimeElement {
    */
   readonly generated: {
     readonly hash: string;
+    /** Every registry key this element holds — base, segments, element rule — for teardown. */
+    readonly hashes: readonly string[];
     readonly drive: Driven;
     readonly tau: number;
     readonly play: number | null;
@@ -463,19 +465,8 @@ const normalisePosition = (
  * base was missing.
  */
 const mergeForWidth = (animation: PlanAnimation, width: number): RawKeyframe[] => {
-  const merged: RawKeyframe[] = [...animation.keyframes];
-
-  for (const band of animation.bands) {
-    if (width < band.min || width > band.max) continue;
-    for (const k of band.keyframes) {
-      /** Linear scan, not a keyed map: keyframe counts are 2-6, and this is smaller. */
-      const at = merged.findIndex(
-        (m) => m.position === k.position && m.positionUnit === k.positionUnit
-      );
-      if (at < 0) merged.push(k);
-      else merged[at] = k;
-    }
-  }
+  /** The band semantics live in generate.ts now, shared — one brain, two consumers. */
+  const merged = mergeBandsForWidth(animation.keyframes, animation.bands, width);
 
   if (merged.length > 1) return merged;
 
@@ -964,10 +955,20 @@ export const createRuntimeElement = (
     ensureProperty(generatedCss.varName, node);
     const sheetRoot = node.getRootNode() as SheetRoot;
     acquire(sheetRoot, generatedCss.hash, generatedCss.keyframesRule);
+    /** Width segments dedupe under their own content hashes — two elements sharing a band share
+     *  its rule; the marker hash above still separates their identities. */
+    for (const segment of generatedCss.segments) acquire(sheetRoot, segment.hash, segment.rule);
     /** The element’s declarations are SHEET RULES now (bands switch animation-name under
      *  @media, which inline cannot carry), counted under a derived key so the pair lives and
      *  dies together. */
     acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
+    /** AFTER the element rule, deliberately: the switch and the base rule tie on specificity,
+     *  so the sheet's source order decides — a switch inserted before `#el` loses to the base
+     *  `animation` shorthand everywhere and the band silently never applies. Keys derive from
+     *  the MARKER hash (the selector embeds this element's identity), not the shared segment hash. */
+    for (const [i, segment] of generatedCss.segments.entries()) {
+      acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
+    }
     /**
      * The no-JS guard, INVERTED — a neutraliser pinned last, never a gate: gating on
      * `(scripting: enabled)` kills all motion on engines predating the feature (unknown media
@@ -988,6 +989,8 @@ export const createRuntimeElement = (
         node: node as HTMLElement, varName: generatedCss.varName,
         written: null, target: 0, mode: 'idle', tau: 0, rampFrom: 0, rampStart: 0, rampDuration: 0,
       },
+      hashes: [generatedCss.hash, ...generatedCss.segments.flatMap((s, i) =>
+        [s.hash, `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`],
       tau: Number(parsed.settings['inertia'] ?? settings.inertia),
       play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
     };
@@ -1554,8 +1557,7 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
   const { node } = element;
   if (element.generated) {
     /** Count out, stop the clock, strip the marks — the loop must never hold a removed element. */
-    release(element.generated.hash);
-    release(`${element.generated.hash}#el`);
+    for (const key of element.generated.hashes) release(key);
     dispose(element.generated.drive);
     node.style.removeProperty(element.generated.drive.varName);
     node.removeAttribute('data-vd-a');

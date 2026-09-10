@@ -99,7 +99,9 @@ it('out-of-scope values answer null and name the old path, not a throw', () => {
   const el = document.createElement('div');
   /** Bands, per-property ease, discrete packs, geometry units — each routes to the old path. */
   for (const raw of [
-    "{ keyframes: { opacity: '0% 0, 100% 1; [0-560]: 0% 0.5, 100% 1' } }",
+    /** Bands are IN scope since 5b — what stays out is a band under a non-linear element ease,
+     *  where the per-segment aligned-stops rule is deferred with easing groups. */
+    "{ keyframes: { opacity: '0% 0, 100% 1; [0-560]: 0% 0.5, 100% 1' }, ease: 'ease-in' }",
     "{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }",
     "{ keyframes: { translate-y: '0px 10px, 100px 0px' } }",
     "{ stagger: '10%' }",
@@ -119,4 +121,56 @@ it('the ease string is emitted verbatim — the browser is the solver now', () =
     el,
     "{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 10px, 50% 5px, 100% 0px' }, ease: 'ease-in' }");
   expect(misaligned).to.equal(null);
+});
+
+/* ── stage 5b: width bands as @media segments ────────────────────────────────────────────────── */
+
+it('a band composes its own segment, switched by @media — and agrees with the old path’s merge', async () => {
+  /**
+   * The band edge is placed around the RUNNER'S OWN viewport width, so both branches are exercised
+   * deterministically on whatever machine runs this: `applies` covers the current width, `misses`
+   * starts one pixel above it. The expected values come from the same merge the resize path runs.
+   */
+  const w = window.innerWidth;
+  const build = (edge) =>
+    writePath.fromAttribute(document.createElement('div'),
+      `{ keyframes: { opacity: '0% 0.6, 100% 0.6; [0-${edge}]: 0% 0.1, 100% 0.1' } }`);
+
+  const applies = build(w + 50);
+  const misses = build(w - 1 > 0 ? w - 1 : 1) && writePath.fromAttribute(document.createElement('div'),
+      `{ keyframes: { opacity: '0% 0.6, 100% 0.6; [${w + 1}-${w + 999}]: 0% 0.1, 100% 0.1' } }`);
+
+  for (const [generated, expected, label] of [[applies, 0.1, 'band covers viewport'], [misses, 0.6, 'band misses viewport']]) {
+    expect(generated.segments.length, `${label}: one segment generated`).to.be.above(0);
+    keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
+    keyframeRegistry.acquire(document, generated.hash, generated.keyframesRule);
+    for (const s of generated.segments) keyframeRegistry.acquire(document, s.hash, s.rule);
+    keyframeRegistry.acquire(document, `${generated.hash}#el`, generated.elementRule);
+    /** Switches AFTER the element rule — they tie on specificity, so sheet order decides. */
+    generated.segments.forEach((s, i) => keyframeRegistry.acquire(document, `${generated.hash}#m${i}`, s.media));
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    el.setAttribute('data-vd-a', generated.hash);
+    el.style.setProperty('--vd-p', '0.5');
+    await frame();
+    expect(Number(getComputedStyle(el).filter.match(/opacity\(([\d.]+)\)/)?.[1] ?? NaN), label)
+      .to.be.closeTo(expected, 0.01);
+
+    keyframeRegistry.release(generated.hash);
+    for (const s of generated.segments) keyframeRegistry.release(s.hash);
+    generated.segments.forEach((s, i) => keyframeRegistry.release(`${generated.hash}#m${i}`));
+    keyframeRegistry.release(`${generated.hash}#el`);
+    el.remove();
+  }
+});
+
+it('identical band content dedupes to one segment hash; the MARKER hash still differs from bandless', () => {
+  const el = document.createElement('div');
+  const banded = writePath.fromAttribute(el, "{ keyframes: { opacity: '0% 0.6, 100% 0.6; [0-560]: 0% 0.1, 100% 0.1' } }");
+  const bandless = writePath.fromAttribute(el, "{ keyframes: { opacity: '0% 0.6, 100% 0.6' } }");
+  expect(banded.name, 'the BASE composition is byte-identical, so the base rule is shared')
+    .to.equal(bandless.name);
+  expect(banded.hash, 'but the marker identity differs — a band is part of who the element is')
+    .to.not.equal(bandless.hash);
 });
