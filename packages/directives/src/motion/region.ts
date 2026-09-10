@@ -18,20 +18,25 @@
  * elements rest in their natural readable state, never half-applied.
  */
 import { getWindowSize } from './dom.js';
+
 import { scrollListener, resizeListener } from './eventListeners.js';
 import { createVisibilityTracker } from './visibility.js';
+
 import { emit, EVENTS } from './events.js';
+
 import { forgetSticky, forgetDirection } from './dom.js';
+
 import { supports, prefersReducedMotion, prefersCoarsePointer, onReducedMotionChange, onCoarsePointerChange } from './supports.js';
+
 import {
   createRuntimeElement, updateElement, resetElement, clearElement,
   setElementStyles, readRootFontSize, writeScrollVar,
 } from './runtime.js';
-import type { RuntimeElement, RuntimeSettings } from './runtime.js';
 import { insert, pageProblem } from './schema.js';
-import type { InsertMap, Range } from './schema.js';
-import type { ParsedElement, DroppedElement } from './parse.js';
+
 import { forgetStagger } from './parse.js';
+import type { DroppedElement, InsertMap, Range, Region, RegionParseContext, RuntimeElement, RuntimeSettings } from './types.js';
+
 
 export interface RegionOptions {
   readonly axis: 'vertical' | 'horizontal';
@@ -44,12 +49,6 @@ export interface RegionOptions {
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
 }
 
-/** What the parse layer needs from a region — see `ParseContext`. */
-export interface RegionParseContext {
-  readonly breakpoints: ReadonlyMap<string, Range>;
-  readonly dropped: DroppedElement[];
-  readonly inertia: number;
-}
 
 /**
  * Runs one insert point's chain, and keeps going if a link throws. Two
@@ -162,21 +161,6 @@ export const disableMotion = (): void => {
   resolvePreferences();
 };
 
-export interface Region {
-  add(parsed: ParsedElement, rejectFor: (reason: string) => void): RuntimeElement | null;
-  remove(node: Element): void;
-  /** Re-measure geometry after an external layout change — the old `refresh()`. */
-  refresh(): void;
-  /** Re-evaluate one `when`-driven element (the lazy observer's callback). */
-  updateWhen(node: Element): void;
-  /** Refresh a stagger group's curves after membership churn — cheap, no re-parse. */
-  refreshGroup(host: Element): void;
-  readonly parseContext: RegionParseContext;
-  readonly settings: RuntimeSettings;
-  destroy(): void;
-  /** @internal preference plumbing */
-  _setEnabled(on: boolean): void;
-}
 
 export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<string, Range>): Region => {
   const runtimeSettings: RuntimeSettings = {

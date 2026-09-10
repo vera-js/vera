@@ -1,3 +1,4 @@
+import type { Band, InsertMap, PositionUnit, PropertyDef, Range, RawKeyframe, Refusal, SettingDef, Unit, Wirable, WirableFactory, WirableTree } from './types.js';
 /**
  * The single source of truth for the motion vocabulary.
  *
@@ -82,93 +83,20 @@ export const CATEGORIES = [
   'filter',
   'border',
 ] as const;
-export type Category = (typeof CATEGORIES)[number];
+
 
 /**
  * Unit allowlist. A fixed list is a security boundary, not a convenience:
  * unit strings are never passed through from an authored value.
  */
-export const UNITS = ['px', 'deg', '%', 'rem', 'em', 'vh', 'vw', ''] as const;
-export type Unit = (typeof UNITS)[number];
+export const UNITS = ['px', 'deg', '%', 'rem', 'em', 'vh', 'vw', ''] as const satisfies readonly Unit[];
+/** BOTH directions pinned: the satisfies above refuses an array member outside the union; this
+ *  refuses a union member missing from the array. The literal unions live in types.ts (which
+ *  imports nothing), the runtime data here — drift is a compile error, not a review item. */
+type _UnitsExhaustive = Unit extends (typeof UNITS)[number] ? true : never;
+const _unitsExhaustive: _UnitsExhaustive = true;
+void _unitsExhaustive;
 
-export interface PropertyDef {
-  /** Key spelling, kebab-case: `translate-y`. */
-  readonly key: string;
-  readonly parse?: (raw: string) => number | null;
-  /**
-   * A TEXT property's validator (8c): the authored value in, the validated CSS text out (or null,
-   * refused). The text lands in generated keyframes at its authored stops and the BROWSER
-   * interpolates — which retired both imperative writers this slot has held: `apply(node, value)`
-   * (stage 6) and the `css(value)` slot-formatter that briefly replaced it. Text properties ride
-   * the generated path only; the inline path refuses them by name.
-   */
-  readonly parseText?: (raw: string) => string | null;
-  /**
-   * Derived for built-ins, and free-form for a module — the union keeps
-   * autocomplete for the known values while letting a module name its own
-   * group for the GUI to render. Only transform, filter and image change
-   * behaviour; everything else is a plain cssProperty write.
-   */
-  readonly category: Category | (string & {});
-  /** For transform/filter functions: `translateY`, `blur`. */
-  readonly cssFunction?: string;
-  /** For plain CSS properties: `border-top-left-radius`. */
-  readonly cssProperty?: string;
-  readonly defaultUnit: Unit;
-  readonly units: readonly Unit[];
-  readonly min?: number;
-  readonly max?: number;
-  /** Value when the element is not animating — its resting state. */
-  readonly initial: number;
-  /**
-   * The import specifier of the module that contributes this key, and
-   * **absent for core's own** — `getProperty('background')?.from` answers
-   * `'@verajs/directives/motion'` (the paint export), `getProperty('opacity')
-   * ?.from` answers nothing. A GUI editor is the reason it exists: a panel
-   * iterating the vocabulary could describe a key completely and still not
-   * tell an author what to wire to make it work.
-   */
-  readonly from?: string;
-  /**
-   * The values are not on a number line — each is a slot in the module's own
-   * table, so the runtime holds one until the next keyframe rather than
-   * interpolating towards it. Interpolating produced a value between two
-   * slots, and `Math.floor` of that is somebody else's.
-   */
-  readonly discrete?: boolean;
-  /**
-   * Per-element wiring for a property that needs more than a write path —
-   * `path` resolves its `<path>` into an `offset-path` here, `frame` owns its
-   * drawer teardown. Runs at the motion directive's activation for every
-   * element whose object carries this property; a returned function is the
-   * teardown, and the engine's rebuild-on-edit is what replaced the whole
-   * `prepare`-insert staleness machinery: an edited selector or frame-url
-   * re-resolves because the element re-activates. The fold-in's replacement
-   * for three of the five insert points.
-   */
-  readonly setup?: (
-    node: HTMLElement,
-    settings: Readonly<Record<string, string | number | boolean>>,
-    reject: (code: string, args?: readonly string[]) => void
-  ) => void | (() => void);
-}
-
-/**
- * A refusal, on its way to the engine's registry: a CODE and the runtime values its sentence needs.
- *
- * Motion used to pass composed sentences instead, which is why its prose shipped to production
- * while every other pack's folded away — and why no docs page or inspector row could address one
- * of its refusals, since they all arrived under a single `motion-refused` code. `where` is the key
- * path a nested refusal accumulates (`opacity`, then `opacity: 40%`), carried separately so the
- * table can render it without every caller composing the prefix itself.
- */
-export type Refusal = {
-  readonly code: string;
-  readonly args: readonly string[];
-  /** The key path a NESTED refusal accumulates — `opacity`, then `opacity: [0 50%]`. Carried apart
-   *  from `args` so one place renders the prefix instead of every caller composing it. */
-  readonly where?: string;
-};
 
 /** Prefix a nested refusal with the key that contained it. */
 export const at = (key: string, r: Refusal): Refusal => ({ ...r, where: r.where ? `${key}: ${r.where}` : key });
@@ -258,42 +186,6 @@ export const properties = (): readonly PropertyDef[] => [...BY_KEY.values()];
 /** Whether a name is an animatable property. A type guard for GUI narrowing. */
 export const isProperty = (name: string): name is PropertyName => BY_KEY.has(name);
 
-/**
- * Element-level settings. Kept in a namespace disjoint from property names so
- * an object key resolves unambiguously; a test enforces that.
- */
-export interface SettingDef {
-  /**
-   * A module's own validator, given the raw authored text. Returning null
-   * rejects it, exactly as a built-in type would. This is what lets a module
-   * own the settings that configure it without the runtime knowing their
-   * shape — `frame-url` validates an origin policy the runtime does not carry.
-   */
-  readonly parse?: (raw: string) => string | number | boolean | null;
-  /** A built-in `parse` setting's OWN refusal code. Without one, a parse refusal falls to
-   *  `motion-setting-module-refused` — right for a third-party module, wrong for a setting this
-   *  pack ships: "the module that owns it" is us, and the author deserves the actual grammar. */
-  readonly code?: string;
-  /** The wiring specifier that contributes this setting; absent for core's own. */
-  readonly from?: string;
-  readonly key: string;
-  readonly type:
-    | 'number' | 'boolean' | 'string' | 'url' | 'selector' | 'length'
-    /** A CSS timing function. Validated by grammar, not passed through. */
-    | 'easing'
-    /** A CSS transform-origin. Validated by grammar, not passed through. */
-    | 'origin'
-    /** A keyframe-position offset: a number with an optional unit, `%` by default. */
-    | 'offset'
-    /** `"<edge> <viewport position>"` — one end of the range percentages are measured across. */
-    | 'alignment'
-    /** One or two alignments, comma-separated: the span a scrub crosses, or a play's two events. */
-    | 'range';
-  /** Bounds for `number`. A setting without them is unbounded, which is a bug. */
-  readonly min?: number;
-  readonly max?: number;
-  readonly allowed?: readonly string[];
-}
 
 /**
  * Every numeric setting carries bounds, for the same reason every property
@@ -586,68 +478,6 @@ export const registerVocabulary = (item: WirableTree): void => {
   }
 };
 
-/**
- * What an insert point is called, and what it must be. A typed map rather
- * than bare strings because a misspelled insert point that silently never
- * fires is the failure this mechanism is most likely to produce. These are
- * the MOTION PACK's internal seams — the engine's own inserts are a different
- * system; these fire from the motion directive's lifecycle.
- */
-export interface InsertMap {
-  /**
-   * Turns a preset NAME into the motion value it stands for, or null if this pack does not know it.
-   * The presets module — and, deliberately, anyone else's: the shipped table is one registration on
-   * this point and carries no privilege over a third party's.
-   *
-   * Unlike the four below, this chain's links RETURN a value, so a resolver that
-   * throws or answers nonsense has to be contained per link rather than per page.
-   */
-  preset: (name: string) => Readonly<Record<string, unknown>> | null;
-  /**
-   * Runs over a root **before** its elements are collected, so a module can
-   * change the DOM the runtime is about to read. `split` uses it: the pieces
-   * it creates are then found by the ordinary scan, and nothing downstream
-   * knows they were not written by hand. `enabled` says whether anything will
-   * actually animate — false under reduced motion, or while disabled; a
-   * module that rewrites the DOM should do nothing then.
-   */
-  prepare: (root: ParentNode, enabled: boolean) => void;
-  /**
-   * One element is leaving — removed from the page, or the region is being
-   * cleared. A module holding anything keyed by that node releases it here.
-   */
-  release: (node: Element) => void;
-  /**
-   * A region is being torn down. `owns` says whether a node belongs to the
-   * region doing the tearing down, and a module **must** consult it — wiring
-   * is page-level while regions are not, so without it one region's teardown
-   * reaches every other region's state.
-   */
-  teardown: (owns: (node: Node) => boolean) => void;
-  /**
-   * **Nothing is animating this page any more** — the last live region has
-   * been torn down. A module holding state for the *page*, rather than for an
-   * element or a region, drops it here. Fires *after* `teardown`, so a module
-   * can rely on its per-element work having already run.
-   */
-  forget: () => void;
-}
-
-export type Insert = {
-  [K in keyof InsertMap]: { readonly on: K; readonly fn: InsertMap[K] };
-}[keyof InsertMap];
-
-/** A module that takes options; calling it is optional. */
-export type WirableFactory = () => WirableTree;
-
-export type Wirable = PropertyDef | SettingDef | Insert | WirableFactory;
-
-/**
- * What `registerVocabulary` accepts: a descriptor, a factory, or any nesting
- * of arrays of them. Recursive on purpose, because the nesting is real — a
- * module is usually itself a list.
- */
-export type WirableTree = Wirable | readonly WirableTree[];
 
 /**
  * A chain per insert point, not one function. Two modules commonly want the
@@ -666,7 +496,7 @@ export const insert = <K extends keyof InsertMap>(name: K): InsertMap[K][] =>
 
 /** Units a keyframe POSITION may use. All standard CSS — nothing to learn. */
 export const POSITION_UNITS = ['%', 'vh', 'vw', 'px', 'rem'] as const;
-export type PositionUnit = (typeof POSITION_UNITS)[number];
+
 
 /** Absolute positions are capped so a typo cannot ask for a kilometre of scroll. */
 const MAX_ABSOLUTE_POSITION = 100000;
@@ -682,39 +512,6 @@ const MAX_ABSOLUTE_POSITION = 100000;
 export const MAX_KEYFRAMES = 256;
 export const MAX_BANDS = 32;
 
-export interface RawKeyframe {
-  /** In `positionUnit`, NOT yet normalised to a timeline fraction. */
-  readonly position: number;
-  readonly positionUnit: PositionUnit;
-  readonly value: number;
-  /** The value's own unit, from the property's allowlist. */
-  readonly unit: Unit;
-  /**
-   * A TEXT-valued keyframe (8c): the validated CSS text of a `parseText` property — a colour, a
-   * gradient, a shadow. Present only for those; `value`/`unit` are 0/'' placeholders then. Text
-   * values are declared at their AUTHORED stops only and the browser interpolates between them —
-   * which is the entire point: the slot-and-step machinery this replaces existed because numeric
-   * curves could not carry a string, not because stepping was wanted.
-   */
-  readonly text?: string;
-}
-
-/**
- * A viewport-width range, in CSS pixels. `max` is `Infinity` for an open end.
- * **The range is the primitive.** A registered name like `mobile` is an alias
- * that resolves to one of these at parse time, so the runtime only ever deals
- * in ranges and a name costs nothing once parsed.
- */
-export interface Range {
-  readonly min: number;
-  readonly max: number;
-}
-
-/** Keyframes that apply only inside a range. */
-export interface Band extends Range {
-  readonly keyframes: readonly RawKeyframe[];
-  readonly geometryDependent: boolean;
-}
 
 /**
  * Parses a range prefix: `[200-500]` closed, `[500+]` open at the top. There
@@ -1320,4 +1117,5 @@ export const parseOrigin = (raw: string): string | null => {
 
   return parts.join(' ');
 };
+
 

@@ -9,17 +9,19 @@
  * one style write per category (principle #4).
  */
 import { getElementSize, getWindowSize, displacementOf, normalisePosition } from './dom.js';
+
 import { generateSimple, mergeBandsForWidth } from './generate.js';
+
 import { tickFor } from './ticks.js';
-import type { Generated } from './generate.js';
+
 import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
+
 import { syncTo, rampTo, dispose } from './drive.js';
-import type { Driven, SheetRoot } from './types.js';
+
+
 
 import { emit, EVENTS } from './events.js';
-import type { ParsedElement, ElementMotion } from './parse.js';
-import type { RawKeyframe } from './schema.js';
-import type { WindowSize } from './dom.js';
+import type { ElementMotion, Generated, ParsedElement, RawKeyframe, RuntimeElement, RuntimeSettings, SheetRoot, WindowSize } from './types.js';
 
 
 
@@ -42,171 +44,6 @@ export interface MotionElement {
   readonly node: HTMLElement;
   /** Timeline progress — `0` entering the scroll window, `1` fully left, unclamped. */
   readonly timelinePosition: number;
-}
-
-export interface RuntimeElement {
-  readonly node: HTMLElement;
-  readonly parsed: ParsedElement;
-  /**
-   * One plan, not one per breakpoint.
-   *
-   * There used to be three — desktop, tablet and mobile — each with its own
-   * curves and scratch buffers, of which exactly one was ever read. Width
-   * ranges are resolved when the element is measured instead, so the frame
-   * loop reads a single plan and no longer asks which breakpoint applies.
-   */
-  /**
-   * What the page had inline, for the properties this instance takes over.
-   *
-   * Flat pairs — name, value, name, value — because it is read once per
-   * teardown and never per frame, and two arrays or an object of tuples cost
-   * more than the indexing saves.
-   *
-   * The runtime owns these while it animates, which the README states. What it
-   * did not do is give them back: `destroy()` promises to release every style
-   * it *injected*, and it was removing the author's too. A page builder that
-   * emits `transform: translateX(-50%)` for centring — which is most of them —
-   * lost the centring for good the first time an instance tore down.
-   */
-  readonly restore: readonly string[];
-  /**
-   * How far anything other than this library displaces the element — an
-   * ancestor's transform, or one the page wrote inline. Measured once, before
-   * the first style is written, and added to every layout reading after.
-   */
-  readonly displaced: number;
-
-  /** Cached geometry — recomputed on resize and mutation, never per frame. */
-  start: number;
-  /** The scroll range percentages are measured across — see `resolveRange`. */
-  rangeStart: number;
-  rangeSize: number;
-  /** `play` is set: this element runs its keyframes over time at a threshold rather than scrubbing. */
-  readonly playing: boolean;
-  /** The custom property progress is written to, or null. Opt-in — see the `progress` setting. */
-  /**
-   * Where a PLAY reverses, or null for a single threshold crossed both ways. Resolved with the range
-   * because it is the far end of it — kept apart from `rangeSize` because a play with one half still
-   * has a range (its default end), and using that as an exit would make the element leave at a line
-   * the author never wrote.
-   */
-  exitAt: number | null;
-  end: number;
-  size: number;
-
-  /**
-   * How far the authored keyframes reach outside 0-1. Derived from the curves,
-   * so they move with them on resize.
-   */
-  lowestStart: number;
-  highestEnd: number;
-  /**
-   * True when this element's curves must be rebuilt whenever the page is
-   * measured — because a position resolves against geometry, **or** because a
-   * width band decides which keyframes apply. Both change on resize, and
-   * missing the second meant a band was resolved once at construction and then
-   * never again.
-   */
-  readonly geometryDependent: boolean;
-
-
-  timelinePosition: number;
-  runOnceRan: boolean;
-  /**
-   * The page is not long enough for this element's animation to finish — see
-   * `refreshCurves`. Re-derived on every measure, so it stops being true the
-   * moment the page grows.
-   */
-  unfinishable: boolean;
-  /**
-   * Why `pin` will not hold, or null if it will. Re-derived on every measure
-   * for the same reason `unfinishable` is: both are answers about a layout
-   * that changes under the page.
-   */
-  pinBlocked: string | null;
-  /**
-   * Why `translate-z` will not be visible, or null if it will. Derived with
-   * `pinBlocked` and for the same reason: it is an answer about a layout and an
-   * ancestor's computed style, both of which change under the page.
-   */
-  flatBlocked: string | null;
-  /**
-   * Why the page's CSS is discarding what this element writes, or null.
-   *
-   * Unlike the two above it is derived **after** a write rather than from
-   * layout, because the question is whether a write survived — so `start()`
-   * sets it once per (re)start, after its full paint pass, rather than
-   * `resetElement` re-deriving it on every measure. A stylesheet rule is not
-   * something a resize changes.
-   */
-
-  /** Last strings written, so an unchanged frame costs nothing. */
-
-  readonly runOnce: boolean;
-  /** Selector that drives this element instead of scroll, if any. */
-  readonly when: string | null;
-  /**
-   * The generated write path, or null when this element is outside `generateSimple`'s scope and
-   * the inline path drives it. Everything write time needs, derived ONCE at activation so the
-   * frame path re-derives nothing: the registry hash to release, the driver's slice, and the two
-   * clocks — `tau` for a scrub's chase, `play` for a ramp.
-   */
-  generated: {
-    readonly hash: string;
-    /** Transition-mode play: the write is ONE attribute flip and the compositor owns the
-     *  clock; no drives run and no variable exists. */
-    readonly transition: boolean;
-    /**
-     * Tier C: the CASCADE computes this element's progress from the scroller's one written
-     * number — no per-frame JS write at all. True for the plain scrub (no inertia anywhere, no
-     * tick, no play, no gate, no run-once latch, no renamed progress, one variable); everything
-     * else drives inline, which beats the rule. JS still computes the number per pass for
-     * events and onProgress — CSS drives, JS observes.
-     */
-    readonly cascade: boolean;
-    /** True when any keyframe position is a LENGTH — those rules are per-geometry-bucket and a
-     *  re-measure regenerates them (release old, acquire new, re-mark). Bands are NOT this:
-     *  their width switching is @media's job. */
-    readonly geometric: boolean;
-    /** Every registry key this element holds — groups, segments, switches, element rule — for
-     *  teardown. */
-    readonly hashes: readonly string[];
-    /** One driver slice per seek variable, with the raw inertia seconds that time it. */
-    readonly drives: readonly { readonly driven: Driven; readonly tau: number }[];
-    readonly play: number | null;
-  } | null;
-  /** A setup-carrying tick module's teardown, run at clearElement -- the drawer-drop moment. */
-  readonly tickTeardown: (() => void) | null;
-  /**
-   * Where this element's refusals go — the engine's rejections registry,
-   * captured from the directive's `ctx.reject` at activation. A closure
-   * rather than an import, because this pack is an additive bundle that
-   * imports nothing from the engine; the fold-in's replacement for the old
-   * module-level rejections map.
-   */
-  readonly reject: (code: string, args?: readonly string[]) => void;
-}
-
-export interface RuntimeSettings {
-  readonly scrollDirection: string;
-  /** The scrolling container, when it is not the window. Geometry is relative to it. */
-  readonly scrollElement?: Window | HTMLElement | null;
-  /** Seconds the element takes to reach the position scroll says it should be at. */
-  readonly inertia: number;
-  /** Timing function of that catch-up. Handed to CSS. */
-  readonly inertiaEase: string;
-  /** Timing function of the curve itself. Evaluated here. */
-  readonly ease: string;
-  /**
-   * Called with every element's timeline position, every frame it updates.
-   *
-   * A callback rather than an event because this runs 60 times a second per
-   * element; see events.ts for the measurement. Undefined by default, and the
-   * check below is one property read.
-   */
-  readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
-  readonly translateZFix?: boolean;
-  readonly transformOrigin?: string;
 }
 
 
@@ -513,7 +350,6 @@ const flatTrouble = (element: RuntimeElement, settings: RuntimeSettings): string
 };
 
 
-
 const pinTrouble = (element: RuntimeElement, settings: RuntimeSettings): string | null => {
   if (element.parsed.settings['pin'] === undefined) return null;
   const node = element.node as HTMLElement;
@@ -546,7 +382,6 @@ const pinTrouble = (element: RuntimeElement, settings: RuntimeSettings): string 
   }
   return null;
 };
-
 
 
 /**
@@ -1098,7 +933,6 @@ export const setElementStyles = (element: RuntimeElement, settings: RuntimeSetti
     else node.style.top = String(pin);
   }
 };
-
 
 
 /**

@@ -20,104 +20,20 @@
  * a block can set these values, so every one is checked against the schema
  * and a failure drops that animation rather than guessing.
  */
-import type { Refusal } from './schema.js';
 import { at } from './schema.js';
+
 import {
   getSetting, getProperty, insert,
   parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin, EASING_KEYWORDS,
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
-import type { PropertyDef, Unit, RawKeyframe, PositionUnit, Band, Range } from './schema.js';
 import { parseValue, isObject, isPath } from '../parse.js';
 import type { Parsed, ParsedObject, Path } from '../parse.js';
+import type { Band, ElementMotion, ParseContext, ParsedElement, PositionUnit, PropertyDef, Range, Refusal, Unit } from './types.js';
 
 /** The one attribute. Exported so runtime walks (`stagger`) select by it. */
 export const MOTION_ATTR = 'data-vd-motion';
 
-export interface ElementMotion {
-  readonly property: PropertyDef;
-  readonly unit: Unit;
-  /**
-   * Positions are still in their authored units. Normalising them needs the
-   * element's size and the viewport, which parse has no business knowing —
-   * so the curve is built by the runtime and rebuilt on resize when any
-   * position depends on geometry.
-   */
-  readonly keyframes: readonly RawKeyframe[];
-  /**
-   * Width-ranged overrides that merge onto the base. From an inline
-   * `[0-500]: …` or from a `-name` key suffix whose range was registered on
-   * the region — both resolve to a range here, so the runtime only ever
-   * deals in ranges and never in names.
-   */
-  readonly bands: readonly Band[];
-  /** True when a position uses anything but `%`, so the curve must be rebuilt on resize. */
-  readonly geometryDependent: boolean;
-  /**
-   * This property's own curve shaper, from the nested value form —
-   * `opacity: { frames: '…', ease: 'ease-in' }` — overriding the element's
-   * `ease` for this property alone. The fold-in's addition: the curve engine
-   * always took an ease per curve; the old attribute grammar had nowhere to
-   * write one. Resolved by the runtime through the easings module, exactly
-   * as the element-level value is; carried here as the validated STRING.
-   */
-  readonly ease?: string;
-}
-
-export interface ParseContext {
-  /**
-   * Named width ranges, so `opacity-mobile` can mean whatever this site
-   * calls mobile. A name is only ever an alias for a range.
-   */
-  readonly breakpoints?: ReadonlyMap<string, Range>;
-  /**
-   * Where diagnostics go for an element that is dropped entirely. An element
-   * whose *every* animation failed to validate has no `ParsedElement` to
-   * carry its `rejected` list, so the reasons used to be discarded — and
-   * that is precisely the element someone is debugging when they ask why
-   * nothing is animating.
-   */
-  readonly dropped?: DroppedElement[];
-  /**
-   * The region's own `inertia`, for the one refusal that cannot be decided
-   * from an element's value alone: `inertia-ease` with nothing to ease. An
-   * element that writes neither `inertia` nor a category override inherits
-   * this, and at 0 there is no transition for the easing to shape.
-   */
-  readonly inertia?: number;
-}
-
-/**
- * One element's diagnostics. `node` is `null` for a problem with the
- * *configuration* rather than with an element — a region option the runtime
- * refused and fell back on. Consumers iterating this must expect the null;
- * there is at most one such entry, and it sorts first.
- */
-export interface RejectedElement {
-  readonly node: Element | null;
-  readonly rejected: readonly Refusal[];
-}
-
-/** The same, for an element rather than for the configuration. */
-export interface DroppedElement extends RejectedElement {
-  readonly node: Element;
-}
-
-export interface ParsedElement {
-  readonly node: Element;
-  readonly animations: readonly ElementMotion[];
-  readonly settings: Readonly<Record<string, string | number | boolean>>;
-  /**
-   * How far this element's keyframes shift, from a `stagger` on an ancestor.
-   * Left in its authored unit rather than resolved here, for the same reason
-   * keyframe positions are: `40px` of stagger and a `50%` keyframe normalise
-   * against different quantities, so they can only be added once both are
-   * timeline fractions. The runtime does that.
-   */
-  readonly stagger?: { readonly position: number; readonly positionUnit: PositionUnit };
-  /** Values the schema could not accept, for diagnostics. Empty on a clean parse. */
-  readonly rejected: readonly Refusal[];
-}
 
 let staggerGeneration = 0;
 const staggerIndices = new WeakMap<Element, { gen: number; index: Map<Element, number> }>();

@@ -18,13 +18,15 @@
  * `animation-timing-function` applies per keyframe interval — the same model, so the authored
  * string is emitted as-is and the browser's solver replaces ours.
  */
-import type { ElementMotion, ParsedElement } from './parse.js';
-import type { RawKeyframe, Band } from './schema.js';
 import { parseMotion } from './parse.js';
+
 import { composeTransform, composeFilter, format, sortForApply } from './apply.js';
+
 import { contentHash, PROGRESS_PROPERTY, STAGGER_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
-import type { WindowSize } from './dom.js';
+
 import { normalisePosition } from './dom.js';
+import type { Band, ElementMotion, Generated, GeneratedGroup, GeometryContext, ParsedElement, RawKeyframe } from './types.js';
+
 
 /**
  * Band merge for one width — THE band semantics, shared with the runtime (it imports this; the
@@ -51,100 +53,6 @@ export const mergeBandsForWidth = (
   return merged;
 };
 
-/** One easing group: the animations sharing one timing function and one seek variable, emitted
- *  as one `@keyframes` rule and one entry in the element's `animation` list. */
-export interface GeneratedGroup {
-  /** Content hash of this group's base body — the registry key its rule is acquired under. */
-  readonly hash: string;
-  /** The animation name, `vd-<hash>` — derived, carried so no caller re-derives it differently. */
-  readonly name: string;
-  /** The complete `@keyframes` rule, ready for `acquire`. */
-  readonly rule: string;
-  /** The effective timing function, verbatim — the authored per-property ease, else the element's. */
-  readonly ease: string;
-  /** The variable THIS group seeks by — the base variable, or a per-category one. */
-  readonly varName: string;
-}
-
-/** What generation hands the caller: the rules to acquire, and the declarations the element carries. */
-export interface Generated {
-  /** The MARKER — content hash over the whole identity (groups × segments), the `data-vd-a` value. */
-  readonly hash: string;
-  /**
-   * How this element is DRIVEN. `seek`: the paused-animation delay-seek, one number per frame
-   * (scrub, and play's ramp fallback). `transition`: play emission as CSS transitions — base
-   * declarations plus an active state toggled by ONE attribute flip, the compositor owning the
-   * clock and reversal following the platform's reversing algorithm (ratified: retimed,
-   * curve-mirrored, may reverse-overshoot). Dispatch is compile-time with no authoring surface.
-   */
-  readonly mode: 'seek' | 'transition';
-  /** Transition mode only: the ACTIVE state's declarations, empty otherwise. Enters the sheet
-   *  AFTER the base rule — they tie on specificity, and order is the tiebreak. */
-  readonly activeRule: string;
-  /**
-   * Transition mode only: the transition LONGHANDS, under the ARMED marker (`data-vera-t`) —
-   * separate from the base on purpose, measured: rules injected at ACTIVATION time arrive as a
-   * style change, so longhands living on the base rule animate every element in from its
-   * natural state (0.91 sampled en route to a 0.1 base). The runtime arms one frame after base
-   * paints; the server pre-arms in markup, where first paint already has base and no change
-   * ever fires.
-   */
-  readonly armedRule: string;
-  /**
-   * Transition mode only: active values under `@media (scripting: none)` with `transition:
-   * none` — the no-JS story INVERTED for transitions (omni's shape, mirrored): the base state
-   * is the hidden one, no JS ever flips the marker, so a no-JS visitor gets the END state
-   * statically and the content is readable.
-   */
-  readonly noJsRule: string;
-  /** Transition mode only: the END state under `@media (prefers-reduced-motion: reduce)` with
-   *  `transition: none` — the no-JS inversion reused a third time, because the base state is
-   *  the hidden one and reduced-motion visitors get the designed page, journey skipped. */
-  readonly reducedRule: string;
-  /**
-   * Easing groups, author order. One group is the common case; a value whose properties carry
-   * their own `ease`, or whose categories smooth at their own `inertia`, splits — `animation-name`
-   * takes a list, and each group is one entry with its own timing function and seek variable.
-   * The split is bounded by CSS itself: two entries cannot write one property, so a split that
-   * would collide (two eases inside `filter`, say) answers null and keeps the old path.
-   */
-  readonly groups: readonly GeneratedGroup[];
-  /**
-   * Width-band segments beyond the base: per interval, the keyframes rules to acquire (deduped by
-   * content hash — a group a band never touches re-hashes to its base rule) and the `@media` block
-   * that switches the element's whole `animation-name` list. Base applies outside every band.
-   */
-  readonly segments: readonly { readonly min: number; readonly max: number;
-    readonly rules: readonly { readonly hash: string; readonly rule: string }[];
-    readonly media: string }[];
-  /**
-   * The distinct seek variables, each named with the setting that times it — what the runtime
-   * registers and builds one driver slice per. Per-category variables exist only when their
-   * override does; the common case is one entry carrying `inertia`.
-   */
-  readonly vars: readonly { readonly name: string;
-    readonly inertiaKey: 'inertia' | 'transform-inertia' | 'filter-inertia' }[];
-  /** The base variable — `--vd-p`, or the author's `progress` rename. The author-visible one. */
-  readonly varName: string;
-  /**
-   * TIER N — the endgame rule, shipped UNCONDITIONALLY inside @supports: on engines with native
-   * scroll-driven animations, an element the runtime opts in (`data-vera-n`) swaps the delay-seek
-   * for `animation-timeline: view()` with `animation-range: cover 0%→100%` — which IS our default
-   * scroll window, keyframe percentages mapping 1:1. Zero per-frame JS, and from SSR markup zero
-   * JS at all. Engines without support ignore the block and the element rides tier C; the tiers
-   * keep LAYERING (this rule only overrides the timing longhands, later in the sheet).
-   */
-  readonly nativeRule: string;
-  /** The element's own declarations: the paused animation list, seeked by the progress properties. */
-  readonly elementStyle: string;
-  /**
-   * The same declarations as a SHEET RULE on the doubled-attribute selector — 0-2-0, beating an
-   * author's single-class tie for free — which is what lets bands and easing groups switch
-   * `animation-name` under `@media`. `elementStyle` stays for consumers that inline (the parity
-   * twin); the runtime delivers THIS.
-   */
-  readonly elementRule: string;
-}
 
 /** Linear value of one animation at `position`, clamped at the authored ends — the same math
  *  `evaluate` does on its straight-line path, without the per-frame arena it carries. */
@@ -175,18 +83,7 @@ interface Grouped {
  * Null is the contract, not a failure: it routes the element to the old write path, which stays
  * authoritative for everything outside this scope until later stages widen it.
  */
-/**
- * The element's measured geometry, for values whose keyframe POSITIONS are lengths (vh/px/rem) —
- * those normalise against the scroll window, so their rules are PER-GEOMETRY-BUCKET: the hash
- * covers the normalised text, identical geometries still share, and a re-measure regenerates.
- * Absent (the SSR pass, the test door), geometry-position values answer null and wait for the
- * client's first measure — frame 0 is the natural state there, honestly.
- */
-export interface GeometryContext {
-  readonly scrollWindow: number;
-  readonly win: WindowSize;
-  readonly root: number;
-}
+
 
 export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext): Generated | null => {
   /** A TICK-ONLY element is a real shape — `{ scroll: '…', tick: 'drawFrame' }` — and generates

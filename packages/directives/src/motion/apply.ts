@@ -12,7 +12,8 @@
  * string itself, and a deterministic result (principle #4).
  */
 import { propertyOrder } from './schema.js';
-import type { PropertyDef, Unit } from './schema.js';
+import type { PropertyDef, Unit } from './types.js';
+
 
 export interface AppliedAnimation {
   readonly property: PropertyDef;

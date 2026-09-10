@@ -19,6 +19,7 @@
  */
 import type { Driven } from './types.js';
 
+
 const active = new Set<Driven>();
 let ticking = false;
 let last = 0;

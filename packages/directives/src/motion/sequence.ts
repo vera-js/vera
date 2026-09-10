@@ -17,13 +17,16 @@
  * rebuilds it from the fresh value. Structural, not swept.
  */
 import { createSequence } from './frames.js';
+
 import { parseUrl } from './url.js';
+
 import { pageProblem } from './schema.js';
-import type { SettingDef, WirableTree } from './schema.js';
-import type { TickModule } from './ticks.js';
+
 import { MOTION_ATTR } from './parse.js';
+
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
+import type { SettingDef, TickModule, WirableTree } from './types.js';
 
 const FROM = '@verajs/directives/motion';
 

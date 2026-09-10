@@ -23,6 +23,7 @@ export {
   RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY,
 } from './registry.js';
 export { syncTo, rampTo, dispose } from './drive.js';
-export type { Driven, SheetRoot } from './types.js';
+
 export { wireTicks, tickFor } from './ticks.js';
-export type { TickFunction, TickModule } from './ticks.js';
+
+export type { Driven, SheetRoot, TickFunction, TickModule } from './types.js';

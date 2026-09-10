@@ -1,3 +1,4 @@
+import type { PropertyDef, WirableTree } from './types.js';
 /**
  * Paint — colour, gradients and shadows for the motion object.
  *
@@ -18,7 +19,6 @@
  * wireDirectives([motion, paint]);
  * ```
  */
-import type { PropertyDef, WirableTree } from './schema.js';
 
 /** What a GUI panel tells an author to wire to make these keys work. */
 const FROM = '@verajs/directives/motion';

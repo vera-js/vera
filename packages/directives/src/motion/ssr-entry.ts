@@ -4,4 +4,3 @@
  * `/motion` entry still exports it for the everything-wired page.
  */
 export { renderMotion } from './ssr.js';
-export type { RenderMotionOptions, RenderMotionReport } from './ssr.js';

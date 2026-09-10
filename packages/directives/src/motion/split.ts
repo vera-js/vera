@@ -28,6 +28,7 @@
  */
 import type { Directive } from '../types.js';
 import { MOTION_ATTR, serializeMotion } from './parse.js';
+
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 

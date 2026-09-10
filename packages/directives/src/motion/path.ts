@@ -1,3 +1,4 @@
+import type { PropertyDef, SettingDef, WirableTree } from './types.js';
 /**
  * Path — follow an SVG path, for the motion object.
  *
@@ -18,7 +19,6 @@
  * wireDirectives([motion, path]);
  * ```
  */
-import type { PropertyDef, SettingDef, WirableTree } from './schema.js';
 
 const FROM = '@verajs/directives/motion';
 

@@ -16,7 +16,9 @@
  * Design record and the measurements behind every choice here: the write-path spec in the portal.
  */
 import type { SheetRoot } from './types.js';
+
 import { pageProblem } from './schema.js';
+
 
 /**
  * FNV-1a, 32-bit, hex — the content hash that names a rule.

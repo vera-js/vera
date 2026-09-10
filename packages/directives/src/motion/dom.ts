@@ -1,28 +1,5 @@
-import type { RawKeyframe } from './schema.js';
-/**
- * Geometry: every reading the runtime takes from the page.
- *
- * Two rules hold across the file. Readings are **transform-immune by construction** — layout
- * metrics (`offsetTop`, `offsetWidth`), never visual boxes, so an element's own animation can
- * never feed back into its own timeline. And anything sticky is **stood down for the length of a
- * reading and put back** — both `offsetTop` and a rect follow sticky positioning, which turns a
- * question about the element's slot into one about where the page happens to be scrolled.
- */
-export interface WindowSize {
-  /** Scroll offset at the leading edge of the viewport. */
-  readonly start: number;
-  readonly end: number;
-  /** Viewport extent along the scroll axis. */
-  readonly size: number;
-  readonly width: number;
-  readonly height: number;
-  /**
-   * The furthest `end` can ever get: the scrollport's extent added to how far
-   * this container can scroll. What an element's timeline is compared against
-   * to know whether the page is long enough to finish it.
-   */
-  readonly reach: number;
-}
+import type { RawKeyframe, WindowSize } from './types.js';
+
 
 export interface ElementBox {
   readonly start: number;
@@ -79,8 +56,6 @@ const stickyAbove = (element: HTMLElement | null): HTMLElement[] | null => {
   }
   return sticky;
 };
-
-
 
 
 /**
@@ -187,7 +162,6 @@ export const calcOffsetStart = (
    */
   return standingDown(element, walk);
 };
-
 
 
 /**
@@ -467,8 +441,6 @@ export const getElementSize = (
  * @param option whatever the caller passed for `scrollElement`
  * @returns the container, falling back to the window with a warning
  */
-
-
 
 
 /**

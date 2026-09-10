@@ -16,25 +16,29 @@
  */
 import { dual } from '../dual.js';
 import { parseMotion, forgetStagger, staggerHost, MOTION_ATTR } from './parse.js';
-import type { ParsedElement } from './parse.js';
+
 import {
   createRegion, enableMotion, disableMotion, configurePreferences, runInserts,
 } from './region.js';
-import type { Region, RegionOptions } from './region.js';
+import type { RegionOptions } from './region.js';
 import {
   registerVocabulary, setProblemReporter, parseEasing, parseSelector, parseOrigin,
   properties, settings as vocabulary, parseMeasure, pageProblem,
 } from './schema.js';
-import type { Range, WirableTree } from './schema.js';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 import type { Ctx, Directive, EngineConnector } from '../types.js';
 import { paintRows } from './paint.js';
+
 import { pathRows } from './path.js';
+
 import { sequenceRows, sequenceModule } from './sequence.js';
+
 import { wireTicks } from './ticks.js';
+
 import type { SequenceOptions } from './sequence.js';
 import { splitDirective } from './split.js';
+
 
 const CONFIG_ATTR = 'data-vd-motion-region';
 
@@ -490,9 +494,9 @@ export const presets = dual<PresetTable>((table) => {
   };
 });
 import { lookUpPreset, lookUpMerged } from './presets.js';
-import type { PresetTable } from './presets.js';
+import type { ParsedElement, PresetTable, Range, Region, WirableTree } from './types.js';
+
 export { PRESETS } from './presets.js';
-export type { Preset, PresetTable } from './presets.js';
 export const paint: EngineConnector = motionExtension(paintRows);
 export const path: EngineConnector = motionExtension(pathRows);
 /**
@@ -527,8 +531,6 @@ export { wireTicks } from './ticks.js';
  * jsdom); pass the SAME wire array the page uses so presets and packs resolve identically.
  */
 export { renderMotion } from './ssr.js';
-export type { RenderMotionOptions, RenderMotionReport } from './ssr.js';
-export type { TickFunction, TickModule } from './ticks.js';
 export * as keyframeRegistry from './registry.js';
 export * as writePath from './generate.js';
 /** Row tables for the vocabulary ARTIFACT generator only — data, not API; the connectors above are
@@ -539,8 +541,6 @@ export { parsePathData } from './path.js';
 
 export { enableMotion, disableMotion, runInserts };
 export { MOTION_ATTR } from './parse.js';
-export type { MotionEventDetail } from './events.js';
 export { EVENTS } from './events.js';
 /** The GUI surface: the live vocabulary, and the validator controls share with the runtime. */
 export { properties, vocabulary as settings, parseMeasure };
-export type { ParsedElement } from './parse.js';

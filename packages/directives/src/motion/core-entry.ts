@@ -15,11 +15,9 @@
 
 /** The grammar: one attribute value in, a validated ParsedElement out. */
 export { parseMotion, serializeMotion, staggerHost, MOTION_ATTR } from './parse.js';
-export type { ParsedElement, ElementMotion, ParseContext } from './parse.js';
 
 /** The compiler: a ParsedElement becomes CSS — groups, segments, tiers, transition mode. */
 export { generateSimple, mergeBandsForWidth, fromAttribute } from './generate.js';
-export type { Generated, GeneratedGroup, GeometryContext } from './generate.js';
 
 /** Delivery: content-hashed rules into whichever tree needs them, tails pinned last. */
 export {
@@ -30,11 +28,12 @@ export {
 
 /** The number's writer: chase, ramp, idle write-through — one self-stopping loop. */
 export { syncTo, rampTo, dispose } from './drive.js';
-export type { Driven, SheetRoot } from './types.js';
+
 
 /** The named-JS door. */
 export { wireTicks, tickFor } from './ticks.js';
-export type { TickFunction, TickModule } from './ticks.js';
 
 /** The server half lives in its OWN subpath (`/motion-ssr`): an embedder's CLIENT bundle never
  *  ships the emitter, and a server never minds the extra import. */
+
+export type { ParsedElement, ElementMotion, ParseContext, Generated, GeneratedGroup, GeometryContext, Driven, SheetRoot, TickFunction, TickModule } from './types.js';

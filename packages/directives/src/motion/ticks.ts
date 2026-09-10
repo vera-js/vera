@@ -17,26 +17,9 @@
  * (a canvas, text content, WebGL, audio), wrong as a general alternative to `keyframes`.
  */
 import { pageProblem } from './schema.js';
+import type { TickFunction, TickModule } from './types.js';
 
-/** What a tick receives: the element and how far through its range it is. Nothing else — no
- *  scroll position (the framework's business), no curve (there is none), no return value. */
-export type TickFunction = (node: HTMLElement, progress: number) => void;
 
-/**
- * A tick with a lifecycle — for consumers holding per-element resources (a canvas decoder, an
- * audio node). `setup` runs once at the element's activation with its parsed settings and its
- * refusal channel, and the teardown it returns runs when the element leaves or its value is
- * edited — the engine's rebuild-on-edit is the staleness story, exactly as it was for property
- * modules. A bare function is the common case; the descriptor is the one shape richer.
- */
-export interface TickModule {
-  readonly tick: TickFunction;
-  readonly setup?: (
-    node: HTMLElement,
-    settings: Readonly<Record<string, string | number | boolean>>,
-    reject: (code: string, args?: readonly string[]) => void
-  ) => (() => void) | void;
-}
 
 const ticks = new Map<string, TickModule>();
 

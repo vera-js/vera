@@ -1,3 +1,4 @@
+import type { MotionEventDetail } from './types.js';
 /**
  * Outbound notifications: the runtime telling the page what it is doing.
  *
@@ -54,21 +55,6 @@ export const EVENTS = {
   complete: `${NAMESPACE}:complete`,
 } as const;
 
-export interface MotionEventDetail {
-  /** Timeline position at the moment it fired: 0 entering, 1 fully left. */
-  readonly progress: number;
-  /**
-   * The element the notification is about.
-   *
-   * Redundant with `event.target` on an ordinary page, and not redundant at
-   * all inside a shadow root: a composed event crossing the boundary is
-   * **retargeted** to the host, so a listener on `document` sees the host and
-   * cannot tell which inner element fired. Measured in Chromium. Carrying the
-   * element here means one way to read it that is right in both places, rather
-   * than a `composedPath()[0]` incantation the docs would have to teach.
-   */
-  readonly element: HTMLElement;
-}
 
 /**
  * Dispatches one notification.

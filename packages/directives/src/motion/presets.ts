@@ -1,48 +1,5 @@
-/**
- * The preset pack — ten named motion values, wired like any other vocabulary.
- *
- * **These are AN example, not THE list.** A preset is the most project-specific thing in this
- * package: a site's house reveal is not ours to guess, and the ten below are a starting vocabulary
- * rather than a standard.
- *
- *   wireDirectives([motion, presets]);            // the shipped ten
- *   wireDirectives([motion, presets(house)]);     // yours, MERGED over ours
- *
- * **A preset is a motion value with a name**, and that is the whole design: the entries below are
- * the same shape as the attribute they expand into, so anything writable in markup is writable in a
- * preset and there is no second format to learn or keep in step. That includes SETTINGS, which is
- * what makes a pack worth shipping rather than a snippet worth copying — one word can carry a
- * project's whole motion character.
- *
- * **`presets(table)` merges rather than replaces**, key by key, yours winning. Two reasons, and the
- * second is the one that decided it:
- *
- * Overriding one preset is the common intent — `presets({ 'fade-up': … })` means "these ten, with
- * fade-up changed", and replace-by-default would silently lose the other nine.
- *
- * And chaining two packs instead would have reintroduced an ordering rule at the wiring level:
- * `[motion, presets, presets(house)]` and `[motion, presets(house), presets]` would resolve a
- * collision differently with nothing on the page saying which won. That is the same invisible
- * order-dependence the expansion pass exists to remove one level down, and removing it there while
- * adding it here would have been silly. Explicit beats inherited, key by key, at BOTH levels — one
- * rule, stated once.
- *
- * To inherit nothing, use the function that means that: `motionExtension({ on: 'preset', fn })`
- * never references this table, so it also drops out of the bundle. A pack declares its intent by
- * which function it calls rather than by a flag.
- */
+import type { Preset, PresetTable } from './types.js';
 
-/**
- * One preset, shaped exactly like the value it stands for: animated properties under `keyframes`,
- * settings beside it. The index signature is the settings half — it cannot be narrower without
- * restating the settings table here, which a wired pack may have extended anyway.
- */
-export interface Preset {
-  readonly keyframes?: Readonly<Record<string, string>>;
-  readonly [setting: string]: unknown;
-}
-
-export type PresetTable = Readonly<Record<string, Preset>>;
 
 /**
  * **Every one of these carries a trigger, and that is the point.** They were keyframes-only at

@@ -20,37 +20,16 @@
  * Runs under any DOM — the vera SSR shim, or jsdom — because the parser it shares with the client
  * validates selectors through the document in scope. Node with no DOM installed is not enough.
  */
-import type { Generated } from './generate.js';
 import { parseMotion, MOTION_ATTR } from './parse.js';
+
 import { generateSimple } from './generate.js';
+
 import { STAGGER_PROPERTY } from './registry.js';
+
 import { registerVocabulary, setProblemReporter } from './schema.js';
+import type { Generated, RenderMotionOptions, RenderMotionReport } from './types.js';
 
-/** What one pass did — counts for the caller's logs, problems for its diagnostics. */
-export interface RenderMotionReport {
-  /** Elements marked and covered by emitted CSS. */
-  readonly rendered: number;
-  /**
-   * Elements left for the client: out-of-scope values (stagger groups and anything else
-   * `generateSimple` declines) and tick-only elements, whose first frame is JavaScript by
-   * definition. These keep the pre-stage-7 behaviour — natural state until activation.
-   */
-  readonly skipped: number;
-  /** Distinct CSS rules emitted across every sheet. */
-  readonly rules: number;
-  /** Everything refused along the way, in the same code+args shape the client reports. */
-  readonly problems: readonly { readonly code: string; readonly args: readonly string[] }[];
-}
 
-export interface RenderMotionOptions {
-  /**
-   * The SAME array the page hands `wireDirectives` — `[motion, presets, paint, sequence]` — so a
-   * preset name or a pack property resolves on the server exactly as it will on the client. Only
-   * the vocabulary registrations take effect here; directive registration and expression seams
-   * are accepted and ignored, which is what lets ONE array serve both calls.
-   */
-  readonly wire?: readonly unknown[];
-}
 
 /** The seams a connector needs to register vocabulary, with everything engine-shaped inert. */
 const ssrSeams = (problems: { code: string; args: readonly string[] }[]): object => ({

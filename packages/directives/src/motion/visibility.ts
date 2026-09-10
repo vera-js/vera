@@ -1,3 +1,4 @@
+import type { RuntimeElement } from './types.js';
 /**
  * Tracks which elements are close enough to the viewport to be worth updating.
  *
@@ -24,7 +25,6 @@
  *    behaviour, which is correct. An optimisation that can silently stop
  *    animations is not worth having.
  */
-import type { RuntimeElement } from './runtime.js';
 
 export interface VisibilityTracker {
   /** Elements currently worth updating. Iterate this, not the full list. */
