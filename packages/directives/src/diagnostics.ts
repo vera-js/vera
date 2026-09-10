@@ -50,6 +50,7 @@ const parseFailure: Prose = (raw, detail) => [
 ];
 
 export const PROSE: Record<string, Prose> = {
+  'array-not-literal': parseFailure,
   'value-bad': parseFailure,
   'number-bad': parseFailure,
   'object-bad-key': parseFailure,
@@ -99,8 +100,8 @@ export const PROSE: Record<string, Prose> = {
   'origin-not-url': (detail: string) => [`allowedOrigins entry ${detail} is not a url; ignoring it.`, `Write the full origin, for example "https://api.example".`],
   'persist-unavailable': () => [`storage is unavailable — running live-only.`],
   'query-no-keys': () => [`data-vd-query needs one or more state keys.`, `Write data-vd-query="q tag page".`],
-  'region-bad-selector': (selector: string) => [`"${selector}" is not a selector.`],
-  'region-not-object': () => ['data-vd-region takes a braced object.', `Write data-vd-region="{ items: '.card', search: 'q' }".`],
+  'list-bad-selector': (selector: string) => [`"${selector}" is not a selector.`],
+  'list-not-object': () => ['data-vd-list takes a braced object.', `Write data-vd-list="{ items: '.card', search: 'q' }".`],
   'scroll-to-missing': () => [`the scroll target matched nothing.`],
   'scroll-progress-bad-source': (given) => [
     `"${given}" is not something scroll-progress can measure.`,
@@ -116,7 +117,6 @@ export const PROSE: Record<string, Prose> = {
   'swipe-entry-not-object': (name: string) => [`the value for "${name}" must be a braced assignments object.`],
   'swipe-not-object': () => [`data-vd-swipe takes { left: { … }, right: { … } }.`],
   'sync-not-a-control': () => [`data-vd-sync needs a form control with a value.`, `Put it on an input, select or textarea.`],
-  'sync-radio-unsupported': () => [`radio groups need group semantics — not in v1.`, `Bind on-change + bind-checked per radio.`],
   'teardown-threw': (detail: string) => [detail],
   'undeclared-write': (key: string) => [`"${key}" was not declared by the state it landed in.`, `Declare it in data-vd-state.`],
   'unknown-action': (name, known) => [

@@ -1001,9 +1001,26 @@ request aborts an earlier one.
 
 **query pack** — `data-vd-route` publishes `@route` (`path`, `query`, `hash`) · `data-vd-query="q
 page"` binds state keys to the URL query string, and the URL WINS at activation so a shared link
-reproduces what the sender saw · `data-vd-region` filters, sorts and paginates the items ALREADY
-INSIDE it. `region` renders nothing and templates nothing: the server sends the list, the directive
-writes `hidden`. There is no `each` — client templating is the renderer's job.
+reproduces what the sender saw · `data-vd-list` filters, sorts and paginates the items ALREADY
+INSIDE it. `list` renders nothing and templates nothing: the server sends the list, the directive
+writes `hidden` (and, under `sort`, reorders the server's own nodes). There is no `each` — client
+templating is the renderer's job.
+
+`data-vd-list` config (every value names a STATE key; item data lives in `data-*` attributes):
+`items` (selector, default: children) · `search` (needle key; `fields` narrows to named
+`data-*` fields) · `facets: 'tag'` (state `tag` matches `data-tag`; an ARRAY value is a
+multi-select — any listed value matches, empty array is no filter) · `ranges: 'price'` (flat keys
+`price-min`/`price-max` bound numeric `data-price`; an unset bound is no bound) · `sort: 's'`
+(state `s` holds `'price'` or `'price desc'`; numeric when both sides parse, else localeCompare,
+missing-attribute last; clearing the spec restores the server order) · `page`/`size`/`counts`
+(counts publishes `{ matched, pages, page, total }`).
+
+`data-vd-sync` follows the native form model: text → string · bare checkbox → boolean · checkbox
+WITH `value` → membership in an array key (the multi-facet shape) · radio → its `value` when
+checked · `<select multiple>` (or any control whose `type` is `select-multiple`, e.g.
+`<vera-select multi>`) → the whole array. State seeds may hold array literals — `{ tags: ['a'] }`
+(literals only in the base grammar; the expressions tier evaluates entries). `data-vd-query`
+round-trips arrays comma-joined (`?tags=a,b`) and restores the SHAPE the seed declares.
 
 <!-- recipe -->
 ```js
@@ -1021,7 +1038,7 @@ wireDirectives([expressions, ...interaction, query]);
 document.body.innerHTML = `
   <div data-vd-state="{ q: '', page: 1, counts: {} }" data-vd-query="q page">
     <input data-vd-sync="q" placeholder="filter" />
-    <ul data-vd-region="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
+    <ul data-vd-list="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
       <li data-tag="fruit">apple</li>
       <li data-tag="fruit">banana</li>
       <li data-tag="tool">chisel</li>

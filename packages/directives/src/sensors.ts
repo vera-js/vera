@@ -15,7 +15,7 @@
  * ```html
  * <img data-vd-in-view="seen" data-vd-class="{ 'is-revealed': seen }" />
  * <div data-vd-pointer="p" data-vd-style="{ '--tilt': (p.x - 0.5) * 20 }"></div>
- * <p data-vd-measure="box" data-vd-show="box.width > 400">only when wide</p>
+ * <p data-vd-size="box" data-vd-show="box.width > 400">only when wide</p>
  * ```
  *
  * **Three disciplines hold throughout**, and each is load-bearing rather than tidy:
@@ -256,16 +256,16 @@ const inView: Directive = {
 
 /* ── size ────────────────────────────────────────────────────────────────────────────────── */
 
-const measure: Directive = {
-  name: 'measure',
+const size: Directive = {
+  name: 'size',
   value: 'literal',
   priority: 60,
   docs: {
     summary: "Writes { width, height, scrollWidth, scrollHeight, overflowX, overflowY } as the element resizes.",
-    example: 'data-vd-measure="box"',
+    example: 'data-vd-size="box"',
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-measure', ctx);
+    const key = keyFor(el, 'data-vd-size', ctx);
     if (!key) return;
     let last: Record<string, number | boolean> = { width: -1, height: -1 };
     const measure = () => {
@@ -545,5 +545,5 @@ const swipe: Directive = {
 
 /** `wireDirectives([sensors])` — no options; each sensor is inert until an element names a key. */
 export const sensors: EngineConnector = (seams) => {
-  for (const directive of [inView, measure, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
+  for (const directive of [inView, size, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
 };

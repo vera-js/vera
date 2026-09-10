@@ -1,12 +1,12 @@
 /**
- * The query pack — `route`, `query`, `region`: state that lives in the URL, and lists that answer
+ * The query pack — `route`, `query`, `list`: state that lives in the URL, and lists that answer
  * to it.
  *
  * The claims worth testing are the ones a hand-rolled version gets wrong: that a shared LINK
  * reproduces what the sender saw (the URL beats the markup's seed), that a search box does not
  * fill the history stack, that a stale `page` in a link is clamped rather than showing a void,
  * and that a directive which both reads and writes state reaches a FIXED POINT instead of
- * spinning. The last one is the reason `region` compares before writing, and a test that only
+ * spinning. The last one is the reason `list` compares before writing, and a test that only
  * checked the visible rows would never notice it.
  */
 import assert from 'node:assert/strict';
@@ -37,7 +37,7 @@ const mount = async (html) => {
 const shown = (host) => [...host.querySelectorAll('li')].filter((li) => !li.hidden).map((li) => li.textContent);
 
 const LIST = `
-  <ul data-vd-region="{ items: 'li', search: 'q', facets: 'tag', page: 'page', size: 2, counts: 'counts' }">
+  <ul data-vd-list="{ items: 'li', search: 'q', facets: 'tag', page: 'page', size: 2, counts: 'counts' }">
     <li data-tag="fruit">apple</li>
     <li data-tag="fruit">banana</li>
     <li data-tag="tool">chisel</li>
@@ -107,7 +107,7 @@ test('a state change writes the URL — and does NOT grow the history stack', as
   await settled();
 });
 
-test('region filters by search over item text, and by facet over data fields', async () => {
+test('list filters by search over item text, and by facet over data fields', async () => {
   url('/list');
   const host = await mount(`<div data-vd-state="{ q: '', tag: '', page: 1, counts: {} }">${LIST}</div>`);
   assert.deepEqual(shown(host), ['apple', 'banana'], 'page 1 of 5 at size 2');
@@ -184,11 +184,11 @@ test('THE FIXED POINT: a directive that reads and writes state settles instead o
   await settled();
 });
 
-test('items keep their own directives — region only hides, it never rebuilds', async () => {
+test('items keep their own directives — list only hides, it never rebuilds', async () => {
   url('/list');
   const host = await mount(`
     <div data-vd-state="{ q: '', tag: '', page: 1, counts: {}, taps: 0 }">
-      <ul data-vd-region="{ items: 'li', search: 'q', counts: 'counts' }">
+      <ul data-vd-list="{ items: 'li', search: 'q', counts: 'counts' }">
         <li data-tag="fruit"><button data-vd-on-click="{ taps: taps + 1 }">apple</button></li>
         <li data-tag="tool">chisel</li>
       </ul>
@@ -212,18 +212,179 @@ test('items keep their own directives — region only hides, it never rebuilds',
   await settled();
 });
 
-test('refusals: a region without an object, a query without keys', async () => {
+test('refusals: a list without an object, a query without keys', async () => {
   url('/list');
   const host = await mount(`
     <div data-vd-state="{ n: 0 }">
-      <ul id="bad" data-vd-region="oops"></ul>
+      <ul id="bad" data-vd-list="oops"></ul>
       <div id="empty" data-vd-query="  "></div>
     </div>`);
-  assert.ok(rejections(host.querySelector('#bad')).some((r) => r.code === 'region-not-object'));
+  assert.ok(rejections(host.querySelector('#bad')).some((r) => r.code === 'list-not-object'));
   assert.ok(rejections(host.querySelector('#empty')).some((r) => r.code === 'query-no-keys'));
   if (!isProduction) {
     assert.ok(rejections(host.querySelector('#empty')).some((r) => /one or more state keys/.test(r.message)));
   }
+  host.remove();
+  await settled();
+});
+
+/* ── the shop set: sort, ranges, multi-select ────────────────────────────────────────────── */
+
+const SHOP = `
+  <div data-vd-state="{ s: '', tag: '', price-min: '', price-max: '' }" data-shop>
+    <ul data-vd-list="{ items: 'li', sort: 's', facets: 'tag', ranges: 'price' }">
+      <li data-tag="fruit" data-price="3" data-title="banana">banana</li>
+      <li data-tag="tool" data-price="12" data-title="chisel">chisel</li>
+      <li data-tag="fruit" data-price="1.5" data-title="apple">apple</li>
+      <li data-tag="tool" data-title="heirloom">heirloom</li>
+    </ul>
+  </div>`;
+
+test('sort: state-driven, numeric-aware, and clearing it restores the server order', async () => {
+  url('/shop');
+  const host = await mount(SHOP);
+  const state = stateOf(host.querySelector('[data-shop]'));
+
+  state.s = 'price';
+  await settled();
+  assert.deepEqual(shown(host), ['apple', 'banana', 'chisel', 'heirloom'],
+    'numeric ascending — 1.5 before 3 before 12, the priceless item last');
+
+  state.s = 'price desc';
+  await settled();
+  assert.deepEqual(shown(host), ['chisel', 'banana', 'apple', 'heirloom'],
+    'descending flips the compared, the missing attribute still sorts last');
+
+  state.s = 'title';
+  await settled();
+  assert.deepEqual(shown(host), ['apple', 'banana', 'chisel', 'heirloom'], 'strings localeCompare');
+
+  state.s = '';
+  await settled();
+  assert.deepEqual(shown(host), ['banana', 'chisel', 'apple', 'heirloom'],
+    'clearing the sort RESTORES the server order — the last sort must not stick in the DOM');
+  host.remove();
+  await settled();
+});
+
+test('ranges: a double bound over data-price; unset bounds are unbounded', async () => {
+  url('/shop');
+  const host = await mount(SHOP);
+  const state = stateOf(host.querySelector('[data-shop]'));
+
+  state['price-min'] = 2;
+  await settled();
+  assert.deepEqual(shown(host).sort(), ['banana', 'chisel'],
+    'min alone: apple (1.5) is out, and so is the item with NO price once a bound is active');
+
+  state['price-max'] = 5;
+  await settled();
+  assert.deepEqual(shown(host), ['banana'], 'both bounds: only 3 sits inside [2, 5]');
+
+  state['price-min'] = '';
+  state['price-max'] = '';
+  await settled();
+  assert.equal(shown(host).length, 4, 'an unset bound is not a filter');
+  host.remove();
+  await settled();
+});
+
+test('an array facet is a multi-select: any listed value matches, empty is no filter', async () => {
+  url('/shop');
+  const host = await mount(SHOP);
+  const state = stateOf(host.querySelector('[data-shop]'));
+
+  state.tag = ['fruit'];
+  await settled();
+  assert.deepEqual(shown(host).sort(), ['apple', 'banana'], 'one value selected');
+
+  state.tag = ['fruit', 'tool'];
+  await settled();
+  assert.equal(shown(host).length, 4, 'OR within the facet — any listed value matches');
+
+  state.tag = [];
+  await settled();
+  assert.equal(shown(host).length, 4, 'an empty array, like an unset scalar, is not a filter');
+  host.remove();
+  await settled();
+});
+
+test('checkbox groups write the array, and a shared ?tags= link restores it', async () => {
+  url('/shop');
+  const host = await mount(`
+    <div data-vd-state="{ tags: [] }" data-vd-query="tags">
+      <input type="checkbox" value="fruit" data-vd-sync="tags">
+      <input type="checkbox" value="tool" data-vd-sync="tags">
+    </div>`);
+  const [fruit, tool] = host.querySelectorAll('input');
+  const change = (box, on) => {
+    box.checked = on;
+    box.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  };
+  change(fruit, true);
+  change(tool, true);
+  await settled();
+  assert.match(dom.window.location.search, /tags=fruit%2Ctool|tags=fruit,tool/,
+    'membership rides the URL comma-joined');
+  change(fruit, false);
+  await settled();
+  assert.deepEqual(stateOf(host.firstElementChild).tags, ['tool'], 'unchecking removes');
+  host.remove();
+  await settled();
+
+  /** The other side of the link: the seed declares the SHAPE, the URL fills it. */
+  url('/shop?tags=fruit,tool');
+  const second = await mount(`
+    <div data-vd-state="{ tags: [] }" data-vd-query="tags">
+      <input type="checkbox" value="fruit" data-vd-sync="tags">
+    </div>`);
+  assert.deepEqual(stateOf(second.firstElementChild).tags, ['fruit', 'tool'],
+    'an array seed comes back as an array');
+  assert.equal(second.querySelector('input').checked, true, 'and the box shows it');
+  second.remove();
+  await settled();
+});
+
+test('radio groups are single choice; a multi select is the whole array', async () => {
+  url('/shop');
+  const host = await mount(`
+    <div data-vd-state="{ pick: 'b', sizes: ['s'] }">
+      <input type="radio" name="p" value="a" data-vd-sync="pick">
+      <input type="radio" name="p" value="b" data-vd-sync="pick">
+      <select multiple data-vd-sync="sizes">
+        <option value="s">small</option><option value="m">medium</option>
+      </select>
+    </div>`);
+  const carrier = host.firstElementChild;
+  const [a, b] = host.querySelectorAll('input');
+  assert.equal(b.checked, true, 'state wins at activation — the seeded radio is checked');
+  assert.equal(a.checked, false);
+
+  a.checked = true;
+  a.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await settled();
+  assert.equal(stateOf(carrier).pick, 'a', 'checking a radio writes its value');
+
+  const select = host.querySelector('select');
+  assert.equal(select.options[0].selected, true, 'the seeded array selected its option');
+  select.options[1].selected = true;
+  select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await settled();
+  assert.deepEqual(stateOf(carrier).sizes, ['s', 'm'], 'a multi select syncs the whole array');
+  host.remove();
+  await settled();
+});
+
+test('an array literal in the seed pre-selects — the other half of shape-from-seed', async () => {
+  url('/shop');
+  const host = await mount(`
+    <div data-vd-state="{ tags: ['fruit', 'tool'] }">
+      <input type="checkbox" value="fruit" data-vd-sync="tags">
+      <input type="checkbox" value="tool" data-vd-sync="tags">
+      <input type="checkbox" value="other" data-vd-sync="tags">
+    </div>`);
+  assert.deepEqual([...host.querySelectorAll('input')].map((box) => box.checked), [true, true, false],
+    'the seeded values arrive checked');
   host.remove();
   await settled();
 });

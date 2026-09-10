@@ -62,7 +62,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 282 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 343 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 561 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
-| `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `region` |
+| `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 234 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
 | `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->23 113 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
@@ -97,8 +97,8 @@ writing `undefined`.
 - **`interaction`** — `state`, the `on-*` event family, `show`, `class`, `style`, `bind-*`, `sync`,
   `text`, `every`, `watch`, `focus-*`, `scroll-*`, `persist`, `copy`, `doc-class`, `init`.
 - **`query`** — `route` publishes `@route`; `query` binds state keys to the URL's query string;
-  `region` filters, facets and pages a list of elements and publishes its counts back into state.
-- **`sensors`** — `in-view`, `measure`, `pointer`, `scroll-progress`, `swipe`. Every one degrades to
+  `list` filters, sorts, facets, ranges and pages the elements already inside it and publishes its counts back into state.
+- **`sensors`** — `in-view`, `size`, `pointer`, `scroll-progress`, `swipe`. Every one degrades to
   a readable page when the capability is missing.
 - **`remote`** — `data-vd-fetch`. A JSON response patches state; a markup response swaps a region,
   same-origin only, always.

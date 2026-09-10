@@ -308,28 +308,63 @@ const sync: Directive = {
   name: 'sync',
   value: 'literal',
   docs: { summary: 'Two-way binds a form control to one state key.', example: 'data-vd-sync="draft"' },
+  /**
+   * The mode is the native form model, verbatim: a RADIO is one choice (its `value`, written when
+   * checked), a CHECKBOX carrying an explicit `value` is membership in an array (the multi-facet
+   * shape — checked adds, unchecked removes), a bare checkbox stays a boolean, a MULTI select is
+   * the whole array, and everything else is a string. `select-multiple` is detected by `type`,
+   * which is the native vocabulary — and exactly what `<vera-select multi>` reflects so that
+   * feature-detecting code treats it as a real select; its `.value` is already the array.
+   */
   setup(el, ctx) {
     const control = el as HTMLInputElement;
-    if (control.type === 'radio') {
-      ctx.reject('sync-radio-unsupported');
-      return;
-    }
-    const isCheckbox = control.type === 'checkbox';
-    const isSelect = control.localName === 'select';
-    if (!isCheckbox && !isSelect && !('value' in control)) {
+    const isRadio = control.type === 'radio';
+    const isMembership = control.type === 'checkbox' && el.hasAttribute('value');
+    const isCheckbox = control.type === 'checkbox' && !isMembership;
+    const isMultiple = control.type === 'select-multiple';
+    const isSelect = isMultiple || control.type === 'select-one' || control.localName === 'select';
+    if (!isCheckbox && !isMembership && !isRadio && !isSelect && !('value' in control)) {
       ctx.reject('sync-not-a-control');
       return;
     }
     let key = '';
-    const event = isCheckbox || isSelect ? 'change' : 'input';
-    const write = () => ctx.set(key, isCheckbox ? control.checked : control.value);
+    const event = isCheckbox || isMembership || isRadio || isSelect ? 'change' : 'input';
+
+    /** The control's current selection as an array of value strings, whatever kind it is. */
+    const selected = (): string[] =>
+      Array.isArray(control.value)
+        ? (control.value as string[]).map(String)
+        : [...((control as unknown as HTMLSelectElement).selectedOptions ?? [])].map((o) => o.value);
+
+    const write = () => {
+      if (isCheckbox) ctx.set(key, control.checked);
+      else if (isRadio) {
+        if (control.checked) ctx.set(key, control.value);
+      } else if (isMembership) {
+        const current = ctx.get(key);
+        const values = Array.isArray(current) ? current.map(String) : [];
+        ctx.set(key, control.checked
+          ? (values.includes(control.value) ? values : [...values, control.value])
+          : values.filter((v) => v !== control.value));
+      } else if (isMultiple) ctx.set(key, selected());
+      else ctx.set(key, control.value);
+    };
     el.addEventListener(event, write);
     return {
       apply: (_element: Element, value: unknown) => {
         key = String(value ?? '');
         const current = ctx.get(key);
         if (isCheckbox) control.checked = !!current;
-        else control.value = current === null || current === undefined ? '' : String(current);
+        else if (isRadio) control.checked = String(current ?? '') === control.value;
+        else if (isMembership) {
+          control.checked = Array.isArray(current) && current.map(String).includes(control.value);
+        } else if (isMultiple) {
+          const values = Array.isArray(current) ? current.map(String) : [];
+          if (Array.isArray(control.value)) (control as unknown as { value: string[] }).value = values;
+          else for (const option of (control as unknown as HTMLSelectElement).options) {
+            option.selected = values.includes(option.value);
+          }
+        } else control.value = current === null || current === undefined ? '' : String(current);
       },
       teardown: () => el.removeEventListener(event, write),
     };

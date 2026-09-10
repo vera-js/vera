@@ -175,7 +175,7 @@ assert.match(filtered.html, /<em[^>]*class="[^"]*revealed/,
   for (const k of ['IntersectionObserver', 'ResizeObserver', 'PerformanceObserver']) delete globalThis[k];
 
   const mount2 = dom2.window.document.getElementById('m');
-  const region2 = mount2.querySelector('[data-vd-region]')?.closest('[data-vd-state]')
+  const region2 = mount2.querySelector('[data-vd-list]')?.closest('[data-vd-state]')
     ?? mount2.querySelector('template')?.content?.querySelector('[data-vd-state]');
   assert.ok(region2, 'the region survived into the client parse');
   const before2 = region2.outerHTML;

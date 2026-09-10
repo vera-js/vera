@@ -6,9 +6,9 @@
  *
  * - `data-vd-route` — publishes the current route as `@route`, so expressions can read it.
  * - `data-vd-query` — binds state keys to the URL's query string, `persist`'s shape for links.
- * - `data-vd-region` — filters, sorts and paginates the items ALREADY INSIDE it.
+ * - `data-vd-list` — filters, sorts and paginates the items ALREADY INSIDE it.
  *
- * **`region` renders nothing, and that is the whole design.** The `each`-templating question was
+ * **`list` renders nothing, and that is the whole design.** The `each`-templating question was
  * settled as "not in v1 — vera has a renderer"; the answer for a zero-JS page is not to template
  * on the client but to let the server send the list it was always going to send and REFLECT over
  * it. So the page is complete and readable with JavaScript off, indexable by a crawler, and
@@ -21,7 +21,7 @@
  *
  * **Progressive enhancement is real here, not aspirational.** Write the filter UI as an ordinary
  * `<form method="get">` with named inputs: with no JavaScript the form submits and the server
- * filters; with the pack wired, `query` keeps the same parameters in the URL and `region` does the
+ * filters; with the pack wired, `query` keeps the same parameters in the URL and `list` does the
  * work locally. One markup, both worlds, and a link to it always reproduces what the sender saw.
  */
 import { isObject } from './parse.js';
@@ -72,8 +72,11 @@ const queryObject = (): Record<string, string> => {
 const writeQuery = (updates: Record<string, unknown>): void => {
   const params = new URLSearchParams(location.search);
   for (const [key, value] of Object.entries(updates)) {
-    /** Empty means ABSENT: `?q=&tag=` is noise in a shared link. */
-    if (value === null || value === undefined || value === '' || value === false) params.delete(key);
+    /** Empty means ABSENT: `?q=&tag=` is noise in a shared link — and so is `?tags=`. */
+    if (value === null || value === undefined || value === '' || value === false ||
+        (Array.isArray(value) && value.length === 0)) params.delete(key);
+    /** Arrays travel comma-joined (`?tags=css,js`) — the multi-facet shape. */
+    else if (Array.isArray(value)) params.set(key, value.map(String).join(','));
     else params.set(key, String(value));
   }
   const search = params.toString();
@@ -119,6 +122,27 @@ const route: Directive = {
   },
 };
 
+/**
+ * Seeds the named keys from the URL's parameters. **The markup's seed declares the SHAPE**: a key
+ * whose current value is an array comes back as one — split on the commas `writeQuery` joined —
+ * because a URL parameter cannot say which it meant and the seed already does. A search string
+ * with a comma in it stays a string for the same reason. Numbers come back as numbers — `page`
+ * is arithmetic on the other side.
+ */
+const seedFromUrl = (keys: readonly string[], ctx: { get(key: string): unknown; set(key: string, value: unknown): void }): void => {
+  const params = new URLSearchParams(location.search);
+  for (const key of keys) {
+    if (!params.has(key)) continue;
+    const raw = params.get(key) ?? '';
+    if (Array.isArray(ctx.get(key))) {
+      ctx.set(key, raw === '' ? [] : raw.split(','));
+      continue;
+    }
+    const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
+    ctx.set(key, numeric !== null ? numeric : raw);
+  }
+};
+
 /* ── data-vd-query: state keys that live in the URL ──────────────────────────────────────── */
 
 const queryDirective: Directive = {
@@ -136,13 +160,7 @@ const queryDirective: Directive = {
    * to prevent. The write half (history) is meaningless here and is not run.
    */
   ssr: (el, _value, ctx) => {
-    const params = new URLSearchParams(location.search);
-    for (const key of (el.getAttribute('data-vd-query') ?? '').split(/[\s,]+/).filter(Boolean)) {
-      if (!params.has(key)) continue;
-      const raw = params.get(key) ?? '';
-      const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
-      ctx.set(key, numeric !== null ? numeric : raw);
-    }
+    seedFromUrl((el.getAttribute('data-vd-query') ?? '').split(/[\s,]+/).filter(Boolean), ctx);
   },
   setup(el, ctx) {
     const keys = (el.getAttribute('data-vd-query') ?? '')
@@ -158,16 +176,7 @@ const queryDirective: Directive = {
      * the link says beats what the markup seeded. A key the URL does not mention keeps its seed,
      * so a partial link is still a valid one.
      */
-    const fromUrl = () => {
-      const params = new URLSearchParams(location.search);
-      for (const key of keys) {
-        if (!params.has(key)) continue;
-        const raw = params.get(key) ?? '';
-        /** Numbers come back as numbers — `page` is arithmetic on the other side. */
-        const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
-        ctx.set(key, numeric !== null ? numeric : raw);
-      }
-    };
+    const fromUrl = () => seedFromUrl(keys, ctx);
     fromUrl();
     const stop = subscribe(fromUrl);
 
@@ -187,7 +196,7 @@ const queryDirective: Directive = {
   },
 };
 
-/* ── data-vd-region: filter, sort and paginate what is already here ──────────────────────── */
+/* ── data-vd-list: filter, sort and paginate what is already here ────────────────────────── */
 
 /** The text a filter matches against: named data fields if given, else everything the item says. */
 const itemText = (item: Element, fields: readonly string[]): string => {
@@ -197,14 +206,34 @@ const itemText = (item: Element, fields: readonly string[]): string => {
   return out.toLowerCase();
 };
 
-const region: Directive = {
-  name: 'region',
+/**
+ * Sorts matched items by an item data-attribute, per the spec a STATE key holds — `'price'` or
+ * `'price desc'` — so a sort dropdown is just `data-vd-sync` on the same key. Numeric when both
+ * sides parse as numbers, `localeCompare` otherwise; an item without the attribute sorts last.
+ */
+/** Host → each item's server-rendered position, captured before the first reorder. */
+const serverOrder = new WeakMap<Element, Map<Element, number>>();
+
+const compareBy = (field: string, desc: boolean) => (a: Element, b: Element): number => {
+  const left = a.getAttribute(`data-${field}`);
+  const right = b.getAttribute(`data-${field}`);
+  if (left === null || right === null) return (left === null ? 1 : 0) - (right === null ? 1 : 0);
+  const ln = Number(left);
+  const rn = Number(right);
+  const out = left !== '' && right !== '' && Number.isFinite(ln) && Number.isFinite(rn)
+    ? ln - rn
+    : left.localeCompare(right);
+  return desc ? -out : out;
+};
+
+const list: Directive = {
+  name: 'list',
   value: 'object',
   /** After `query` (16) and any state (10): it reads what those settle. */
   priority: 55,
   docs: {
     summary: 'Filters, sorts and paginates the items already inside this element — no templating.',
-    example: "data-vd-region=\"{ items: '.card', search: 'q', size: 12 }\"",
+    example: "data-vd-list=\"{ items: '.card', search: 'q', size: 12 }\"",
   },
   /**
    * **The pack's whole premise is server-first and it was not running on the server.** A shared
@@ -216,7 +245,7 @@ const region: Directive = {
   ssr: true,
   apply(el, value, ctx) {
     if (!isObject(value as never)) {
-      ctx.reject('region-not-object');
+      ctx.reject('list-not-object');
       return;
     }
     const cfg = value as Record<string, unknown>;
@@ -229,7 +258,7 @@ const region: Directive = {
       try {
         items = [...el.querySelectorAll(selector)];
       } catch {
-        ctx.reject('region-bad-selector', [selector]);
+        ctx.reject('list-bad-selector', [selector]);
         return;
       }
     } else {
@@ -255,20 +284,93 @@ const region: Directive = {
       ? String(read('facets')).split(/[\s,]+/).filter(Boolean)
       : [];
 
+    /**
+     * RANGES: `{ ranges: 'price' }` is `facets`' numeric sibling — each name reads the FLAT state
+     * keys `price-min` and `price-max` and keeps items whose `data-price` falls inside. Flat and
+     * hyphenated because a dotted key is readable but deliberately not writable here, and these
+     * two exist to be written by a pair of `sync`ed range inputs. An unset bound is no bound
+     * (facets' "an unset filter is not a filter" rule); an item that is not a number fails any
+     * ACTIVE bound rather than slipping through it.
+     */
+    const ranges = typeof read('ranges') === 'string'
+      ? String(read('ranges')).split(/[\s,]+/).filter(Boolean)
+      : [];
+    const unset = (bound: unknown): boolean =>
+      bound === undefined || bound === null || bound === '' || bound === false;
+
     const matched: Element[] = [];
     for (const item of items) {
       let keep = needle === '' || itemText(item, fields).includes(needle);
       if (keep) {
         for (const facet of facets) {
           const want = ctx.get(facet);
-          if (want === undefined || want === null || want === '' || want === false) continue;
-          if ((item.getAttribute(`data-${facet}`) ?? '') !== String(want)) {
+          if (unset(want)) continue;
+          const has = item.getAttribute(`data-${facet}`) ?? '';
+          /** An array facet is a multi-select: the item matches ANY listed value; an empty
+           *  array, like an unset scalar, is not a filter. */
+          if (Array.isArray(want)) {
+            if (want.length > 0 && !want.map(String).includes(has)) {
+              keep = false;
+              break;
+            }
+          } else if (has !== String(want)) {
+            keep = false;
+            break;
+          }
+        }
+      }
+      if (keep) {
+        for (const range of ranges) {
+          const min = ctx.get(`${range}-min`);
+          const max = ctx.get(`${range}-max`);
+          if (unset(min) && unset(max)) continue;
+          const own = Number(item.getAttribute(`data-${range}`) ?? NaN);
+          if (!Number.isFinite(own) ||
+              (!unset(min) && own < Number(min)) ||
+              (!unset(max) && own > Number(max))) {
             keep = false;
             break;
           }
         }
       }
       if (keep) matched.push(item);
+    }
+
+    /**
+     * SORT reorders the matched items in place — still reflection, not templating: the nodes are
+     * the server's, only their order changes. The spec lives in STATE (`sort: 's'`, state `s`
+     * holding `'price'` or `'price desc'`) so a dropdown drives it with nothing but `sync`.
+     * Items are re-inserted per parent, and only when the current order is actually wrong —
+     * an in-order apply must not touch the DOM, or every state write pays a reflow.
+     */
+    const sortKey = typeof read('sort') === 'string' && read('sort') !== '' ? String(read('sort')) : null;
+    if (sortKey) {
+      /** The server's order, remembered on first sight — clearing the sort must RESTORE it, or
+       *  a "default" dropdown option leaves the last sort stuck in the DOM forever. */
+      let original = serverOrder.get(el);
+      if (!original) serverOrder.set(el, (original = new Map(items.map((item, i) => [item, i]))));
+      const spec = String(ctx.get(sortKey) ?? '').trim();
+      const [field, direction] = spec.split(/\s+/);
+      const compare = spec !== ''
+        ? compareBy(field!, direction === 'desc')
+        : (a: Element, b: Element) => (original.get(a) ?? 0) - (original.get(b) ?? 0);
+      matched.sort(compare);
+      const byParent = new Map<Node, Element[]>();
+      for (const item of matched) {
+        const parent = item.parentNode;
+        if (parent) {
+          let group = byParent.get(parent);
+          if (!group) byParent.set(parent, (group = []));
+          group.push(item);
+        }
+      }
+      for (const [parent, ordered] of byParent) {
+        const wanted = new Set<Node>(ordered);
+        const current = [...parent.childNodes].filter((node) => wanted.has(node));
+        if (ordered.some((item, i) => item !== current[i])) {
+          for (const item of ordered) parent.appendChild(item);
+        }
+      }
     }
 
     /**
@@ -317,5 +419,5 @@ const region: Directive = {
 export const query: EngineConnector = (seams) => {
   seams.directive(route);
   seams.directive(queryDirective);
-  seams.directive(region);
+  seams.directive(list);
 };

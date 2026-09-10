@@ -173,3 +173,18 @@ test('STORM: no-settle churn sequences end in the state the last write implies',
   assert.equal(rejections().filter((r) => r.code === 'directive-threw').length, 0, 'no instance threw across the storm');
   host.remove();
 });
+
+test('tier-1 arrays are literals only: a path inside refuses instead of guessing', async () => {
+  /** With no expressions tier wired, the base grammar owns `[...]` — and it holds data, never
+   *  paths. The expressions tier deliberately allows more; this suite is the one without it. */
+  const host = mount(`<div id="arr" data-vd-state="{ tags: [oops] }"></div>`);
+  await settled();
+  assert.ok(rejections(host.querySelector('#arr')).some((r) => r.code === 'array-not-literal'),
+    'refused with its own code');
+  const ok = mount(`<div data-vd-state="{ tags: ['a', 'b'] }"><b data-vd-show="tags">x</b></div>`);
+  await settled();
+  assert.equal(ok.querySelector('b').hidden, false, 'a literal array seeds and reads truthy');
+  host.remove();
+  ok.remove();
+  await settled();
+});

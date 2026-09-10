@@ -2,7 +2,7 @@
  * **`watch` — reacting to a state change you did not author.**
  *
  * The motivating case needs stating precisely, because the obvious version of it was ALREADY
- * handled and I spent several passes repeating a premise that measurement disproved: `region`
+ * handled and I spent several passes repeating a premise that measurement disproved: `list`
  * clamps `page` to the page count, so narrowing a search until the results shrink past your page
  * moves you back on its own. What no clamp can catch is a new query whose results are still long —
  * type a fresh search on page 4 of 8 and you land on page 4 of the NEW results, which no reader
@@ -41,7 +41,7 @@ const mount = async (html) => {
 const ITEMS = ['alpha', 'alto', 'amber', 'ash', 'aspen', 'astor', 'atlas', 'auburn', 'august',
   'aurora', 'bay', 'beech', 'birch', 'bramble', 'briar', 'bronze'];
 const LIST = `
-  <ul data-vd-region="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
+  <ul data-vd-list="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
     ${ITEMS.map((one) => `<li>${one}</li>`).join('')}
   </ul>`;
 const shown = (host) => [...host.querySelectorAll('li')].filter((li) => !li.hidden).map((li) => li.textContent);
@@ -147,7 +147,7 @@ test('an EQUAL object is not a change — identity is not the question', async (
   /**
    * `Object.is` was the comparison first, so watching a key holding an OBJECT fired on every
    * republish of an equal value — and the writers that produce these build a fresh object each
-   * time (`counts` from `region`, `@route` from the query pack). `watch` now shares the structural
+   * time (`counts` from `list`, `@route` from the query pack). `watch` now shares the structural
    * comparison the server's fixed-point walk uses, because the two are asking the same question and
    * were about to answer it differently.
    */

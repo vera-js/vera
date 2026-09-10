@@ -208,6 +208,19 @@
       "fix": "Write the whole object under its own key, or use a flat key."
     },
     {
+      "code": "list-bad-selector",
+      "params": [
+        "selector"
+      ],
+      "message": "\"{selector}\" is not a selector."
+    },
+    {
+      "code": "list-not-object",
+      "params": [],
+      "message": "data-vd-list takes a braced object.",
+      "fix": "Write data-vd-list=\"{ items: '.card', search: 'q' }\"."
+    },
+    {
       "code": "loader-failed",
       "params": [
         "suffix",
@@ -946,19 +959,6 @@
       "fix": "Write data-vd-query=\"q tag page\"."
     },
     {
-      "code": "region-bad-selector",
-      "params": [
-        "selector"
-      ],
-      "message": "\"{selector}\" is not a selector."
-    },
-    {
-      "code": "region-not-object",
-      "params": [],
-      "message": "data-vd-region takes a braced object.",
-      "fix": "Write data-vd-region=\"{ items: '.card', search: 'q' }\"."
-    },
-    {
       "code": "scroll-progress-bad-source",
       "params": [
         "given"
@@ -1097,12 +1097,6 @@
       "params": [],
       "message": "data-vd-sync needs a form control with a value.",
       "fix": "Put it on an input, select or textarea."
-    },
-    {
-      "code": "sync-radio-unsupported",
-      "params": [],
-      "message": "radio groups need group semantics — not in v1.",
-      "fix": "Bind on-change + bind-checked per radio."
     },
     {
       "code": "teardown-threw",

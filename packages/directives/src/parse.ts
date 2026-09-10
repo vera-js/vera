@@ -22,7 +22,7 @@ const fail = (code: string, at: number, message: string): never => {
 };
 
 export type Path = { kind: 'path'; negate: boolean; global: boolean; segments: string[] };
-export type Parsed = string | number | boolean | null | Path | ParsedObject;
+export type Parsed = string | number | boolean | null | Path | ParsedObject | Parsed[];
 export type ParsedObject = { [key: string]: Parsed };
 
 /**
@@ -177,12 +177,49 @@ export const parseValue = (source: string): Parsed => {
     }
   };
 
+  /**
+   * An array of LITERALS — `[]`, `['css', 'js']`, `[1, 2]`. The shape multi-select needs: a seed
+   * DECLARES an array key (so the URL and a checkbox group know what shape to restore into) and
+   * may pre-select. Deliberately literals only, no paths and no nesting — an array here is data,
+   * never expression, and keeping it that way is what keeps it small.
+   */
+  const array = (): Parsed[] => {
+    i++; // [
+    const out: Parsed[] = [];
+    ws();
+    if (source[i] === ']') {
+      i++;
+      return out;
+    }
+    for (;;) {
+      ws();
+      const c = source[i];
+      let entry: Parsed;
+      if (c === "'" || c === '"') entry = string(c);
+      else if (c === '-' || isDigit(c)) entry = number();
+      else return fail('array-not-literal', i, 'arrays hold quoted strings and numbers only');
+      out.push(entry);
+      ws();
+      const t = source[i];
+      if (t === ',') {
+        i++;
+        continue;
+      }
+      if (t === ']') {
+        i++;
+        return out;
+      }
+      fail('array-unterminated', i, 'expected "," or "]"');
+    }
+  };
+
   const value = (depth: number): Parsed => {
     if (depth > DEPTH_MAX) fail('value-too-deep', i, `nesting deeper than ${DEPTH_MAX}`);
     ws();
     if (done()) fail('value-empty', i, 'expected a value');
     const c = source[i];
     if (c === '{') return object(depth);
+    if (c === '[') return array();
     if (c === "'" || c === '"') return string(c);
     if (c === '-' || isDigit(c)) return number();
     if (c === '!' || c === '@' || isIdStart(c)) return pathOrKeyword();

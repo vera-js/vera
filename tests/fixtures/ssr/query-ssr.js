@@ -17,7 +17,7 @@ export default class QuerySsr extends HTMLElement {
     render(
       () => html`
         <div data-vd-state="{ q: '', page: 1, counts: {}, seen: false }" data-vd-query="q page" data-vd-route>
-          <ul data-vd-region="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
+          <ul data-vd-list="{ items: 'li', search: 'q', page: 'page', size: 2, counts: 'counts' }">
             <li>apple</li><li>banana</li><li>cherry</li><li>elderberry</li>
           </ul>
           <b data-vd-text="counts.matched"></b>
