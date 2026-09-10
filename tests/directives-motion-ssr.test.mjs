@@ -46,8 +46,14 @@ test('an in-scope element is marked, and its sheet carries the whole delivery in
     'the variable is typed and defaults to 0 — frame 0 with no JS');
   assert.match(css, /@keyframes vd-[0-9a-f]{8}/, 'the generated rule');
   assert.match(css, new RegExp(`\\[data-vd-a="${el.getAttribute('data-vd-a')}"\\]`), 'the element rule');
-  assert.ok(css.trimEnd().endsWith('@media (scripting: none) { [data-vd-a] { animation: none; } }'),
+  assert.ok(css.trimEnd().endsWith('@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }'),
     'the neutraliser is LAST — its position is its function');
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \[data-vd-a\]\[data-vd-a\]/,
+    'reduced motion neutralises with it — the designed page, journey skipped');
+  /** DOUBLED, structurally pinned: a single-attribute tail loses 0-1-0 vs 0-2-0 to every
+   *  element rule regardless of order — and no harness can disable scripting to catch it, so
+   *  the selector arithmetic is the only possible witness. */
+  assert.ok(!/\{ \[data-vd-a\] \{/.test(css), 'no single-attribute neutraliser survives');
   assert.ok(css.indexOf('@property') < css.indexOf('@keyframes'), 'declarations before rules');
 });
 
@@ -108,8 +114,8 @@ test('a shadow tree gets its OWN sheet — keyframes are tree-scoped — and @pr
   const inner = root.querySelector('style[data-vera-sheet]');
   assert.ok(inner, 'the sheet lives INSIDE the tree that uses it');
   assert.match(inner.textContent, /@keyframes vd-/);
-  assert.ok(inner.textContent.trimEnd().endsWith('@media (scripting: none) { [data-vd-a] { animation: none; } }'),
-    'each tree carries its own neutraliser — document rules do not cross the boundary');
+  assert.ok(inner.textContent.trimEnd().endsWith('@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }'),
+    'each tree carries its own neutralisers — document rules do not cross the boundary');
   assert.ok(!inner.textContent.includes('@property'), 'registration is document-global, not repeated');
   const head = doc.head.querySelector('style[data-vera-sheet]');
   assert.ok(head && head.textContent.includes('@property --vd-p'), 'the declaration has a home in head');

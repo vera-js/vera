@@ -67,7 +67,12 @@ const ssrSeams = (problems: { code: string; args: readonly string[] }[]): object
 /** One root's collected sheet: insertion-ordered, deduped by the client's own registry keys. */
 type Sheet = Map<string, string>;
 
-const NEUTRALISER = '@media (scripting: none) { [data-vd-a] { animation: none; } }';
+/** DOUBLED selectors — a single-attribute tail loses on specificity to every element rule
+ *  (0-1-0 vs 0-2-0); doubled it ties and wins on order. Reduced motion first, scripting last —
+ *  order between them is indifferent (both neutralise), the pair pins after every rule. */
+const NEUTRALISERS =
+  '@media (prefers-reduced-motion: reduce) { [data-vd-a][data-vd-a] { animation: none; } }\n' +
+  '@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }';
 
 /**
  * Collects one element's rules into its root's sheet, in the client's acquisition order — groups,
@@ -83,6 +88,7 @@ const collect = (sheet: Sheet, generated: Generated): void => {
     sheet.set(`${generated.hash}#t`, generated.armedRule);
     sheet.set(`${generated.hash}#on`, generated.activeRule);
     sheet.set(`${generated.hash}#nj`, generated.noJsRule);
+    sheet.set(`${generated.hash}#rm`, generated.reducedRule);
     return;
   }
   for (const group of generated.groups) sheet.set(group.hash, group.rule);
@@ -197,7 +203,7 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
       : [];
     rules += parts.length;
     styleIn(root, doc).textContent =
-      [...declarations, ...parts, NEUTRALISER].join('\n');
+      [...declarations, ...parts, NEUTRALISERS].join('\n');
   }
   /** Shadow trees rendered but the document tree did not: the `@property` block still needs a
    *  home in `<head>`, or timed modes degrade to midpoint-flips everywhere. */
@@ -205,7 +211,7 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
     styleIn(doc, doc).textContent =
       [...[...varNames].map((name) =>
         `@property ${name} { syntax: '<number>'; inherits: false; initial-value: 0; }`),
-      NEUTRALISER].join('\n');
+      NEUTRALISERS].join('\n');
   }
 
   return { rendered, skipped, rules, problems };

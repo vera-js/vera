@@ -97,6 +97,10 @@ export interface Generated {
    * statically and the content is readable.
    */
   readonly noJsRule: string;
+  /** Transition mode only: the END state under `@media (prefers-reduced-motion: reduce)` with
+   *  `transition: none` — the no-JS inversion reused a third time, because the base state is
+   *  the hidden one and reduced-motion visitors get the designed page, journey skipped. */
+  readonly reducedRule: string;
   /**
    * Easing groups, author order. One group is the common case; a value whose properties carry
    * their own `ease`, or whose categories smooth at their own `inertia`, splits — `animation-name`
@@ -420,6 +424,8 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
         `[data-vd-a="${hash}"][data-vera-on] { ${activeDecls} }`,
       noJsRule:
         `@media (scripting: none) { [data-vd-a="${hash}"][data-vd-a] { ${activeDecls} transition: none; } }`,
+      reducedRule:
+        `@media (prefers-reduced-motion: reduce) { [data-vd-a="${hash}"][data-vd-a] { ${activeDecls} transition: none; } }`,
     };
   })();
   if (transitionEmission) return transitionEmission;
@@ -690,6 +696,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     activeRule: '',
     armedRule: '',
     noJsRule: '',
+    reducedRule: '',
     nativeRule: generatedGroups.length
       ? `@supports (animation-timeline: view()) { [data-vd-a="${hash}"][data-vera-n] { ` +
         `animation-delay: ${per('0s')}; animation-duration: ${per('auto')}; ` +

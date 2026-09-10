@@ -12,7 +12,7 @@ import { getElementSize, getWindowSize, displacementOf, normalisePosition } from
 import { generateSimple, mergeBandsForWidth } from './generate.js';
 import { tickFor } from './ticks.js';
 import type { Generated } from './generate.js';
-import { acquire, release, ensureProperty, setTail, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
+import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 import { syncTo, rampTo, dispose } from './drive.js';
 import type { Driven, SheetRoot } from './types.js';
 
@@ -375,8 +375,9 @@ const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
     acquire(sheetRoot, `${generatedCss.hash}#t`, generatedCss.armedRule);
     acquire(sheetRoot, `${generatedCss.hash}#on`, generatedCss.activeRule);
     acquire(sheetRoot, `${generatedCss.hash}#nj`, generatedCss.noJsRule);
+    acquire(sheetRoot, `${generatedCss.hash}#rm`, generatedCss.reducedRule);
     return [`${generatedCss.hash}#b`, `${generatedCss.hash}#t`,
-      `${generatedCss.hash}#on`, `${generatedCss.hash}#nj`];
+      `${generatedCss.hash}#on`, `${generatedCss.hash}#nj`, `${generatedCss.hash}#rm`];
   }
   for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
   for (const segment of generatedCss.segments) {
@@ -727,7 +728,7 @@ export const createRuntimeElement = (
      *  function instead of a rule. */
     if (generatedCss.groups.length || generatedCss.mode === 'transition') {
       acquiredKeys = deliverGenerated(node, generatedCss);
-      setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
+      setTails(NEUTRALISERS);
     }
     /**
      * The mark, AFTER acquire — the invariant. It is the observable "this element rides the
@@ -789,7 +790,11 @@ export const createRuntimeElement = (
         tau: Number(parsed.settings[v.inertiaKey] ?? settings.inertia),
       })),
       hashes: acquiredKeys,
-      play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
+      /** Reduced motion pins JS-driven plays to instant — the ramp jumps to its target, so
+       *  tick consumers and progress readers land on the end state at once. Transition-mode
+       *  needs nothing here: its per-hash reduced block pins the end in CSS. */
+      play: typeof parsed.settings['play'] === 'number'
+        ? (prefersReducedMotion(node) ? 0 : parsed.settings['play']) : null,
     };
   }
     const element: RuntimeElement = {
@@ -1296,6 +1301,21 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
  * rule divides against. Registered inheriting (the split invariant), written only on change, on
  * the scroller itself — `documentElement` for the window, the element for a container.
  */
+/**
+ * The pinned TAILS — LAST in the sheet, and DOUBLED to `[data-vd-a][data-vd-a]` because that is
+ * what makes them work at all: element rules use the doubled-attribute selector (0-2-0), so a
+ * single-attribute neutraliser LOSES ON SPECIFICITY regardless of order — the shipped
+ * (scripting: none) guard was inert from stage 5 until the reduced-motion build doubled it (no
+ * harness can disable scripting to catch it; the selector arithmetic was the only witness).
+ * Doubled, they TIE and win on order, which is the design. Reduced motion is the same doctrine:
+ * the designed page, journey skipped — seek animations neutralise here; transition-mode plays
+ * pin their END state per hash instead (their base is the hidden one).
+ */
+const NEUTRALISERS: readonly string[] = [
+  '@media (prefers-reduced-motion: reduce) { [data-vd-a][data-vd-a] { animation: none; } }',
+  '@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }',
+];
+
 /** Native scroll-driven support, decided once per VIEW (a portaled document answers for
  *  itself — CODE-PRINCIPLES §2). */
 /**
@@ -1307,11 +1327,16 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
  * everywhere, and the client's upgrade is seamless because both tiers compute the same number.
  */
 const scrollerScrolls = (settings: RuntimeSettings): boolean => {
-  const el = settings.scrollElement instanceof Element
-    ? settings.scrollElement : document.documentElement;
+  const el = settings.scrollElement && (settings.scrollElement as Element).nodeType === 1
+    ? settings.scrollElement as Element : document.documentElement;
   return settings.scrollDirection === 'horizontal'
     ? el.scrollWidth > el.clientWidth
     : el.scrollHeight > el.clientHeight;
+};
+
+const prefersReducedMotion = (node: Element): boolean => {
+  const view = node.ownerDocument?.defaultView;
+  return view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 };
 
 const viewTimelineSupport = new WeakMap<object, boolean>();
@@ -1328,8 +1353,8 @@ const supportsViewTimeline = (node: Element): boolean => {
 
 const lastScroll = new WeakMap<Element, number>();
 export const writeScrollVar = (settings: RuntimeSettings, win: WindowSize): void => {
-  const scroller: Element = settings.scrollElement instanceof Element
-    ? settings.scrollElement : document.documentElement;
+  const scroller: Element = settings.scrollElement && (settings.scrollElement as Element).nodeType === 1
+    ? settings.scrollElement as Element : document.documentElement;
   if (lastScroll.get(scroller) === win.start) return;
   lastScroll.set(scroller, win.start);
   ensureProperty(SCROLL_PROPERTY, scroller, { inherits: true });

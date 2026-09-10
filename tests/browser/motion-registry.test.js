@@ -241,14 +241,23 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
 
 /* ── stage 5 prerequisite: sheet-rule delivery's two cascade claims ──────────────────────────── */
 
-it('the neutraliser tail stays LAST through later inserts, and its guard is inert with JS on', async () => {
-  keyframeRegistry.setTail('@media (scripting: none) { [data-vd-a] { animation: none; } }');
+it('the neutraliser tails stay LAST through later inserts, doubled so ties actually lose', async () => {
+  keyframeRegistry.setTails([
+    '@media (prefers-reduced-motion: reduce) { [data-vd-a][data-vd-a] { animation: none; } }',
+    '@media (scripting: none) { [data-vd-a][data-vd-a] { animation: none; } }',
+  ]);
   const before = contentHash(RULE) + Math.random().toString(36).slice(2);
   acquire(document, before, `@keyframes vd-tail-probe { 0% { opacity: 0.5 } 100% { opacity: 0.5 } }`);
   const sheet = document.adoptedStyleSheets.at(-1);
   const last = sheet.cssRules[sheet.cssRules.length - 1];
-  /** Position IS the function: a specificity-tied override must lose to it on order alone. */
-  expect(last.cssText, 'the tail out-lasts inserts that arrive after it').to.include('scripting: none');
+  const secondLast = sheet.cssRules[sheet.cssRules.length - 2];
+  /** Position IS the function — and the DOUBLED selector is what makes position matter at all:
+   *  single-attribute tails lose 0-1-0 vs 0-2-0 to every element rule regardless of order (the
+   *  shipped guard was inert until this was caught; scripting: none cannot be simulated, so the
+   *  selector text is the only possible witness). */
+  expect(last.cssText, 'the scripting tail out-lasts inserts arriving after it').to.include('scripting: none');
+  expect(secondLast.cssText, 'the reduced-motion tail rides with it').to.include('prefers-reduced-motion');
+  expect(last.cssText + secondLast.cssText).to.not.match(/\{\s*\[data-vd-a\]\s*\{/);
   release(before);
 });
 

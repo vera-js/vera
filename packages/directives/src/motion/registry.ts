@@ -190,16 +190,20 @@ const fallbackRoots: (WeakRef<SheetRoot>)[] = [];
  * append, so the registry owns the pinning: inserts land BEFORE the tail, and the fallback text
  * appends it after everything.
  */
-let tail: string | null = null;
-export const setTail = (cssText: string): void => {
-  if (tail === cssText) return;
-  tail = cssText;
-  if (usable && shared) shared.insertRule(cssText, shared.cssRules.length);
+let tails: readonly string[] = [];
+export const setTails = (cssTexts: readonly string[]): void => {
+  /** SET-ONCE: every caller pins the same constant set at first delivery. Replacing tails
+   *  mid-life would need index bookkeeping nothing exercises, so a change is ignored rather
+   *  than half-supported — the constant lives in one place and cannot legitimately differ. */
+  if (tails.length) return;
+  tails = cssTexts;
+  if (usable && shared) for (const text of cssTexts) shared.insertRule(text, shared.cssRules.length);
   else refreshFallbacks();
 };
 
 const fallbackText = (): string =>
-  order.map((hash) => entries.get(hash)!.cssText).join('\n') + (tail ? `\n${tail}` : '');
+  order.map((hash) => entries.get(hash)!.cssText).join('\n') +
+  (tails.length ? `\n${tails.join('\n')}` : '');
 
 /**
  * Realm-free document test (CODE-PRINCIPLES: derive from the node, never the module global).
@@ -256,8 +260,8 @@ export const acquire = (root: SheetRoot, hash: string, cssText: string): void =>
     order.push(hash);
     if (usable) {
       shared ??= new CSSStyleSheet();
-      /** Before the tail, always — the tail’s position IS its function. */
-      shared.insertRule(cssText, shared.cssRules.length - (tail ? 1 : 0));
+      /** Before the tails, always — their position IS their function. */
+      shared.insertRule(cssText, shared.cssRules.length - tails.length);
     }
   }
 
