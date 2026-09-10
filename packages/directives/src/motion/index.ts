@@ -15,28 +15,17 @@
  * an allowlist.
  */
 import { dual } from '../dual.js';
-import { parseMotion, forgetStagger, staggerHost, MOTION_ATTR } from './parse.js';
-
 import {
+  parseMotion, forgetStagger, staggerHost, MOTION_ATTR,
   createRegion, enableMotion, disableMotion, configurePreferences, runInserts,
-} from './group.js';
-import type { RegionOptions } from './group.js';
-import {
   registerVocabulary, setProblemReporter, parseEasing, parseSelector, parseOrigin,
   properties, settings as vocabulary, parseMeasure, pageProblem,
-} from './schema.js';
+  paintRows, pathRows, sequenceRows, sequenceModule, wireFunctions,
+} from '@verajs/motion/internal';
+import type { RegionOptions, SequenceOptions } from '@verajs/motion/internal';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 import type { Ctx, Directive, EngineConnector } from '../types.js';
-import { paintRows } from './paint.js';
-
-import { pathRows } from './path.js';
-
-import { sequenceRows, sequenceModule } from './sequence.js';
-
-import { wireFunctions } from './functions.js';
-
-import type { SequenceOptions } from './sequence.js';
 import { splitDirective } from './split.js';
 
 
@@ -493,10 +482,10 @@ export const presets = dual<PresetTable>((table) => {
     return connect(seams);
   };
 });
-import { lookUpPreset, lookUpMerged } from './presets.js';
-import type { ParsedElement, PresetTable, Range, Region, WirableTree } from './types.js';
+import { lookUpPreset, lookUpMerged } from '@verajs/motion/internal';
+import type { ParsedElement, PresetTable, Range, Region, WirableTree } from '@verajs/motion/internal';
 
-export { PRESETS } from './presets.js';
+export { PRESETS } from '@verajs/motion/internal';
 export const paint: EngineConnector = motionExtension(paintRows);
 export const path: EngineConnector = motionExtension(pathRows);
 /**
@@ -524,23 +513,23 @@ export const split = splitDirective;
  * The named-JS door — see `ticks.ts`. Public API: `wireFunctions({ drawFrame: (el, p) => … })`
  * registers what `function: 'drawFrame'` names. The escape hatch, not the road.
  */
-export { wireFunctions } from './functions.js';
+export { wireFunctions } from '@verajs/motion/internal';
 /**
  * SSR emission — stage 7: mark in-scope elements and emit their generated CSS so a
  * server-rendered page paints frame 0 with no JavaScript. Runs under any DOM (the vera SSR shim,
  * jsdom); pass the SAME wire array the page uses so presets and packs resolve identically.
  */
-export { renderMotion } from './ssr.js';
-export * as keyframeRegistry from './registry.js';
-export * as writePath from './generate.js';
+export { renderMotion } from '@verajs/motion/internal';
+export { keyframeRegistry } from '@verajs/motion/internal';
+export { writePath } from '@verajs/motion/internal';
 /** Row tables for the vocabulary ARTIFACT generator only — data, not API; the connectors above are
  *  the way packs are wired. Exported so `sync-diagnostics.mjs` reads rows from the BUILT bundle,
  *  where Node's source-loader cannot follow the packs' runtime imports. */
 export { paintRows, pathRows, sequenceRows };
-export { parsePathData } from './path.js';
+export { parsePathData } from '@verajs/motion/internal';
 
 export { enableMotion, disableMotion, runInserts };
-export { MOTION_ATTR } from './parse.js';
-export { EVENTS } from './events.js';
+export { MOTION_ATTR } from '@verajs/motion/internal';
+export { EVENTS } from '@verajs/motion/internal';
 /** The GUI surface: the live vocabulary, and the validator controls share with the runtime. */
 export { properties, vocabulary as settings, parseMeasure };

@@ -904,7 +904,7 @@ export const stateDirective: AnyDirective = {
         ctx.reject('state-reserved-key', [key]);
         continue;
       }
-      initial[key] = evaluate(el, parsed[key], initial);
+      initial[key] = evaluate(el, (parsed as ParsedObject)[key], initial);
     }
     /**
      * **A server carrier is a PLAIN OBJECT, and that is what makes `static: true` honest.**

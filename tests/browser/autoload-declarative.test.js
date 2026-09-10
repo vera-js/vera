@@ -32,7 +32,7 @@ const BASE = new URL('/tests/browser/fixtures/autoloader/entry.js', location.hre
 
 /** Server markup: a marked host whose shadow root already holds an undefined element. */
 const serverPage = (tag) =>
-  `<div autoloader><template shadowrootmode="open"><section><${tag}></${tag}></section></template></div>`;
+  `<div data-autoload><template shadowrootmode="open"><section><${tag}></${tag}></section></template></div>`;
 
 describe('a server-rendered page finds its lazy components', () => {
   it('autoload() reaches into a declarative shadow root', async () => {

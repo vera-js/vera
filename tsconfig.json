@@ -40,7 +40,19 @@
         "./packages/inserts/src/index.ts"
       ],
       "@verajs/motion": [
-        "./packages/motion/src/index.ts"
+        "./packages/motion/src/core-entry.ts"
+      ],
+      "@verajs/motion/core": [
+        "./packages/motion/src/core-entry.ts"
+      ],
+      "@verajs/motion/ssr": [
+        "./packages/motion/src/ssr-entry.ts"
+      ],
+      "@verajs/motion/client": [
+        "./packages/motion/src/client-entry.ts"
+      ],
+      "@verajs/motion/internal": [
+        "./packages/motion/src/internal-entry.ts"
       ],
       "@verajs/hooks": [
         "./packages/hooks/src/index.ts"

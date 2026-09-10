@@ -2,9 +2,6 @@
   "extends": "../../tsconfig.json",
   "include": [
     "src/**/*",
-    "../motion/src/**/*",
-    "../core/src/**/*",
-    "../inserts/src/**/*",
     "../shared-utils/src/**/*",
     "../shared-types/src/**/*"
   ]

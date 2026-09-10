@@ -27,8 +27,8 @@ import {
   parseBandedList, retiredSuffix, parseSelector, parseEasing, parseOrigin, EASING_KEYWORDS,
   parseOffset, parsePosition, properties, settings as allSettings,
 } from './schema.js';
-import { parseValue, isObject, isPath } from '../parse.js';
-import type { Parsed, ParsedObject, Path } from '../parse.js';
+import { parseValue, isObject, isPath } from '@verajs/shared-utils';
+import type { Parsed, ParsedObject, Path } from '@verajs/shared-utils';
 import type { Band, ElementMotion, ParseContext, ParsedElement, PositionUnit, PropertyDef, Range, Refusal, Unit } from './types.js';
 
 /** The one attribute. Exported so runtime walks (`stagger`) select by it. */

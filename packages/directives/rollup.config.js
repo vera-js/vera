@@ -23,14 +23,10 @@ export default [
   defaultRollupConfig(`${pkg.filename}-core`, ['@verajs/core'], /^_[a-z]/, { input: 'src/engine.ts', alwaysExternal: ['@verajs/core'] }),
   defaultRollupConfig(`${pkg.filename}-standalone`, ['@verajs/core'], /^_[a-z]/, { input: 'src/engine.ts' }),
   defaultRollupConfig(`${pkg.filename}-interaction`, [], /^_[a-z]/, { input: 'src/interaction.ts' }),
-  defaultRollupConfig(`${pkg.filename}-motion`, [], /^_[a-z]/, { input: 'src/motion/index.ts' }),
-  /** The LEAN motion entry (adoption condition 1): compiler + writer, no engine, no packs —
-   *  the bundle whose published size the adoption calculus runs on. */
-  defaultRollupConfig(`${pkg.filename}-motion-core`, [], /^_[a-z]/, { input: 'src/motion/core-entry.ts' }),
-  defaultRollupConfig(`${pkg.filename}-motion-ssr`, [], /^_[a-z]/, { input: 'src/motion/ssr-entry.ts' }),
-  /** The READER's entry: delivery + drive + ticks, NO compiler — the front-end adoption cost
-   *  for embedders whose server generates everything. */
-  defaultRollupConfig(`${pkg.filename}-motion-client`, [], /^_[a-z]/, { input: 'src/motion/client-entry.ts' }),
+  /** The motion PACK — the engine's wiring of `@verajs/motion`, whose lean entries live in
+   *  that package since the cut (2026-09-10). Dev keeps the dependency external; prod inlines
+   *  it, the workspace rule. */
+  defaultRollupConfig(`${pkg.filename}-motion`, ['@verajs/motion/internal'], /^_[a-z]/, { input: 'src/motion/index.ts' }),
   defaultRollupConfig(`${pkg.filename}-remote`, [], /^_[a-z]/, { input: 'src/remote.ts' }),
   defaultRollupConfig(`${pkg.filename}-query`, [], /^_[a-z]/, { input: 'src/query.ts' }),
   defaultRollupConfig(`${pkg.filename}-sensors`, [], /^_[a-z]/, { input: 'src/sensors.ts' }),

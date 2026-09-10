@@ -1,5 +1,5 @@
 /**
- * The LEAN motion entry — `@verajs/directives/motion-core` — adoption condition 1.
+ * The LEAN motion entry — `@verajs/motion/core` — adoption condition 1.
  *
  * The compiler and the writer, nothing else: parse the object grammar, generate the CSS,
  * deliver it through the registry, drive the number, hand it to ticks — with NO engine, NO

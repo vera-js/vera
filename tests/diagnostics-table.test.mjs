@@ -93,9 +93,12 @@ const topLevelArgs = (body) => {
 const FORMS = [['ctx.reject(', 0], ['context.reject(', 0], ['seams.reject(', 2], ['reject(', 2]];
 
 const raised = new Map();
-for (const path of files(new URL('../packages/directives/src', import.meta.url).pathname)) {
+/** Three roots since the package cut: the engine, the motion engine (@verajs/motion — its codes
+ *  flow through the same reject/PROSE table), and the shared value grammar. */
+const ROOTS = ['../packages/directives/src', '../packages/motion/src', '../packages/shared-utils/src'];
+for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).pathname))) {
   const text = readFileSync(path, 'utf8');
-  const rel = path.slice(path.indexOf('directives/src/') + 'directives/src/'.length);
+  const rel = path.slice(path.indexOf('packages/') + 'packages/'.length);
   const seen = new Set();
   for (const [callee, index] of FORMS) {
     let at = 0;
@@ -124,7 +127,7 @@ for (const path of files(new URL('../packages/directives/src', import.meta.url).
    * those strings are only ever codes there, and the alternative is a scanner that silently misses
    * a route and reports live prose as orphaned.
    */
-  if (rel.startsWith('motion/')) {
+  if (rel.startsWith('motion/') || rel.includes('/motion/')) {
     /** A directive's own NAME looks exactly like a code — `data-vd-motion-group` declares
      *  `name: 'motion-group'` — so the names are subtracted rather than reported as codes with
      *  no prose, which is what the broad scan first did. */

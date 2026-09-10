@@ -11,8 +11,8 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/core` | 6.92 KB | **3.04 KB** |
 | `@verajs/renderer` | 11.25 KB | 4.35 KB |
 | `@verajs/router` | 9.54 KB | 4.00 KB |
-| `@verajs/autoloader` | 3.79 KB | 1.63 KB |
-| `@verajs/styles` | 1.39 KB | 757 B |
+| `@verajs/autoloader` | 3.83 KB | 1.64 KB |
+| `@verajs/styles` | 1.41 KB | 772 B |
 | `@verajs/renderer/spread` | 2.51 KB | 1.29 KB |
 | `@verajs/renderer/tag` | 3.69 KB | 1.86 KB |
 | `@verajs/reactivity/computed` | 298 B | 241 B |
@@ -20,14 +20,17 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
 | `@verajs/inserts` | 486 B | 357 B |
-| `@verajs/directives` | 14.94 KB | 5.83 KB |
-| `@verajs/directives/directives-standalone` | 18.44 KB | 7.11 KB |
+| `@verajs/directives` | 15.30 KB | 5.95 KB |
+| `@verajs/directives/directives-standalone` | 18.81 KB | 7.24 KB |
 | `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
-| `@verajs/directives/directives-interaction` | 9.52 KB | 3.48 KB |
-| `@verajs/directives/directives-query` | 3.63 KB | 1.58 KB |
-| `@verajs/directives/directives-sensors` | 5.51 KB | 2.18 KB |
-| `@verajs/directives/directives-remote` | 2.56 KB | 1.27 KB |
-| `@verajs/directives/directives-motion` | 67.87 KB | 22.57 KB |
+| `@verajs/directives/directives-interaction` | 10.15 KB | 3.66 KB |
+| `@verajs/directives/directives-query` | 4.82 KB | 2.01 KB |
+| `@verajs/directives/directives-sensors` | 5.52 KB | 2.19 KB |
+| `@verajs/directives/directives-remote` | 2.58 KB | 1.28 KB |
+| `@verajs/directives/directives-motion` | 68.43 KB | 22.70 KB |
+| `@verajs/motion` | 33.44 KB | 11.18 KB |
+| `@verajs/motion/motion-ssr` | 32.19 KB | 10.47 KB |
+| `@verajs/motion/motion-client` | 7.57 KB | 2.79 KB |
 <!--/size:table.modules-->
 
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.6 KB<!--/size:app.kb--> gzipped**. For

@@ -23,7 +23,7 @@ test('the CLI emits first-frame CSS into static HTML through the real pipeline',
   const file = join(dir, 'page.html');
   writeFileSync(file, PAGE);
 
-  const bin = new URL('../packages/directives/bin/motion-emit.mjs', import.meta.url).pathname;
+  const bin = new URL('../packages/motion/bin/motion-emit.mjs', import.meta.url).pathname;
   const out = execFileSync(process.execPath, ['--conditions', 'development', bin, file], {
     encoding: 'utf8',
     cwd: new URL('..', import.meta.url).pathname,

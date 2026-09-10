@@ -152,7 +152,7 @@ it('lifting data-autoload-ignore lets an element load', async () => {
 it('finds components inside declarative shadow DOM', async () => {
   const container = document.createElement('div');
   container.setHTMLUnsafe(`
-    <ssr-shell autoloader>
+    <ssr-shell data-autoload>
       <template shadowrootmode="open">
         <h1>rendered on the server</h1>
         <ssr-child></ssr-child>

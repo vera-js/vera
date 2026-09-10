@@ -1,0 +1,127 @@
+{
+  "name": "@verajs/motion",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The motion engine: a compiler from one attribute grammar to generated CSS, a server renderer, and a timeline driver. Engine-independent — @verajs/directives wires it as its motion pack, and any embedder consumes the same lean entries.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vera-js/vera.git",
+    "directory": "packages/motion"
+  },
+  "author": "Brian Grider <hello@verajs.com>",
+  "homepage": "https://verajs.dev",
+  "main": "./dist/vera-motion.min.js",
+  "types": "./dist/development/vera-motion.d.ts",
+  "type": "module",
+  "bin": {
+    "vera-motion-emit": "./bin/motion-emit.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/development/vera-motion.d.ts",
+      "development": "./dist/development/vera-motion.js",
+      "default": "./dist/vera-motion.min.js"
+    },
+    "./core": {
+      "types": "./dist/development/vera-motion.d.ts",
+      "development": "./dist/development/vera-motion.js",
+      "default": "./dist/vera-motion.min.js"
+    },
+    "./ssr": {
+      "types": "./dist/development/vera-motion-ssr.d.ts",
+      "development": "./dist/development/vera-motion-ssr.js",
+      "default": "./dist/vera-motion-ssr.min.js"
+    },
+    "./client": {
+      "types": "./dist/development/vera-motion-client.d.ts",
+      "development": "./dist/development/vera-motion-client.js",
+      "default": "./dist/vera-motion-client.min.js"
+    },
+    "./internal": {
+      "types": "./dist/development/vera-motion-internal.d.ts",
+      "development": "./dist/development/vera-motion-internal.js",
+      "default": "./dist/vera-motion-internal.min.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "../shared-types/src/**/*{.js,.ts}",
+        "../shared-utils/src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  },
+  "filename": "vera-motion"
+}

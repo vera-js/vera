@@ -24,8 +24,8 @@ import { pageProblem } from './schema.js';
 
 import { MOTION_ATTR } from './parse.js';
 
-import { parseValue, isObject } from '../parse.js';
-import type { Parsed, ParsedObject } from '../parse.js';
+import { parseValue, isObject } from '@verajs/shared-utils';
+import type { Parsed, ParsedObject } from '@verajs/shared-utils';
 import type { SettingDef, MotionFunctionModule, WirableTree } from './types.js';
 
 const FROM = '@verajs/directives/motion';

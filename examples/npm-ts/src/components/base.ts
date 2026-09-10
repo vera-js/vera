@@ -5,8 +5,8 @@ import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@
 import { testingChunks } from './logic-chunk.js';
 
 
-const hello = () => html`<hello-component autoloader>Loading hello...</hello-component>`;
-const goodbye = () => html`<goodbye-component autoloader>Loading goodbye...</goodbye-component>`;
+const hello = () => html`<hello-component data-autoload>Loading hello...</hello-component>`;
+const goodbye = () => html`<goodbye-component data-autoload>Loading goodbye...</goodbye-component>`;
 
 class Base extends HTMLElement {
   connectedCallback() {
@@ -143,7 +143,7 @@ class Base extends HTMLElement {
           <a route href="/hello/feverjohn/leave/forever1234forever/john/goodbyeforever">hello john</a>
           <a route href="/hello#goodbye">SCROLLL</a>
         </nav>
-        <div view="main" autoloader></div>
+        <div view="main" data-autoload></div>
         <hello-component></hello-component>
         <div class="input-grid">
           <p>${harry}</p>

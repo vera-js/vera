@@ -319,7 +319,7 @@ test('an unwired pack key names the PACK, and the literal map cannot drift from 
   const vocabulary = JSON.parse(readFileSync(new URL('../packages/directives/motion-vocabulary.json', import.meta.url), 'utf8'));
   const fromArtifact = Object.fromEntries(
     [...vocabulary.properties, ...vocabulary.settings].filter((row) => row.pack).map((row) => [row.key, row.pack]));
-  const source = readFileSync(new URL('../packages/directives/src/motion/parse.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../packages/motion/src/parse.ts', import.meta.url), 'utf8');
   for (const [key, pack] of Object.entries(fromArtifact)) {
     assert.ok(new RegExp(`['\\\`"]?${key}['\\\`"]?: '${pack}'`).test(source),
       `SHIPPED_PACK_KEYS is missing ${key} → ${pack}; the literal drifted from motion-vocabulary.json`);

@@ -27,7 +27,7 @@
  *   rules. An author's own `aria-label` is left in charge.
  */
 import type { Directive } from '../types.js';
-import { MOTION_ATTR, serializeMotion } from './parse.js';
+import { MOTION_ATTR, serializeMotion } from '@verajs/motion/internal';
 
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';

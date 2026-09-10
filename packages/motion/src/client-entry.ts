@@ -1,5 +1,5 @@
 /**
- * `@verajs/directives/motion-client` — the READER's entry: delivery and the number's writer,
+ * `@verajs/motion/client` — the READER's entry: delivery and the number's writer,
  * with NO compiler at all. For embedders whose server generates every rule (omni's PHP front
  * end is the shape): the client acquires pre-generated CSS, drives the variables, feeds ticks —
  * and never parses or generates anything. The `/motion-ssr` split's logic pointed the other

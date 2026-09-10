@@ -108,7 +108,7 @@ directions.
 
 The renderer still earns its place on speed rather than bytes; see
 [performance.md](performance.md). An app that uses `static styles` adds `@verajs/styles`
-(<!--size:styles.gzip-->757 B<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
+(<!--size:styles.gzip-->772 B<!--/size:styles.gzip--> gzipped) back, so the win belongs to apps that do not.
 
 *(Size grew as the renderer was rebuilt for template identity and keying, and again when reactive
 Map/Set moved into core and `@verajs/map-support` was retired. Both were deliberate trades. Whether
@@ -123,8 +123,8 @@ describing the bytes honestly.)*
 | `@verajs/core` | 3 115 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 4 450 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 092 B | nested routes, params, wildcards, redirects, scroll memory |
-| `@verajs/autoloader` | 1 674 B | lazy component discovery |
-| `@verajs/styles` | 757 B | `static styles` adoption, shadow and light DOM |
+| `@verajs/autoloader` | 1 681 B | lazy component discovery |
+| `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 316 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 1 904 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
@@ -132,14 +132,17 @@ describing the bytes honestly.)*
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/inserts` | 357 B | the extension point |
-| `@verajs/directives/core` | 5 967 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 7 282 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | 6 088 B | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | 7 413 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
-| `@verajs/directives/interaction` | 3 561 B | the interaction pack — events, reflections, state |
-| `@verajs/directives/query` | 1 616 B | the query pack — route, query, region |
-| `@verajs/directives/sensors` | 2 234 B | the sensors pack — environment to state |
-| `@verajs/directives/remote` | 1 302 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 23 113 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/directives/interaction` | 3 752 B | the interaction pack — events, reflections, state |
+| `@verajs/directives/query` | 2 063 B | the query pack — route, query, list |
+| `@verajs/directives/sensors` | 2 243 B | the sensors pack — environment to state |
+| `@verajs/directives/remote` | 1 306 B | the remote pack — server-driven interactions |
+| `@verajs/directives/motion` | 23 244 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/motion/core` | 11 445 B | the motion engine — compiler + writer, no directives engine, no packs |
+| `@verajs/motion/ssr` | 10 719 B | renderMotion — mark a server document, emit its sheet |
+| `@verajs/motion/client` | 2 861 B | the reader — delivery, drive and functions, no compiler |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).

@@ -15,12 +15,12 @@
       "gzip": 4092
     },
     "autoloader": {
-      "raw": 3877,
-      "gzip": 1674
+      "raw": 3919,
+      "gzip": 1681
     },
     "styles": {
-      "raw": 1420,
-      "gzip": 757
+      "raw": 1439,
+      "gzip": 772
     },
     "spread": {
       "raw": 2572,
@@ -43,7 +43,7 @@
       "gzip": 923
     },
     "slots": {
-      "raw": 9199,
+      "raw": 9195,
       "gzip": 3426
     },
     "inserts": {
@@ -51,36 +51,48 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 15299,
-      "gzip": 5967
+      "raw": 15672,
+      "gzip": 6088
     },
     "directives-standalone": {
-      "raw": 18887,
-      "gzip": 7282
+      "raw": 19260,
+      "gzip": 7413
     },
     "directives-expressions": {
       "raw": 5540,
       "gzip": 2343
     },
     "directives-interaction": {
-      "raw": 9747,
-      "gzip": 3561
+      "raw": 10394,
+      "gzip": 3752
     },
     "directives-query": {
-      "raw": 3716,
-      "gzip": 1616
+      "raw": 4933,
+      "gzip": 2063
     },
     "directives-sensors": {
-      "raw": 5641,
-      "gzip": 2234
+      "raw": 5651,
+      "gzip": 2243
     },
     "directives-remote": {
-      "raw": 2624,
-      "gzip": 1302
+      "raw": 2643,
+      "gzip": 1306
     },
     "directives-motion": {
-      "raw": 69495,
-      "gzip": 23113
+      "raw": 70072,
+      "gzip": 23244
+    },
+    "motion": {
+      "raw": 34238,
+      "gzip": 11445
+    },
+    "motion-ssr": {
+      "raw": 32964,
+      "gzip": 10719
+    },
+    "motion-client": {
+      "raw": 7752,
+      "gzip": 2861
     }
   },
   "apps": [

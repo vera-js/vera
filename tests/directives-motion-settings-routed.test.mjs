@@ -20,11 +20,13 @@ import { readFileSync, readdirSync } from 'node:fs';
  */
 const INERT = new Map([]);
 
-const dir = new URL('../packages/directives/src/motion/', import.meta.url);
-const sources = readdirSync(dir)
-  .filter((f) => f.endsWith('.ts') && f !== 'schema.ts')
-  .map((f) => readFileSync(new URL(f, dir), 'utf8'))
-  .join('\n');
+/** Both homes since the package cut: the motion engine and the directives pack that wires it. */
+const dir = new URL('../packages/motion/src/', import.meta.url);
+const packDir = new URL('../packages/directives/src/motion/', import.meta.url);
+const sources = [
+  ...readdirSync(dir).filter((f) => f.endsWith('.ts') && f !== 'schema.ts').map((f) => readFileSync(new URL(f, dir), 'utf8')),
+  ...readdirSync(packDir).filter((f) => f.endsWith('.ts')).map((f) => readFileSync(new URL(f, packDir), 'utf8')),
+].join('\n');
 
 test('every core settings key is routed past its definition, or documented inert', async () => {
   const { load } = await import('./dist.mjs');

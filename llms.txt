@@ -920,7 +920,9 @@ boundaries host-ward); `@key` is the page-global store. `@route` is published by
 
 **motion pack** — one attribute, `data-vd-motion`, taking a preset name (`fade-up`, `zoom-in`, …
 from a WIRED pack — see below) or an object with **two halves**: properties inside `keyframes`,
-settings outside it —
+settings outside it. (The engine underneath is `@verajs/motion` — its own package with lean
+embedder entries `./core` `./ssr` `./client` and the `vera-motion-emit` CLI; a vera page never
+installs it directly, the pack carries it.) —
 `data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
 scroll: '70%, 50%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: inside `keyframes` it is
 **progress along the animation**, outside it a **position on the screen** (`0%` top, `100%` bottom,

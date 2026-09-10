@@ -74,8 +74,8 @@ const payloads = [
  * function-valued fields are omitted because a conformance corpus pins grammar and observable
  * behaviour, never implementation.
  */
-const { PROPERTIES, SETTINGS } = await import('../packages/directives/src/motion/schema.ts');
-const { PRESETS } = await import('../packages/directives/src/motion/presets.ts');
+const { PROPERTIES, SETTINGS } = await import('../packages/motion/src/schema.ts');
+const { PRESETS } = await import('../packages/motion/src/presets.ts');
 /** From the BUILT bundle: the pack modules carry runtime imports Node's type-stripper cannot
  *  follow from source (it strips types but never rewrites `./x.js` specifiers). The gate builds
  *  before it checks diagnostics, so the artifact is always fresher than this read. */

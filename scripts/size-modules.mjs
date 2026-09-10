@@ -33,8 +33,12 @@ export const MODULES = [
   { pkg: 'directives-standalone', dir: 'directives', label: 'directives/standalone', dist: 'packages/directives/dist/vera-directives-standalone.min.js', what: 'the engine with its own store, for a page running no vera' },
   { pkg: 'directives-expressions', dir: 'directives', label: 'directives/expressions', dist: 'packages/directives/dist/vera-directives-expressions.min.js', what: 'the expression tier — arithmetic, comparisons, calls' },
   { pkg: 'directives-interaction', dir: 'directives', label: 'directives/interaction', dist: 'packages/directives/dist/vera-directives-interaction.min.js', what: 'the interaction pack — events, reflections, state' },
-  { pkg: 'directives-query', dir: 'directives', label: 'directives/query', dist: 'packages/directives/dist/vera-directives-query.min.js', what: 'the query pack — route, query, region' },
+  { pkg: 'directives-query', dir: 'directives', label: 'directives/query', dist: 'packages/directives/dist/vera-directives-query.min.js', what: 'the query pack — route, query, list' },
   { pkg: 'directives-sensors', dir: 'directives', label: 'directives/sensors', dist: 'packages/directives/dist/vera-directives-sensors.min.js', what: 'the sensors pack — environment to state' },
   { pkg: 'directives-remote', dir: 'directives', label: 'directives/remote', dist: 'packages/directives/dist/vera-directives-remote.min.js', what: 'the remote pack — server-driven interactions' },
   { pkg: 'directives-motion', dir: 'directives', label: 'directives/motion', dist: 'packages/directives/dist/vera-directives-motion.min.js', what: 'the motion pack — presets, easings, paint, path, sequence, split' },
+  /** The @verajs/motion package (the cut, 2026-09-10) — the three adoption entries. */
+  { pkg: 'motion', label: 'motion/core', dist: 'packages/motion/dist/vera-motion.min.js', what: 'the motion engine — compiler + writer, no directives engine, no packs' },
+  { pkg: 'motion-ssr', dir: 'motion', label: 'motion/ssr', dist: 'packages/motion/dist/vera-motion-ssr.min.js', what: 'renderMotion — mark a server document, emit its sheet' },
+  { pkg: 'motion-client', dir: 'motion', label: 'motion/client', dist: 'packages/motion/dist/vera-motion-client.min.js', what: 'the reader — delivery, drive and functions, no compiler' },
 ];

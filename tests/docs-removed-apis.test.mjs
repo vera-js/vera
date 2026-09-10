@@ -48,9 +48,9 @@ const REMOVED = {
   'map-support': '@verajs/reactivity/collections',
   /** A fossil of the multi-strategy SSR era; the plain specifier was always the same module. */
   '@verajs/ssr/vera': '@verajs/ssr',
-  /** The phase-4 fold-in (2026-09-06): the package retired to vera-js/vera-archive; the motion
-   *  pack lives in the directives package. Every subpath rode the same key. */
-  '@verajs/motion': '@verajs/directives/motion',
+  /** The phase-4 fold-in entry for '@verajs/motion' LEFT this list on 2026-09-10: the package
+   *  cut brought the name back to life as motion's own home (./core ./ssr ./client), so the
+   *  ledger teaching it as removed would itself have been the stale prose. */
   /** Renamed so "directive" means exactly one thing product-wide: the attribute system
    *  (`@verajs/directives`). The renderer's template-protocol extension is an APPLIER. */
   ChildDirective: 'Applier',

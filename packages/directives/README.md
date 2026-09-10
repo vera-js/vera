@@ -58,14 +58,14 @@ an app using motion pays more than everything else combined.
 
 | entry | gzip | what it is |
 | --- | --- | --- |
-| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->5 967 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 282 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | <!--size:directives.gzip.bytes-->6 088 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 413 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 343 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
-| `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 561 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
-| `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->1 616 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
-| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 234 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
-| `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 302 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->23 113 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
+| `@verajs/directives/interaction` | <!--size:directives-interaction.gzip.bytes-->3 752 B<!--/size:directives-interaction.gzip.bytes--> | events, reflections, state |
+| `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->2 063 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
+| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 243 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
+| `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->1 306 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->23 244 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 

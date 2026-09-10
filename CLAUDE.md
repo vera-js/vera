@@ -350,7 +350,19 @@ internal/          private portal — strategy, todos, audits, archive. Gitignor
 **examples vs tests:** examples are for experimenting by hand. Tests run themselves. Neither
 substitutes for the other.
 
-### Motion — retired into `@verajs/directives` (phase 4, 2026-09-06)
+### Motion — its own package again: `@verajs/motion` (the cut, 2026-09-10)
+
+The write-path rewrite grew motion a compiler, an SSR renderer, a CLI and a PHP twin
+(`verajs/motion` on Packagist), and its headline consumers became embedders who never load the
+directives engine — so the engine-independent core moved OUT to **`packages/motion`**
+(`@verajs/motion`: `./core` `./ssr` `./client`, plus `./internal`, the first-party seam).
+`@verajs/directives/motion` remains as the PACK — the engine's wiring of `@verajs/motion`, which
+makes vera-directives the first embedder of its own product, through the same lean surface omni
+vendors. The shared base value grammar lives in `@verajs/shared-utils` (both packages inline it).
+The npm name reuses the retired package's; nothing about the phase-4 fold's *pack* design was
+reversed — what moved is exactly the part that was never a directive.
+
+### Motion — the phase-4 fold into `@verajs/directives` (2026-09-06; partially superseded above)
 
 `packages/motion` no longer exists here. Its behaviors were folded into the directives engine as
 the **motion pack** — `@verajs/directives/motion`, one `data-vd-motion` attribute (preset literal

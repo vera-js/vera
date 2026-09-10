@@ -44,8 +44,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = host.window.requestAnimationFrame.bind(host.window);
 globalThis.cancelAnimationFrame = host.window.cancelAnimationFrame.bind(host.window);
 
-/** Self-referential import: resolves this very package's `./motion` export, dev or published. */
-const { renderMotion, presets, paint, path, sequence } = await import('@verajs/directives/motion');
+/** Self-referential imports: resolve this very package's own exports, dev or published. */
+const { renderMotion } = await import('@verajs/motion/ssr');
+const { paintRows, pathRows, sequenceRows, lookUpPreset } = await import('@verajs/motion/internal');
 
 let pages = 0;
 let elements = 0;
@@ -55,7 +56,9 @@ for (const file of files) {
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   /** The full shipped wire array — identical resolution to a page that wires everything. */
-  const report = renderMotion(dom.window.document, { wire: [presets, paint, path, sequence] });
+  const report = renderMotion(dom.window.document, {
+    wire: [{ on: 'preset', fn: lookUpPreset }, paintRows, pathRows, sequenceRows],
+  });
   for (const problem of report.problems) {
     console.warn(`${file}: ${problem.code}${problem.args.length ? ` (${problem.args.join(', ')})` : ''}`);
   }
