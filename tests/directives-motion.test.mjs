@@ -265,6 +265,20 @@ test('an unwired pack key names the PACK, and the literal map cannot drift from 
     'the unwired-module rule, one level down from preset names');
   assert.ok(!reasons.some((r) => r.code === 'motion-no-such-key'),
     'and NOT no-such-key: background is real and correctly spelled');
+
+  /**
+   * SETTINGS refuse identically — omni's symmetry question, answered by construction here: with
+   * the pack unwired neither its properties nor its settings are registered, so both fall to the
+   * same map. The alternative — validate-and-store a config string nothing will ever read — is
+   * the accepted-and-ignored failure this codebase refuses everywhere else: a loud key beside
+   * dead configuration is HALF a refusal story.
+   */
+  const half = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, frame-url: 'seq/' }">x</div>`);
+  const halfReasons = rejections(half.querySelector('div'));
+  assert.ok(halfReasons.some((r) => r.code === 'motion-pack-unwired' && /sequence/.test(r.message ?? 'sequence')),
+    'an unwired pack SETTING refuses like its property, naming the pack');
+  half.remove();
+  await settled();
   if (!isProduction) {
     assert.ok(reasons.some((r) => /paint/.test(r.message)), 'the pack is named');
     assert.ok(reasons.some((r) => /wireDirectives\(\[motion, paint\]\)/.test(r.fix ?? '')), 'with the line to write');
