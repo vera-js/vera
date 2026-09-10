@@ -270,7 +270,7 @@ const readSetting = (
   key: string,
   def: NonNullable<ReturnType<typeof getSetting>>,
   value: string | number | boolean,
-  no: (why: string) => void,
+  no: (why: string, args?: readonly string[]) => void,
   out: Record<string, string | number | boolean>
 ): void => {
   /** A module validates its own settings; the built-in types follow. */
@@ -278,7 +278,7 @@ const readSetting = (
     /** A throw is the same answer as `null` — see `parseMeasure`. */
     let parsed: string | number | boolean | null = null;
     try { parsed = def.parse(String(value)); } catch { /* refused */ }
-    if (parsed === null) no(WHY[def.type] ?? 'motion-setting-module-refused');
+    if (parsed === null) no(def.code ?? WHY[def.type] ?? 'motion-setting-module-refused');
     else out[key] = parsed;
     return;
   }
@@ -317,7 +317,7 @@ const readSetting = (
           : def.min !== undefined ? ` of at least ${def.min}`
           : def.max !== undefined ? ` of at most ${def.max}`
           : '';
-        no(`must be a number${range}`);
+        no('motion-setting-number', [range]);
       }
       break;
     }

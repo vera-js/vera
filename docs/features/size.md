@@ -139,7 +139,7 @@ describing the bytes honestly.)*
 | `@verajs/directives/query` | 1 616 B | the query pack — route, query, region |
 | `@verajs/directives/sensors` | 2 234 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 1 302 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 21 513 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/directives/motion` | 21 526 B | the motion pack — presets, easings, paint, path, sequence, split |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).

@@ -691,6 +691,14 @@
       "message": "{where}: a setting takes a plain value."
     },
     {
+      "code": "motion-setting-number",
+      "params": [
+        "where",
+        "range"
+      ],
+      "message": "{where}: must be a number{range}."
+    },
+    {
       "code": "motion-setting-offset",
       "params": [
         "where"
@@ -703,6 +711,13 @@
         "where"
       ],
       "message": "{where}: is not a transform-origin."
+    },
+    {
+      "code": "motion-setting-progress",
+      "params": [
+        "where"
+      ],
+      "message": "{where}: is not a custom property name (--like-this)."
     },
     {
       "code": "motion-setting-range",

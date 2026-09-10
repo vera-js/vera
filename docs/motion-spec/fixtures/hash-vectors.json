@@ -1,0 +1,35 @@
+{
+ "//": "Cross-implementation hash vectors \u2014 TWO functions, one per engine, and that is a recorded divergence, not a defect: the determinism the spec requires is INTRA-implementation (a server and client of the SAME engine must name a rule identically; omni pages and vera pages never share generated rules). omni: FNV-1a 64 (fnv1a64 \u2014 BigInt UTF-16 and PHP 16-bit-limb byte implementations agree because generated CSS is ASCII by construction). vera: FNV-1a 32 (fnv1a32 \u2014 charCodeAt + Math.imul, node and all three browsers, literal 'fd6bc413' pinned in both suites). The first three texts are published reference vectors; the rest are generated-CSS rule bodies. Contributed by omni 2026-09-09; the fnv1a32 column added by vera on adoption, each value verified against the shipping contentHash before landing.",
+ "vectors": [
+  {
+   "text": "",
+   "fnv1a64": "cbf29ce484222325",
+   "fnv1a32": "811c9dc5"
+  },
+  {
+   "text": "a",
+   "fnv1a64": "af63dc4c8601ec8c",
+   "fnv1a32": "e40c292c"
+  },
+  {
+   "text": "hello world",
+   "fnv1a64": "779a65e7023cd2e7",
+   "fnv1a32": "d58b3fa7"
+  },
+  {
+   "text": "0% { transform: translateY(40px) } 100% { transform: translateY(0px) }",
+   "fnv1a64": "800b729ea0cc14e0",
+   "fnv1a32": "89f19d00"
+  },
+  {
+   "text": "0% { transform: translateY(40px); filter: opacity(0) } 100% { transform: translateY(0px); filter: opacity(1) }",
+   "fnv1a64": "c821007223ac4459",
+   "fnv1a32": "b2608a79"
+  },
+  {
+   "text": "0% { transform: scale(0.125); filter: opacity(0.001) } 33.333% { transform: scale(0.5); filter: opacity(0.334) } 100% { transform: scale(1.008); filter: opacity(0.999) }",
+   "fnv1a64": "6097ac2a0ca6bb3a",
+   "fnv1a32": "9cb0f2da"
+  }
+ ]
+}

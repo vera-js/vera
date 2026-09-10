@@ -274,6 +274,10 @@ export interface SettingDef {
    * shape — `frame-url` validates an origin policy the runtime does not carry.
    */
   readonly parse?: (raw: string) => string | number | boolean | null;
+  /** A built-in `parse` setting's OWN refusal code. Without one, a parse refusal falls to
+   *  `motion-setting-module-refused` — right for a third-party module, wrong for a setting this
+   *  pack ships: "the module that owns it" is us, and the author deserves the actual grammar. */
+  readonly code?: string;
   /** The wiring specifier that contributes this setting; absent for core's own. */
   readonly from?: string;
   readonly key: string;
@@ -408,7 +412,8 @@ export const SETTINGS = [
    * vocabulary entry for each. It is also the seam pointing TOWARD the platform: a page can move its
    * visual layer into CSS while keeping the range naming, `anchor`, gating and regions from here.
    */
-  { key: 'progress', type: 'string', parse: (raw) => (/^--[\w-]+$/.test(raw.trim()) ? raw.trim() : null) },
+  { key: 'progress', type: 'string', code: 'motion-setting-progress',
+    parse: (raw) => (/^--[\w-]+$/.test(raw.trim()) ? raw.trim() : null) },
   { key: 'run-once', type: 'boolean' },
   /**
    * **Gates the animation; it does not replace the driver.** While the element matches, it animates

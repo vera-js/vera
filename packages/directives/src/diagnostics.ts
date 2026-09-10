@@ -250,6 +250,8 @@ export const PROSE: Record<string, Prose> = {
     "scroll: '70%, 50%' scrubs between them; with play: they are the in and out thresholds.",
   ],
   'motion-setting-length': (where) => [`${where}: is not a length — use px, rem, em, %, vh or vw.`],
+  'motion-setting-number': (where, range) => [`${where}: must be a number${range}.`],
+  'motion-setting-progress': (where) => [`${where}: is not a custom property name (--like-this).`],
   'motion-setting-module-refused': (where) => [`${where}: was refused by the module that owns it.`],
   'motion-band-suffix-retired': (property, band) => [
     `a \`-${band}\` key suffix is no longer read — write the band in the value instead.`,

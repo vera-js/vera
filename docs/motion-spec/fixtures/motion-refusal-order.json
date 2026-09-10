@@ -1,0 +1,926 @@
+{
+ "//": "Motion object grammar — refusal-order conformance. Contributed by omni 2026-09-09 per the fixtures flow (omni's 88-case corpus pins TS<->PHP byte-for-byte including refusal ORDER; these are the spec-level cases). Each case: raw input -> the refusal sequence (code + where, IN ORDER) and the settings that survive. Animations are deliberately omitted: each engine pins its own normalized shape; the SPEC pins what is refused, what is kept, and in what order it is reported. CODES NOTE: all codes are vera's own names mirrored into omni, except the motion-setting-<type> family, which omni spelled while vera's WHY table was unread - flagged for alignment on adoption.",
+ "cases": [
+  {
+   "name": "preset literal expands to its full body",
+   "raw": "fade-up",
+   "rejected": [],
+   "settings": {
+    "scroll": "85%",
+    "play": 0.6
+   },
+   "usable": true
+  },
+  {
+   "name": "preset unknown name",
+   "raw": "wobble-hard",
+   "rejected": [
+    {
+     "code": "motion-preset-unknown",
+     "where": "wobble-hard"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "empty value",
+   "raw": "",
+   "rejected": [
+    {
+     "code": "motion-no-value"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "unclosed object",
+   "raw": "{ keyframes: { opacity: '0, 1' }",
+   "rejected": [
+    {
+     "code": "motion-keyframes-not-object",
+     "where": "keyframes"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "pair with no colon",
+   "raw": "{ keyframes }",
+   "rejected": [
+    {
+     "code": "motion-parse-failed"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "bad key shape",
+   "raw": "{ Opacity!: '0' }",
+   "rejected": [
+    {
+     "code": "motion-parse-failed"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "lone end value sugar",
+   "raw": "{ keyframes: { opacity: '0' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "numeric end value sugar",
+   "raw": "{ keyframes: { opacity: 0 } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "float end value",
+   "raw": "{ keyframes: { scale: 0.5 } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "two-stop pair list",
+   "raw": "{ keyframes: { translate-y: '0% 40px, 100% 0px' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "trailing comma in list",
+   "raw": "{ keyframes: { translate-y: '0% 40px, 100% 0px,' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "trailing semicolon after list",
+   "raw": "{ keyframes: { translate-y: '0% 40px, 100% 0px;' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "bare zero takes the default unit so rem contradicts",
+   "raw": "{ keyframes: { translate-x: '0% 0, 100% 4rem' } }",
+   "rejected": [
+    {
+     "code": "motion-mixed-units",
+     "where": "translate-x"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "mixed units refused",
+   "raw": "{ keyframes: { translate-y: '0% 0px, 100% 40rem' } }",
+   "rejected": [
+    {
+     "code": "motion-mixed-units",
+     "where": "translate-y"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "unit not in property allowlist",
+   "raw": "{ keyframes: { opacity: '0% 10px, 100% 0' } }",
+   "rejected": [
+    {
+     "code": "motion-bad-value",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "value under property min",
+   "raw": "{ keyframes: { opacity: '-2' } }",
+   "rejected": [
+    {
+     "code": "motion-bad-value",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "value over property max",
+   "raw": "{ keyframes: { opacity: '1.5' } }",
+   "rejected": [
+    {
+     "code": "motion-bad-value",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "rotate degrees",
+   "raw": "{ keyframes: { rotate: '0% 0deg, 100% 180deg' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "percent position out of range",
+   "raw": "{ keyframes: { opacity: '150% 1' } }",
+   "rejected": [
+    {
+     "code": "motion-bad-position",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "geometry position vh",
+   "raw": "{ keyframes: { translate-y: '0vh 0px, 50vh 120px' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "empty frames string",
+   "raw": "{ keyframes: { opacity: '' } }",
+   "rejected": [
+    {
+     "code": "motion-no-keyframes",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "separators only",
+   "raw": "{ keyframes: { opacity: ',' } }",
+   "rejected": [
+    {
+     "code": "motion-no-keyframes",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "bare word frames refused",
+   "raw": "{ keyframes: { opacity: fade } }",
+   "rejected": [
+    {
+     "code": "motion-quote-the-value",
+     "where": "opacity"
+    },
+    {
+     "code": "motion-no-keyframes",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "unknown property key",
+   "raw": "{ keyframes: { sparkle: '0, 1' } }",
+   "rejected": [
+    {
+     "code": "motion-no-such-key",
+     "where": "sparkle"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "setting inside keyframes",
+   "raw": "{ keyframes: { opacity: '0, 1', inertia: 0.5 } }",
+   "rejected": [
+    {
+     "code": "motion-setting-in-keyframes",
+     "where": "inertia"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "property at top level",
+   "raw": "{ opacity: '0, 1' }",
+   "rejected": [
+    {
+     "code": "motion-property-at-top-level",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "keyframes not an object",
+   "raw": "{ keyframes: 'opacity 0 1' }",
+   "rejected": [
+    {
+     "code": "motion-keyframes-not-object",
+     "where": "keyframes"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "nested frames and ease",
+   "raw": "{ keyframes: { opacity: { frames: '0, 1', ease: 'ease-out' } } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "nested numeric frames",
+   "raw": "{ keyframes: { opacity: { frames: 1 } } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "nested missing frames",
+   "raw": "{ keyframes: { opacity: { ease: 'ease-out' } } }",
+   "rejected": [
+    {
+     "code": "motion-nested-needs-frames",
+     "where": "opacity"
+    },
+    {
+     "code": "motion-no-keyframes",
+     "where": "opacity"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "nested unknown key",
+   "raw": "{ keyframes: { opacity: { frames: '0, 1', delay: 2 } } }",
+   "rejected": [
+    {
+     "code": "motion-nested-unknown",
+     "where": "opacity.delay"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "nested bad ease",
+   "raw": "{ keyframes: { opacity: { frames: '0, 1', ease: 'bouncy' } } }",
+   "rejected": [
+    {
+     "code": "motion-setting-easing",
+     "where": "opacity.ease"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "closed band merges",
+   "raw": "{ keyframes: { translate-y: '0% 0px, 100% 200px; [0-560]: 100% 60px' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "open band",
+   "raw": "{ keyframes: { translate-y: '0% 0px, 100% 60px; [900+]: 100% 200px' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "band only no base",
+   "raw": "{ keyframes: { translate-y: '[0-560]: 0% 0px, 100% 40px' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "named band refused without registry",
+   "raw": "{ keyframes: { translate-y: '0% 0px, 100% 40px; [mobile]: 100% 10px' } }",
+   "rejected": [
+    {
+     "code": "motion-band-bad",
+     "where": "translate-y"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "band junk after bracket",
+   "raw": "{ keyframes: { translate-y: '0% 0px, 100% 40px; [0-560]x: 100% 10px' } }",
+   "rejected": [
+    {
+     "code": "motion-band-bad",
+     "where": "translate-y"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "inner semicolon without band refused",
+   "raw": "{ keyframes: { translate-y: '0% 0px; 100% 40px' } }",
+   "rejected": [
+    {
+     "code": "motion-bad-value",
+     "where": "translate-y"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "scroll range pair",
+   "raw": "{ keyframes: { opacity: '0, 1' }, scroll: 'top 80%, top 30%' }",
+   "rejected": [],
+   "settings": {
+    "scroll": "top 80%, top 30%"
+   },
+   "usable": true
+  },
+  {
+   "name": "scroll cover words",
+   "raw": "{ keyframes: { opacity: '0, 1' }, scroll: 'top, bottom' }",
+   "rejected": [],
+   "settings": {
+    "scroll": "top, bottom"
+   },
+   "usable": true
+  },
+  {
+   "name": "scroll rejected shape",
+   "raw": "{ keyframes: { opacity: '0, 1' }, scroll: 'sideways a bit' }",
+   "rejected": [
+    {
+     "code": "motion-setting-range",
+     "where": "scroll"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "inertia number",
+   "raw": "{ keyframes: { opacity: '0, 1' }, inertia: 0.25 }",
+   "rejected": [],
+   "settings": {
+    "inertia": 0.25
+   },
+   "usable": true
+  },
+  {
+   "name": "inertia out of bounds",
+   "raw": "{ keyframes: { opacity: '0, 1' }, inertia: 9999 }",
+   "rejected": [
+    {
+     "code": "motion-setting-number",
+     "where": "inertia"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "inertia quoted number",
+   "raw": "{ keyframes: { opacity: '0, 1' }, inertia: '0.25' }",
+   "rejected": [],
+   "settings": {
+    "inertia": 0.25
+   },
+   "usable": true
+  },
+  {
+   "name": "play bare seconds",
+   "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3 }",
+   "rejected": [],
+   "settings": {
+    "play": 0.3
+   },
+   "usable": true
+  },
+  {
+   "name": "play with inertia contradiction",
+   "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3, inertia: 0.5 }",
+   "rejected": [
+    {
+     "code": "motion-play-with-inertia"
+    }
+   ],
+   "settings": {
+    "play": 0.3,
+    "inertia": 0.5
+   },
+   "usable": true
+  },
+  {
+   "name": "ease with play contradiction",
+   "raw": "{ keyframes: { opacity: '0, 1' }, play: 0.3, ease: 'ease-out' }",
+   "rejected": [
+    {
+     "code": "motion-ease-with-play"
+    }
+   ],
+   "settings": {
+    "play": 0.3,
+    "ease": "ease-out"
+   },
+   "usable": true
+  },
+  {
+   "name": "ease cubic bezier valid",
+   "raw": "{ keyframes: { opacity: '0, 1' }, ease: 'cubic-bezier(0.2, 0, 0, 1.4)' }",
+   "rejected": [],
+   "settings": {
+    "ease": "cubic-bezier(0.2, 0, 0, 1.4)"
+   },
+   "usable": true
+  },
+  {
+   "name": "ease cubic bezier x out of range",
+   "raw": "{ keyframes: { opacity: '0, 1' }, ease: 'cubic-bezier(2, 0, 3, 1)' }",
+   "rejected": [
+    {
+     "code": "motion-setting-easing",
+     "where": "ease"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "ease steps valid",
+   "raw": "{ keyframes: { opacity: '0, 1' }, ease: 'steps(4, jump-none)' }",
+   "rejected": [],
+   "settings": {
+    "ease": "steps(4, jump-none)"
+   },
+   "usable": true
+  },
+  {
+   "name": "ease steps one jump-none refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, ease: 'steps(1, jump-none)' }",
+   "rejected": [
+    {
+     "code": "motion-setting-easing",
+     "where": "ease"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "ease unquoted keyword refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, ease: ease-in }",
+   "rejected": [
+    {
+     "code": "motion-quote-the-value",
+     "where": "ease"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "run-once boolean",
+   "raw": "{ keyframes: { opacity: '0, 1' }, run-once: true }",
+   "rejected": [],
+   "settings": {
+    "run-once": true
+   },
+   "usable": true
+  },
+  {
+   "name": "run-once string round-trip",
+   "raw": "{ keyframes: { opacity: '0, 1' }, run-once: 'true' }",
+   "rejected": [],
+   "settings": {
+    "run-once": true
+   },
+   "usable": true
+  },
+  {
+   "name": "run-once refused number",
+   "raw": "{ keyframes: { opacity: '0, 1' }, run-once: 1 }",
+   "rejected": [
+    {
+     "code": "motion-setting-boolean",
+     "where": "run-once"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "progress custom property",
+   "raw": "{ keyframes: { opacity: '0, 1' }, progress: '--p' }",
+   "rejected": [],
+   "settings": {
+    "progress": "--p"
+   },
+   "usable": true
+  },
+  {
+   "name": "progress state key",
+   "raw": "{ keyframes: { opacity: '0, 1' }, progress: 'q' }",
+   "rejected": [],
+   "settings": {
+    "progress": "q"
+   },
+   "usable": true
+  },
+  {
+   "name": "progress page-scoped key",
+   "raw": "{ keyframes: { opacity: '0, 1' }, progress: '@q' }",
+   "rejected": [],
+   "settings": {
+    "progress": "@q"
+   },
+   "usable": true
+  },
+  {
+   "name": "progress forbidden key refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, progress: 'constructor' }",
+   "rejected": [
+    {
+     "code": "motion-setting-progress",
+     "where": "progress"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "progress bad shape refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, progress: '--P!' }",
+   "rejected": [
+    {
+     "code": "motion-setting-progress",
+     "where": "progress"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "anchor closest form",
+   "raw": "{ keyframes: { opacity: '0, 1' }, anchor: 'closest(.hero)' }",
+   "rejected": [],
+   "settings": {
+    "anchor": "closest(.hero)"
+   },
+   "usable": true
+  },
+  {
+   "name": "anchor root keyword",
+   "raw": "{ keyframes: { opacity: '0, 1' }, anchor: 'root' }",
+   "rejected": [],
+   "settings": {
+    "anchor": "root"
+   },
+   "usable": true
+  },
+  {
+   "name": "anchor arbitrary selector refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, anchor: 'div > span' }",
+   "rejected": [
+    {
+     "code": "motion-setting-selector",
+     "where": "anchor"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "when selector",
+   "raw": "{ keyframes: { opacity: '0, 1' }, when: '.is-open' }",
+   "rejected": [],
+   "settings": {
+    "when": ".is-open"
+   },
+   "usable": true
+  },
+  {
+   "name": "when list allowed",
+   "raw": "{ keyframes: { opacity: '0, 1' }, when: '.is-open, .is-active' }",
+   "rejected": [],
+   "settings": {
+    "when": ".is-open, .is-active"
+   },
+   "usable": true
+  },
+  {
+   "name": "when has() refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, when: 'div:has(img)' }",
+   "rejected": [
+    {
+     "code": "motion-setting-selector",
+     "where": "when"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "stagger percent default unit",
+   "raw": "{ stagger: '10' }",
+   "rejected": [],
+   "settings": {
+    "stagger": "10%"
+   },
+   "usable": true
+  },
+  {
+   "name": "stagger explicit px",
+   "raw": "{ stagger: '24px' }",
+   "rejected": [],
+   "settings": {
+    "stagger": "24px"
+   },
+   "usable": true
+  },
+  {
+   "name": "stagger percent out of range",
+   "raw": "{ keyframes: { opacity: '0, 1' }, stagger: '150' }",
+   "rejected": [
+    {
+     "code": "motion-setting-offset",
+     "where": "stagger"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "transform-origin two keywords",
+   "raw": "{ keyframes: { rotate: '0deg, 90deg' }, transform-origin: 'top left' }",
+   "rejected": [],
+   "settings": {
+    "transform-origin": "top left"
+   },
+   "usable": true
+  },
+  {
+   "name": "transform-origin length keyword",
+   "raw": "{ keyframes: { rotate: '0deg, 90deg' }, transform-origin: '10px top' }",
+   "rejected": [],
+   "settings": {
+    "transform-origin": "10px top"
+   },
+   "usable": true
+  },
+  {
+   "name": "transform-origin keyword length refused",
+   "raw": "{ keyframes: { rotate: '0deg, 90deg' }, transform-origin: 'top 10px' }",
+   "rejected": [
+    {
+     "code": "motion-setting-origin",
+     "where": "transform-origin"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "will-change boolean",
+   "raw": "{ keyframes: { translate-y: '0px, 40px' }, will-change: true }",
+   "rejected": [],
+   "settings": {
+    "will-change": true
+   },
+   "usable": true
+  },
+  {
+   "name": "pin length default px",
+   "raw": "{ keyframes: { opacity: '0, 1' }, pin: '120' }",
+   "rejected": [],
+   "settings": {
+    "pin": "120px"
+   },
+   "usable": true
+  },
+  {
+   "name": "setting as object refused",
+   "raw": "{ keyframes: { opacity: '0, 1' }, inertia: { fast: true } }",
+   "rejected": [
+    {
+     "code": "motion-setting-not-plain",
+     "where": "inertia"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "preset key expands and explicit keyframes win",
+   "raw": "{ preset: 'fade-up', keyframes: { opacity: '0, 1' } }",
+   "rejected": [],
+   "settings": {
+    "scroll": "85%",
+    "play": 0.6
+   },
+   "usable": true
+  },
+  {
+   "name": "preset key unknown in object",
+   "raw": "{ preset: 'wobble-hard' }",
+   "rejected": [
+    {
+     "code": "motion-preset-unknown",
+     "where": "preset"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "two properties compose",
+   "raw": "{ keyframes: { translate-y: '0% 40px, 100% 0px', opacity: '0% 0, 100% 1' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "quoted key accepted",
+   "raw": "{ keyframes: { 'translate-y': '0px, 40px' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "multi token value refused single-token property",
+   "raw": "{ keyframes: { translate-y: '12px 40px 9px' } }",
+   "rejected": [
+    {
+     "code": "motion-bad-value",
+     "where": "translate-y"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "second base beside a band refused",
+   "raw": "{ keyframes: { translate-y: '0% 0px; [0-560]: 100% 10px; 100% 40px' } }",
+   "rejected": [
+    {
+     "code": "motion-second-base",
+     "where": "translate-y"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "fractional values format identically",
+   "raw": "{ keyframes: { scale: '0% 0.125, 33.333% 0.5, 100% 1.0075', opacity: '0% 0.001, 100% 0.999' } }",
+   "rejected": [],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "pack property key refuses as pack-unwired",
+   "raw": "{ keyframes: { frame: '0, 120' }, frame-url: 'seq/', frame-count: 120 }",
+   "rejected": [
+    {
+     "code": "motion-pack-unwired",
+     "where": "frame"
+    },
+    {
+     "code": "motion-pack-unwired",
+     "where": "frame-url"
+    },
+    {
+     "code": "motion-pack-unwired",
+     "where": "frame-count"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "pack property refuses by key not by value",
+   "raw": "{ keyframes: { background: 'linear-gradient(red, blue)' } }",
+   "rejected": [
+    {
+     "code": "motion-pack-unwired",
+     "where": "background"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "preset expands first wherever its key sits",
+   "raw": "{ keyframes: { opacity: '0% 0.5, 100% 1' }, preset: 'fade-up' }",
+   "rejected": [],
+   "settings": {
+    "scroll": "85%",
+    "play": 0.6
+   },
+   "usable": true
+  },
+  {
+   "name": "preset unquoted name refused",
+   "raw": "{ preset: fade-up }",
+   "rejected": [
+    {
+     "code": "motion-preset-unknown",
+     "where": "preset"
+    }
+   ],
+   "settings": {},
+   "usable": false
+  },
+  {
+   "name": "pack setting refuses beside a live animation",
+   "raw": "{ keyframes: { opacity: '0% 0, 100% 1' }, frame-url: 'seq/' }",
+   "rejected": [
+    {
+     "code": "motion-pack-unwired",
+     "where": "frame-url"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  },
+  {
+   "name": "inertia below zero refused",
+   "raw": "{ keyframes: { opacity: '0% 0, 100% 1' }, inertia: -0.5 }",
+   "rejected": [
+    {
+     "code": "motion-setting-number",
+     "where": "inertia"
+    }
+   ],
+   "settings": {},
+   "usable": true
+  }
+ ]
+}
