@@ -270,3 +270,37 @@ it('a category inertia override seeks by its own variable, and only then', async
   expect(bare.vars.length, 'no override, no second variable — the common case stays one').to.equal(1);
   expect(bare.groups.length, 'and one list entry').to.equal(1);
 });
+
+/* ── the scroll-cede tiers: N (native timeline) vs C (one-write scroller) ────────────────────── */
+
+it('tier N and tier C paint the SAME scrub — and N runs it with zero per-frame JS', async () => {
+  document.body.style.margin = '0';
+  const pad = document.createElement('div');
+  pad.style.height = '400vh';
+  pad.style.position = 'relative';
+  const n = document.createElement('div');
+  n.setAttribute('data-vd-motion', "{ keyframes: { opacity: '0% 0.1, 100% 0.9' } }");
+  const c = document.createElement('div');
+  /** The explicit default window EXCLUDES tier N (a scroll setting present), forcing tier C —
+   *  same semantics by definition, different machinery. IDENTICAL offsets, absolutely: a twin
+   *  60px lower is a different transit, not a different tier (the first draft measured that). */
+  c.setAttribute('data-vd-motion', "{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, scroll: 'top bottom, bottom top' }");
+  for (const el of [n, c]) el.style.cssText = 'position:absolute;top:120vh;height:60px;width:40px;';
+  pad.appendChild(n);
+  pad.appendChild(c);
+  document.body.appendChild(pad);
+  await settle();
+
+  const native = CSS.supports('animation-timeline', 'view()');
+  expect(n.hasAttribute('data-vera-n'), 'opted into N exactly when the engine can').to.equal(native);
+  expect(c.hasAttribute('data-vera-n'), 'an explicit scroll window stays tier C').to.equal(false);
+
+  for (const y of [0, n.offsetTop - window.innerHeight + 100, n.offsetTop - window.innerHeight / 2]) {
+    await scrollTo(y);
+    const a = Number(getComputedStyle(n).filter.match(/opacity\(([\d.]+)\)/)?.[1] ?? NaN);
+    const b = Number(getComputedStyle(c).filter.match(/opacity\(([\d.]+)\)/)?.[1] ?? NaN);
+    expect(Math.abs(a - b), `tiers agree at ${y} (N=${a} C=${b})`).to.be.below(0.05);
+  }
+  await scrollTo(0);
+  pad.remove();
+});

@@ -93,6 +93,7 @@ const collect = (sheet: Sheet, generated: Generated): void => {
   for (const [i, segment] of generated.segments.entries()) {
     sheet.set(`${generated.hash}#m${i}`, segment.media);
   }
+  if (generated.nativeRule) sheet.set(`${generated.hash}#n`, generated.nativeRule);
 };
 
 /**
@@ -154,7 +155,15 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
        * window; those elements paint unstaggered at frame 0 and the client's first measure
        * corrects, which beats not painting at all.
        */
+      /**
+       * Tier N is NEVER pre-opted from the server, deliberately: a view timeline on a page
+       * without scrollable overflow is INACTIVE and paints NOTHING — not even the base frame —
+       * and rendered height is unknowable here. The #n rule still ships in the sheet; the
+       * client opts eligible elements in after confirming the scroller scrolls, and the
+       * upgrade is seamless because both tiers compute the same number.
+       */
       if (parsed!.stagger && parsed!.stagger.positionUnit === '%') {
+
         (el as HTMLElement).style.setProperty(STAGGER_PROPERTY, String(parsed!.stagger.position / 100));
       }
       let sheet = sheets.get(root);

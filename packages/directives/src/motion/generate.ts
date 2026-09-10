@@ -122,6 +122,15 @@ export interface Generated {
     readonly inertiaKey: 'inertia' | 'transform-inertia' | 'filter-inertia' }[];
   /** The base variable — `--vd-p`, or the author's `progress` rename. The author-visible one. */
   readonly varName: string;
+  /**
+   * TIER N — the endgame rule, shipped UNCONDITIONALLY inside @supports: on engines with native
+   * scroll-driven animations, an element the runtime opts in (`data-vera-n`) swaps the delay-seek
+   * for `animation-timeline: view()` with `animation-range: cover 0%→100%` — which IS our default
+   * scroll window, keyframe percentages mapping 1:1. Zero per-frame JS, and from SSR markup zero
+   * JS at all. Engines without support ignore the block and the element rides tier C; the tiers
+   * keep LAYERING (this rule only overrides the timing longhands, later in the sheet).
+   */
+  readonly nativeRule: string;
   /** The element's own declarations: the paused animation list, seeked by the progress properties. */
   readonly elementStyle: string;
   /**
@@ -402,6 +411,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
       vars: [],
       varName: PROGRESS_PROPERTY,
       elementStyle: '',
+      nativeRule: '',
       elementRule:
         `[data-vd-a="${hash}"][data-vd-a] { ${baseDecls} }`,
       armedRule:
@@ -673,12 +683,20 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
       : 'inertia') as 'inertia' | 'transform-inertia' | 'filter-inertia',
   }));
 
+  const per = (value: string): string => generatedGroups.map(() => value).join(', ');
   return {
     hash,
     mode: 'seek',
     activeRule: '',
     armedRule: '',
     noJsRule: '',
+    nativeRule: generatedGroups.length
+      ? `@supports (animation-timeline: view()) { [data-vd-a="${hash}"][data-vera-n] { ` +
+        `animation-delay: ${per('0s')}; animation-duration: ${per('auto')}; ` +
+        `animation-play-state: ${per('running')}; ` +
+        `animation-timeline: ${per('view(block)')}; ` +
+        `animation-range: ${per('cover 0% cover 100%')}; } }`
+      : '',
     groups: generatedGroups,
     segments,
     vars,

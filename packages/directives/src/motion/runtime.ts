@@ -386,9 +386,12 @@ const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
   for (const [i, segment] of generatedCss.segments.entries()) {
     acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
   }
+  /** LAST: tier N's timing override must outrank the base shorthand on order. */
+  if (generatedCss.nativeRule) acquire(sheetRoot, `${generatedCss.hash}#n`, generatedCss.nativeRule);
   return [...generatedCss.groups.map((g) => g.hash),
     ...generatedCss.segments.flatMap((seg, i) =>
-      [...seg.rules.map((rule) => rule.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`];
+      [...seg.rules.map((rule) => rule.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`,
+    ...(generatedCss.nativeRule ? [`${generatedCss.hash}#n`] : [])];
 };
 
 /**
@@ -751,6 +754,20 @@ export const createRuntimeElement = (
       typeof parsed.settings['when'] !== 'string' && parsed.settings['run-once'] !== true &&
       generatedCss.varName === PROGRESS_PROPERTY && generatedCss.vars.length === 1 &&
       Number(parsed.settings['inertia'] ?? settings.inertia) === 0;
+    /**
+     * Tier N rides ON tier-C eligibility: the same "nothing needs a JS number" conditions, plus
+     * the DEFAULT window (a custom `scroll`/`anchor` is not expressible as a pure
+     * animation-range without geometry), no stagger (view() has no offset), a vertical axis
+     * (the rule says view(block)), and the engine capability — per the element's own view,
+     * memoized. Ineligible or unsupported elements simply keep tier C: the attribute is the
+     * opt-in and the @supports block is the floor.
+     */
+    if (cascade && parsed.stagger === undefined &&
+      parsed.settings['scroll'] === undefined && parsed.settings['anchor'] === undefined &&
+      settings.scrollDirection !== 'horizontal' && supportsViewTimeline(node) &&
+      scrollerScrolls(settings)) {
+      node.setAttribute('data-vera-n', '');
+    }
     generated = {
       hash: generatedCss.hash,
       transition: generatedCss.mode === 'transition',
@@ -1237,6 +1254,7 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.removeAttribute('data-vd-a');
     node.removeAttribute('data-vera-on');
     node.removeAttribute('data-vera-t');
+    node.removeAttribute('data-vera-n');
   }
   /** The progress property too, or a torn-down element leaves a stale number behind for whatever
    *  CSS was reading it — visible as a bar frozen part-way rather than as nothing at all. */
@@ -1278,6 +1296,36 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
  * rule divides against. Registered inheriting (the split invariant), written only on change, on
  * the scroller itself — `documentElement` for the window, the element for a container.
  */
+/** Native scroll-driven support, decided once per VIEW (a portaled document answers for
+ *  itself — CODE-PRINCIPLES §2). */
+/**
+ * Whether the scroller can actually scroll — tier N's LAST condition, measured the hard way: a
+ * view timeline on a page with no scrollable overflow is INACTIVE, and an animation on an
+ * inactive timeline contributes NOTHING — the element loses even its base frame, which is
+ * strictly worse than tier C's always-correct seek. Client-side only (a server cannot know
+ * rendered height), which is also why SSR never pre-opts into N: frame 0 is the seek base
+ * everywhere, and the client's upgrade is seamless because both tiers compute the same number.
+ */
+const scrollerScrolls = (settings: RuntimeSettings): boolean => {
+  const el = settings.scrollElement instanceof Element
+    ? settings.scrollElement : document.documentElement;
+  return settings.scrollDirection === 'horizontal'
+    ? el.scrollWidth > el.clientWidth
+    : el.scrollHeight > el.clientHeight;
+};
+
+const viewTimelineSupport = new WeakMap<object, boolean>();
+const supportsViewTimeline = (node: Element): boolean => {
+  const view = (node.ownerDocument?.defaultView ?? globalThis) as typeof globalThis & {
+    CSS?: { supports?: (p: string, v: string) => boolean } };
+  let known = viewTimelineSupport.get(view);
+  if (known === undefined) {
+    known = view.CSS?.supports?.('animation-timeline', 'view()') === true;
+    viewTimelineSupport.set(view, known);
+  }
+  return known;
+};
+
 const lastScroll = new WeakMap<Element, number>();
 export const writeScrollVar = (settings: RuntimeSettings, win: WindowSize): void => {
   const scroller: Element = settings.scrollElement instanceof Element
