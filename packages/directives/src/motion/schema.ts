@@ -1004,7 +1004,7 @@ const whyRefused = (raw: string, property: PropertyDef): Refusal => {
 };
 
 /**
- * Parses one comma-separated keyframe list: `"-50% 0px, 30% 45px, 150% 400px"`.
+ * Parses one comma-separated keyframe list: `"0% 0px, 30% 45px, 100% 400px"`.
  *
  * A lone token is the end value — the sugar that keeps the common case short.
  * Two tokens are a position and a value. A malformed entry drops only itself,

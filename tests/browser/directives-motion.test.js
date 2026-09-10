@@ -28,13 +28,22 @@ const scrollTo = async (y) => {
   await frame();
 };
 
+/**
+ * COMPUTED style, not inline — re-instrumented at the write-path flip. The old readings parsed
+ * `el.style.filter`/`el.style.transform`, which was reading the MECHANISM: generated elements own
+ * no inline values (CSS computes them from the variable), so those instruments read NaN off a
+ * perfectly animating page. The shared spec's contract is observable behaviour, and computed style
+ * is the one place both write paths — and any future one — must agree. Filter carries opacity(),
+ * so computed `filter` still parses; transform computes to a matrix, so translateY is matrix `m42`.
+ */
 const opacityOf = (el) => {
-  const match = /opacity\(([\d.]+)\)/.exec(el.style.filter);
+  const match = /opacity\(([\d.]+)\)/.exec(getComputedStyle(el).filter);
   return match ? Number(match[1]) : NaN;
 };
 const translateOf = (el) => {
-  const match = /translateY\(([\d.-]+)px\)/.exec(el.style.transform);
-  return match ? Number(match[1]) : NaN;
+  const matrix = getComputedStyle(el).transform;
+  const match = /matrix\(([^)]+)\)/.exec(matrix);
+  return match ? Number(match[1].split(',')[5]) : NaN;
 };
 
 const page = (inner) => {
@@ -149,7 +158,7 @@ it('teardown returns the element to its natural state with the page scrolled any
   const el = host.querySelector('#d');
   await settle();
   await scrollTo(el.offsetTop - window.innerHeight / 2);
-  expect(el.style.transform, 'animating mid-page').to.contain('translateY');
+  expect(translateOf(el), 'animating mid-page').to.be.greaterThan(0);
   el.removeAttribute('data-vd-motion');
   await settle();
   expect(el.style.transform, 'nothing of the pack left behind').to.equal('');

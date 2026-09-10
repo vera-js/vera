@@ -52,7 +52,7 @@ export const contentHash = (text: string): string => {
  * is the ordinary case, not the error case. A `Set` rather than a bare try/catch, because a
  * try/catch alone would also swallow real errors.
  */
-const registered = new Set<string>();
+const registered = new WeakMap<object, Set<string>>();
 
 /**
  * Registers `name` as an interpolable number, once — the typing every timed mode rests on.
@@ -74,16 +74,26 @@ const registered = new Set<string>();
  * interpolate our unitless number — so that case is reported by name rather than swallowed.
  * Anything else rethrows; a swallow that broad would eat real errors.
  */
-export const ensureProperty = (name: string): void => {
-  if (registered.has(name)) return;
-  if (typeof CSS === 'undefined' || typeof CSS.registerProperty !== 'function') return;
+export const ensureProperty = (name: string, node: Element): void => {
+  /**
+   * The ELEMENT'S realm, never the module's (CODE-PRINCIPLES §2): `CSS.registerProperty` types a
+   * property in the calling window, and an element in a portaled document needs its own window's
+   * registration or its number never interpolates there. One registered-set per view for the same
+   * reason — the same name is a fresh registration in a fresh realm.
+   */
+  const view = (node.ownerDocument?.defaultView ?? globalThis) as
+    typeof globalThis & { CSS?: { registerProperty?: (d: object) => void } };
+  const names = registered.get(view) ?? new Set<string>();
+  if (names.has(name)) return;
+  if (typeof view.CSS?.registerProperty !== 'function') return;
   try {
-    CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
+    view.CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
   } catch (error) {
     if ((error as DOMException)?.name !== 'InvalidModificationError') throw error;
     if (name !== PROGRESS_PROPERTY) pageProblem('motion-progress-property-taken', [name]);
   }
-  registered.add(name);
+  names.add(name);
+  registered.set(view, names);
 };
 
 /** The engine's own variable — the one every generated rule seeks by unless `progress` renames it. */
@@ -107,14 +117,32 @@ const adopted = new WeakSet<SheetRoot>();
 /** The one shared sheet, made on first use so importing this module is safe where `CSSStyleSheet`
  *  does not exist (the server — SSR emits rules through its own path, not through here). */
 let shared: CSSStyleSheet | null = null;
+/**
+ * The realm the shared sheet belongs to. A constructed sheet can only be adopted by documents of
+ * ITS OWN realm — cross-window adoption throws — so a root from any OTHER document takes the
+ * `<style>` fallback below, which builds through `ownerDocument` and is realm-safe by
+ * construction. Duplication per foreign window is the accepted cost; a per-realm shared sheet is
+ * queued rather than half-built.
+ */
+let sheetDocument: Document | null = null;
+const documentOf = (root: SheetRoot): Document =>
+  isDocument(root) ? root : (root.ownerDocument as Document);
 
 /**
  * Whether constructed sheets work here, decided once. jsdom's `CSSStyleSheet` throws on
  * construction and older engines lack `adoptedStyleSheets`; both take the `<style>` fallback.
  */
-const constructed = (): boolean => {
+const constructed = (root: SheetRoot): boolean => {
   try {
-    return new CSSStyleSheet() instanceof CSSStyleSheet;
+    /**
+     * BOTH halves, learned the hard way: jsdom constructs a `CSSStyleSheet` happily and then has
+     * no `adoptedStyleSheets` to put it in — probing construction alone chose the constructed
+     * path and threw "not iterable" out of the first acquire, taking the whole element with it.
+     * A capability check that tests half the capability is a capability check for a different
+     * feature.
+     */
+    return new CSSStyleSheet() instanceof CSSStyleSheet &&
+      Array.isArray((root as Document).adoptedStyleSheets);
   } catch {
     return false;
   }
@@ -131,14 +159,28 @@ const fallbackRoots: (WeakRef<SheetRoot>)[] = [];
 
 const fallbackText = (): string => order.map((hash) => entries.get(hash)!.cssText).join('\n');
 
+/**
+ * Realm-free document test (CODE-PRINCIPLES: derive from the node, never the module global).
+ * `instanceof Document` reaches for a global CLASS the embedding may not have installed — the
+ * jsdom harness sets `document` but not `Document`, so the fallback path threw a ReferenceError
+ * out of the first acquire and took the element with it. A nodeType is a number; it has no realm.
+ */
+const isDocument = (root: SheetRoot): root is Document => root.nodeType === 9;
+
+/**
+ * `data-vera-sheet`, deliberately OUTSIDE the `data-vd-*` prefix: the engine scans that namespace
+ * for directives, and the first marker (`data-vd-sheet`) was picked up and refused as an unknown
+ * directive — infrastructure leaking into the vocabulary it delivers. Found by a probe's rejection
+ * list, which is what rejection lists are for.
+ */
 const fallbackStyleIn = (root: SheetRoot): HTMLStyleElement | null => {
-  const doc = root instanceof Document ? root : root.ownerDocument;
-  for (const child of (root instanceof Document ? root.head : root).children) {
-    if ((child as HTMLElement).dataset?.['vdSheet'] !== undefined) return child as HTMLStyleElement;
+  const doc = isDocument(root) ? root : root.ownerDocument;
+  for (const child of (isDocument(root) ? root.head : root).children) {
+    if ((child as HTMLElement).dataset?.['veraSheet'] !== undefined) return child as HTMLStyleElement;
   }
   const style = doc.createElement('style');
-  style.dataset['vdSheet'] = '';
-  (root instanceof Document ? root.head : root).appendChild(style);
+  style.dataset['veraSheet'] = '';
+  (isDocument(root) ? root.head : root).appendChild(style);
   return style;
 };
 
@@ -163,7 +205,7 @@ const refreshFallbacks = (): void => {
  * text by construction, since the hash IS the text.
  */
 export const acquire = (root: SheetRoot, hash: string, cssText: string): void => {
-  usable ??= constructed();
+  usable ??= constructed(root);
 
   const entry = entries.get(hash);
   if (entry) entry.count++;
@@ -176,7 +218,9 @@ export const acquire = (root: SheetRoot, hash: string, cssText: string): void =>
     }
   }
 
-  if (usable) {
+  const sameRealm = sheetDocument === null || sheetDocument === documentOf(root);
+  if (usable && sameRealm) {
+    sheetDocument ??= documentOf(root);
     if (!adopted.has(root)) {
       adopted.add(root);
       root.adoptedStyleSheets = [...root.adoptedStyleSheets, shared!];

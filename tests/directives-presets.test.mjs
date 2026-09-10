@@ -29,6 +29,11 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
+
+/** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
+ *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
+ *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
+const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
 const { wireDirectives, motion, presets, motionExtension, settled, rejections } =
   await load('directives');
 
@@ -40,7 +45,7 @@ const { wireDirectives, motion, presets, motionExtension, settled, rejections } 
 const housePresets = motionExtension({
   on: 'preset',
   fn: (name) => (name === 'house-in'
-    ? { keyframes: { opacity: '0% 0, 100% 1' }, inertia: 0.9 }
+    ? { keyframes: { opacity: '0% 0, 100% 1' }, progress: '--house' }
     : null),
 });
 
@@ -66,8 +71,8 @@ test('a third-party pack is asked on the same terms as the shipped one', async (
     <div id="theirs" data-vd-motion="house-in"></div>`);
 
   /** The control: if neither animated, every claim below would pass on a silence. */
-  assert.match(host.querySelector('#ours').style.filter, /opacity\(/, 'the shipped pack resolved');
-  assert.match(host.querySelector('#theirs').style.filter, /opacity\(/, 'and so did a third party’s');
+  assert.ok(animating(host.querySelector('#ours')), 'the shipped pack resolved');
+  assert.ok(animating(host.querySelector('#theirs')), 'and so did a third party’s');
 });
 
 test('a preset carries SETTINGS, not only keyframes', async () => {
@@ -75,19 +80,25 @@ test('a preset carries SETTINGS, not only keyframes', async () => {
     <div id="plain" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }"></div>
     <div id="house" data-vd-motion="house-in"></div>`);
 
-  /** The pack's `inertia: 0.9` reaches the transition; the control says what it would be without. */
-  assert.doesNotMatch(host.querySelector('#plain').style.transition, /0\.9s/, 'control: not the default');
-  assert.match(host.querySelector('#house').style.transition, /0\.9s/, 'the preset set it');
+  /**
+   * Refixtured at the flip: the pack carries `progress: '--house'` now — a setting whose effect is
+   * DETERMINISTIC in jsdom (a rename is visible instantly; a transition's timing never was). The
+   * claim is unchanged: a preset's SETTINGS reach the element.
+   */
+  assert.equal(host.querySelector('#plain').style.getPropertyValue('--house'), '', 'control: not the default');
+  assert.notEqual(host.querySelector('#house').style.getPropertyValue('--house'), '', 'the preset set it');
 });
 
 test('an explicit setting beats the preset — in EITHER written order', async () => {
   const host = await mount(`
-    <div id="after" data-vd-motion="{ preset: 'house-in', inertia: 0.25 }"></div>
-    <div id="before" data-vd-motion="{ inertia: 0.25, preset: 'house-in' }"></div>`);
+    <div id="after" data-vd-motion="{ preset: 'house-in', progress: '--mine' }"></div>
+    <div id="before" data-vd-motion="{ progress: '--mine', preset: 'house-in' }"></div>`);
 
   for (const id of ['after', 'before']) {
-    assert.match(host.querySelector(`#${id}`).style.transition, /0\.25s/,
+    const el = host.querySelector(`#${id}`);
+    assert.notEqual(el.style.getPropertyValue('--mine'), '',
       `${id}: explicit wins — the expansion runs first, wherever the key is written`);
+    assert.equal(el.style.getPropertyValue('--house'), '', `${id}: and the preset's rename lost`);
   }
 });
 
@@ -102,8 +113,15 @@ test('an explicit keyframe replaces the preset’s for that property, and keeps 
     `<div data-vd-motion="{ preset: 'fade-up', keyframes: { translate-y: '0% 0px, 100% 50px' } }"></div>`);
   const el = host.querySelector('div');
 
-  assert.match(el.style.transform, /translateY\(50px\)/, 'the explicit travel is in force');
-  assert.match(el.style.filter, /opacity\(/, 'and the preset’s other property survived');
+  /** Value-level truth (the 50px endpoint) is the browser parity suite's since the flip; jsdom
+   *  pins the surface: a DIFFERENT animation than the pure preset's, still animating. */
+  assert.ok(animating(el), 'the override animates');
+  const pure = host.ownerDocument.createElement('div');
+  pure.setAttribute('data-vd-motion', 'fade-up');
+  host.appendChild(pure);
+  await settled();
+  assert.notEqual(el.getAttribute('data-vd-a'), pure.getAttribute('data-vd-a'),
+    'one byte of override is a different generated animation');
 });
 
 test('a pack that throws costs its own answer, not the page', async () => {

@@ -40,7 +40,13 @@ const at = async (attr, top = 100) => {
   await new Promise((r) => setTimeout(r, 25));
   return el;
 };
-const opacity = (el) => /opacity\(([\d.]+)\)/.exec(el.style.filter)?.[1];
+
+/** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
+ *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
+ *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
+const progressOf = (el) => Number(el.style.getPropertyValue('--vd-p'));
+const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
+const opacity = (el) => { const v = progressOf(el); return Number.isFinite(v) ? String(Math.min(1, Math.max(0, v))) : undefined; };
 
 test('the long form of scroll reproduces the defaults exactly', async () => {
   const written = await at(`{ ${K}, scroll: 'top bottom, bottom top' }`);
@@ -142,7 +148,7 @@ test('keyframe positions are 0-100, like CSS keyframes', async () => {
 
   /** And the control: the in-range spelling of the same intent is accepted. */
   const fine = await at(`{ keyframes: { opacity: '0% 0, 100% 0.8' } }`);
-  assert.ok(opacity(fine) !== undefined, 'an in-range value still animates');
+  assert.ok(animating(fine), 'an in-range value still animates');
 });
 
 test('scroll refuses a space where a comma belongs — because the space already means something', async () => {
@@ -172,26 +178,38 @@ test('scroll refuses a space where a comma belongs — because the space already
  * Opt-in by NAMING the property, which is what makes it usable: the author picks a name their own
  * stylesheet already talks about, and a page that does not read it pays no per-frame write.
  */
-test('progress writes the named custom property, and only when named', async () => {
+test('progress renames the variable — one write serves the animation AND the author', async () => {
+  /**
+   * FLIP SEMANTICS: the variable is the ENGINE now, so every generated element carries one —
+   * `--vd-p` by default — and `progress: '--p'` RENAMES it rather than adding a second write.
+   * The old "nothing without the setting" claim inverted into "the default name, without it".
+   */
   const named = await at(`{ ${K}, progress: '--p' }`);
   const unnamed = await at(`{ ${K} }`);
 
   const value = Number(named.style.getPropertyValue('--p'));
   assert.ok(Number.isFinite(value) && value > 0 && value < 1,
-    `the control: a real mid-range progress was written (${value})`);
-  assert.ok(!unnamed.style.cssText.includes('--'),
-    'and nothing at all without the setting — one setProperty per element per frame is not free');
+    `the author's name carries the number (${value})`);
+  assert.equal(named.style.getPropertyValue('--vd-p'), '',
+    'ONE write: the default name is not also written');
+  assert.ok(Number.isFinite(progressOf(unnamed)), 'unnamed elements ride the default name');
 });
 
 test('progress refuses a name that is not a custom property', async () => {
   const el = await at(`{ ${K}, progress: 'p' }`);
   assert.ok(rejections(el).length > 0,
     'a bare word would reach setProperty and be silently dropped by the CSSOM');
+  /** The refusal drops the SETTING, never the animation: the element proceeds on the default
+   *  variable — refuse-and-continue, this package's shape, observed rather than assumed. */
+  assert.ok(animating(el), 'the animation itself proceeds');
+  assert.ok(Number.isFinite(progressOf(el)), 'on the default variable');
 });
 
 test('teardown removes the progress property', async () => {
   const el = await at(`{ ${K}, progress: '--p' }`);
   assert.notEqual(el.style.getPropertyValue('--p'), '', 'control: it was written');
+  const renamed = el.style.getPropertyValue('--p');
+  assert.ok(renamed !== '', `renamed variable carries the number (${renamed})`);
 
   el.remove();
   await settled();

@@ -10,6 +10,11 @@
  */
 import { getElementSize, getWindowSize, displacementOf } from './dom.js';
 import { buildCurve, curveDoubles, fillCurve, evaluate, curveStart, curveEnd } from './curve.js';
+import { generateSimple } from './generate.js';
+import { staggerHost } from './parse.js';
+import { acquire, release, ensureProperty } from './registry.js';
+import { syncTo, rampTo, dispose } from './drive.js';
+import type { Driven, SheetRoot } from './types.js';
 
 import { emit, EVENTS } from './events.js';
 import { composeTransform, composeFilter, applyProperty, sortForApply } from './apply.js';
@@ -178,6 +183,18 @@ export interface RuntimeElement {
   readonly runOnce: boolean;
   /** Selector that drives this element instead of scroll, if any. */
   readonly when: string | null;
+  /**
+   * The generated write path, or null when this element is outside `generateSimple`'s scope and
+   * the inline path drives it. Everything write time needs, derived ONCE at activation so the
+   * frame path re-derives nothing: the registry hash to release, the driver's slice, and the two
+   * clocks — `tau` for a scrub's chase, `play` for a ramp.
+   */
+  readonly generated: {
+    readonly hash: string;
+    readonly drive: Driven;
+    readonly tau: number;
+    readonly play: number | null;
+  } | null;
   /**
    * Where this element's refusals go — the engine's rejections registry,
    * captured from the directive's `ctx.reject` at activation. A closure
@@ -928,11 +945,49 @@ export const createRuntimeElement = (
     }
   }
 
-  const element: RuntimeElement = {
+
+  /**
+   * THE FLIP (write-path stage 4). In-scope elements are driven through generated CSS — the rule
+   * ACQUIRED into their own tree, then the element marked, in that order, always: WebKit never
+   * re-resolves an animation name an element already carries. Everything `generateSimple`
+   * declines answers null and stays on the inline path, unchanged — the gate is the contract.
+   */
+  /**
+   * A staggered GROUP rides one path together. The zero-offset first sibling carries no `stagger`
+   * field, so gating on `parsed.stagger` alone generated piece one and left its siblings inline —
+   * mixed write paths inside a single cascade, found by the split suite. The ancestor check keeps
+   * the group whole until stage 5 moves stagger itself.
+   */
+  const generatedCss = staggerHost(node) ? null : generateSimple(parsed);
+  let generated: RuntimeElement['generated'] = null;
+  if (generatedCss) {
+    ensureProperty(generatedCss.varName, node);
+    acquire(node.getRootNode() as SheetRoot, generatedCss.hash, generatedCss.keyframesRule);
+    /** Appended, not assigned: the author's own inline styles are not ours to clobber. */
+    node.style.cssText += `; ${generatedCss.elementStyle}`;
+    /**
+     * The mark, AFTER acquire — the invariant. It is the observable "this element rides the
+     * generated path": devtools reads it, the suites read it (jsdom drops the `animation`
+     * shorthand, so the attribute is the honest surface there), and stage 6's rule-based
+     * delivery will select on it.
+     */
+    node.setAttribute('data-vd-a', generatedCss.hash);
+    generated = {
+      hash: generatedCss.hash,
+      drive: {
+        node: node as HTMLElement, varName: generatedCss.varName,
+        written: null, target: 0, mode: 'idle', tau: 0, rampFrom: 0, rampStart: 0, rampDuration: 0,
+      },
+      tau: Number(parsed.settings['inertia'] ?? settings.inertia),
+      play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
+    };
+  }
+    const element: RuntimeElement = {
     node,
     parsed,
     plan,
-    transition: transitionFor(plan, settings, parsed),
+    transition: generatedCss ? null : transitionFor(plan, settings, parsed),
+    generated,
     transformPrefix,
     restore,
     displaced,
@@ -986,6 +1041,19 @@ export const createRuntimeElement = (
  * result. One evaluate per animation, one style write per category.
  */
 export const animateElement = (element: RuntimeElement): void => {
+  /**
+   * The flip's ONE branch, honouring every caller's contract in one place instead of four:
+   * generated elements own no inline values — CSS computes them from the variable — and a
+   * force-repaint of a latch is `syncTo`'s idle write-through. During a ramp, position updates
+   * are bookkeeping; the clock owns the pixels. A play's non-ramp writes (the gate's rest, a
+   * latch repaint) go through immediately — tau 0 — because the ramp IS that element's easing.
+   */
+  if (element.generated) {
+    syncTo(element.generated.drive, element.timelinePosition,
+      element.generated.play !== null ? 0 : element.generated.tau);
+    return;
+  }
+
   const { plan } = element;
   const position = element.timelinePosition;
 
@@ -1246,6 +1314,8 @@ export const updateElement = (
     const exited = element.exitAt !== null && win.start >= element.exitAt;
     const target = entered && !exited ? element.highestEnd : element.lowestStart;
     if (!force && target === element.timelinePosition) return;
+    /** The clock, armed before the bookkeeping below — `animateElement`'s sync then defers to it. */
+    if (element.generated) rampTo(element.generated.drive, target, element.generated.play ?? 0);
     element.timelinePosition = target;
     animateElement(element);
     settings.onProgress?.(element.node, target);
@@ -1472,6 +1542,15 @@ const managedStyles = (plan: ScreenPlan): string[] => [
  */
 export const clearElement = (element: RuntimeElement, settings: RuntimeSettings): void => {
   const { node } = element;
+  if (element.generated) {
+    /** Count out, stop the clock, strip the marks — the loop must never hold a removed element. */
+    release(element.generated.hash);
+    dispose(element.generated.drive);
+    node.style.animation = '';
+    node.style.animationDelay = '';
+    node.style.removeProperty(element.generated.drive.varName);
+    node.removeAttribute('data-vd-a');
+  }
   node.style.transition = '';
   node.style.transform = '';
   node.style.filter = '';

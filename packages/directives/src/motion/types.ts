@@ -13,3 +13,26 @@
 /** A tree generated rules are delivered into. Keyframe names resolve per tree scope (measured:
  *  `tests/browser/keyframes-tree-scope.test.js`), so this is the registry's unit of adoption. */
 export type SheetRoot = Document | ShadowRoot;
+
+/**
+ * One generated element's variable, as the driver sees it — the NARROW slice, deliberately: the
+ * driver ticks potentially every frame, and handing it the whole runtime element would couple the
+ * hot loop to everything. Mutated in place, one allocation per element for its whole life.
+ *
+ * `written` is null until the first write, which is how "paint the initial state immediately"
+ * and "chase from where you are" stay distinguishable without a flag.
+ */
+export interface Driven {
+  readonly node: HTMLElement;
+  /** The custom property this element's animation seeks by — `--vd-p`, or the author's rename. */
+  readonly varName: string;
+  written: number | null;
+  target: number;
+  /** `idle` writes land immediately; `chase` eases toward target; `ramp` is a play's clock. */
+  mode: 'idle' | 'chase' | 'ramp';
+  /** Chase time-constant, seconds — derived from `inertia` (≈settled at 3τ). */
+  tau: number;
+  rampFrom: number;
+  rampStart: number;
+  rampDuration: number;
+}

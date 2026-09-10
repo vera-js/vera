@@ -31,6 +31,9 @@ export interface Generated {
   readonly name: string;
   /** The complete `@keyframes` rule, ready for `acquire`. */
   readonly keyframesRule: string;
+  /** The variable the animation seeks by — `--vd-p`, or the author's `progress` rename. One name,
+   *  decided here once, so the driver and the declarations cannot disagree. */
+  readonly varName: string;
   /** The element's own declarations: the paused animation, seeked by the progress property. */
   readonly elementStyle: string;
 }
@@ -61,6 +64,19 @@ const valueAt = (animation: ElementMotion, position: number): number => {
 export const generateSimple = (parsed: ParsedElement): Generated | null => {
   if (parsed.stagger) return null;
   if (!parsed.animations.length) return null;
+
+  /**
+   * `progress: '--x'` renames the variable — one write serves the animation AND the author's CSS.
+   * The bare-identifier form is the STATE destination, which does not exist yet; those elements
+   * stay on the old path, whose `progressProperty` machinery they never used anyway.
+   */
+  /** Per-category smoothing needs one variable per category — stage 5. Until then, old path. */
+  if (parsed.settings['transform-inertia'] !== undefined ||
+      parsed.settings['filter-inertia'] !== undefined) return null;
+
+  const progress = parsed.settings['progress'];
+  if (typeof progress === 'string' && !progress.startsWith('--')) return null;
+  const varName = typeof progress === 'string' ? progress : PROGRESS_PROPERTY;
 
   const ease = parsed.settings['ease'];
   const eased = typeof ease === 'string' && ease !== 'linear' ? ease : null;
@@ -125,9 +141,10 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
      * spec's ceding constraint: swap the delay-seek for `animation-timeline: view()` and nothing
      * else here changes.
      */
+    varName,
     elementStyle:
       `animation: ${name} 1s ${eased ?? 'linear'} both paused; ` +
-      `animation-delay: calc(var(${PROGRESS_PROPERTY}, 0) * -1s);`,
+      `animation-delay: calc(var(${varName}, 0) * -1s);`,
   };
 };
 

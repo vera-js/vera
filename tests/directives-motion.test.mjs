@@ -27,6 +27,29 @@ const { wireDirectives, motion, presets, settled, rejections } = await load('dir
 wireDirectives([motion, presets]);
 
 const doc = dom.window.document;
+/**
+ * THE FLIP'S INSTRUMENT (write-path stage 4). jsdom evaluates no CSS animation, so value-level
+ * claims — composed transforms, clamped opacities — moved to the browser suites, which read
+ * computed style. What jsdom CAN answer honestly is the generated SURFACE: the progress variable
+ * the driver writes (inline, readable) and the animation mark. Progress maps 1:1 onto the old
+ * 0→1 opacity fixtures, so the numeric expectations carry over unchanged.
+ */
+const progressOf = (el) => Number(el.style.getPropertyValue('--vd-p'));
+const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
+/**
+ * Bounded poll — for elements whose preset carries `play` (the shipped ten ramp over 0.6s now),
+ * "reached the end" is a claim about the RAMP COMPLETING, and sampling one frame after settle
+ * reads mid-flight. Real jsdom timers drive the driver's rAF loop, so waiting is honest and
+ * deterministic under a generous bound; timing SHAPE stays the browser sweep test's business.
+ */
+const until = async (fn, what) => {
+  for (let i = 0; i < 120; i++) {
+    if (fn()) return;
+    await frame();
+  }
+  assert.fail(`timed out: ${what}`);
+};
+
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => r()));
 const mount = async (html) => {
   const host = doc.createElement('div');
@@ -47,19 +70,22 @@ test('a preset literal activates and writes the composed style at the clamped en
    * clamped END: opacity 1, translate-y 0px. The exact numbers are the
    * point: they prove parse → preset expansion → curve → compose → write.
    */
-  assert.match(el.style.filter, /opacity\(1\)/, 'the fade half landed');
-  assert.match(el.style.transform, /translateY\(0px\)/, 'the up half landed');
+  assert.ok(animating(el), 'the generated animation is marked on the element');
+  await until(() => progressOf(el) === 1, 'the preset ramp (play: 0.6) completed at the clamped end');
   host.remove();
   await settled();
-  assert.equal(el.style.transform, '', 'teardown cleared what it wrote');
+  assert.ok(!animating(el), 'teardown cleared what it wrote');
+  assert.equal(el.style.getPropertyValue('--vd-p'), '', 'the variable too');
 });
 
 test('an object value with per-property keyframes writes both categories', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px', rotate: '0% 0deg, 100% 90deg' } }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.style.transform, /translateY\(0px\) rotate\(90deg\)/, 'schema order composes transforms');
-  assert.match(el.style.filter, /opacity\(1\)/);
+  /** Composition order is value-level truth — pinned by the browser parity suite now. Here:
+   *  one generated animation carries all three properties, and the driver reached the end. */
+  assert.ok(animating(el), 'one generated animation for all three properties');
+  assert.equal(progressOf(el), 1);
   host.remove();
   await settled();
 });
@@ -113,7 +139,7 @@ test('an unquoted text value fails the whole element LOUDLY, with the quote hint
    *  readable either way. The hint is what turns loud into teachable. */
   const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, pin: 120px }">x</div>`);
   const el = host.querySelector('div');
-  assert.equal(el.style.filter, '', 'nothing half-applied: the element rests natural');
+  assert.ok(!animating(el), 'nothing half-applied: the element rests natural');
   const reasons = rejections(el);
   assert.ok(reasons.some((r) => r.code === 'motion-parse-failed'), 'refused, not ignored');
   if (!isProduction) assert.ok(reasons.some((r) => /quoted/.test(r.fix ?? '')), 'and the hint names the fix');
@@ -125,16 +151,16 @@ test('the when driver: a selector match walks the element to its other end', asy
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, when: '.open', inertia: 0 }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.style.filter, /opacity\(0\)/, 'not matching: rests at the authored start');
+  assert.equal(progressOf(el), 0, 'not matching: rests at the authored start');
   el.classList.add('open');
   /** The shared lazy observer fires on the attribute change, a microtask later. */
   await settled();
   await frame();
-  assert.match(el.style.filter, /opacity\(1\)/, 'matching: sits at the authored end');
+  assert.equal(progressOf(el), 1, 'matching: the gate opened and jsdom geometry clamps at the end');
   el.classList.remove('open');
   await settled();
   await frame();
-  assert.match(el.style.filter, /opacity\(0\)/, 'and back');
+  assert.equal(progressOf(el), 0, 'and back');
   host.remove();
   await settled();
 });
@@ -155,6 +181,8 @@ test('per-property ease without the easings module is a refusal per element, and
   const reasons = rejections(el);
   assert.ok(reasons.some((r) => r.code === 'motion-easings-module-missing'), 'refused');
   if (!isProduction) assert.ok(reasons.some((r) => /needs the easings module/.test(r.message)), 'told what to wire');
+  /** Nested per-property ease rides the OLD path by design until stage 5 widens generation —
+   *  so its instrument is the old surface, on purpose. */
   assert.match(el.style.filter, /opacity\(1\)/, 'and the element still animates, straight');
   host.remove();
   await settled();
@@ -176,7 +204,7 @@ test('motion-config: a bad axis is refused with the region still working on defa
       <div data-vd-motion="fade">x</div>
     </section>`);
   const el = host.querySelector('div');
-  assert.match(el.style.filter, /opacity\(1\)/, 'the member still animates');
+  await until(() => animating(el) && progressOf(el) === 1, 'the member still animates on defaults');
   const reasons = rejections(el);
   assert.ok(reasons.some((r) => r.code === 'motion-region-axis'), 'the config refusal recorded');
   if (!isProduction) assert.ok(reasons.some((r) => /axis/.test(r.message)), 'and names the key');
@@ -210,16 +238,19 @@ test('attribute edits rebuild through the engine, and the run-once latch survive
   el.classList.add('go');
   await settled();
   await frame();
-  assert.match(el.style.filter, /opacity\(1\)/, 'played through and latched');
+  await until(() => progressOf(el) === 1, 'played through and latched');
   /** Edit the value: the engine tears down and reactivates this directive. */
-  el.setAttribute('data-vd-motion', `{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', play: 0.2 }`);
+  /** play: 0 here too — the claim under test is the LATCH surviving the rebuild, and a 0.2s ramp
+   *  would still be mid-flight when jsdom's next frame samples it. Duration is the ramp's own
+   *  tested concern (the browser sweep test), not this one's. */
+  el.setAttribute('data-vd-motion', `{ keyframes: { opacity: '0% 0, 100% 1' }, run-once: true, when: '.go', play: 0 }`);
   await settled();
   await frame();
   await frame();
   el.classList.remove('go');
   await settled();
   await frame();
-  assert.match(el.style.filter, /opacity\(1\)/, 'latched means latched: the rebuild carried it');
+  await until(() => progressOf(el) === 1, 'latched means latched: the rebuild carried it');
   host.remove();
   await settled();
 });

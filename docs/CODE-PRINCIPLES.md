@@ -111,11 +111,23 @@ premise of VeraJS is that the platform is now good enough; act like it.
   the framework writes for its own use is removed once it has been used — `data-vera-select` never
   reaches the page, and `data-vera-slotted` is stripped the moment hydration adopts the nodes it
   delimits.
-- **Derive `document` and `window` from the node, never from the module global.** An element can
-  live in a document that is not the one your code was loaded into — a popped-out window, an
-  iframe, a portal — and it is the element that knows which. `node.ownerDocument`, and
-  `node.ownerDocument.defaultView ?? window` for the view (the global as a fallback only, for a
-  detached node). This is why it matters: listeners attach to the wrong window, `matchMedia`,
+- **Derive `document` and `window` from the node, never from the module global — and treat every
+  REALM-BOUND API the same way.** An element can live in a document that is not the one your code
+  was loaded into — a popped-out window, an iframe, a portal — and it is the element that knows
+  which. `node.ownerDocument`, and `node.ownerDocument.defaultView ?? window` for the view (the
+  global as a fallback only, for a detached node). The rule is wider than those two globals, and
+  each of these was a real bug here:
+  - `instanceof Document` (or any global class) is the same reach — an embedding may install
+    `document` and not `Document`, and the classes differ per realm anyway. Test structure
+    (`nodeType === 9`), never identity against a global constructor.
+  - `CSS.registerProperty` registers in the CALLING realm; an element in a portaled window needs
+    `view.CSS.registerProperty`, or its properties are typed in a window it does not live in.
+  - A constructed `CSSStyleSheet` can only be adopted by documents of ITS OWN realm — sharing one
+    sheet across windows throws. Per-document machinery, or the `<style>` fallback for foreign
+    documents.
+  - `requestAnimationFrame` ticks per window; a loop in one realm driving elements in another
+    runs on the wrong window's cadence (and its throttling). Acceptable only as a stated trade.
+  This is why it matters: listeners attach to the wrong window, `matchMedia`,
   `getComputedStyle` and `requestAnimationFrame` run on the wrong timeline, layers portal into the
   wrong DOM, and measurements read the wrong viewport — none of which fails loudly. Where a global
   IS the right answer, say why, and measure it: an observer is not bound to the realm of the nodes

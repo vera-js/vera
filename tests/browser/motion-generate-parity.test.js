@@ -46,7 +46,7 @@ it('twin computed styles agree across scroll positions, on every engine', async 
   /** The whole new path, through the real parser: generate → acquire → THEN mark. */
   const generated = writePath.fromAttribute(b, VALUE);
   expect(generated, 'the fixture is inside generateSimple’s scope').to.not.equal(null);
-  keyframeRegistry.ensureProperty('--vd-p');
+  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
   keyframeRegistry.acquire(document, generated.hash, generated.keyframesRule);
   b.style.cssText = `height:50px; ${generated.elementStyle}`;
 

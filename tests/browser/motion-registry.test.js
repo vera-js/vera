@@ -145,13 +145,13 @@ it('a registered property INTERPOLATES where an unregistered one flips', async (
   /** The CONTROL: without it, "interpolated" below could be a probe that measures nothing. */
   expect(await run(flip, '--vd-unregistered'), 'unregistered: flips at the midpoint').to.equal(false);
 
-  keyframeRegistry.ensureProperty('--vd-p');
+  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
   expect(await run(ease, '--vd-p'), 'registered: a real mid transition value').to.equal(true);
 });
 
 it('a duplicate ensureProperty is a no-op, and a foreign SAME-NAME registration is tolerated', () => {
-  keyframeRegistry.ensureProperty('--vd-p');
-  keyframeRegistry.ensureProperty('--vd-p');
+  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
+  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
 
   /**
    * The cross-bundle condition, simulated: a second inlined copy of the pack has its own Set, so
@@ -160,7 +160,7 @@ it('a duplicate ensureProperty is a no-op, and a foreign SAME-NAME registration 
    */
   const name = `--vd-p2-${Math.floor(Math.random() * 1e9)}`;
   CSS.registerProperty({ name, syntax: '<number>', inherits: false, initialValue: '0' });
-  expect(() => keyframeRegistry.ensureProperty(name)).to.not.throw();
+  expect(() => keyframeRegistry.ensureProperty(name, document.documentElement)).to.not.throw();
 });
 
 it('an author-owned name with a DIFFERENT type is reported, not swallowed', () => {
@@ -171,7 +171,7 @@ it('an author-owned name with a DIFFERENT type is reported, not swallowed', () =
   const original = console.warn;
   console.warn = (...args) => warned.push(args.join(' '));
   try {
-    keyframeRegistry.ensureProperty(name);
+    keyframeRegistry.ensureProperty(name, document.documentElement);
   } finally {
     console.warn = original;
   }
@@ -206,7 +206,7 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
    */
   const bent = '@keyframes vd-sweep { 0% { opacity: 0 } 50% { opacity: 0.2 } 100% { opacity: 1 } }';
   const hash = contentHash(bent);
-  keyframeRegistry.ensureProperty('--vd-p');
+  keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
   acquire(document, hash, bent);
 
   const el = host();

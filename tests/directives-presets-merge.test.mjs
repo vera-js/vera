@@ -27,6 +27,11 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
 const { wireDirectives, motion, presets, settled, rejections } = await load('directives');
+/** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
+ *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
+ *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
+const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vd-a') ?? '');
+
 
 /** `fade-up` redefined to fade OUT and travel nowhere, so "whose fade-up ran" is visible in the DOM. */
 wireDirectives([motion, presets({ 'fade-up': { keyframes: { opacity: '0% 1, 100% 0' } } })]);
@@ -50,13 +55,14 @@ test('a redefined name is THEIRS, and the nine untouched ones are still ours', a
     <div id="kept" data-vd-motion="blur-in"></div>`);
 
   const over = host.querySelector('#over');
-  assert.match(over.style.filter, /opacity\(/, 'the control: the overridden name resolved at all');
-  assert.equal(over.style.transform, '',
-    'and it is theirs — the shipped fade-up carries translate-y and would have written a transform');
+  assert.ok(animating(over), 'the control: the overridden name resolved at all');
 
   /** The claim that separates merge from replace. */
-  assert.match(host.querySelector('#kept').style.filter, /blur\(/,
-    'a name the custom table never mentions still resolves, from the shipped ten');
+  const kept = host.querySelector('#kept');
+  assert.ok(animating(kept), 'a name the custom table never mentions still resolves, from the shipped ten');
+  /** And THEIRS is genuinely a different animation from the shipped blur-in — different content,
+   *  different hash. (Whose VALUES win is the browser suite's claim since the flip.) */
+  assert.notEqual(over.getAttribute('data-vd-a'), kept.getAttribute('data-vd-a'));
 });
 
 test('wiring presets twice is refused, because the second one could not have won', async () => {

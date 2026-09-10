@@ -128,6 +128,8 @@ test('split by words: pieces inherit the motion minus stagger, the sentence surv
     assert.equal(piece.getAttribute('aria-hidden'), 'true');
     assert.match(piece.getAttribute('data-vd-motion'), /opacity/, 'the animation travelled');
     assert.doesNotMatch(piece.getAttribute('data-vd-motion'), /stagger/, 'the stagger stayed on the host');
+    /** Pieces inherit the host's STAGGER offset, and stagger gates to the old path until
+     *  stage 5 — so the old inline surface is the correct instrument here, on purpose. */
     assert.match(piece.style.filter, /opacity\(/, 'and each piece ANIMATES through the engine');
   }
   /**

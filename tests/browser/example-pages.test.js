@@ -122,13 +122,40 @@ it('directives showcase: routes render, the hello-world taps, motion clamps, the
   doc.querySelector('.demo-live button[data-vd-on-click]').click();
   await until(() => tapPill() === '1', 'the tap advanced');
 
-  /** Route to Motion: presets activate and CLAMP — below the fold means the FIRST keyframe. */
+  /**
+   * Route to Motion: presets ACTIVATE and honour their trigger. Since the shipped presets gained
+   * `scroll: '85%', play: 0.6`, "the first fade-up sits at its first keyframe" stopped being true —
+   * an on-screen instance has crossed the line and PLAYED to 1. So the probe asserts the semantics
+   * from whichever side of the fold the page actually puts its instances: below the line → 0,
+   * above it → ramps to 1. Either way the generated mark proves activation through the real
+   * pipeline, computed style proves the rule applied.
+   */
   doc.querySelector('a[route][href$="/motion"]').click();
-  await until(() => doc.querySelector('[data-vd-motion="fade-up"]'), 'the motion route rendered');
+  await until(() => doc.querySelector('[data-vd-motion="fade-up"][data-vd-a]'),
+    'a preset activated onto the generated path');
+  /**
+   * The COMPUTED FILTER, not the opacity property — the generated rule animates
+   * `filter: opacity()`, and reading `.opacity` cost a day's WebKit hunt: it is 1 in every
+   * engine forever, so the above-the-line branch passed VACUOUSLY on Chromium/Firefox while
+   * WebKit's layout (every hero below the line) demanded a value the untouched property could
+   * never show. A probe on the wrong property is the probe-that-measures-nothing with better
+   * camouflage; the `!== null` control below is what refuses the vacuous pass now.
+   */
+  const filterOpacity = (el) => {
+    const filter = doc.defaultView.getComputedStyle(el).filter;
+    const match = /opacity\(([\d.]+)\)/.exec(filter);
+    return match ? Number(match[1]) : null;
+  };
   await until(() => {
-    const hero = doc.querySelector('[data-vd-motion="fade-up"]');
-    return /opacity\(0\)/.test(hero?.style.filter ?? '');
-  }, 'a below-the-fold preset clamps to its start');
+    const heroes = [...doc.querySelectorAll('[data-vd-motion="fade-up"][data-vd-a]')];
+    const line = win.innerHeight * 0.85;
+    return heroes.some((hero) => {
+      const opacity = filterOpacity(hero);
+      if (opacity === null) return false;
+      const top = hero.getBoundingClientRect().top;
+      return top > line ? opacity < 0.01 : opacity > 0.99;
+    });
+  }, 'a preset sits at the end its trigger line dictates');
 
   /** Route to Diagnostics: the deliberate mistakes are ALIVE as refusals, page intact. */
   doc.querySelector('a[route][href$="/diagnostics"]').click();
