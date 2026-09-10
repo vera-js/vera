@@ -191,10 +191,11 @@ export interface RuntimeElement {
    */
   readonly generated: {
     readonly hash: string;
-    /** Every registry key this element holds — base, segments, element rule — for teardown. */
+    /** Every registry key this element holds — groups, segments, switches, element rule — for
+     *  teardown. */
     readonly hashes: readonly string[];
-    readonly drive: Driven;
-    readonly tau: number;
+    /** One driver slice per seek variable, with the raw inertia seconds that time it. */
+    readonly drives: readonly { readonly driven: Driven; readonly tau: number }[];
     readonly play: number | null;
   } | null;
   /**
@@ -887,10 +888,21 @@ export const createRuntimeElement = (
    * property that carries its own in the nested value form, resolved lazily
    * so an element with none pays one comparison per animation.
    */
+  /**
+   * The generation decision comes FIRST, because it decides who solves easing. A generated
+   * element's curves are CSS timing functions the BROWSER evaluates — emitted verbatim, no
+   * easings module, no JS solver — so resolving curves for it would build dead weight and fire
+   * `motion-easings-module-missing` for a module the element does not need. The old path keeps
+   * the requirement: its solver is ours.
+   */
+  const generatedCss = staggerHost(node) ? null : generateSimple(parsed);
+
   const declaredEase = parsed.settings['ease'];
-  const elementEase = resolveCurveEasing(rejectFor, String(declaredEase ?? settings.ease), declaredEase !== undefined);
+  const elementEase = generatedCss ? null
+    : resolveCurveEasing(rejectFor, String(declaredEase ?? settings.ease), declaredEase !== undefined);
   const easeFor = (animation: ElementMotion): Easing | null =>
-    animation.ease !== undefined ? resolveCurveEasing(rejectFor, animation.ease, true) : elementEase;
+    generatedCss ? null
+    : animation.ease !== undefined ? resolveCurveEasing(rejectFor, animation.ease, true) : elementEase;
 
   const plan = planFor(parsed.animations, easeFor);
 
@@ -949,15 +961,18 @@ export const createRuntimeElement = (
    * mixed write paths inside a single cascade, found by the split suite. The ancestor check keeps
    * the group whole until stage 5 moves stagger itself.
    */
-  const generatedCss = staggerHost(node) ? null : generateSimple(parsed);
   let generated: RuntimeElement['generated'] = null;
   if (generatedCss) {
-    ensureProperty(generatedCss.varName, node);
+    /** Every seek variable — the base, plus a per-category one per inertia override. */
+    for (const v of generatedCss.vars) ensureProperty(v.name, node);
     const sheetRoot = node.getRootNode() as SheetRoot;
-    acquire(sheetRoot, generatedCss.hash, generatedCss.keyframesRule);
-    /** Width segments dedupe under their own content hashes — two elements sharing a band share
-     *  its rule; the marker hash above still separates their identities. */
-    for (const segment of generatedCss.segments) acquire(sheetRoot, segment.hash, segment.rule);
+    /** Group rules and width-segment rules dedupe under their own content hashes — two elements
+     *  sharing an animation share its rule, and two groups differing only in ease share one body;
+     *  the marker hash still separates element identities. */
+    for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
+    for (const segment of generatedCss.segments) {
+      for (const r of segment.rules) acquire(sheetRoot, r.hash, r.rule);
+    }
     /** The element’s declarations are SHEET RULES now (bands switch animation-name under
      *  @media, which inline cannot carry), counted under a derived key so the pair lives and
      *  dies together. */
@@ -985,13 +1000,19 @@ export const createRuntimeElement = (
     node.setAttribute('data-vd-a', generatedCss.hash);
     generated = {
       hash: generatedCss.hash,
-      drive: {
-        node: node as HTMLElement, varName: generatedCss.varName,
-        written: null, target: 0, mode: 'idle', tau: 0, rampFrom: 0, rampStart: 0, rampDuration: 0,
-      },
-      hashes: [generatedCss.hash, ...generatedCss.segments.flatMap((s, i) =>
-        [s.hash, `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`],
-      tau: Number(parsed.settings['inertia'] ?? settings.inertia),
+      /** One driver slice per seek variable, each timed by ITS setting — `--vd-p-transform`
+       *  chases at `transform-inertia`'s rate while the base follows `inertia`. */
+      drives: generatedCss.vars.map((v) => ({
+        driven: {
+          node: node as HTMLElement, varName: v.name,
+          written: null, target: 0, mode: 'idle' as const,
+          tau: 0, rampFrom: 0, rampStart: 0, rampDuration: 0,
+        },
+        tau: Number(parsed.settings[v.inertiaKey] ?? settings.inertia),
+      })),
+      hashes: [...generatedCss.groups.map((g) => g.hash),
+        ...generatedCss.segments.flatMap((s, i) =>
+          [...s.rules.map((r) => r.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`],
       play: typeof parsed.settings['play'] === 'number' ? parsed.settings['play'] : null,
     };
   }
@@ -1062,8 +1083,9 @@ export const animateElement = (element: RuntimeElement): void => {
    * latch repaint) go through immediately — tau 0 — because the ramp IS that element's easing.
    */
   if (element.generated) {
-    syncTo(element.generated.drive, element.timelinePosition,
-      element.generated.play !== null ? 0 : element.generated.tau);
+    for (const d of element.generated.drives) {
+      syncTo(d.driven, element.timelinePosition, element.generated.play !== null ? 0 : d.tau);
+    }
     return;
   }
 
@@ -1328,7 +1350,9 @@ export const updateElement = (
     const target = entered && !exited ? element.highestEnd : element.lowestStart;
     if (!force && target === element.timelinePosition) return;
     /** The clock, armed before the bookkeeping below — `animateElement`'s sync then defers to it. */
-    if (element.generated) rampTo(element.generated.drive, target, element.generated.play ?? 0);
+    if (element.generated) {
+      for (const d of element.generated.drives) rampTo(d.driven, target, element.generated.play ?? 0);
+    }
     element.timelinePosition = target;
     animateElement(element);
     settings.onProgress?.(element.node, target);
@@ -1558,8 +1582,10 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
   if (element.generated) {
     /** Count out, stop the clock, strip the marks — the loop must never hold a removed element. */
     for (const key of element.generated.hashes) release(key);
-    dispose(element.generated.drive);
-    node.style.removeProperty(element.generated.drive.varName);
+    for (const d of element.generated.drives) {
+      dispose(d.driven);
+      node.style.removeProperty(d.driven.varName);
+    }
     node.removeAttribute('data-vd-a');
   }
   node.style.transition = '';

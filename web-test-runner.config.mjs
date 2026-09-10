@@ -47,8 +47,28 @@ export default {
          * other engines, whose suites skip those checks.
          */
         launchOptions: product === 'chromium' ? { args: ['--js-flags=--expose-gc'] } : undefined,
+        /**
+         * The second half of the load-tolerance pair with `browserStartTimeout` below: raising
+         * that knob alone moved the same WebKit failure one step later, into Playwright's OWN 30s
+         * default on the session's first `page.goto`. Both waits are infrastructure — nothing in
+         * them is content — so both get the same generous ceiling, and the per-TEST timeout stays
+         * tight.
+         */
+        createPage: async ({ context }) => {
+          const page = await context.newPage();
+          page.setDefaultNavigationTimeout(120000);
+          return page;
+        },
       })
     ),
+  /**
+   * WebKit under FULL-GATE load fails to CREATE a test page inside the default 30s — three
+   * startup timeouts per run, with every test that did run green on all three engines (recorded
+   * as the known infra flake before this was raised). A startup timeout is pure machine-load
+   * tolerance: nothing it waits on is content, so waiting longer cannot mask a failure the way a
+   * lengthened TEST timeout could — which stays at 5s for exactly that reason.
+   */
+  browserStartTimeout: 120000,
   testFramework: {
     config: { timeout: 5000 },
   },

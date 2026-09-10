@@ -176,17 +176,31 @@ test('when refuses the pseudo-classes the observer cannot see, and drops the set
   await settled();
 });
 
-test('per-property ease without the easings module is a refusal per element, and the curve is linear', async () => {
+test('a generated per-property ease needs NO easings module — the browser is the solver', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }">x</div>`);
   const el = host.querySelector('div');
-  const reasons = rejections(el);
-  assert.ok(reasons.some((r) => r.code === 'motion-easings-module-missing'), 'refused');
-  if (!isProduction) assert.ok(reasons.some((r) => /needs the easings module/.test(r.message)), 'told what to wire');
-  /** Nested per-property ease rides the OLD path by design until stage 5 widens generation —
-   *  so its instrument is the old surface, on purpose. */
-  assert.match(el.style.filter, /opacity\(1\)/, 'and the element still animates, straight');
+  /** Before easing groups this refused `motion-easings-module-missing` and fell back to linear.
+   *  Now the ease is emitted verbatim as `animation-timing-function` and the browser evaluates
+   *  it — one wiring requirement deleted for every in-scope element. The OLD path keeps the
+   *  requirement (its solver is ours), asserted below on a staggered element. */
+  assert.equal(rejections(el).some((r) => r.code === 'motion-easings-module-missing'), false,
+    'no module demanded for a curve the browser solves');
+  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'rides the generated path');
   host.remove();
+  await settled();
+
+  /** The CONTROL for the deletion above: the same nested ease on the old path (stagger keeps an
+   *  element there) still demands the module — proof the requirement was scoped, not lost. */
+  const old = await mount(
+    `<div data-vd-motion="{ stagger: '10%' }">
+       <div id="member" data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }">x</div>
+     </div>`);
+  const staggered = old.querySelector('#member');
+  assert.equal(staggered.hasAttribute('data-vd-a'), false, 'the control really is on the old path');
+  assert.ok(rejections(staggered).some((r) => r.code === 'motion-easings-module-missing'),
+    'whose solver is ours, so the module is still required there');
+  old.remove();
   await settled();
 });
 

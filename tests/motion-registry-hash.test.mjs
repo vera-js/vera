@@ -29,3 +29,22 @@ test('the hash is pure string math — no environment in it', () => {
   assert.equal(keyframeRegistry.contentHash(CSS), keyframeRegistry.contentHash(CSS));
   assert.notEqual(keyframeRegistry.contentHash(CSS), keyframeRegistry.contentHash(CSS + ' '));
 });
+
+/**
+ * The cross-repo half: the shared vector file both engines pin their column of.
+ *
+ * `docs/motion-spec/fixtures/hash-vectors.json` carries every vector in two widths — `fnv1a64`
+ * (omni's, asserted by its conformance suite) and `fnv1a32` (ours, asserted here). The widths
+ * never have to agree with each other — that divergence is recorded in the spec — but each
+ * column must keep agreeing with its implementation, and a fixture nobody executes is the drift
+ * this repo's docs-recipes rule exists to prevent.
+ */
+test('every fnv1a32 vector in the shared spec fixture matches the shipping hash', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { vectors } = JSON.parse(
+    await readFile(new URL('../docs/motion-spec/fixtures/hash-vectors.json', import.meta.url), 'utf8'));
+  assert.ok(vectors.length >= 6, 'the CONTROL: the fixture actually loaded and holds the corpus');
+  for (const { text, fnv1a32 } of vectors) {
+    assert.equal(keyframeRegistry.contentHash(text), fnv1a32, JSON.stringify(text));
+  }
+});

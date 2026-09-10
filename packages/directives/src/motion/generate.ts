@@ -49,25 +49,51 @@ export const mergeBandsForWidth = (
   return merged;
 };
 
-/** What generation hands the caller: the rule to acquire, and the declarations the element carries. */
-export interface Generated {
-  /** Content hash of `keyframesRule` — the registry key and the `data-vd-a` marker value. */
+/** One easing group: the animations sharing one timing function and one seek variable, emitted
+ *  as one `@keyframes` rule and one entry in the element's `animation` list. */
+export interface GeneratedGroup {
+  /** Content hash of this group's base body — the registry key its rule is acquired under. */
   readonly hash: string;
   /** The animation name, `vd-<hash>` — derived, carried so no caller re-derives it differently. */
   readonly name: string;
   /** The complete `@keyframes` rule, ready for `acquire`. */
-  readonly keyframesRule: string;
-  /**
-   * Width-band segments beyond the base, each its own keyframes rule under its own content hash
-   * (identical compositions dedupe to one hash — the registry counts them). The element rule
-   * switches `animation-name` between them under `@media`; base applies outside every band.
-   */
-  readonly segments: readonly { readonly hash: string; readonly rule: string;
-    readonly media: string; readonly min: number; readonly max: number }[];
-  /** The variable the animation seeks by — `--vd-p`, or the author's `progress` rename. One name,
-   *  decided here once, so the driver and the declarations cannot disagree. */
+  readonly rule: string;
+  /** The effective timing function, verbatim — the authored per-property ease, else the element's. */
+  readonly ease: string;
+  /** The variable THIS group seeks by — the base variable, or a per-category one. */
   readonly varName: string;
-  /** The element's own declarations: the paused animation, seeked by the progress property. */
+}
+
+/** What generation hands the caller: the rules to acquire, and the declarations the element carries. */
+export interface Generated {
+  /** The MARKER — content hash over the whole identity (groups × segments), the `data-vd-a` value. */
+  readonly hash: string;
+  /**
+   * Easing groups, author order. One group is the common case; a value whose properties carry
+   * their own `ease`, or whose categories smooth at their own `inertia`, splits — `animation-name`
+   * takes a list, and each group is one entry with its own timing function and seek variable.
+   * The split is bounded by CSS itself: two entries cannot write one property, so a split that
+   * would collide (two eases inside `filter`, say) answers null and keeps the old path.
+   */
+  readonly groups: readonly GeneratedGroup[];
+  /**
+   * Width-band segments beyond the base: per interval, the keyframes rules to acquire (deduped by
+   * content hash — a group a band never touches re-hashes to its base rule) and the `@media` block
+   * that switches the element's whole `animation-name` list. Base applies outside every band.
+   */
+  readonly segments: readonly { readonly min: number; readonly max: number;
+    readonly rules: readonly { readonly hash: string; readonly rule: string }[];
+    readonly media: string }[];
+  /**
+   * The distinct seek variables, each named with the setting that times it — what the runtime
+   * registers and builds one driver slice per. Per-category variables exist only when their
+   * override does; the common case is one entry carrying `inertia`.
+   */
+  readonly vars: readonly { readonly name: string;
+    readonly inertiaKey: 'inertia' | 'transform-inertia' | 'filter-inertia' }[];
+  /** The base variable — `--vd-p`, or the author's `progress` rename. The author-visible one. */
+  readonly varName: string;
+  /** The element's own declarations: the paused animation list, seeked by the progress properties. */
   readonly elementStyle: string;
   /**
    * The same declarations as a SHEET RULE on the doubled-attribute selector — 0-2-0, beating an
@@ -94,6 +120,13 @@ const valueAtFrames = (frames: readonly RawKeyframe[], position: number): number
   return frames[0]!.value;
 };
 
+/** One group's working state while its rules are composed. */
+interface Grouped {
+  readonly ease: string;
+  readonly varName: string;
+  readonly members: ElementMotion[];
+}
+
 /**
  * The simple case, or null.
  *
@@ -109,57 +142,152 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
    * The bare-identifier form is the STATE destination, which does not exist yet; those elements
    * stay on the old path, whose `progressProperty` machinery they never used anyway.
    */
-  /** Per-category smoothing needs one variable per category — stage 5. Until then, old path. */
-  if (parsed.settings['transform-inertia'] !== undefined ||
-      parsed.settings['filter-inertia'] !== undefined) return null;
-
   const progress = parsed.settings['progress'];
   if (typeof progress === 'string' && !progress.startsWith('--')) return null;
   const varName = typeof progress === 'string' ? progress : PROGRESS_PROPERTY;
 
-  const ease = parsed.settings['ease'];
-  const eased = typeof ease === 'string' && ease !== 'linear' ? ease : null;
-
   for (const animation of parsed.animations) {
-    if (animation.ease !== undefined) return null;
-    /** Bands compose per width SEGMENT below; with a NON-LINEAR element ease the per-segment
-     *  aligned-stops rule would need checking per segment — deferred with easing groups. */
-    if (animation.bands.length && eased) return null;
     if (animation.property.setup || animation.property.apply || animation.property.discrete) return null;
     if (animation.keyframes.some((frame) => frame.positionUnit !== '%')) return null;
   }
 
+  const ease = parsed.settings['ease'];
+  const elementEase = typeof ease === 'string' ? ease : 'linear';
   /**
-   * The union of every property's stops. With linear easing a split segment keeps its shape, so
-   * misaligned stops union freely; a SEGMENT easing reshapes each interval, so splitting one would
-   * change what the author wrote — aligned stops only, then.
+   * Per-category smoothing seeks a category's animations by its OWN variable — `--vd-p-transform`
+   * chases at `transform-inertia`'s rate while everything else follows the base — so the variable
+   * is part of the group key below. The per-category names are the engine's, never the renamed
+   * base: the author's `progress` property keeps carrying the one unsmoothed number.
    */
-  const stops = [...new Set(parsed.animations.flatMap((a) => a.keyframes.map((f) => f.position)))]
-    .sort((a, b) => a - b);
-  if (eased) {
-    for (const animation of parsed.animations) {
-      if (animation.keyframes.length !== stops.length) return null;
+  const wantsTransformVar = parsed.settings['transform-inertia'] !== undefined;
+  const wantsFilterVar = parsed.settings['filter-inertia'] !== undefined;
+  const varOf = (category: string): string =>
+    category === 'transform' && wantsTransformVar ? `${PROGRESS_PROPERTY}-transform`
+    : category === 'filter' && wantsFilterVar ? `${PROGRESS_PROPERTY}-filter`
+    : varName;
+
+  /**
+   * EASING GROUPS. `animation-name` takes a list, so a value with two timing functions — or two
+   * smoothing rates — is two `@keyframes` rules on one element, every entry seeked by its own
+   * variable. The partition key is `(seek variable, effective ease)`: two axes that both force a
+   * separate list entry, for different reasons.
+   */
+  const groups: Grouped[] = [];
+  const groupByKey = new Map<string, Grouped>();
+  const keyOf = new Map<ElementMotion, string>();
+  for (const animation of parsed.animations) {
+    const effectiveEase = animation.ease ?? elementEase;
+    const seekVar = varOf(animation.property.category);
+    const key = `${seekVar} ${effectiveEase}`;
+    keyOf.set(animation, key);
+    let group = groupByKey.get(key);
+    if (!group) {
+      group = { ease: effectiveEase, varName: seekVar, members: [] };
+      groupByKey.set(key, group);
+      groups.push(group);
+    }
+    group.members.push(animation);
+  }
+
+  /**
+   * The constraint the whole split lives under: two animations in the list CANNOT write one CSS
+   * property — the later wins outright, nothing composes. `filter` and each plain property must
+   * therefore sit inside one group. `transform` gets one escape hatch below.
+   */
+  const owner = new Map<string, string>();
+  const claim = (cssProperty: string, key: string): boolean => {
+    const seen = owner.get(cssProperty);
+    if (seen !== undefined && seen !== key) return false;
+    owner.set(cssProperty, key);
+    return true;
+  };
+  for (const animation of parsed.animations) {
+    if (animation.property.category === 'filter') {
+      if (!claim('filter', keyOf.get(animation)!)) return null;
+    } else if (animation.property.cssProperty) {
+      if (!claim(animation.property.cssProperty, keyOf.get(animation)!)) return null;
     }
   }
 
-  const transform = sortForApply(parsed.animations.filter((a) => a.property.category === 'transform'));
-  const filter = sortForApply(parsed.animations.filter((a) => a.property.category === 'filter'));
-  const plain = parsed.animations.filter((a) => a.property.cssProperty);
+  /**
+   * THE INDEPENDENT-TRANSFORM FLIP — the escape hatch that makes per-property ease on transforms
+   * real. When transform-category members land in more than one group, the single `transform`
+   * property cannot carry them; `translate` / `rotate` / `scale` can, because they are three CSS
+   * properties applied in a FIXED order (translate → rotate → scale) that the schema's composition
+   * order already matches — the flip is value-preserving by construction, verified by the parity
+   * suite. Engaged ONLY when a split demands it, so the common case keeps its `transform` string,
+   * its hashes and its instruments.
+   *
+   * "Where possible" (the spec's words) is checked, not assumed: `skew-*` has no independent
+   * property; `rotate` holds ONE axis; `scale` beside `scale-x`/`scale-y` would need a per-stop
+   * product, which linear interpolation between stops would then get wrong mid-interval. Each of
+   * those answers null and keeps the old path.
+   */
+  const transformMembers = parsed.animations.filter((a) => a.property.category === 'transform');
+  const flip = new Set(transformMembers.map((a) => keyOf.get(a)!)).size > 1;
+  if (flip) {
+    const fn = (a: ElementMotion): string => a.property.cssFunction!;
+    if (transformMembers.some((a) => fn(a).startsWith('skew'))) return null;
+    if (transformMembers.filter((a) => fn(a).startsWith('rotate')).length > 1) return null;
+    const hasScale = transformMembers.some((a) => a.property.key === 'scale');
+    const hasScaleAxis = transformMembers.some(
+      (a) => a.property.key === 'scale-x' || a.property.key === 'scale-y');
+    if (hasScale && hasScaleAxis) return null;
+    for (const animation of transformMembers) {
+      const target = fn(animation).startsWith('translate') ? 'translate'
+        : fn(animation).startsWith('rotate') ? 'rotate' : 'scale';
+      if (!claim(target, keyOf.get(animation)!)) return null;
+    }
+  }
 
   /**
-   * One composer for base and every width segment: hand it each property's EFFECTIVE keyframes
-   * and it returns the body — stops re-unioned per segment, because a band may add or remove
-   * stops and the base's union is not this segment's union.
+   * One composer for one group's base and every width segment: hand it each property's EFFECTIVE
+   * keyframes and it returns the body — stops re-unioned per group per segment, because a band may
+   * add or remove stops and no other union is this one. Null when the group's non-linear ease
+   * meets misaligned stops: a segment easing reshapes each interval, so splitting one would change
+   * what the author wrote — aligned stops only, PER GROUP, which is exactly what lets a misaligned
+   * pair graduate by each carrying its own ease.
    */
-  const composeBody = (framesOf: (a: ElementMotion) => readonly RawKeyframe[]): string => {
-    const segStops = [...new Set(parsed.animations.flatMap((a) => framesOf(a).map((f) => f.position)))]
+  const composeGroupBody = (
+    group: Grouped,
+    framesOf: (a: ElementMotion) => readonly RawKeyframe[]
+  ): string | null => {
+    const stops = [...new Set(group.members.flatMap((a) => framesOf(a).map((f) => f.position)))]
       .sort((x, y) => x - y);
+    if (group.ease !== 'linear') {
+      for (const member of group.members) {
+        if (framesOf(member).length !== stops.length) return null;
+      }
+    }
     const at = (a: ElementMotion, stop: number): number => valueAtFrames(framesOf(a), stop);
-    return segStops.map((stop) => {
+    const transform = sortForApply(group.members.filter((a) => a.property.category === 'transform'));
+    const filter = sortForApply(group.members.filter((a) => a.property.category === 'filter'));
+    const plain = group.members.filter((a) => a.property.cssProperty);
+    return stops.map((stop) => {
       const declarations: string[] = [];
-      if (transform.length) {
+      if (transform.length && !flip) {
         declarations.push(`transform: ${composeTransform(
           { animations: transform, values: transform.map((a) => at(a, stop)) })}`);
+      } else if (transform.length) {
+        const by = new Map(transform.map((a) => [a.property.key, a]));
+        const part = (a: ElementMotion | undefined, stopAt: number, fallback: string): string =>
+          a ? `${format(at(a, stopAt))}${a.unit}` : fallback;
+        const tz = by.get('translate-z');
+        if (by.has('translate-x') || by.has('translate-y') || tz) {
+          declarations.push(`translate: ${part(by.get('translate-x'), stop, '0')} ${
+            part(by.get('translate-y'), stop, '0')}${tz ? ` ${part(tz, stop, '0')}` : ''}`);
+        }
+        const rotate = transform.find((a) => a.property.cssFunction!.startsWith('rotate'));
+        if (rotate) {
+          const axis = rotate.property.key === 'rotate-x' ? 'x '
+            : rotate.property.key === 'rotate-y' ? 'y ' : '';
+          declarations.push(`rotate: ${axis}${format(at(rotate, stop))}${rotate.unit}`);
+        }
+        if (by.has('scale')) declarations.push(`scale: ${format(at(by.get('scale')!, stop))}`);
+        else if (by.has('scale-x') || by.has('scale-y')) {
+          declarations.push(`scale: ${part(by.get('scale-x'), stop, '1')} ${
+            part(by.get('scale-y'), stop, '1')}`);
+        }
       }
       if (filter.length) {
         declarations.push(`filter: ${composeFilter(
@@ -173,16 +301,33 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
     }).join(' ');
   };
 
-  const body = composeBody((a) => a.keyframes);
+  /**
+   * Base bodies. The name hashes the BODY, not the finished rule — the name contains the hash, so
+   * hashing text that contains the name would chase its own tail. Determinism note for SSR:
+   * `format` is shared with the runtime and pure, so the server derives the same text and
+   * therefore the same names. Two groups differing only in ease share one body, one hash, ONE
+   * rule — the timing function lives on the element's list entry, not in the keyframes.
+   */
+  const generatedGroups: GeneratedGroup[] = [];
+  for (const group of groups) {
+    const body = composeGroupBody(group, (a) => a.keyframes);
+    if (body === null) return null;
+    const groupHash = contentHash(body);
+    generatedGroups.push({ hash: groupHash, name: `vd-${groupHash}`,
+      rule: `@keyframes vd-${groupHash} { ${body} }`, ease: group.ease, varName: group.varName });
+  }
 
   /**
-   * Width segments: every band edge cuts the axis; each interval composes with
+   * Width segments: every band edge cuts the axis; each interval composes every group with
    * `mergeBandsForWidth` at a representative width — the SAME function the resize path runs, so
    * the @media output and the old path agree by construction. Intervals no band covers are the
-   * base and emit nothing.
+   * base and emit nothing. A group a band never touches re-hashes to its base body, so its rule
+   * dedupes in the registry and the switch simply names it again.
    */
   const allBands = parsed.animations.flatMap((a) => a.bands);
-  const segments: { hash: string; rule: string; media: string; min: number; max: number }[] = [];
+  const segments: { min: number; max: number;
+    rules: { hash: string; rule: string }[]; media: string }[] = [];
+  const segmentNames: string[][] = [];
   if (allBands.length) {
     const edges = [...new Set([0, ...allBands.flatMap((b) =>
       [b.min, ...(Number.isFinite(b.max) ? [b.max + 1] : [])])])].sort((x, y) => x - y);
@@ -190,51 +335,65 @@ export const generateSimple = (parsed: ParsedElement): Generated | null => {
       const min = edges[i]!;
       const max = i + 1 < edges.length ? edges[i + 1]! - 1 : Infinity;
       if (!allBands.some((b) => min >= b.min && min <= b.max)) continue;
-      const segBody = composeBody((a) => mergeBandsForWidth(a.keyframes, a.bands, min));
-      const segHash = contentHash(segBody);
-      segments.push({ hash: segHash, min, max,
-        rule: `@keyframes vd-${segHash} { ${segBody} }`, media: '' });
+      const rules: { hash: string; rule: string }[] = [];
+      const names: string[] = [];
+      for (const group of groups) {
+        const segBody = composeGroupBody(group, (a) => mergeBandsForWidth(a.keyframes, a.bands, min));
+        if (segBody === null) return null;
+        const segHash = contentHash(segBody);
+        names.push(`vd-${segHash}`);
+        if (!rules.some((r) => r.hash === segHash)) {
+          rules.push({ hash: segHash, rule: `@keyframes vd-${segHash} { ${segBody} }` });
+        }
+      }
+      segments.push({ min, max, rules, media: '' });
+      segmentNames.push(names);
     }
   }
 
-  /**
-   * The name hashes the BODY, not the finished rule — the name contains the hash, so hashing text
-   * that contains the name would chase its own tail. Determinism note for SSR: `format` is shared
-   * with the runtime and pure, so the server derives the same text and therefore the same name.
-   */
-  /** The MARKER hash covers base and the segment map, so two elements differing only in a band
-   *  are two identities — while segment rules still dedupe under their own content hashes. */
-  const hash = contentHash(body + segments.map((s) => `|${s.min}-${s.max}:${s.hash}`).join(''));
-  const name = `vd-${contentHash(body)}`;
+  /** The MARKER hash covers every group's identity and the segment map, so two elements differing
+   *  only in an ease, a smoothing rate or a band are two identities — while keyframes rules still
+   *  dedupe under their own content hashes. */
+  const hash = contentHash(
+    generatedGroups.map((g) => `${g.hash}:${g.ease}:${g.varName}`).join('|') +
+    segments.map((s, i) => `|${s.min}-${s.max}:${segmentNames[i]!.join(',')}`).join(''));
 
-  /** One rule per insertRule call — the media switch is its OWN rule per segment, filled here
-   *  because its selector embeds the marker hash computed just above. */
-  for (const segment of segments) {
+  /** One rule per insertRule call — each media switch is its OWN rule, filled here because its
+   *  selector embeds the marker hash computed just above. It switches the WHOLE name list: every
+   *  entry's timing function and delay stay positional, so the list length never changes. */
+  for (const [i, segment] of segments.entries()) {
     const query = [segment.min > 0 ? `(min-width: ${segment.min}px)` : '',
       Number.isFinite(segment.max) ? `(max-width: ${segment.max}px)` : ''].filter(Boolean).join(' and ');
     segment.media =
-      `@media ${query} { [data-vd-a="${hash}"][data-vd-a] { animation-name: vd-${segment.hash}; } }`;
+      `@media ${query} { [data-vd-a="${hash}"][data-vd-a] { animation-name: ${segmentNames[i]!.join(', ')}; } }`;
   }
+
+  /**
+   * Seeked, never played: 1s is the seek SPACE (progress 0-1 maps to 0-1s), `paused` pins it, and
+   * `both` paints the ends outside 0-1. Timing functions are the authored strings, verbatim — the
+   * per-segment model on both sides. The timeline source is this one substitutable block, per the
+   * spec's ceding constraint: swap the delay-seek for `animation-timeline: view()` and nothing
+   * else here changes.
+   */
+  const animationList = generatedGroups.map((g) => `${g.name} 1s ${g.ease} both paused`).join(', ');
+  const delayList = generatedGroups.map((g) => `calc(var(${g.varName}, 0) * -1s)`).join(', ');
+  const declarations = `animation: ${animationList}; animation-delay: ${delayList};`;
+
+  const vars = [...new Set(generatedGroups.map((g) => g.varName))].map((name) => ({
+    name,
+    inertiaKey: (name === `${PROGRESS_PROPERTY}-transform` && wantsTransformVar ? 'transform-inertia'
+      : name === `${PROGRESS_PROPERTY}-filter` && wantsFilterVar ? 'filter-inertia'
+      : 'inertia') as 'inertia' | 'transform-inertia' | 'filter-inertia',
+  }));
 
   return {
     hash,
-    name,
-    keyframesRule: `@keyframes ${name} { ${body} }`,
+    groups: generatedGroups,
     segments,
-    /**
-     * Seeked, never played: 1s is the seek SPACE (progress 0-1 maps to 0-1s), `paused` pins it, and
-     * `both` paints the ends outside 0-1. The timing function is the authored ease, verbatim — the
-     * per-segment model on both sides. The timeline source is this one substitutable block, per the
-     * spec's ceding constraint: swap the delay-seek for `animation-timeline: view()` and nothing
-     * else here changes.
-     */
+    vars,
     varName,
-    elementRule:
-      `[data-vd-a="${hash}"][data-vd-a] { animation: ${name} 1s ${eased ?? 'linear'} both paused; ` +
-      `animation-delay: calc(var(${varName}, 0) * -1s); }`,
-    elementStyle:
-      `animation: ${name} 1s ${eased ?? 'linear'} both paused; ` +
-      `animation-delay: calc(var(${varName}, 0) * -1s);`,
+    elementStyle: declarations,
+    elementRule: `[data-vd-a="${hash}"][data-vd-a] { ${declarations} }`,
   };
 };
 

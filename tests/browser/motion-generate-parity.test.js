@@ -47,7 +47,7 @@ it('twin computed styles agree across scroll positions, on every engine', async 
   const generated = writePath.fromAttribute(b, VALUE);
   expect(generated, 'the fixture is inside generateSimple’s scope').to.not.equal(null);
   keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
-  keyframeRegistry.acquire(document, generated.hash, generated.keyframesRule);
+  for (const g of generated.groups) keyframeRegistry.acquire(document, g.hash, g.rule);
   b.style.cssText = `height:50px; ${generated.elementStyle}`;
 
   await settle();
@@ -78,7 +78,7 @@ it('twin computed styles agree across scroll positions, on every engine', async 
   }
   expect(compared.length, 'the CONTROL: real mid-range positions were compared').to.be.above(1);
 
-  keyframeRegistry.release(generated.hash);
+  for (const g of generated.groups) keyframeRegistry.release(g.hash);
   spacer.remove();
   b.remove();
 });
@@ -89,7 +89,7 @@ it('identical attributes on different elements share one rule; a tuned twin does
   const first = writePath.fromAttribute(x, VALUE);
   const second = writePath.fromAttribute(y, VALUE);
   expect(second.hash, 'two hundred fade-ups, one rule').to.equal(first.hash);
-  expect(second.keyframesRule).to.equal(first.keyframesRule);
+  expect(second.groups[0].rule).to.equal(first.groups[0].rule);
 
   const tuned = writePath.fromAttribute(y, VALUE.replace('80px', '81px'));
   expect(tuned.hash, 'one byte of tuning is a different animation').to.not.equal(first.hash);
@@ -97,16 +97,25 @@ it('identical attributes on different elements share one rule; a tuned twin does
 
 it('out-of-scope values answer null and name the old path, not a throw', () => {
   const el = document.createElement('div');
-  /** Bands, per-property ease, discrete packs, geometry units — each routes to the old path. */
+  /** What remains out of scope after easing groups: a split CSS itself cannot express, geometry
+   *  units, stagger. The one-property collision rule is the boundary — two eases inside `filter`
+   *  would be two list entries writing one property, where the later wins and nothing composes. */
   for (const raw of [
-    /** Bands are IN scope since 5b — what stays out is a band under a non-linear element ease,
-     *  where the per-segment aligned-stops rule is deferred with easing groups. */
-    "{ keyframes: { opacity: '0% 0, 100% 1; [0-560]: 0% 0.5, 100% 1' }, ease: 'ease-in' }",
-    "{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }",
+    "{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' }, blur: '0% 8px, 100% 0px' } }",
+    /** skew has no independent property, so a transform split cannot flip — old path. */
+    "{ keyframes: { skew-x: '0% 20deg, 100% 0deg', rotate: { frames: '0% 0deg, 100% 90deg', ease: 'ease-in' } } }",
     "{ keyframes: { translate-y: '0px 10px, 100px 0px' } }",
     "{ stagger: '10%' }",
   ]) {
     expect(writePath.fromAttribute(el, raw), raw).to.equal(null);
+  }
+  /** And the graduates: a band under a non-linear ease (aligned per segment), and a per-property
+   *  ease — both null before easing groups, both in scope now. */
+  for (const raw of [
+    "{ keyframes: { opacity: '0% 0, 100% 1; [0-560]: 0% 0.5, 100% 1' }, ease: 'ease-in' }",
+    "{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } } }",
+  ]) {
+    expect(writePath.fromAttribute(el, raw), raw).to.not.equal(null);
   }
 });
 
@@ -143,8 +152,8 @@ it('a band composes its own segment, switched by @media — and agrees with the 
   for (const [generated, expected, label] of [[applies, 0.1, 'band covers viewport'], [misses, 0.6, 'band misses viewport']]) {
     expect(generated.segments.length, `${label}: one segment generated`).to.be.above(0);
     keyframeRegistry.ensureProperty('--vd-p', document.documentElement);
-    keyframeRegistry.acquire(document, generated.hash, generated.keyframesRule);
-    for (const s of generated.segments) keyframeRegistry.acquire(document, s.hash, s.rule);
+    for (const g of generated.groups) keyframeRegistry.acquire(document, g.hash, g.rule);
+    for (const s of generated.segments) for (const r of s.rules) keyframeRegistry.acquire(document, r.hash, r.rule);
     keyframeRegistry.acquire(document, `${generated.hash}#el`, generated.elementRule);
     /** Switches AFTER the element rule — they tie on specificity, so sheet order decides. */
     generated.segments.forEach((s, i) => keyframeRegistry.acquire(document, `${generated.hash}#m${i}`, s.media));
@@ -157,8 +166,8 @@ it('a band composes its own segment, switched by @media — and agrees with the 
     expect(Number(getComputedStyle(el).filter.match(/opacity\(([\d.]+)\)/)?.[1] ?? NaN), label)
       .to.be.closeTo(expected, 0.01);
 
-    keyframeRegistry.release(generated.hash);
-    for (const s of generated.segments) keyframeRegistry.release(s.hash);
+    for (const g of generated.groups) keyframeRegistry.release(g.hash);
+    for (const s of generated.segments) for (const r of s.rules) keyframeRegistry.release(r.hash);
     generated.segments.forEach((s, i) => keyframeRegistry.release(`${generated.hash}#m${i}`));
     keyframeRegistry.release(`${generated.hash}#el`);
     el.remove();
@@ -169,8 +178,93 @@ it('identical band content dedupes to one segment hash; the MARKER hash still di
   const el = document.createElement('div');
   const banded = writePath.fromAttribute(el, "{ keyframes: { opacity: '0% 0.6, 100% 0.6; [0-560]: 0% 0.1, 100% 0.1' } }");
   const bandless = writePath.fromAttribute(el, "{ keyframes: { opacity: '0% 0.6, 100% 0.6' } }");
-  expect(banded.name, 'the BASE composition is byte-identical, so the base rule is shared')
-    .to.equal(bandless.name);
+  expect(banded.groups[0].name, 'the BASE composition is byte-identical, so the base rule is shared')
+    .to.equal(bandless.groups[0].name);
   expect(banded.hash, 'but the marker identity differs — a band is part of who the element is')
     .to.not.equal(bandless.hash);
+});
+
+/* ── stage 5b remainder: easing groups, the transform flip, per-category variables ───────────── */
+
+/** Acquire everything a Generated needs, mark, and hand back a teardown. */
+const mountGenerated = (generated) => {
+  for (const name of generated.vars.map((v) => v.name)) {
+    keyframeRegistry.ensureProperty(name, document.documentElement);
+  }
+  for (const g of generated.groups) keyframeRegistry.acquire(document, g.hash, g.rule);
+  for (const s of generated.segments) for (const r of s.rules) keyframeRegistry.acquire(document, r.hash, r.rule);
+  keyframeRegistry.acquire(document, `${generated.hash}#el`, generated.elementRule);
+  generated.segments.forEach((s, i) => keyframeRegistry.acquire(document, `${generated.hash}#m${i}`, s.media));
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  el.setAttribute('data-vd-a', generated.hash);
+  return {
+    el,
+    done: () => {
+      for (const g of generated.groups) keyframeRegistry.release(g.hash);
+      for (const s of generated.segments) for (const r of s.rules) keyframeRegistry.release(r.hash);
+      generated.segments.forEach((s, i) => keyframeRegistry.release(`${generated.hash}#m${i}`));
+      keyframeRegistry.release(`${generated.hash}#el`);
+      el.remove();
+    },
+  };
+};
+
+const filterOpacity = (el) =>
+  Number(getComputedStyle(el).filter.match(/opacity\(([\d.]+)\)/)?.[1] ?? NaN);
+
+it('a per-property ease is its own animation — two entries, one variable, different curves', async () => {
+  const generated = writePath.fromAttribute(document.createElement('div'),
+    "{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' }, translate-y: '0% 80px, 100% 0px' } }");
+  expect(generated.groups.length, 'two timing functions, two list entries').to.equal(2);
+
+  const { el, done } = mountGenerated(generated);
+  el.style.setProperty('--vd-p', '0.5');
+  await frame();
+  /** ease-in at 0.5 sits well below linear; the linear translate sits exactly at its midpoint. */
+  expect(filterOpacity(el), 'the eased entry follows ITS curve').to.be.below(0.4);
+  expect(filterOpacity(el)).to.be.above(0.2);
+  const m42 = numbers(getComputedStyle(el).transform)[5];
+  expect(m42, 'the linear entry is untouched by its neighbour’s ease').to.be.closeTo(40, 0.5);
+  done();
+});
+
+it('a transform split flips to independent properties — translate and rotate, each on its own curve', async () => {
+  const generated = writePath.fromAttribute(document.createElement('div'),
+    "{ keyframes: { translate-y: '0% 80px, 100% 0px', rotate: { frames: '0% 0deg, 100% 90deg', ease: 'ease-in' } } }");
+  expect(generated.groups.length, 'the split that forces the flip').to.equal(2);
+
+  const { el, done } = mountGenerated(generated);
+  el.style.setProperty('--vd-p', '0.5');
+  await frame();
+  const style = getComputedStyle(el);
+  expect(style.translate, 'translate is its own property now').to.equal('0px 40px');
+  const angle = Number(style.rotate.match(/([\d.]+)deg/)?.[1] ?? NaN);
+  expect(angle, 'rotate rides ease-in — below the linear 45').to.be.below(40);
+  expect(angle).to.be.above(20);
+  done();
+});
+
+it('a category inertia override seeks by its own variable, and only then', async () => {
+  const generated = writePath.fromAttribute(document.createElement('div'),
+    "{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 80px, 100% 0px' }, transform-inertia: 0.5 }");
+  expect(generated.vars.map((v) => v.name).sort(), 'base plus the transform override')
+    .to.deep.equal(['--vd-p', '--vd-p-transform']);
+  expect(generated.vars.find((v) => v.name === '--vd-p-transform').inertiaKey)
+    .to.equal('transform-inertia');
+
+  const { el, done } = mountGenerated(generated);
+  /** Two variables, two numbers — the transform lags at 0.25 while opacity has arrived at 1. */
+  el.style.setProperty('--vd-p', '1');
+  el.style.setProperty('--vd-p-transform', '0.25');
+  await frame();
+  expect(filterOpacity(el), 'the base variable drives filter').to.be.closeTo(1, 0.01);
+  expect(numbers(getComputedStyle(el).transform)[5], 'its own variable drives transform')
+    .to.be.closeTo(60, 0.5);
+  done();
+
+  const bare = writePath.fromAttribute(document.createElement('div'),
+    "{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 80px, 100% 0px' } }");
+  expect(bare.vars.length, 'no override, no second variable — the common case stays one').to.equal(1);
+  expect(bare.groups.length, 'and one list entry').to.equal(1);
 });

@@ -41,8 +41,10 @@ test('easings wired: a per-property ease is accepted, no refusal, still animates
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: { frames: '0% 0, 100% 1', ease: 'ease-in' } }, ease: 'ease-out' }">x</div>`);
   const el = host.querySelector('div');
-  assert.equal(rejections(el).length, 0, 'both ease slots resolved through the module');
-  assert.match(el.style.filter, /opacity\(1\)/, 'clamped end, shaped curve or not');
+  assert.equal(rejections(el).length, 0, 'both ease slots accepted');
+  /** Since easing groups this shape GENERATES — the browser is the solver, so the surface is the
+   *  marker and the variable, not an inline filter (jsdom evaluates no CSS animation). */
+  assert.match(el.getAttribute('data-vd-a') ?? '', /^[0-9a-f]{8}$/, 'rides the generated path');
   host.remove();
   await settled();
 });
