@@ -19,18 +19,33 @@
   #how pre { background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
   /* The whole tuning surface is ordinary CSS on the platform's pseudo-elements: */
   ::view-transition-group(*) { animation-duration: 0.45s; }
-  /* PAGE TRANSITIONS are the same cession, cross-document: opt the navigation in, then pair a
-     name on the outgoing link with the same name on the next page's title — the link GROWS
-     into the heading. No JS anywhere. */
+  /* PAGE TRANSITIONS are the same cession, cross-document. Each page's BODY is named after
+     itself and its preview card after the SIBLING — so leaving, this page shrinks into its own
+     card on the next page while the next page grows out of the card you clicked. No JS. */
+  html { background: #fdfcf8; }
   @view-transition { navigation: auto; }
-  h1 { view-transition-name: flip-hero; }
-  .crosslink { view-transition-name: swap-hero; font-weight: 700; }
-  ::view-transition-group(flip-hero), ::view-transition-group(swap-hero) { animation-duration: 0.5s; }
+  body { view-transition-name: flip-hero; }
+  .crosslink { view-transition-name: swap-hero; }
+  ::view-transition-group(flip-hero), ::view-transition-group(swap-hero) { animation-duration: 0.55s; }
+  /* the preview card — a mini mock of the destination, and the link itself */
+  .crosslink { display: block; width: 200px; text-decoration: none; color: inherit;
+    border: 1px solid #ddd; border-radius: 0.7rem; background: #fff; padding: 0.6rem;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.06); }
+  .crosslink b { display: block; font-size: 0.8rem; margin-bottom: 0.4rem; }
+  .crosslink .mini-bar { display: flex; gap: 0.25rem; margin-bottom: 0.35rem; }
+  .crosslink .mini-bar i { flex: 1; height: 0.7rem; border: 1px solid #ccc; border-radius: 0.25rem; }
+  .crosslink .mini-panel { height: 3.2rem; border: 1px solid #ddd; border-radius: 0.4rem;
+    background: repeating-linear-gradient(#f7f4ec 0 0.5rem, #fff 0.5rem 1rem); }
+  .crosslink .go { display: block; font-size: 0.75rem; color: #7c66e0; font-weight: 700; margin-top: 0.4rem; }
 </style>
 
 <h1>flip lab — <code>animate: true</code></h1>
-<p class="note">Sibling: <a class="crosslink" href="swap-lab.html">grow this into the swap lab →</a>
-(a cross-document view transition — watch this link become that page's title).</p>
+<a class="crosslink" href="swap-lab.html">
+  <b>swap lab</b>
+  <span class="mini-bar"><i></i><i></i><i></i></span>
+  <span class="mini-panel"></span>
+  <span class="go">click — this preview grows into the whole page →</span>
+</a>
 <p class="note"><b>Sort</b> and the <b>tag boxes</b> animate — cards glide to their new spots and
 filtered ones crossfade (the platform's FLIP; zero motion JS, the query pack alone).
 <b>Typing never animates</b> — that's the discrete/continuous split, deliberately. The duration
@@ -80,8 +95,10 @@ included.</p>
 
 /* the cross-page grow — CSS only, both pages carry it */
 @view-transition { navigation: auto; }
-h1 { view-transition-name: flip-hero; }
-.crosslink { view-transition-name: swap-hero; }</code></pre>
+body { view-transition-name: flip-hero; }        /* this page IS the flip hero…      */
+.crosslink { view-transition-name: swap-hero; }  /* …and previews the swap lab.
+   Leaving: this body shrinks into its card on the next page; the next page
+   grows out of the card you clicked. The names pair across documents. */</code></pre>
   <h2>The wiring — the whole script</h2>
   <pre><code id="src-wiring"></code></pre>
   <p class="note">That's the entire feature surface: <code>animate: true</code> on

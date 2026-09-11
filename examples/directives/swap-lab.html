@@ -14,16 +14,28 @@
   #how pre { background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
   /* The whole tuning surface is ordinary CSS on the platform's pseudo-elements: */
   ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }
-  /* PAGE TRANSITIONS: the flip-lab's link grows into THIS page's title, and the link below
-     grows back into that one's. Cross-document view transitions, no JS anywhere. */
+  /* PAGE TRANSITIONS: this page's body grows out of the flip-lab's preview card; the card
+     below shrinks the way back. Cross-document view transitions, no JS anywhere. */
+  html { background: #fdfcf8; }
   @view-transition { navigation: auto; }
-  h1 { view-transition-name: swap-hero; }
-  .crosslink { view-transition-name: flip-hero; font-weight: 700; }
-  ::view-transition-group(flip-hero), ::view-transition-group(swap-hero) { animation-duration: 0.5s; }
+  body { view-transition-name: swap-hero; }
+  .crosslink { view-transition-name: flip-hero; }
+  ::view-transition-group(flip-hero), ::view-transition-group(swap-hero) { animation-duration: 0.55s; }
+  .crosslink { display: block; width: 200px; text-decoration: none; color: inherit;
+    border: 1px solid #ddd; border-radius: 0.7rem; background: #fff; padding: 0.6rem;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.06); }
+  .crosslink b { display: block; font-size: 0.8rem; margin-bottom: 0.4rem; }
+  .crosslink .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; }
+  .crosslink .mini-grid i { height: 1.1rem; border: 1px solid #ddd; border-radius: 0.25rem; background: #f7f4ec; }
+  .crosslink .go { display: block; font-size: 0.75rem; color: #7c66e0; font-weight: 700; margin-top: 0.4rem; }
 </style>
 
 <h1>swap lab — <code>animate: true</code> on <code>data-vd-fetch</code></h1>
-<p class="note">Sibling: <a class="crosslink" href="flip-lab.html">grow this back into the flip lab →</a></p>
+<a class="crosslink" href="flip-lab.html">
+  <b>flip lab</b>
+  <span class="mini-grid"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+  <span class="go">click — this preview grows into the whole page →</span>
+</a>
 <p class="note">Each button fetches a fragment and swaps it into the panel. With
 <code>animate: true</code> the region morphs old-to-new through the platform's view transition —
 the outgoing markup crossfades away instead of vanishing, which is the leave animation removed
@@ -51,8 +63,9 @@ fragment proves it: its button works with no hydration step).</p>
 
 /* the cross-page grow — CSS only, both pages carry it */
 @view-transition { navigation: auto; }
-h1 { view-transition-name: swap-hero; }
-.crosslink { view-transition-name: flip-hero; }</code></pre>
+body { view-transition-name: swap-hero; }        /* this page IS the swap hero…      */
+.crosslink { view-transition-name: flip-hero; }  /* …and previews the flip lab.
+   The names pair across documents: preview card ↔ next page's body. */</code></pre>
   <h2>The wiring — the whole script</h2>
   <pre><code id="src-wiring"></code></pre>
   <p class="note">That's the entire feature surface: <code>animate: true</code> on
