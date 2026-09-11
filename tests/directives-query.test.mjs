@@ -488,3 +488,42 @@ test("the async-commit scope pin: a DEFERRED transition callback breaks nothing 
   host.remove();
   await settled();
 });
+
+test('a superseded commit is a no-op: the stale transition callback cannot clobber a newer sort', async () => {
+  url('/shop');
+  /** VT1's callback is DEFERRED; a second (instant) change lands first. The stale callback
+   *  must not re-apply its old arrays — the live shrink-and-regrow bug on quick toggles. */
+  let deferred = null;
+  let calls = 0;
+  dom.window.document.startViewTransition = (callback) => {
+    calls++;
+    if (calls === 1) {
+      let done;
+      const finished = new Promise((resolve) => { done = resolve; });
+      deferred = () => { callback(); done(); };
+      return { finished };
+    }
+    callback();
+    return { finished: Promise.resolve() };
+  };
+  const host = await mount(`
+    <div data-vd-state="{ s: '' }" data-shop4>
+      <ul data-vd-list="{ items: 'li', sort: 's', animate: true }">
+        <li data-price="2">x</li><li data-price="1">y</li><li data-price="3">z</li>
+      </ul>
+    </div>`);
+  const state = stateOf(host.querySelector('[data-shop4]'));
+  state.s = 'price';           /* VT1 — its commit is DEFERRED */
+  await settled();
+  state.s = 'price desc';      /* lands while VT1 is in flight → guard commits INSTANTLY */
+  await settled();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(shown(host), ['z', 'x', 'y'], 'the newer sort owns the DOM');
+  deferred();                  /* the stale callback finally runs */
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(shown(host), ['z', 'x', 'y'],
+    'and the stale callback changed NOTHING — superseded commits are no-ops');
+  delete dom.window.document.startViewTransition;
+  host.remove();
+  await settled();
+});

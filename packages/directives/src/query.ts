@@ -237,6 +237,16 @@ const lastCounts = new WeakMap<Element, { matched: number; pages: number; page: 
  *  the outer pass writes the final state — and can only ever see half-applied DOM. Skipped. */
 const applying = new WeakSet<Element>();
 
+/**
+ * Host → the latest commit's sequence number. A transition's callback runs ASYNC — so a rapid
+ * second change could land its (instant, guarded) commit first, and the FIRST transition's
+ * queued callback then re-applied its STALE arrays mid-capture: the DOM bounced between orders
+ * inside the snapshot window (the live shrink-and-regrow on quick asc/desc toggles). A commit
+ * that has been superseded is a NO-OP — the transition still runs, over whatever the newest
+ * commit already wrote, which degrades to a quiet crossfade instead of a lie.
+ */
+const commitSeq = new WeakMap<Element, number>();
+
 /** One transition at a time per document — a nested startViewTransition is the pileup omni
  *  measured; while one runs, further commits apply instantly inside it. */
 const transitioning = new WeakSet<Document>();
@@ -481,7 +491,10 @@ const list: Directive = {
     lastNeedle.set(el, needle);
     const animate = read('animate') === true;
     for (const mover of movers) if (!changed.includes(mover)) changed.push(mover);
+    const seq = (commitSeq.get(el) ?? 0) + 1;
+    commitSeq.set(el, seq);
     const doCommit = () => {
+      if (commitSeq.get(el) !== seq) return; /* superseded — a newer commit owns the DOM */
       for (const item of items) (item as HTMLElement).hidden = !shown.has(item);
       for (const [parent, ordered] of reorders) {
         for (const item of ordered) parent.appendChild(item);
