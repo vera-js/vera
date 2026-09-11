@@ -277,6 +277,32 @@ test('place: an unknown placement is a refusal, and no request is made worse by 
   await settled();
 });
 
+test('the pun guard: an accumulating feed with a URL-bound depth key warns once (dev only)', async (t) => {
+  const isProd = process.env.VERA_DIST === 'production';
+  const warnings = [];
+  const orig = console.warn;
+  console.warn = (...a) => { warnings.push(a.join(' ')); };
+  try {
+    const host = await mount(`
+      <div data-vd-state="{ page: 1 }" data-vd-query="page">
+        <button id="feedmore" data-vd-fetch="{ url: '${ORIGIN}/markup?page=2', on: 'click', into: '#feed2', place: 'append' }">more</button>
+        <div id="feed2"></div>
+      </div>`);
+    host.querySelector('#feedmore').click();
+    await until(() => host.querySelector('#feed2 [data-vd-on-click]'), 'the append still lands — advisory, not refusal');
+    host.querySelector('#feedmore').click();
+    await new Promise((r) => setTimeout(r, 150));
+    await settled();
+    const hits = warnings.filter((w) => w.includes('[vera] fetch') && w.includes('holes'));
+    if (isProd) assert.equal(hits.length, 0, 'production carries no advisory text');
+    else assert.equal(hits.length, 1, 'dev warns exactly once per element, naming the pun');
+    host.remove();
+    await settled();
+  } finally {
+    console.warn = orig;
+  }
+});
+
 test('THE HEADLINE: markup from the network is live on its first click — no hydration step', async () => {
   const host = await mount(`
     <div data-vd-state="{ clicks: 0 }">

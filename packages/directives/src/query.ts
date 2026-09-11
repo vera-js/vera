@@ -57,10 +57,14 @@ const subscribe = (fn: () => void): (() => void) => {
   return () => listeners.delete(fn);
 };
 
-/** The URL's query as a plain object — what `@route.query.tab` walks. */
-const queryObject = (): Record<string, string> => {
-  const out: Record<string, string> = {};
-  for (const [key, value] of new URLSearchParams(location.search)) out[key] = value;
+/** The URL's query as a plain object — what `@route.query.tab` walks. A repeated key (the
+ *  canonical array write) walks as an array, so `@route.query.tag` is every value, in order. */
+const queryObject = (): Record<string, string | string[]> => {
+  const out: Record<string, string | string[]> = {};
+  for (const [key, value] of new URLSearchParams(location.search)) {
+    const prev = out[key];
+    out[key] = prev === undefined ? value : Array.isArray(prev) ? [...prev, value] : [prev, value];
+  }
   return out;
 };
 
@@ -75,15 +79,31 @@ const writeQuery = (updates: Record<string, unknown>): void => {
   for (const [key, value] of Object.entries(updates)) {
     /** Empty means ABSENT: `?q=&tag=` is noise in a shared link — and so is `?tags=`. */
     if (value === null || value === undefined || value === '' || value === false ||
-        (Array.isArray(value) && value.length === 0)) params.delete(key);
+        (Array.isArray(value) && value.length === 0)) {
+      params.delete(key);
+      params.delete(`${key}[]`);
+    }
     /**
-     * Arrays travel comma-joined (`?tags=css,js`) — the multi-facet shape. Each entry is
-     * URI-encoded FIRST, so a value that itself contains a comma survives the round trip: the
-     * separator commas are ours, any `%2C` inside an entry is the value's. Slug-shaped values
-     * (the overwhelmingly common case) are untouched by the encoding, so their links stay
-     * readable.
+     * Arrays travel as PLAIN REPEATED PARAMETERS (`?tag=css&tag=js`), SORTED — the canonical
+     * write since the 2026-09-11 conventions amendment. Repeated is what a no-JS
+     * `<form method="get">` of checkboxes already submits, so the JS and no-JS paths emit ONE
+     * URL shape; array-ness lives out-of-band (the count, or the seed) so no entry ever needs
+     * an escape rule; and sorting makes equal filter SETS equal URLs — one cache key, one
+     * canonical page, whatever order the boxes were clicked. The comma-joined form this
+     * replaces is still READ (see `seedFromUrl` — readers are liberal), never written.
+     *
+     * The one in-band-ambiguous corner: a SINGLE entry containing a comma would read back as
+     * legacy comma-form and split. The `[]` spelling exists to declare shape exactly when the
+     * value cannot — that corner writes `?tag[]=y,z` and the declared-repeated reader keeps
+     * the comma.
      */
-    else if (Array.isArray(value)) params.set(key, value.map((v) => encodeURIComponent(String(v))).join(','));
+    else if (Array.isArray(value)) {
+      params.delete(key);
+      params.delete(`${key}[]`);
+      const entries = value.map((v) => String(v)).sort();
+      if (entries.length === 1 && entries[0].includes(',')) params.append(`${key}[]`, entries[0]);
+      else for (const entry of entries) params.append(key, entry);
+    }
     else params.set(key, String(value));
   }
   const search = params.toString();

@@ -73,6 +73,9 @@ const resolveUrl = (raw: unknown): { href: string; sameOrigin: boolean } | null 
   return { href: url.href, sameOrigin };
 };
 
+/** Elements already warned about URL-bound feed depth — the pun guard fires once per element. */
+const warnedFeedDepth = new WeakSet<Element>();
+
 /** The element a swap writes into: a selector, or the element itself. */
 const swapTarget = (el: Element, into: unknown): Element | null => {
   if (into === undefined || into === 'self') return el;
@@ -222,6 +225,29 @@ const fetchDirective: Directive = {
               if (place !== 'replace' && place !== 'append' && place !== 'prepend') {
                 context.reject('fetch-place-unknown', [String(place)]);
                 return;
+              }
+              /**
+               * THE PUN GUARD (conventions Law 1): `page` may mean "the Nth window" (list's
+               * paged view — replace semantics, shareable-complete) or "depth reached" (a
+               * feed). An ACCUMULATING request whose own URL carries a `data-vd-query`-bound
+               * key is the second wearing the first's clothes, and a shared link then opens
+               * with holes — pages 2..N-1 were DOM, not URL. Advisory, not a refusal: the
+               * request is fine, the sharing story is what breaks.
+               */
+              if (__DEV__ && place !== 'replace' && !warnedFeedDepth.has(element)) {
+                const bound = element.closest('[data-vd-query]')?.getAttribute('data-vd-query');
+                const requested = new URL(target.href).searchParams;
+                const pun = (bound ?? '').split(/[\s,]+/).filter(Boolean)
+                  .find((key) => requested.has(key) || requested.has(`${key}[]`));
+                if (pun) {
+                  warnedFeedDepth.add(element);
+                  console.warn(
+                    `[vera] fetch: this accumulating feed's "${pun}" is URL-bound through data-vd-query, ` +
+                    `so a shared link opens with holes — the middle pages were DOM, not URL. ` +
+                    `A feed shares a POSITION: an item fragment (#id), or a server cursor the ` +
+                    `establishment request can start from. Keep "${pun}" out of data-vd-query.`
+                  );
+                }
               }
               const markup = await response.text();
               const current = claimCommit(into);

@@ -126,7 +126,11 @@ designed page.
   same-origin only, always. `place: 'append'` or `'prepend'` accumulates instead of replacing —
   existing content is parsed around, never rewritten, so its state and handlers survive; infinite
   scroll is `on` an in-view event + `place: 'append'` + a page key, three existing pieces
-  composing. `animate: true` sends the swap through the same flip door as `list`:
+  composing — but keep the feed's DEPTH out of `data-vd-query`: an accumulating view's middle
+  pages are DOM, not URL, so a shared link would open with holes. A feed shares a POSITION — an
+  item fragment (`#id`), or a server cursor the establishment request can start from — and the
+  engine warns about the depth-in-URL pun in development. `animate: true` sends the swap through
+  the same flip door as `list`:
   the region morphs old-to-new via `startViewTransition` — the leave animation removed content
   never had — and degrades to the instant swap wherever the door refuses (`on: 'load'` is
   establishment and never animates; no support and reduced-motion fall through).

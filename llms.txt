@@ -1049,7 +1049,12 @@ WITH `value` → membership in an array key (the multi-facet shape) · radio →
 checked · `<select multiple>` (or any control whose `type` is `select-multiple`, e.g.
 `<vera-select multi>`) → the whole array. State seeds may hold array literals — `{ tags: ['a'] }`
 (literals only in the base grammar; the expressions tier evaluates entries). `data-vd-query`
-round-trips arrays comma-joined (`?tags=a,b`; entries URI-encoded first, so a value's own comma survives) and restores the SHAPE the seed declares.
+round-trips arrays as SORTED repeated params (`?tag=css&tag=js` — the same shape a no-JS
+`<form method="get">` submits, and sorted so equal filter sets are equal URLs) and restores the
+SHAPE the seed declares. Readers are liberal: comma-joined (`?tags=a,b`) and PHP-style
+`?tags[]=a&tags[]=b` links seed the same array. Keep a FEED's depth out of `data-vd-query` — an
+accumulating view's middle pages are DOM, not URL, so a shared link would open with holes; share
+an item fragment or a server cursor instead (the engine warns about this pun in development).
 
 <!-- recipe -->
 ```js

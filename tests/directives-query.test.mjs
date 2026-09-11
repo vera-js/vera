@@ -324,8 +324,8 @@ test('checkbox groups write the array, and a shared ?tags= link restores it', as
   change(fruit, true);
   change(tool, true);
   await settled();
-  assert.match(dom.window.location.search, /tags=fruit%2Ctool|tags=fruit,tool/,
-    'membership rides the URL comma-joined');
+  assert.match(dom.window.location.search, /tags=fruit&tags=tool/,
+    'membership rides the URL as SORTED repeated params — the same shape a no-JS form submit emits');
   change(fruit, false);
   await settled();
   assert.deepEqual(stateOf(host.firstElementChild).tags, ['tool'], 'unchecking removes');
@@ -385,6 +385,33 @@ test('an array literal in the seed pre-selects — the other half of shape-from-
     </div>`);
   assert.deepEqual([...host.querySelectorAll('input')].map((box) => box.checked), [true, true, false],
     'the seeded values arrive checked');
+  host.remove();
+  await settled();
+});
+
+test('the canonical write: sorted repeated params, and the []-declared comma corner', async () => {
+  url('/shop');
+  const host = await mount(`
+    <div data-vd-state="{ tag: [] }" data-vd-query="tag" data-canon>
+      <b data-vd-text="tag"></b>
+    </div>`);
+  const state = stateOf(host.querySelector('[data-canon]'));
+
+  /** Clicked z-then-a: equal filter SETS must be equal URLs — one cache key, one canonical page. */
+  state.tag = ['zebra', 'alpha'];
+  await settled();
+  assert.equal(dom.window.location.search, '?tag=alpha&tag=zebra', 'entries write SORTED');
+
+  /** The one in-band-ambiguous corner: a single entry carrying a comma declares its shape. */
+  state.tag = ['y,z'];
+  await settled();
+  assert.match(dom.window.location.search, /tag%5B%5D=y%2Cz|tag\[\]=y%2Cz/,
+    'a lone comma-carrying entry writes the [] form, so it cannot read back as legacy comma-join');
+
+  /** And clearing removes BOTH spellings. */
+  state.tag = [];
+  await settled();
+  assert.equal(dom.window.location.search, '', 'empty deletes the plain and [] params alike');
   host.remove();
   await settled();
 });
