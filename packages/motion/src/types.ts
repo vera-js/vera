@@ -568,9 +568,10 @@ export interface RuntimeSettings {
    * check below is one property read.
    */
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
-  /** `false` = the cache-escape hatch: generated CSS delivered as a style CHILD of each
-   *  animated element instead of the shared registry sheet. Default true (hoisted). */
-  readonly hoist?: boolean;
+  /** `true` = the cache-escape hatch: generated CSS delivered as a style CHILD of each
+   *  animated element instead of the shared registry sheet — the same key and polarity as the
+   *  server's `renderMotion(doc, { inline: true })`. Default false (hoisted). */
+  readonly inline?: boolean;
   readonly translateZFix?: boolean;
   readonly transformOrigin?: string;
 }

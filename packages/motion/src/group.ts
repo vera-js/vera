@@ -47,8 +47,8 @@ export interface RegionOptions {
   readonly translateZFix: boolean;
   readonly transformOrigin: string;
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
-  /** `false` = inline delivery (the cache-escape hatch); see RuntimeSettings.hoist. */
-  readonly hoist?: boolean;
+  /** `true` = inline delivery (the cache-escape hatch); see RuntimeSettings.inline. */
+  readonly inline?: boolean;
 }
 
 
@@ -174,7 +174,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     onProgress: options.onProgress,
     translateZFix: options.translateZFix,
     transformOrigin: options.transformOrigin,
-    hoist: options.hoist,
+    inline: options.inline,
   };
   const scroller: Window | HTMLElement = options.scrollElement;
   const dropped: DroppedElement[] = [];

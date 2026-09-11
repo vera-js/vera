@@ -562,7 +562,7 @@ export const createRuntimeElement = (
      *  path for the drive machinery alone: the same chase, ramp and variable write, aimed at its
      *  function instead of a rule. */
     if (generatedCss.groups.length || generatedCss.mode === 'transition') {
-      if (settings.hoist === false) {
+      if (settings.inline === true) {
         /** Inline mode: no shared sheet, so no global tails either — the per-hash copies ride
          *  inside the child (inlineCssFor). Nothing to release at teardown; the child goes. */
         inlineDeliver(node, generatedCss);
@@ -618,7 +618,7 @@ export const createRuntimeElement = (
     generated = {
       hash: generatedCss.hash,
       transition: generatedCss.mode === 'transition',
-      inline: settings.hoist === false,
+      inline: settings.inline === true,
       cascade,
       geometric: parsed.animations.some((a) =>
         a.keyframes.some((f) => f.positionUnit !== '%') ||

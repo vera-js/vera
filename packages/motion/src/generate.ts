@@ -665,7 +665,7 @@ export const fromAttribute = (node: Element, raw: string): Generated | null => {
  * the media switches after the element rule). The page-wide neutraliser tails ride along scoped
  * to this hash, because an inline block cannot rely on a shared sheet existing.
  *
- * This is the cache-escape hatch's engine: `motion({ hoist: false })` and
+ * This is the cache-escape hatch's engine: `motion({ inline: true })` and
  * `renderMotion(doc, { inline: true })` deliver THIS as a `<style data-vm-sheet="inline">` child
  * of the animated element, so a cached fragment carries its own CSS. The costs are documented at
  * the option: duplicate rules across same-hash elements (the shared registry's dedup is the

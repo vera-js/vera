@@ -1,5 +1,5 @@
 /**
- * INLINE delivery — `hoist: false` / `renderMotion({ inline: true })`, the cache-escape hatch.
+ * INLINE delivery — `inline: true` on BOTH surfaces (client factory and renderMotion), the cache-escape hatch.
  *
  * The contract, all four corners: (1) SSR inline emits each element's rules as its OWN style
  * child and writes NO document sheet (a cached fragment is complete); (2) re-rendering rendered
@@ -45,9 +45,9 @@ test('SSR inline: rules travel with the element, the head stays empty, re-render
   assert.equal(doc.body.innerHTML, before, 'rendering rendered markup changes nothing');
 });
 
-test('client hoist:false delivers the child, and an attribute edit rewrites it', async () => {
+test('client inline:true delivers the child, and an attribute edit rewrites it', async () => {
   const { wireDirectives, motion, settled } = await load('directives');
-  wireDirectives([motion({ inertia: 0, hoist: false })]);
+  wireDirectives([motion({ inertia: 0, inline: true })]);
   const host = document.createElement('div');
   host.innerHTML = `<div id="b" data-vd-motion="${VALUE}">x</div>`;
   const el = host.querySelector('#b');

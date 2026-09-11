@@ -53,14 +53,16 @@ export interface MotionOptions {
   /** Per-frame progress callback — a callback rather than an event; see events.ts. */
   onProgress?: (node: HTMLElement, progress: number) => void;
   /**
-   * `false` delivers each element's generated CSS as a `<style data-vm-sheet="inline">` CHILD of
+   * `true` delivers each element's generated CSS as a `<style data-vm-sheet="inline">` CHILD of
    * the element instead of the shared registry sheet — the CACHE-ESCAPE HATCH: a cached or
-   * replayed fragment carries its own rules. Costs, stated where the choice is made: duplicate
-   * rules across same-hash elements (shared-sheet dedup is what is being traded), a
-   * `:first-child`/`:nth-child` shift inside the element (the style IS a child), and `@property`
-   * cannot ride inline (document-global in every engine; the wire registers it via JS instead).
+   * replayed fragment carries its own rules. THE SAME KEY, SAME POLARITY as the server's
+   * `renderMotion(doc, { inline: true })`, deliberately. Costs, stated where the choice is
+   * made: duplicate rules across same-hash elements (shared-sheet dedup is what is being
+   * traded), a `:first-child`/`:nth-child` shift inside the element (the style IS a child), and
+   * `@property` cannot ride inline (document-global in every engine; the wire registers it via
+   * JS instead).
    */
-  hoist?: boolean;
+  inline?: boolean;
 }
 
 const DEFAULTS = {
@@ -71,7 +73,7 @@ const DEFAULTS = {
   disableOnTouch: false,
   translateZFix: false,
   transformOrigin: '',
-  hoist: true,
+  inline: false,
 } as const;
 
 const KNOWN_OPTIONS = new Set([...Object.keys(DEFAULTS), 'onProgress']);
@@ -216,7 +218,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
     transformOrigin: defaults.transformOrigin,
     /** FACTORY-ONLY, deliberately: delivery mode is the page's build/caching posture, not an
      *  attribute's business — same reasoning as `breakpoints`. */
-    hoist: defaults.hoist,
+    inline: defaults.inline,
     onProgress,
   };
 };
