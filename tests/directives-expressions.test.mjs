@@ -109,3 +109,25 @@ test('state initials are expressions, in declaration order, against earlier keys
   assert.equal(host.querySelector('i').hidden, false);
   host.remove();
 });
+
+test('WRITES HOLD DATA: an assignment\'s nested object literal deep-evaluates into state', async () => {
+  const host = doc.createElement('div');
+  host.innerHTML = `
+    <div data-vd-state="{ draft: 'ada', n: 3, out: {} }">
+      <input data-vd-sync="draft">
+      <button data-vd-on-click="{ out: { say: draft, count: n + 1, tag: ['a', draft] } }">go</button>
+      <b data-vd-text="out.say"></b>
+    </div>`;
+  doc.body.appendChild(host);
+  await settled();
+  host.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  await settled();
+  const out = stateOf(host.firstElementChild).out;
+  assert.equal(typeof out.say, 'string', 'a nested path leaf became its VALUE, not a parsed node');
+  assert.equal(out.say, 'ada');
+  assert.equal(out.count, 4, 'a nested expression evaluated');
+  assert.deepEqual([...out.tag], ['a', 'ada'], 'array literals deep-evaluate too');
+  assert.equal(host.querySelector('b').textContent, 'ada', 'and a reflection over the written path renders data');
+  host.remove();
+  await settled();
+});

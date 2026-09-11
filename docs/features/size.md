@@ -132,13 +132,13 @@ describing the bytes honestly.)*
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/inserts` | 357 B | the extension point |
-| `@verajs/directives/core` | 6 088 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 7 413 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/core` | 6 141 B | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | 7 470 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 760 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 186 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 2 243 B | the sensors pack — environment to state |
-| `@verajs/directives/remote` | 3 683 B | the remote pack — server-driven interactions |
+| `@verajs/directives/remote` | 3 669 B | the remote pack — server-driven interactions |
 | `@verajs/directives/motion` | 25 170 B | the motion pack — presets, easings, paint, path, sequence, split |
 | `@verajs/motion/core` | 12 159 B | the motion engine — compiler + writer, no directives engine, no packs |
 | `@verajs/motion/ssr` | 11 642 B | renderMotion — mark a server document, emit its sheet |

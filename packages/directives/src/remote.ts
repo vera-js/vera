@@ -571,18 +571,9 @@ const streamDirective: Directive = {
         const sendKey = typeof read('send') === 'string' ? (read('send') as string) : null;
         if (sendKey && target.transport === 'sse') context.reject('stream-sse-send');
         /** READING the outbox here is what subscribes the pump: a write re-runs this apply.
-         *  Deep-evaluated before serialization, the same way fetch treats its body and for the
-         *  same reason: an assignment's NESTED object literal reaches state with its leaves
-         *  still parsed (lazy is the engine's contract), and the wire must carry data. */
-        const deepData = (node: unknown): unknown => {
-          if (isObject(node as never)) {
-            const out: Record<string, unknown> = {};
-            for (const [k, v] of Object.entries(node as Record<string, unknown>)) out[k] = deepData(v);
-            return out;
-          }
-          return context.eval(node);
-        };
-        const outgoing = sendKey && target.transport === 'ws' ? deepData(context.get(sendKey)) : undefined;
+         *  Plain data by the engine's writes-hold-data rule (assignments deep-evaluate since
+         *  2026-09-11), so the wire form is one stringify away. */
+        const outgoing = sendKey && target.transport === 'ws' ? context.get(sendKey) : undefined;
 
         if (!current || current.href !== target.href) {
           current?.unsubscribe();

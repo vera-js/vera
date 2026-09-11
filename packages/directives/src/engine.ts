@@ -498,9 +498,32 @@ const evaluate = (el: Element, v: Parsed, overlay?: Record<string, unknown>): un
   return v;
 };
 
+/**
+ * Deep evaluation, for WRITES alone (decided 2026-09-11): state must hold DATA. An assignment's
+ * NESTED object literal — `{ out: { say: draft } }` — used to reach the store with its leaves
+ * still parsed, so `out.say` was a path node and every consumer of such state (the stream
+ * pack's send pump, a `data-vd-text="out.say"`) either misrendered or grew its own walk.
+ * Attribute-value laziness is untouched — this runs only where an attribute's value becomes a
+ * store's value.
+ *
+ * The dispatch is on the PARSED node, never the evaluated result, and that is load-bearing: a
+ * kind-less plain object or an array IS the attribute's literal (paths and expressions carry
+ * `kind`), while an object a path evaluates to is someone's live state — walking that would
+ * subscribe this hook to every key it touches and write back a clone with a different identity.
+ */
+const evaluateDeep = (el: Element, v: Parsed): unknown => {
+  if (Array.isArray(v)) return v.map((entry) => evaluateDeep(el, entry as Parsed));
+  if (v !== null && typeof v === 'object' && (v as { kind?: string }).kind === undefined) {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(v)) out[key] = evaluateDeep(el, entry as Parsed);
+    return out;
+  }
+  return evaluate(el, v);
+};
+
 /** Run an assignments object: `{ key: value, ... }` — every write goes through the store. */
 const runAssignments = (el: Element, obj: ParsedObject) => {
-  for (const key of Object.keys(obj)) writeKey(el, key, evaluate(el, obj[key]));
+  for (const key of Object.keys(obj)) writeKey(el, key, evaluateDeep(el, obj[key]));
 };
 
 /* ── actions: the named escape hatch (design §17.4) ───────────────────────────────────────── */
