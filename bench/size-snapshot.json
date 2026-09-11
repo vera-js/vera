@@ -11,8 +11,8 @@
       "gzip": 4450
     },
     "router": {
-      "raw": 9770,
-      "gzip": 4092
+      "raw": 10449,
+      "gzip": 4419
     },
     "autoloader": {
       "raw": 3919,
@@ -63,36 +63,36 @@
       "gzip": 2343
     },
     "directives-interactions": {
-      "raw": 10396,
-      "gzip": 3752
+      "raw": 10427,
+      "gzip": 3760
     },
     "directives-query": {
-      "raw": 4993,
-      "gzip": 2093
+      "raw": 7321,
+      "gzip": 3132
     },
     "directives-sensors": {
       "raw": 5651,
       "gzip": 2243
     },
     "directives-remote": {
-      "raw": 2643,
-      "gzip": 1306
+      "raw": 8231,
+      "gzip": 3420
     },
     "directives-motion": {
-      "raw": 70072,
-      "gzip": 23244
+      "raw": 76200,
+      "gzip": 25164
     },
     "motion": {
-      "raw": 34238,
-      "gzip": 11445
+      "raw": 36539,
+      "gzip": 12159
     },
     "motion-ssr": {
-      "raw": 32964,
-      "gzip": 10719
+      "raw": 36037,
+      "gzip": 11642
     },
     "motion-client": {
-      "raw": 7752,
-      "gzip": 2861
+      "raw": 7795,
+      "gzip": 2883
     }
   },
   "apps": [

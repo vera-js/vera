@@ -446,7 +446,7 @@ const configDirective: Directive = {
 
 const connect = (options?: MotionOptions): EngineConnector => (seams) => {
   /** Page problems land in the engine's registry like every other refusal. */
-  setProblemReporter((code, args) => seams.reject(null, 'motion', code, args));
+  setProblemReporter((code, args, element) => seams.reject(element ?? null, 'motion', code, args));
   resolveOptions(options ?? {});
   seams.directive(motionDirective);
   seams.directive(configDirective);
@@ -465,7 +465,7 @@ export const motion = dual<MotionOptions>(connect);
  * body registers its rows. Exported so third parties write the same shape.
  */
 export const motionExtension = (rows: WirableTree): EngineConnector => (seams) => {
-  setProblemReporter((code, args) => seams.reject(null, 'motion', code, args));
+  setProblemReporter((code, args, element) => seams.reject(element ?? null, 'motion', code, args));
   registerVocabulary(rows);
 };
 

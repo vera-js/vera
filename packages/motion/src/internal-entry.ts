@@ -12,7 +12,7 @@ export {
 export type { RegionOptions } from './group.js';
 export {
   registerVocabulary, setProblemReporter, parseEasing, parseSelector, parseOrigin,
-  properties, settings, parseMeasure, pageProblem,
+  properties, settings, parseMeasure, pageProblem, elementProblem,
 } from './schema.js';
 export { paintRows } from './paint.js';
 export { pathRows, parsePathData } from './path.js';

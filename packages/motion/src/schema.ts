@@ -49,7 +49,7 @@ import type { Band, InsertMap, PositionUnit, PropertyDef, Range, RawKeyframe, Re
  * `reject` arrives through the connector's seams at wiring time. Before
  * wiring, the fallback still speaks — a problem is never dropped.
  */
-let report: (code: string, args: readonly string[]) => void = (code, args) => {
+let report: (code: string, args: readonly string[], element?: Element) => void = (code, args) => {
   console.warn(`[vera] motion: ${code}${args.length ? ` (${args.join(', ')})` : ''}`);
 };
 export const setProblemReporter = (fn: typeof report): void => {
@@ -57,6 +57,11 @@ export const setProblemReporter = (fn: typeof report): void => {
 };
 /** A page-level problem — no element to hang it on. Codes, like everything else here. */
 export const pageProblem = (code: string, args: readonly string[] = []): void => report(code, args);
+/** A problem WITH a culprit — the verify instrument's shape: on a page of fifty motions, the
+ *  report is only actionable if it names which one the cascade squashed. The element rides the
+ *  reporter seam as an optional third argument, so an element-less reporter is unaffected. */
+export const elementProblem = (element: Element, code: string, args: readonly string[] = []): void =>
+  report(code, args, element);
 
 /**
  * **Keyframe positions are 0-100%, exactly like CSS `@keyframes`.**

@@ -26,7 +26,7 @@
  * muted and nothing is ever reported: jsdom is the regression net, never the oracle.
  */
 import { prefersReducedMotion } from './supports.js';
-import { pageProblem } from './schema.js';
+import { elementProblem } from './schema.js';
 import type { Generated } from './types.js';
 
 /** Documents where computed styles provably do not reach adopted sheets — never report there. */
@@ -95,14 +95,14 @@ export const verifyDelivered = (node: HTMLElement, generated: Generated): void =
       if (!node.hasAttribute('data-vm-armed')) return;
       const properties = computed.transitionProperty;
       if (properties === '' || properties === 'all' || properties === 'none') {
-        pageProblem('motion-css-overridden', ['transition-property', properties || '(empty)']);
+        elementProblem(node, 'motion-css-overridden', ['transition-property', properties || '(empty)']);
       }
       return;
     }
     const applied = computed.animationName.split(',').map((name) => name.trim());
     const expected = expectedNames(generated);
     if (!applied.some((name) => expected.has(name))) {
-      pageProblem('motion-css-overridden', ['animation-name', computed.animationName || '(empty)']);
+      elementProblem(node, 'motion-css-overridden', ['animation-name', computed.animationName || '(empty)']);
     }
   });
 };

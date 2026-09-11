@@ -10,7 +10,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | --- | ---: | ---: |
 | `@verajs/core` | 6.92 KB | **3.04 KB** |
 | `@verajs/renderer` | 11.25 KB | 4.35 KB |
-| `@verajs/router` | 9.54 KB | 4.00 KB |
+| `@verajs/router` | 10.20 KB | 4.32 KB |
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
 | `@verajs/renderer/spread` | 2.51 KB | 1.29 KB |
@@ -23,14 +23,14 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/directives` | 15.30 KB | 5.95 KB |
 | `@verajs/directives/directives-standalone` | 18.81 KB | 7.24 KB |
 | `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
-| `@verajs/directives/directives-interactions` | 10.15 KB | 3.66 KB |
-| `@verajs/directives/directives-query` | 4.88 KB | 2.04 KB |
+| `@verajs/directives/directives-interactions` | 10.18 KB | 3.67 KB |
+| `@verajs/directives/directives-query` | 7.15 KB | 3.06 KB |
 | `@verajs/directives/directives-sensors` | 5.52 KB | 2.19 KB |
-| `@verajs/directives/directives-remote` | 2.58 KB | 1.28 KB |
-| `@verajs/directives/directives-motion` | 68.43 KB | 22.70 KB |
-| `@verajs/motion` | 33.44 KB | 11.18 KB |
-| `@verajs/motion/motion-ssr` | 32.19 KB | 10.47 KB |
-| `@verajs/motion/motion-client` | 7.57 KB | 2.79 KB |
+| `@verajs/directives/directives-remote` | 8.04 KB | 3.34 KB |
+| `@verajs/directives/directives-motion` | 74.41 KB | 24.57 KB |
+| `@verajs/motion` | 35.68 KB | 11.87 KB |
+| `@verajs/motion/motion-ssr` | 35.19 KB | 11.37 KB |
+| `@verajs/motion/motion-client` | 7.61 KB | 2.82 KB |
 <!--/size:table.modules-->
 
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.6 KB<!--/size:app.kb--> gzipped**. For

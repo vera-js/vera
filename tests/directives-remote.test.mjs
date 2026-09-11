@@ -296,7 +296,7 @@ test('place: an unknown placement is a refusal, and no request is made worse by 
   await settled();
 });
 
-test('the pun guard: an accumulating feed with a URL-bound depth key warns once (dev only)', async (t) => {
+test('the pun guard: an accumulating feed with a URL-bound depth key warns once (dev only)', async () => {
   const isProd = process.env.VERA_DIST === 'production';
   const warnings = [];
   const orig = console.warn;

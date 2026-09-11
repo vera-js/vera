@@ -32,7 +32,13 @@ it('a clean delivery verifies silently; an outranking author rule is reported by
   const overridden = rejections().filter((r) => r.code === 'motion-css-overridden');
   expect(overridden.length, 'exactly the squashed element was reported; the clean one stayed silent')
     .to.equal(1);
-  expect(overridden[0].element, 'and it names the right element').to.equal(host.querySelector('#hit'));
+  /** Asserted by ID, not by node: a failing chai equality on two DOM elements drags the
+   *  engine's whole object graph into the diff and kills the runner's reporter mid-serialize —
+   *  the failure then reads as a 120s TIMEOUT with zero tests run. String fields only, here
+   *  and in every browser suite. */
+  expect(overridden[0].element?.id, 'and it names the right element').to.equal('hit');
+  expect(overridden[0].args?.[0] ?? overridden[0].message ?? '', 'and says which property lost')
+    .to.include('animation-name');
 
   authored.remove();
   host.remove();
