@@ -244,7 +244,12 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
   for (let i = 0; i <= samples; i++) {
     const t = i / samples;
     const x = 1 - Math.exp(-decay * t) * (Math.cos(omegaD * t) + (decay / omegaD) * Math.sin(omegaD * t));
-    points.push(String(Math.round((i === samples ? 1 : x) * 1e4) / 1e4));
+    /** THE SPEC'S ROUNDING RULE — floor(x*1e4 + 0.5)/1e4, sign-independent by construction:
+     *  Math.round and PHP's round() diverge only on NEGATIVE half-cases, and spring samples are
+     *  non-negative only BY A FACT ABOUT THE CURVE — a future anticipation family would break
+     *  that coincidence silently. The mirror form makes byte-parity unconditional (omni's
+     *  catch); both engines carry this exact expression. */
+    points.push(String(Math.floor((i === samples ? 1 : x) * 1e4 + 0.5) / 1e4));
   }
   return { fallback: 'ease-out', resolved: `linear(${points.join(', ')})` };
 };
