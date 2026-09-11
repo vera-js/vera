@@ -168,6 +168,14 @@
       "fix": "Write data-vd-fetch=\"{ url: '/path', on: 'click' }\"."
     },
     {
+      "code": "fetch-place-unknown",
+      "params": [
+        "detail"
+      ],
+      "message": "place: \"{detail}\" is not a placement.",
+      "fix": "Use 'append', 'prepend', or omit it for replace."
+    },
+    {
       "code": "fetch-target-missing",
       "params": [
         "detail"
@@ -1077,6 +1085,51 @@
         "key"
       ],
       "message": "\"{key}\" is reserved."
+    },
+    {
+      "code": "stream-foreign-markup",
+      "params": [],
+      "message": "a cross-origin stream may only push JSON — markup is never swapped from another origin.",
+      "fix": "Push application/json-shaped messages, or serve the stream from this origin."
+    },
+    {
+      "code": "stream-json-not-object",
+      "params": [],
+      "message": "a JSON message must be an object of state keys."
+    },
+    {
+      "code": "stream-not-object",
+      "params": [],
+      "message": "data-vd-stream takes a braced object.",
+      "fix": "Write data-vd-stream=\"{ url: '/live', status: 'link' }\"."
+    },
+    {
+      "code": "stream-sse-send",
+      "params": [],
+      "message": "an http(s) stream is receive-only — SSE has no client channel.",
+      "fix": "Send with data-vd-fetch, or use a ws:// url and the same send key."
+    },
+    {
+      "code": "stream-target-missing",
+      "params": [
+        "detail"
+      ],
+      "message": "\"{detail}\" matched no element to swap into."
+    },
+    {
+      "code": "stream-unavailable",
+      "params": [
+        "api"
+      ],
+      "message": "{api} is unavailable here, so the stream never opened."
+    },
+    {
+      "code": "stream-url-refused",
+      "params": [
+        "detail"
+      ],
+      "message": "\"{detail}\" is not a URL this page may stream from.",
+      "fix": "It must be http(s) or ws(s) and same-origin, unless the origin is in remote({ allowedOrigins })."
     },
     {
       "code": "strict-spelling",
