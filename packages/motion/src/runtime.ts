@@ -16,7 +16,7 @@ import { functionFor } from './functions.js';
 
 import { verifyDelivered } from './verify.js';
 import { cessions } from './cede.js';
-import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
+import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 
 import { syncTo, rampTo, dispose } from './drive.js';
 

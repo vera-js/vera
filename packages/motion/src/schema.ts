@@ -1052,9 +1052,24 @@ const STEPS = /^steps\(\s*([1-9]\d*)\s*(?:,\s*(jump-(?:start|end|none|both)|star
  * by anyone. So: an allowlist of the keywords, plus the two functional
  * forms, and nothing else.
  */
-export const parseEasing = (raw: string): string | null => {
+export const parseEasing = (raw: string, allowSpring = false): string | null => {
   const value = raw.trim();
   if ((EASING_KEYWORDS as readonly string[]).includes(value)) return value;
+  /**
+   * `spring` / `spring(<bounce 0..0.95>)` — OURS, not CSS's (no such function exists yet):
+   * generation synthesizes it to `linear()` control points, emitted as a fallback PAIR so an
+   * engine without linear() keeps a sane curve (a shorthand carrying it would invalidate
+   * whole). Gated per call site: `ease` and member eases take it; `inertia-ease` refuses in v1
+   * (its curve is written inline, where the declaration-pair trick has nowhere to live). When
+   * CSS ships a native spring(), this becomes a cede-table row: synthesis stands down.
+   */
+  if (allowSpring) {
+    const spring = /^spring(?:\(\s*(0|0?\.\d+)\s*\))?$/.exec(value);
+    if (spring) {
+      const bounce = spring[1] === undefined ? 0.25 : Number(spring[1]);
+      return bounce <= 0.95 ? (spring[1] === undefined ? 'spring' : `spring(${bounce})`) : null;
+    }
+  }
   if (CUBIC_BEZIER.test(value)) {
     /**
      * The **x** co-ordinates, which CSS bounds to 0-1. `cubic-bezier(2, 0,

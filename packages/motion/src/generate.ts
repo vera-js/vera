@@ -221,6 +221,34 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    * per-category smoothing, and any multi-member target mixing shapes (refuse-don't-distort).
    * Dispatch matrix is parity-agreed with omni's shipped v1.
    */
+
+/**
+ * SPRING SYNTHESIS — `spring` / `spring(<bounce>)` becomes `linear()` control points at
+ * generation, so the compositor carries the physics and the runtime carries nothing (the cede
+ * doctrine; when CSS ships a native spring() this whole function becomes a cede-table
+ * stand-down). Closed-form underdamped settle: damping picked so the envelope decays to <0.1%
+ * by the end of the duration (zeta*omega = 7), bounce mapping zeta = 1 - bounce. Emitted as a
+ * declaration PAIR everywhere it lands — fallback first, linear() second — because a linear()
+ * an engine cannot parse must cost that declaration alone, never the whole shorthand.
+ */
+const springToLinear = (spec: string): { fallback: string; resolved: string } | null => {
+  const match = /^spring(?:\(\s*(0|0?\.\d+)\s*\))?$/.exec(spec);
+  if (!match) return null;
+  const bounce = match[1] === undefined ? 0.25 : Number(match[1]);
+  const zeta = Math.max(0.05, 1 - bounce);
+  const decay = 7;
+  const omega0 = decay / zeta;
+  const omegaD = omega0 * Math.sqrt(Math.max(1e-6, 1 - zeta * zeta));
+  const samples = 16 + Math.round(16 * bounce);
+  const points: string[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const x = 1 - Math.exp(-decay * t) * (Math.cos(omegaD * t) + (decay / omegaD) * Math.sin(omegaD * t));
+    points.push(String(Math.round((i === samples ? 1 : x) * 1e4) / 1e4));
+  }
+  return { fallback: 'ease-out', resolved: `linear(${points.join(', ')})` };
+};
+
   const transitionEmission = ((): Generated | null => {
     const play = parsed.settings['play'];
     if (typeof play !== 'number') return null;
@@ -323,7 +351,10 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
        * "not built yet" text stopped being true here.
        */
       `transition-delay: ${targets.map(() => `calc(var(${STAGGER_PROPERTY}, 0) * ${format(play)}s)`).join(', ')}; ` +
-      `transition-timing-function: ${targets.map((t) => t.timing).join(', ')};`;
+      (targets.some((t) => springToLinear(t.timing))
+        ? `transition-timing-function: ${targets.map((t) => springToLinear(t.timing)?.fallback ?? t.timing).join(', ')}; ` +
+          `transition-timing-function: ${targets.map((t) => springToLinear(t.timing)?.resolved ?? t.timing).join(', ')};`
+        : `transition-timing-function: ${targets.map((t) => t.timing).join(', ')};`);
     /**
      * THE WHEN-FOLD — the gate lives in the cascade. For a transition-mode element whose `when`
      * has no riders (`run-once` keeps the JS gate: a latch is a memory, and CSS has none), the
@@ -610,7 +641,15 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    * spec's ceding constraint: swap the delay-seek for `animation-timeline: view()` and nothing
    * else here changes.
    */
-  const animationList = generatedGroups.map((g) => `${g.name} 1s ${g.ease} both paused`).join(', ');
+  const anySpring = generatedGroups.some((g) => springToLinear(g.ease));
+  const animationList = generatedGroups.map((g) =>
+    `${g.name} 1s ${springToLinear(g.ease)?.fallback ?? g.ease} both paused`).join(', ');
+  /** The spring pair for the seek path — appended AFTER the shorthand so the longhands win,
+   *  fallback line first so an engine without linear() keeps a curve. */
+  const springTiming = anySpring
+    ? ` animation-timing-function: ${generatedGroups.map((g) => springToLinear(g.ease)?.fallback ?? g.ease).join(', ')};` +
+      ` animation-timing-function: ${generatedGroups.map((g) => springToLinear(g.ease)?.resolved ?? g.ease).join(', ')};`
+    : '';
   /**
    * STAGGER rides the seek as a subtraction (stage 8a): the old path shifted every keyframe
    * position by the sibling offset; `base(t - offset)` is the same animation, and the offset is
@@ -644,7 +683,7 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
       : a.property.category === 'filter' ? 'filter'
       : a.property.cssProperty!))].join(', ')}; `
     : '';
-  const declarations = `${cascade}${hints}animation: ${animationList}; animation-delay: ${delayList};`;
+  const declarations = `${cascade}${hints}animation: ${animationList}; animation-delay: ${delayList};${springTiming}`;
 
   /**
    * The BASE variable is in the list unconditionally, not derived from the groups: a tick-only

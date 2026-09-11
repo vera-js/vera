@@ -1024,6 +1024,12 @@ multi-select — any listed value matches, empty array is no filter) · `ranges:
 missing-attribute last; clearing the spec restores the server order) · `page`/`size`/`counts`
 (counts publishes `{ matched, pages, page, total }`).
 
+**Easings**: keywords, `cubic-bezier()` (x clamped 0..1), `steps()` — and `spring` /
+`spring(<bounce 0..0.95>)`, OURS not CSS's: generation synthesizes it to `linear()` control
+points, emitted as a fallback PAIR (`ease-out` first) so an engine without linear() keeps a
+curve. `inertia-ease` refuses springs (v1 — its curve writes inline, where the pair has nowhere
+to live).
+
 `data-vd-sync` follows the native form model: text → string · bare checkbox → boolean · checkbox
 WITH `value` → membership in an array key (the multi-facet shape) · radio → its `value` when
 checked · `<select multiple>` (or any control whose `type` is `select-multiple`, e.g.

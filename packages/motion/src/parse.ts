@@ -240,7 +240,7 @@ const readSetting = (
       break;
     }
     case 'easing': {
-      const easing = typeof value === 'string' ? parseEasing(value) : null;
+      const easing = typeof value === 'string' ? parseEasing(value, key !== 'inertia-ease') : null;
       if (easing === null) no(WHY['easing']!);
       else out[key] = easing;
       break;
@@ -675,7 +675,7 @@ export const parseMotion = (
         }
         const ease = nested['ease'];
         if (ease !== undefined) {
-          const valid = typeof ease === 'string' ? parseEasing(ease) : null;
+          const valid = typeof ease === 'string' ? parseEasing(ease, true) : null;
           if (valid === null) rejected.push({ code: 'motion-setting-easing', args: [], where: `${key}.ease` });
           else slot.ease = valid;
         }

@@ -151,7 +151,7 @@ const resolveOptions = (options: MotionOptions): void => {
   }
   /** The same checks the object keys of the same names get. */
   for (const name of ['ease', 'inertiaEase'] as const) {
-    if (parseEasing(String(merged[name])) === null) {
+    if (parseEasing(String(merged[name]), name === 'ease') === null) {
       pageProblem('motion-option-unusable', [name, JSON.stringify(merged[name]), String(DEFAULTS[name])]);
       (merged as unknown as Record<string, unknown>)[name] = DEFAULTS[name];
     }
@@ -203,7 +203,7 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
   const easing = (key: 'inertia-ease' | 'ease', fallback: string): string => {
     const given = config[key];
     if (given === undefined) return fallback;
-    const valid = typeof given === 'string' ? parseEasing(given) : null;
+    const valid = typeof given === 'string' ? parseEasing(given, key === 'ease') : null;
     if (valid !== null) return valid;
     reportKey(key, 'motion-setting-easing');
     return fallback;
