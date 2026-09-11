@@ -197,7 +197,16 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    *  emissions carry this gate.) */
   const wantsDepth = parsed.animations.some((a) =>
     a.property.key === 'translate-z' || a.property.key === 'rotate-x' || a.property.key === 'rotate-y');
-  const transformPrefix = perspective !== undefined && wantsDepth ? `perspective(${perspective}) ` : '';
+  /**
+   * PERSPECTIVE AS A VARIABLE (owner-ratified 2026-09-10, deferral overruled: pre-adoption
+   * churn is cheap, post-adoption churn breaks builds): the authored value becomes the
+   * FALLBACK, so a container retunes a whole scene with one line of ordinary CSS —
+   * `.scene { --vm-perspective: 1400px }` — no new grammar, no JS. Machine-namespaced (--vm-*),
+   * though this one is deliberately AUTHOR-OVERRIDABLE: the variable is the override door, the
+   * attribute is the default; documented as the one vm variable an author may set.
+   */
+  const transformPrefix = perspective !== undefined && wantsDepth
+    ? `perspective(var(--vm-perspective, ${perspective})) ` : '';
 
   /* ── TRANSITION-MODE PLAY (compile-time dispatch, no authoring surface) ──────────────────────
    *

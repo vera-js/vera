@@ -102,7 +102,15 @@ export const rampTo = (driven: Driven, value: number, seconds: number): void => 
   driven.rampFrom = driven.written ?? 0;
   driven.target = value;
   driven.rampStart = performance.now();
-  driven.rampDuration = seconds;
+  /**
+   * PROPORTIONAL RETIMING — the owner's pick from the ramp lab (candidate B, 2026-09-10): the
+   * duration scales with the DISTANCE, so `seconds` names the full-span time and a mid-flight
+   * reversal travels back at the same speed it came — no tail-drag (the old rule re-ran the
+   * full duration for any distance: a 1s play reversed at 60% crawled home at 0.6x speed).
+   * One rule for every ramp, not a reversal special case: a partial ENTRY is proportional too,
+   * which is what constant velocity means.
+   */
+  driven.rampDuration = seconds * Math.abs(value - driven.rampFrom);
   driven.mode = 'ramp';
   active.add(driven);
   ensureTicking();
