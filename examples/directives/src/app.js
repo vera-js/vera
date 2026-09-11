@@ -744,6 +744,9 @@ customElements.define('app-shell', class extends HTMLElement {
           <a route href="/motion-vocab">Motion vocab</a>
           <a route href="/fun">Fun</a>
           <a route href="/diagnostics">Diagnostics</a>
+          <a href="flip-lab.html">Flip lab ↗</a>
+          <a href="swap-lab.html">Swap lab ↗</a>
+          <a href="stream-lab.html">Stream lab ↗</a>
         </nav>
       </header>
       <main view="main"></main>`;

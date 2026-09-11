@@ -27,6 +27,24 @@ export default {
   files: 'tests/browser/**/*.test.js',
   nodeResolve: true,
   /**
+   * A real SSE wire for the stream suite: the runner's own server pushes one JSON patch and one
+   * named markup event per connection, then holds until the client closes — a real EventSource
+   * against real server bytes, on every engine. (WebSocket stays stub-covered in the node
+   * suite: wtr's server exposes no upgrade seam, and the socket half's logic — pump, queue,
+   * reconnect — is transport-independent.)
+   */
+  middleware: [
+    async (ctx, next) => {
+      if (ctx.path !== '/wtr-sse') return next();
+      ctx.respond = false;
+      const res = ctx.res;
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
+      res.write('data: {"streamed": 21}\n\n');
+      setTimeout(() => res.write('event: story\ndata: <em id="sse-pushed">pushed</em>\n\n'), 60);
+      ctx.req.on('close', () => res.end());
+    },
+  ],
+  /**
    * WebKit is the one that matters most and the one nothing else would catch: `@scope` and
    * `adoptedStyleSheets` have their shakiest support there, and both are load-bearing for
    * `@verajs/styles`. Firefox covers a second engine's custom-element and focus semantics.

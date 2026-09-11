@@ -1029,7 +1029,8 @@ and never sends). `status` writes `connecting`/`open`/`error`. Same-origin unles
 in `remote({ allowedOrigins })` (`wss://site` counts as `https://site` — one authority). No SSR
 half, deliberately: the page's own server render is the establishment; the stream takes over.
 
-**query pack** — `data-vd-route` publishes `@route` (`path`, `query`, `hash`) · `data-vd-query="q
+**query pack** — `data-vd-route` publishes `@route` (`path`, `query`, `hash`; a repeated query
+key walks as an ARRAY — `@route.query.tag` is every value) · `data-vd-query="q
 page"` binds state keys to the URL query string, and the URL WINS at activation so a shared link
 reproduces what the sender saw · `data-vd-list` filters, sorts and paginates the items ALREADY
 INSIDE it. `list` renders nothing and templates nothing: the server sends the list, the directive
