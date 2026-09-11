@@ -166,9 +166,10 @@ rest of this file.
   CONNECTOR and is handed the registry, so a returned function carrying `on` reads as a descriptor.
   **The discriminator differs per registry** — the directives packs test the sigiled `_$seams$`
   mark because `wireDirectives` passes seams, while a core-level dual would have to recognise the
-  registry itself. Copy the pattern, never the check. (`@verajs/router` is the one published module
-  that might plausibly want optional config — `router({ base })` against today's imperative
-  `setBasePath` — which is a deliberate minor bump, not a drive-by.)
+  registry itself. Copy the pattern, never the check. (`@verajs/router` became that dual on
+  2026-09-11 — `router({ animate: true })`, discriminated on the registry itself exactly as this
+  rule anticipated, shipped additive so bare `wire([router])` is untouched; `router({ base })`
+  against today's imperative `setBasePath` remains the other candidate option for it.)
 - **`vera.min.js` is the one bundle not named after its package** (`vera-core.min.js` would be
   symmetric) — deliberate: core is the framework's namesake and that filename is the product's
   front door on a CDN page. Every other package's `filename` matches `vera-<name>`.
