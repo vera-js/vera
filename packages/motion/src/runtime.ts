@@ -15,6 +15,7 @@ import { generateSimple, mergeBandsForWidth, inlineCssFor } from './generate.js'
 import { functionFor } from './functions.js';
 
 import { verifyDelivered } from './verify.js';
+import { cessions } from './cede.js';
 import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 
 import { syncTo, rampTo, dispose } from './drive.js';
@@ -596,32 +597,22 @@ export const createRuntimeElement = (
       void getComputedStyle(node as Element).transitionProperty;
       node.setAttribute('data-vm-armed', '');
     }
-    const cascade = generatedCss.mode === 'seek' && generatedCss.groups.length > 0 &&
-      tick === null && typeof parsed.settings['play'] !== 'number' &&
-      typeof parsed.settings['when'] !== 'string' && parsed.settings['run-once'] !== true &&
-      generatedCss.varName === PROGRESS_PROPERTY && generatedCss.vars.length === 1 &&
-      Number(parsed.settings['inertia'] ?? settings.inertia) === 0;
     /**
-     * Tier N rides ON tier-C eligibility: the same "nothing needs a JS number" conditions, plus
-     * the DEFAULT window (a custom `scroll`/`anchor` is not expressible as a pure
-     * animation-range without geometry), no stagger (view() has no offset), a vertical axis
-     * (the rule says view(block)), and the engine capability — per the element's own view,
-     * memoized. Ineligible or unsupported elements simply keep tier C: the attribute is the
-     * opt-in and the @supports block is the floor.
+     * THE CESSION DISPATCH — every tier condition is a NAMED GUARD in cede.ts's table, and this
+     * call is the whole decision. New folds (new CSS capabilities) add ROWS there, never `&&`
+     * clauses here; the refusal strings are inspector-ready ("tier J because inertia is 0.12").
      */
-    if (cascade && parsed.stagger === undefined &&
-      /** The RANGE gate moved into generation (nativeRangeFor): a custom `scroll` whose
-       *  alignments map statically to animation-range emits a ranged #n rule; one that cannot
-       *  (anchor, mixed families, reversed) emits none, and the empty rule is the refusal. */
-      generatedCss.nativeRule !== '' &&
-      /** The vh-family ranges measure VIEWPORTS; on a region's own scroller the scrollport is
-       *  not the viewport, so those elements keep tier C there. Percent-family ranges are
-       *  scroller-agnostic and stay eligible. */
-      (settings.scrollElement == null || !generatedCss.nativeRule.includes('vh')) &&
-      settings.scrollDirection !== 'horizontal' && supportsViewTimeline(node) &&
-      scrollerScrolls(settings) && nativeViewUnobstructed(node, settings)) {
-      node.setAttribute('data-vm-native', '');
-    }
+    const ceded = cessions({
+      parsed, generated: generatedCss, settings, node,
+      env: {
+        supportsViewTimeline: supportsViewTimeline(node),
+        scrollerScrolls: scrollerScrolls(settings),
+        unobstructed: nativeViewUnobstructed(node, settings),
+        hasFunction: tick !== null,
+      },
+    });
+    const cascade = ceded.cascade === null;
+    if (ceded.native === null) node.setAttribute('data-vm-native', '');
     generated = {
       hash: generatedCss.hash,
       transition: generatedCss.mode === 'transition',
