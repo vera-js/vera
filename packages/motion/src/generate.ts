@@ -201,12 +201,14 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
    * PERSPECTIVE AS A VARIABLE (owner-ratified 2026-09-10, deferral overruled: pre-adoption
    * churn is cheap, post-adoption churn breaks builds): the authored value becomes the
    * FALLBACK, so a container retunes a whole scene with one line of ordinary CSS —
-   * `.scene { --vm-perspective: 1400px }` — no new grammar, no JS. Machine-namespaced (--vm-*),
-   * though this one is deliberately AUTHOR-OVERRIDABLE: the variable is the override door, the
-   * attribute is the default; documented as the one vm variable an author may set.
+   * `.scene { --vera-perspective: 1400px }` — no new grammar, no JS. AUTHOR-namespaced
+   * (--vera-*), deliberately: the override door is authored surface BY DEFINITION, and naming
+   * it vm would have made "if a name appears in an author's code, it is not vm" false — the
+   * doctrine's negative test stays absolute and machine-checkable (omni's catch, same hour).
+   * Machine emission READING an authored variable breaks no rule; that is what var() is for.
    */
   const transformPrefix = perspective !== undefined && wantsDepth
-    ? `perspective(var(--vm-perspective, ${perspective})) ` : '';
+    ? `perspective(var(--vera-perspective, ${perspective})) ` : '';
 
   /* ── TRANSITION-MODE PLAY (compile-time dispatch, no authoring surface) ──────────────────────
    *
