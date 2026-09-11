@@ -313,7 +313,28 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
        */
       `transition-delay: ${targets.map(() => `calc(var(${STAGGER_PROPERTY}, 0) * ${format(play)}s)`).join(', ')}; ` +
       `transition-timing-function: ${targets.map((t) => t.timing).join(', ')};`;
-    const hash = contentHash(`${baseDecls} ${longhands}||${activeDecls}`);
+    /**
+     * THE WHEN-FOLD — the gate lives in the cascade. For a transition-mode element whose `when`
+     * has no riders (`run-once` keeps the JS gate: a latch is a memory, and CSS has none), the
+     * active rule's selector IS the author's condition: `:where(<when>)` contributes ZERO
+     * specificity — one corpus row proves a wild `#id.class[attr]` still lands 0-2-0 — so the
+     * doubled-marker arithmetic holds for any selector the screen admits (when's own validator:
+     * engine-parsed, :has() refused, ≤200 chars — verbatim embedding is brace-safe because a
+     * brace fails that parse). Consequences, each deliberate:
+     * - the gate BEHAVES with no JavaScript at all — an SSR page toggling classes by any means
+     *   (:hover included) animates before wire. The first emission that behaves rather than
+     *   merely showing an end state; the SPEC's scripting section claims it, so `noJsRule` is
+     *   EMPTY here — pinning an end state would fight the live gate.
+     * - reduced-motion keeps both STATES reachable and removes only the MOTION: the per-hash
+     *   block becomes `transition: none` alone, instant flips instead of a pinned end.
+     * - the runtime keeps its gate WATCH (events, the oscillation breaker) but stops writing
+     *   the on-marker: CSS owns the paint, JS keeps the guards. Nothing is lost.
+     * The gate joins the hash: identical declarations under different conditions are different
+     * identities, or the second element's gate would never reach the shared sheet.
+     */
+    const when = typeof parsed.settings['when'] === 'string' && parsed.settings['run-once'] !== true
+      ? parsed.settings['when'] : null;
+    const hash = contentHash(`${baseDecls} ${longhands}||${activeDecls}||${when ?? ''}`);
 
     return {
       hash,
@@ -328,12 +349,15 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
         `[data-vm-motion="${hash}"][data-vm-motion] { ${baseDecls} }`,
       armedRule:
         `[data-vm-motion="${hash}"][data-vm-armed] { ${longhands} }`,
-      activeRule:
-        `[data-vm-motion="${hash}"][data-vm-on] { ${activeDecls} }`,
-      noJsRule:
-        `@media (scripting: none) { [data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} transition: none; } }`,
-      reducedRule:
-        `@media (prefers-reduced-motion: reduce) { [data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} transition: none; } }`,
+      activeRule: when
+        ? `:where(${when})[data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} }`
+        : `[data-vm-motion="${hash}"][data-vm-on] { ${activeDecls} }`,
+      noJsRule: when
+        ? ''
+        : `@media (scripting: none) { [data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} transition: none; } }`,
+      reducedRule: when
+        ? `@media (prefers-reduced-motion: reduce) { [data-vm-motion="${hash}"][data-vm-motion] { transition: none; } }`
+        : `@media (prefers-reduced-motion: reduce) { [data-vm-motion="${hash}"][data-vm-motion] { ${activeDecls} transition: none; } }`,
     };
   })();
   if (transitionEmission) return transitionEmission;

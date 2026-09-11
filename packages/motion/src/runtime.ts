@@ -718,7 +718,12 @@ export const animateElement = (element: RuntimeElement): void => {
    * until the marker lived here).
    */
   if (element.generated.transition) {
-    if (element.timelinePosition >= element.highestEnd) element.node.setAttribute('data-vm-on', '');
+    /** FOLDED when-gates own their paint in CSS (`:where(<when>)…` is the active rule); the
+     *  runtime's flip would be a second writer. The watch above still runs — events and the
+     *  oscillation breaker keep their guards — the marker writes alone stand down. */
+    if (element.generated?.transition && element.when && !element.runOnce) { /* cascade-owned:
+      the FOLD's exact condition — run-once keeps the JS gate (a latch is a memory). */ }
+    else if (element.timelinePosition >= element.highestEnd) element.node.setAttribute('data-vm-on', '');
     else element.node.removeAttribute('data-vm-on');
     return;
   }

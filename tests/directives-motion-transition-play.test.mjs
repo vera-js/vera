@@ -61,25 +61,27 @@ test('a from→to play compiles to TRANSITION mode: three rules, longhands, no v
   assert.match(css, /transition-property: filter, transform;/, 'longhands, never the shorthand');
   assert.match(css, /transition-duration: 0\.6s, 0\.6s;/, 'the authored seconds per target');
   assert.match(css, /transition-timing-function: ease-out, ease-out;/, 'author ease times plain targets');
-  assert.match(css, new RegExp(`\\[data-vm-motion="${hash}"\\]\\[data-vm-on\\]`), 'the active rule');
-  assert.match(css, /@media \(scripting: none\)[^}]*transition: none/, 'no-JS gets the END state statically');
-  assert.ok(css.indexOf('[data-vm-on]') > css.indexOf('transition-property'),
-    'active AFTER base — order is the flip mechanism');
+  assert.match(css, new RegExp(`:where\\(\\.go\\)\\[data-vm-motion="${hash}"\\]\\[data-vm-motion\\]`),
+    'the active rule IS the author condition — the when-fold, zero-specificity wrapped');
+  assert.doesNotMatch(css, new RegExp(`scripting: none[^}]*${hash}`),
+    'a FOLDED gate ships no scripting-none pin — the fold IS the no-JS behavior (the doctrine claim)');
+  assert.match(css, new RegExp(`prefers-reduced-motion[^{]*\\{ \\[data-vm-motion="${hash}"[^}]*transition: none`),
+    'reduced-motion strips the MOTION and keeps both states reachable — no end-state pin for a gate');
+  assert.ok(css.indexOf(':where(.go)') > css.indexOf('transition-property'),
+    'active AFTER base — order is the flip mechanism (folded spelling)');
 
-  /** The toggle: gate opens → marker on; closes → off (native reversal carries the values). */
-  assert.equal(el.hasAttribute('data-vm-on'), false, 'resting below the gate');
+  /** The toggle, POST-FOLD: the class itself is the switch — the runtime writes no marker for a
+   *  folded gate (CSS owns the paint; JS keeps the watch). What flips is the CASCADE. */
+  assert.equal(el.hasAttribute('data-vm-on'), false, 'no marker at rest — and none ever, folded');
   el.classList.add('go');
   await settled();
   await new Promise((r) => setTimeout(r, 40));
-  assert.equal(el.hasAttribute('data-vm-on'), true, 'entered: one attribute flip IS the driver');
+  assert.equal(el.hasAttribute('data-vm-on'), false, 'entered: STILL no marker — the class in the cascade is the whole flip');
+  assert.ok(el.classList.contains('go'), "the CONTROL: the class really is on, so :where(.go) matches");
   el.classList.remove('go');
   await settled();
-  await new Promise((r) => setTimeout(r, 40));
-  assert.equal(el.hasAttribute('data-vm-on'), false, 'left: the platform reverses from current');
-
   host.remove();
   await settled();
-  assert.equal(el.hasAttribute('data-vm-on'), false, 'teardown strips the marker');
 });
 
 test('a shaped single member synthesizes linear() — overshoot points and all', async () => {

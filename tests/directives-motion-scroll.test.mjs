@@ -46,12 +46,25 @@ const at = async (attr, top = 100) => {
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
 const progressOf = (el) => Number(el.style.getPropertyValue('--vm-p'));
 const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
+const sheetText = () => {
+  const doc = dom.window.document;
+  const adopted = [...doc.adoptedStyleSheets ?? []].flatMap((sheet) => [...sheet.cssRules].map((r) => r.cssText));
+  const fallback = [...doc.querySelectorAll('style[data-vm-sheet]')].map((n) => n.textContent);
+  return [...adopted, ...fallback].join('\n');
+};
 const opacity = (el) => {
   /** Transition-mode play (the K fixture from→to compiles to it) has NO variable — its jsdom
    *  surface is the marker state: on = the authored end, off = the start. Seek elements keep
    *  the variable read. jsdom evaluates neither animation nor transition VALUES; both reads
    *  are the honest surface, and value truth is the browser suites'. */
-  if (el.hasAttribute('data-vm-armed')) return el.hasAttribute('data-vm-on') ? '1' : '0';
+  if (el.hasAttribute('data-vm-armed')) {
+    if (el.hasAttribute('data-vm-on')) return '1';
+    /** FOLDED gates write no marker — the active rule's own :where(<when>) is the surface:
+     *  extract it from the sheet and ask matches(), exactly what the cascade asks. */
+    const hash = el.getAttribute('data-vm-motion');
+    const fold = sheetText().match(new RegExp(`:where\\((.*?)\\)\\[data-vm-motion="${hash}"`));
+    return fold && el.matches(fold[1]) ? '1' : '0';
+  }
   const v = progressOf(el); return Number.isFinite(v) ? String(Math.min(1, Math.max(0, v))) : undefined; };
 
 test('the long form of scroll reproduces the defaults exactly', async () => {
