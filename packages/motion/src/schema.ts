@@ -318,6 +318,24 @@ export const SETTINGS = [
    */
   { key: 'progress', type: 'string', code: 'motion-setting-progress',
     parse: (raw) => (/^--[\w-]+$/.test(raw.trim()) ? raw.trim() : null) },
+  /**
+   * **A fourth way to drive the same timeline `scroll` drives** (SPEC-POINTER): the pointer's
+   * position becomes the progress. `'x' | 'y' | 'distance'`, or a SOURCE CHAIN —
+   * `pointer: 'x, scroll'`, the font-family idiom, first-available-wins — whose entries may end
+   * in `scroll` as the fallback for coarse-pointer devices. Deliberately RUNTIME vocabulary:
+   * it never joins the marker hash, so a scroll element and a pointer element with identical
+   * keyframes share one rule. Shape only here (known words); the named refusals — duplicates,
+   * a rest token, scroll leading — live with the other combination checks in parse.
+   */
+  { key: 'pointer', type: 'string', code: 'motion-setting-pointer',
+    parse: (raw) => {
+      const tokens = raw.trim().split(/[\s,]+/).filter(Boolean);
+      if (!tokens.length) return null;
+      for (const token of tokens) {
+        if (token !== 'x' && token !== 'y' && token !== 'distance' && token !== 'scroll' && token !== 'rest') return null;
+      }
+      return tokens.join(', ');
+    } },
   { key: 'run-once', type: 'boolean' },
   /**
    * The THIRD destination for the element's number: a registered JavaScript function, for

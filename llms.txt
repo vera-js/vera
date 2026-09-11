@@ -955,7 +955,17 @@ coming back up past it); two halves are an entrance and an exit. `run-once` latc
 play. `play` beside `inertia` is refused (same transition); `ease` composes with a play — the clock is
 linear over `play` seconds and the easing reshapes each segment as it is swept, so
 `keyframes: { scale: '0% 0, 100% 1' }, ease: 'ease-in-out', play: 0.6` reads exactly as written. **`when: '.selector'` GATES** — it animates while matching and
-rests at its start otherwise; `when` + `play` is a UI transition. `stagger` goes on the PARENT, and
+rests at its start otherwise; `when` + `play` is a UI transition. **`pointer: 'x' | 'y' |
+'distance'` drives the SAME timeline by pointer position instead of scroll** — `x`/`y` track the
+viewport (or the `anchor`'s box), `distance` is euclidean from the scope's center over its
+half-diagonal, clamped so leaving scope reads exactly 1. A SOURCE CHAIN falls back:
+`pointer: 'x, scroll'` uses x on a fine hover-capable pointer, scroll otherwise, and where
+NOTHING is available the variable holds the first source's rest value (x/y 0.5, distance 1) —
+design keyframes so rest is the finished pose, and the page is complete on touch by default.
+`inertia` composes (the mouse-follow feel); the `scroll` SETTING, `stagger` and `play` beside
+`pointer` are refused by name (play's driver is binary and cannot sweep to a fraction —
+deferred, use inertia). The generated CSS is identical to scroll's: the pointer never joins the
+hash, so both drivers share one rule. `stagger` goes on the PARENT, and
 is refused with `play` until a per-sibling time delay exists. `inertia` smooths the value toward its
 target, the one thing CSS scroll-driven animation cannot do — that is a pure function of scroll
 position. **`progress: '--p'`** writes the timeline position to a custom property so CSS can read it

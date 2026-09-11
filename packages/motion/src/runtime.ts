@@ -668,6 +668,13 @@ export const createRuntimeElement = (
       (parsed.stagger !== undefined && parsed.stagger.positionUnit !== '%') ||
       parsed.animations.some((a) => a.geometryDependent || a.bands.length > 0),
     timelinePosition: 0,
+    /** Defensive over the reported chain (SPEC-POINTER refusal grammar: report, stay alive):
+     *  `rest` dropped, duplicates folded. */
+    pointerChain: typeof parsed.settings['pointer'] === 'string'
+      ? [...new Set(parsed.settings['pointer'].split(', ').filter((source) => source !== 'rest'))]
+      : null,
+    pointerActive: null,
+    pointerValue: 0,
     runOnceRan: false,
     runOnce: parsed.settings['run-once'] === true,
     when: typeof parsed.settings['when'] === 'string' ? parsed.settings['when'] : null,
@@ -826,7 +833,57 @@ const writeRangeConstants = (element: RuntimeElement): void => {
   element.node.style.setProperty(RANGE_SIZE_PROPERTY, String(element.rangeSize || 1));
 };
 
+/** SPEC-POINTER §2: rest is the VISIBLE END POSE, per source. `scroll` has no rest — it is
+ *  always available, so a chain reaching it always drives. */
+export const POINTER_REST: Record<string, number> = { x: 0.5, y: 0.5, distance: 1 };
+
+/** The capability that makes a pointer source AVAILABLE (once-at-activation floor; the region
+ *  re-dispatches on its change — SPEC-POINTER §3). */
+export const POINTER_QUERY = '(hover: hover) and (pointer: fine)';
+
+/** First-available-wins over the chain. Returns the driving entry, or null (rest holds). */
+export const resolvePointerSource = (chain: readonly string[]): string | null => {
+  const fine = typeof matchMedia === 'function' && matchMedia(POINTER_QUERY).matches;
+  for (const source of chain) {
+    if (source === 'scroll') return 'scroll';
+    if (fine) return source;
+  }
+  return null;
+};
+
+/**
+ * One pointer event → one 0..1 for one element (SPEC-POINTER §1). Scope is the element's
+ * `anchor` when it names one, else the viewport. `distance` is euclidean from the scope's
+ * center over its half-diagonal, CLAMPED — outside the scope reads exactly 1, the rest value,
+ * deliberately: leaving scope IS coming to rest.
+ */
+export const pointerSourceValue = (element: RuntimeElement, clientX: number, clientY: number): number => {
+  const anchor = element.parsed.settings['anchor'];
+  const scope = typeof anchor === 'string'
+    ? (anchor === 'self' ? element.node : element.node.ownerDocument?.querySelector(anchor)) : null;
+  const rect = scope
+    ? scope.getBoundingClientRect()
+    : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  const clamp = (value: number): number => (value < 0 ? 0 : value > 1 ? 1 : value);
+  const source = element.pointerActive;
+  if (source === 'x') return clamp(rect.width === 0 ? 0 : (clientX - rect.left) / rect.width);
+  if (source === 'y') return clamp(rect.height === 0 ? 0 : (clientY - rect.top) / rect.height);
+  const dx = clientX - (rect.left + rect.width / 2);
+  const dy = clientY - (rect.top + rect.height / 2);
+  const halfDiagonal = Math.hypot(rect.width / 2, rect.height / 2);
+  return clamp(halfDiagonal === 0 ? 1 : Math.hypot(dx, dy) / halfDiagonal);
+};
+
 export const updateTimelinePosition = (element: RuntimeElement, win: WindowSize): void => {
+  /** A live pointer source REPLACES the scroll math — everything downstream (inertia,
+   *  quantization, progress, ticks) is untouched, which is the whole design. A chain resolved
+   *  to `scroll`, or to nothing (rest), falls through to the ordinary window math or holds. */
+  if (element.pointerChain) {
+    if (element.pointerActive !== 'scroll') {
+      element.timelinePosition = element.pointerValue;
+      return;
+    }
+  }
   element.timelinePosition =
     element.rangeSize === 0 ? 0 : (win.start - element.rangeStart) / element.rangeSize;
 };

@@ -787,6 +787,39 @@ export const parseMotion = (
   }
 
   /**
+   * The pointer chain's NAMED refusals (SPEC-POINTER §3-4) — semantic, so they live here with
+   * the other combination checks rather than in the setting's shape parse. Each names its own
+   * defect; the runtime is defensive (dedupes, drops `rest`) so a reported chain still drives
+   * sanely — motion's ordinary refusal grammar, the attribute stays alive.
+   */
+  if (typeof settings['pointer'] === 'string') {
+    const chain = settings['pointer'].split(', ');
+    if (chain.includes('rest'))
+      rejected.push({ code: 'motion-pointer-rest-token', args: [] });
+    const duplicate = chain.find((source, i) => chain.indexOf(source) !== i);
+    if (duplicate !== undefined)
+      rejected.push({ code: 'motion-pointer-duplicate', args: [duplicate] });
+    if (chain[0] === 'scroll')
+      rejected.push({ code: 'motion-pointer-scroll-first', args: [] });
+    if (settings['scroll'] !== undefined)
+      rejected.push({ code: 'motion-pointer-with-scroll', args: [] });
+    if (settings['stagger'] !== undefined)
+      rejected.push({ code: 'motion-pointer-with-stagger', args: [] });
+    /**
+     * DEFERRED from v1, measured rather than assumed: `play` emits TRANSITION mode, whose
+     * driver is binary (armed on/off, the platform owns the time) — it structurally cannot
+     * sweep to a pointer's 0.37. Composing them means the transition gauntlet learning a
+     * pointer row, which is a parity-locked emission change made with the twin, not here.
+     * The smooth mouse-follow feel lives in `inertia`, which composes today.
+     */
+    if (settings['play'] !== undefined)
+      rejected.push({ code: 'motion-pointer-with-play', args: [] });
+    const scrollAt = chain.indexOf('scroll');
+    if (scrollAt >= 0 && scrollAt < chain.length - 1)
+      rejected.push({ code: 'motion-pointer-unreachable', args: [chain.slice(scrollAt + 1).join(', ')] });
+  }
+
+  /**
    * And the neighbouring pair: `inertia-ease` shapes the **catch-up**, and
    * at an effective `inertia` of 0 there is no catch-up to shape. A
    * per-category override above zero rescues it. The region's `inertia` is

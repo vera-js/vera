@@ -51,6 +51,10 @@ const CASCADE_GUARDS: readonly Guard[] = [
     typeof parsed.settings['play'] === 'number' ? 'play walks the timeline in one step' : null],
   ['no-when', ({ parsed }) =>
     typeof parsed.settings['when'] === 'string' ? 'a gate needs the JS watch' : null],
+  /** SPEC-POINTER §5: there is no CSS pointer timeline. When the platform ships one, this row
+   *  comes out — the table doing its job. */
+  ['no-pointer', ({ parsed }) =>
+    typeof parsed.settings['pointer'] === 'string' ? 'a pointer source needs its JS driver' : null],
   ['no-run-once', ({ parsed }) =>
     parsed.settings['run-once'] === true ? 'a latch is a memory, and the cascade has none' : null],
   ['base-variable', ({ generated }) =>

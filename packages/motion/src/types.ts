@@ -643,6 +643,14 @@ export interface RuntimeElement {
 
 
   timelinePosition: number;
+
+  /** Pointer-as-source (SPEC-POINTER): the sanitized chain, or null when scroll drives. */
+  readonly pointerChain: readonly string[] | null;
+  /** The chain entry currently driving — resolved first-available-wins, re-resolved on the
+   *  capability media query's change. Null while nothing is available (the rest pose holds). */
+  pointerActive: string | null;
+  /** The latest 0..1 from the active pointer source; initialized to the FIRST entry's rest. */
+  pointerValue: number;
   runOnceRan: boolean;
   /**
    * The page is not long enough for this element's animation to finish — see

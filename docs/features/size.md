@@ -139,10 +139,10 @@ describing the bytes honestly.)*
 | `@verajs/directives/query` | 3 186 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 2 243 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 669 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 25 170 B | the motion pack — presets, easings, paint, path, sequence, split |
-| `@verajs/motion/core` | 12 159 B | the motion engine — compiler + writer, no directives engine, no packs |
-| `@verajs/motion/ssr` | 11 642 B | renderMotion — mark a server document, emit its sheet |
-| `@verajs/motion/client` | 2 883 B | the reader — delivery, drive and functions, no compiler |
+| `@verajs/directives/motion` | 25 922 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/motion/core` | 12 363 B | the motion engine — compiler + writer, no directives engine, no packs |
+| `@verajs/motion/ssr` | 11 844 B | renderMotion — mark a server document, emit its sheet |
+| `@verajs/motion/client` | 2 950 B | the reader — delivery, drive and functions, no compiler |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).

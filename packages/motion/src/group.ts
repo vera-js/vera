@@ -20,6 +20,7 @@
 import { getWindowSize } from './dom.js';
 
 import { scrollListener, resizeListener } from './eventListeners.js';
+import { POINTER_QUERY, POINTER_REST, pointerSourceValue, resolvePointerSource } from './runtime.js';
 import { createVisibilityTracker } from './visibility.js';
 
 import { emit, EVENTS } from './events.js';
@@ -219,6 +220,50 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
     queueMicrotask(paintPending);
   };
 
+  /* ── the pointer driver (SPEC-POINTER §6) — one listener per region, rAF-coalesced ── */
+  let pointerFrame: number | null = null;
+  let pointerListening = false;
+  const onPointerMove = (event: PointerEvent): void => {
+    for (const element of elements) {
+      if (!element.pointerChain || element.pointerActive === null || element.pointerActive === 'scroll') continue;
+      element.pointerValue = pointerSourceValue(element, event.clientX, event.clientY);
+    }
+    if (pointerFrame !== null) return;
+    pointerFrame = requestAnimationFrame(() => {
+      pointerFrame = null;
+      update();
+    });
+  };
+  /**
+   * Resolution, and RE-dispatch on the capability query's change (a laptop gaining a mouse, a
+   * convertible losing one): first-available-wins per element, the listener attached only while
+   * someone needs it, and an element losing its source is written to REST on the way out — it
+   * must never freeze mid-pose when a mouse unplugs.
+   */
+  const resolvePointer = (): void => {
+    let wanted = false;
+    for (const element of elements) {
+      if (!element.pointerChain) continue;
+      element.pointerActive = resolvePointerSource(element.pointerChain);
+      if (element.pointerActive !== 'scroll') {
+        element.pointerValue = POINTER_REST[element.pointerChain[0]!] ?? 1;
+      }
+      if (element.pointerActive !== null && element.pointerActive !== 'scroll') wanted = true;
+    }
+    if (wanted && !pointerListening) {
+      pointerListening = true;
+      window.addEventListener('pointermove', onPointerMove, { passive: true });
+    } else if (!wanted && pointerListening) {
+      pointerListening = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      if (pointerFrame !== null) {
+        cancelAnimationFrame(pointerFrame);
+        pointerFrame = null;
+      }
+    }
+    update();
+  };
+
   /* ── the frame loop ── */
   const update = (): void => {
     if (!enabled) return;
@@ -308,6 +353,18 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
 
     const scroll = scrollListener(scroller, update);
     teardown.push(scroll.removeScrollListener);
+    if (typeof matchMedia === 'function') {
+      const capability = matchMedia(POINTER_QUERY);
+      capability.addEventListener?.('change', resolvePointer);
+      teardown.push(() => capability.removeEventListener?.('change', resolvePointer));
+    }
+    teardown.push(() => {
+      if (pointerListening) {
+        pointerListening = false;
+        window.removeEventListener('pointermove', onPointerMove);
+      }
+      if (pointerFrame !== null) cancelAnimationFrame(pointerFrame);
+    });
     teardown.push(() => visible?.disconnect());
 
     /**
@@ -388,6 +445,7 @@ export const createRegion = (options: RegionOptions, breakpoints: ReadonlyMap<st
       if (!element) return null;
       elements.push(element);
       byNode.set(parsed.node, element);
+      if (element.pointerChain) resolvePointer();
       elementJoined();
       boxes?.observe(element.node);
       /**

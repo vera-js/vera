@@ -588,6 +588,50 @@
       "fix": "Keep play for a timed playthrough, or inertia for a smoothed scrub."
     },
     {
+      "code": "motion-pointer-duplicate",
+      "params": [
+        "source"
+      ],
+      "message": "the pointer chain lists \"{source}\" twice.",
+      "fix": "Each source may appear once — first-available-wins needs no repeats."
+    },
+    {
+      "code": "motion-pointer-rest-token",
+      "params": [],
+      "message": "\"rest\" is not a chain entry — it is every chain's implicit floor.",
+      "fix": "Remove it; when nothing is available, the first source's rest value holds."
+    },
+    {
+      "code": "motion-pointer-scroll-first",
+      "params": [],
+      "message": "\"scroll\" leads the chain, and scroll is always available — nothing after it can ever drive.",
+      "fix": "Put the pointer source first: pointer: 'x, scroll'."
+    },
+    {
+      "code": "motion-pointer-unreachable",
+      "params": [
+        "tail"
+      ],
+      "message": "after \"scroll\", {tail} can never drive — scroll is always available."
+    },
+    {
+      "code": "motion-pointer-with-play",
+      "params": [],
+      "message": "`play` does not compose with a pointer source yet — a play's driver is binary and cannot sweep to a pointer position (deferred from v1).",
+      "fix": "For the smooth mouse-follow feel, use inertia instead."
+    },
+    {
+      "code": "motion-pointer-with-scroll",
+      "params": [],
+      "message": "`pointer` and the `scroll` setting are two competing drivers.",
+      "fix": "Compose them as a chain instead: pointer: 'x, scroll'."
+    },
+    {
+      "code": "motion-pointer-with-stagger",
+      "params": [],
+      "message": "`stagger` does not compose with a pointer source yet (deferred from v1)."
+    },
+    {
       "code": "motion-preset-pack-broken",
       "params": [
         "where",
@@ -791,6 +835,11 @@
         "where"
       ],
       "message": "{where}: must be a positive length — zero and negatives are invalid CSS, and an invalid perspective() silently kills the whole transform."
+    },
+    {
+      "code": "motion-setting-pointer",
+      "params": [],
+      "message": "pointer takes 'x', 'y' or 'distance', optionally chained with a trailing 'scroll' — like pointer: 'x, scroll'."
     },
     {
       "code": "motion-setting-progress",

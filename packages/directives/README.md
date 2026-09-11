@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 186 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 243 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 669 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 170 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 922 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -163,8 +163,10 @@ designed page.
 
   The settings are the half worth knowing about, because three of them — `transform-origin`,
   `perspective` and `will-change` — are real CSS property names that do NOT animate here. They
-  configure the animation, so they live outside `keyframes` with `scroll`, `play`, `ease`, `anchor`,
-  `inertia`, `stagger`, `when`, `run-once`, `pin` and `progress`. Put one in the wrong half and it is refused by
+  configure the animation, so they live outside `keyframes` with `scroll`, `pointer`, `play`,
+  `ease`, `anchor`, `inertia`, `stagger`, `when`, `run-once`, `pin` and `progress` —
+  `pointer: 'x' | 'y' | 'distance'` (chainable, `'x, scroll'`) drives the same timeline by
+  pointer position, resting at the finished pose where no fine pointer exists. Put one in the wrong half and it is refused by
   name with the move spelled out, in both directions.
 
   **Presets are a pack, and ours is an example rather than the list.** A preset is a motion value
