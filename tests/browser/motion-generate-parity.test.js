@@ -281,10 +281,12 @@ it('tier N and tier C paint the SAME scrub — and N runs it with zero per-frame
   const n = document.createElement('div');
   n.setAttribute('data-vd-motion', "{ keyframes: { opacity: '0% 0.1, 100% 0.9' } }");
   const c = document.createElement('div');
-  /** The explicit default window EXCLUDES tier N (a scroll setting present), forcing tier C —
-   *  same semantics by definition, different machinery. IDENTICAL offsets, absolutely: a twin
+  /** `anchor: 'self'` forces tier C with IDENTICAL semantics (the element's own transit — the
+   *  default in different clothes). It replaced the explicit-default `scroll` spelling as the
+   *  forcer when custom ranges learned to reach tier N (the alignment mapping): a scroll
+   *  setting no longer excludes N, which is the feature. IDENTICAL offsets, absolutely: a twin
    *  60px lower is a different transit, not a different tier (the first draft measured that). */
-  c.setAttribute('data-vd-motion', "{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, scroll: 'top bottom, bottom top' }");
+  c.setAttribute('data-vd-motion', "{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, anchor: 'self' }");
   for (const el of [n, c]) el.style.cssText = 'position:absolute;top:120vh;height:60px;width:40px;';
   pad.appendChild(n);
   pad.appendChild(c);
@@ -293,7 +295,14 @@ it('tier N and tier C paint the SAME scrub — and N runs it with zero per-frame
 
   const native = CSS.supports('animation-timeline', 'view()');
   expect(n.hasAttribute('data-vm-native'), 'opted into N exactly when the engine can').to.equal(native);
-  expect(c.hasAttribute('data-vm-native'), 'an explicit scroll window stays tier C').to.equal(false);
+  expect(c.hasAttribute('data-vm-native'), 'anchor: self stays tier C (the v1 gate)').to.equal(false);
+  /** The new contract, pinned where the old exclusion was: a RANGED element reaches N. */
+  const ranged = document.createElement('div');
+  ranged.setAttribute('data-vd-motion', "{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, scroll: '70%' }");
+  ranged.style.cssText = 'position:absolute;top:180vh;height:60px;width:40px;';
+  pad.appendChild(ranged);
+  await settle();
+  expect(ranged.hasAttribute('data-vm-native'), 'a mappable custom range opts into N').to.equal(native);
 
   for (const y of [0, n.offsetTop - window.innerHeight + 100, n.offsetTop - window.innerHeight / 2]) {
     await scrollTo(y);
