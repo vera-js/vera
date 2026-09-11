@@ -220,6 +220,62 @@ const itemText = (item: Element, fields: readonly string[]): string => {
 /** Host → each item's server-rendered position, captured before the first reorder. */
 const serverOrder = new WeakMap<Element, Map<Element, number>>();
 
+/** Host → the last search needle, for the DISCRETE/CONTINUOUS split (see `animate`). */
+const lastNeedle = new WeakMap<Element, string>();
+
+/** One transition at a time per document — a nested startViewTransition is the pileup omni
+ *  measured; while one runs, further commits apply instantly inside it. */
+const transitioning = new WeakSet<Document>();
+
+/**
+ * Commits list mutations, animated where the page can and should.
+ *
+ * The mechanics are the PLATFORM's FLIP — `document.startViewTransition` — with three measured
+ * guards (omni built this road first, measured it, and buried it; their burial notes shaped
+ * each one, and the transient-name claim was re-measured on our side before shipping):
+ *
+ * - THE DISCRETE/CONTINUOUS SPLIT: a search needle changing is typing, and a document-global
+ *   transition per keystroke is the jank omni recorded — so needle-driven applies commit
+ *   instantly and only DISCRETE changes (facets, sort, page) animate.
+ * - SYNC-COMPUTE, ASYNC-COMMIT: the VT callback runs async, after directive scope is gone —
+ *   omni's programs broke exactly there. `commit` therefore closes over PLAIN DATA ONLY
+ *   (element lists and flags); every ctx read and state write already happened synchronously.
+ * - TRANSIENT NAMES: `view-transition-name` is set only on items whose visibility or position
+ *   changes, only for the transition's life, cleared after `finished` — measured clean
+ *   (no containing-block shift while named, no residue after clearing, guard path inert).
+ *   Prefixed `vm-li-` so the scheme can never collide with a host platform's own VT names.
+ */
+const commitList = (
+  doc: Document,
+  commit: () => void,
+  changed: readonly Element[],
+  animate: boolean
+): void => {
+  const view = doc.defaultView;
+  const start = (doc as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<unknown> } })
+    .startViewTransition;
+  const reduced = view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  if (!animate || !start || reduced || transitioning.has(doc) || changed.length === 0) {
+    commit();
+    return;
+  }
+  transitioning.add(doc);
+  let named = 0;
+  for (const item of changed) {
+    (item as HTMLElement).style.setProperty('view-transition-name', `vm-li-${named++}`);
+  }
+  const clear = () => {
+    transitioning.delete(doc);
+    for (const item of changed) (item as HTMLElement).style.removeProperty('view-transition-name');
+  };
+  try {
+    start.call(doc, commit).finished.then(clear, clear);
+  } catch {
+    clear();
+    commit();
+  }
+};
+
 const compareBy = (field: string, desc: boolean) => (a: Element, b: Element): number => {
   const left = a.getAttribute(`data-${field}`);
   const right = b.getAttribute(`data-${field}`);
@@ -342,6 +398,8 @@ const list: Directive = {
       if (keep) matched.push(item);
     }
 
+    const reorders: Array<[Node, readonly Element[]]> = [];
+    const movers = new Set<Element>();
     /**
      * SORT reorders the matched items in place — still reflection, not templating: the nodes are
      * the server's, only their order changes. The spec lives in STATE (`sort: 's'`, state `s`
@@ -374,7 +432,10 @@ const list: Directive = {
         const wanted = new Set<Node>(ordered);
         const current = [...parent.childNodes].filter((node) => wanted.has(node));
         if (ordered.some((item, i) => item !== current[i])) {
-          for (const item of ordered) parent.appendChild(item);
+          /** Computed here, MOVED in the commit — and every mover is a `changed` item, so the
+           *  animated path names exactly what travels. */
+          reorders.push([parent, ordered]);
+          for (const [i, item] of ordered.entries()) if (item !== current[i]) movers.add(item);
         }
       }
     }
@@ -393,7 +454,22 @@ const list: Directive = {
     const visible = paged ? matched.slice((page - 1) * size, page * size) : matched;
     const shown = new Set(visible);
 
-    for (const item of items) (item as HTMLElement).hidden = !shown.has(item);
+    /** Everything below is computed HERE, synchronously — `commit` closes over plain data and
+     *  never touches ctx, because an animated commit runs after this scope is gone. */
+    const changed: Element[] = [];
+    for (const item of items) {
+      if ((item as HTMLElement).hidden === shown.has(item)) changed.push(item);
+    }
+    const discrete = needle === (lastNeedle.get(el) ?? '');
+    lastNeedle.set(el, needle);
+    const animate = read('animate') === true;
+    for (const mover of movers) if (!changed.includes(mover)) changed.push(mover);
+    const doCommit = () => {
+      for (const item of items) (item as HTMLElement).hidden = !shown.has(item);
+      for (const [parent, ordered] of reorders) {
+        for (const item of ordered) parent.appendChild(item);
+      }
+    };
 
     /**
      * The counts go back into state, so the page's own markup can say "12 results" and build page
@@ -415,6 +491,11 @@ const list: Directive = {
     }
     /** A clamped page is written back, or the URL and the view disagree about where you are. */
     if (pageKey && Number(ctx.get(pageKey) ?? 1) !== page) ctx.set(pageKey, page);
+
+    /** LAST, after every ctx read and write above is done: the DOM commit — instant, or
+     *  animated through the platform's FLIP when `animate: true` and the change was DISCRETE
+     *  (typing never animates; see commitList). */
+    commitList(el.ownerDocument!, doCommit, changed, animate && discrete);
   },
 };
 

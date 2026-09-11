@@ -418,3 +418,73 @@ test('a facet value containing a comma survives the URL round trip', async () =>
   second.remove();
   await settled();
 });
+
+test('animate: true — the platform FLIP fires for DISCRETE changes and never for typing', async () => {
+  url('/shop');
+  /** A stub startViewTransition: jsdom has none, so the test provides the platform. */
+  let transitions = 0;
+  let namedDuringCallback = 0;
+  dom.window.document.startViewTransition = (callback) => {
+    transitions++;
+    const host2 = dom.window.document.querySelector('[data-shop2]');
+    namedDuringCallback = [...host2.querySelectorAll('li')]
+      .filter((li) => li.style.getPropertyValue('view-transition-name')).length;
+    callback();
+    return { finished: Promise.resolve() };
+  };
+  const host = await mount(`
+    <div data-vd-state="{ s: '', q: '' }" data-shop2>
+      <ul data-vd-list="{ items: 'li', sort: 's', search: 'q', animate: true }">
+        <li data-price="3">b</li><li data-price="1">a</li><li data-price="2">c</li>
+      </ul>
+    </div>`);
+  const state = stateOf(host.querySelector('[data-shop2]'));
+
+  state.s = 'price';
+  await settled();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(transitions, 1, 'a SORT is discrete: one transition');
+  assert.ok(namedDuringCallback > 0, 'movers carried transient view-transition-names');
+  assert.deepEqual(shown(host), ['a', 'c', 'b'], 'and the reorder landed through the async commit');
+  assert.equal([...host.querySelectorAll('li')].filter((li) => li.style.getPropertyValue('view-transition-name')).length,
+    0, 'names cleared after finished — transient, measured clean');
+
+  state.q = 'a';
+  await settled();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(transitions, 1, 'TYPING never animates — the per-keystroke global transition is the jank omni measured');
+  assert.deepEqual(shown(host), ['a'], 'the filter still applied, instantly');
+
+  delete dom.window.document.startViewTransition;
+  host.remove();
+  await settled();
+});
+
+test("the async-commit scope pin: a DEFERRED transition callback breaks nothing (omni's trap)", async () => {
+  url('/shop');
+  /** The platform defers the mutation callback — directive scope is long gone when it runs.
+   *  Omni's programs broke exactly here; ours must not, because commit closes over plain data. */
+  dom.window.document.startViewTransition = (callback) => {
+    const finished = new Promise((resolve) => setTimeout(() => { callback(); resolve(); }, 60));
+    return { finished };
+  };
+  const host = await mount(`
+    <div data-vd-state="{ s: '', c: {} }" data-shop3>
+      <ul data-vd-list="{ items: 'li', sort: 's', counts: 'c', animate: true }">
+        <li data-price="2">x</li><li data-price="1">y</li>
+      </ul>
+      <b data-vd-text="c.matched"></b>
+    </div>`);
+  const state = stateOf(host.querySelector('[data-shop3]'));
+  state.s = 'price';
+  await settled();
+  assert.equal(host.querySelector('b').textContent, '2',
+    'counts wrote SYNCHRONOUSLY — state never waits on the transition');
+  assert.deepEqual(shown(host), ['x', 'y'], 'DOM not yet committed (deferred)');
+  await new Promise((r) => setTimeout(r, 120));
+  assert.deepEqual(shown(host), ['y', 'x'], 'the deferred commit landed, no scope needed');
+  assert.equal(rejections().filter((r) => r.code === 'directive-threw').length, 0, 'nothing threw');
+  delete dom.window.document.startViewTransition;
+  host.remove();
+  await settled();
+});
