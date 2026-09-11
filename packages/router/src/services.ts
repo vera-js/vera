@@ -33,16 +33,66 @@ let warnedAboutRenderer = false;
 const painted = new WeakSet<HTMLElement>();
 const renderers = () => (registry ? ((registry.get('render') as Renderer[] | undefined) ?? direct) : direct);
 
+/** Navigations wrap their DOM update in a view transition when the app opts in — see `router`. */
+let animateNavigations = false;
+
 /**
- * A **connector**: `wire` hands it the registry rather than registering anything, which is how a
- * package that keeps none of its own gets core's.
+ * A **connector**, and since 0.3 a DUAL: `wire([router])` hands it the registry bare, and
+ * `wire([router({ animate: true })])` configures it first — the optional-options shape the module
+ * grammar prescribes. The discriminator is THE REGISTRY ITSELF (a Map, so `.get` is a function;
+ * an options object has no callable members) — this is the core-registry flavor of the dual
+ * pattern, where the directives packs test their sigiled seams instead: copy the pattern, never
+ * the check.
  *
  * Named for the thing rather than the act, because `wire` is already the verb — it sits in a list
  * beside `renderer`, `collections` and `autoloader(…)`, and which of them is a descriptor and
  * which is a connector is not something an app should have to know.
  */
-export const router = (given: Inserts) => {
-  registry = given;
+export const router = (given: Inserts | { animate?: boolean }): void | ((registry: Inserts) => void) => {
+  if (typeof (given as Inserts)?.get === 'function') {
+    registry = given as Inserts;
+    return;
+  }
+  const options = (given ?? {}) as { animate?: boolean };
+  if (__DEV__) {
+    for (const key of Object.keys(options))
+      if (key !== 'animate')
+        console.warn(`[vera] router: \`${key}\` is not a router option, so it was ignored. The options are animate.`);
+  }
+  /** Applied immediately, not in the returned connector: the no-core path (`setRouterRenderer`)
+   *  never wires the connector and must still be able to opt in. */
+  if (options.animate === true) animateNavigations = true;
+  return (given_: Inserts) => {
+    registry = given_;
+  };
+};
+
+/**
+ * THE NAVIGATION GUARDS — whether a routed render animates, as a named-guard fold (the flip
+ * door's shape, and the same first two rows by design: the conventions' establishment law and
+ * the opt-in). Local rather than shared because this package imports nothing at runtime —
+ * copy the pattern, never the coupling.
+ */
+type NavGuard = readonly [name: string, refuses: (trigger: RouteTrigger) => string | null];
+type StartViewTransition = (cb: () => Promise<void>) =>
+  { updateCallbackDone: Promise<void>; finished: Promise<void>; skipTransition?: () => void };
+const navStart = (): StartViewTransition | undefined =>
+  (document as Document & { startViewTransition?: StartViewTransition }).startViewTransition;
+const NAV_GUARDS: readonly NavGuard[] = [
+  ['opted-in', () => animateNavigations ? null : 'animate is not on'],
+  ['not-establishment', (trigger) =>
+    trigger === 'init' ? 'the landing render settles the page — it answers no one' : null],
+  ['platform', () => navStart() ? null : 'no startViewTransition'],
+  ['motion-ok', () =>
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+      ? 'prefers-reduced-motion: reduce' : null],
+];
+const navRefusal = (trigger: RouteTrigger): string | null => {
+  for (const [name, refuses] of NAV_GUARDS) {
+    const reason = refuses(trigger);
+    if (reason !== null) return `${name}: ${reason}`;
+  }
+  return null;
 };
 
 /** The no-core path: hand the router its renderer and it needs no registry at all. */
@@ -676,11 +726,31 @@ export const navigate = async (
   }
 
   let routed = false;
-  for (const [element, match] of matches) {
-    const shouldFocusView = element === origin || trigger === 'popstate';
-    if (await routeChange(element, matchPath, trigger, shouldFocusView, query, hash, id, match)) routed = true;
-    if (id !== navigationId) return false;
+  const routeAll = async (): Promise<void> => {
+    for (const [element, match] of matches) {
+      const shouldFocusView = element === origin || trigger === 'popstate';
+      if (await routeChange(element, matchPath, trigger, shouldFocusView, query, hash, id, match)) routed = true;
+      if (id !== navigationId) return;
+    }
+  };
+  /**
+   * The routed renders, through the platform's view transition when the guards cede — the SPA
+   * half of the page-transition story (the MPA half is pure CSS and never touches this package).
+   * `updateCallbackDone` is awaited, not `finished`: history and scroll below need the DOM
+   * committed, never the animation over. A navigation landing mid-transition starts its own and
+   * the platform skips the old one; `finished` is caught because a skipped transition rejects it
+   * and an animation's end has no one to answer to.
+   */
+  if (navRefusal(trigger) === null) {
+    const transition = navStart()!.call(document, routeAll);
+    transition.finished.catch(() => {});
+    /** NOT caught: a guard or component that throws must reject `navigate` exactly as it does
+     *  on the instant path — the transition changes the theater, never the contract. */
+    await transition.updateCallbackDone;
+  } else {
+    await routeAll();
   }
+  if (id !== navigationId) return false;
   /**
    * **Nothing matched, and the click is already cancelled.** `addLinkListener` calls
    * `preventDefault` before it gets here, so a `route` link pointing at a path no pattern covers

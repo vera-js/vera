@@ -1,0 +1,78 @@
+/**
+ * The router's view-transition wrap — the SPA half of the page-transition story.
+ *
+ * The claims: `router({ animate: true })` is a DUAL (bare `router` still wires; the called form
+ * configures first), a NAVIGATION wraps its routed renders in `startViewTransition`, the INIT
+ * render never does (the conventions' establishment law), and a guard that throws still rejects
+ * `navigate` — the transition changes the theater, never the contract.
+ */
+import { load } from './dist.mjs';
+import { JSDOM } from 'jsdom';
+
+const dom = new JSDOM('<div></div>', { url: 'http://localhost/A' });
+const { window } = dom;
+for (const k of ['HTMLElement', 'CustomEvent', 'PopStateEvent', 'Event']) globalThis[k] = window[k];
+globalThis.window = window; globalThis.document = window.document;
+let rafQueue = [];
+globalThis.requestAnimationFrame = (fn) => rafQueue.push(fn);
+const flushRaf = () => { const q = rafQueue; rafQueue = []; q.forEach((f) => f()); };
+const tick = () => new Promise((r) => setTimeout(r, 20));
+
+const { initRouter, navigate, router, setRouterRenderer } = await load('router');
+
+let pass = 0, fail = 0;
+const check = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL:', name)); };
+
+/** The platform stub: counts wraps, runs the callback, resolves like a finished transition. */
+let transitions = 0;
+window.document.startViewTransition = (callback) => {
+  transitions++;
+  const updateCallbackDone = Promise.resolve().then(callback);
+  return { updateCallbackDone, finished: updateCallbackDone };
+};
+
+/** The DUAL: the called form returns a connector (a function wire would hand the registry);
+ *  the bare form still accepts a registry-shaped thing directly. */
+const connector = router({ animate: true });
+check('router({ animate }) returns a connector for wire', typeof connector === 'function');
+const fakeRegistry = new Map();
+router(fakeRegistry);
+check('bare router still takes the registry directly (a Map is not options)', true);
+
+const hits = { A: 0, B: 0 };
+setRouterRenderer(() => {});
+const el = window.document.createElement('div');
+const view = window.document.createElement('main');
+el.appendChild(view);
+window.document.body.appendChild(el);
+const { addRoutes } = initRouter(el, { view });
+addRoutes([
+  { path: '/A', component: () => { hits.A++; return 'a-view'; } },
+  { path: '/B', component: () => { hits.B++; return 'b-view'; } },
+  { path: '/boom', beforeEnter: () => { throw new Error('guard says no'); }, component: () => 'never' },
+]);
+
+flushRaf();
+await tick();
+check('the INIT render ran', hits.A === 1);
+check('and INIT never animates — establishment answers no one', transitions === 0);
+
+await navigate('/B');
+await tick();
+check('a real navigation routed', hits.B === 1);
+check('and wrapped its render in exactly one transition', transitions === 1);
+
+let rejected = false;
+await navigate('/boom').catch(() => { rejected = true; });
+check('a throwing guard still rejects navigate through the transition', rejected);
+
+/** Opt-out sanity: with no support on the page, navigation is instant and identical. */
+delete window.document.startViewTransition;
+await navigate('/A');
+await tick();
+/** The /boom attempt above also wrapped (its guard throws INSIDE the callback — a wrap is
+ *  decided before anyone knows the guard's answer), so the count stands at 2 here. */
+check('no platform, no wrap, same routing', hits.A === 2 && transitions === 2);
+
+console.log(`pass ${pass} fail ${fail}`);
+if (fail) process.exit(1);

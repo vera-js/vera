@@ -632,6 +632,11 @@ console.log(document.querySelector('[view="main"]').textContent);  // "User 7"
 console.log(currentRoute().params.id, resolve('user', { id: 9 }));  // "7"  "/users/9"
 ```
 
+`wire([renderer, router({ animate: true })])` — `router` is a dual — wraps every navigation's
+render in `document.startViewTransition`: route changes crossfade, and elements named with
+`view-transition-name` in CSS morph across pages. The initial render never animates, reduced
+motion and unsupporting engines route instantly, and a throwing guard still rejects `navigate()`.
+
 Routes support `path`, `name`, `title`, `component`, `action`, `children`, `view`, `redirect` and
 `meta`.
 `component`, `action`, `title` and `view` all receive `(params, to, from)` and may be `async`. Mark

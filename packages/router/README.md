@@ -470,6 +470,24 @@ function this replaced, was load-bearing in one mode and ceremonial in the other
 all, skip the registry entirely — `initRouter(el, …)` plus `setRouterRenderer(renderer)` is the
 whole wiring.
 
+## Animated navigations
+
+`router` is a dual: wire it bare, or call it with options first.
+
+```js
+wire([renderer, router({ animate: true })]);
+```
+
+With `animate: true`, every navigation wraps its routed renders in the platform's
+`document.startViewTransition`, so route changes crossfade — and anything you name with
+`view-transition-name` in ordinary CSS morphs between pages. The engine keeps four guards: the
+initial render never animates (a landing is the page settling, not an answer to anyone),
+`prefers-reduced-motion` skips the wrap, an engine without view transitions routes instantly —
+the designed page — and a navigation landing mid-transition takes the stage over. A guard or
+component that throws still rejects `navigate()` exactly as it does on the instant path. Tune
+the look with CSS on `::view-transition-old(root)` / `::view-transition-new(root)`; the no-core
+path opts in the same way, `router({ animate: true })` with no wire call.
+
 ## When a route fails
 
 A guard or a component that throws leaves the view exactly as it was. What happens next depends on
