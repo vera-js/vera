@@ -23,9 +23,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, expressions, interaction, settled, rejections, stateOf,
+const { wireDirectives, expressions, interactions, settled, rejections, stateOf,
   describePayloads, wirePayloads } = await load('directives');
-wireDirectives([expressions, ...interaction]);
+wireDirectives([expressions, ...interactions]);
 
 const doc = dom.window.document;
 const mount = async (html) => {

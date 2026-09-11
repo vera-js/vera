@@ -14,15 +14,15 @@ import pkg from './package.json' with { type: 'json' };
  *   budget is measured against.
  * - `vera-directives-standalone` — the engine alone with core's store machinery inlined, for
  *   pages with no vera at all that wire only custom directives.
- * - `vera-directives-interaction` / `vera-directives-expressions` — ADDITIVE packs: they import
- *   nothing from the engine (interaction reaches it through `Ctx`; expressions connects through
+ * - `vera-directives-interactions` / `vera-directives-expressions` — ADDITIVE packs: they import
+ *   nothing from the engine (interactions reaches it through `Ctx`; expressions connects through
  *   `wireDirectives`' seams), so a multi-file CDN page cannot end up with two engines.
  */
 export default [
   defaultRollupConfig(pkg.filename, ['@verajs/core'], /^_[a-z]/),
   defaultRollupConfig(`${pkg.filename}-core`, ['@verajs/core'], /^_[a-z]/, { input: 'src/engine.ts', alwaysExternal: ['@verajs/core'] }),
   defaultRollupConfig(`${pkg.filename}-standalone`, ['@verajs/core'], /^_[a-z]/, { input: 'src/engine.ts' }),
-  defaultRollupConfig(`${pkg.filename}-interaction`, [], /^_[a-z]/, { input: 'src/interaction.ts' }),
+  defaultRollupConfig(`${pkg.filename}-interactions`, [], /^_[a-z]/, { input: 'src/interactions.ts' }),
   /** The motion PACK — the engine's wiring of `@verajs/motion`, whose lean entries live in
    *  that package since the cut (2026-09-10). Dev keeps the dependency external; prod inlines
    *  it, the workspace rule. */

@@ -135,8 +135,8 @@ describing the bytes honestly.)*
 | `@verajs/directives/core` | 6 088 B | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | 7 413 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
-| `@verajs/directives/interaction` | 3 752 B | the interaction pack — events, reflections, state |
-| `@verajs/directives/query` | 2 063 B | the query pack — route, query, list |
+| `@verajs/directives/interactions` | 3 752 B | the interaction pack — events, reflections, state |
+| `@verajs/directives/query` | 2 093 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 2 243 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 1 306 B | the remote pack — server-driven interactions |
 | `@verajs/directives/motion` | 23 244 B | the motion pack — presets, easings, paint, path, sequence, split |

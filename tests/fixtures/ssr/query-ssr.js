@@ -5,11 +5,11 @@
  */
 import { init, render, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
-import { wireDirectives, directives, interaction, expressions, query, sensors } from '@verajs/directives';
+import { wireDirectives, directives, interactions, expressions, query, sensors } from '@verajs/directives';
 
 if (!globalThis.__veraSsrShimmed) wire([renderer]);
 wire([directives]);
-wireDirectives([expressions, ...interaction, query, sensors]);
+wireDirectives([expressions, ...interactions, query, sensors]);
 
 export default class QuerySsr extends HTMLElement {
   connectedCallback() {

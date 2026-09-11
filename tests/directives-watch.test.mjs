@@ -25,9 +25,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, expressions, interaction, query, settled, rejections, stateOf } =
+const { wireDirectives, expressions, interactions, query, settled, rejections, stateOf } =
   await load('directives');
-wireDirectives([expressions, ...interaction, query]);
+wireDirectives([expressions, ...interactions, query]);
 
 const doc = dom.window.document;
 const url = (path) => dom.window.history.replaceState({}, '', path);

@@ -11,6 +11,8 @@
  * copy of it. This asks the same question of the half that was never checked.
  */
 import { expect } from '@esm-bundle/chai';
+import { captureConsole, veraSaid } from './silence.mjs';
+captureConsole();
 import { wire, init, render, html, css} from '../../packages/core/dist/development/vera.js';
 import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
@@ -102,4 +104,9 @@ it('the scope really does bound the rules', async () => {
     getComputedStyle(outsider).color,
     '@scope did not bound the rule — it reached an element outside the component'
   ).to.not.equal('rgb(0, 128, 0)');
+});
+
+/** The console-silence class (see silence.mjs): a healthy flow says nothing [vera]-prefixed. */
+after(() => {
+  expect(veraSaid(), 'this suite is a healthy flow — [vera] warnings here are defects').to.deep.equal([]);
 });

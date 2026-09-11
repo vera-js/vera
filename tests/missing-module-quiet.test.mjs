@@ -25,9 +25,9 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 
 const { wire, init, render, html } = await load('core');
 const { renderer } = await load('renderer');
-const { directives, wireDirectives, expressions, interaction } = await load('directives');
+const { directives, wireDirectives, expressions, interactions } = await load('directives');
 wire([renderer, directives]);
-wireDirectives([expressions, ...interaction]);
+wireDirectives([expressions, ...interactions]);
 
 test('a wired engine is never told its markup does nothing', async (t) => {
   if (isProduction) return t.skip('the whole check is a __DEV__ branch — production has neither it nor its message');

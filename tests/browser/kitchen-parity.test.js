@@ -19,6 +19,8 @@
  * markup here is always what the current serializer emits.
  */
 import { expect } from '@esm-bundle/chai';
+import { captureConsole, veraSaid } from './silence.mjs';
+captureConsole();
 import { canonical } from '../canonical.mjs';
 
 /** Everything the shell renders, so a gap in one mode is a diff rather than a silent absence. */
@@ -288,4 +290,9 @@ describe('the same application, driven the same way', () => {
       CONTROLS.length - 3
     );
   });
+});
+
+/** The console-silence class (see silence.mjs): a healthy flow says nothing [vera]-prefixed. */
+after(() => {
+  expect(veraSaid(), 'this suite is a healthy flow — [vera] warnings here are defects').to.deep.equal([]);
 });

@@ -21,9 +21,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, interaction, expressions, query, settled, rejections, stateOf } =
+const { wireDirectives, interactions, expressions, query, settled, rejections, stateOf } =
   await load('directives');
-wireDirectives([expressions, ...interaction, query]);
+wireDirectives([expressions, ...interactions, query]);
 
 const doc = dom.window.document;
 const url = (path) => dom.window.history.replaceState({}, '', path);
@@ -386,5 +386,35 @@ test('an array literal in the seed pre-selects — the other half of shape-from-
   assert.deepEqual([...host.querySelectorAll('input')].map((box) => box.checked), [true, true, false],
     'the seeded values arrive checked');
   host.remove();
+  await settled();
+});
+
+test('a facet value containing a comma survives the URL round trip', async () => {
+  url('/shop');
+  const host = await mount(`
+    <div data-vd-state="{ tags: [] }" data-vd-query="tags">
+      <input type="checkbox" value="a,b" data-vd-sync="tags">
+      <input type="checkbox" value="plain" data-vd-sync="tags">
+    </div>`);
+  const [comma, plain] = host.querySelectorAll('input');
+  for (const box of [comma, plain]) {
+    box.checked = true;
+    box.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  }
+  await settled();
+  const link = dom.window.location.search;
+  host.remove();
+  await settled();
+
+  /** Open the link fresh: the entry's own comma must not read as a separator. */
+  url(`/shop${link}`);
+  const second = await mount(`
+    <div data-vd-state="{ tags: [] }" data-vd-query="tags">
+      <input type="checkbox" value="a,b" data-vd-sync="tags">
+    </div>`);
+  assert.deepEqual(stateOf(second.firstElementChild).tags, ['a,b', 'plain'],
+    'two entries came back, not three');
+  assert.equal(second.querySelector('input').checked, true);
+  second.remove();
   await settled();
 });

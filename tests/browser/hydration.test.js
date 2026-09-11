@@ -89,3 +89,4 @@ it('a mismatch falls back to a clean render rather than corrupting the DOM', asy
   expect(root.querySelector('h1'), 'and the component rendered fresh').to.not.equal(null);
   host.remove();
 });
+/** NOT armed with the console-silence class: the mismatch test's warning is its subject. */

@@ -32,7 +32,7 @@ export const MODULES = [
   { pkg: 'directives', label: 'directives/core', dist: 'packages/directives/dist/vera-directives-core.min.js', what: 'the engine — registry, activation, context, delegation (core external)' },
   { pkg: 'directives-standalone', dir: 'directives', label: 'directives/standalone', dist: 'packages/directives/dist/vera-directives-standalone.min.js', what: 'the engine with its own store, for a page running no vera' },
   { pkg: 'directives-expressions', dir: 'directives', label: 'directives/expressions', dist: 'packages/directives/dist/vera-directives-expressions.min.js', what: 'the expression tier — arithmetic, comparisons, calls' },
-  { pkg: 'directives-interaction', dir: 'directives', label: 'directives/interaction', dist: 'packages/directives/dist/vera-directives-interaction.min.js', what: 'the interaction pack — events, reflections, state' },
+  { pkg: 'directives-interactions', dir: 'directives', label: 'directives/interactions', dist: 'packages/directives/dist/vera-directives-interactions.min.js', what: 'the interaction pack — events, reflections, state' },
   { pkg: 'directives-query', dir: 'directives', label: 'directives/query', dist: 'packages/directives/dist/vera-directives-query.min.js', what: 'the query pack — route, query, list' },
   { pkg: 'directives-sensors', dir: 'directives', label: 'directives/sensors', dist: 'packages/directives/dist/vera-directives-sensors.min.js', what: 'the sensors pack — environment to state' },
   { pkg: 'directives-remote', dir: 'directives', label: 'directives/remote', dist: 'packages/directives/dist/vera-directives-remote.min.js', what: 'the remote pack — server-driven interactions' },

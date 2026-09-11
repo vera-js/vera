@@ -715,7 +715,7 @@ export { onFamilyFull as onFamily };
  * the engine's, not a pack's). That absence is also what keeps this module importing nothing
  * from the engine, which is what makes the additive single-file build possible at all.
  */
-export const interaction: Directive[] = [
+export const interactions: Directive[] = [
   show, classDirective, style, text, bind, init, every, watch, sync, persist,
   focusOn, focusTrap, focusReturn, docClass, scrollLock, copy, scrollTo, on,
 ];

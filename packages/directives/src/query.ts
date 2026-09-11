@@ -75,8 +75,14 @@ const writeQuery = (updates: Record<string, unknown>): void => {
     /** Empty means ABSENT: `?q=&tag=` is noise in a shared link — and so is `?tags=`. */
     if (value === null || value === undefined || value === '' || value === false ||
         (Array.isArray(value) && value.length === 0)) params.delete(key);
-    /** Arrays travel comma-joined (`?tags=css,js`) — the multi-facet shape. */
-    else if (Array.isArray(value)) params.set(key, value.map(String).join(','));
+    /**
+     * Arrays travel comma-joined (`?tags=css,js`) — the multi-facet shape. Each entry is
+     * URI-encoded FIRST, so a value that itself contains a comma survives the round trip: the
+     * separator commas are ours, any `%2C` inside an entry is the value's. Slug-shaped values
+     * (the overwhelmingly common case) are untouched by the encoding, so their links stay
+     * readable.
+     */
+    else if (Array.isArray(value)) params.set(key, value.map((v) => encodeURIComponent(String(v))).join(','));
     else params.set(key, String(value));
   }
   const search = params.toString();
@@ -135,7 +141,7 @@ const seedFromUrl = (keys: readonly string[], ctx: { get(key: string): unknown; 
     if (!params.has(key)) continue;
     const raw = params.get(key) ?? '';
     if (Array.isArray(ctx.get(key))) {
-      ctx.set(key, raw === '' ? [] : raw.split(','));
+      ctx.set(key, raw === '' ? [] : raw.split(',').map((entry) => decodeURIComponent(entry)));
       continue;
     }
     const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;

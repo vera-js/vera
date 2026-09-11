@@ -1,6 +1,6 @@
 # The directives showcase
 
-Every directive this system ships — interaction, expressions, the motion pack and its
+Every directive this system ships — interactions, expressions, the motion pack and its
 vocabulary — live on one routed page, with each demo displaying the exact markup that
 built it (`<demo-block>` renders its children *and* prints them, so the code cannot drift
 from the demo).

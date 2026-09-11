@@ -13,7 +13,7 @@ import { renderer } from '@verajs/renderer';
 import { initRouter, setBasePath, router } from '@verajs/router';
 import { directiveLoader } from '@verajs/autoloader';
 import {
-  wireDirectives, directives, interaction, expressions, sensors,
+  wireDirectives, directives, interactions, expressions, sensors,
   motion, presets, paint, path, split, sequence,
   rejections, describeDirectives, settled, stateOf,
   enableMotion, disableMotion,
@@ -25,7 +25,7 @@ setBasePath('/examples/directives');
 wire([renderer, router, directives, directiveLoader(import.meta.url, '../directives')]);
 wireDirectives([
   expressions,
-  ...interaction,
+  ...interactions,
   sensors,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
   presets, paint, path, split, sequence,
@@ -214,14 +214,14 @@ const HOME = `
 import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
 import {
-  wireDirectives, directives, interaction, expressions, sensors,
+  wireDirectives, directives, interactions, expressions, sensors,
   motion, paint, path, split, sequence,
 } from '@verajs/directives';
 
 wire([renderer, router, directives, directiveLoader(import.meta.url, '../directives')]);
 wireDirectives([
   expressions,
-  ...interaction,
+  ...interactions,
   motion({ inertia: 0.12, breakpoints: { phone: [0, 560], wide: [1100, null] } }),
   presets, paint, path, split, sequence,
 ]);</code></pre>

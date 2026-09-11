@@ -24,9 +24,9 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, expressions, interaction, wireActions, describeActions, settled,
+const { wireDirectives, expressions, interactions, wireActions, describeActions, settled,
   rejections, stateOf } = await load('directives');
-wireDirectives([expressions, ...interaction]);
+wireDirectives([expressions, ...interactions]);
 
 const seen = [];
 wireActions({

@@ -50,7 +50,7 @@ const ENTRY = {
   directives: ['directives', 'vera-directives'],
   'directives/core': ['directives', 'vera-directives-core'],
   'directives/standalone': ['directives', 'vera-directives-standalone'],
-  'directives/interaction': ['directives', 'vera-directives-interaction'],
+  'directives/interactions': ['directives', 'vera-directives-interactions'],
   'directives/motion': ['directives', 'vera-directives-motion'],
   motion: ['motion', 'vera-motion'],
   'motion/ssr': ['motion', 'vera-motion-ssr'],

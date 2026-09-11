@@ -18,11 +18,11 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, interaction, settled, stateOf } = await load('directives');
+const { wireDirectives, interactions, settled, stateOf } = await load('directives');
 const { expressions, compileExpression } = await load('directives/expressions');
 const doc = dom.window.document;
 
-wireDirectives(interaction);
+wireDirectives(interactions);
 wireDirectives([expressions]);
 
 const corpus = JSON.parse(readFileSync(new URL('./fixtures/directives-expression-corpus.json', import.meta.url), 'utf8'));

@@ -48,8 +48,8 @@ const handLoader = {
 const fixtures = directiveLoader(import.meta.url, 'fixtures/directive-modules');
 wire([handLoader, fixtures]);
 
-const { wireDirectives, interaction, settled, rejections } = await load('directives');
-wireDirectives(interaction);
+const { wireDirectives, interactions, settled, rejections } = await load('directives');
+wireDirectives(interactions);
 
 const doc = dom.window.document;
 const tick = () => new Promise((r) => setTimeout(r, 30));

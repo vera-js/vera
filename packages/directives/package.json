@@ -33,10 +33,10 @@
       "development": "./dist/development/vera-directives-standalone.js",
       "default": "./dist/vera-directives-standalone.min.js"
     },
-    "./interaction": {
-      "types": "./dist/development/vera-directives-interaction.d.ts",
-      "development": "./dist/development/vera-directives-interaction.js",
-      "default": "./dist/vera-directives-interaction.min.js"
+    "./interactions": {
+      "types": "./dist/development/vera-directives-interactions.d.ts",
+      "development": "./dist/development/vera-directives-interactions.js",
+      "default": "./dist/vera-directives-interactions.min.js"
     },
     "./expressions": {
       "types": "./dist/development/vera-directives-expressions.d.ts",

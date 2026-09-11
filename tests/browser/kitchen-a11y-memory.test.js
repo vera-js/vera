@@ -2,7 +2,7 @@
  * **Pass 4 probes.** Accessibility and memory — the two things `docs/CODE-PRINCIPLES.md` names as
  * part of correctness rather than as follow-ups.
  *
- * #2 puts the keyboard path, focus management and ARIA in the *same pass* as any interaction, and
+ * #2 puts the keyboard path, focus management and ARIA in the *same pass* as any interactions, and
  * makes memory discipline part of correctness: the store leans on `WeakRef`/`WeakMap` so a detached
  * element is collectable, and anything holding an element reference must not defeat that.
  *

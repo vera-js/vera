@@ -30,8 +30,8 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 /** ORDER IS THE POINT: core wires (and stamps) BEFORE the engine's first activation snapshot. */
 const { wire, createHook } = await load('core');
 wire([]);
-const { wireDirectives, interaction, expressions, settled, stateOf } = await load('directives');
-wireDirectives([expressions, ...interaction]);
+const { wireDirectives, interactions, expressions, settled, stateOf } = await load('directives');
+wireDirectives([expressions, ...interactions]);
 
 const doc = dom.window.document;
 
@@ -99,8 +99,8 @@ test('shaking: naming only the engine and interaction drops the expression tier 
    * contains none of the tier's code, and the proxy failed while the claim it stands for was still
    * true. A code is now shared vocabulary; only the implementation is exclusive.
    */
-  const lean = await bundleOf(`import { wireDirectives, interaction } from '@verajs/directives'; wireDirectives(interaction);`);
-  const full = await bundleOf(`import { wireDirectives, interaction, expressions } from '@verajs/directives'; wireDirectives([expressions, ...interaction]);`);
+  const lean = await bundleOf(`import { wireDirectives, interactions } from '@verajs/directives'; wireDirectives(interaction);`);
+  const full = await bundleOf(`import { wireDirectives, interactions, expressions } from '@verajs/directives'; wireDirectives([expressions, ...interactions]);`);
   assert.ok(full.includes('parseTier'), 'the control: the marker exists when expressions IS imported');
   assert.ok(!lean.includes('parseTier'), 'the claim: unimported packs cost nothing under Rollup');
   /** Motion is the pack with real stakes — 18KB of the root when it rides along. */

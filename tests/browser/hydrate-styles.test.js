@@ -12,6 +12,8 @@
  * component is styled.
  */
 import { expect } from '@esm-bundle/chai';
+import { captureConsole, veraSaid } from './silence.mjs';
+captureConsole();
 import { wire, init, render, html, css} from '../../packages/core/dist/development/vera.js';
 import { renderInto as hydratingRender } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 import { adoptStyles } from '../../packages/styles/dist/development/vera-styles.js';
@@ -96,3 +98,8 @@ for (const [name, shape] of Object.entries(SHAPES)) {
     ).to.equal(1);
   });
 }
+
+/** The console-silence class (see silence.mjs): a healthy flow says nothing [vera]-prefixed. */
+after(() => {
+  expect(veraSaid(), 'this suite is a healthy flow — [vera] warnings here are defects').to.deep.equal([]);
+});

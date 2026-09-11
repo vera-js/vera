@@ -11,6 +11,8 @@
  * pipeline and `--check`ed in the gate, so this cannot drift into adopting markup no server emits.
  */
 import { expect } from '@esm-bundle/chai';
+import { captureConsole, veraSaid } from './silence.mjs';
+captureConsole();
 import { SLOTS_HTML } from './fixtures/hello-ssr.html.js';
 import { renderInto, renderer } from '../../packages/renderer/dist/development/vera-renderer-hydrate.js';
 import { slots, slotted } from '../../packages/renderer/dist/development/vera-renderer-slots.js';
@@ -119,4 +121,9 @@ it('adopted content parks on branch-away and returns on branch-back, state intac
   expect(host.querySelector('input').value).to.equal('typed after hydration',
     'with the state only the real element carries');
   host.remove();
+});
+
+/** The console-silence class (see silence.mjs): a healthy flow says nothing [vera]-prefixed. */
+after(() => {
+  expect(veraSaid(), 'this suite is a healthy flow — [vera] warnings here are defects').to.deep.equal([]);
 });

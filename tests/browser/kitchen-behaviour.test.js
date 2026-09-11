@@ -11,6 +11,8 @@
  * subtree alive so what the user typed survives.
  */
 import { expect } from '@esm-bundle/chai';
+import { captureConsole, veraSaid } from './silence.mjs';
+captureConsole();
 import { canonical } from '../canonical.mjs';
 
 const load = (path) =>
@@ -229,4 +231,9 @@ describe('the two live modes behave identically', () => {
     const badge = part('hydrate', 'sink-styled').shadowRoot.querySelector('.badge');
     expect(getComputedStyle(badge).color, 'the adopted sheet is not applying').to.equal('rgb(220, 20, 60)');
   });
+});
+
+/** The console-silence class (see silence.mjs): a healthy flow says nothing [vera]-prefixed. */
+after(() => {
+  expect(veraSaid(), 'this suite is a healthy flow — [vera] warnings here are defects').to.deep.equal([]);
 });

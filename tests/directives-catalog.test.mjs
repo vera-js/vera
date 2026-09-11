@@ -1,5 +1,5 @@
 /**
- * The interaction catalog (phase 3): every row's core behavior + the CONSTRAINT-SET regressions —
+ * The interactions catalog (phase 3): every row's core behavior + the CONSTRAINT-SET regressions —
  * outside-click on the container, persist-both-halves, timer teardown on removal, focus-trap
  * stacking, submit prevent/native, bind's type-driven semantics with the aria exception.
  */
@@ -16,10 +16,10 @@ globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.win
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 globalThis.localStorage = dom.window.localStorage;
 
-const { wireDirectives, interaction, settled, rejections, stateOf } = await load('directives');
+const { wireDirectives, interactions, settled, rejections, stateOf } = await load('directives');
 const { expressions } = await load('directives/expressions');
 const doc = dom.window.document;
-wireDirectives(interaction);
+wireDirectives(interactions);
 wireDirectives([expressions]);
 
 const mount = (html) => {

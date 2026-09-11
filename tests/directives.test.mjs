@@ -21,12 +21,12 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, interaction, settled, rejections, describeDirectives, stateOf } =
+const { wireDirectives, interactions, settled, rejections, describeDirectives, stateOf } =
   await load('directives');
 const doc = dom.window.document;
 
 /** Wire once for the whole file — the registry is module state, like every vera registry. */
-wireDirectives(interaction);
+wireDirectives(interactions);
 
 const mount = (html) => {
   const host = doc.createElement('div');

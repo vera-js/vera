@@ -64,11 +64,11 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { wireDirectives, interaction, expressions, remote, settled, rejections, stateOf } =
+const { wireDirectives, interactions, expressions, remote, settled, rejections, stateOf } =
   await load('directives');
 /** The foreign origin is ALLOWLISTED — which is what makes the markup refusal meaningful: it is
  *  refused for being markup from elsewhere, not for being from an unknown origin. */
-wireDirectives([expressions, ...interaction, remote({ allowedOrigins: [FOREIGN] })]);
+wireDirectives([expressions, ...interactions, remote({ allowedOrigins: [FOREIGN] })]);
 
 const doc = dom.window.document;
 const until = async (probe, what, tries = 80) => {

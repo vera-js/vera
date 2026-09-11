@@ -5,7 +5,7 @@
  */
 import { init, render, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
-import { wireDirectives, directives, interaction, expressions } from '@verajs/directives';
+import { wireDirectives, directives, interactions, expressions } from '@verajs/directives';
 
 /**
  * The RENDERER is guarded, because the server owns rendering — @verajs/ssr registers its own and
@@ -15,7 +15,7 @@ import { wireDirectives, directives, interaction, expressions } from '@verajs/di
  */
 if (!globalThis.__veraSsrShimmed) wire([renderer]);
 wire([directives]);
-wireDirectives([expressions, ...interaction]);
+wireDirectives([expressions, ...interactions]);
 
 export default class DirectivesSsr extends HTMLElement {
   connectedCallback() {

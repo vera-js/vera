@@ -55,7 +55,7 @@ const PACKAGES = {
   /** Unpublished, and documented anyway — llms.txt is the most-copied file in the project, so a
    *  directives recipe there is exactly the code that must be proven to run. */
   '@verajs/directives': 'directives',
-  '@verajs/directives/interaction': 'directives/interaction',
+  '@verajs/directives/interactions': 'directives/interactions',
   '@verajs/directives/expressions': 'directives/expressions',
   '@verajs/directives/motion': 'directives/motion',
   '@verajs/directives/query': 'directives/query',

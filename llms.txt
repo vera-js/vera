@@ -835,10 +835,10 @@ no vera) · `/interaction` `/expressions` `/motion` `/query` `/remote` (packs).
 ```js
 import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
-import { wireDirectives, directives, interaction, expressions } from '@verajs/directives';
+import { wireDirectives, directives, interactions, expressions } from '@verajs/directives';
 
 wire([renderer, directives]);          // `directives` is core's connector — activation per component
-wireDirectives([expressions, ...interaction]);
+wireDirectives([expressions, ...interactions]);
 ```
 
 `wire([directives])` is correct in a browser AND under `@verajs/ssr`: the connector chooses its
@@ -1022,15 +1022,15 @@ WITH `value` → membership in an array key (the multi-facet shape) · radio →
 checked · `<select multiple>` (or any control whose `type` is `select-multiple`, e.g.
 `<vera-select multi>`) → the whole array. State seeds may hold array literals — `{ tags: ['a'] }`
 (literals only in the base grammar; the expressions tier evaluates entries). `data-vd-query`
-round-trips arrays comma-joined (`?tags=a,b`) and restores the SHAPE the seed declares.
+round-trips arrays comma-joined (`?tags=a,b`; entries URI-encoded first, so a value's own comma survives) and restores the SHAPE the seed declares.
 
 <!-- recipe -->
 ```js
 import { wire } from '@verajs/core';
-import { wireDirectives, directives, interaction, expressions, query, settled } from '@verajs/directives';
+import { wireDirectives, directives, interactions, expressions, query, settled } from '@verajs/directives';
 
 wire([directives]);
-wireDirectives([expressions, ...interaction, query]);
+wireDirectives([expressions, ...interactions, query]);
 
 /**
  * A filterable, paginated, SHAREABLE list — and the markup is complete without JavaScript:

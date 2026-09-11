@@ -40,9 +40,9 @@ const intersect = (el, isIntersecting) => {
   }
 };
 
-const { wireDirectives, interaction, expressions, sensors, settled, rejections, stateOf } =
+const { wireDirectives, interactions, expressions, sensors, settled, rejections, stateOf } =
   await load('directives');
-wireDirectives([expressions, ...interaction, sensors]);
+wireDirectives([expressions, ...interactions, sensors]);
 
 const doc = dom.window.document;
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => r()));
