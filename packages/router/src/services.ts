@@ -725,6 +725,19 @@ export const navigate = async (
     if (match) matches.push([element, match]);
   }
 
+  /**
+   * PRE-RESOLUTION: every matched level's `load` settles BEFORE the guard fold below can wrap
+   * anything in a transition — parallel across routers, outermost-first within a chain. See the
+   * option's doc in types.ts; the failure mode it prevents is a lazy chunk awaited inside the
+   * transition callback, which freezes the page on its old snapshots for the whole fetch.
+   */
+  await Promise.all(matches.map(async ([, match]) => {
+    for (let ancestor: Route | undefined = match.route; ancestor; ancestor = ancestor.parent) {
+      if (ancestor.load) await ancestor.load(match.params ?? {});
+    }
+  }));
+  if (id !== navigationId) return false;
+
   let routed = false;
   const routeAll = async (): Promise<void> => {
     for (const [element, match] of matches) {

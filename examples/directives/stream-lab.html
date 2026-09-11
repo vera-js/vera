@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>stream lab — data-vd-stream</title>
+<style>
+  body { font: 15px/1.5 system-ui; margin: 2rem auto; max-width: 820px; padding: 0 1rem; background: #fdfcf8; }
+  h1 { font-size: 1.3rem; }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .card { flex: 1 1 240px; border: 1px solid #ddd; border-radius: 0.7rem; padding: 1rem; background: #fff; }
+  .card h2 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+  .price { font-size: 2rem; font-weight: 700; color: #7c66e0; font-variant-numeric: tabular-nums; }
+  .badge { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 1rem; border: 1px solid #ccc; text-transform: uppercase; letter-spacing: 0.04em; }
+  input[type="text"] { font: inherit; padding: 0.45rem 0.6rem; border-radius: 0.5rem; border: 1px solid #bbb; width: 10rem; }
+  button { font: inherit; padding: 0.45rem 0.9rem; border-radius: 0.5rem; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  .note { font-size: 0.85rem; color: #555; }
+  #how summary { cursor: pointer; font-weight: 700; }
+  #how h2 { font-size: 0.95rem; margin: 1rem 0 0.3rem; }
+  #how pre { background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
+  ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }
+</style>
+
+<h1>stream lab — <code>data-vd-stream</code></h1>
+<p class="note">Needs the lab's server: <code>node examples/directives/stream-server.mjs</code>.
+One SSE connection feeds the first two cards (a JSON tick patching state each second, and a named
+<code>story</code> event pushing live markup every five — <b>one shared wire</b>, two
+subscribers). The third card is a WebSocket: typing writes an <code>outbox</code> state key, the
+send pump transmits it, and the server's echo comes back as an ordinary state patch.</p>
+
+<div data-vd-state="{ price: 0, viewers: 0, link: '', draft: '', out: {}, lastEcho: '—', echoes: 0, wslink: '' }">
+  <div class="row">
+    <div class="card">
+      <h2>live price <span class="badge" data-vd-text="link">…</span></h2>
+      <div class="price">$<span data-vd-text="price">0</span></div>
+      <p class="note"><b data-vd-text="viewers">0</b> tab(s) watching — open this page twice and
+      both tick from one shared connection.</p>
+      <div data-vd-stream="{ url: '/live', status: 'link' }"></div>
+    </div>
+
+    <div class="card">
+      <h2>pushed markup</h2>
+      <div id="story-zone" data-vd-stream="{ url: '/live', event: 'story', into: '#story-zone', animate: true }">
+        <p class="note" style="margin:0">waiting for the first push…</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>websocket echo <span class="badge" data-vd-text="wslink">…</span></h2>
+      <input type="text" placeholder="say something" data-vd-sync="draft">
+      <button data-vd-on-click="{ out: { say: draft, n: echoes } }">send</button>
+      <p class="note">server echoed: <b data-vd-text="lastEcho">—</b>
+      (<span data-vd-text="echoes">0</span> so far)</p>
+      <div data-vd-stream="{ url: 'ws://localhost:5179/ws', send: 'out', status: 'wslink' }"></div>
+    </div>
+  </div>
+</div>
+
+<details id="how">
+  <summary>how this is built — the actual code on this page</summary>
+  <h2>The markup (serialized from this page before wiring — it cannot drift)</h2>
+  <pre><code id="src-markup"></code></pre>
+  <h2>The wiring — the whole script</h2>
+  <pre><code id="src-wiring"></code></pre>
+  <p class="note">The whole surface: <code>data-vd-stream="{ url, event, into, send, status,
+  animate }"</code>. The URL's scheme picks the transport — <code>http(s)</code> is server-sent
+  events (the platform reconnects it by itself; kill the server and watch the badge, then bring
+  it back), <code>ws(s)</code> is a WebSocket (the pack reconnects it, capped backoff). Every
+  pushed JSON object is a state patch; anything else is markup, same-origin only. Two elements
+  on one URL share one connection.</p>
+</details>
+
+<script type="module">
+  /** The honesty device: show the page its OWN code, captured BEFORE wiring. */
+  const dedent = (text) => {
+    const lines = text.replace(/^\n+/, '').trimEnd().split('\n');
+    const cut = Math.min(...lines.filter((l) => l.trim()).map((l) => /^\s*/.exec(l)[0].length));
+    return lines.map((l) => l.slice(cut)).join('\n');
+  };
+  document.getElementById('src-markup').textContent =
+    document.querySelector('[data-vd-state]').outerHTML.replace(/&gt;/g, '>');
+  /* .at(-1) because the marker also appears in this very line's split argument. */
+  document.getElementById('src-wiring').textContent =
+    dedent(document.querySelector('script[type=module]').textContent.split('/* wiring */').at(-1));
+
+  /* wiring */
+  import { wire } from '/packages/core/dist/vera.min.js';
+  import { renderer } from '/packages/renderer/dist/vera-renderer.min.js';
+  import { wireDirectives, directives, interactions, expressions, remote }
+    from '/packages/directives/dist/vera-directives.min.js';
+  wire([renderer, directives]);
+  wireDirectives([expressions, ...interactions, remote]);
+</script>

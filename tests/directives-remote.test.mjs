@@ -296,6 +296,32 @@ test('place: an unknown placement is a refusal, and no request is made worse by 
   await settled();
 });
 
+test('place + animate: arrivals ENTER individually — named inside the commit, container unnamed', async () => {
+  let namedDuringCapture = -1;
+  let containerNamed = true;
+  doc.startViewTransition = (callback) => {
+    callback();
+    const feed = doc.querySelector('#feed3');
+    namedDuringCapture = [...feed.children]
+      .filter((child) => child.style.getPropertyValue('view-transition-name')).length;
+    containerNamed = feed.style.getPropertyValue('view-transition-name') !== '';
+    return { finished: Promise.resolve() };
+  };
+  const host = await mount(`
+    <div data-vd-state="{}">
+      <button id="grow" data-vd-fetch="{ url: '${ORIGIN}/markup', on: 'click', into: '#feed3', place: 'append', animate: true }">more</button>
+      <div id="feed3"><p>existing</p></div>
+    </div>`);
+  host.querySelector('#grow').click();
+  await until(() => host.querySelector('#feed3 [data-vd-on-click]'), 'the arrival landed');
+  assert.equal(namedDuringCapture, 1, 'exactly the ARRIVAL carried a name during capture — the enter kind');
+  assert.equal(containerNamed, false, 'and the container did not morph as a whole');
+  assert.equal(doc.querySelectorAll('[style*=view-transition-name]').length, 0, 'names cleared after finished');
+  delete doc.startViewTransition;
+  host.remove();
+  await settled();
+});
+
 test('the pun guard: an accumulating feed with a URL-bound depth key warns once (dev only)', async () => {
   const isProd = process.env.VERA_DIST === 'production';
   const warnings = [];
@@ -488,6 +514,12 @@ test('stream: the WebSocket half — queue, pump, dedupe, establishment, reconne
     socket.onmessage?.({ data: '{"total": 41}' });
     await settled();
     assert.equal(host.querySelector('b').textContent, '41', 'the socket push patched state');
+
+    /** THE QUEUE CEILING: a dead socket must not grow memory forever — past the cap the
+     *  OLDEST waiting message drops (state sync keeps the newest) with a named refusal. */
+    socket.readyState = 0;
+    for (let i = 0; i < 105; i++) { state.out = { flood: i }; await settled(); }
+    assert.ok(rejections().some((r) => r.code === 'stream-queue-full'), 'the drop is a refusal, not a silence');
 
     /** The one reconnect loop in the framework: close → backoff → a NEW socket. */
     socket.close();

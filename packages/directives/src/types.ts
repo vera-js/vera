@@ -180,8 +180,12 @@ export type EngineConnector = (seams: EngineSeams) => void;
  * - `move`   — the element travels (list reorder).
  * - `fade`   — visibility flips in place (list filter).
  * - `swap`   — a region's content is replaced (fetch markup swap); old-to-new crossfade.
+ * - `enter`  — the element did not exist before this commit (fetch append/prepend); it gets its
+ *              own entrance instead of riding a whole-container morph. Enter changes are the one
+ *              kind a producer cannot hand over up front — the elements are born inside the
+ *              commit — so they arrive through the flip door's `after` producer.
  */
 export interface ListChange {
   readonly item: Element;
-  readonly kind: 'move' | 'fade' | 'swap';
+  readonly kind: 'move' | 'fade' | 'swap' | 'enter';
 }

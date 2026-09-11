@@ -93,6 +93,14 @@ export interface RouteOptions {
   /** Other paths that reach this same route. Relative to the parent, exactly as `path` is. */
   alias?: string | string[];
   children?: RouteOptions[];
+  /**
+   * The chunk-warming half of a lazy route: `load: () => import('./heavy.js')`, resolved for
+   * every matched level BEFORE any view transition wraps the renders — inside the wrap the page
+   * is frozen on its old snapshots, so an import awaited there is a visible hang. Correct order
+   * even unanimated: the old view stays interactive while the chunk arrives. A throw here
+   * rejects `navigate()`. `component` still renders; `load` only front-runs the fetch.
+   */
+  load?: (params: RouteParams) => unknown;
   component?: RouteAction;
   action?: RouteAction;
   /**

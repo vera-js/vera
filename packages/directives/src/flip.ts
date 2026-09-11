@@ -33,6 +33,7 @@ const TREATMENT: Record<ListChange['kind'], { readonly wave: boolean }> = {
   move: { wave: true },
   fade: { wave: false },
   swap: { wave: false },
+  enter: { wave: false },
 };
 
 interface FlipContext {
@@ -46,6 +47,13 @@ interface FlipContext {
   /** False while a continuous input (typing) drives the change. */
   readonly discrete: boolean;
   readonly changes: readonly ListChange[];
+  /**
+   * Changes only the COMMIT can produce — elements born inside it (`enter`). Called after
+   * `commit`, before the new state is captured, so the names land on the platform's new
+   * snapshots; a commit that produced nothing returns []. Never called on the instant path —
+   * an element that enters without a transition needs no name.
+   */
+  readonly after?: () => readonly ListChange[];
 }
 
 type StartViewTransition = (cb: () => void) =>
@@ -63,8 +71,8 @@ const GUARDS: readonly Guard[] = [
     first ? 'a first apply settles the page — it answers no one' : null],
   ['discrete', ({ discrete }) =>
     discrete ? null : 'typing — a document transition per keystroke is the jank omni measured'],
-  ['has-changes', ({ changes }) =>
-    changes.length > 0 ? null : 'nothing changed'],
+  ['has-changes', ({ changes, after }) =>
+    changes.length > 0 || after !== undefined ? null : 'nothing changed'],
   ['platform', ({ doc }) =>
     startOf(doc) ? null : 'no startViewTransition'],
   ['motion-ok', ({ doc }) =>
@@ -146,13 +154,24 @@ export const commitFlip = (ctx: FlipContext, commit: () => void): string | null 
   stagger.id = 'vm-fx-stagger';
   stagger.textContent = rules.join('');
   if (rules.length) doc.head.appendChild(stagger);
+  /** Everything named — pre-known changes AND the commit-born ones — cleared together. */
+  const named: Element[] = changes.map((change) => change.item);
   const clear = (vt: unknown) => {
     if (activeTransition.get(doc) === vt) activeTransition.delete(doc);
-    for (const change of changes) (change.item as HTMLElement).style.removeProperty('view-transition-name');
+    for (const item of named) (item as HTMLElement).style.removeProperty('view-transition-name');
     stagger.remove();
   };
   try {
-    const vt = start.call(doc, commit);
+    const vt = start.call(doc, () => {
+      commit();
+      /** The commit-born changes: named HERE, after the mutation and before the new-state
+       *  capture — the only window in which an entering element both exists and can still
+       *  make it into the platform's snapshot pairing. */
+      for (const change of ctx.after?.() ?? []) {
+        (change.item as HTMLElement).style.setProperty('view-transition-name', `vm-fx-${named.length}`);
+        named.push(change.item);
+      }
+    });
     activeTransition.set(doc, vt);
     vt.finished.then(() => clear(vt), () => clear(vt));
   } catch {

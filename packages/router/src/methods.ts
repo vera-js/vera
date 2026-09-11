@@ -187,7 +187,7 @@ const insertRoute = (element: HTMLElement, route: Route) => {
  *
  * `__DEV__`-only, so a production bundle carries neither the list nor the text.
  */
-const ROUTE_KEYS = ['path', 'name', 'title', 'meta', 'beforeEnter', 'alias', 'children', 'component', 'action', 'redirect', 'view'];
+const ROUTE_KEYS = ['path', 'name', 'title', 'meta', 'beforeEnter', 'alias', 'children', 'component', 'action', 'redirect', 'view', 'load'];
 
 export const addRoutes = (
   element: HTMLElement,

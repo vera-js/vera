@@ -251,14 +251,37 @@ const fetchDirective: Directive = {
               }
               const markup = await response.text();
               const current = claimCommit(into);
+              /**
+               * The kinds say what actually happens. A replace is one region morphing (`swap`).
+               * An accumulation is finer: the arrivals are `enter` changes — born inside the
+               * commit, so they reach the door through its `after` producer and get their own
+               * entrances instead of riding a whole-container morph — and a prepend's existing
+               * children are `move` changes, because they genuinely travel.
+               */
+              const preChanges: ListChange[] =
+                place === 'replace' ? [{ item: into, kind: 'swap' }]
+                : place === 'prepend' ? [...into.children].map((item) => ({ item, kind: 'move' as const }))
+                : [];
+              let mark = -1;
               commitFlip({
                 doc: element.ownerDocument!,
                 animate: read('animate') === true,
                 first: trigger === 'load',
                 discrete: true,
-                changes: [{ item: into, kind: 'swap' }],
+                changes: preChanges,
+                ...(place === 'replace' ? {} : {
+                  after: (): ListChange[] => {
+                    if (mark < 0) return []; /* superseded — the commit never ran */
+                    const children = [...into.children];
+                    const arrivals = place === 'append'
+                      ? children.slice(mark)
+                      : children.slice(0, children.length - mark);
+                    return arrivals.map((item) => ({ item, kind: 'enter' as const }));
+                  },
+                }),
               }, () => {
                 if (!current()) return;
+                mark = into.children.length;
                 if (place === 'replace') into.innerHTML = markup;
                 else into.insertAdjacentHTML(place === 'append' ? 'beforeend' : 'afterbegin', markup);
               });
@@ -338,11 +361,16 @@ interface SharedStream {
   readonly queue: string[];
   retry: number;
   timer: ReturnType<typeof setTimeout> | null;
-  /** sse only: event names already attached on the source. */
-  readonly listening: Set<string>;
+  /** sse only: event name → the attached dispatcher, so a stale name can be detached. */
+  readonly listening: Map<string, (event: Event) => void>;
 }
 
 const streams = new Map<string, SharedStream>();
+
+/** The ws send queue's ceiling. A dead server plus a chatty page must not grow memory forever:
+ *  past this, the OLDEST waiting message is dropped (state sync wants the newest) and the drop
+ *  is a named refusal. */
+const QUEUE_CAP = 100;
 
 const statusAll = (shared: SharedStream, value: string): void => {
   for (const sub of shared.subs) {
@@ -403,18 +431,29 @@ const deliver = (shared: SharedStream, sub: StreamSub, data: string): void => {
   });
 };
 
-/** SSE: every event name any subscriber wants, attached once; dispatch fans to the listeners. */
+/** SSE: every event name any subscriber wants, attached once; dispatch fans to the listeners.
+ *  Names NO subscriber wants any more are detached — a reconfigured `event` list must not leave
+ *  ghosts accumulating on a long-lived shared source. */
 const ensureListening = (shared: SharedStream, names: readonly string[]): void => {
   const source = shared.source;
   if (!source || shared.transport !== 'sse') return;
   for (const name of names) {
     if (shared.listening.has(name)) continue;
-    shared.listening.add(name);
-    source.addEventListener(name, (event) => {
+    const dispatch = (event: Event): void => {
       for (const sub of shared.subs) {
         if (sub.events.includes(name)) deliver(shared, sub, String((event as MessageEvent).data));
       }
-    });
+    };
+    shared.listening.set(name, dispatch);
+    source.addEventListener(name, dispatch);
+  }
+  const wanted = new Set<string>();
+  for (const sub of shared.subs) for (const name of sub.events) wanted.add(name);
+  for (const [name, dispatch] of shared.listening) {
+    if (!wanted.has(name)) {
+      shared.listening.delete(name);
+      source.removeEventListener(name, dispatch);
+    }
   }
 };
 
@@ -464,7 +503,7 @@ const subscribeStream = (
   let shared = streams.get(target.href);
   if (!shared) {
     shared = { transport: target.transport, sameOrigin: target.sameOrigin, subs: new Set(),
-      source: null, queue: [], retry: 0, timer: null, listening: new Set() };
+      source: null, queue: [], retry: 0, timer: null, listening: new Map() };
     streams.set(target.href, shared);
   }
   shared.subs.add(sub);
@@ -473,7 +512,12 @@ const subscribeStream = (
   else ensureListening(shared, sub.events);
   return () => {
     shared.subs.delete(sub);
-    if (shared.subs.size > 0) return;
+    if (shared.subs.size > 0) {
+      /** The leaver's event names may now be wanted by no one — prune, or a long-lived shared
+       *  source accumulates ghosts. */
+      ensureListening(shared, []);
+      return;
+    }
     if (shared.timer) clearTimeout(shared.timer);
     shared.source?.close();
     shared.source = null;
@@ -526,8 +570,19 @@ const streamDirective: Directive = {
           : ['message'];
         const sendKey = typeof read('send') === 'string' ? (read('send') as string) : null;
         if (sendKey && target.transport === 'sse') context.reject('stream-sse-send');
-        /** READING the outbox here is what subscribes the pump: a write re-runs this apply. */
-        const outgoing = sendKey && target.transport === 'ws' ? context.get(sendKey) : undefined;
+        /** READING the outbox here is what subscribes the pump: a write re-runs this apply.
+         *  Deep-evaluated before serialization, the same way fetch treats its body and for the
+         *  same reason: an assignment's NESTED object literal reaches state with its leaves
+         *  still parsed (lazy is the engine's contract), and the wire must carry data. */
+        const deepData = (node: unknown): unknown => {
+          if (isObject(node as never)) {
+            const out: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(node as Record<string, unknown>)) out[k] = deepData(v);
+            return out;
+          }
+          return context.eval(node);
+        };
+        const outgoing = sendKey && target.transport === 'ws' ? deepData(context.get(sendKey)) : undefined;
 
         if (!current || current.href !== target.href) {
           current?.unsubscribe();
@@ -551,7 +606,13 @@ const streamDirective: Directive = {
             lastSent = wired;
             const socket = shared?.source as WebSocket | null;
             if (socket && socket.readyState === 1 /* OPEN */) socket.send(wired);
-            else shared?.queue.push(wired);
+            else if (shared) {
+              if (shared.queue.length >= QUEUE_CAP) {
+                shared.queue.shift();
+                context.reject('stream-queue-full', [String(QUEUE_CAP)]);
+              }
+              shared.queue.push(wired);
+            }
           }
         }
       },

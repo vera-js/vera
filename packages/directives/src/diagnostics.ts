@@ -106,6 +106,7 @@ export const PROSE: Record<string, Prose> = {
   'stream-foreign-markup': () => [`a cross-origin stream may only push JSON — markup is never swapped from another origin.`, `Push application/json-shaped messages, or serve the stream from this origin.`],
   'stream-json-not-object': () => [`a JSON message must be an object of state keys.`],
   'stream-not-object': () => ['data-vd-stream takes a braced object.', `Write data-vd-stream="{ url: '/live', status: 'link' }".`],
+  'stream-queue-full': (cap: string) => [`the socket has been down for ${cap} queued messages — the oldest was dropped.`, `State sync keeps the newest; if every message matters, gate writes on the status key.`],
   'stream-sse-send': () => [`an http(s) stream is receive-only — SSE has no client channel.`, `Send with data-vd-fetch, or use a ws:// url and the same send key.`],
   'stream-target-missing': (detail: string) => [`"${detail}" matched no element to swap into.`],
   'stream-unavailable': (api: string) => [`${api} is unavailable here, so the stream never opened.`],

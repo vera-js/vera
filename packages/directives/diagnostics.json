@@ -1104,6 +1104,14 @@
       "fix": "Write data-vd-stream=\"{ url: '/live', status: 'link' }\"."
     },
     {
+      "code": "stream-queue-full",
+      "params": [
+        "cap"
+      ],
+      "message": "the socket has been down for {cap} queued messages — the oldest was dropped.",
+      "fix": "State sync keeps the newest; if every message matters, gate writes on the status key."
+    },
+    {
       "code": "stream-sse-send",
       "params": [],
       "message": "an http(s) stream is receive-only — SSE has no client channel.",

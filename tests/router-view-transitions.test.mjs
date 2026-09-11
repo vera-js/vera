@@ -66,6 +66,21 @@ let rejected = false;
 await navigate('/boom').catch(() => { rejected = true; });
 check('a throwing guard still rejects navigate through the transition', rejected);
 
+/** PRE-RESOLUTION: a lazy route's `load` settles BEFORE the transition wraps — the chunk
+ *  arrives while the old view is still interactive, never inside the frozen window. */
+window.document.startViewTransition = (callback) => {
+  order.push('transition');
+  const updateCallbackDone = Promise.resolve().then(callback);
+  return { updateCallbackDone, finished: updateCallbackDone };
+};
+const order = [];
+addRoutes([{ path: '/lazy',
+  load: async () => { await new Promise((r) => setTimeout(r, 30)); order.push('load'); },
+  component: () => { order.push('component'); return 'lazy-view'; } }]);
+await navigate('/lazy');
+check('load resolved before the transition began, component ran inside it',
+  order.join('>') === 'load>transition>component');
+
 /** Opt-out sanity: with no support on the page, navigation is instant and identical. */
 delete window.document.startViewTransition;
 await navigate('/A');
