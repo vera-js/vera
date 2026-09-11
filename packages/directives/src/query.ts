@@ -275,45 +275,69 @@ const activeTransition = new WeakMap<Document, { skipTransition?: () => void }>(
  *   (no containing-block shift while named, no residue after clearing, guard path inert).
  *   Prefixed `vm-li-` so the scheme can never collide with a host platform's own VT names.
  */
+/**
+ * A list change, TYPED — the generalized seam (owner's rule: tables, not conditionals). Every
+ * item a commit touches is one of these, and TREATMENT maps the kind to its animation policy.
+ * A new kind of change (a leave animation, an insertion) is a ROW here and a producer in apply,
+ * never another parameter or positional convention on commitList.
+ */
+interface ListChange {
+  readonly item: Element;
+  readonly kind: 'move' | 'fade';
+}
+
+/** kind → policy. `wave`: rides the stagger — a property of items that TRAVEL (the reversal's
+ *  synchronised centre-crossing is what the wave exists to break); fades happen together,
+ *  because a filter is ONE coherent change and waved fades read as a laggy queue. */
+const TREATMENT: Record<ListChange['kind'], { readonly wave: boolean }> = {
+  move: { wave: true },
+  fade: { wave: false },
+};
+
 const commitList = (
   doc: Document,
   commit: () => void,
-  changed: readonly Element[],
+  changes: readonly ListChange[],
   animate: boolean
 ): void => {
   const view = doc.defaultView;
   const start = (doc as Document & { startViewTransition?: (cb: () => void) =>
     { finished: Promise<unknown>; skipTransition?: () => void } }).startViewTransition;
   const reduced = view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-  if (!animate || !start || reduced || changed.length === 0) {
+  if (!animate || !start || reduced || changes.length === 0) {
     commit();
     return;
   }
   /** A change worth animating that lands mid-flight takes the stage over: the old overlay skips
    *  to its end (its stale callback runs and no-ops), and THIS one glides from there. */
   activeTransition.get(doc)?.skipTransition?.();
-  let named = 0;
-  for (const item of changed) {
-    (item as HTMLElement).style.setProperty('view-transition-name', `vm-li-${named++}`);
-  }
   /**
-   * THE STAGGER — the reversal cure (measured: on a full reversal every item's mirror path
-   * crosses the grid centre at t=50%, so all groups pile into one band and fan back out — the
-   * "shrink and grow" a synchronised FLIP always shows on opposing states; GSAP and Framer
-   * included). A few ms of per-group `animation-delay` desynchronises the crossing into a wave,
-   * so nothing is co-located. Capped total (~260ms) so a long list is a wave, not a queue. Per
-   * `::view-transition-group`, which only a stylesheet can reach, so it rides the names'
-   * transient life exactly. Prefixed id, one <style>, removed on clear.
+   * THE STAGGER — the reversal cure, applied by TREATMENT kind: on a full reversal every
+   * mover's mirror path crosses the grid centre at t=50% under one shared clock, so all groups
+   * pile into one band and fan back out (the measured "shrink and grow"; synchronised FLIP
+   * always does this on opposing states). A few ms of per-group delay turns the crossing into a
+   * wave. Only kinds whose treatment says `wave` ride it — fades happen TOGETHER, because a
+   * filter is one coherent change and waved fades read as a laggy queue (found live). Per
+   * `::view-transition-group`, which only a stylesheet can reach, so the rules ride the
+   * transient names' exact lifecycle.
    */
-  const step = named > 1 ? Math.min(40, 260 / (named - 1)) : 0;
+  const waved = changes.filter((change) => TREATMENT[change.kind].wave).length;
+  const step = waved > 1 ? Math.min(40, 260 / (waved - 1)) : 0;
+  const rules: string[] = [];
+  let wavedAt = 0;
+  changes.forEach((change, i) => {
+    (change.item as HTMLElement).style.setProperty('view-transition-name', `vm-li-${i}`);
+    if (step > 0 && TREATMENT[change.kind].wave) {
+      rules.push(`::view-transition-group(vm-li-${i}) { animation-delay: ${Math.round(wavedAt++ * step)}ms; }`);
+    }
+  });
   const stagger = doc.createElement('style');
   stagger.id = 'vm-li-stagger';
-  stagger.textContent = Array.from({ length: named }, (_, i) =>
-    `::view-transition-group(vm-li-${i}) { animation-delay: ${Math.round(i * step)}ms; }`).join('');
-  doc.head.appendChild(stagger);
+  stagger.textContent = rules.join('');
+  if (rules.length) doc.head.appendChild(stagger);
   const clear = (vt: unknown) => {
     if (activeTransition.get(doc) === vt) activeTransition.delete(doc);
-    for (const item of changed) (item as HTMLElement).style.removeProperty('view-transition-name');
+    for (const change of changes) (change.item as HTMLElement).style.removeProperty('view-transition-name');
     stagger.remove();
   };
   try {
@@ -508,15 +532,20 @@ const list: Directive = {
     const shown = new Set(visible);
 
     /** Everything below is computed HERE, synchronously — `commit` closes over plain data and
-     *  never touches ctx, because an animated commit runs after this scope is gone. */
-    const changed: Element[] = [];
+     *  never touches ctx, because an animated commit runs after this scope is gone. Changes are
+     *  TYPED (kind → treatment table in commitList); a new change kind is a row, never a knob. */
+    const changed: { item: Element; kind: 'move' | 'fade' }[] = [];
     for (const item of items) {
-      if ((item as HTMLElement).hidden === shown.has(item)) changed.push(item);
+      if ((item as HTMLElement).hidden === shown.has(item)) changed.push({ item, kind: 'fade' });
     }
     const discrete = needle === (lastNeedle.get(el) ?? '');
     lastNeedle.set(el, needle);
     const animate = read('animate') === true;
-    for (const mover of movers) if (!changed.includes(mover)) changed.push(mover);
+    for (const mover of movers) {
+      const existing = changed.find((c) => c.item === mover);
+      if (existing) (existing as { kind: string }).kind = 'move';
+      else changed.push({ item: mover, kind: 'move' });
+    }
     const seq = (commitSeq.get(el) ?? 0) + 1;
     commitSeq.set(el, seq);
     const doCommit = () => {
