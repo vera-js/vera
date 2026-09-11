@@ -11,8 +11,8 @@
       "gzip": 4450
     },
     "router": {
-      "raw": 10449,
-      "gzip": 4419
+      "raw": 10576,
+      "gzip": 4471
     },
     "autoloader": {
       "raw": 3919,
@@ -67,20 +67,20 @@
       "gzip": 3760
     },
     "directives-query": {
-      "raw": 7321,
-      "gzip": 3132
+      "raw": 7498,
+      "gzip": 3186
     },
     "directives-sensors": {
       "raw": 5651,
       "gzip": 2243
     },
     "directives-remote": {
-      "raw": 8231,
-      "gzip": 3420
+      "raw": 9067,
+      "gzip": 3683
     },
     "directives-motion": {
-      "raw": 76200,
-      "gzip": 25164
+      "raw": 76210,
+      "gzip": 25170
     },
     "motion": {
       "raw": 36539,

@@ -1,5 +1,5 @@
 /**
- * The stream lab's live half — run `node examples/directives/stream-server.mjs` from the repo
+ * The stream lab's live half — run `node examples/directives/server-stream.mjs` from the repo
  * root, then open http://localhost:5179/examples/directives/stream-lab.html
  *
  * Three endpoints, zero dependencies:

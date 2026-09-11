@@ -122,7 +122,7 @@ describing the bytes honestly.)*
 | --- | ---: | --- |
 | `@verajs/core` | 3 115 B | state (incl. Map and Set), hooks, lifecycle, render |
 | `@verajs/renderer` | 4 450 B | keyed template renderer, refs, `hold` |
-| `@verajs/router` | 4 419 B | nested routes, params, wildcards, redirects, scroll memory |
+| `@verajs/router` | 4 471 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 681 B | lazy component discovery |
 | `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 316 B | `${spread(props)}` — runtime-named bindings |
@@ -136,10 +136,10 @@ describing the bytes honestly.)*
 | `@verajs/directives/standalone` | 7 413 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 760 B | the interaction pack — events, reflections, state |
-| `@verajs/directives/query` | 3 132 B | the query pack — route, query, list |
+| `@verajs/directives/query` | 3 186 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 2 243 B | the sensors pack — environment to state |
-| `@verajs/directives/remote` | 3 420 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 25 164 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/directives/remote` | 3 683 B | the remote pack — server-driven interactions |
+| `@verajs/directives/motion` | 25 170 B | the motion pack — presets, easings, paint, path, sequence, split |
 | `@verajs/motion/core` | 12 159 B | the motion engine — compiler + writer, no directives engine, no packs |
 | `@verajs/motion/ssr` | 11 642 B | renderMotion — mark a server document, emit its sheet |
 | `@verajs/motion/client` | 2 883 B | the reader — delivery, drive and functions, no compiler |
