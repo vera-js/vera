@@ -223,6 +223,20 @@ const serverOrder = new WeakMap<Element, Map<Element, number>>();
 /** Host → the last search needle, for the DISCRETE/CONTINUOUS split (see `animate`). */
 const lastNeedle = new WeakMap<Element, string>();
 
+/**
+ * Host → the counts last WRITTEN, for compare-before-write. A WeakMap and not a state read,
+ * decisively: reading the key back through ctx SUBSCRIBED the list to its own write, and the
+ * echo re-entered apply MID-APPLY — before the commit — where it saw the same needle
+ * (discrete!), the still-uncommitted changes, and wrapped them in a second transition racing
+ * the first's snapshots. Every animation artifact of the first live build (typing fades,
+ * sort's shrink-and-regrow, checkboxes animating nothing) was this one echo.
+ */
+const lastCounts = new WeakMap<Element, { matched: number; pages: number; page: number; total: number }>();
+
+/** Hosts mid-apply: a re-entrant apply (any subscription echo) is redundant BY CONSTRUCTION —
+ *  the outer pass writes the final state — and can only ever see half-applied DOM. Skipped. */
+const applying = new WeakSet<Element>();
+
 /** One transition at a time per document — a nested startViewTransition is the pileup omni
  *  measured; while one runs, further commits apply instantly inside it. */
 const transitioning = new WeakSet<Document>();
@@ -306,6 +320,9 @@ const list: Directive = {
    */
   ssr: true,
   apply(el, value, ctx) {
+    if (applying.has(el)) return;
+    applying.add(el);
+    try {
     if (!isObject(value as never)) {
       ctx.reject('list-not-object');
       return;
@@ -483,9 +500,10 @@ const list: Directive = {
     const counts = typeof read('counts') === 'string' ? String(read('counts')) : null;
     if (counts) {
       const next = { matched: matched.length, pages, page, total: items.length };
-      const now = ctx.get(counts) as Record<string, number> | undefined;
+      const now = lastCounts.get(el);
       if (!now || now.matched !== next.matched || now.pages !== next.pages ||
           now.page !== next.page || now.total !== next.total) {
+        lastCounts.set(el, next);
         ctx.set(counts, next);
       }
     }
@@ -496,6 +514,9 @@ const list: Directive = {
      *  animated through the platform's FLIP when `animate: true` and the change was DISCRETE
      *  (typing never animates; see commitList). */
     commitList(el.ownerDocument!, doCommit, changed, animate && discrete);
+    } finally {
+      applying.delete(el);
+    }
   },
 };
 
