@@ -52,6 +52,15 @@ export interface MotionOptions {
   transformOrigin?: string;
   /** Per-frame progress callback — a callback rather than an event; see events.ts. */
   onProgress?: (node: HTMLElement, progress: number) => void;
+  /**
+   * `false` delivers each element's generated CSS as a `<style data-vm-sheet="inline">` CHILD of
+   * the element instead of the shared registry sheet — the CACHE-ESCAPE HATCH: a cached or
+   * replayed fragment carries its own rules. Costs, stated where the choice is made: duplicate
+   * rules across same-hash elements (shared-sheet dedup is what is being traded), a
+   * `:first-child`/`:nth-child` shift inside the element (the style IS a child), and `@property`
+   * cannot ride inline (document-global in every engine; the wire registers it via JS instead).
+   */
+  hoist?: boolean;
 }
 
 const DEFAULTS = {
@@ -62,6 +71,7 @@ const DEFAULTS = {
   disableOnTouch: false,
   translateZFix: false,
   transformOrigin: '',
+  hoist: true,
 } as const;
 
 const KNOWN_OPTIONS = new Set([...Object.keys(DEFAULTS), 'onProgress']);
@@ -204,6 +214,9 @@ const regionOptions = (config: Readonly<Record<string, unknown>>, reportKey: (ke
     ease: easing('ease', defaults.ease),
     translateZFix: typeof config['translate-z-fix'] === 'boolean' ? (config['translate-z-fix'] as boolean) : defaults.translateZFix,
     transformOrigin: defaults.transformOrigin,
+    /** FACTORY-ONLY, deliberately: delivery mode is the page's build/caching posture, not an
+     *  attribute's business — same reasoning as `breakpoints`. */
+    hoist: defaults.hoist,
     onProgress,
   };
 };

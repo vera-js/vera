@@ -568,6 +568,9 @@ export interface RuntimeSettings {
    * check below is one property read.
    */
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
+  /** `false` = the cache-escape hatch: generated CSS delivered as a style CHILD of each
+   *  animated element instead of the shared registry sheet. Default true (hoisted). */
+  readonly hoist?: boolean;
   readonly translateZFix?: boolean;
   readonly transformOrigin?: string;
 }
@@ -681,6 +684,8 @@ export interface RuntimeElement {
    */
   generated: {
     readonly hash: string;
+    /** Inline (hoist: false) delivery — rules live in the element's own style child. */
+    readonly inline?: boolean;
     /** Transition-mode play: the write is ONE attribute flip and the compositor owns the
      *  clock; no drives run and no variable exists. */
     readonly transition: boolean;
@@ -762,6 +767,15 @@ export interface RenderMotionOptions {
    * are accepted and ignored, which is what lets ONE array serve both calls.
    */
   readonly wire?: readonly unknown[];
+  /**
+   * INLINE delivery — the cache-escape hatch's server half: each rendered element carries its
+   * own `<style data-vm-sheet="inline">` child instead of one per-tree sheet, so a cached or
+   * replayed FRAGMENT arrives complete. No document-level sheet is written at all, and
+   * `@property` cannot ride inline (registration is document-global — measured); the client
+   * registers via JS at wire, and a no-JS page's seek is correct untyped. Pair with the
+   * client's `motion({ hoist: false })` so hydration takes the children over in place.
+   */
+  readonly inline?: boolean;
 }
 
 /** What one pass did — counts for the caller's logs, problems for its diagnostics. */

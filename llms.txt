@@ -972,6 +972,13 @@ design. Reduced-motion visitors always get the designed page: emitted `@media
 (prefers-reduced-motion: reduce)` blocks neutralise seek animations and pin transition-mode
 plays to their END state — no driver involvement, so it holds with JavaScript off too.
 `data-vd-motion-group` on a container makes a region (own axis, scroller, defaults).
+**Inline delivery — the cache-escape hatch**: `motion({ hoist: false })` client-side and
+`renderMotion(doc, { inline: true })` server-side deliver each element's generated CSS as its own
+`<style data-vm-sheet="inline">` child instead of the shared sheet, so a cached/replayed fragment
+carries its rules. Costs (stated, deliberate): duplicate rules across same-hash elements, a
+`:first-child`/`:nth-child` shift inside the element, and `@property` never rides inline
+(document-global — the wire registers it via JS; no-JS seek is correct untyped). Hydration takes
+matching children over in place.
 Vocabulary modules extend the object's KEYS, never the attribute space: `paint`
 (background/color/border-color/shadow/text-shadow), `path`, `sequence` (a tick consumer:
 `function: 'sequence'` scrubs an image sequence onto a `<canvas>`, configured by `frame-*` settings), plus

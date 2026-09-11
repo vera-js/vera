@@ -10,7 +10,7 @@
  */
 import { getElementSize, getWindowSize, displacementOf, normalisePosition } from './dom.js';
 
-import { generateSimple, mergeBandsForWidth } from './generate.js';
+import { generateSimple, mergeBandsForWidth, inlineCssFor } from './generate.js';
 
 import { functionFor } from './functions.js';
 
@@ -169,6 +169,30 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
 /** The client-side acquisition order, in one place — construction and regeneration must never
  *  drift on it: groups, segment keyframes, the element rule, THEN the media switches (they tie
  *  the element rule on specificity, so sheet source order decides). Returns the teardown keys. */
+/**
+ * The INLINE branch — `hoist: false`, the cache-escape hatch. One `<style data-vm-sheet="inline">`
+ * child per element, `data-vm-for` carrying the hash so an SSR-delivered child is TAKEN OVER
+ * (matching hash: nothing rewritten) rather than duplicated, and a rebuild-on-edit simply
+ * rewrites it. Prepended, which is the documented `:first-child` cost of opting in.
+ */
+const inlineDeliver = (node: Element, generatedCss: Generated): void => {
+  let style: Element | null = null;
+  for (const child of node.children) {
+    if (child.localName === 'style' && child.getAttribute('data-vm-sheet') === 'inline') {
+      style = child;
+      break;
+    }
+  }
+  if (style && style.getAttribute('data-vm-for') === generatedCss.hash) return;
+  if (!style) {
+    style = node.ownerDocument!.createElement('style');
+    style.setAttribute('data-vm-sheet', 'inline');
+    node.prepend(style);
+  }
+  style.setAttribute('data-vm-for', generatedCss.hash);
+  style.textContent = inlineCssFor(generatedCss);
+};
+
 const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
   const sheetRoot = node.getRootNode() as SheetRoot;
   /** Transition mode is three rules, ORDER-SENSITIVE: base, then active (they tie on
@@ -219,7 +243,9 @@ const regenerateRules = (element: RuntimeElement, win: WindowSize): void => {
     return;
   }
   if (fresh.hash === element.generated.hash) return;
-  const keys = deliverGenerated(element.node, fresh);
+  const keys = element.generated.inline
+    ? (inlineDeliver(element.node, fresh), [])
+    : deliverGenerated(element.node, fresh);
   /** New rules IN before old rules out — an element must never reference a name mid-swap. */
   element.node.setAttribute('data-vm-motion', fresh.hash);
   for (const key of element.generated.hashes) release(key);
@@ -536,8 +562,14 @@ export const createRuntimeElement = (
      *  path for the drive machinery alone: the same chase, ramp and variable write, aimed at its
      *  function instead of a rule. */
     if (generatedCss.groups.length || generatedCss.mode === 'transition') {
-      acquiredKeys = deliverGenerated(node, generatedCss);
-      setTails(NEUTRALISERS);
+      if (settings.hoist === false) {
+        /** Inline mode: no shared sheet, so no global tails either — the per-hash copies ride
+         *  inside the child (inlineCssFor). Nothing to release at teardown; the child goes. */
+        inlineDeliver(node, generatedCss);
+      } else {
+        acquiredKeys = deliverGenerated(node, generatedCss);
+        setTails(NEUTRALISERS);
+      }
     }
     /**
      * The mark, AFTER acquire — the invariant. It is the observable "this element rides the
@@ -586,6 +618,7 @@ export const createRuntimeElement = (
     generated = {
       hash: generatedCss.hash,
       transition: generatedCss.mode === 'transition',
+      inline: settings.hoist === false,
       cascade,
       geometric: parsed.animations.some((a) =>
         a.keyframes.some((f) => f.positionUnit !== '%') ||
@@ -1050,6 +1083,9 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
     node.removeAttribute('data-vm-on');
     node.removeAttribute('data-vm-armed');
     node.removeAttribute('data-vm-native');
+    for (const child of [...node.children]) {
+      if (child.localName === 'style' && child.getAttribute('data-vm-sheet') === 'inline') child.remove();
+    }
   }
 
 

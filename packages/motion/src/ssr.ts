@@ -22,7 +22,7 @@
  */
 import { parseMotion, MOTION_ATTR } from './parse.js';
 
-import { generateSimple } from './generate.js';
+import { generateSimple, inlineCssFor } from './generate.js';
 
 import { STAGGER_PROPERTY } from './registry.js';
 
@@ -151,10 +151,32 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
 
         (el as HTMLElement).style.setProperty(STAGGER_PROPERTY, String(parsed!.stagger.position / 100));
       }
-      let sheet = sheets.get(root);
-      if (!sheet) sheets.set(root, (sheet = new Map()));
-      collect(sheet, generated);
-      for (const v of generated.vars) varNames.add(v.name);
+      if (options.inline) {
+        /** The fragment-cacheable form: rules travel WITH the element (RenderMotionOptions).
+         *  A matching child is left alone, so re-rendering already-rendered markup — the
+         *  fragment-cache flow this mode exists for — is idempotent. */
+        let style: Element | null = null;
+        for (const child of el.children) {
+          if (child.localName === 'style' && child.getAttribute('data-vm-sheet') === 'inline') {
+            style = child;
+            break;
+          }
+        }
+        if (!style) {
+          style = doc.createElement('style');
+          style.setAttribute('data-vm-sheet', 'inline');
+          el.prepend(style);
+        }
+        if (style.getAttribute('data-vm-for') !== generated.hash) {
+          style.setAttribute('data-vm-for', generated.hash);
+          style.textContent = inlineCssFor(generated);
+        }
+      } else {
+        let sheet = sheets.get(root);
+        if (!sheet) sheets.set(root, (sheet = new Map()));
+        collect(sheet, generated);
+        for (const v of generated.vars) varNames.add(v.name);
+      }
       el.setAttribute('data-vm-motion', generated.hash);
       /** Pre-ARMED on the server: first paint already has base, so no change ever fires and
        *  the client's arming frame is unnecessary — reversals work from the first script. */

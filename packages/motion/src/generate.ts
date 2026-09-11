@@ -658,3 +658,35 @@ export const fromAttribute = (node: Element, raw: string): Generated | null => {
   const parsed = parseMotion(node, raw, {});
   return parsed ? generateSimple(parsed) : null;
 };
+
+/**
+ * The INLINE assembly — every rule the shared-sheet path would acquire, as one stylesheet text,
+ * in the same order (order is load-bearing twice: transition's base-then-active tie-break, and
+ * the media switches after the element rule). The page-wide neutraliser tails ride along scoped
+ * to this hash, because an inline block cannot rely on a shared sheet existing.
+ *
+ * This is the cache-escape hatch's engine: `motion({ hoist: false })` and
+ * `renderMotion(doc, { inline: true })` deliver THIS as a `<style data-vm-sheet="inline">` child
+ * of the animated element, so a cached fragment carries its own CSS. The costs are documented at
+ * the option: duplicate rules across same-hash elements (the shared registry's dedup is the
+ * thing being traded away), a `:first-child`/`:nth-child` shift inside the element (the style IS
+ * a child), and no `@property` can ride along (registration is document-global in every engine —
+ * measured; the client registers via `CSS.registerProperty` at wire, and a no-JS page's seek
+ * works untyped because `calc(var(--vm-p, 0) * -1s)` needs no registration).
+ */
+export const inlineCssFor = (generated: Generated): string => {
+  if (generated.mode === 'transition') {
+    return [generated.elementRule, generated.armedRule, generated.activeRule,
+      generated.noJsRule, generated.reducedRule].filter(Boolean).join('\n');
+  }
+  const tail = `[data-vm-motion="${generated.hash}"][data-vm-motion] { animation: none; }`;
+  return [
+    ...generated.groups.map((group) => group.rule),
+    ...generated.segments.flatMap((segment) => segment.rules.map((rule) => rule.rule)),
+    generated.elementRule,
+    ...generated.segments.map((segment) => segment.media),
+    ...(generated.nativeRule ? [generated.nativeRule] : []),
+    `@media (prefers-reduced-motion: reduce) { ${tail} }`,
+    `@media (scripting: none) { ${tail} }`,
+  ].filter(Boolean).join('\n');
+};
