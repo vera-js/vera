@@ -624,6 +624,62 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
       : 'inertia') as 'inertia' | 'transform-inertia' | 'filter-inertia',
   }));
 
+
+/**
+ * TIER N FOR CUSTOM RANGES — the static mapping from `scroll`'s parsed alignments to CSS
+ * `animation-range`, or null where none exists (the element keeps tier C, which is always
+ * correct). Two families map, both against the DEFAULT document scroller:
+ *
+ * - TRANSIT pairs (`edge == 1 - viewport`, the family every plain `scroll: '100%, 0%'`-style
+ *   spelling normalises into): position t along the transit is geometry-free, so
+ *   `cover ${'${'}t*100}%`.
+ * - VIEWPORT-LINE halves (`0 b` — the one-token form: "leading edge at viewport fraction b"):
+ *   the distance from transit start is `(1-b)` viewports exactly, so `cover ${'${'}(1-b)*100}vh`
+ *   — static in vh, valid only where the scrollport IS the viewport (regions keep tier C).
+ *
+ * Mixed families cannot be ORDERED statically (percent vs vh), so they answer null rather than
+ * risk a reversed range CSS cannot play; reversed same-family ranges answer null for the same
+ * reason. `anchor` measures a DIFFERENT element — view() cannot — so it always answers null.
+ */
+const nativeRangeFor = (parsed: ParsedElement): string | null => {
+  if (parsed.settings['anchor'] !== undefined) return null;
+  const raw = parsed.settings['scroll'];
+  if (raw === undefined) return 'cover 0% cover 100%';
+  if (typeof raw !== 'string') return null;
+  const halves = raw.split(',');
+  if (halves.length > 2) return null;
+  const point = (half: string | undefined, fallback: readonly [number, number]):
+    { kind: 'pct' | 'vh'; at: number } | null => {
+    if (half === undefined || half === '') return { kind: 'pct', at: fallback[0] };
+    const parts = half.trim().split(' ');
+    if (parts.length !== 2) return null;
+    const a = Number(parts[0]);
+    const b = Number(parts[1]);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    if (Math.abs(a - (1 - b)) < 1e-9) return { kind: 'pct', at: a };
+    if (a === 0) return { kind: 'vh', at: 1 - b };
+    return null;
+  };
+  const from = point(halves[0], [0, 1]);
+  const to = point(halves[1], [1, 0]);
+  if (!from || !to) return null;
+  /**
+   * ORDERING across families: same family compares directly; across them only the absolute
+   * endpoints order — `cover 0%` precedes any positive vh point, and any vh point ≤ 1 viewport
+   * precedes `cover 100%` (one viewport never exceeds the transit). The canonical spellings
+   * live exactly there: `'100%, 0%'` is pct-0 → vh-1, `'70%'` is vh-0.3 → pct-1.
+   */
+  const ordered = from.kind === to.kind
+    ? to.at > from.at
+    : (from.kind === 'pct' && from.at === 0 && to.at > 0) ||
+      (to.kind === 'pct' && to.at === 1 && from.at <= 1);
+  if (!ordered) return null;
+  const spell = (p: { kind: 'pct' | 'vh'; at: number }): string =>
+    p.kind === 'pct' ? `cover ${format(p.at * 100)}%` : `cover ${format(p.at * 100)}vh`;
+  return `${spell(from)} ${spell(to)}`;
+};
+
+  let nativeRange: string | null = null;
   const per = (value: string): string => generatedGroups.map(() => value).join(', ');
   return {
     hash,
@@ -632,12 +688,12 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     armedRule: '',
     noJsRule: '',
     reducedRule: '',
-    nativeRule: generatedGroups.length
+    nativeRule: (generatedGroups.length && (nativeRange = nativeRangeFor(parsed)) !== null)
       ? `@supports (animation-timeline: view()) { [data-vm-motion="${hash}"][data-vm-native] { ` +
         `animation-delay: ${per('0s')}; animation-duration: ${per('auto')}; ` +
         `animation-play-state: ${per('running')}; ` +
         `animation-timeline: ${per('view(block)')}; ` +
-        `animation-range: ${per('cover 0% cover 100%')}; } }`
+        `animation-range: ${per(nativeRange)}; } }`
       : '',
     groups: generatedGroups,
     segments,

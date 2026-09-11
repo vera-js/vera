@@ -610,7 +610,14 @@ export const createRuntimeElement = (
      * opt-in and the @supports block is the floor.
      */
     if (cascade && parsed.stagger === undefined &&
-      parsed.settings['scroll'] === undefined && parsed.settings['anchor'] === undefined &&
+      /** The RANGE gate moved into generation (nativeRangeFor): a custom `scroll` whose
+       *  alignments map statically to animation-range emits a ranged #n rule; one that cannot
+       *  (anchor, mixed families, reversed) emits none, and the empty rule is the refusal. */
+      generatedCss.nativeRule !== '' &&
+      /** The vh-family ranges measure VIEWPORTS; on a region's own scroller the scrollport is
+       *  not the viewport, so those elements keep tier C there. Percent-family ranges are
+       *  scroller-agnostic and stay eligible. */
+      (settings.scrollElement == null || !generatedCss.nativeRule.includes('vh')) &&
       settings.scrollDirection !== 'horizontal' && supportsViewTimeline(node) &&
       scrollerScrolls(settings) && nativeViewUnobstructed(node, settings)) {
       node.setAttribute('data-vm-native', '');

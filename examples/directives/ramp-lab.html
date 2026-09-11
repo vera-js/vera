@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ramp lab — reverse-timing decider</title>
+<style>
+  body { font: 15px/1.5 system-ui; margin: 2rem auto; max-width: 760px; padding: 0 1rem; background: #fdfcf8; }
+  h1 { font-size: 1.3rem; } h2 { font-size: 1rem; margin: 1.6rem 0 0.4rem; }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; margin: 0.8rem 0; }
+  .lane { flex: 1 1 150px; }
+  .track { height: 180px; background: #eee9f8; border-radius: 0.6rem; position: relative; overflow: clip; }
+  .box { width: 64px; height: 64px; border-radius: 0.8rem; background: #7c66e0; color: #fff;
+         display: grid; place-items: center; font-weight: 700; position: absolute; left: calc(50% - 32px);
+         top: 0; will-change: transform, filter; }
+  .lane p { margin: 0.3rem 0 0; font-size: 0.8rem; color: #555; }
+  button { font: inherit; padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  label { font-size: 0.85rem; color: #444; }
+  #fps { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .cssref { transition: transform 1s ease-out, filter 1s ease-out; }
+  .cssref.on { transform: translateY(110px); filter: hue-rotate(120deg); }
+</style>
+
+<h1>ramp lab — how should a reversed play retime?</h1>
+<p>One toggle drives four boxes through the same 1s journey (110px down). Toggle it back
+<strong>mid-flight</strong> — around 60% is the interesting spot — and judge the reverse. Then drag
+the jank slider up and toggle again: the JS lanes stutter with the main thread, the CSS lane does not.</p>
+
+<p>
+  <button id="toggle">toggle ⇅</button>
+  &nbsp; <label>main-thread jank: <input id="jank" type="range" min="0" max="40" value="0"> <span id="jankv">0</span>ms/frame</label>
+  &nbsp; <span id="fps">60</span> fps
+</p>
+
+<div class="row">
+  <div class="lane"><div class="track"><div class="box" id="a">A</div></div>
+    <p><b>A — today</b>: reverse re-runs the FULL 1s regardless of where it turned. Turning at 60% crawls back at 0.6× speed.</p></div>
+  <div class="lane"><div class="track"><div class="box" id="b">B</div></div>
+    <p><b>B — proportional</b>: reverse duration = distance × play. Turning at 60% takes 600ms — constant speed both ways.</p></div>
+  <div class="lane"><div class="track"><div class="box" id="c">C</div></div>
+    <p><b>C — settle</b>: exponential chase toward the target (the portal's ~195ms figure). Snappy, ease-out-ish by nature.</p></div>
+  <div class="lane"><div class="track"><div class="box cssref" id="d">CSS</div></div>
+    <p><b>Reference — transition-play</b>: compositor-owned. Watch it stay smooth at max jank.</p></div>
+</div>
+
+<h2>what to feel for</h2>
+<p>A's tail-drag vs B's symmetry vs C's snap; whether C feels "different-material" from the way in
+(in = 1s eased, out = fast settle — asymmetric on purpose); and under jank, how much the JS lanes'
+character survives. The engine will keep ONE of these semantics for every reversed play.</p>
+
+<script>
+  const TRAVEL = 110, PLAY = 1000;
+  const ease = (t) => 1 - Math.pow(1 - t, 3); /* ease-out cubic, both directions */
+
+  const lanes = {
+    a: { el: document.getElementById('a'), p: 0, anim: null },
+    b: { el: document.getElementById('b'), p: 0, anim: null },
+    c: { el: document.getElementById('c'), p: 0, target: 0 },
+  };
+  let on = false;
+
+  const paint = (lane) => { lane.el.style.transform = `translateY(${lane.p * TRAVEL}px)`;
+    lane.el.style.filter = `hue-rotate(${lane.p * 120}deg)`; };
+
+  /* A: fixed full duration. B: duration scaled by distance. One runner serves both. */
+  const ramp = (lane, target, duration) => {
+    const from = lane.p, start = performance.now();
+    lane.anim = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      lane.p = from + (target - from) * ease(t);
+      paint(lane);
+      if (t >= 1) lane.anim = null;
+    };
+  };
+
+  document.getElementById('toggle').onclick = () => {
+    on = !on;
+    const target = on ? 1 : 0;
+    ramp(lanes.a, target, PLAY);
+    ramp(lanes.b, target, Math.max(60, Math.abs(target - lanes.b.p) * PLAY));
+    lanes.c.target = target;
+    document.getElementById('d').classList.toggle('on', on);
+  };
+
+  /* C: exponential settle, tau sized so a 60% reversal lands ≈195ms (portal's figure). */
+  const TAU = 55;
+  let last = performance.now(), frames = 0, fpsAt = last;
+  const loop = (now) => {
+    const dt = now - last; last = now;
+    for (const key of ['a', 'b']) if (lanes[key].anim) lanes[key].anim(now);
+    const c = lanes.c;
+    c.p += (c.target - c.p) * (1 - Math.exp(-dt / TAU));
+    if (Math.abs(c.target - c.p) < 0.001) c.p = c.target;
+    paint(c);
+    /* jank inducer: burn main-thread time like a heavy page would */
+    const burn = Number(document.getElementById('jank').value);
+    if (burn) { const until = performance.now() + burn; while (performance.now() < until); }
+    frames++;
+    if (now - fpsAt > 500) {
+      document.getElementById('fps').textContent = Math.round(frames * 1000 / (now - fpsAt));
+      frames = 0; fpsAt = now;
+    }
+    requestAnimationFrame(loop);
+  };
+  document.getElementById('jank').oninput = (e) => document.getElementById('jankv').textContent = e.target.value;
+  requestAnimationFrame(loop);
+</script>
