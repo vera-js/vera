@@ -122,7 +122,15 @@ designed page.
   `list` filters, sorts, facets, ranges and pages the elements already inside it and publishes its counts back into state.
 - **`sensors`** — `in-view`, `size`, `pointer`, `scroll-progress`, `swipe`. Every one degrades to
   a readable page when the capability is missing.
-- **`remote`** — `data-vd-fetch`. A JSON response patches state; a markup response swaps a region,
+- **`remote`** — `data-vd-fetch` and `data-vd-stream`. The stream is fetch's law at push
+  cadence: a live connection opened at activation (`http(s)` URL → server-sent events, with the
+  platform's own reconnect; `ws(s)` → WebSocket, with this pack's capped-backoff reconnect —
+  the one reconnect loop in the framework), each pushed JSON message a state patch, anything
+  else markup swapped into `into`. Connections are SHARED per URL — five live regions on one
+  feed hold one wire. `status` reports `connecting/open/error`; `event: 'score'` names SSE
+  events; on a socket, `send: 'outbox'` makes writes to that key transmit (queued until open,
+  wire-form-deduped, and a pre-seeded outbox never sends — establishment answers no one).
+  For `data-vd-fetch`: a JSON response patches state; a markup response swaps a region,
   same-origin only, always. `place: 'append'` or `'prepend'` accumulates instead of replacing —
   existing content is parsed around, never rewritten, so its state and handlers survive; infinite
   scroll is `on` an in-view event + `place: 'append'` + a page key, three existing pieces

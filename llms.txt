@@ -1017,6 +1017,18 @@ omit it for replace. `animate: true` morphs the swap old-to-new through
 `startViewTransition` (the flip door `list` uses — same guards: `on: 'load'` never animates, no
 support or reduced-motion degrade to the instant swap).
 
+**`data-vd-stream="{ url, into, event, send, status, animate }"`** — the live half of the
+remote pack: a connection held open, each pushed message obeying fetch's law (JSON object =
+state patch, `_vd` reserved; anything else = markup swapped into `into`, same-origin ONLY,
+absolute). The URL's scheme picks the transport: `http(s)` is an EventSource (the platform
+reconnects it), `ws(s)` a WebSocket (the pack reconnects it, capped backoff). Connections are
+shared per URL. `event: 'score'` listens to named SSE events (space/comma list; default
+`message`). On a socket, `send: 'outbox'` transmits every NEW write of that state key
+(JSON-serialized, queued until open, deduped by wire form; a pre-seeded outbox is establishment
+and never sends). `status` writes `connecting`/`open`/`error`. Same-origin unless the origin is
+in `remote({ allowedOrigins })` (`wss://site` counts as `https://site` — one authority). No SSR
+half, deliberately: the page's own server render is the establishment; the stream takes over.
+
 **query pack** — `data-vd-route` publishes `@route` (`path`, `query`, `hash`) · `data-vd-query="q
 page"` binds state keys to the URL query string, and the URL WINS at activation so a shared link
 reproduces what the sender saw · `data-vd-list` filters, sorts and paginates the items ALREADY

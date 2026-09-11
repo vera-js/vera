@@ -36,7 +36,7 @@
 import { dual } from './dual.js';
 import { claimCommit, commitFlip } from './flip.js';
 import { isObject } from './parse.js';
-import type { Directive, Ctx, EngineConnector } from './types.js';
+import type { Directive, Ctx, EngineConnector, ListChange } from './types.js';
 
 
 export interface RemoteOptions {
@@ -289,6 +289,276 @@ const fetchDirective: Directive = {
   },
 };
 
+/* ── data-vd-stream: the live half — the server speaks, the page reflects ─────────────────── */
+
+/**
+ * The URL a stream may open, or null. The scheme picks the TRANSPORT — `http(s):` is an
+ * EventSource, `ws(s):` a WebSocket — and same-origin is judged on the SCHEME-MAPPED origin
+ * (`wss://site` IS `https://site`: one host, one authority, two protocols). The factory
+ * allowlist accepts either spelling of a widened origin.
+ */
+const resolveStreamUrl = (raw: unknown): { href: string; sameOrigin: boolean; transport: 'sse' | 'ws' } | null => {
+  if (typeof raw !== 'string' || raw === '') return null;
+  let url: URL;
+  try {
+    url = new URL(raw, location.href);
+  } catch {
+    return null;
+  }
+  const socket = url.protocol === 'ws:' || url.protocol === 'wss:';
+  if (!socket && url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  const mapped = socket ? url.origin.replace(/^ws/, 'http') : url.origin;
+  const sameOrigin = mapped === location.origin;
+  if (!sameOrigin && !allowedOrigins.includes(url.origin) && !allowedOrigins.includes(mapped)) return null;
+  return { href: url.href, sameOrigin, transport: socket ? 'ws' : 'sse' };
+};
+
+interface StreamSub {
+  readonly element: Element;
+  readonly context: Ctx;
+  into: unknown;
+  status: string | null;
+  lastStatus?: string;
+  animate: boolean;
+  events: readonly string[];
+}
+
+/**
+ * CONNECTIONS ARE SHARED PER URL — a page with five live regions on one feed holds ONE
+ * connection, which is not a nicety: HTTP/1.1 allows six connections per origin, so five
+ * unshared EventSources plus the page's own traffic is a stalled page. Subscribers carry their
+ * own targets and status keys; the connection carries the wire.
+ */
+interface SharedStream {
+  readonly transport: 'sse' | 'ws';
+  readonly sameOrigin: boolean;
+  readonly subs: Set<StreamSub>;
+  source: EventSource | WebSocket | null;
+  /** ws only: messages sent before the socket opens wait here, flushed on open. */
+  readonly queue: string[];
+  retry: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  /** sse only: event names already attached on the source. */
+  readonly listening: Set<string>;
+}
+
+const streams = new Map<string, SharedStream>();
+
+const statusAll = (shared: SharedStream, value: string): void => {
+  for (const sub of shared.subs) {
+    /** Compare-before-write — the counts lesson: an identical write re-runs every reader. */
+    if (sub.status && sub.lastStatus !== value) {
+      sub.lastStatus = value;
+      sub.context.set(sub.status, value);
+    }
+  }
+};
+
+/**
+ * One message, one subscriber — and THE PAYLOAD DECIDES, fetch's law at push cadence: JSON
+ * object is a state patch (`_vd` reserved, reflections update themselves), anything unparseable
+ * is MARKUP swapped into `into` (same-origin ONLY, absolute — a long-lived channel is a richer
+ * injection target than a one-shot fetch, not a lesser one), and a JSON scalar or array is a
+ * refusal. A pushed swap rides the flip door: discrete by definition, and never establishment —
+ * the page rendered its own establishment before the stream opened.
+ */
+const deliver = (shared: SharedStream, sub: StreamSub, data: string): void => {
+  let parsed: unknown;
+  let isJson = true;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    isJson = false;
+  }
+  if (isJson && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    for (const [key, patch] of Object.entries(parsed as Record<string, unknown>)) {
+      if (key.startsWith('_vd')) continue;
+      sub.context.set(key, patch);
+    }
+    return;
+  }
+  if (isJson) {
+    sub.context.reject('stream-json-not-object');
+    return;
+  }
+  if (!shared.sameOrigin) {
+    sub.context.reject('stream-foreign-markup');
+    return;
+  }
+  const into = swapTarget(sub.element, sub.into);
+  if (!into) {
+    sub.context.reject('stream-target-missing', [String(sub.into)]);
+    return;
+  }
+  const current = claimCommit(into);
+  const changes: readonly ListChange[] = [{ item: into, kind: 'swap' }];
+  commitFlip({
+    doc: sub.element.ownerDocument!,
+    animate: sub.animate,
+    first: false,
+    discrete: true,
+    changes,
+  }, () => {
+    if (current()) into.innerHTML = data;
+  });
+};
+
+/** SSE: every event name any subscriber wants, attached once; dispatch fans to the listeners. */
+const ensureListening = (shared: SharedStream, names: readonly string[]): void => {
+  const source = shared.source;
+  if (!source || shared.transport !== 'sse') return;
+  for (const name of names) {
+    if (shared.listening.has(name)) continue;
+    shared.listening.add(name);
+    source.addEventListener(name, (event) => {
+      for (const sub of shared.subs) {
+        if (sub.events.includes(name)) deliver(shared, sub, String((event as MessageEvent).data));
+      }
+    });
+  }
+};
+
+const connectStream = (href: string, shared: SharedStream): void => {
+  if (shared.transport === 'sse') {
+    /** EventSource reconnects ITSELF — the whole reason SSE is the http transport here. */
+    const source = new EventSource(href);
+    shared.source = source;
+    source.onopen = () => statusAll(shared, 'open');
+    source.onerror = () =>
+      statusAll(shared, source.readyState === 2 /* CLOSED */ ? 'error' : 'connecting');
+    const wanted = new Set<string>();
+    for (const sub of shared.subs) for (const name of sub.events) wanted.add(name);
+    ensureListening(shared, [...wanted]);
+    return;
+  }
+  const socket = new WebSocket(href);
+  shared.source = socket;
+  socket.onopen = () => {
+    shared.retry = 0;
+    statusAll(shared, 'open');
+    for (const waiting of shared.queue.splice(0)) socket.send(waiting);
+  };
+  socket.onmessage = (event) => {
+    for (const sub of shared.subs) deliver(shared, sub, String(event.data));
+  };
+  socket.onerror = () => statusAll(shared, 'error');
+  /**
+   * The socket has no native reconnect, so this pack owns one: capped exponential backoff with
+   * jitter, reset on open, abandoned when the last subscriber leaves. The platform's SSE story
+   * is why this is the ONLY reconnect loop in the framework.
+   */
+  socket.onclose = () => {
+    shared.source = null;
+    if (shared.subs.size === 0) return;
+    statusAll(shared, 'connecting');
+    const delay = Math.min(30_000, 500 * 2 ** shared.retry) * (1 + Math.random() * 0.3);
+    shared.retry++;
+    shared.timer = setTimeout(() => connectStream(href, shared), delay);
+  };
+};
+
+const subscribeStream = (
+  target: { href: string; sameOrigin: boolean; transport: 'sse' | 'ws' },
+  sub: StreamSub
+): (() => void) => {
+  let shared = streams.get(target.href);
+  if (!shared) {
+    shared = { transport: target.transport, sameOrigin: target.sameOrigin, subs: new Set(),
+      source: null, queue: [], retry: 0, timer: null, listening: new Set() };
+    streams.set(target.href, shared);
+  }
+  shared.subs.add(sub);
+  if (sub.status) statusAll(shared, shared.source ? 'open' : 'connecting');
+  if (!shared.source) connectStream(target.href, shared);
+  else ensureListening(shared, sub.events);
+  return () => {
+    shared.subs.delete(sub);
+    if (shared.subs.size > 0) return;
+    if (shared.timer) clearTimeout(shared.timer);
+    shared.source?.close();
+    shared.source = null;
+    streams.delete(target.href);
+  };
+};
+
+const streamDirective: Directive = {
+  name: 'stream',
+  value: 'object',
+  priority: 70,
+  docs: {
+    summary: 'Holds a live connection; each pushed message patches state or swaps markup in.',
+    example: "data-vd-stream=\"{ url: '/live', status: 'link' }\"",
+  },
+  /** No `ssr` declaration, deliberately: a server does not hold connections. The page's own
+   *  server render IS the establishment; the stream takes over from there. */
+  setup() {
+    /** Per-instance state as setup closure — the connection must NOT live in apply's returned
+     *  cleanup, because the engine runs that before EVERY re-apply and the send pump re-applies
+     *  on each outbox write. `teardown` runs once, at deactivation. */
+    let current: { href: string; sub: StreamSub; unsubscribe: () => void } | null = null;
+    let lastSent: string | undefined;
+    return {
+      teardown: () => {
+        current?.unsubscribe();
+        current = null;
+      },
+      apply: (element: Element, value: unknown, context: Ctx) => {
+        if (!isObject(value as never)) {
+          context.reject('stream-not-object');
+          return;
+        }
+        const cfg = value as Record<string, unknown>;
+        const read = (key: string): unknown => context.eval(cfg[key]);
+        const target = resolveStreamUrl(read('url'));
+        if (!target) {
+          current?.unsubscribe();
+          current = null;
+          context.reject('stream-url-refused', [String(read('url'))]);
+          return;
+        }
+        if (typeof (target.transport === 'ws' ? globalThis.WebSocket : globalThis.EventSource) !== 'function') {
+          context.reject('stream-unavailable', [target.transport === 'ws' ? 'WebSocket' : 'EventSource']);
+          return;
+        }
+        const status = typeof read('status') === 'string' ? (read('status') as string) : null;
+        const events = typeof read('event') === 'string'
+          ? String(read('event')).split(/[\s,]+/).filter(Boolean)
+          : ['message'];
+        const sendKey = typeof read('send') === 'string' ? (read('send') as string) : null;
+        if (sendKey && target.transport === 'sse') context.reject('stream-sse-send');
+        /** READING the outbox here is what subscribes the pump: a write re-runs this apply. */
+        const outgoing = sendKey && target.transport === 'ws' ? context.get(sendKey) : undefined;
+
+        if (!current || current.href !== target.href) {
+          current?.unsubscribe();
+          const sub: StreamSub = { element, context, into: read('into'), status, animate: read('animate') === true, events };
+          current = { href: target.href, sub, unsubscribe: subscribeStream(target, sub) };
+          /** A pre-seeded outbox is ESTABLISHMENT: recorded, never sent — the page settling
+           *  into its markup answers no one, the same law every other surface follows. */
+          lastSent = outgoing === undefined ? undefined : JSON.stringify(outgoing);
+          return;
+        }
+        /** Same connection: reconfigure the subscriber in place, then pump the outbox. */
+        current.sub.into = read('into');
+        current.sub.status = status;
+        current.sub.animate = read('animate') === true;
+        current.sub.events = events;
+        const shared = streams.get(current.href);
+        if (shared) ensureListening(shared, events);
+        if (outgoing !== undefined) {
+          const wired = JSON.stringify(outgoing);
+          if (wired !== lastSent) {
+            lastSent = wired;
+            const socket = shared?.source as WebSocket | null;
+            if (socket && socket.readyState === 1 /* OPEN */) socket.send(wired);
+            else shared?.queue.push(wired);
+          }
+        }
+      },
+    };
+  },
+};
+
 /**
  * `wireDirectives([remote])` uses same-origin defaults; `wireDirectives([remote({ allowedOrigins,
  * headers })])` configures. The dual dispatches on the engine's sigiled seams mark, implemented
@@ -305,6 +575,7 @@ const connect = (options?: RemoteOptions): EngineConnector => (seams) => {
   }
   headers = { ...(options?.headers ?? {}) };
   seams.directive(fetchDirective);
+  seams.directive(streamDirective);
 };
 
 export const remote = dual<RemoteOptions>(connect);

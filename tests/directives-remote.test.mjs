@@ -14,7 +14,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createServer } from 'node:http';
+import { createServer, get } from 'node:http';
 import { JSDOM } from 'jsdom';
 import { load } from './dist.mjs';
 
@@ -47,8 +47,23 @@ const server = createServer((req, res) => {
     slowFirst = false;
     return send(200, 'application/json', JSON.stringify({ winner: wasFirst ? 'stale' : 'fresh' }), wasFirst ? 150 : 5);
   }
+  /** The live wire: one endpoint, the mode picks what gets pushed after connect. */
+  if (url.pathname === '/sse') {
+    sseConnections++;
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    const mode = url.searchParams.get('mode') ?? 'patch';
+    setTimeout(() => {
+      if (mode === 'patch') res.write('data: {"total": 55}\n\n');
+      if (mode === 'named') res.write('event: score\ndata: {"total": 77}\n\n');
+      if (mode === 'reserved') res.write('data: {"_vdSneak": 1, "safe": 2}\n\n');
+      if (mode === 'markup') res.write('data: <button id="pushed" data-vd-on-click="{ n: n + 1 }">live</button>\n\n');
+    }, 40);
+    req.on('close', () => sseConnections--);
+    return;
+  }
   send(404, 'text/plain', 'nope');
 });
+let sseConnections = 0;
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 const ORIGIN = `http://127.0.0.1:${port}`;
@@ -88,7 +103,11 @@ const mount = async (html) => {
   return host;
 };
 
-test.after(() => server.close());
+test.after(() => {
+  /** Live SSE responses hold the server open forever — sever them, then close. */
+  server.closeAllConnections?.();
+  server.close();
+});
 
 test('a JSON response is a STATE PATCH — every reflection updates itself, nothing renders it', async () => {
   const host = await mount(`
@@ -322,4 +341,161 @@ test('THE HEADLINE: markup from the network is live on its first click — no hy
     'a button that did not exist when the page loaded wrote the page\'s state');
   host.remove();
   await settled();
+});
+
+/* ── data-vd-stream ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Node has no global EventSource, so the test PROVIDES the platform — a minimal one over
+ * http.get, which means the directive is exercised against real server bytes, not a mock of
+ * our own parsing.
+ */
+class TestEventSource {
+  constructor(href) {
+    this.readyState = 0;
+    this._listeners = {};
+    get(href, (res) => {
+      this.readyState = 1;
+      this.onopen?.();
+      this._res = res;
+      let buffered = '';
+      res.on('data', (chunk) => {
+        buffered += chunk;
+        let cut;
+        while ((cut = buffered.indexOf('\n\n')) >= 0) {
+          const frame = buffered.slice(0, cut);
+          buffered = buffered.slice(cut + 2);
+          let name = 'message';
+          const data = [];
+          for (const line of frame.split('\n')) {
+            if (line.startsWith('event:')) name = line.slice(6).trim();
+            else if (line.startsWith('data:')) data.push(line.slice(5).trim());
+          }
+          if (data.length) for (const fn of this._listeners[name] ?? []) fn({ data: data.join('\n') });
+        }
+      });
+    });
+  }
+  addEventListener(name, fn) { (this._listeners[name] ??= []).push(fn); }
+  close() { this.readyState = 2; this._res?.destroy(); }
+}
+globalThis.EventSource = TestEventSource;
+
+test('stream: a pushed JSON message is a state patch, and the reserved prefix holds', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ total: 0, safe: 0, link: '' }">
+      <b data-vd-text="total"></b><i data-vd-text="safe"></i>
+      <div data-vd-stream="{ url: '${ORIGIN}/sse?mode=patch', status: 'link' }"></div>
+    </div>`);
+  await until(() => host.querySelector('b').textContent === '55', 'the push updated the reflection');
+  host.remove();
+  await settled();
+
+  const second = await mount(`
+    <div data-vd-state="{ safe: 0 }">
+      <i data-vd-text="safe"></i>
+      <div data-vd-stream="{ url: '${ORIGIN}/sse?mode=reserved' }"></div>
+    </div>`);
+  await until(() => second.querySelector('i').textContent === '2', 'the safe key landed');
+  host.remove(); second.remove();
+  await settled();
+});
+
+test('stream: a named event reaches only its listeners, and pushed markup is live', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ total: 0, n: 0 }">
+      <b data-vd-text="total"></b>
+      <div data-vd-stream="{ url: '${ORIGIN}/sse?mode=named', event: 'score' }"></div>
+    </div>`);
+  await until(() => host.querySelector('b').textContent === '77', 'the named event delivered');
+  host.remove();
+  await settled();
+
+  const live = await mount(`
+    <div data-vd-state="{ n: 0 }">
+      <span data-vd-text="n"></span>
+      <div id="zone3" data-vd-stream="{ url: '${ORIGIN}/sse?mode=markup', into: '#zone3' }"></div>
+    </div>`);
+  const pushed = await until(() => live.querySelector('#pushed'), 'markup was pushed and swapped');
+  pushed.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, composed: true }));
+  await until(() => live.querySelector('span').textContent === '1',
+    'and it was LIVE on first click — no hydration, same as fetch');
+  live.remove();
+  await settled();
+});
+
+test('stream: one URL, one connection — subscribers share the wire, teardown releases it', async () => {
+  const before = sseConnections;
+  const host = await mount(`
+    <div data-vd-state="{ total: 0 }">
+      <div data-vd-stream="{ url: '${ORIGIN}/sse?mode=patch&who=shared' }"></div>
+      <div data-vd-stream="{ url: '${ORIGIN}/sse?mode=patch&who=shared' }"></div>
+    </div>`);
+  await until(() => sseConnections === before + 1, 'two subscribers opened ONE connection');
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(sseConnections, before + 1, 'and it stayed one');
+  host.remove();
+  await settled();
+  await until(() => sseConnections === before, 'the last teardown closed the wire');
+});
+
+test('stream: send on an SSE url is refused — receive-only is the transport, not a bug', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ out: '' }">
+      <div data-vd-stream="{ url: '${ORIGIN}/sse?mode=patch&who=sendcheck', send: 'out' }"></div>
+    </div>`);
+  await settled();
+  assert.ok(rejections().some((r) => r.code === 'stream-sse-send'), 'the refusal names the code');
+  host.remove();
+  await settled();
+});
+
+test('stream: the WebSocket half — queue, pump, dedupe, establishment, reconnect', async () => {
+  const sockets = [];
+  const RealWebSocket = globalThis.WebSocket;
+  globalThis.WebSocket = class {
+    constructor(href) { this.href = href; this.readyState = 0; this.sent = []; sockets.push(this); }
+    send(data) { this.sent.push(data); }
+    close() { this.readyState = 3; this.onclose?.(); }
+  };
+  try {
+    const host = await mount(`
+      <div data-vd-state="{ total: 0, out: { seeded: true }, link: '' }">
+        <b data-vd-text="total"></b>
+        <div data-vd-stream="{ url: 'ws://127.0.0.1:${port}/live', send: 'out', status: 'link' }"></div>
+      </div>`);
+    const state = stateOf(host.firstElementChild);
+    assert.equal(sockets.length, 1, 'one socket opened');
+    const socket = sockets[0];
+    assert.equal(socket.sent.length, 0, 'the SEEDED outbox was never sent — establishment answers no one');
+
+    /** Writes before open QUEUE; open flushes. */
+    state.out = { type: 'vote', id: 7 };
+    await settled();
+    assert.equal(socket.sent.length, 0, 'nothing on the wire before open');
+    socket.readyState = 1;
+    socket.onopen?.();
+    state.out = { type: 'vote', id: 8 };
+    await settled();
+    assert.deepEqual(socket.sent.map((m) => JSON.parse(m).id), [7, 8], 'the queue flushed in order, then the live send');
+
+    /** A REWRITE of the same content is not a message — the pump compares wire form. */
+    state.out = { type: 'vote', id: 8 };
+    await settled();
+    assert.equal(socket.sent.length, 2, 'identical wire form did not resend');
+
+    /** A pushed message patches state, same law as SSE. */
+    socket.onmessage?.({ data: '{"total": 41}' });
+    await settled();
+    assert.equal(host.querySelector('b').textContent, '41', 'the socket push patched state');
+
+    /** The one reconnect loop in the framework: close → backoff → a NEW socket. */
+    socket.close();
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(sockets.length, 2, 'the socket reconnected after backoff');
+    host.remove();
+    await settled();
+  } finally {
+    globalThis.WebSocket = RealWebSocket;
+  }
 });

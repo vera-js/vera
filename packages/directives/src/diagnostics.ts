@@ -103,6 +103,13 @@ export const PROSE: Record<string, Prose> = {
   'query-no-keys': () => [`data-vd-query needs one or more state keys.`, `Write data-vd-query="q tag page".`],
   'list-bad-selector': (selector: string) => [`"${selector}" is not a selector.`],
   'list-not-object': () => ['data-vd-list takes a braced object.', `Write data-vd-list="{ items: '.card', search: 'q' }".`],
+  'stream-foreign-markup': () => [`a cross-origin stream may only push JSON — markup is never swapped from another origin.`, `Push application/json-shaped messages, or serve the stream from this origin.`],
+  'stream-json-not-object': () => [`a JSON message must be an object of state keys.`],
+  'stream-not-object': () => ['data-vd-stream takes a braced object.', `Write data-vd-stream="{ url: '/live', status: 'link' }".`],
+  'stream-sse-send': () => [`an http(s) stream is receive-only — SSE has no client channel.`, `Send with data-vd-fetch, or use a ws:// url and the same send key.`],
+  'stream-target-missing': (detail: string) => [`"${detail}" matched no element to swap into.`],
+  'stream-unavailable': (api: string) => [`${api} is unavailable here, so the stream never opened.`],
+  'stream-url-refused': (detail: string) => [`"${detail}" is not a URL this page may stream from.`, `It must be http(s) or ws(s) and same-origin, unless the origin is in remote({ allowedOrigins }).`],
   'scroll-to-missing': () => [`the scroll target matched nothing.`],
   'scroll-progress-bad-source': (given) => [
     `"${given}" is not something scroll-progress can measure.`,
