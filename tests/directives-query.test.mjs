@@ -460,6 +460,36 @@ test('animate: true — the platform FLIP fires for DISCRETE changes and never f
   await settled();
 });
 
+test('animate: true — the FIRST apply is establishment and never animates (URL-restore shape)', async () => {
+  url('/shop');
+  let transitions = 0;
+  dom.window.document.startViewTransition = (callback) => {
+    transitions++;
+    callback();
+    return { finished: Promise.resolve() };
+  };
+  /** State born already divergent from server markup — what a shared ?s=price link produces:
+   *  the first apply must SETTLE the page instantly, not animate it into itself. */
+  const host = await mount(`
+    <div data-vd-state="{ s: 'price' }" data-shop3>
+      <ul data-vd-list="{ items: 'li', sort: 's', animate: true }">
+        <li data-price="3">b</li><li data-price="1">a</li><li data-price="2">c</li>
+      </ul>
+    </div>`);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(shown(host), ['a', 'c', 'b'], 'the restored sort landed');
+  assert.equal(transitions, 0, 'a page load is not an interaction — first apply commits instantly');
+
+  stateOf(host.querySelector('[data-shop3]')).s = '';
+  await settled();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(transitions, 1, 'the SECOND discrete change is a response, and animates');
+
+  delete dom.window.document.startViewTransition;
+  host.remove();
+  await settled();
+});
+
 test("the async-commit scope pin: a DEFERRED transition callback breaks nothing (omni's trap)", async () => {
   url('/shop');
   /** The platform defers the mutation callback — directive scope is long gone when it runs.

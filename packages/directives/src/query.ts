@@ -538,7 +538,13 @@ const list: Directive = {
     for (const item of items) {
       if ((item as HTMLElement).hidden === shown.has(item)) changed.push({ item, kind: 'fade' });
     }
-    const discrete = needle === (lastNeedle.get(el) ?? '');
+    /** THE FIRST APPLY IS ESTABLISHMENT, NOT RESPONSE. A load with URL state restores the
+     *  saved view before anyone touches anything; classifying it discrete animated the page
+     *  settling into itself — server order visibly shuffling into the URL's filters on every
+     *  refresh (found live on the flip-lab). Nothing has a "last" on the first pass, so the
+     *  needle map doubles as the marker. */
+    const first = !lastNeedle.has(el);
+    const discrete = !first && needle === lastNeedle.get(el);
     lastNeedle.set(el, needle);
     const animate = read('animate') === true;
     for (const mover of movers) {
