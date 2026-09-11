@@ -14,9 +14,16 @@
   #how pre { background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
   /* The whole tuning surface is ordinary CSS on the platform's pseudo-elements: */
   ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }
+  /* PAGE TRANSITIONS: the flip-lab's link grows into THIS page's title, and the link below
+     grows back into that one's. Cross-document view transitions, no JS anywhere. */
+  @view-transition { navigation: auto; }
+  h1 { view-transition-name: swap-hero; }
+  .crosslink { view-transition-name: flip-hero; font-weight: 700; }
+  ::view-transition-group(flip-hero), ::view-transition-group(swap-hero) { animation-duration: 0.5s; }
 </style>
 
 <h1>swap lab — <code>animate: true</code> on <code>data-vd-fetch</code></h1>
+<p class="note">Sibling: <a class="crosslink" href="flip-lab.html">grow this back into the flip lab →</a></p>
 <p class="note">Each button fetches a fragment and swaps it into the panel. With
 <code>animate: true</code> the region morphs old-to-new through the platform's view transition —
 the outgoing markup crossfades away instead of vanishing, which is the leave animation removed
@@ -40,7 +47,12 @@ fragment proves it: its button works with no hydration step).</p>
   <h2>The markup (serialized from this page before wiring — it cannot drift)</h2>
   <pre><code id="src-markup"></code></pre>
   <h2>The animation tuning — ordinary CSS on the platform's pseudo-elements</h2>
-  <pre><code id="src-css">::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }</code></pre>
+  <pre><code id="src-css">::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }
+
+/* the cross-page grow — CSS only, both pages carry it */
+@view-transition { navigation: auto; }
+h1 { view-transition-name: swap-hero; }
+.crosslink { view-transition-name: flip-hero; }</code></pre>
   <h2>The wiring — the whole script</h2>
   <pre><code id="src-wiring"></code></pre>
   <p class="note">That's the entire feature surface: <code>animate: true</code> on
