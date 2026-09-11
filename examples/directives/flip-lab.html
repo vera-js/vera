@@ -14,6 +14,9 @@
   .card .price { color: #7c66e0; font-weight: 700; }
   .card .tag { font-size: 0.72rem; color: #777; text-transform: uppercase; letter-spacing: 0.04em; }
   .note { font-size: 0.85rem; color: #555; }
+  #how summary { cursor: pointer; font-weight: 700; }
+  #how h2 { font-size: 0.95rem; margin: 1rem 0 0.3rem; }
+  #how pre { background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
   /* The whole tuning surface is ordinary CSS on the platform's pseudo-elements: */
   ::view-transition-group(*) { animation-duration: 0.45s; }
 </style>
@@ -60,13 +63,13 @@ little, check a box, then copy the address into a new tab: the view reproduces, 
 included.</p>
 
 <details id="how">
-  <summary style="cursor: pointer; font-weight: 700;">how this is built — the actual code on this page</summary>
-  <h2 style="font-size: 0.95rem; margin: 1rem 0 0.3rem;">The markup (serialized from this page before wiring — it cannot drift)</h2>
-  <pre style="background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem;"><code id="src-markup"></code></pre>
-  <h2 style="font-size: 0.95rem; margin: 1rem 0 0.3rem;">The animation tuning — one line of ordinary CSS</h2>
-  <pre style="background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem;"><code id="src-css">::view-transition-group(*) { animation-duration: 0.45s; }</code></pre>
-  <h2 style="font-size: 0.95rem; margin: 1rem 0 0.3rem;">The wiring — the whole script</h2>
-  <pre style="background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem;"><code id="src-wiring"></code></pre>
+  <summary>how this is built — the actual code on this page</summary>
+  <h2>The markup (serialized from this page before wiring — it cannot drift)</h2>
+  <pre><code id="src-markup"></code></pre>
+  <h2>The animation tuning — one line of ordinary CSS</h2>
+  <pre><code id="src-css">::view-transition-group(*) { animation-duration: 0.45s; }</code></pre>
+  <h2>The wiring — the whole script</h2>
+  <pre><code id="src-wiring"></code></pre>
   <p class="note">That's the entire feature surface: <code>animate: true</code> on
   <code>data-vd-list</code>, tuned by CSS on the platform's own pseudo-elements. The engine
   handles the rest — discrete-vs-typing, the stagger wave for reorders, reduced-motion, and the

@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swap lab — animate: true on data-vd-fetch</title>
+<style>
+  body { font: 15px/1.5 system-ui; margin: 2rem auto; max-width: 820px; padding: 0 1rem; background: #fdfcf8; }
+  h1 { font-size: 1.3rem; }
+  .bar { display: flex; gap: 0.9rem; flex-wrap: wrap; margin: 1rem 0; }
+  button { font: inherit; padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  #zone { border: 1px solid #ddd; border-radius: 0.7rem; padding: 1.2rem; background: #fff; min-height: 9rem; }
+  .note { font-size: 0.85rem; color: #555; }
+  #how summary { cursor: pointer; font-weight: 700; }
+  #how h2 { font-size: 0.95rem; margin: 1rem 0 0.3rem; }
+  #how pre { background: #f4f1ea; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
+  /* The whole tuning surface is ordinary CSS on the platform's pseudo-elements: */
+  ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }
+</style>
+
+<h1>swap lab — <code>animate: true</code> on <code>data-vd-fetch</code></h1>
+<p class="note">Each button fetches a fragment and swaps it into the panel. With
+<code>animate: true</code> the region morphs old-to-new through the platform's view transition —
+the outgoing markup crossfades away instead of vanishing, which is the leave animation removed
+content never had. Same-origin only, and everything that arrives is live immediately (the third
+fragment proves it: its button works with no hydration step).</p>
+
+<div data-vd-state="{}">
+  <div class="bar">
+    <button data-vd-fetch="{ url: 'fragments/panel-story.html', on: 'click', into: '#zone', animate: true }">story</button>
+    <button data-vd-fetch="{ url: 'fragments/panel-figures.html', on: 'click', into: '#zone', animate: true }">figures</button>
+    <button data-vd-fetch="{ url: 'fragments/panel-live.html', on: 'click', into: '#zone', animate: true }">live handler</button>
+  </div>
+  <div id="zone">
+    <p><b>server-rendered start.</b> This paragraph is in the page's own HTML — the fragments
+    replace it. Watch it crossfade out on the first swap.</p>
+  </div>
+</div>
+
+<details id="how">
+  <summary>how this is built — the actual code on this page</summary>
+  <h2>The markup (serialized from this page before wiring — it cannot drift)</h2>
+  <pre><code id="src-markup"></code></pre>
+  <h2>The animation tuning — ordinary CSS on the platform's pseudo-elements</h2>
+  <pre><code id="src-css">::view-transition-old(*), ::view-transition-new(*) { animation-duration: 0.4s; }</code></pre>
+  <h2>The wiring — the whole script</h2>
+  <pre><code id="src-wiring"></code></pre>
+  <p class="note">That's the entire feature surface: <code>animate: true</code> on
+  <code>data-vd-fetch</code> — the same one word <code>data-vd-list</code> takes, because both
+  ride one internal door. The engine handles the guards: <code>on: 'load'</code> never animates
+  (initial content is establishment, not response), reduced-motion and engines without
+  <code>startViewTransition</code> fall through to the instant swap, and a mid-flight swap takes
+  the stage over cleanly.</p>
+</details>
+
+<script type="module">
+  /** The honesty device: show the page its OWN code, captured BEFORE wiring. */
+  const dedent = (text) => {
+    const lines = text.replace(/^\n+/, '').trimEnd().split('\n');
+    const cut = Math.min(...lines.filter((l) => l.trim()).map((l) => /^\s*/.exec(l)[0].length));
+    return lines.map((l) => l.slice(cut)).join('\n');
+  };
+  document.getElementById('src-markup').textContent =
+    document.querySelector('[data-vd-state]').outerHTML.replace(/&gt;/g, '>');
+  /* .at(-1) because the marker also appears in this very line's split argument. */
+  document.getElementById('src-wiring').textContent =
+    dedent(document.querySelector('script[type=module]').textContent.split('/* wiring */').at(-1));
+
+  /* wiring */
+  import { wire } from '/packages/core/dist/vera.min.js';
+  import { renderer } from '/packages/renderer/dist/vera-renderer.min.js';
+  import { wireDirectives, directives, interactions, expressions, remote }
+    from '/packages/directives/dist/vera-directives.min.js';
+  wire([renderer, directives]);
+  wireDirectives([expressions, ...interactions, remote]);
+</script>

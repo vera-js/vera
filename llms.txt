@@ -1001,12 +1001,14 @@ the bundle. `motionExtension` is also how a module adds animatable PROPERTIES (`
 … }`), SETTINGS (`{ key, type, … }`) or hooks an insert point (`preset`, `easing`, `prepare`,
 `release`, `teardown`, `forget`) — keys REPLACE with a warning, inserts CHAIN.
 
-**remote pack** — `data-vd-fetch="{ url, on, into, body, method, status }"`. **The response
+**remote pack** — `data-vd-fetch="{ url, on, into, body, method, status, animate }"`. **The response
 decides**: JSON is a state patch (existing reflections update themselves), anything else is markup
 swapped into `into` — and swapped markup is live immediately, because directives are never
 hydrated. Same-origin by default (`remote({ allowedOrigins, headers })` is the only way to widen,
 and it is JavaScript, never an attribute); **markup is swapped same-origin ONLY, always**. A later
-request aborts an earlier one.
+request aborts an earlier one. `animate: true` morphs the swap old-to-new through
+`startViewTransition` (the flip door `list` uses — same guards: `on: 'load'` never animates, no
+support or reduced-motion degrade to the instant swap).
 
 **query pack** — `data-vd-route` publishes `@route` (`path`, `query`, `hash`) · `data-vd-query="q
 page"` binds state keys to the URL query string, and the URL WINS at activation so a shared link
@@ -1024,7 +1026,7 @@ multi-select — any listed value matches, empty array is no filter) · `ranges:
 missing-attribute last; clearing the spec restores the server order) · `page`/`size`/`counts`
 (counts publishes `{ matched, pages, page, total }`). · `animate: true` — reorders
 and filter changes run through the platform's FLIP (`startViewTransition`) where it exists;
-DISCRETE changes only (facets, sort, page — typing never animates), transient `vm-li-*`
+DISCRETE changes only (facets, sort, page — typing never animates), transient `vm-fx-*`
 view-transition-names on exactly the items that change, reduced-motion skips the wrap, and the
 floor everywhere else is today's instant behavior. Tune it with ordinary CSS on the
 `::view-transition-*` pseudo-elements.

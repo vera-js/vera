@@ -90,6 +90,28 @@ with `wirePayloads({ 'my:event': { n: (e) => e.detail.n } })`, list the vocabula
 `describePayloads()`, and know that an unknown `$var` refuses the whole handler rather than quietly
 writing `undefined`.
 
+**Exit transitions for `show` are CSS now, not a feature.** An element leaving the page used to
+need a JS grace period so its transition could finish before `hidden` landed; the platform closed
+that gap, so this pack deliberately ships nothing for it. The whole recipe:
+
+```css
+nav[data-vd-show] {
+  transition: opacity 0.3s, translate 0.3s, display 0.3s allow-discrete;
+  opacity: 1;
+}
+nav[data-vd-show][hidden] {          /* leaving: transition runs, THEN display flips */
+  display: none; opacity: 0; translate: 0 -8px;
+}
+@starting-style {                     /* entering: the frame it appears from */
+  nav[data-vd-show] { opacity: 0; translate: 0 -8px; }
+}
+```
+
+`transition-behavior: allow-discrete` lets `display` participate in the transition (it flips at
+the end when leaving, at the start when entering), and `@starting-style` gives an appearing
+element a first frame to transition from. Engines without them show and hide instantly — the
+designed page.
+
 ## The packs
 
 - **`expressions`** — the value tier. Without it a value is a literal or a state path; with it,
@@ -101,7 +123,10 @@ writing `undefined`.
 - **`sensors`** — `in-view`, `size`, `pointer`, `scroll-progress`, `swipe`. Every one degrades to
   a readable page when the capability is missing.
 - **`remote`** — `data-vd-fetch`. A JSON response patches state; a markup response swaps a region,
-  same-origin only, always.
+  same-origin only, always. `animate: true` sends the swap through the same flip door as `list`:
+  the region morphs old-to-new via `startViewTransition` — the leave animation removed content
+  never had — and degrades to the instant swap wherever the door refuses (`on: 'load'` is
+  establishment and never animates; no support and reduced-motion fall through).
 - **`motion`** — one `data-vd-motion` attribute taking a preset or an object of two halves:
   animated properties inside `keyframes`, settings outside it. That is also what makes `%`
   unambiguous — inside `keyframes` it is progress along the animation, outside it a position on the

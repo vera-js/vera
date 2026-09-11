@@ -106,6 +106,39 @@ test('a JSON response is a STATE PATCH — every reflection updates itself, noth
   await settled();
 });
 
+test('animate: true — a user-triggered swap rides the flip door; on: load is establishment', async () => {
+  let transitions = 0;
+  doc.startViewTransition = (callback) => {
+    transitions++;
+    callback();
+    return { finished: Promise.resolve() };
+  };
+  /** on: 'load' — initial content answers no one, so establishment never animates. */
+  const first = await mount(`
+    <div data-vd-state="{}">
+      <div id="zoneA" data-vd-fetch="{ url: '${ORIGIN}/markup', on: 'load', into: '#zoneA', animate: true }"></div>
+    </div>`);
+  await until(() => first.querySelector('#arrived'), 'the load-triggered swap landed');
+  assert.equal(transitions, 0, 'on: load is establishment — the door refuses, the swap is instant');
+  first.remove();
+  await settled();
+
+  const host = await mount(`
+    <div data-vd-state="{}">
+      <button id="go" data-vd-fetch="{ url: '${ORIGIN}/markup', on: 'click', into: '#zone', animate: true }">go</button>
+      <div id="zone"><p>old content — its exit is the crossfade</p></div>
+    </div>`);
+  host.querySelector('#go').click();
+  await until(() => host.querySelector('#arrived'), 'the clicked swap landed');
+  assert.equal(transitions, 1, 'a user-triggered swap is a response: one transition, old-to-new');
+  assert.equal(doc.querySelectorAll('[style*="view-transition-name"]').length, 0,
+    'the transient name cleared after finished');
+
+  delete doc.startViewTransition;
+  host.remove();
+  await settled();
+});
+
 test('the engine\'s reserved prefix is not writable by a server', async () => {
   const host = await mount(`
     <div data-vd-state="{ ok: 'no' }">

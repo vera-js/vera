@@ -34,6 +34,7 @@
  * write stale state — the bug every hand-rolled version of this has.
  */
 import { dual } from './dual.js';
+import { claimCommit, commitFlip } from './flip.js';
 import { isObject } from './parse.js';
 import type { Directive, Ctx, EngineConnector } from './types.js';
 
@@ -201,8 +202,26 @@ const fetchDirective: Directive = {
                * No hydration step, and none is missing: the engine's churn activation adopts the
                * new subtree, and delegated handlers inside it were already being matched by
                * attribute — the markup is live the moment it lands.
+               *
+               * The swap goes through the FLIP DOOR (`animate: true` opts in): the region morphs
+               * old-to-new — the platform crossfade is the LEAVE animation removed content never
+               * had, and it degrades to today's instant swap wherever the door's guards refuse.
+               * `on: 'load'` is establishment (initial content, answers no one), so it never
+               * animates — the same rule the list's URL restore learned. A stale response's
+               * commit is already impossible (the successor aborts it), but the door's claim
+               * also covers the transition callback's async window.
                */
-              into.innerHTML = await response.text();
+              const markup = await response.text();
+              const current = claimCommit(into);
+              commitFlip({
+                doc: element.ownerDocument!,
+                animate: read('animate') === true,
+                first: trigger === 'load',
+                discrete: true,
+                changes: [{ item: into, kind: 'swap' }],
+              }, () => {
+                if (current()) into.innerHTML = markup;
+              });
             }
             if (status) context.set(status, 'idle');
           } catch (error) {

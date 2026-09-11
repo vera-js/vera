@@ -169,3 +169,19 @@ export type EngineSeams = {
 };
 
 export type EngineConnector = (seams: EngineSeams) => void;
+
+/**
+ * A DOM change offered to the flip door, TYPED — the generalized seam (owner's rule: tables,
+ * not conditionals). Every element a commit touches is one of these, and flip.ts's TREATMENT
+ * maps the kind to its animation policy. A new way for content to change (an insertion, a
+ * linger-removal) is a KIND here, a TREATMENT row there, and a producer in its directive —
+ * never another parameter or positional convention on the door.
+ *
+ * - `move`   — the element travels (list reorder).
+ * - `fade`   — visibility flips in place (list filter).
+ * - `swap`   — a region's content is replaced (fetch markup swap); old-to-new crossfade.
+ */
+export interface ListChange {
+  readonly item: Element;
+  readonly kind: 'move' | 'fade' | 'swap';
+}
