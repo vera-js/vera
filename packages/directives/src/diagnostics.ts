@@ -88,6 +88,7 @@ export const PROSE: Record<string, Prose> = {
   'fetch-foreign-markup': () => [`a cross-origin response may only be JSON — markup is never swapped from another origin.`, `Return application/json, or serve the fragment from this origin.`],
   'fetch-json-not-object': () => [`a JSON response must be an object of state keys.`],
   'fetch-not-object': () => ['data-vd-fetch takes a braced object.', `Write data-vd-fetch="{ url: '/path', on: 'click' }".`],
+  'fetch-place-unknown': (detail: string) => [`place: "${detail}" is not a placement.`, `Use 'append', 'prepend', or omit it for replace.`],
   'fetch-target-missing': (detail: string) => [`"${detail}" matched no element to swap into.`],
   'fetch-threw': (detail: string) => [detail],
   'fetch-url-refused': (detail: string) => [`"${detail}" is not a URL this page may request.`, `It must be http(s) and same-origin, unless the origin is in remote({ allowedOrigins }).`],

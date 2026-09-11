@@ -389,6 +389,30 @@ test('an array literal in the seed pre-selects — the other half of shape-from-
   await settled();
 });
 
+test('readers are liberal: repeated params and the []-suffixed PHP form both seed an array', async () => {
+  /** A link written by the OTHER engine (conventions Law 1): entries declared repeated are
+   *  never comma-split — there the commas are the value's own. */
+  url('/shop?tag[]=x&tag[]=y%2Cz');
+  const a = await mount(`
+    <div data-vd-state="{ tag: [] }" data-vd-query="tag" data-lib1>
+      <b data-vd-text="tag"></b>
+    </div>`);
+  assert.deepEqual(stateOf(a.querySelector('[data-lib1]')).tag, ['x', 'y,z'],
+    'the [] form seeds the array, commas intact');
+  a.remove();
+  await settled();
+
+  url('/shop?tag=a&tag=b');
+  const b = await mount(`
+    <div data-vd-state="{ tag: [] }" data-vd-query="tag" data-lib2>
+      <b data-vd-text="tag"></b>
+    </div>`);
+  assert.deepEqual(stateOf(b.querySelector('[data-lib2]')).tag, ['a', 'b'],
+    'plain repeated params seed the array too');
+  b.remove();
+  await settled();
+});
+
 test('a facet value containing a comma survives the URL round trip', async () => {
   url('/shop');
   const host = await mount(`

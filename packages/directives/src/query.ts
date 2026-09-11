@@ -139,10 +139,21 @@ const route: Directive = {
 const seedFromUrl = (keys: readonly string[], ctx: { get(key: string): unknown; set(key: string, value: unknown): void }): void => {
   const params = new URLSearchParams(location.search);
   for (const key of keys) {
-    if (!params.has(key)) continue;
-    const raw = params.get(key) ?? '';
+    /**
+     * READERS ARE LIBERAL (conventions Law 1): the canonical write is comma-joined in one
+     * parameter, but a `[]`-suffixed name — PHP's declared array form, which omni's engine
+     * emits — and plain repeated parameters are both accepted. The NAME declares the shape,
+     * the same logic as shape-from-seed: entries under a declared-repeated spelling are never
+     * comma-split, because there the commas are the value's own.
+     */
+    const gathered = [...params.getAll(key), ...params.getAll(`${key}[]`)];
+    if (gathered.length === 0) continue;
+    const raw = gathered[0];
     if (Array.isArray(ctx.get(key))) {
-      ctx.set(key, raw === '' ? [] : raw.split(',').map((entry) => decodeURIComponent(entry)));
+      const declaredRepeated = gathered.length > 1 || params.has(`${key}[]`);
+      ctx.set(key, declaredRepeated
+        ? gathered.filter((entry) => entry !== '')
+        : raw === '' ? [] : raw.split(',').map((entry) => decodeURIComponent(entry)));
       continue;
     }
     const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;

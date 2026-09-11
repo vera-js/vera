@@ -211,6 +211,18 @@ const fetchDirective: Directive = {
                * commit is already impossible (the successor aborts it), but the door's claim
                * also covers the transition callback's async window.
                */
+              /**
+               * `place` decides where the markup lands: replace (the default), or append/prepend
+               * for accumulating shapes — infinite scroll is `on: 'vera:in-view'` + `place:
+               * 'append'` + a page key, three existing pieces composing. Everything already
+               * inside the target is untouched (its state, its handlers, its DOM), because
+               * insertAdjacentHTML parses into position rather than re-writing the container.
+               */
+              const place = read('place') ?? 'replace';
+              if (place !== 'replace' && place !== 'append' && place !== 'prepend') {
+                context.reject('fetch-place-unknown', [String(place)]);
+                return;
+              }
               const markup = await response.text();
               const current = claimCommit(into);
               commitFlip({
@@ -220,7 +232,9 @@ const fetchDirective: Directive = {
                 discrete: true,
                 changes: [{ item: into, kind: 'swap' }],
               }, () => {
-                if (current()) into.innerHTML = markup;
+                if (!current()) return;
+                if (place === 'replace') into.innerHTML = markup;
+                else into.insertAdjacentHTML(place === 'append' ? 'beforeend' : 'afterbegin', markup);
               });
             }
             if (status) context.set(status, 'idle');

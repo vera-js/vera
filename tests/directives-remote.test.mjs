@@ -233,6 +233,50 @@ test('and when both DO reach the server, the stale answer can never win', async 
   await settled();
 });
 
+test('place: append accumulates and prepend leads — existing DOM is never rewritten', async () => {
+  const host = await mount(`
+    <div data-vd-state="{}">
+      <button id="more" data-vd-fetch="{ url: '${ORIGIN}/markup', on: 'click', into: '#feed', place: 'append' }">more</button>
+      <button id="top" data-vd-fetch="{ url: '${ORIGIN}/markup', on: 'click', into: '#feed', place: 'prepend' }">top</button>
+      <div id="feed"><p id="keep">the server-rendered start</p></div>
+    </div>`);
+  const feed = host.querySelector('#feed');
+
+  host.querySelector('#more').click();
+  await until(() => feed.querySelectorAll('[data-vd-on-click]').length === 1, 'first append landed');
+  /** Mark the live element: if a later placement REWRITES the container, this mark dies. */
+  feed.querySelector('[data-vd-on-click]').marked = true;
+
+  host.querySelector('#more').click();
+  await until(() => feed.querySelectorAll('[data-vd-on-click]').length === 2, 'second append landed');
+  assert.ok(feed.querySelector('#keep'), 'the original content is still there');
+  assert.equal(feed.querySelector('[data-vd-on-click]').marked, true,
+    'the first arrival is the SAME element — insertAdjacentHTML parsed into position, no rewrite');
+  assert.equal(feed.lastElementChild.matches('[data-vd-on-click]'), true, 'append lands at the end');
+
+  host.querySelector('#top').click();
+  await until(() => feed.querySelectorAll('[data-vd-on-click]').length === 3, 'prepend landed');
+  assert.equal(feed.firstElementChild.matches('[data-vd-on-click]'), true, 'prepend leads');
+  assert.equal(feed.firstElementChild.marked, undefined, 'and it is the new arrival, not the marked one');
+  host.remove();
+  await settled();
+});
+
+test('place: an unknown placement is a refusal, and no request is made worse by it', async () => {
+  const host = await mount(`
+    <div data-vd-state="{}">
+      <button id="bad" data-vd-fetch="{ url: '${ORIGIN}/markup', on: 'click', into: '#z2', place: 'inside' }">x</button>
+      <div id="z2"><p>untouched</p></div>
+    </div>`);
+  host.querySelector('#bad').click();
+  await new Promise((r) => setTimeout(r, 150));
+  await settled();
+  assert.equal(host.querySelector('#z2').textContent.trim(), 'untouched', 'the target was not written');
+  assert.ok(rejections().some((r) => r.code === 'fetch-place-unknown'), 'and the refusal names the code');
+  host.remove();
+  await settled();
+});
+
 test('THE HEADLINE: markup from the network is live on its first click — no hydration step', async () => {
   const host = await mount(`
     <div data-vd-state="{ clicks: 0 }">

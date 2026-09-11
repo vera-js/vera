@@ -1001,12 +1001,14 @@ the bundle. `motionExtension` is also how a module adds animatable PROPERTIES (`
 … }`), SETTINGS (`{ key, type, … }`) or hooks an insert point (`preset`, `easing`, `prepare`,
 `release`, `teardown`, `forget`) — keys REPLACE with a warning, inserts CHAIN.
 
-**remote pack** — `data-vd-fetch="{ url, on, into, body, method, status, animate }"`. **The response
+**remote pack** — `data-vd-fetch="{ url, on, into, place, body, method, status, animate }"`. **The response
 decides**: JSON is a state patch (existing reflections update themselves), anything else is markup
 swapped into `into` — and swapped markup is live immediately, because directives are never
 hydrated. Same-origin by default (`remote({ allowedOrigins, headers })` is the only way to widen,
 and it is JavaScript, never an attribute); **markup is swapped same-origin ONLY, always**. A later
-request aborts an earlier one. `animate: true` morphs the swap old-to-new through
+request aborts an earlier one. `place: 'append' | 'prepend'` accumulates into the target instead
+of replacing it (existing DOM is parsed around, never rewritten — state and handlers survive);
+omit it for replace. `animate: true` morphs the swap old-to-new through
 `startViewTransition` (the flip door `list` uses — same guards: `on: 'load'` never animates, no
 support or reduced-motion degrade to the instant swap).
 
