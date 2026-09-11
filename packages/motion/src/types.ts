@@ -676,6 +676,11 @@ export interface RuntimeElement {
   readonly runOnce: boolean;
   /** Selector that drives this element instead of scroll, if any. */
   readonly when: string | null;
+  /** Oscillation-breaker state (see the gate in updateElement): last answer, flip times inside
+   *  the rolling window, and the held answer while a loop is being damped. */
+  gateWas?: boolean;
+  gateFlips?: number[];
+  gateHeld?: boolean;
   /**
    * The generated write path, or null when this element is outside `generateSimple`'s scope and
    * the inline path drives it. Everything write time needs, derived ONCE at activation so the

@@ -355,6 +355,22 @@ const motionDirective: Directive = {
       return;
     }
 
+    /**
+     * THE SELF-FEED DIAGNOSIS — the static half of the oscillation guard (the runtime's flip
+     * breaker is the behavioral half). An element that SENSES its own position (in-view) while
+     * its gated animation TRANSLATES it can carry its trigger line inside its own travel: the
+     * exit moves it back across the line, the gate re-matches, and it wiggles at frame rate.
+     * Named at activation, before anyone sees it, with the fix in the prose: sense an
+     * untransformed wrapper instead. Deliberately an over-approximation — the sensor might feed
+     * something else entirely — because a warning that fires on the shape of the hazard beats a
+     * trace of the state graph nobody ships.
+     */
+    if (__DEV__ && el.hasAttribute('data-vd-in-view') &&
+      typeof parsed.settings['when'] === 'string' &&
+      parsed.animations.some((a) => a.property.category === 'transform')) {
+      rejectFor('motion-sensor-self-feed', [parsed.settings['when'] as string]);
+    }
+
     const element = region.add(parsed, rejectFor);
     if (!element) return;
 

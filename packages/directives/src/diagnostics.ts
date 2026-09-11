@@ -334,6 +334,14 @@ export const PROSE: Record<string, Prose> = {
     `an author rule outranks the generated CSS: computed ${property} is ${got}, not this element's generated value — the animation sits still and the cascade is doing exactly what CSS does.`,
     `Find the winning rule in devtools (the generated selectors are 0-2-0, doubled on purpose); lower its specificity, drop the !important, or scope it away from [data-vm-motion] elements.`,
   ],
+  'motion-gate-oscillating': (when: string) => [
+    `the "when: '${when}'" gate flipped five times in ~a second — a feedback loop (usually: the animation moves the element across its own sensor line). Held at the last state until it settles.`,
+    `Sense an untransformed wrapper instead of the animated element, or move the trigger line outside the element's own travel.`,
+  ],
+  'motion-sensor-self-feed': (when: string) => [
+    `this element senses its own position (in-view) while "when: '${when}'" gates an animation that MOVES it — if the sensor feeds that gate, the trigger line can sit inside the element's own travel and oscillate.`,
+    `Put data-vd-in-view on an untransformed wrapper; the box then animates without ever crossing its own line.`,
+  ],
   'motion-group-on-member': () => [
     'motion-group configures a REGION for descendants; the element carrying it animates in the region above.',
   ],

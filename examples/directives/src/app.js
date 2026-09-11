@@ -557,15 +557,17 @@ const MOTION = `
   the exit to be asymmetric — in at the line, out off the top, but NOT out when you scroll back below
   the line. A pair of thresholds is symmetric by construction, so this is where the expression tier
   earns its place rather than where the motion vocabulary should grow a fourth mode.</p>
-  <demo-block caption="Three in-view readings and one expression — no scroll direction anywhere; what matters is which side you're near. The nearTop line LEADS the top edge, so the exit plays while the box is still visible; the bottom side has no such line, so going back below the trigger changes nothing and the reset happens only fully off-screen, unseen.">
+  <demo-block caption="Three in-view readings and one expression — no scroll direction anywhere; what matters is which side you're near. The nearTop line LEADS the top edge, so the exit plays while the box is still visible — and it is sensed on an UNTRANSFORMED wrapper, never the animated box itself, so the animation can never carry the box across its own trigger line (the oscillation the library now guards against by name). The bottom side has no line: going back below the trigger changes nothing, and the reset happens fully off-screen, unseen.">
     <div data-vd-state="{ crossed: false, onScreen: false, nearTop: false, ever: false }"
          data-vd-in-view="crossed 0.5"
          data-vd-watch="{ crossed: { ever: ever ? true : crossed } }">
       <div class="reveal-row" data-vd-in-view="onScreen">
-        <div class="hero-box" data-vd-in-view="nearTop 12%"
-             data-vd-class="{ glowing: ever ? (onScreen && !nearTop) : false }"
-             data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.glowing', play: 0.55 }">
-          3 · out the TOP only
+        <div data-vd-in-view="nearTop 12%">
+          <div class="hero-box"
+               data-vd-class="{ glowing: ever ? (onScreen && !nearTop) : false }"
+               data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, when: '.glowing', play: 0.55 }">
+            3 · out the TOP only
+          </div>
         </div>
       </div>
     </div>

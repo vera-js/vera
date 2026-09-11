@@ -870,12 +870,47 @@ export const updateElement = (
    * drives the progress — and one key cannot carry two orthogonal choices. `when: '.open', play: 0.6`
    * says the old behaviour out loud.
    */
-  if (element.when && !element.node.matches(element.when)) {
-    if (force || element.timelinePosition !== element.lowestStart) {
-      element.timelinePosition = element.lowestStart;
-      animateElement(element);
+  if (element.when) {
+    /**
+     * THE OSCILLATION BREAKER. A gate whose animation MOVES its own trigger is a feedback loop:
+     * an in-view line inside the element's own translate span re-matches the moment the exit
+     * plays, replays the entrance, and the element wiggles at frame rate (found live — a box
+     * parked exactly on its nearTop line). The breaker is behavioral, not structural, so it
+     * catches EVERY loop shape (sensor feedback, hover-moves-the-target, two writers fighting):
+     * more than four gate FLIPS inside a rolling 1.2s window holds the gate at its latest
+     * answer and reports `motion-gate-oscillating` once; a quiet window releases the hold. The
+     * static cousin (`motion-sensor-self-feed`, at activation) names the usual modeling error
+     * before it ever wiggles; this one bounds whatever slips past naming.
+     */
+    const matches = element.node.matches(element.when);
+    if (element.gateHeld !== undefined) {
+      const last = element.gateFlips![element.gateFlips!.length - 1];
+      if (matches === element.gateHeld || (last !== undefined && performance.now() - last > 1200)) {
+        element.gateHeld = undefined;
+        element.gateFlips = undefined;
+      }
     }
-    return;
+    if (element.gateHeld === undefined && matches !== element.gateWas) {
+      if (element.gateWas !== undefined) {
+        const now = performance.now();
+        const flips = (element.gateFlips ??= []);
+        flips.push(now);
+        while (flips.length && now - flips[0]! > 1200) flips.shift();
+        if (flips.length > 4) {
+          element.gateHeld = element.gateWas;
+          element.reject('motion-gate-oscillating', [element.when]);
+        }
+      }
+      if (element.gateHeld === undefined) element.gateWas = matches;
+    }
+    const gate = element.gateHeld ?? element.gateWas ?? matches;
+    if (!gate) {
+      if (force || element.timelinePosition !== element.lowestStart) {
+        element.timelinePosition = element.lowestStart;
+        animateElement(element);
+      }
+      return;
+    }
   }
 
   /**

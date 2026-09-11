@@ -350,6 +350,14 @@
       "fix": "Register it from page code, before elements activate: wireFunctions({ {name}: (el, p) => { … } })."
     },
     {
+      "code": "motion-gate-oscillating",
+      "params": [
+        "when"
+      ],
+      "message": "the \"when: '{when}'\" gate flipped five times in ~a second — a feedback loop (usually: the animation moves the element across its own sensor line). Held at the last state until it settles.",
+      "fix": "Sense an untransformed wrapper instead of the animated element, or move the trigger line outside the element's own travel."
+    },
+    {
       "code": "motion-group-axis",
       "params": [
         "key"
@@ -649,6 +657,14 @@
         "segment"
       ],
       "message": "{where}: {segment} — an unbracketed segment is the base, and there is already one."
+    },
+    {
+      "code": "motion-sensor-self-feed",
+      "params": [
+        "when"
+      ],
+      "message": "this element senses its own position (in-view) while \"when: '{when}'\" gates an animation that MOVES it — if the sensor feeds that gate, the trigger line can sit inside the element's own travel and oscillate.",
+      "fix": "Put data-vd-in-view on an untransformed wrapper; the box then animates without ever crossing its own line."
     },
     {
       "code": "motion-sequence-origin-not-url",
