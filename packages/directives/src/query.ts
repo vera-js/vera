@@ -247,9 +247,15 @@ const applying = new WeakSet<Element>();
  */
 const commitSeq = new WeakMap<Element, number>();
 
-/** One transition at a time per document — a nested startViewTransition is the pileup omni
- *  measured; while one runs, further commits apply instantly inside it. */
-const transitioning = new WeakSet<Document>();
+/**
+ * The document's ACTIVE transition, so a discrete change landing mid-flight can SKIP it and run
+ * its own. The first guard demoted such commits to instant — correct DOM, wrong theater: the
+ * old journey's overlay kept gliding one way while reality snapped the other, and the reveal at
+ * overlay-end read as a shrink-and-pop (found live, toggling a sort mid-glide). skipTransition
+ * jumps the old overlay to its end, the stale callback still runs (and is a no-op — the
+ * versioned commits), and the new transition captures from where things truly are.
+ */
+const activeTransition = new WeakMap<Document, { skipTransition?: () => void }>();
 
 /**
  * Commits list mutations, animated where the page can and should.
@@ -276,26 +282,46 @@ const commitList = (
   animate: boolean
 ): void => {
   const view = doc.defaultView;
-  const start = (doc as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<unknown> } })
-    .startViewTransition;
+  const start = (doc as Document & { startViewTransition?: (cb: () => void) =>
+    { finished: Promise<unknown>; skipTransition?: () => void } }).startViewTransition;
   const reduced = view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-  if (!animate || !start || reduced || transitioning.has(doc) || changed.length === 0) {
+  if (!animate || !start || reduced || changed.length === 0) {
     commit();
     return;
   }
-  transitioning.add(doc);
+  /** A change worth animating that lands mid-flight takes the stage over: the old overlay skips
+   *  to its end (its stale callback runs and no-ops), and THIS one glides from there. */
+  activeTransition.get(doc)?.skipTransition?.();
   let named = 0;
   for (const item of changed) {
     (item as HTMLElement).style.setProperty('view-transition-name', `vm-li-${named++}`);
   }
-  const clear = () => {
-    transitioning.delete(doc);
+  /**
+   * THE STAGGER — the reversal cure (measured: on a full reversal every item's mirror path
+   * crosses the grid centre at t=50%, so all groups pile into one band and fan back out — the
+   * "shrink and grow" a synchronised FLIP always shows on opposing states; GSAP and Framer
+   * included). A few ms of per-group `animation-delay` desynchronises the crossing into a wave,
+   * so nothing is co-located. Capped total (~260ms) so a long list is a wave, not a queue. Per
+   * `::view-transition-group`, which only a stylesheet can reach, so it rides the names'
+   * transient life exactly. Prefixed id, one <style>, removed on clear.
+   */
+  const step = named > 1 ? Math.min(40, 260 / (named - 1)) : 0;
+  const stagger = doc.createElement('style');
+  stagger.id = 'vm-li-stagger';
+  stagger.textContent = Array.from({ length: named }, (_, i) =>
+    `::view-transition-group(vm-li-${i}) { animation-delay: ${Math.round(i * step)}ms; }`).join('');
+  doc.head.appendChild(stagger);
+  const clear = (vt: unknown) => {
+    if (activeTransition.get(doc) === vt) activeTransition.delete(doc);
     for (const item of changed) (item as HTMLElement).style.removeProperty('view-transition-name');
+    stagger.remove();
   };
   try {
-    start.call(doc, commit).finished.then(clear, clear);
+    const vt = start.call(doc, commit);
+    activeTransition.set(doc, vt);
+    vt.finished.then(() => clear(vt), () => clear(vt));
   } catch {
-    clear();
+    clear(null);
     commit();
   }
 };
