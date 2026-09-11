@@ -138,7 +138,7 @@ customElements.define('vocab-table', class extends HTMLElement {
   connectedCallback() {
     const rows = describeDirectives()
       .filter((d) => d.summary)
-      .map((d) => `<tr><td><code>data-vm-${d.name}</code></td><td>${d.value}</td><td>${d.summary}</td></tr>`)
+      .map((d) => `<tr><td><code>data-vd-${d.name}</code></td><td>${d.value}</td><td>${d.summary}</td></tr>`)
       .join('');
     this.innerHTML = `<table class="vocab"><thead><tr><th>directive</th><th>value</th><th>does</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
@@ -147,8 +147,14 @@ customElements.define('vocab-table', class extends HTMLElement {
 /* Every refusal on the page, polled — what a GUI renders instead of a console. */
 customElements.define('rejections-panel', class extends HTMLElement {
   connectedCallback() {
+    /** Rebuild ONLY when the count moves — the interval is a poll, not a render loop. The
+     *  unconditional innerHTML write repainted an unchanged list every 800ms, which read as a
+     *  flash and destroyed any text selection the reader had made in it. */
+    let shown = -1;
     const render = () => {
       const all = rejections();
+      if (all.length === shown) return;
+      shown = all.length;
       const rows = all.slice(-14).map((r) =>
         `<li><code>${r.code}</code> ${r.message ? `— ${r.message}` : ''}</li>`).join('');
       this.innerHTML = `<p>${all.length} refusal(s) recorded on this page so far. The engine never throws at markup — it explains:</p><ul class="rejections">${rows}</ul>`;
@@ -637,7 +643,7 @@ const VOCAB = `
   <h2>sequence — scroll-scrubbed image frames</h2>
   <demo-block caption="A canvas scrubbed through 24 numbered frames as you scroll — scroll slowly and the dial turns. The URL policy is FACTORY-ONLY: an attribute can never widen the origin allowlist, so these are served same-origin. Point frame-url at another origin and it is refused rather than fetched.">
     <canvas width="320" height="180" class="card"
-            data-vd-motion="{ keyframes: { frame: '0% 0, 100% 23' }, frame-url: '/examples/directives/frames/', frame-count: 24, frame-ext: 'svg', frame-tween: true }"></canvas>
+            data-vd-motion="{ function: 'sequence', frame-url: '/examples/directives/frames/', frame-count: 24, frame-ext: 'svg', frame-tween: true }"></canvas>
   </demo-block>
   <h2>easings</h2>
   <demo-block caption="The easings module resolves keywords, cubic-bezier() and steps() for the CURVE (evaluated per segment, like @keyframes). inertia-ease shapes the catch-up and is CSS's job — same vocabulary, different physics.">

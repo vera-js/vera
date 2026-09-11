@@ -14,6 +14,7 @@ import { generateSimple, mergeBandsForWidth } from './generate.js';
 
 import { functionFor } from './functions.js';
 
+import { verifyDelivered } from './verify.js';
 import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, PROGRESS_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 
 import { syncTo, rampTo, dispose } from './drive.js';
@@ -545,6 +546,11 @@ export const createRuntimeElement = (
      * delivery will select on it.
      */
     node.setAttribute('data-vm-motion', generatedCss.hash);
+    /** The cascade-override instrument (dev only — the call folds away): an author rule that
+     *  outranks the generated one leaves the element silently still, and the cascade is the one
+     *  place this package's refusal story could not reach until delivery learned to verify
+     *  itself. See verify.ts for the environment mute that keeps fake DOMs honest. */
+    if (__DEV__) verifyDelivered(node as HTMLElement, generatedCss);
     /**
      * ARM the transition only after the BASE state is committed. Activation-time rule injection
      * is itself a style change, so longhands live at delivery would animate every element in

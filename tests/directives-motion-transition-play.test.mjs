@@ -175,3 +175,23 @@ test('TIER C: a plain scrub is cascade-driven — constants written once, the va
   chased.remove();
   await settled();
 });
+
+test('stagger under a play cascades siblings by transition-delay — the same offset variable', async () => {
+  const host = await mount(`
+    <div data-vd-motion="{ stagger: '10%' }">
+      <div id="m1" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, play: 0.5, scroll: '50%' }">a</div>
+      <div id="m2" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, play: 0.5, scroll: '50%' }">b</div>
+      <div id="m3" data-vd-motion="{ keyframes: { opacity: '0% 0.1, 100% 0.9' }, play: 0.5, scroll: '50%' }">c</div>
+    </div>`);
+  await settled();
+  const members = ['m1', 'm2', 'm3'].map((id) => host.querySelector(`#${id}`));
+  assert.deepEqual(members.map((m) => m.style.getPropertyValue('--vm-so')), ['', '0.1', '0.2'],
+    'per-sibling offsets, index zero holding the fallback');
+  const css = sheetText();
+  assert.match(css, /transition-delay: calc\(var\(--vm-so, 0\) \* 0\.5s\)/,
+    'the armed longhands scale the offset by the play duration');
+  assert.equal(rejections().filter((r) => r.code === 'motion-stagger-with-play').length, 0,
+    'the "not built yet" refusal left with the build');
+  host.remove();
+  await settled();
+});

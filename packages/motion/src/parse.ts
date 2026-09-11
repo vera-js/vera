@@ -804,17 +804,10 @@ export const parseMotion = (
   }
 
   /**
-   * Stagger shifts keyframes along the SCROLL timeline, which a play does not have — it crosses a
-   * threshold and runs over time, so a position offset moves nothing. The equivalent for a play is a
-   * time delay per sibling, which is a different mechanism and is not built yet; refused meanwhile,
-   * because a stagger that parses and shifts nothing is exactly the quiet failure this package
-   * refuses elsewhere.
-   *
-   * Reported on the CHILD rather than the parent, because a parent may hold a mix.
+   * Stagger under a PLAY became real on 2026-09-10: the transition emission scales the same
+   * offset variable into a per-sibling `transition-delay`, so the refusal that stood here
+   * ("a per-sibling time delay is not built yet") stopped being true and left with the build.
    */
-  if (stagger && settings['play'] !== undefined) {
-    rejected.push({ code: 'motion-stagger-with-play', args: [] });
-  }
 
   return {
     node,

@@ -327,12 +327,12 @@ export const PROSE: Record<string, Prose> = {
     'track scroll exactly with no transition to shape.',
     'Raise inertia, or use ease.',
   ],
-  'motion-stagger-with-play': () => [
-    'stagger does nothing on a play — it offsets a scroll timeline, and a play has none.',
-    'Remove one of them; a per-sibling time delay is not built yet.',
-  ],
   'motion-stagger-no-descendants': () => [
     'stagger needs animated descendants — it goes on the parent.',
+  ],
+  'motion-css-overridden': (property: string, got: string) => [
+    `an author rule outranks the generated CSS: computed ${property} is ${got}, not this element's generated value — the animation sits still and the cascade is doing exactly what CSS does.`,
+    `Find the winning rule in devtools (the generated selectors are 0-2-0, doubled on purpose); lower its specificity, drop the !important, or scope it away from [data-vm-motion] elements.`,
   ],
   'motion-group-on-member': () => [
     'motion-group configures a REGION for descendants; the element carrying it animates in the region above.',

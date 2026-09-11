@@ -440,7 +440,7 @@ export interface GeometryContext {
 export interface GeneratedGroup {
   /** Content hash of this group's base body — the registry key its rule is acquired under. */
   readonly hash: string;
-  /** The animation name, `vd-<hash>` — derived, carried so no caller re-derives it differently. */
+  /** The animation name, `vm-<hash>` — derived, carried so no caller re-derives it differently. */
   readonly name: string;
   /** The complete `@keyframes` rule, ready for `acquire`. */
   readonly rule: string;

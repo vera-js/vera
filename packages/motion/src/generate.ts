@@ -303,6 +303,15 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     const longhands =
       `transition-property: ${targets.map((t) => t.property).join(', ')}; ` +
       `transition-duration: ${targets.map(() => `${format(play)}s`).join(', ')}; ` +
+      /**
+       * The per-sibling STAGGER, in play mode: the same offset variable the scroll seek
+       * subtracts becomes a positive delay scaled by the play duration — `stagger: '12%'` under
+       * `play: 0.6` cascades siblings 72ms apart, entering AND leaving, with one shared rule
+       * (the offset is a var, never a rule fork). An unstaggered element reads the fallback 0
+       * and the calc collapses. This replaced the `motion-stagger-with-play` refusal, whose
+       * "not built yet" text stopped being true here.
+       */
+      `transition-delay: ${targets.map(() => `calc(var(${STAGGER_PROPERTY}, 0) * ${format(play)}s)`).join(', ')}; ` +
       `transition-timing-function: ${targets.map((t) => t.timing).join(', ')};`;
     const hash = contentHash(`${baseDecls} ${longhands}||${activeDecls}`);
 
@@ -414,7 +423,21 @@ export const generateSimple = (parsed: ParsedElement, geometry?: GeometryContext
     framesOf: (a: ElementMotion) => readonly RawKeyframe[]
   ): string | null => {
     const raw = framesOf;
-    const framesOfN = (a: ElementMotion): readonly RawKeyframe[] => percentised(raw(a));
+    /**
+     * A member with NO keyframes at this width RESTS — the same fill runtime's `mergeForWidth`
+     * performs, mirrored here because a BAND-ONLY property (`opacity: '[wide]: …'`, nothing at
+     * base) hands the base build an empty list, and the sampler crashed on it
+     * (`undefined.position` — found live on the demo page, silent in production). Two resting
+     * stops, the property's initial: the band's own segments carry the real frames.
+     */
+    const resting = (a: ElementMotion): readonly RawKeyframe[] => [
+      { value: a.property.initial, unit: a.unit, position: 0, positionUnit: '%' },
+      { value: a.property.initial, unit: a.unit, position: 100, positionUnit: '%' },
+    ];
+    const framesOfN = (a: ElementMotion): readonly RawKeyframe[] => {
+      const list = percentised(raw(a));
+      return list.length ? list : resting(a);
+    };
     framesOf = framesOfN;
     const stops = [...new Set(group.members.flatMap((a) => framesOf(a).map((f) => f.position)))]
       .sort((x, y) => x - y);

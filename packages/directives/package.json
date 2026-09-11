@@ -86,6 +86,7 @@
       },
       "files": [
         "src/**/*{.js,.ts}",
+        "../motion/src/**/*{.js,.ts}",
         "../shared-types/src/**/*{.js,.ts}",
         "../shared-utils/src/**/*{.js,.ts}",
         "tsconfig.json",
@@ -106,6 +107,7 @@
       },
       "files": [
         "src/**/*{.js,.ts}",
+        "../motion/src/**/*{.js,.ts}",
         "../shared-types/src/**/*{.js,.ts}",
         "../shared-utils/src/**/*{.js,.ts}",
         "tsconfig.json",
@@ -125,6 +127,7 @@
       },
       "files": [
         "src/**/*{.js,.ts}",
+        "../motion/src/**/*{.js,.ts}",
         "../shared-types/src/**/*{.js,.ts}",
         "../shared-utils/src/**/*{.js,.ts}",
         "tsconfig.json",

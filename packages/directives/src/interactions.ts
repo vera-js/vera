@@ -85,7 +85,12 @@ const text: Directive = {
   /** Declarative: the server writes this reflection, so it is right before any JS runs. */
   ssr: true,
   apply(el, value) {
-    el.textContent = value === null || value === undefined ? '' : String(value);
+    const next = value === null || value === undefined ? '' : String(value);
+    /** Compare before writing (the list/counts rule, applied to the DOM): an identical write
+     *  still replaces the text node — killing the reader's selection and paying a paint for
+     *  nothing. Found live: selecting the value in a demo was impossible while any state
+     *  churned, because every settle rewrote an unchanged string. */
+    if (el.textContent !== next) el.textContent = next;
   },
 };
 
