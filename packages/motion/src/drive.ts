@@ -26,7 +26,13 @@ let last = 0;
 
 const write = (driven: Driven, value: number): void => {
   driven.written = value;
-  driven.node.style.setProperty(driven.varName, String(value));
+  /**
+   * Four decimals — sub-pixel on any transit under 10,000px, and the full float was pure noise:
+   * a 16-digit serialization on every frame costs string length and reads like line static in
+   * devtools. `written` keeps the exact value (the chase's own math stays full-precision); only
+   * the CSS-facing string is quantised. Functions receive the exact value too.
+   */
+  driven.node.style.setProperty(driven.varName, String(Math.round(value * 1e4) / 1e4));
   /** The function door — same number, same moment as the variable write, contained upstream. */
   driven.run?.(value);
 };

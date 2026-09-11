@@ -440,8 +440,9 @@ const WIDGETS = `
   </demo-block>
   <h2>Small utilities that earn their bytes</h2>
   <demo-block caption="copy takes its value (or the element's text) to the clipboard; scroll-to smooth-scrolls to a selector; every runs assignments on intervals — keys are the milliseconds.">
-    <div data-vd-state="{ beats: 0 }">
-      <button data-vd-copy="npm i @verajs/directives">copy the install line</button>
+    <div data-vd-state="{ beats: 0, copied: false }">
+      <button data-vd-copy="npm i @verajs/directives" data-vd-on-click="{ copied: true }">copy the install line</button>
+      <span class="toast" data-vd-show="copied" data-vd-every="{ 1600: { copied: false } }">copied ✓</span>
       <button data-vd-scroll-to="header">back to the top</button>
       <p data-vd-every="{ 1000: { beats: beats + 1 } }">
         alive for <b data-vd-text="beats"></b>s on this visit
@@ -575,11 +576,12 @@ const MOTION = `
     </div>
   </demo-block>
   <h2>when — the selector driver</h2>
-  <demo-block caption="when GATES the animation: while the selector matches it runs, otherwise it rests at its start. With play it runs end-to-end, which is what makes this a UI transition rather than a scrub. Pair it with state + on-click and you have transitions with no new machinery.">
-    <div data-vd-state="{ glowing: false }">
-      <button data-vd-on-click="{ glowing: !glowing }">toggle</button>
-      <div class="hero-box" data-vd-class="{ glowing: glowing }"
-           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 55% 1', scale: '0% 0.8, 55% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.glowing', play: 0.5 }">
+  <demo-block caption="when GATES the animation: while the selector matches it runs, otherwise it rests at its start. With play it runs end-to-end, which is what makes this a UI transition rather than a scrub. The gate and the look are two classes on purpose: .active GATES the motion (dropping it starts the reverse), while .glowing — the visible styling — LINGERS through a closing flag until on-transitionend releases it, so the style never vanishes mid-reverse. (on-transitionend is the platform's own event name, transitionend, behind the on- prefix.)">
+    <div data-vd-state="{ open: false, closing: false }">
+      <button data-vd-on-click="{ closing: open, open: !open }">toggle</button>
+      <div class="hero-box" data-vd-class="{ active: open, glowing: open || closing }"
+           data-vd-on-transitionend="{ closing: false }"
+           data-vd-motion="{ keyframes: { opacity: '0% 0.25, 100% 1', scale: '0% 0.8, 100% 1', rotate: '0% 0deg, 100% 360deg' }, when: '.active', play: 0.5 }">
         state-driven
       </div>
     </div>

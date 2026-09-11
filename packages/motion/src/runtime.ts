@@ -580,7 +580,7 @@ export const createRuntimeElement = (
     if (cascade && parsed.stagger === undefined &&
       parsed.settings['scroll'] === undefined && parsed.settings['anchor'] === undefined &&
       settings.scrollDirection !== 'horizontal' && supportsViewTimeline(node) &&
-      scrollerScrolls(settings)) {
+      scrollerScrolls(settings) && nativeViewUnobstructed(node, settings)) {
       node.setAttribute('data-vm-native', '');
     }
     generated = {
@@ -1120,6 +1120,30 @@ const scrollerScrolls = (settings: RuntimeSettings): boolean => {
     : el.scrollHeight > el.clientHeight;
 };
 
+/**
+ * Tier N's OTHER inactive-timeline trap, found live on the demo page: `view()` binds to the
+ * NEAREST scroll-container ancestor and CSS offers no way to aim it past one — and
+ * `overflow: hidden` IS a scroll container (scrollable, merely not by the user), so one
+ * border-radius-clipping wrapper silently freezes the animation at whatever the dead timeline
+ * last said. Any auto/scroll/hidden/overlay ancestor between the element and the intended
+ * scroller disqualifies tier N; the element keeps tier C's always-correct seek. `clip` and
+ * `visible` are not scroll containers and stay eligible — `overflow: clip` is exactly the
+ * spelling a wrapper that only clips should use.
+ */
+const nativeViewUnobstructed = (node: Element, settings: RuntimeSettings): boolean => {
+  const view = node.ownerDocument?.defaultView;
+  if (!view) return false;
+  const scroller = settings.scrollElement && (settings.scrollElement as Element).nodeType === 1
+    ? settings.scrollElement as Element : node.ownerDocument!.documentElement;
+  for (let ancestor = node.parentElement; ancestor && ancestor !== scroller; ancestor = ancestor.parentElement) {
+    const cs = view.getComputedStyle(ancestor);
+    for (const overflow of [cs.overflowY, cs.overflowX]) {
+      if (overflow !== 'visible' && overflow !== 'clip') return false;
+    }
+  }
+  return true;
+};
+
 const viewTimelineSupport = new WeakMap<object, boolean>();
 const supportsViewTimeline = (node: Element): boolean => {
   const view = (node.ownerDocument?.defaultView ?? globalThis) as typeof globalThis & {
@@ -1139,7 +1163,7 @@ export const writeScrollVar = (settings: RuntimeSettings, win: WindowSize): void
   if (lastScroll.get(scroller) === win.start) return;
   lastScroll.set(scroller, win.start);
   ensureProperty(SCROLL_PROPERTY, scroller, { inherits: true });
-  (scroller as HTMLElement).style.setProperty(SCROLL_PROPERTY, String(win.start));
+  (scroller as HTMLElement).style.setProperty(SCROLL_PROPERTY, String(Math.round(win.start * 10) / 10));
 };
 
 export { getWindowSize };

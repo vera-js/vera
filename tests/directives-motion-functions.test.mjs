@@ -61,9 +61,11 @@ test('a tick-only element is a real shape: the function IS the animation, and it
   assert.equal(seen.at(-1).el, el, 'handed the element itself');
   const p = seen.at(-1).p;
   assert.ok(p > 0 && p <= 1, `progress in range, got ${p}`);
-  /** The same number, same moment, as the variable write — one door, three destinations. */
-  assert.equal(dom.window.getComputedStyle(el).getPropertyValue('--vm-p'), String(p),
-    'the tick and the variable carry one number');
+  /** The same number, same moment — the FUNCTION gets it exact, the CSS-facing string is
+   *  quantised to four decimals (sub-pixel on any transit; the 16-digit float was line static). */
+  assert.equal(dom.window.getComputedStyle(el).getPropertyValue('--vm-p'),
+    String(Math.round(p * 1e4) / 1e4),
+    'the variable is the function\'s number, quantised for CSS');
   assert.equal(rejections(el).length, 0, 'nothing refused');
 
   host.remove();
