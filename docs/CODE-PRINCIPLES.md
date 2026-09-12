@@ -1,13 +1,13 @@
 # Code Principles
 
-The bar every change in **VeraJS** must clear. These ten principles are the definition of "good"
+The bar every change in **VeraJS** must clear. These eleven principles are the definition of "good"
 for this codebase — reviews, audits, and new work are measured against all of them.
 
-**All ten are equally important. None outranks another.** Do not trade one away to maximize
+**All eleven are equally important. None outranks another.** Do not trade one away to maximize
 another. When two genuinely pull against each other on a specific change, **do not silently pick a
 winner**: implement the option you believe is best *and surface the trade-off* to the developer — the
 concrete benefit (*why*), where it lives (*where*: file / function / boundary), and the mechanism
-(*how*) — so they decide. A change "passes" only when it satisfies all ten, or every deviation is
+(*how*) — so they decide. A change "passes" only when it satisfies all eleven, or every deviation is
 explicitly agreed with the developer.
 
 This document expands each principle into the concrete, project-specific rules that make it real here.
@@ -339,12 +339,88 @@ running a document that nothing had ever run, and each is now held by something 
 
 ---
 
+## 11. Verification that can fail
+
+**A check that cannot fail is not a check.** Every defect the September 2026 audit found satisfied
+the ten principles above — conventional, minimal, DRY, small, documented — and was wrong anyway,
+because the thing asserting its correctness could not report otherwise. A defect class that clears
+all ten is not a footnote to any of them.
+
+- **The passing state of a check must never be emptiness alone.** A pin that walks a corpus and
+  asserts the offender list is empty passes identically when the walk found nothing — forever,
+  including through the edit that breaks it. `[].every(…)` is true; a `for` over nothing runs no
+  assertions; a glob that matched no files reports zero stranded artifacts. Seven walks here had
+  that shape. `minification-contracts` skipped any package with no `dist`, so **before a build every
+  package was skipped** and its exhaustiveness check passed having examined nothing — the guard
+  against a build-config mistake shipping, absent on exactly the runs where nothing is built. The
+  `NPM_TOKEN` guard globbed `.github/workflows/*.yml`: rename the directory and *"no secret exists
+  in the release path"* becomes an assertion about the empty set. **State the floor** —
+  `assert.ok(found.length > 0, 'the scan is broken, not the list')` — and make it a floor, not a
+  census, or the third person to add a file deletes it. `tests/suites-floor-their-corpus.test.mjs`
+  enforces this mechanically.
+- **A pin must reach the home where the drift lives.** `jsx-name-mapping` drove one of two homes
+  against a table written in the test, and passed through the entire life of three defects in the
+  home it never executed. Worse, `jsx-equivalence` wrote the same defect into *both halves* of five
+  of its own pairs and compared it with itself. Where both sides can be generated from one source,
+  generate them: `jsx-tree-parity` builds the JSX and the reference DOM from one tree, so no
+  expectation is typed by anyone holding the misconception.
+- **A mutation control must prove the mutation arrived.** The plant can die anywhere on its delivery
+  path — a comment stripper, a module-scope throw, a restore step that reverted an export. A plant
+  that dies leaves a red run that looks like proof. **Grep for the specific message the check emits,
+  never for a red run:** a red run says something broke; only the message says *the thing under
+  test* broke. And never mutate anything the suite does not own.
+- **A positive control must not be satisfiable for the wrong reason.** The floor lint's own control
+  asserted "a floored sample looks floored" and passed — carried by a word clause, while the numeric
+  clause was blind to `x.length > 0`, the commonest floor spelling there is. Pair each sample with
+  the clause it exercises and check it against that clause alone.
+- **A detector expressed as a pattern over source will miss a spelling.** That is the base rate, not
+  a defect — three separate blind spots turned up in one afternoon, none sharing a mechanism. So
+  **make the failure loud**: a source-reading pin must fail when its pattern matches nothing, never
+  skip, and the dangerous ones are those that *iterate* matches, because zero matches is a clean
+  loop. Tune a sweep to **over-report**: a sweep that reports nothing is indistinguishable from a
+  sweep that scanned nothing. Every blind spot found becomes a permanent row, so a narrowing rewrite
+  fails naming the spelling it lost.
+- **When you change an instrument, check which direction its answer moves.** An improvement that
+  moves it the wrong way is a regression wearing a fix's clothes. Widening the floor detector made
+  its candidate list *grow*; tightening the lint's granularity made a known defect *stop* failing.
+  Both were caught by that question and by nothing else.
+- **An allowance must be as narrow as the thing it excuses, and counted.** `NOT_A_LITERAL` excused a
+  console call whose first argument the prefix check cannot read — keyed by FILE, so it excused every
+  such call the file might ever grow, in a file already holding ten. An exclusion that outlives its
+  reason silently disables a check that has *become* available, which gets worse as the codebase
+  improves. Both directions must fail: excusing more than claimed, and claiming a subject that is
+  gone. **A rule's granularity follows the thing it protects, not the thing it is written into.**
+- **Ask what is holding a property up, and whether that thing knows.** Load-bearing facts hide in
+  things whose job description does not mention them: an event manifest's floor was carried by its
+  *reverse* assertion; `spread`'s symbol handling was governed by a rule written down only in
+  `@verajs/ssr`'s source, which `spread` then broke. **A house rule recorded in one of three homes is
+  a house rule in none of them.** One source where the architecture permits it; otherwise N copies
+  and a differential that drives every one — never N copies and a promise.
+- **A refusal needs a channel, and the audience chooses it, not the door.** A correct refusal nobody
+  is told about is indistinguishable from a bug to the person who wrote the value — `remote()` and
+  `sensors()` accepted unknown options and configured nothing, silently. Worse is a channel that
+  reports once: the attribute diagnostic keyed its "already said this" on `typeof`, so an author who
+  fixed the `Date` was never told about the array. **A channel that reports once lies about
+  completion.** And where the audience is not present at the door — a warning printed during server
+  rendering, read by a build terminal — say so as a gap rather than count it as a channel.
+
+**Where a lesson is mechanical, make it a lint.** Prose in the file where a lesson was learned does
+not travel; its only enforcement is whether the next person happens to read that file. Five of these
+walks were written *after* the lesson was available, and the mechanical rule found two more that two
+careful hand sweeps had both missed. Ranked by reach: a **lint** (everywhere, always, mechanical
+facts only) → a **pin** (perfect fidelity, no generality) → a **failure message** (a principle
+delivered at the point of failure rather than the point of reading) → **this document** (everyone at
+the start of a session, nobody in the middle of one). A rule that is not mechanical belongs here
+*and* in the failure message of every check that depends on it.
+
+---
+
 ## Applying these
 
-- **Every non-trivial change should be checkable against this list.** For an audit, walk all ten per
+- **Every non-trivial change should be checkable against this list.** For an audit, walk all eleven per
   file/behavior and note where each is met, at risk, or violated.
 - **Equal weight is the rule that makes the others honest:** you cannot justify insecure code by "it's
-  simpler," or duplicated code by "it's faster." If you cannot satisfy all ten, that is a
+  simpler," or duplicated code by "it's faster." If you cannot satisfy all eleven, that is a
   conversation with the developer, not a silent trade.
 - **Surface, don't bury.** Trade-offs, legacy smells, and better patterns spotted in passing get
   raised with why/where/how — the developer decides whether to act now, defer, or accept.

@@ -9,7 +9,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
 | `@verajs/core` | 6.92 KB | **3.04 KB** |
-| `@verajs/renderer` | 11.25 KB | 4.35 KB |
+| `@verajs/renderer` | 11.31 KB | 4.38 KB |
 | `@verajs/router` | 10.66 KB | 4.45 KB |
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
@@ -22,7 +22,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/reactivity/collections` | 1.07 KB | 576 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
-| `@verajs/renderer/hydrate` | 16.54 KB | 6.06 KB |
+| `@verajs/renderer/hydrate` | 16.60 KB | 6.10 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 | `@verajs/directives` | 15.50 KB | 6.00 KB |
 | `@verajs/directives/directives-standalone` | 19.00 KB | 7.29 KB |

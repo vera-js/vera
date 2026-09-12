@@ -3,7 +3,7 @@
 Operational conventions and project parameters. Records decisions that are **not** derivable from the
 code, so they are not re-litigated.
 
-- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (ten principles, equally weighted).
+- **The bar for any change:** `docs/CODE-PRINCIPLES.md` (eleven principles, equally weighted).
   Its §1 **Types** subsection is binding for every type written: one `types.ts` per package at
   the import-graph root, single-file types local and unexported, `import type` for all
   type-only flow. Read it before writing code, every session.

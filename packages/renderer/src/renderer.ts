@@ -158,7 +158,12 @@ const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
 
-type Spec = { _type: 0 } | { _type: 1; _name: string } | { _type: 2 };
+/**
+ * `_tag` is `__DEV__` only and exists for one diagnostic: when the HTML parser DROPS the element a
+ * binding was written on, the binding's marker never reaches the parsed tree, and the warning below
+ * needs to name the element the author actually wrote rather than only the symptom.
+ */
+type Spec = ({ _type: 0 } | { _type: 1; _name: string } | { _type: 2 }) & { _tag?: string };
 
 /** Scanner states. */
 const IN_TEXT = 0;
@@ -252,7 +257,11 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
           statics.push(pending);
           const quoteChar = quote || '"';
           markup += ` ${specs.length}${MARKER}=${quoteChar}${statics.join(MARKER)}${quoteChar}`;
-          specs.push({ _type: ATTRIBUTE, _name: attrName });
+          specs.push(
+            __DEV__
+              ? { _type: ATTRIBUTE, _name: attrName, _tag: markup.slice(tagNameStart).match(/^[a-zA-Z][^\s/>]*/)?.[0] }
+              : { _type: ATTRIBUTE, _name: attrName }
+          );
           state = IN_TAG;
           if (quote !== '') pos++; // consume the closing quote; unquoted terminators reprocess IN_TAG
           continue;
@@ -489,6 +498,32 @@ const warnSlotless = (root: Element) => {
   );
 };
 
+/**
+ * `__DEV__` only: the HTML parser dropped an element a binding was written on.
+ *
+ * Named where it is discovered rather than after the walk, because the SKIP knows exactly which
+ * spec went missing — `specs[from]` is the casualty by construction. A post-hoc count can only
+ * report the LAST unclaimed spec, which positional pairing makes the wrong element every time, and
+ * pointing an author at a tag that rendered correctly is the precise failure this message exists
+ * to cure.
+ */
+const warnDroppedBinding = (specs: Spec[], from: number, count: number) => {
+  const lost = specs[from];
+  const where = lost?._tag
+    ? `\`${lost._type === ATTRIBUTE ? `${lost._name}=` : ''}\` on <${lost._tag}>`
+    : 'a binding';
+  console.warn(
+    `[vera] renderer: ${where} never reached the parsed tree — the HTML parser DROPPED the element ` +
+      `it was written on, because its parent's content model forbids it (\`<select>\` takes only ` +
+      `options, \`<form>\` cannot nest, and so on).\n` +
+      `${count} binding(s) lost. The element is gone from the DOM and its binding does nothing; ` +
+      `the bindings AFTER it are unaffected, because each marker carries its own index. ` +
+      `(Before that they all shifted onto the wrong elements, which is why this kind of mistake ` +
+      `used to surface somewhere you had not edited.)\n` +
+      `Move the element out of its parent, or use one the parent can hold.`
+  );
+};
+
 const templateCache = new WeakMap<TemplateStringsArray, Template>();
 
 class Template {
@@ -551,6 +586,25 @@ class Template {
           for (const attributeName of element.getAttributeNames()) {
             if (attributeName.endsWith(MARKER)) {
               /**
+               * **Each marker carries its own spec index in its NAME**, so pairing is addressed
+               * rather than positional — and a marker that never arrived is visible the moment the
+               * next one does. Both halves matter and neither works alone:
+               *
+               * - REPAIR: an element the parser drops takes its marker with it. Paired by walk
+               *   order, that shifted every later binding onto the wrong element, silently —
+               *   `html\`<select><div title=${'${a}'}>x</div></select><b title=${'${b}'}>\`` rendered
+               *   `<b title="a">`. Consuming the gap keeps every surviving binding on its own
+               *   element; only the dropped one is lost.
+               * - REPORT: the repair would otherwise SILENCE the problem, which is a correct
+               *   refusal with nothing to tell the author — so the skip is where the warning lives.
+               */
+              const declared = parseInt(attributeName, 10);
+              if (declared > specIndex) {
+                if (__DEV__) warnDroppedBinding(specs, specIndex, declared - specIndex);
+                do parts.push({ _type: IGNORED, _index: -1 });
+                while (++specIndex < declared);
+              }
+              /**
                * The marker attribute's value carries the statics; the REAL (case-preserved) name
                * comes from the spec — the HTML parser lowercases attribute names, which would
                * corrupt `.someProp`.
@@ -601,6 +655,36 @@ class Template {
         parts.push({ _type: CHILD, _index: -1, _node: primedText });
         consumeIgnored();
       }
+    }
+
+    /**
+     * **CONSERVATION OF MARKERS — the walk must claim every spec the scan emitted.**
+     *
+     * The loop above pairs specs with markers in document order. If the HTML parser DROPPED the
+     * element a binding was written on, that marker never exists, the loop runs out of nodes early,
+     * and `specIndex` stops short — and because pairing is POSITIONAL, every binding after the
+     * missing one has already been handed the value of its predecessor. Measured:
+     *
+     *     html`<select><div title=${a}>x</div></select><b title=${b}>after</b>`
+     *
+     * renders `<b title="a">` — the value written for the `<div>`, on an unrelated element, with
+     * no error anywhere. `<form>` inside `<form>` does the same. HTML's parser drops elements its
+     * content model forbids, which is correct of it and invisible to everything else here.
+     *
+     * **This is deliberately not a content-model check.** A table of what may contain what is a
+     * closed vocabulary over an open space: it catches what somebody enumerated, needs maintenance
+     * as HTML evolves, and would cover the compiler only — while this counts what actually
+     * happened, in JSX and hand-written templates alike, for every dropping context including the
+     * ones nobody listed. The cost of knowing is one integer comparison the construction already
+     * had lying around.
+     *
+     * The gap it cannot close, named rather than implied: a dropped element carrying NO bindings
+     * loses nothing to count. That is harmless to the renderer — nothing shifts — and it is the
+     * restructuring class, which `tests/jsx-tree-parity.test.mjs` records instead.
+     */
+    if (__DEV__ && specIndex < specs.length) {
+      /** A casualty at the very END has no later marker to reveal it, so the tail is checked too. */
+      warnDroppedBinding(specs, specIndex, specs.length - specIndex);
     }
 
     /** Pass 2 — INDEX over ELEMENT | TEXT, the mask instances walk with. */
