@@ -268,11 +268,11 @@ test('in-view dispatches vera:in-view — the trigger surface fetch composes wit
   await settled();
 });
 
-test('elect: the section MOST IN VIEW wins by ratio; ties go to document order; empty string seeds and clears', async () => {
+test(':current — the section MOST IN VIEW wins by ratio; ties go to document order; empty string seeds and clears', async () => {
   const host = await mount(`
     <div data-vd-state="{ toc: 'unseeded' }">
-      <section id="s1" data-vd-elect="toc"></section>
-      <section id="s2" data-vd-elect="toc"></section>
+      <section id="s1" data-vd-in-view="toc:current"></section>
+      <section id="s2" data-vd-in-view="toc:current"></section>
       <b data-vd-text="toc"></b>
     </div>`);
   const carrier = host.firstElementChild;

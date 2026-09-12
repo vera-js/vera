@@ -1038,8 +1038,8 @@ back up) resets, so the reveal replays coming down; `data-vd-size="s:viewport"` 
 are ordinary expressions (`data-vd-show="s.width < 768"`), no band vocabulary to learn;
 `data-vd-pointer="p:viewport"` measures the
 whole viewport (the ambient form — `sensors({ pointer: 'p' })` sets exactly that attribute on
-body from JavaScript); `data-vd-elect="toc"` on each section holds an election — the one
-MOST in view wins, its id written to the key (`''` when none) — nav highlighting is `data-vd-class="{ active:
+body from JavaScript); `data-vd-in-view="toc:current"` on each section holds an election — the one
+MOST in view wins, its id written to the shared key (`''` when none) — nav highlighting is `data-vd-class="{ active:
 toc == 'intro' }"`. `data-vd-copy` takes `data-vd-copy-done="copied"`, a key written true on
 success and self-clearing 2s later — the badge is `data-vd-show="copied"`.
 

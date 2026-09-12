@@ -120,14 +120,14 @@ designed page.
   `text`, `every`, `watch`, `focus-*`, `scroll-*`, `persist`, `copy`, `doc-class`, `init`.
 - **`query`** — `route` publishes `@route`; `query` binds state keys to the URL's query string;
   `list` filters, sorts, facets, ranges and pages the elements already inside it and publishes its counts back into state.
-- **`sensors`** — `in-view`, `size`, `pointer`, `elect`, `scroll-progress`, `swipe`. Every one
+- **`sensors`** — `in-view`, `size`, `pointer`, `scroll-progress`, `swipe`. Every one
   degrades to a readable page when the capability is missing. `in-view` takes `:once` (latch —
   a reveal is not un-revealed) and `:down` (directional latch: only a downward exit resets, so
   the reveal replays on the way back down); `pointer` and `size` take `:viewport` — ambient pointer, and the screen question
   (`data-vd-size="s:viewport"` + `data-vd-show="s.width < 768"`: breakpoints as ordinary
   expressions, no named-band table to define);
   or wire it from JavaScript — `sensors({ pointer: 'p' })` is `<body data-vd-pointer=
-  "p:viewport">` said from code, the dual for platforms that cannot author markup. `elect`
+  "p:viewport">` said from code, the dual for platforms that cannot author markup. `in-view`'s `:current` suffix
   holds an election among all elements sharing a key — the one MOST in view wins — the key holds the active
   id, `''` when none — which is the scrollspy nav in one attribute per section.
 - **`remote`** — `data-vd-fetch` and `data-vd-stream`. The stream is fetch's law at push

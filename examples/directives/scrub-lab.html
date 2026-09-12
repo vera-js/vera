@@ -16,12 +16,13 @@
   .note { color: #aaa; font-size: 0.9rem; }
 </style>
 
-<div class="hud">scroll — <span id="p">0.000</span> · frame time <span id="t">0.0</span>s</div>
+<div class="hud">scroll — <span id="p">0.000</span> · frame time <span id="t">0.0</span>s ·
+  <button id="src-toggle" style="font:inherit;background:none;color:#9be;border:1px solid #456;border-radius:0.4rem;padding:0.1rem 0.5rem;cursor:pointer">source: all-intra</button></div>
 
 <div class="runway">
   <div class="stage">
     <video muted preload="auto" playsinline
-      src="https://greenlightdash.pro/wp-content/uploads/2026/05/videoupscale-web.mp4"
+      src="/examples/media/scrub-allintra.webm"
       data-vd-motion="{ anchor: '.runway', scroll: 'top top, bottom bottom', function: 'scrub', progress: '--p', inertia: 0.35 }"></video>
   </div>
 </div>
@@ -62,6 +63,27 @@
       const t = Math.min(1, Math.max(0, p)); /* timeline positions are unclamped by design */
       if (!el.seeking && el.duration) el.currentTime = t * el.duration;
     },
+  });
+
+  /**
+   * THE ENCODE IS THE CEILING — the lab proves it by letting you swap sources live: the
+   * all-intra file (every frame a keyframe; scripts/generate-scrub-video.mjs regenerates it)
+   * against an ordinary encode of the same idea. Same engine, same recipe, same inertia —
+   * only the keyframe interval differs, and that is the whole difference you feel.
+   */
+  const SOURCES = [
+    { label: 'all-intra', src: '/examples/media/scrub-allintra.webm' },
+    { label: 'ordinary encode', src: 'https://greenlightdash.pro/wp-content/uploads/2026/05/videoupscale-web.mp4' },
+  ];
+  let sourceAt = 0;
+  const video0 = document.querySelector('video');
+  /* the local file is gitignored — fall back to the remote if it was never generated */
+  video0.addEventListener('error', () => { if (sourceAt === 0) document.getElementById('src-toggle').click(); }, { once: true });
+  document.getElementById('src-toggle').addEventListener('click', () => {
+    sourceAt = 1 - sourceAt;
+    document.getElementById('src-toggle').textContent = `source: ${SOURCES[sourceAt].label}`;
+    video0.src = SOURCES[sourceAt].src;
+    video0.load();
   });
 
   /* the HUD is just reflection over the same numbers */

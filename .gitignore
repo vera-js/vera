@@ -58,3 +58,4 @@ packages/ssr/types/
 # The browser benchmark's bundle, written by `node bench/dom/build.mjs`.
 bench/dom/bundle.js
 
+examples/media/

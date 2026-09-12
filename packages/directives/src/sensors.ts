@@ -234,6 +234,14 @@ const inView: Directive = {
     const tokens = (name ?? '').split(':');
     const key = keyFor(el, 'data-vd-in-view', ctx, tokens[0]);
     if (!key) return;
+    /**
+     * `:current` — the ELECTION MODE (the owner's shape: this was never a separate directive,
+     * it is what in-view means when many elements share one key): all sections carrying
+     * `"toc:current"` contest continuously, the one MOST in view wins, and the key holds the
+     * winner's id ('' when none). The other suffixes are boolean-mode only; an election
+     * neither latches nor cares about direction.
+     */
+    if (tokens.includes('current')) return joinElection(el, ctx, key);
     const once = tokens.includes('once');
     const down = tokens.includes('down');
 
@@ -447,17 +455,7 @@ const runElection = (key: string, group: ElectGroup): void => {
   (best?.ctx ?? [...group.members.values()][0]?.ctx)?.set(key, id);
 };
 
-const elect: Directive = {
-  name: 'elect',
-  value: 'literal',
-  priority: 60,
-  docs: {
-    summary: "Elects the section MOST IN VIEW among all elements sharing this key — the state key holds its id, '' when none.",
-    example: 'data-vd-elect="toc"',
-  },
-  setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-elect', ctx);
-    if (!key) return;
+const joinElection = (el: Element, ctx: Ctx, key: string): (() => void) | void => {
     if (!el.id) {
       ctx.reject('elect-no-id');
       return;
@@ -498,7 +496,6 @@ const elect: Directive = {
         electGroups.delete(key);
       }
     };
-  },
 };
 
 /* ── scroll-progress ─────────────────────────────────────────────────────────────────────── */
@@ -710,7 +707,7 @@ export interface SensorsOptions {
 }
 
 const connect = (options?: SensorsOptions): EngineConnector => (seams) => {
-  for (const directive of [inView, size, pointer, elect, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
+  for (const directive of [inView, size, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
   const ambient = options?.pointer;
   if (typeof ambient === 'string' && ambient !== '' && typeof document !== 'undefined') {
     const apply = () => document.body?.setAttribute('data-vd-pointer', `${ambient}:viewport`);
