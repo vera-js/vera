@@ -266,3 +266,20 @@ it('teardown returns the element to its natural state with the page scrolled any
   expect(el.style.transform, 'nothing of the pack left behind').to.equal('');
   expect(el.style.filter).to.equal('');
 });
+
+it('when+play delivers CLIENT-SIDE on a real sheet — the empty noJsRule never reaches insertRule', async () => {
+  /** The matrix cell only a real engine can check: the when-fold's noJsRule is '' by design,
+   *  and a real CSSOM throws SyntaxError on inserting '' where jsdom's fake sheet accepts it.
+   *  Before the take-guard this quarantined the whole directive with a bare code-12 rejection
+   *  — found by the play lab, reachable by this suite all along, written by nobody. */
+  const el = document.createElement('div');
+  el.setAttribute('data-vd-motion',
+    "{ keyframes: { translate-y: '0% 0px, 100% 120px' }, when: '.on', play: 0.2 }");
+  document.body.appendChild(el);
+  await settled();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(el.getAttribute('data-vd-motion'), 'the directive survived delivery').to.not.equal(null);
+  expect((el.getAttribute('data-vm-motion') ?? '').length, 'marked with a content hash').to.be.greaterThan(0);
+  el.remove();
+  await settled();
+});

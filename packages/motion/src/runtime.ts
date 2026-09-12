@@ -200,13 +200,26 @@ const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
    *  specificity — the flip's whole mechanism is the later rule winning while the marker is
    *  present), then the no-JS block. */
   if (generatedCss.mode === 'transition') {
-    acquire(sheetRoot, `${generatedCss.hash}#b`, generatedCss.elementRule);
-    acquire(sheetRoot, `${generatedCss.hash}#t`, generatedCss.armedRule);
-    acquire(sheetRoot, `${generatedCss.hash}#on`, generatedCss.activeRule);
-    acquire(sheetRoot, `${generatedCss.hash}#nj`, generatedCss.noJsRule);
-    acquire(sheetRoot, `${generatedCss.hash}#rm`, generatedCss.reducedRule);
-    return [`${generatedCss.hash}#b`, `${generatedCss.hash}#t`,
-      `${generatedCss.hash}#on`, `${generatedCss.hash}#nj`, `${generatedCss.hash}#rm`];
+    /**
+     * ONLY REAL RULES REACH THE SHEET. A deliberately empty slot — the when-fold's `noJsRule`
+     * is '' by design — must never be inserted: every real engine's insertRule throws
+     * SyntaxError on '', which quarantined the whole directive with a bare DOMException code
+     * 12, while jsdom's permissive sheet accepted it — so the defect lived exactly in the
+     * matrix cell no suite runs (production bundle × real engine) and only a demo page could
+     * find it. Skipped rules skip their keys too, so release stays balanced.
+     */
+    const acquired: string[] = [];
+    const take = (suffix: string, text: string): void => {
+      if (!text) return;
+      acquire(sheetRoot, `${generatedCss.hash}#${suffix}`, text);
+      acquired.push(`${generatedCss.hash}#${suffix}`);
+    };
+    take('b', generatedCss.elementRule);
+    take('t', generatedCss.armedRule);
+    take('on', generatedCss.activeRule);
+    take('nj', generatedCss.noJsRule);
+    take('rm', generatedCss.reducedRule);
+    return acquired;
   }
   for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
   for (const segment of generatedCss.segments) {
