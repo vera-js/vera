@@ -11,8 +11,8 @@
       "gzip": 4450
     },
     "router": {
-      "raw": 10632,
-      "gzip": 4481
+      "raw": 10913,
+      "gzip": 4560
     },
     "autoloader": {
       "raw": 3919,
@@ -79,8 +79,8 @@
       "gzip": 3186
     },
     "directives-sensors": {
-      "raw": 7589,
-      "gzip": 3022
+      "raw": 7648,
+      "gzip": 3010
     },
     "directives-remote": {
       "raw": 9534,

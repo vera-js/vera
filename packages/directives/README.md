@@ -63,7 +63,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 343 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 942 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 186 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
-| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 022 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
+| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 010 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 888 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
 | `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 986 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
