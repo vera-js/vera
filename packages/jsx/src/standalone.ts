@@ -23,9 +23,9 @@ import { transformJsx } from './transform.js';
 
 let counter = 0;
 
-const runBlock = async (script) => {
+const runBlock = async (script: HTMLScriptElement): Promise<void> => {
   const name = script.src || `inline-${counter++}.tsx`;
-  const source = script.src ? await (await fetch(script.src)).text() : script.textContent;
+  const source = script.src ? await (await fetch(script.src)).text() : (script.textContent ?? '');
   try {
     const js = transformJsx(source, name);
     await import(URL.createObjectURL(new Blob([js], { type: 'text/javascript' })));
@@ -34,17 +34,17 @@ const runBlock = async (script) => {
   }
 };
 
-const boot = async () => {
+const boot = async (): Promise<void> => {
   /** Sequential, so blocks execute in document order like ordinary scripts. */
-  for (const script of document.querySelectorAll('script[type="text/vera-jsx"]')) {
+  for (const script of document.querySelectorAll<HTMLScriptElement>('script[type="text/vera-jsx"]')) {
     await runBlock(script);
   }
 };
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot, { once: true });
+  document.addEventListener('DOMContentLoaded', () => void boot(), { once: true });
 } else {
-  boot();
+  void boot();
 }
 
 export { transformJsx, runBlock };

@@ -13,17 +13,18 @@
  * { keyed: ['keyed', 'my-module'] } to retarget them.
  */
 import { transformJsx } from './transform.js';
+import type { VeraJsxOptions } from './types.js';
 
 export { transformJsx };
+export type { VeraJsxOptions } from './types.js';
 
-export const veraJsx = (options = {}) => ({
+export const veraJsx = (options: VeraJsxOptions = {}) => ({
   name: 'vera-jsx',
-  enforce: 'pre',
-  transform(code, id) {
-    const file = id.split('?')[0];
+  enforce: 'pre' as const,
+  transform(code: string, id: string): { code: string; map: null } | null {
+    const file = id.split('?')[0]!;
     if (!/\.[jt]sx$/.test(file)) return null;
     return { code: transformJsx(code, file, options), map: null };
   },
 });
-
-export default veraJsx;
+/** The default export died in the conventions pass — jsx was the only package carrying one. */
