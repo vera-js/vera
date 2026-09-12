@@ -13,6 +13,8 @@
  * comparisons and TS generics (`Array<number>`, `f<T>(x)`, which follow identifiers) never match.
  */
 
+import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState } from './types.js';
+
 /** Characters after which a `<` (or `/`) can begin an expression. */
 const EXPRESSION_PREFIX = new Set([...'(,=?:;[{!&|+-*/%^~<>', '']);
 const EXPRESSION_KEYWORDS = new Set([
@@ -20,7 +22,7 @@ const EXPRESSION_KEYWORDS = new Set([
   'instanceof', 'new', 'do', 'else', 'throw',
 ]);
 
-const isNameStart = (ch) => /[A-Za-z_$]/.test(ch);
+const isNameStart = (ch: string) => /[A-Za-z_$]/.test(ch);
 
 /** The renderer's binding sigils, which may open an attribute name — see `parseJsx`. */
 const SIGILS = new Set(['.', '?', '@', '&']);
@@ -31,39 +33,39 @@ const SIGILS = new Set(['.', '?', '@', '&']);
  * A failed parse is deliberately silent (see `scanCode`), so the JSX was emitted verbatim and the
  * module failed to load with a syntax error pointing at markup nobody thought was in doubt.
  */
-const isNameChar = (ch) => /[\w$.-]/.test(ch);
-const isAttrNameChar = (ch) => /[\w$:-]/.test(ch);
+const isNameChar = (ch: string) => /[\w$.-]/.test(ch);
+const isAttrNameChar = (ch: string) => /[\w$:-]/.test(ch);
 
-export class ParseState {
-  constructor(code, from = 0) {
-    this.code = code;
-    this.i = from;
-    /** The last significant character / word seen, for the expression-position heuristic. */
-    this.lastChar = '';
-    this.lastWord = '';
-    /**
-     * A closing tag that names a different element than the one it closes, if one was seen.
-     *
-     * Every other parse failure returns `null` and leaves the source alone, and it has to: `<` is
-     * ambiguous, and `a < b` must fall through untouched rather than be called broken JSX. **A
-     * `</name>` that does not match the tag it closes is the one failure that cannot be anything
-     * else** — reaching it means a whole open tag and its children were already consumed — so it is
-     * the one that can be reported instead of shrugged at.
-     */
-    this.mismatch = null;
-  }
-  atExpressionPosition() {
-    if (this.lastChar === '' || EXPRESSION_PREFIX.has(this.lastChar)) return true;
-    return EXPRESSION_KEYWORDS.has(this.lastWord);
-  }
-}
+/**
+ * The cursor over the source — a plain record, not a class (the conventions pass's ruling:
+ * authoring-time code, no perf concern, and the shape rule prefers data + functions).
+ *
+ * `mismatch`: a closing tag that names a different element than the one it closes, if one was
+ * seen. Every other parse failure returns `null` and leaves the source alone, and it has to:
+ * `<` is ambiguous, and `a < b` must fall through untouched rather than be called broken JSX.
+ * **A `</name>` that does not match the tag it closes is the one failure that cannot be
+ * anything else** — reaching it means a whole open tag and its children were already consumed —
+ * so it is the one that can be reported instead of shrugged at.
+ */
+export const createParseState = (code: string, from = 0): ParseState => ({
+  code,
+  i: from,
+  lastChar: '',
+  lastWord: '',
+  mismatch: null,
+});
+
+export const atExpressionPosition = (state: ParseState): boolean => {
+  if (state.lastChar === '' || EXPRESSION_PREFIX.has(state.lastChar)) return true;
+  return EXPRESSION_KEYWORDS.has(state.lastWord);
+};
 
 /**
  * Walks JS code from `state.i` until `stop(state)` says done (or EOF), collecting every JSX root
  * found at expression positions into `roots` as `{ start, end, node }`. Handles strings,
  * template literals (recursing into `${}`), comments, and regex literals.
  */
-export const scanCode = (state, stop, roots) => {
+export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) | null, roots: JsxRoot[]): void => {
   const { code } = state;
   while (state.i < code.length) {
     if (stop !== null && stop(state)) return;
@@ -79,9 +81,9 @@ export const scanCode = (state, stop, roots) => {
       state.i += 2;
       while (state.i < code.length && !(code[state.i] === '*' && code[state.i + 1] === '/')) state.i++;
       state.i += 2;
-    } else if (ch === '/' && state.atExpressionPosition()) {
+    } else if (ch === '/' && atExpressionPosition(state)) {
       skipRegex(state);
-    } else if (ch === '<' && /[A-Za-z_$>]/.test(code[state.i + 1] ?? '') && state.atExpressionPosition()) {
+    } else if (ch === '<' && /[A-Za-z_$>]/.test(code[state.i + 1] ?? '') && atExpressionPosition(state)) {
       const start = state.i;
       const node = parseJsx(state);
       if (node !== null) {
@@ -116,7 +118,7 @@ export const scanCode = (state, stop, roots) => {
   }
 };
 
-const skipString = (state, quote) => {
+const skipString = (state: ParseState, quote: string): void => {
   const { code } = state;
   state.i++;
   while (state.i < code.length && code[state.i] !== quote) {
@@ -128,7 +130,7 @@ const skipString = (state, quote) => {
   state.lastWord = '';
 };
 
-const skipTemplate = (state, roots) => {
+const skipTemplate = (state: ParseState, roots: JsxRoot[]): void => {
   const { code } = state;
   state.i++;
   while (state.i < code.length && code[state.i] !== '`') {
@@ -162,7 +164,7 @@ const skipTemplate = (state, roots) => {
   state.lastWord = '';
 };
 
-const skipRegex = (state) => {
+const skipRegex = (state: ParseState): void => {
   const { code } = state;
   state.i++;
   let inClass = false;
@@ -186,7 +188,7 @@ const skipRegex = (state) => {
  * and any JSX roots found inside. Delegates to `scanCode`, so nested JSX, strings, templates,
  * regexes and comments are all safe.
  */
-const parseExpressionContainer = (state) => {
+const parseExpressionContainer = (state: ParseState): { text: string; start: number; roots: JsxRoot[] } | null => {
   const { code } = state;
   state.i++; // {
   const start = state.i;
@@ -213,7 +215,7 @@ const parseExpressionContainer = (state) => {
   return { text, start, roots };
 };
 
-const skipWhitespace = (state) => {
+const skipWhitespace = (state: ParseState): void => {
   while (state.i < state.code.length && /\s/.test(state.code[state.i])) state.i++;
 };
 
@@ -225,7 +227,7 @@ const skipWhitespace = (state) => {
  *     selfClosing, children, start }
  * Children: { text } | { expr, roots } | element nodes.
  */
-export const parseJsx = (state) => {
+export const parseJsx = (state: ParseState): JsxNode | null => {
   const { code } = state;
   const start = state.i;
   state.i++; // <
@@ -237,11 +239,11 @@ export const parseJsx = (state) => {
     return { fragment: true, children, start };
   }
 
-  if (!isNameStart(code[state.i])) return null;
+  if (!isNameStart(code[state.i]!)) return null;
   let tag = '';
-  while (state.i < code.length && isNameChar(code[state.i])) tag += code[state.i++];
+  while (state.i < code.length && isNameChar(code[state.i]!)) tag += code[state.i++];
 
-  const attrs = [];
+  const attrs: JsxAttribute[] = [];
   for (;;) {
     skipWhitespace(state);
     const ch = code[state.i];
@@ -261,7 +263,7 @@ export const parseJsx = (state) => {
       const spreadStart = state.i;
       const container = parseExpressionContainer(state);
       if (container === null || !/^\s*\.\.\./.test(container.text)) return null;
-      const dots = container.text.match(/^\s*\.\.\./)[0].length;
+      const dots = container.text.match(/^\s*\.\.\./)![0].length;
       attrs.push({
         spread: true,
         text: container.text.slice(dots),
@@ -286,8 +288,8 @@ export const parseJsx = (state) => {
      */
     if (!isNameStart(ch) && !SIGILS.has(ch)) return null;
     const nameStart = state.i;
-    let name = SIGILS.has(ch) ? code[state.i++] : '';
-    while (state.i < code.length && isAttrNameChar(code[state.i])) name += code[state.i++];
+    let name = SIGILS.has(ch) ? code[state.i++]! : '';
+    while (state.i < code.length && isAttrNameChar(code[state.i]!)) name += code[state.i++];
     /** A lone sigil is a name only for `&`, which is how the renderer spells an explicit ref. */
     if (name.length === 1 && SIGILS.has(name) && name !== '&') return null;
     skipWhitespace(state);
@@ -315,9 +317,9 @@ export const parseJsx = (state) => {
   }
 };
 
-const parseChildren = (state, closingTag) => {
+const parseChildren = (state: ParseState, closingTag: string | null): JsxChild[] | null => {
   const { code } = state;
-  const children = [];
+  const children: JsxChild[] = [];
   let text = '';
   const flushText = () => {
     if (text !== '') children.push({ text });
@@ -335,7 +337,7 @@ const parseChildren = (state, closingTag) => {
           return children;
         }
         let name = '';
-        while (state.i < code.length && isNameChar(code[state.i])) name += code[state.i++];
+        while (state.i < code.length && isNameChar(code[state.i]!)) name += code[state.i++];
         skipWhitespace(state);
         if (name !== closingTag || code[state.i] !== '>') {
           if (name !== closingTag && state.mismatch === null)
@@ -365,9 +367,9 @@ const parseChildren = (state, closingTag) => {
 };
 
 /** All top-level JSX roots in a source file. */
-export const findRoots = (code) => {
-  const roots = [];
-  const state = new ParseState(code);
+export const findRoots = (code: string): { roots: JsxRoot[]; mismatch: JsxMismatch | null } => {
+  const roots: JsxRoot[] = [];
+  const state = createParseState(code);
   scanCode(state, null, roots);
   return { roots, mismatch: state.mismatch };
 };
