@@ -29,7 +29,7 @@
 export const isProduction = process.env.VERA_DIST === 'production';
 
 /** Bundle name -> the `filename` its package.json declares. */
-const ENTRY = {
+export const ENTRY = {
   'cms/content': ['cms', 'vera-cms-content'],
   'cms/publish': ['cms', 'vera-cms-publish'],
   'cms/node': ['cms', 'vera-cms-node'],

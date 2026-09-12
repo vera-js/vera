@@ -16,6 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { ENTRY, NO_PRODUCTION_BUILD } from './dist.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 
@@ -74,4 +75,42 @@ test('every published entry point is covered by the import check', () => {
 test('the exclusions are all real entry points, so the list cannot rot', () => {
   const stale = Object.keys(NOT_A_MODULE_SURFACE).filter((specifier) => !declared.includes(specifier));
   assert.deepEqual(stale, [], `excluded from a check, but no longer published:\n  ${stale.join('\n  ')}`);
+});
+
+/**
+ * **A rule that names a subject has to be told when the subject is gone.**
+ *
+ * `./dist.mjs`'s `ENTRY` map is how every suite here resolves a bundle, and `NO_PRODUCTION_BUILD`
+ * excuses the one entry that is deliberately not built for production. Both name subjects, and
+ * neither was asserting that its subject still exists: a row nothing happens to load would go on
+ * naming a renamed bundle indefinitely, and — the direction that actually costs something — an
+ * entry that GAINS a production build would stay excused, so every production run of the suites
+ * that use it would keep skipping a check that had become available.
+ *
+ * Agreement between two copies of a rule is not evidence the rule is about anything. This is the
+ * generalisation the omni engine's session drew out of its own collapse-list find, applied here.
+ */
+test('every bundle the suites can resolve actually exists, in both builds', () => {
+  const missing = [];
+  const staleExcuse = [];
+  for (const [name, [pkg, filename]] of Object.entries(ENTRY)) {
+    const development = `${root}/packages/${pkg}/dist/development/${filename}.js`;
+    const production = `${root}/packages/${pkg}/dist/${filename}.min.js`;
+    if (!existsSync(development)) missing.push(`${name} -> ${pkg}/dist/development/${filename}.js`);
+
+    const built = existsSync(production);
+    if (!built && !NO_PRODUCTION_BUILD.has(name)) missing.push(`${name} -> ${pkg}/dist/${filename}.min.js`);
+    if (built && NO_PRODUCTION_BUILD.has(name))
+      staleExcuse.push(`${name} is listed NO_PRODUCTION_BUILD, but the bundle exists — the skip now hides a check that could run`);
+  }
+  assert.ok(Object.keys(ENTRY).length > 20, `NON-ZERO CONTROL: expected the full map, found ${Object.keys(ENTRY).length} rows`);
+  assert.deepEqual(missing, [], `entries naming a bundle that is not there:\n  ${missing.join('\n  ')}`);
+  assert.deepEqual(staleExcuse, [], `\n  ${staleExcuse.join('\n  ')}`);
+});
+
+test('nothing is excused from production that is not an entry at all', () => {
+  const orphans = [...NO_PRODUCTION_BUILD].filter((name) => !(name in ENTRY));
+  assert.deepEqual(orphans, [],
+    `NO_PRODUCTION_BUILD names something ENTRY does not: a rule whose subject was renamed out from ` +
+      `under it, while the rule itself still reads as correct:\n  ${orphans.join('\n  ')}`);
 });
