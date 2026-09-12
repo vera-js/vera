@@ -194,7 +194,7 @@ const parseExpressionContainer = (state: ParseState): { text: string; start: num
   const start = state.i;
   state.lastChar = '{';
   state.lastWord = '';
-  const roots = [];
+  const roots: JsxRoot[] = [];
   let depth = 1;
   scanCode(
     state,

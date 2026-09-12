@@ -1,4 +1,5 @@
 import { findRoots } from './parser.js';
+import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
 /**
  * JSX/TSX -> Vera tagged templates. Compile-time only, ZERO dependencies: the scanner/parser in
@@ -33,8 +34,9 @@ export const NAME_MAP = { className: 'class', htmlFor: 'for' };
 /** The renderer's binding sigils. An attribute name that opens with one is the author's own choice. */
 const SIGILS = new Set(['.', '?', '@', '&']);
 
+/** Platform idiom, named in the principles: an error class STAYS a class. */
 class JsxError extends Error {
-  constructor(message, code, fileName, offset) {
+  constructor(message: string, code: string, fileName: string, offset: number) {
     const upTo = code.slice(0, offset);
     const line = upTo.split('\n').length;
     const character = offset - (upTo.lastIndexOf('\n') + 1) + 1;
@@ -43,10 +45,10 @@ class JsxError extends Error {
 }
 
 /** Escapes static text for placement inside a template literal. */
-const escapeStatic = (text) => text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+const escapeStatic = (text: string) => text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 
 /** React-ish JSX text: whitespace runs containing a newline collapse away at edges, to one space inside. */
-const collapseText = (raw) => {
+const collapseText = (raw: string): string => {
   const text = raw.replace(/^\s*\n\s*/, '').replace(/\s*\n\s*$/, '').replace(/\s*\n\s*/g, ' ');
   return /\n/.test(raw) && text.trim() === '' ? '' : text;
 };
@@ -55,7 +57,7 @@ const collapseText = (raw) => {
  * Transforms JSX/TSX source to plain JS/TS using Vera tagged templates. Returns the code
  * unchanged when it contains no JSX.
  */
-export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
+export const transformJsx = (code: string, fileName = 'module.jsx', options: VeraJsxOptions = {}): string => {
   if (!/<[A-Za-z>]/.test(code)) return code;
 
   /**
@@ -71,7 +73,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
   const state = { usedHtml: false, usedKeyed: false, usedSpread: false };
 
   /** An expression slice with any JSX roots inside it transformed (bottom-up, offsets stable). */
-  const emitExpression = (text, roots, base) => {
+  const emitExpression = (text: string, roots: JsxRoot[], base: number): string => {
     let out = text;
     for (const root of [...roots].sort((a, b) => b.start - a.start)) {
       out = out.slice(0, root.start - base) + emitRoot(root.node) + out.slice(root.end - base);
@@ -89,14 +91,22 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
    * call `Foo.Bar({…})` but `<motion.div/>` was silently emitted as the broken host tag
    * `<motion.div>` — a wrong-answer-not-error hazard (run 25).
    */
-  const isComponentTag = (node) => !node.fragment && (!/^[a-z]/.test(node.tag) || node.tag.includes('.'));
+  type ElementNode = Extract<JsxNode, { tag: string }>;
+  const isComponentTag = (node: JsxNode): boolean =>
+    !node.fragment && (!/^[a-z]/.test((node as ElementNode).tag) || (node as ElementNode).tag.includes('.'));
 
-  const emitRoot = (node) => {
-    if (isComponentTag(node)) return emitComponent(node);
+  interface Template {
+    static: (s: string) => void;
+    expr: (e: string) => void;
+    setKey: (k: string) => void;
+  }
+
+  const emitRoot = (node: JsxNode): string => {
+    if (isComponentTag(node)) return emitComponent(node as ElementNode);
     const parts = [''];
-    const exprs = [];
-    let key = null;
-    const tpl = {
+    const exprs: string[] = [];
+    let key: string | null = null;
+    const tpl: Template = {
       static: (s) => (parts[parts.length - 1] += s),
       expr: (e) => {
         exprs.push(e);
@@ -115,13 +125,13 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
   };
 
   /** Emits an element/fragment INLINE into the current template context. */
-  const emitInto = (node, tpl, isRoot) => {
+  const emitInto = (node: JsxNode, tpl: Template, isRoot: boolean): void => {
     if (node.fragment) {
       for (const child of node.children) emitChild(child, tpl);
       return;
     }
     if (isComponentTag(node)) {
-      tpl.expr(emitComponent(node));
+      tpl.expr(emitComponent(node as ElementNode));
       return;
     }
     tpl.static('<' + node.tag);
@@ -135,18 +145,18 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     tpl.static(`</${node.tag}>`);
   };
 
-  const emitChild = (child, tpl) => {
-    if (child.text !== undefined) {
+  const emitChild = (child: JsxChild, tpl: Template): void => {
+    if ('text' in child && child.text !== undefined) {
       const text = collapseText(child.text);
       if (text !== '') tpl.static(escapeStatic(text));
-    } else if (child.expr !== undefined) {
+    } else if ('expr' in child && child.expr !== undefined) {
       tpl.expr(emitExpression(child.expr, child.roots, child.exprStart));
     } else {
-      emitInto(child, tpl, false);
+      emitInto(child as JsxNode, tpl, false);
     }
   };
 
-  const emitAttribute = (node, attribute, tpl, isRoot) => {
+  const emitAttribute = (_node: JsxNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
     if (attribute.spread) {
       /**
        * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is
@@ -160,29 +170,31 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     }
     let name = attribute.name;
     const bound = attribute.kind === 'expr';
-    const expression = bound ? emitExpression(attribute.text, attribute.roots, valueBase(attribute)) : null;
+    const expression = attribute.kind === 'expr'
+      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute)) : null;
     const literal = attribute.kind === 'str' ? attribute.text : null;
 
     if (name === 'key') {
       if (!isRoot) throw new JsxError('key belongs on the JSX root returned from a list callback', code, fileName, attribute.start);
-      tpl.setKey(bound ? expression : JSON.stringify(literal));
+      tpl.setKey(bound ? expression! : JSON.stringify(literal));
       return;
     }
     if (name === 'ref') {
       tpl.static(' ');
-      tpl.expr(bound ? expression : JSON.stringify(literal));
+      tpl.expr(bound ? expression! : JSON.stringify(literal));
       return;
     }
     if (name === 'dangerouslySetInnerHTML') {
-      const match = bound ? /^\s*\{\s*__html\s*:([\s\S]*)\}\s*$/.exec(attribute.text) : null;
+      const match = attribute.kind === 'expr' ? /^\s*\{\s*__html\s*:([\s\S]*)\}\s*$/.exec(attribute.text) : null;
       if (!match) throw new JsxError('dangerouslySetInnerHTML expects {{ __html: expr }}', code, fileName, attribute.start);
-      const inner = match[1].trim().replace(/,\s*$/, '');
-      const innerStart = valueBase(attribute) + attribute.text.indexOf(inner);
+      const inner = match[1]!.trim().replace(/,\s*$/, '');
+      const bearer = attribute as Extract<JsxAttribute, { kind: 'expr' }>;
+      const innerStart = valueBase(bearer) + bearer.text.indexOf(inner);
       tpl.static(' .innerHTML=');
-      tpl.expr(emitExpression(inner, attribute.roots, innerStart));
+      tpl.expr(emitExpression(inner, bearer.roots, innerStart));
       return;
     }
-    if (name === 'style' && bound && /^\s*\{/.test(attribute.text)) {
+    if (name === 'style' && attribute.kind === 'expr' && /^\s*\{/.test(attribute.text)) {
       throw new JsxError('style expects a STRING in Vera JSX (e.g. style={`color:${c}`}), not an object', code, fileName, attribute.start);
     }
 
@@ -192,22 +204,22 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
      * for names that carry no sigil. Guessing on top of an explicit answer is how `?hidden` would
      * become `??hidden`.
      */
-    if (SIGILS.has(name[0])) {
+    if (SIGILS.has(name[0]!)) {
       if (attribute.kind === 'none')
         throw new JsxError(`${name} needs a value — write ${name}={…}`, code, fileName, attribute.start);
       tpl.static(` ${name}=`);
-      tpl.expr(bound ? expression : JSON.stringify(literal));
+      tpl.expr(bound ? expression! : JSON.stringify(literal));
       return;
     }
-    name = NAME_MAP[name] ?? name;
+    name = (NAME_MAP as Record<string, string>)[name] ?? name;
     if (/^on[A-Z]/.test(name)) {
       tpl.static(` @${name.slice(2).toLowerCase()}=`);
-      tpl.expr(bound ? expression : JSON.stringify(literal));
+      tpl.expr(bound ? expression! : JSON.stringify(literal));
       return;
     }
     if (name === 'value' || name === 'checked') {
       tpl.static(` .${name}=`);
-      tpl.expr(bound ? expression : JSON.stringify(literal ?? true));
+      tpl.expr(bound ? expression! : JSON.stringify(literal ?? true));
       return;
     }
     if (name === 'defaultValue') name = 'value';
@@ -218,7 +230,7 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
         return;
       }
       tpl.static(` ?${name}=`);
-      tpl.expr(bound ? expression : JSON.stringify(literal !== 'false' && literal !== ''));
+      tpl.expr(bound ? expression! : JSON.stringify(literal !== 'false' && literal !== ''));
       return;
     }
     if (attribute.kind === 'none') {
@@ -227,15 +239,15 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
       tpl.static(` ${name}="${escapeStatic(literal).replace(/"/g, '&quot;')}"`);
     } else {
       tpl.static(` ${name}=`);
-      tpl.expr(expression);
+      tpl.expr(expression!);
     }
   };
 
-  const valueBase = (attribute) => attribute.valueStart ?? 0;
+  const valueBase = (attribute: Extract<JsxAttribute, { valueStart: number }>): number => attribute.valueStart ?? 0;
 
   /** `<App a={1}>kids</App>` -> `App({ a: 1, children: [...] })`. Spread is fine here. */
-  const emitComponent = (node) => {
-    const props = [];
+  const emitComponent = (node: ElementNode): string => {
+    const props: string[] = [];
     for (const attribute of node.attrs) {
       if (attribute.spread) {
         props.push(`...${emitExpression(attribute.text, attribute.roots, valueBase(attribute))}`);
@@ -248,13 +260,13 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
     if (node.children && node.children.length > 0) {
       const children = [];
       for (const child of node.children) {
-        if (child.text !== undefined) {
+        if ('text' in child && child.text !== undefined) {
           const text = collapseText(child.text);
           if (text !== '') children.push(JSON.stringify(text));
-        } else if (child.expr !== undefined) {
+        } else if ('expr' in child && child.expr !== undefined) {
           children.push(emitExpression(child.expr, child.roots, child.exprStart));
         } else {
-          children.push(emitRoot(child));
+          children.push(emitRoot(child as JsxNode));
         }
       }
       if (children.length) props.push(`children: [${children.join(', ')}]`);
@@ -298,11 +310,11 @@ export const transformJsx = (code, fileName = 'module.jsx', options = {}) => {
      * `Identifier 'html' has already been declared`. In the browser that is caught and logged, so
      * the page simply does nothing.
      */
-    const bound = new Set();
+    const bound = new Set<string>();
     for (const [, clause] of out.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]/g))
-      for (const name of clause.replace(/[{}]/g, ' ').split(','))
-        bound.add(name.trim().split(/\s+as\s+/).pop().trim());
-    const has = (name) => bound.has(name);
+      for (const name of clause!.replace(/[{}]/g, ' ').split(','))
+        bound.add(name.trim().split(/\s+as\s+/).pop()!.trim());
+    const has = (name: string) => bound.has(name);
     let inject = '';
     if (state.usedHtml && !has(htmlName)) inject += `import { ${htmlName} } from '${htmlFrom}';\n`;
     if (state.usedKeyed && !has(keyedName)) inject += `import { ${keyedName} } from '${keyedFrom}';\n`;
