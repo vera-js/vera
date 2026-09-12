@@ -117,13 +117,25 @@ export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
 const NAME_MAP: Record<string, string> = { className: 'class', htmlFor: 'for' };
 const PROPERTIES: Record<string, string> = { value: '.value', checked: '.checked' };
 const DEFAULTS: Record<string, string> = { defaultValue: 'value', defaultChecked: '?checked' };
+/**
+ * The props that name a BINDING rather than an attribute — and the reason this table is here and
+ * not in the transform's twin.
+ *
+ * The compiler must NOT rewrite these on a component: `<Card ref={r}>` hands `ref` to `Card`, which
+ * decides what it means, exactly as React does. But a tag's component forwards to a real element,
+ * so at THIS boundary — and only here — `ref` has a binding to become. Before 2026-09-12 it had
+ * none: it fell through to the attribute sink and `<H ref={r}>` wrote the FUNCTION'S SOURCE TEXT
+ * into the DOM as `ref="el => (got = el)"`, which under SSR shipped the closure body to the client,
+ * while the identical `<h1 ref={r}>` bound correctly.
+ */
+const BINDINGS: Record<string, string> = { ref: '&ref' };
 export const BOOLEAN_ATTRIBUTES = new Set([
   'disabled', 'hidden', 'readonly', 'required', 'open', 'selected', 'multiple',
   'autofocus', 'autoplay', 'controls', 'loop', 'muted', 'playsinline', 'inert', 'reversed',
 ]);
 
 export const jsxName = (key: string): string =>
-  NAME_MAP[key] ?? PROPERTIES[key] ?? DEFAULTS[key] ?? (BOOLEAN_ATTRIBUTES.has(key) ? `?${key}` : key);
+  NAME_MAP[key] ?? PROPERTIES[key] ?? DEFAULTS[key] ?? BINDINGS[key] ?? (BOOLEAN_ATTRIBUTES.has(key) ? `?${key}` : key);
 
 /**
  * Declares a tag name.
@@ -157,9 +169,43 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
    * a capitalized tag, and this is what receives that call. `children` is JSX's own key; everything
    * else goes through `spread`, since the names are not known when this template is written.
    */
-  const self = (({ children, ...props }: Record<string, unknown> = {}) => {
+  const self = ((
+    { children, key, dangerouslySetInnerHTML: rawHtml, ...props }: Record<string, unknown> = {}
+  ) => {
+    /**
+     * **`key` and `dangerouslySetInnerHTML` come out of the bag by name**, because neither is an
+     * attribute and the sink they fell into accepts anything. `key` became the literal attribute
+     * `key="7"` on the element AND cost the list its identity — rows then reconciled positionally,
+     * so focus, scroll and input state followed the index rather than the item.
+     *
+     * `@verajs/jsx` consumes `key` into `keyed(…)` before this is ever called, so the compiled path
+     * never reaches here. This is the HAND-CALL backstop — `H({ key: id })` — where no compiler is
+     * looking, and dropping it silently would be a refusal with no channel, hence the warning.
+     */
+    if (__DEV__ && key !== undefined)
+      console.warn(
+        `[vera] tag: \`key\` does nothing on a tag component and has been dropped — a key marks a ` +
+          `template for list reconciliation, and this call returns one rather than being one.\n` +
+          `In JSX, write it and the compiler handles it: \`<Row key=\${id}>\` becomes ` +
+          `\`keyed(id, Row({…}))\`. Calling by hand, wrap it yourself: \`keyed(id, Row({…}))\`.`
+      );
+    /**
+     * **`dangerouslySetInnerHTML` cannot work here, and that is a security property rather than a
+     * gap.** A tag reaches its element through `spread`, and `spread` REFUSES `.innerHTML` on
+     * purpose: its names arrive at runtime, which is what makes that sink unreviewable. Mapping the
+     * prop was tried and measured — 37 B for a value `spread` then declined, so the bytes bought a
+     * console message. Refused here instead, where the reason can be said.
+     */
+    if (__DEV__ && rawHtml !== undefined)
+      console.warn(
+        `[vera] tag: \`dangerouslySetInnerHTML\` is not available on a tag component and has been ` +
+          `dropped. A tag binds through \`spread\`, whose names are only known at runtime — so it ` +
+          `refuses \`.innerHTML\` outright rather than open an unreviewable HTML sink.\n` +
+          `Write the element directly, with the value sanitized first: ` +
+          `html\`<\${Tag} .innerHTML=\${trusted}>\` (see the renderer README's security note).`
+      );
     const mapped: Record<string, unknown> = {};
-    for (const key in props) mapped[jsxName(key)] = props[key];
+    for (const name in props) mapped[jsxName(name)] = props[name];
     return html`<${self} ${spread(mapped)}>${children}</${self}>`;
   }) as Tag;
   self[STATIC] = text;
