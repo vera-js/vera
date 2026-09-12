@@ -159,6 +159,14 @@ for (const path of ROOTS.flatMap((root) => files(new URL(root, import.meta.url).
 }
 
 test('every code raised has an entry — no refusal without words', () => {
+  /**
+   * **The floor.** `raised` comes from a walk of the sources, and an empty walk leaves `missing`
+   * empty too. The orphan test below has been carrying this implicitly — with nothing raised,
+   * every entry in the table would be an orphan — but an implicit floor is one refactor away from
+   * being no floor, and a check that reads as coverage while scanning nothing is the failure this
+   * suite exists to prevent one level down.
+   */
+  assert.ok(raised.size >= 20, `the source walk found only ${raised.size} raised code(s) — it scanned nothing`);
   const missing = [...raised.keys()]
     .filter((code) => !(code in PROSE))
     .map((code) => `${code} (raised in ${[...raised.get(code)].join(', ')})`);

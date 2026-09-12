@@ -167,13 +167,29 @@ test('@verajs/reactivity imports core in production rather than inlining it', ()
 test('every published bundle is covered by one rule or the other', () => {
   const covered = new Set([...Object.values(PROD), ...Object.values(EXTERNAL_CORE)]);
   const missing = [];
+  let examined = 0;
   for (const pkg of readdirSync('packages')) {
     const dir = `packages/${pkg}/dist`;
     if (!existsSync(dir)) continue;
     if (JSON.parse(readFileSync(`packages/${pkg}/package.json`, 'utf8')).private) continue;
     for (const file of readdirSync(dir))
-      if (file.endsWith('.min.js') && !covered.has(`${dir}/${file}`)) missing.push(`${dir}/${file}`);
+      if (file.endsWith('.min.js')) {
+        examined++;
+        if (!covered.has(`${dir}/${file}`)) missing.push(`${dir}/${file}`);
+      }
   }
+  /**
+   * **The floor, and it is not hypothetical.** This walk skips any package with no `dist`, so
+   * before a build EVERY package is skipped, `missing` is empty, and the test passes having
+   * examined nothing — on the guard whose whole purpose is to stop a new package inheriting
+   * neither minification rule. An exhaustiveness check that finds nothing to be exhaustive over
+   * is not exhaustive, it is absent.
+   */
+  assert.ok(
+    examined >= 15,
+    `only ${examined} production bundle(s) were examined — the walk found nothing, so this rule ` +
+      `checked nothing. Run a build before trusting a green here.`
+  );
   assert.deepEqual(missing, [], `production bundles checked by neither rule:\n  ${missing.join('\n  ')}`);
 });
 
