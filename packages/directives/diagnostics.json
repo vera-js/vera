@@ -1079,6 +1079,16 @@
       "fix": "Write {attr}=\"seen\" and read it with data-vd-show=\"seen\"."
     },
     {
+      "code": "sensor-unknown-suffix",
+      "params": [
+        "flag",
+        "sensor",
+        "known"
+      ],
+      "message": ":{flag} is not a {sensor} suffix — the key would silently include it.",
+      "fix": "The {sensor} suffixes are: {known}."
+    },
+    {
       "code": "server-unsettled",
       "params": [
         "limit"

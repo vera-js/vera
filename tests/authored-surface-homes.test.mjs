@@ -16,7 +16,7 @@ test('ROUTE_KEYS and RouteOptions agree — the dev warning must never lie about
     .match(/'([a-z]+)'/gi).map((s) => s.slice(1, -1));
   const optionsBlock = /export interface RouteOptions \{([\s\S]*?)\n\}/.exec(read('packages/router/src/types.ts'))?.[1]
     ?? /export type RouteOptions = \{([\s\S]*?)\n\};/.exec(read('packages/router/src/types.ts'))[1];
-  const fields = [...optionsBlock.matchAll(/^  ([a-zA-Z]+)\??:/gm)].map((m) => m[1]);
+  const fields = [...optionsBlock.matchAll(/^ {2}([a-zA-Z]+)\??:/gm)].map((m) => m[1]);
   assert.deepEqual([...keys].sort(), [...fields].sort(),
     'a route option added to the type must join ROUTE_KEYS in the same edit (and vice versa)');
 });
