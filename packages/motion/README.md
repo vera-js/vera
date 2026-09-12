@@ -35,6 +35,15 @@ text, audio; the attribute names a function and never contains one).
 first frame from emitted CSS before any JavaScript loads — the same output `renderMotion`
 produces on a live server. Any toolchain that ends in HTML files can run it as a build step.
 
+**The buildless ladder** — first-frame options for a page with no build step at all, in order of
+effort: (1) load the script at **body-end with a sync wire** — elements generate before first
+paint in practice, and the residual risk is a slow-network flash; (2) opt into
+**`data-vd-cloak`** on motion elements — a one-line CSS rule hides them until delivery marks
+them, trading the flash for a fade-in; (3) accept the flash — a **cosmetic, by doctrine**: the
+content is server-complete and readable throughout, which is what buildless-first promises. A
+build step upgrades the page to `vera-motion-emit` (above) or the emit-at-build recipe, where
+the first frame is in the HTML itself and the question disappears.
+
 ## Machine namespace
 
 Everything this engine writes into a page uses the `vm` namespace — `data-vm-motion`,
