@@ -1,3 +1,4 @@
+import { attributeValueComplaint } from './dev-values.js';
 /**
  * `<div ${spread(props)}>` — bindings whose names are not known when the template is parsed.
  *
@@ -195,7 +196,23 @@ const write = (binding: Binding, value: unknown) => {
   const kind = binding._kind;
   if (kind === ATTR) {
     if (value == null) element.removeAttribute(name);
-    else element.setAttribute(name, String(value));
+    else {
+      if (__DEV__) {
+        const complaint = attributeValueComplaint(element.localName, name, value);
+        if (complaint !== null) console.warn(`[vera] ${complaint}`);
+      }
+      /**
+       * `` `${value}` ``, never `String(value)` — the two differ on exactly one thing and it is the
+       * one that matters here. `String(sym)` returns `"Symbol(s)"` while every DOM conversion and
+       * `@verajs/ssr`'s own escaper throw, so this sink was the ONLY one of three that accepted a
+       * symbol, writing to the client an attribute the server refuses to produce. The rule was
+       * already recorded in `@verajs/ssr`'s `escapeHtml` — "serving Symbol(s) into markup the client
+       * cannot reproduce does not make anything work, it moves the failure across the boundary and
+       * strips the context" — and this file used the other form anyway. A house rule written down
+       * in one of three homes is a house rule in none of them.
+       */
+      element.setAttribute(name, `${value}`);
+    }
   } else if (kind === PROPERTY) {
     (element as unknown as Record<string, unknown>)[name] = value;
   } else if (kind === BOOLEAN) {
