@@ -71,7 +71,16 @@ test('every published manifest points at the repository provenance expects', () 
  * wrong at the moment it was added, and provenance would quietly stop being attested.
  */
 test('no workflow reaches for an NPM_TOKEN', () => {
-  const offenders = globSync('.github/workflows/*.yml', { cwd: root }).filter((file) => /NPM_TOKEN/.test(read(file)));
+  const workflows = globSync('.github/workflows/*.yml', { cwd: root });
+  /**
+   * **The floor, on a security guard.** A glob that matches nothing yields no offenders, so a
+   * renamed directory or a switch to `.yaml` would turn "no secret exists in the release path"
+   * into an assertion about the empty set — green, permanently, having read no file. This repo
+   * already carries the lesson in prose: *a glob that matched no files reports zero stranded
+   * artifacts.*
+   */
+  assert.ok(workflows.length >= 2, `only ${workflows.length} workflow(s) found — the glob is broken, not the workflows`);
+  const offenders = workflows.filter((file) => /NPM_TOKEN/.test(read(file)));
   assert.deepEqual(offenders, [], `these reference NPM_TOKEN, which the release design forbids: ${offenders.join(', ')}`);
 });
 

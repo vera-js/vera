@@ -119,13 +119,21 @@ test('every exports target is a file the build actually writes', () => {
 
 test('and every built artifact is reachable through some subpath', () => {
   const stranded = [];
+  let examined = 0;
   for (const [dir, reached] of reachable)
     for (const built of [
       ...globSync(`${dir}/dist/**/*.js`, { cwd: root }),
       ...globSync(`${dir}/dist/**/*.d.ts`, { cwd: root }),
-    ])
+    ]) {
+      examined++;
       if (!reached.has(built.replace(/\\/g, '/'))) stranded.push(built);
+    }
 
+  /**
+   * **The floor.** These globs read `dist`, so on an unbuilt tree they match nothing, `stranded` is
+   * empty, and "every built artifact is reachable" passes having examined no artifact at all.
+   */
+  assert.ok(examined >= 20, `only ${examined} built artifact(s) examined — the glob found nothing, so this checked nothing`);
   assert.deepEqual(stranded, [], `built, published in the tarball, and impossible to import:\n  ${stranded.join('\n  ')}`);
 });
 
