@@ -608,3 +608,51 @@ test('a superseded commit is a no-op: the stale transition callback cannot clobb
   host.remove();
   await settled();
 });
+
+/**
+ * **The seed declares the type, and the URL is rewritten from state — so a guess corrupts links.**
+ *
+ * PROBE 3's find. The scalar read used to take anything `Number.isFinite` accepted, whatever the
+ * seed said, while the array branch beside it read the seed to learn its shape. Because the writer
+ * does `params.set(key, String(value))`, the guess did not stay in state: it REWROTE THE URL, on
+ * load, with no interaction. `?zip=02134` arrived, became `2134`, and the address bar — and every
+ * subsequent request — carried a value nobody sent.
+ *
+ * Every case below is a string `Number` accepts and cannot give back: a zero-padded ZIP or SKU, an
+ * id past `MAX_SAFE_INTEGER`, a version like `1.10`.
+ */
+test('a string-declared key keeps what the URL sent, character for character', async () => {
+  const survived = [];
+  const corrupted = [];
+  for (const value of ['02134', '0012345', '9007199254740993', '1.10', '42', 'abc', 'x-1']) {
+    url(`/list?zip=${value}`);
+    const host = await mount(`<div data-vd-state="{ zip: '' }" data-vd-query="zip"></div>`);
+    const seeded = stateOf(host.firstElementChild)?.zip;
+    const rewritten = dom.window.location.search.replace('?zip=', '');
+    (seeded === value && rewritten === value ? survived : corrupted)
+      .push(`${JSON.stringify(value)} -> state ${JSON.stringify(seeded)}, url ${JSON.stringify(rewritten)}`);
+    host.remove();
+  }
+  assert.ok(survived.length > 0, 'NON-ZERO CONTROL: nothing was read, so nothing was checked');
+  assert.deepEqual(corrupted, [],
+    `\n  a shared link arrived as one value and became another:\n    ${corrupted.join('\n    ')}\n`);
+});
+
+test('a number-declared key still coerces, and a junk value falls back to the seed', async () => {
+  for (const [value, expected] of [['3', 3], ['1.5', 1.5], ['abc', 1], ['', 1]]) {
+    url(`/list?n=${value}`);
+    const host = await mount(`<div data-vd-state="{ n: 1 }" data-vd-query="n"></div>`);
+    assert.equal(stateOf(host.firstElementChild)?.n, expected, `?n=${JSON.stringify(value)}`);
+    assert.equal(typeof stateOf(host.firstElementChild)?.n, 'number', `?n=${JSON.stringify(value)} stays a number`);
+    host.remove();
+  }
+});
+
+test('with no informative seed, a number is taken only when it round-trips', async () => {
+  for (const [value, expected] of [['3', 3], ['02134', '02134'], ['1e3', '1e3'], ['-0', '-0']]) {
+    url(`/list?u=${value}`);
+    const host = await mount(`<div data-vd-state="{ other: 1 }" data-vd-query="u"></div>`);
+    assert.deepEqual(stateOf(host.firstElementChild)?.u, expected, `?u=${JSON.stringify(value)}`);
+    host.remove();
+  }
+});

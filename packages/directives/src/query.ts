@@ -169,15 +169,41 @@ const seedFromUrl = (keys: readonly string[], ctx: { get(key: string): unknown; 
     const gathered = [...params.getAll(key), ...params.getAll(`${key}[]`)];
     if (gathered.length === 0) continue;
     const raw = gathered[0];
-    if (Array.isArray(ctx.get(key))) {
+    const declared = ctx.get(key);
+    if (Array.isArray(declared)) {
       const declaredRepeated = gathered.length > 1 || params.has(`${key}[]`);
       ctx.set(key, declaredRepeated
         ? gathered.filter((entry) => entry !== '')
         : raw === '' ? [] : raw.split(',').map((entry) => decodeURIComponent(entry)));
       continue;
     }
-    const numeric = raw !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
-    ctx.set(key, numeric !== null ? numeric : raw);
+    /**
+     * **THE SEED DECLARES THE TYPE — the rule the array branch above already follows.**
+     *
+     * The scalar path used to guess instead: anything `Number.isFinite` accepted became a number,
+     * whatever the seed said. Because the writer below does `params.set(key, String(value))`, that
+     * guess is not confined to state — it REWRITES THE URL, on load, with no interaction:
+     *
+     *     ?zip=02134             -> state 2134                 -> ?zip=2134
+     *     ?id=9007199254740993   -> state 9007199254740992      -> the URL changes under the user
+     *
+     * A zero-padded ZIP, an order number, an SKU, a snowflake id, a version like `1.10` — every
+     * one of them is a string that `Number` accepts and cannot give back. So a shared link arrived
+     * as one thing and became another, and the server was then asked about a value nobody sent.
+     *
+     * A seed of `''` says string and `0` says number, exactly as `[]` says array; both are
+     * declarations, and only one of them was being read. Where there is no informative seed the
+     * number is accepted only if it provably ROUND-TRIPS, which is the same closed-acceptance rule
+     * this audit reached for the attribute-value sink: take what survives, not what parses.
+     */
+    if (typeof declared === 'number') {
+      const parsed = Number(raw);
+      ctx.set(key, raw !== '' && Number.isFinite(parsed) ? parsed : declared);
+    } else if (typeof declared === 'string') {
+      ctx.set(key, raw);
+    } else {
+      ctx.set(key, raw !== '' && String(Number(raw)) === raw ? Number(raw) : raw);
+    }
   }
 };
 
