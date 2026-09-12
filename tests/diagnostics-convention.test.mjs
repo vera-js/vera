@@ -56,9 +56,9 @@ const ANY_CONSOLE_CALL = /console\.(warn|error)\(/g;
  * an unprefixed branch added later is exactly what this file exists to catch.
  */
 const NOT_A_LITERAL = new Map([
-  ['autoloader/src/autoloader.ts', "forwards a caught error's own message"],
-  ['ssr/src/vera/shim.js', "forwards a caught error object"],
-  ['router/src/services.ts', 'a ternary between two messages — both branches are checked below'],
+  ['autoloader/src/autoloader.ts', [1, "forwards a caught error's own message"]],
+  ['ssr/src/vera/shim.js', [1, 'forwards a caught error object']],
+  ['router/src/services.ts', [1, 'a ternary between two messages — both branches are checked below']],
 ]);
 
 /**
@@ -100,6 +100,14 @@ test('every console.warn and console.error is prefixed [vera]', () => {
 test('no console call escapes the check by not starting with a literal', () => {
   const unaccounted = [];
   const unprefixedBranches = [];
+  /**
+   * **The allowance is keyed by FILE, so it has to be counted.** An entry excuses every unreadable
+   * call the file ever grows, not the one it was written for — and `router/src/services.ts` already
+   * holds ten console calls, so an eleventh with a variable first argument would have slid through
+   * unreviewed. Measured 2026-09-12: each listed file has exactly one, which is the only reason
+   * this is a pin rather than a defect. Counting turns a second one into a deliberate edit.
+   */
+  const excused = new Map();
 
   for (const file of sources) {
     const text = readIfPresent(file);
@@ -109,11 +117,13 @@ test('no console call escapes the check by not starting with a literal', () => {
 
     for (const match of text.matchAll(ANY_CONSOLE_CALL)) {
       if (parsed.has(match.index)) continue;
-      const reason = NOT_A_LITERAL.get(where);
-      if (reason === undefined) {
+      const entry = NOT_A_LITERAL.get(where);
+      if (entry === undefined) {
         unaccounted.push(`${where}: ${text.slice(match.index, match.index + 60).split('\n')[0]}`);
         continue;
       }
+      const [, reason] = entry;
+      excused.set(where, (excused.get(where) ?? 0) + 1);
       /**
        * A call that forwards an error carries no message of ours. One that holds messages must have
        * each **branch** prefixed — the half a ternary was getting for free.
@@ -141,6 +151,20 @@ test('no console call escapes the check by not starting with a literal', () => {
     [],
     `a branch of a multi-message call is missing the prefix:\n  ${unprefixedBranches.join('\n  ')}`
   );
+
+  /** Both directions: an entry that excuses more than it claims, and one that excuses nothing. */
+  const miscounted = [];
+  for (const [where, [expected, reason]] of NOT_A_LITERAL) {
+    const found = excused.get(where) ?? 0;
+    if (found !== expected)
+      miscounted.push(
+        `${where}: allows ${expected} unreadable call(s) (${reason}) but the file has ${found}. ` +
+          (found > expected
+            ? 'A new one is being excused without review — check it and raise the count deliberately.'
+            : 'The entry no longer has a subject; delete it rather than leave it excusing a future call.')
+      );
+  }
+  assert.deepEqual(miscounted, [], `\n  ${miscounted.join('\n  ')}`);
 });
 
 /** And the prefix has to survive into the shipped bundles, or it only exists in source. */
