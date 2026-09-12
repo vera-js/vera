@@ -120,6 +120,51 @@ test('a string cannot become a tag', () => {
   }
 });
 
+/**
+ * **A tag's TEXT is a name, not markup — and the collision that made it matter.**
+ *
+ * Spliced statics key on `` `${i}:${text};` `` per tag, joined with separators the text was free
+ * to contain. So two DIFFERENT tag assignments at one call site could derive the same key and
+ * reuse each other's markup: at a two-tag site, `(a, "b;1:c")` and `("a;1:b", c)` both derive
+ * `"0:a;1:b;1:c;"`, and the second render came back as the FIRST one's DOM.
+ *
+ * Escaping the separators would have closed that one collision. Constraining the name closes the
+ * class — no name can contain a separator, so no key can be ambiguous — and it makes the export
+ * deliver what it is called, since `` tag`div onclick=x` `` was producing markup rather than a tag.
+ */
+test('a tag names one element, and nothing else becomes markup', () => {
+  /** A real tagged-template call, built at runtime so a case can supply an arbitrary text. */
+  const named = (text) => tag(Object.assign([text], { raw: [text] }));
+  for (const name of ['h1', 'div', 'my-widget', 'x.y', 'a_b', 'H1']) {
+    assert.doesNotThrow(() => named(name), `${name} is a legal element name`);
+  }
+  /** NON-ZERO CONTROL: the accepting half must accept, or the refusing half proves nothing. */
+  assert.equal(typeof tag`h1`, 'function', 'the ordinary case must still work');
+
+  for (const bad of ['a;1:b', 'div onclick=x', '<p>', 'a b', '', '1h', 'a:b', 'a;b'])
+    assert.throws(() => named(bad), /not an element name/, JSON.stringify(bad));
+});
+
+/**
+ * The collision itself, stated as behaviour rather than as a rule about names — so that a future
+ * rewrite which widens the grammar cannot pass this by keeping the regex and losing the property.
+ */
+test('two tag assignments at one call site cannot reuse each other\'s markup', () => {
+  const draw = (X, Y) => html`<${X}>text</${Y}>`;
+  /** The colliding pair, refused at construction now. Both spellings must be impossible. */
+  const named = (text) => tag(Object.assign([text], { raw: [text] }));
+  assert.throws(() => draw(tag`a`, named('b;1:c')), /not an element name/);
+  assert.throws(() => draw(named('a;1:b'), tag`c`), /not an element name/);
+
+  /** And legal tags at the same call site still render as themselves. */
+  const first = into();
+  renderInto(draw(tag`i`, tag`i`), first);
+  assert.equal(read(first), '<i>text</i>');
+  const second = into();
+  renderInto(draw(tag`b`, tag`b`), second);
+  assert.equal(read(second), '<b>text</b>', 'the second assignment must not inherit the first');
+});
+
 test('a tag may be composed from other tags', () => {
   const h = tag`h`;
   const one = tag`${h}1`;

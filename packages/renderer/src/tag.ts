@@ -165,6 +165,40 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
   }
 
   /**
+   * **A tag's text must be an element NAME.** Until this, it was an unconstrained string spliced
+   * straight into the statics — so `` tag`div onclick=x` `` produced markup rather than a tag, and
+   * the name of this export was a description of intent rather than of behaviour.
+   *
+   * The concrete failure it closes is a cache collision. Spliced statics key on
+   * `` `${i}:${text};` `` per tag, joined with separators the text was free to contain, so two
+   * DIFFERENT tag assignments at one call site could derive the same key and reuse each other's
+   * markup. Measured: at a two-tag call site, `(a, "b;1:c")` and `("a;1:b", c)` both derive
+   * `"0:a;1:b;1:c;"`, and the second render came back as the FIRST one's markup.
+   *
+   * Escaping the separators would have fixed that one collision. Constraining the name fixes the
+   * class — no name can contain a separator, so no key can be ambiguous, and the export delivers
+   * what it is called. A closed grammar beats a wider escape, which is the same ruling this audit
+   * reached for the attribute-value sink.
+   *
+   * Unconditional, like the interpolation refusal above and unlike the shape check: both are about
+   * what may become markup, and a production build is where that matters most.
+   */
+  if (!/^[a-zA-Z][a-zA-Z0-9._-]*$/.test(text))
+    throw new Error(
+      /**
+       * The THROW is unconditional; its EXPLANATION is not. Carrying the full sentence cost 178 B
+       * gzipped here — most of a 1.9 KB entry — for text an author reads once and a production
+       * page never reaches. Core's static-render refusal is shaped the same way for the same
+       * measurement.
+       */
+      __DEV__
+        ? `tag: ${JSON.stringify(text)} is not an element name. A tag names ONE element — letters, ` +
+          `then letters, digits, '.', '_' or '-' — and nothing else becomes markup here.\n` +
+          `Attributes and content belong in the template: html\`<\${heading} class="title">…</\${heading}>\`.`
+        : 'tag: not an element name'
+    );
+
+  /**
    * The tag is a function, which is what makes it a JSX component: the compiler emits `H({…})` for
    * a capitalized tag, and this is what receives that call. `children` is JSX's own key; everything
    * else goes through `spread`, since the names are not known when this template is written.

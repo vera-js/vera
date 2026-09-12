@@ -14,7 +14,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
 | `@verajs/renderer/spread` | 2.51 KB | 1.28 KB |
-| `@verajs/renderer/tag` | 3.74 KB | 1.89 KB |
+| `@verajs/renderer/tag` | 3.82 KB | 1.94 KB |
 | `@verajs/reactivity` | 1.28 KB | 677 B |
 | `@verajs/jsx` | 9.13 KB | 3.61 KB |
 | `@verajs/jsx/standalone` | 9.46 KB | 3.82 KB |
