@@ -100,12 +100,11 @@ export interface RouteOptions {
    * even unanimated: the old view stays interactive while the chunk arrives. A throw here
    * rejects `navigate()`. `component` still renders; `load` only front-runs the fetch.
    *
-   * SECURITY NOTE, stated because the timing invites the mistake: `load` runs BEFORE guards
-   * (warming is the point), so a guarded route's chunk is fetched and its module top-level
-   * EXECUTES for visitors the guard would refuse. That is the standard rule of every
-   * code-split app — client chunks are public artifacts — but it means authorization lives
-   * server-side and never in a chunk's existence, and side effects that must not run for
-   * unauthorized users belong inside `component`, after the guard has answered.
+   * SECURITY: guards run FIRST — a route the guards refuse never has its `load` called, so a
+   * refused visitor's chunk neither downloads nor executes through this seam. The standing
+   * rule of every code-split app still applies (client chunks are public artifacts an
+   * attacker can fetch directly), so authorization lives server-side and never in a chunk's
+   * obscurity — but this router adds no pre-authorization execution of its own.
    */
   load?: (params: RouteParams) => unknown;
   component?: RouteAction;

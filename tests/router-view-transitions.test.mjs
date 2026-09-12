@@ -66,7 +66,9 @@ check('and wrapped its render in exactly one transition', transitions === 1);
 
 let rejected = false;
 await navigate('/boom').catch(() => { rejected = true; });
-check('a throwing guard still rejects navigate through the transition', rejected);
+check('a throwing guard still rejects navigate', rejected);
+check('and a REFUSED navigation never starts a transition at all — guards run first',
+  transitions === 1);
 
 /** PRE-RESOLUTION: a lazy route's `load` settles BEFORE the transition wraps — the chunk
  *  arrives while the old view is still interactive, never inside the frozen window. */
@@ -87,9 +89,7 @@ check('load resolved before the transition began, component ran inside it',
 delete window.document.startViewTransition;
 await navigate('/A');
 await tick();
-/** The /boom attempt above also wrapped (its guard throws INSIDE the callback — a wrap is
- *  decided before anyone knows the guard's answer), so the count stands at 2 here. */
-check('no platform, no wrap, same routing', hits.A === 2 && transitions === 2);
+check('no platform, no wrap, same routing', hits.A === 2 && transitions === 1);
 
 console.log(`pass ${pass} fail ${fail}`);
 if (fail) process.exit(1);

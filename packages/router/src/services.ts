@@ -1,4 +1,4 @@
-import type { MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
+import type { ElementsData, MatchFunction, ParamData, Route, RouteParams, RouteTarget, RouteTrigger } from './types.js';
 /** Type-only: erased at build, so this package still imports nothing at runtime. */
 import type { Inserts } from '@verajs/inserts';
 
@@ -729,23 +729,36 @@ export const navigate = async (
   }
 
   /**
-   * PRE-RESOLUTION: every matched level's `load` settles BEFORE the guard fold below can wrap
-   * anything in a transition — parallel across routers, outermost-first within a chain. See the
-   * option's doc in types.ts; the failure mode it prevents is a lazy chunk awaited inside the
-   * transition callback, which freezes the page on its old snapshots for the whole fetch.
+   * GUARDS FIRST — for every router, before `load` fetches anything and before the transition
+   * wraps anything: a refused route's chunk never executes for the refused visitor, and the
+   * guards themselves run while the old view is live rather than frozen. A refusal drops the
+   * element here; an all-refused navigation is a deliberate cancellation with nothing to report.
    */
-  await Promise.all(matches.map(async ([, match]) => {
-    for (let ancestor: Route | undefined = match.route; ancestor; ancestor = ancestor.parent) {
-      if (ancestor.load) await ancestor.load(match.params ?? {});
+  const prepared: [HTMLElement, NonNullable<Awaited<ReturnType<typeof guardPass>>>][] = [];
+  for (const [element, match] of matches) {
+    const pass = await guardPass(element, matchPath, trigger, query, hash, id, match);
+    if (id !== navigationId) return false;
+    if (pass) prepared.push([element, pass]);
+  }
+
+  /**
+   * PRE-RESOLUTION, for SURVIVORS ONLY: every admitted level's `load` settles before the guard
+   * fold below can wrap anything in a transition. See the option's doc in types.ts; the failure
+   * modes prevented are a lazy chunk awaited inside the transition callback (a frozen page for
+   * the whole fetch) and a guarded chunk executing for a visitor the guard just refused.
+   */
+  await Promise.all(prepared.map(async ([, pass]) => {
+    for (const link of pass.chain) {
+      if (link.load) await link.load(pass.params);
     }
   }));
   if (id !== navigationId) return false;
 
   let routed = false;
   const routeAll = async (): Promise<void> => {
-    for (const [element, match] of matches) {
+    for (const [element, pass] of prepared) {
       const shouldFocusView = element === origin || trigger === 'popstate';
-      if (await routeChange(element, matchPath, trigger, shouldFocusView, query, hash, id, match)) routed = true;
+      if (await routeChange(element, matchPath, shouldFocusView, id, pass)) routed = true;
       if (id !== navigationId) return;
     }
   };
@@ -856,37 +869,40 @@ const getRoute = (element: HTMLElement, path: string) => {
  * settings template itself rendered. Guards, `beforeEnter` and `action` run down the same chain, so
  * a parent can refuse before a child does any work.
  */
-const routeChange = async (
+/**
+ * THE GUARD PASS — every way a navigation can be REFUSED, run for all routers BEFORE anything
+ * is fetched, wrapped, or painted (the load-before-guards hole: a guarded route's chunk used to
+ * execute for visitors the guard would bounce, because `load` warmed pre-wrap while the guards
+ * lived inside the wrapped render). Returns the prepared bundle the render pass consumes, or
+ * null for a refusal/staleness — and `routeChange` below runs NO guards of its own any more.
+ */
+const guardPass = async (
   element: HTMLElement,
   path: string,
   trigger: RouteTrigger,
-  shouldFocusView: boolean,
   query: URLSearchParams | undefined,
   hash: string,
   id: number,
   result: NonNullable<ReturnType<typeof getRoute>>
-) => {
-  /** No data means `deleteRouter` ran between the match and here; there is nothing to route. */
+): Promise<null | {
+  chain: Route[];
+  params: RouteParams;
+  route: Route;
+  currentRoute: NonNullable<ElementsData['currentRoute']>;
+  previousRoute: ElementsData['currentRoute'];
+}> => {
   const elementData = elementsData.get(element);
-  if (!elementData) return false;
-
+  if (!elementData) return null;
   const { params = {}, route } = result;
-
-  /** Outermost first. A route with no `parent` is a chain of one, which is the ordinary case. */
   const chain: Route[] = [];
   for (let ancestor: Route | undefined = route; ancestor; ancestor = ancestor.parent) chain.unshift(ancestor);
-
   const previousRoute = elementData.currentRoute;
   const currentRoute = { path, params, query, trigger, meta: route.meta, hash };
 
-  /** Allow route cancellation before leaving route */
-  if ((await emitEvent(element, 'before-leave', currentRoute, previousRoute)) === false) return false;
-  if (id !== navigationId) return false;
-
-  /** Allow route cancellation before arriving at route */
-  if ((await emitEvent(element, 'before-route', currentRoute, previousRoute)) === false) return false;
-  if (id !== navigationId) return false;
-
+  if ((await emitEvent(element, 'before-leave', currentRoute, previousRoute)) === false) return null;
+  if (id !== navigationId) return null;
+  if ((await emitEvent(element, 'before-route', currentRoute, previousRoute)) === false) return null;
+  if (id !== navigationId) return null;
   for (const link of chain) {
     /** A guard belonging to this route alone, and the outer ones get to refuse first. */
     const verdict = await link.beforeEnter?.(params, currentRoute, previousRoute);
@@ -922,9 +938,26 @@ const routeChange = async (
           `inside the promise \`navigate()\` returns — or call \`navigate("${verdict}")\` and return ` +
           `\`false\`, which starts a separate navigation that promise does not cover.`
       );
-    if (verdict === false) return false;
-    if (id !== navigationId) return false;
+    if (verdict === false) return null;
+    if (id !== navigationId) return null;
   }
+
+  return { chain, params, route, currentRoute, previousRoute };
+};
+
+const routeChange = async (
+  element: HTMLElement,
+  path: string,
+  shouldFocusView: boolean,
+  id: number,
+  prepared: NonNullable<Awaited<ReturnType<typeof guardPass>>>
+) => {
+  /** No data means `deleteRouter` ran between the match and here; there is nothing to route. */
+  const elementData = elementsData.get(element);
+  if (!elementData) return false;
+
+  const { chain, params, route, currentRoute, previousRoute } = prepared;
+
 
   /**
    * Each level renders into a view looked up **inside the level above it**, so a nested outlet may
