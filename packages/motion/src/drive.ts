@@ -38,7 +38,12 @@ const write = (driven: Driven, value: number): void => {
 };
 
 const tick = (now: number): void => {
-  const dt = Math.min(0.1, (now - last) / 1000);
+  /** Floored at 0 like the ramp's t below, same find, worse consequence here: a negative dt
+   *  (Firefox's rAF timestamp lagging the performance.now() ensureTicking captured) FLIPS THE
+   *  EXPONENTIAL'S SIGN — `1 - exp(-dt/tau)` goes negative and the chase steps AWAY from its
+   *  target for a frame. Omni confirmed the same defect live in both their clocks (2026-09-11);
+   *  the ramp got its floor first and this one hid one line up from it. */
+  const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
   last = now;
   for (const driven of active) {
     if (driven.mode === 'ramp') {
