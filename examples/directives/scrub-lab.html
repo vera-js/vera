@@ -17,7 +17,7 @@
 </style>
 
 <div class="hud">scroll — <span id="p">0.000</span> · frame time <span id="t">0.0</span>s ·
-  <button id="src-toggle" style="font:inherit;background:none;color:#9be;border:1px solid #456;border-radius:0.4rem;padding:0.1rem 0.5rem;cursor:pointer">source: all-intra</button></div>
+  <button id="src-toggle" style="font:inherit;background:none;color:#9be;border:1px solid #456;border-radius:0.4rem;padding:0.1rem 0.5rem;cursor:pointer">source: YOUR video, all-intra</button></div>
 
 <div class="runway">
   <div class="stage">
@@ -71,8 +71,9 @@
    * only the keyframe interval differs, and that is the whole difference you feel.
    */
   const SOURCES = [
-    { label: 'all-intra', src: '/examples/media/scrub-allintra.mp4' },
-    { label: 'ordinary encode', src: 'https://greenlightdash.pro/wp-content/uploads/2026/05/videoupscale-web.mp4' },
+    { label: 'YOUR video, all-intra', src: '/examples/media/original-allintra.mp4' },
+    { label: 'YOUR video, ordinary encode', src: 'https://greenlightdash.pro/wp-content/uploads/2026/05/videoupscale-web.mp4' },
+    { label: 'synthetic, all-intra', src: '/examples/media/scrub-allintra.mp4' },
   ];
   let sourceAt = 0;
   const video0 = document.querySelector('video');
@@ -88,12 +89,13 @@
       if (!response.ok) throw new Error(String(response.status));
       video0.src = URL.createObjectURL(await response.blob());
     } catch {
-      if (sourceAt === 0) { sourceAt = 1; document.getElementById('src-toggle').textContent = `source: ${SOURCES[1].label}`; void useSource(SOURCES[1].src); }
+      /* local files are gitignored — skip to the next source if one was never generated */
+      document.getElementById('src-toggle').click();
     }
   };
   void useSource(SOURCES[0].src);
   document.getElementById('src-toggle').addEventListener('click', () => {
-    sourceAt = 1 - sourceAt;
+    sourceAt = (sourceAt + 1) % SOURCES.length;
     document.getElementById('src-toggle').textContent = `source: ${SOURCES[sourceAt].label}`;
     void useSource(SOURCES[sourceAt].src);
   });
