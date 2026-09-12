@@ -17,20 +17,26 @@
   "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
   "type": "module",
-  "main": "./src/index.js",
-  "types": "./src/types.d.ts",
+  "main": "./dist/vera-jsx.min.js",
+  "types": "./dist/development/vera-jsx.d.ts",
   "exports": {
     ".": {
-      "types": "./src/types.d.ts",
-      "default": "./src/index.js"
+      "types": "./dist/development/vera-jsx.d.ts",
+      "development": "./dist/development/vera-jsx.js",
+      "default": "./dist/vera-jsx.min.js"
     },
-    "./standalone": "./src/standalone.js"
+    "./standalone": {
+      "types": "./dist/development/vera-jsx-standalone.d.ts",
+      "development": "./dist/development/vera-jsx-standalone.js",
+      "default": "./dist/vera-jsx-standalone.min.js"
+    }
   },
   "files": [
-    "src"
+    "dist"
   ],
   "sideEffects": [
-    "./src/standalone.js"
+    "./dist/development/vera-jsx-standalone.js",
+    "./dist/vera-jsx-standalone.min.js"
   ],
   "keywords": [
     "verajs",
@@ -39,5 +45,71 @@
     "tsx",
     "vite-plugin",
     "buildless-optional"
-  ]
+  ],
+  "filename": "vera-jsx",
+  "scripts": {
+    "build": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:development",
+        "build:production",
+        "build:types"
+      ]
+    },
+    "build:development": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "dev"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.js",
+        "dist/development/*.js.map"
+      ]
+    },
+    "build:production": {
+      "command": "npx rollup -c",
+      "clean": "if-file-deleted",
+      "env": {
+        "MODE": "prod"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/*.min.js",
+        "dist/*.min.js.map"
+      ]
+    },
+    "build:types": {
+      "command": "npx rollup -c",
+      "env": {
+        "MODE": "types"
+      },
+      "files": [
+        "src/**/*{.js,.ts}",
+        "tsconfig.json",
+        "../../tsconfig.json",
+        "rollup.config.js",
+        "../../defaultRollupConfig.js"
+      ],
+      "output": [
+        "dist/development/*.d.ts",
+        "dist/development/*.d.ts.map"
+      ]
+    }
+  }
 }

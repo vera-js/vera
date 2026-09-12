@@ -14,7 +14,13 @@
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
 import { load } from './dist.mjs';
-import { NAME_MAP, BOOLEAN_ATTRIBUTES } from '../packages/jsx/src/transform.js';
+/** Stated HERE as the spec, deliberately not imported from the implementation — a test that
+ *  reads the map it verifies out of the code under test pins nothing. */
+const NAME_MAP = { className: 'class', htmlFor: 'for' };
+const BOOLEAN_ATTRIBUTES = new Set([
+  'disabled', 'hidden', 'readonly', 'required', 'open', 'selected', 'multiple',
+  'autofocus', 'autoplay', 'controls', 'loop', 'muted', 'playsinline', 'inert', 'reversed',
+]);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 

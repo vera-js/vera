@@ -15,7 +15,8 @@
  * Tests BUILT artifacts, development AND production (see ./dist.mjs).
  */
 import { execFileSync } from 'node:child_process';
-import { transformJsx } from '../packages/jsx/src/index.js';
+import { load } from './dist.mjs';
+const { transformJsx } = await load('jsx');
 
 /**
  * `jsx` is an expression; `tpl` is the template literal it must equal. Both are evaluated against

@@ -17,6 +17,8 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 const PROD = {
   core: 'packages/core/dist/vera.min.js',
+  jsx: 'packages/jsx/dist/vera-jsx.min.js',
+  'jsx-standalone': 'packages/jsx/dist/vera-jsx-standalone.min.js',
   renderer: 'packages/renderer/dist/vera-renderer.min.js',
   hydrate: 'packages/renderer/dist/vera-renderer-hydrate.min.js',
   router: 'packages/router/dist/vera-router.min.js',

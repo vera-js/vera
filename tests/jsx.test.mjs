@@ -4,7 +4,7 @@
  * keyed reconciliation, events) as hand-written ones.
  */
 import { load } from './dist.mjs';
-import { transformJsx } from '../packages/jsx/src/index.js';
+const { transformJsx } = await load('jsx');
 import { JSDOM } from 'jsdom';
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

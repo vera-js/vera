@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-const { transformJsx } = await import('../packages/jsx/src/transform.js');
+const { transformJsx } = await (await import('./dist.mjs')).load('jsx');
 const source = readFileSync(new URL('./fixtures/sibling-child-parts.jsx', import.meta.url), 'utf8');
 const compiled = new URL('./fixtures/.sibling-child-parts.compiled.mjs', import.meta.url);
 writeFileSync(compiled, transformJsx(source, 'sibling-child-parts.jsx'));

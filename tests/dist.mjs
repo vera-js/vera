@@ -34,6 +34,8 @@ const ENTRY = {
   'cms/publish': ['cms', 'vera-cms-publish'],
   'cms/node': ['cms', 'vera-cms-node'],
   core: ['core', 'vera'],
+  jsx: ['jsx', 'vera-jsx'],
+  'jsx/standalone': ['jsx', 'vera-jsx-standalone'],
   renderer: ['renderer', 'vera-renderer'],
   'renderer/hydrate': ['renderer', 'vera-renderer-hydrate'],
   'renderer/profiler': ['renderer', 'vera-renderer-profiler'],
@@ -73,14 +75,10 @@ export const NO_PRODUCTION_BUILD = new Set(['renderer/profiler']);
 
 /**
  * The packages that publish `src` directly and have no `dist` at all, mapped to their entry file.
- *
- * `@verajs/jsx` is a build-time transform: it never reaches a browser, so it has no `__DEV__`
- * branches to fold and no size to minify, and the same file is the artifact under both conditions.
- * `@verajs/ssr` is Node-only for the same reason (see `CLAUDE.md`, *Source of truth rules*).
+ * `@verajs/ssr` is the ONE exemption (see `CLAUDE.md`, *Source of truth rules*); `@verajs/jsx`
+ * left this table in the conventions pass — it builds like every other package now.
  */
-const UNBUILT = {
-  jsx: 'jsx/src/index.js',
-};
+const UNBUILT = {};
 
 /** Absolute URL of a built bundle. `query` forces a fresh module instance (`?copy=a`). */
 export const distUrl = (name, query = '') => {

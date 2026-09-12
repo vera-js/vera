@@ -37,6 +37,7 @@
         "./packages/hooks:build",
         "./packages/core:build",
         "./packages/inserts:build",
+        "./packages/jsx:build",
         "./packages/motion:build",
         "./packages/reactivity:build",
         "./packages/renderer:build",

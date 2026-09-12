@@ -28,7 +28,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { transformJsx } from '../packages/jsx/src/index.js';
+import { load } from './dist.mjs';
+const { transformJsx } = await load('jsx');
 import { extendSeeds } from './fuzz-seeds.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));

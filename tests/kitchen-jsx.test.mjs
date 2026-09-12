@@ -14,7 +14,8 @@
  * keeps them, so the two authoring styles legitimately differ in indentation text nodes; everything
  * that reaches a reader is compared exactly.
  */
-import { transformJsx } from '../packages/jsx/src/index.js';
+import { load } from './dist.mjs';
+const { transformJsx } = await load('jsx');
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync } from 'node:fs';
 import { JSDOM } from 'jsdom';

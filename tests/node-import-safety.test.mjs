@@ -38,7 +38,10 @@ const importInNode = (specifier) => {
     return null;
   } catch (error) {
     const text = String(error.stderr ?? error.message);
-    return text.split('\n').find((line) => /Error/.test(line))?.trim() ?? text.slice(0, 120);
+    /** The line that IS the diagnostic, not any line containing 'Error': a one-line minified
+     *  bundle's source excerpt (which node prints above the error) can itself contain the word
+     *  — `class S extends Error` did, and the picker returned the whole bundle. */
+    return text.split('\n').find((line) => /^\s*[A-Za-z]*Error[:\s]/.test(line))?.trim() ?? text.slice(0, 120);
   }
 };
 

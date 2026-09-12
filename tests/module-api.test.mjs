@@ -135,7 +135,7 @@ test('applyStyles ignores empty styles', async () => {
 
 // ── @verajs/jsx: veraJsx, the Vite plugin ───────────────────────────────────
 
-const jsx = await import('../packages/jsx/src/index.js');
+const jsx = await load('jsx');
 
 test('veraJsx is a Vite plugin with the expected shape', () => {
   const plugin = jsx.veraJsx();
@@ -182,48 +182,29 @@ test('veraJsx can retarget where html and keyed come from', () => {
   assert.match(out, /\bk\(/, 'the configured keyed helper is used');
 });
 
-// ── @verajs/jsx: parseJsx / ParseState, the parser beneath the transform ─────
+// ── @verajs/jsx: the parser's contract, pinned through the public transform ──
+// (The parser was reachable by deep src import before the conventions pass built this package;
+// its node shapes are internal now, so the same four intents are pinned by what they EMIT.)
 
-const parser = await import('../packages/jsx/src/parser.js');
-
-test('parseJsx parses an element into a node with tag, attributes and children', () => {
-  const state = new parser.ParseState('<p class="a">hi</p>');
-  const node = parser.parseJsx(state);
-  assert.equal(node.tag, 'p');
-  assert.equal(node.fragment, undefined, 'not a fragment');
-  assert.equal(node.attrs.length, 1);
-  assert.equal(node.attrs[0].name, 'class');
-  assert.equal(node.attrs[0].kind, 'str', 'a quoted literal, not an expression');
-  assert.equal(node.selfClosing, false);
-  assert.equal(node.children.length, 1, 'the text child');
+test('an element parses: tag, quoted attribute, text child — visible in the emitted template', () => {
+  assert.equal(jsx.transformJsx('const a = <p class="a">hi</p>;'),
+    "import { html } from '@verajs/core';\nconst a = html`<p class=\"a\">hi</p>`;");
 });
 
-test('parseJsx recognises a fragment', () => {
-  const node = parser.parseJsx(new parser.ParseState('<><a/><b/></>'));
-  assert.equal(node.fragment, true);
-  assert.equal(node.children.length, 2);
+test('a fragment parses into inline statics of one template', () => {
+  assert.equal(jsx.transformJsx('const a = <><a/><b/></>;', 'f.jsx', { inject: false }),
+    'const a = html`<a /><b />`;');
 });
 
-test('parseJsx handles self-closing elements and nesting', () => {
-  const node = parser.parseJsx(new parser.ParseState('<ul><li/><li>x</li></ul>'));
-  assert.equal(node.tag, 'ul');
-  assert.equal(node.children.length, 2);
-  assert.equal(node.children[0].tag, 'li');
+test('unterminated JSX falls back to leaving the code alone — null, never a throw', () => {
+  const code = 'const a = b <p; const c = 1;';
+  assert.equal(jsx.transformJsx(code), code);
 });
 
-test('parseJsx returns null rather than throwing on unterminated input', () => {
-  /** The transform relies on a null return to fall back to leaving the code alone. */
-  assert.equal(parser.parseJsx(new parser.ParseState('<p>unclosed')), null);
-});
-
-test('ParseState tracks expression position, which is what bounds a JSX region', () => {
-  const s = new parser.ParseState('x');
-  assert.equal(s.atExpressionPosition(), true, 'start of input is an expression position');
-  s.lastChar = ')';
-  s.lastWord = '';
-  assert.equal(s.atExpressionPosition(), false, 'after a closing paren, `<` is a comparison');
-  s.lastChar = '=';
-  assert.equal(s.atExpressionPosition(), true, 'after `=` it is an expression again');
+test('expression position bounds a JSX region: comparisons survive, assignments transform', () => {
+  const comparison = 'if (a < b) run();';
+  assert.equal(jsx.transformJsx(comparison), comparison, 'after an identifier, `<` is a comparison');
+  assert.match(jsx.transformJsx('const x = <b/>;'), /html`<b \/>`/, 'after `=`, it is markup');
 });
 
 // ── wiring the raw render function instead of the module ────────────────────
