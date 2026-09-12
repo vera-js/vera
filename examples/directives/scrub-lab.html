@@ -22,7 +22,6 @@
 <div class="runway">
   <div class="stage">
     <video muted preload="auto" playsinline
-      src="/examples/media/scrub-allintra.webm"
       data-vd-motion="{ anchor: '.runway', scroll: 'top top, bottom bottom', function: 'scrub', progress: '--p', inertia: 0.35 }"></video>
   </div>
 </div>
@@ -72,18 +71,31 @@
    * only the keyframe interval differs, and that is the whole difference you feel.
    */
   const SOURCES = [
-    { label: 'all-intra', src: '/examples/media/scrub-allintra.webm' },
+    { label: 'all-intra', src: '/examples/media/scrub-allintra.mp4' },
     { label: 'ordinary encode', src: 'https://greenlightdash.pro/wp-content/uploads/2026/05/videoupscale-web.mp4' },
   ];
   let sourceAt = 0;
   const video0 = document.querySelector('video');
-  /* the local file is gitignored — fall back to the remote if it was never generated */
-  video0.addEventListener('error', () => { if (sourceAt === 0) document.getElementById('src-toggle').click(); }, { once: true });
+  /**
+   * BLOB-LOADED, and this line is part of the recipe: a static server without Range support
+   * serves a video Chrome reports as seekable [0,0] — every currentTime write snaps to 0 and
+   * the scrub silently does nothing (found live: this very lab against its own dev server).
+   * Fetching to a blob makes seekability the file's property, not the server's.
+   */
+  const useSource = async (src) => {
+    try {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error(String(response.status));
+      video0.src = URL.createObjectURL(await response.blob());
+    } catch {
+      if (sourceAt === 0) { sourceAt = 1; document.getElementById('src-toggle').textContent = `source: ${SOURCES[1].label}`; void useSource(SOURCES[1].src); }
+    }
+  };
+  void useSource(SOURCES[0].src);
   document.getElementById('src-toggle').addEventListener('click', () => {
     sourceAt = 1 - sourceAt;
     document.getElementById('src-toggle').textContent = `source: ${SOURCES[sourceAt].label}`;
-    video0.src = SOURCES[sourceAt].src;
-    video0.load();
+    void useSource(SOURCES[sourceAt].src);
   });
 
   /* the HUD is just reflection over the same numbers */

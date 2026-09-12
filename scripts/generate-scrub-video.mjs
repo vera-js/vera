@@ -5,7 +5,7 @@
  * spacing, which is exactly the choppiness being contrasted.
  *
  * Run: node scripts/generate-scrub-video.mjs   (needs Chrome via playwright; writes
- * examples/media/scrub-allintra.webm — gitignored, ~10-25MB, regenerate anywhere)
+ * examples/media/scrub-allintra.mp4 — gitignored, ~10-25MB, regenerate anywhere)
  */
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -15,17 +15,24 @@ const page = await browser.newPage();
 await page.goto('http://localhost:5178/examples/directives/flip-lab.html'); /* a secure-context page: WebCodecs needs one, about:blank does not qualify */
 
 const bytes = await page.evaluate(async () => {
-  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/webm-muxer@5.0.3/+esm');
+  /**
+   * MP4 + H.264 + fastStart, not WebM: the first cut used webm-muxer and produced a file whose
+   * seekable range was [0, 0] — every currentTime write snapped to zero, which made a scrub
+   * demo of a video that cannot seek. mp4-muxer's in-memory fastStart writes the sample index
+   * up front, and H.264 all-key plays everywhere.
+   */
+  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/+esm');
   const W = 1280, H = 720, FPS = 30, SECONDS = 8;
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: 'V_VP9', width: W, height: H, frameRate: FPS },
+    video: { codec: 'avc', width: W, height: H, frameRate: FPS },
+    fastStart: 'in-memory',
   });
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     error: (e) => { throw e; },
   });
-  encoder.configure({ codec: 'vp09.00.10.08', width: W, height: H, bitrate: 6_000_000, framerate: FPS });
+  encoder.configure({ codec: 'avc1.4d0028', width: W, height: H, bitrate: 8_000_000, framerate: FPS });
 
   const canvas = new OffscreenCanvas(W, H);
   const ctx = canvas.getContext('2d');
@@ -66,6 +73,6 @@ const bytes = await page.evaluate(async () => {
 });
 
 mkdirSync('examples/media', { recursive: true });
-writeFileSync('examples/media/scrub-allintra.webm', Buffer.from(bytes));
-console.log(`wrote examples/media/scrub-allintra.webm (${(bytes.length / 1e6).toFixed(1)} MB, 8s @ 30fps, all-intra VP9)`);
+writeFileSync('examples/media/scrub-allintra.mp4', Buffer.from(bytes));
+console.log(`wrote examples/media/scrub-allintra.mp4 (${(bytes.length / 1e6).toFixed(1)} MB, 8s @ 30fps, all-intra H.264)`);
 await browser.close();

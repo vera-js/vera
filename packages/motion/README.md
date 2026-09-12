@@ -64,6 +64,10 @@ composes — the chase sweeps THROUGH the intermediate times, and the seek pipel
 seek speed is dominated by keyframe interval, so scrub-destined videos should be encoded
 all-intra (`ffmpeg -g 1` — every frame seekable), which is how the trademark product pages do
 it. `fastSeek(t)` trades exactness for throughput where supported; start with the gate + inertia.
+**And one serving caveat that presents as total silence**: a server without Range support (many
+dev static servers) makes Chrome report the video seekable `[0, 0]` — every `currentTime` write
+snaps to 0 and the scrub does nothing, with no error anywhere. Fetch-to-blob makes seekability
+the file's property instead of the server's; the lab does exactly that.
 
 **The buildless ladder** — first-frame options for a page with no build step at all, in order of
 effort: (1) load the script at **body-end with a sync wire** — elements generate before first
