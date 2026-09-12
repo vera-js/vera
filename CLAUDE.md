@@ -311,6 +311,7 @@ It holds what genuinely cannot be public:
 | `internal/docs/TODO.md` | pending work, unfixed defects, open questions |
 | `internal/docs/PUBLISHING.md` | operator runbook — npm account, 2FA, release mechanics |
 | `internal/docs/audits/` | per-package audits |
+| `internal/docs/OMNI-CHANNEL.md` | **read before touching any cross-engine surface** — the peer link to Brian's omni project (same owner, both ends): how to reach the other session, which surfaces are parity-locked, the shared laws' locations, and the working protocol |
 | `internal/archive/` | superseded work, kept for reference. Nothing imports it. |
 
 **Audits and TODO are private on purpose.** Both are pre-fix documents. A public audit during the
