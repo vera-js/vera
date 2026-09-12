@@ -42,10 +42,10 @@ write while a seek is in flight paints every frame the pipeline can actually del
 48 painted, 16 visual fps — 3.4× smoother from one condition):
 
 ```js
-wireTicks({ scrub: (el, p) => { if (!el.seeking) el.currentTime = p * el.duration; } });
+wireFunctions({ scrub: (el, p) => { if (!el.seeking) el.currentTime = p * el.duration; } });
 ```
 ```html
-<video data-vd-motion="{ scroll: '80%, 20%', tick: 'scrub' }" muted preload="auto" src="…"></video>
+<video data-vd-motion="{ scroll: '80%, 20%', function: 'scrub' }" muted preload="auto" src="…"></video>
 ```
 
 `fastSeek(p * duration)` trades frame accuracy for more paints where engines support it; start
