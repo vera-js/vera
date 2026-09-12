@@ -218,7 +218,7 @@ test('the :viewport scope measures the whole viewport; the ambient dual is the s
   wireDirectives([connector]);
   await settled();
   assert.equal(doc.body.getAttribute('data-vd-pointer'), 'amb:viewport',
-    'the delegation: sensors({ pointer }) IS <body data-vd-pointer=\"key:viewport\"> said from JS');
+    'the delegation: sensors({ pointer }) IS <body data-vd-pointer="key:viewport"> said from JS');
   doc.body.removeAttribute('data-vd-pointer');
   await settled();
 });

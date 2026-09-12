@@ -102,7 +102,7 @@ test('FIXTURE 7 — the gauntlet\'s pointer row: a pointer-sourced play emits SE
   const pointerPlay = page(`${KEYS}, pointer: 'x', play: 0.3 }`);
   renderMotion(plainPlay);
   renderMotion(pointerPlay);
-  const cssOf = (d) => d.head.querySelector('style[data-vm-sheet=\"motion\"]')?.textContent ?? '';
+  const cssOf = (d) => d.head.querySelector('style[data-vm-sheet="motion"]')?.textContent ?? '';
   assert.match(cssOf(plainPlay), /transition-property/, 'the control: a plain play is transition mode');
   assert.doesNotMatch(cssOf(pointerPlay), /transition-property/, 'the pointer row refused transition mode');
   assert.match(cssOf(pointerPlay), /@keyframes vm-/, 'and it fell through to seek — the ramp\'s home');
