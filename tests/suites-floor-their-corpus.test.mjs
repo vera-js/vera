@@ -35,35 +35,60 @@ const EMPTY_PASS =
   /assert\.deepEqual\(\s*\w+\s*,\s*\[\s*\]|assert\.deepStrictEqual\(\s*\w+\s*,\s*\[\s*\]|assert\.equal\(\s*\w+(?:\.length)?\s*,\s*0[\s,)]/;
 
 /**
- * Every floor spelling this repo actually uses. It is deliberately generous: a detector expressed
- * as a pattern over source WILL miss a spelling — that is the base rate, not a defect — and the
- * cost of missing one here is a false failure that wastes someone's morning, while the cost of an
- * over-generous pattern is a suite this rule declines to police. Three separate blind spots were
- * found while writing it (`compared > 20` as a bare counter, an accumulator array filled by a
- * helper, a multi-line `assert.ok(`), and each one is a clause below.
+ * Every floor spelling this repo actually uses, as NAMED clauses rather than one joined pattern.
+ *
+ * Named, because the control below pairs each sample with THE CLAUSE IT EXERCISES and checks it
+ * against that clause alone. Against a joined pattern a sample can be carried by a different clause
+ * than the one it exists to test — which is not hypothetical: the first version of this file had a
+ * floored sample whose MESSAGE matched the word clause, so the control passed green while the
+ * numeric clause was blind to `x.length > 0`, the commonest floor there is.
+ *
+ * Deliberately generous, because a detector expressed as a pattern over source WILL miss a
+ * spelling — that is the base rate, not a defect. But generous is not the same as careless: a
+ * clause must read the PREDICATE, never merely the assertion around it. `assert.ok(…count(…)…)`
+ * treated as a floor would accept `count(x) >= 0` and `count(x) < 5` alike. (That distinction is
+ * the omni engine's, from finding the identical shape in their own lint.)
  */
-const FLOOR = new RegExp(
-  [
-    /** `assert.ok(<anything>.length > 0)` — the subject may be a call, a chain, or an arrow. */
-    String.raw`(?:assert\.ok|expect)\(\s*[^;]{0,140}?\.(?:length|size)\s*(?:>=\s*[1-9]|>\s*[0-9])`,
-    /** A bare counter: `assert.ok(compared > 20)`. */
-    String.raw`(?:assert\.ok|expect)\(\s*\n?\s*[\w.()\[\]]+\s*(?:>=\s*[1-9]|>\s*[0-9])`,
-    /** Outside an assertion entirely: `if (found.size > 0)` guarding a throw. */
-    String.raw`[\w.()\[\]]+\.(?:length|size)\s*(?:>=\s*[1-9]|>\s*[0-9])`,
-    /** Truthiness, which IS a floor: `assert.ok(sources.length, …)`. */
-    String.raw`assert\.ok\(\s*\n?\s*[^;]{0,140}?\.(?:length|size)\s*[,)]`,
-    String.raw`assert\.(?:equal|deepEqual)\(\s*[^;]{0,140}?\.(?:length|size),\s*[1-9]`,
-    /** Or the condition named in words, which is the best form and the easiest to grep. */
-    String.raw`NON-ZERO|found nothing|scanned nothing|expected to find|the walk found|the scan is broken`,
-  ].join('|'),
-  'i'
-);
+const FLOOR_CLAUSES = {
+  /** `assert.ok(<anything>.length > 0)` — the subject may be a call, a chain, or an arrow. */
+  comparison: /(?:assert\.ok|expect)\(\s*[^;]{0,140}?\.(?:length|size)\s*(?:>=\s*[1-9]|>\s*[0-9])/,
+  /** A bare counter: `assert.ok(compared > 20)`. */
+  counter: /(?:assert\.ok|expect)\(\s*\n?\s*[\w.()[\]]+\s*(?:>=\s*[1-9]|>\s*[0-9])/,
+  /** Outside an assertion entirely: `if (found.size > 0)` guarding a throw. */
+  bare: /[\w.()[\]]+\.(?:length|size)\s*(?:>=\s*[1-9]|>\s*[0-9])/,
+  /**
+   * Truthiness, which IS a floor: `assert.ok(sources.length, …)`.
+   *
+   * A PLAIN identifier chain only — no `!`, no nested call. The permissive form read
+   * `assert.ok(!list.length)` as a floor, which asserts the list is EMPTY: the exact inverse,
+   * excusing a walk on the strength of an assertion that nothing was found.
+   */
+  truthiness: /assert\.ok\(\s*[\w$]+(?:\.[\w$]+)*\.(?:length|size)\s*[,)]/,
+  /** A pinned count: `assert.equal(rows.length, 7)`. */
+  pinned: /assert\.(?:equal|deepEqual)\(\s*[^;]{0,140}?\.(?:length|size),\s*[1-9]/,
+  /** Or the condition named in words, which is the best form and the easiest to grep. */
+  worded: /NON-ZERO|found nothing|scanned nothing|expected to find|the walk found|the scan is broken/i,
+};
+
+const FLOOR = { test: (text) => Object.values(FLOOR_CLAUSES).some((clause) => clause.test(text)) };
 
 /**
- * Suites that discover a corpus, assert emptiness, and legitimately need no floor. Empty today.
+ * Suites that discover a corpus, assert emptiness, and legitimately need no floor. **Empty today**,
+ * and it has stayed empty through every finding — which is worth knowing before anyone adds to it.
  *
  * Driven, not merely listed: an entry the detector no longer flags fails below. An allowance that
  * outlives its subject is worse than none, because it waits to excuse something nobody looked at.
+ *
+ * There are exactly three verdicts a walk can have, and the third is the one that belongs here:
+ *
+ * - **FLOORED** — something fails when the walk finds nothing. Nothing to do.
+ * - **NAKED** — nothing does. Add a floor; that is the whole point of this rule.
+ * - **SUBJECT IS THE DISCOVERY** — the emptiness IS the behaviour being pinned, as in
+ *   *"listing a directory that does not exist returns `[]`"*. Demanding a floor there would
+ *   demand a non-empty result from an assertion whose entire claim is that the result is empty.
+ *   This tree holds no such case today (checked), but the category is named so the next person
+ *   meets a decision rather than a puzzle. That third verdict is the omni engine's — their lint
+ *   found one and a naive two-way rule would have mangled it.
  */
 const NO_FLOOR_NEEDED = new Map([]);
 
@@ -97,35 +122,49 @@ test('the detector can tell a floored suite from an unfloored one', () => {
   assert.equal(FLOOR.test(unfloored), false, 'an unfloored suite must NOT look floored');
   assert.equal(FLOOR.test(floored), true, 'a floored suite must look floored');
 
-  /** And the spellings that were missed while writing this, so a narrowing rewrite fails loudly. */
-  for (const spelling of [
-    `assert.ok(compared > 20, 'only ${'${compared}'} fixtures were comparable');`,
-    `assert.ok(files.length >= 4, 'CONTROL: expected the ui sources');`,
-    `assert.ok(\n  references.length >= 15,\n  'the pattern has probably stopped matching'\n);`,
-    `assert.ok(publishable.size > 5, 'expected to find the packages');`,
-    `assert.ok(sources.length, 'found the sources');`,
+  /**
+   * **Each sample is checked against THE CLAUSE IT EXERCISES, not against the union.** Against the
+   * union a sample can pass carried by a clause it was not written for, which is how this file's
+   * first version stayed green while blind to `x.length > 0`. Every row is a spelling that was once
+   * a live miss here; a narrowing rewrite now fails naming both the spelling and the clause.
+   */
+  const RECOGNISED = [
+    ['counter', `assert.ok(compared > 20, 'only N fixtures were comparable');`],
+    ['comparison', `assert.ok(files.length >= 4, 'expected the ui sources');`],
+    ['comparison', `assert.ok(\n  references.length >= 15,\n  'the pattern stopped matching'\n);`],
+    ['comparison', `assert.ok(publishable.size > 5, 'expected the packages');`],
+    ['truthiness', `assert.ok(sources.length, 'found the sources');`],
     /**
-     * A subject with PARENTHESES in it. The omni engine's equivalent lint was blind here on its
-     * first run — its pattern stopped at the first `)` — and the subject of a floor is very often
-     * a call, because the careful spelling is the unusual one. Each of these was a live miss in
-     * this file's own detector before the control below was written.
+     * Subjects containing PARENTHESES. The omni engine's equivalent lint stopped at the first `)`,
+     * and the subject of a floor is very often a call — the careful spelling is the unusual one.
      */
-    `assert.ok(Object.keys(versions).length >= 8, 'found the published packages');`,
-    `assert.ok(new Set([...a, ...b]).size > 0, 'the walk produced nothing');`,
-    `assert.ok(files.filter((f) => f.ok).length > 0, 'nothing survived the filter');`,
-  ])
-    assert.ok(FLOOR.test(spelling), `a real floor spelling stopped being recognised:\n  ${spelling}`);
+    ['comparison', `assert.ok(Object.keys(versions).length >= 8, 'found the packages');`],
+    ['comparison', `assert.ok(new Set([...a, ...b]).size > 0, 'the walk produced nothing');`],
+    ['comparison', `assert.ok(files.filter((f) => f.ok).length > 0, 'nothing survived');`],
+    ['bare', `if (maps.length > 0) report(maps);`],
+    ['pinned', `assert.equal(rows.length, 7);`],
+    ['worded', `assert.ok(ok, 'NON-ZERO CONTROL: the scan is broken, not the list');`],
+  ];
+  for (const [clause, spelling] of RECOGNISED)
+    assert.ok(
+      FLOOR_CLAUSES[clause].test(spelling),
+      `the \`${clause}\` clause stopped recognising a real floor spelling:\n  ${spelling}`
+    );
 
   /**
    * And the inverse, because "recognises every floor" is otherwise satisfied by a pattern matching
-   * all source. These must NOT read as floors.
+   * all source. Two of these were LIVE false floors before the clauses were tightened — a negated
+   * length asserts the set is EMPTY, and a nested call carried a `=== 0` past the truthiness form.
    */
   for (const notAFloor of [
     `assert.deepEqual(missing, []);`,
     `assert.equal(failures.length, 0);`,
     `const empty = items.length === 0;`,
-    /** `>= 0` is vacuously true of every length, so it is not a floor however much it looks like one. */
+    /** Vacuously true of every length — it looks like a floor and proves nothing. */
     `assert.ok(files.length >= 0, 'this proves nothing');`,
+    /** The inverse of a floor: an assertion that nothing was found. */
+    `assert.ok(!list.length, 'nothing should be here');`,
+    `assert.ok(check(bar.length) === 0);`,
   ])
     assert.equal(FLOOR.test(notAFloor), false, `this is not a floor and must not be read as one:\n  ${notAFloor}`);
 });
