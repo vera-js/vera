@@ -23,24 +23,24 @@
       "gzip": 772
     },
     "spread": {
-      "raw": 2572,
-      "gzip": 1316
+      "raw": 2569,
+      "gzip": 1315
     },
     "tag": {
-      "raw": 3778,
-      "gzip": 1904
+      "raw": 3828,
+      "gzip": 1940
     },
     "reactivity": {
       "raw": 1311,
       "gzip": 677
     },
     "jsx": {
-      "raw": 8856,
-      "gzip": 3477
+      "raw": 9352,
+      "gzip": 3701
     },
     "standalone": {
-      "raw": 9190,
-      "gzip": 3682
+      "raw": 9686,
+      "gzip": 3908
     },
     "computed": {
       "raw": 298,
@@ -87,8 +87,8 @@
       "gzip": 3186
     },
     "directives-sensors": {
-      "raw": 7648,
-      "gzip": 3010
+      "raw": 7952,
+      "gzip": 3167
     },
     "directives-remote": {
       "raw": 9534,

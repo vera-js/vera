@@ -58,16 +58,35 @@ ordinary HTML attribute — **write those exactly as they appear in HTML**, not 
 | `defaultValue` / `defaultChecked` | `value=` / `checked=` | the attribute, when you mean the default |
 | `hidden`, `disabled`, `open`, … | `?hidden=${…}` | the boolean-attribute table below |
 | `<p hidden>` | `<p hidden>` | a bare boolean stays static |
-| `key={id}` | `keyed(id, html\`…\`)` | on the root element returned from a list callback |
+| `key={id}` | `keyed(id, html\`…\`)` | on the root of a list callback — element **or** component |
 | `ref={r}` | `<p ${r}>` | the element-position ref |
 | `{...rest}` | `spread(rest)` | imports `@verajs/renderer/spread` |
 | `dangerouslySetInnerHTML={{ __html: h }}` | `.innerHTML=${h}` | the shape is checked |
 | `<Comp a={1}>kids</Comp>` | `Comp({ a: 1, children: […] })` | a capitalised tag is a function call |
 | `<>…</>` | the children, with no wrapper | |
+| `<div />` | `<div></div>` | **the element decides how the tag closes, not the spelling** |
+| `<br></br>` | `<br />` | the same rule, the other way |
 | `{/* … */}` and `{}` | nothing | |
 
 Boolean attributes: `disabled`, `hidden`, `readonly`, `required`, `open`, `selected`, `multiple`,
 `autofocus`, `autoplay`, `controls`, `loop`, `muted`, `playsinline`, `inert`, `reversed`.
+
+### Self-closing is JSX's syntax, not HTML's
+
+JSX borrows `<div />` from XML. HTML has no such thing outside `<svg>` and `<math>`, so the element
+decides how its tag closes and the compiler emits accordingly — `<div />` becomes `<div></div>`,
+`<br></br>` becomes `<br />`. Write either; they mean what you expect.
+
+This is not cosmetic. Passed through, both spellings were wrong in opposite directions and silently:
+
+```jsx
+<div /><span>after</span>     // parsed as <div><span>after</span></div> — the sibling is swallowed
+<br></br>                     // parsed as <br><br> — one break, rendered twice
+```
+
+Nothing failed, on either side: the server and the client agreed, and the DOM simply had a shape the
+source never described. A **hand-written** template has the same hazard and no compiler to fix it,
+so `@verajs/renderer` warns about both in development.
 
 **One precedence difference from React, on purpose.** A spread key overwrites a *static* attribute
 of the same name wherever the spread sits — `<i {...bag} title="x" />` renders the bag's `title`,
@@ -121,7 +140,9 @@ Every mistake below is reported with the file, line and column — not left for 
 choke on:
 
 - a closing tag that names a different element (`<p>…</b>`)
-- `key` anywhere but the JSX root returned from a list callback
+- `key` anywhere but the JSX root returned from a list callback — on an element or a component
+- children inside a void element (`<input>{label}</input>`), which no markup can express: passed
+  through, the binding silently left the element it was written inside
 - `dangerouslySetInnerHTML` in any shape other than `{{ __html: … }}`
 - `style` given an object
 - a sigil with no value (`.rows` on its own)
@@ -132,7 +153,7 @@ unclosed element (`<p>x` with no `</p>`) reaches your bundler as written and is 
 
 ## TypeScript
 
-`packages/jsx/src/types.d.ts` is the JSX namespace. Set `"jsx": "preserve"` in `tsconfig.json` and
+This package ships the JSX namespace with its generated declarations. Set `"jsx": "preserve"` in `tsconfig.json` and
 let the plugin do the transform — `react-jsx` would emit `_jsx()` calls this never sees.
 
 ## What it is not

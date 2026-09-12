@@ -13,11 +13,11 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/router` | 10.66 KB | 4.45 KB |
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
-| `@verajs/renderer/spread` | 2.51 KB | 1.29 KB |
-| `@verajs/renderer/tag` | 3.69 KB | 1.86 KB |
+| `@verajs/renderer/spread` | 2.51 KB | 1.28 KB |
+| `@verajs/renderer/tag` | 3.74 KB | 1.89 KB |
 | `@verajs/reactivity` | 1.28 KB | 677 B |
-| `@verajs/jsx` | 8.65 KB | 3.40 KB |
-| `@verajs/jsx/standalone` | 8.97 KB | 3.60 KB |
+| `@verajs/jsx` | 9.13 KB | 3.61 KB |
+| `@verajs/jsx/standalone` | 9.46 KB | 3.82 KB |
 | `@verajs/reactivity/computed` | 298 B | 241 B |
 | `@verajs/reactivity/collections` | 1.07 KB | 576 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
@@ -29,7 +29,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.32 KB | 3.11 KB |
-| `@verajs/directives/directives-sensors` | 7.47 KB | 2.94 KB |
+| `@verajs/directives/directives-sensors` | 7.77 KB | 3.09 KB |
 | `@verajs/directives/directives-remote` | 9.31 KB | 3.80 KB |
 | `@verajs/directives/directives-motion` | 77.36 KB | 25.38 KB |
 | `@verajs/motion` | 36.57 KB | 12.07 KB |

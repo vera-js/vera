@@ -125,11 +125,11 @@ describing the bytes honestly.)*
 | `@verajs/router` | 4 560 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 681 B | lazy component discovery |
 | `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
-| `@verajs/renderer/spread` | 1 316 B | `${spread(props)}` — runtime-named bindings |
-| `@verajs/renderer/tag` | 1 904 B | `<${tag}>` — runtime tag names, in templates and JSX |
+| `@verajs/renderer/spread` | 1 315 B | `${spread(props)}` — runtime-named bindings |
+| `@verajs/renderer/tag` | 1 940 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/reactivity` | 677 B | the standalone store — subscriptions without components |
-| `@verajs/jsx` | 3 477 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
-| `@verajs/jsx/standalone` | 3 682 B | JSX in the browser with no build — the CodePen path |
+| `@verajs/jsx` | 3 701 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
+| `@verajs/jsx/standalone` | 3 908 B | JSX in the browser with no build — the CodePen path |
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
 | `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
@@ -141,7 +141,7 @@ describing the bytes honestly.)*
 | `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 942 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 186 B | the query pack — route, query, list |
-| `@verajs/directives/sensors` | 3 010 B | the sensors pack — environment to state |
+| `@verajs/directives/sensors` | 3 167 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 888 B | the remote pack — server-driven interactions |
 | `@verajs/directives/motion` | 25 986 B | the motion pack — presets, easings, paint, path, sequence, split |
 | `@verajs/motion/core` | 12 363 B | the motion engine — compiler + writer, no directives engine, no packs |

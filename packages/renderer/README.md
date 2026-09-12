@@ -688,7 +688,7 @@ a pair of totals — the totals move with every change to this package and the d
 which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
 for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
 dated; re-measure the same way if it matters.
-The entry itself is **<!--size:spread.gzip-->1.29 KB<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->1.28 KB<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -799,6 +799,24 @@ className="t" hidden={false}>` and `<h1 className="t" hidden={false}>` mean the 
 a correctness matter, not an ergonomic one: passed through raw, `hidden={false}` becomes the
 attribute `hidden="false"` and any value at all applies it.
 
+`ref` is mapped too — `<H ref={r}>` binds exactly as `<h1 ref={r}>` does. `key` never reaches the
+component: `@verajs/jsx` consumes it into `keyed(…)` for both spellings, and a hand-written
+`H({ key })` drops it and says so in development, because a key marks a template for reconciliation
+and this call *returns* one rather than being one.
+
+**`dangerouslySetInnerHTML` is the one React name a tag cannot honour, and that is a security
+property rather than a gap.** A tag reaches its element through `/spread`, whose names are only
+known at runtime — which is exactly what makes that sink unreviewable — so `/spread` refuses
+`.innerHTML` outright. Write the element directly, with the value sanitized first:
+
+```js
+renderInto(html`<${H} .innerHTML=${trusted}>`, host);
+```
+
+`tests/jsx-component-equivalence.test.mjs` drives every one of these both ways, compiled and
+rendered, and compares the DOM — because the name-level pin that preceded it passed for the entire
+life of three defects.
+
 ### What to know
 
 - **A string can never become a tag.** Only another tag may be interpolated, so the set of tags an
@@ -812,7 +830,7 @@ attribute `hidden="false"` and any value at all applies it.
   writing tests for it.
 - HTML only. There is no `svg`/`mathml` equivalent yet.
 
-<!--size:tag.gzip-->1.86 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+<!--size:tag.gzip-->1.89 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 
