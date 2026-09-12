@@ -72,11 +72,11 @@ const specifiersIn = (path, atLeast) => {
  */
 const NO_SIZE_CLAIM = {
   '@verajs/renderer/hydrate':
-    'CANDIDATE, not settled — it does ship a bundle, the largest here. It is a REPLACEMENT for ' +
+    'ENROLLED 2026-09-11 (owner: "agree — do anything you need"); row phrased INSTEAD-OF. ' +
     'the renderer entry rather than something added beside it, so a row next to `@verajs/renderer` ' +
     'in the public modules table would read as an extra cost nobody pays. Worth a row of its own.',
   '@verajs/reactivity':
-    'CANDIDATE, not settled — it ships a bundle and is a published package, and its absence from ' +
+    'ENROLLED 2026-09-11 (owner-approved); the oversight it looked like. ' +
     'the table looks more like an oversight than a decision. `reactivity/computed` and ' +
     '`reactivity/collections` are both claimed; the base entry is not.',
 };

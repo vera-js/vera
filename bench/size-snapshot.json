@@ -30,6 +30,10 @@
       "raw": 3778,
       "gzip": 1904
     },
+    "reactivity": {
+      "raw": 1311,
+      "gzip": 677
+    },
     "computed": {
       "raw": 298,
       "gzip": 241
@@ -45,6 +49,10 @@
     "slots": {
       "raw": 9195,
       "gzip": 3426
+    },
+    "hydrate": {
+      "raw": 16938,
+      "gzip": 6210
     },
     "inserts": {
       "raw": 486,

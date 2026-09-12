@@ -127,10 +127,12 @@ describing the bytes honestly.)*
 | `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 316 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 1 904 B | `<${tag}>` — runtime tag names, in templates and JSX |
+| `@verajs/reactivity` | 677 B | the standalone store — subscriptions without components |
 | `@verajs/reactivity/computed` | 241 B | memoised derived values |
 | `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/hydrate` | 6 210 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
 | `@verajs/inserts` | 357 B | the extension point |
 | `@verajs/directives/core` | 6 141 B | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | 7 470 B | the engine with its own store, for a page running no vera |

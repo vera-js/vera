@@ -18,10 +18,12 @@ export const MODULES = [
   { pkg: 'styles', dist: 'packages/styles/dist/vera-styles.min.js', what: '`static styles` adoption, shadow and light DOM' },
   { pkg: 'spread', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-spread.min.js', what: '`${spread(props)}` — runtime-named bindings' },
   { pkg: 'tag', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-tag.min.js', what: '`<${tag}>` — runtime tag names, in templates and JSX' },
+  { pkg: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity.min.js', what: 'the standalone store — subscriptions without components' },
   { pkg: 'computed', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-computed.min.js', what: 'memoised derived values' },
   { pkg: 'collections', dir: 'reactivity', dist: 'packages/reactivity/dist/vera-reactivity-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
   { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },
+  { pkg: 'hydrate', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-hydrate.min.js', what: 'INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
   /**
    * `@verajs/directives` enrols per ENTRY, not as one number, because one number is the thing that
