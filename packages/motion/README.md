@@ -57,8 +57,13 @@ wireFunctions({ scrub: (el, p) => {
 
 Live: `examples/directives/scrub-lab.html`.
 
-`fastSeek(p * duration)` trades frame accuracy for more paints where engines support it; start
-with the gate alone.
+**Fast-scrub smoothing, measured on the lab's own file**: raw fast scrolling jumps the target
+several seconds per painted frame (4 seeks, mean 2.5s apart — the choppiness). `inertia: 0.35`
+composes — the chase sweeps THROUGH the intermediate times, and the seek pipeline follows
+(39 seeks, mean 0.26s apart; ~10× finer from one setting). The remaining ceiling is the FILE:
+seek speed is dominated by keyframe interval, so scrub-destined videos should be encoded
+all-intra (`ffmpeg -g 1` — every frame seekable), which is how the trademark product pages do
+it. `fastSeek(t)` trades exactness for throughput where supported; start with the gate + inertia.
 
 **The buildless ladder** — first-frame options for a page with no build step at all, in order of
 effort: (1) load the script at **body-end with a sync wire** — elements generate before first

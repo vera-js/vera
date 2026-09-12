@@ -295,3 +295,18 @@ test('elect: the section MOST IN VIEW wins by ratio; ties go to document order; 
   host.remove();
   await settled();
 });
+
+test('size:viewport answers the screen question — width in state, band said inline', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ s: {} }">
+      <div data-vd-size="s:viewport" style="width: 10px"></div>
+      <p data-vd-show="s.width < 5000">narrow enough</p>
+    </div>`);
+  await new Promise((r) => setTimeout(r, 30));
+  await settled();
+  assert.equal(stateOf(host.firstElementChild).s.width, dom.window.innerWidth,
+    'the VIEWPORT width, not the 10px element');
+  assert.equal(host.querySelector('p').hidden, false, 'and the band is an ordinary expression');
+  host.remove();
+  await settled();
+});

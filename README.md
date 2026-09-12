@@ -27,9 +27,9 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.32 KB | 3.11 KB |
-| `@verajs/directives/directives-sensors` | 7.37 KB | 2.94 KB |
+| `@verajs/directives/directives-sensors` | 7.41 KB | 2.95 KB |
 | `@verajs/directives/directives-remote` | 9.31 KB | 3.80 KB |
-| `@verajs/directives/directives-motion` | 77.24 KB | 25.39 KB |
+| `@verajs/directives/directives-motion` | 77.36 KB | 25.38 KB |
 | `@verajs/motion` | 36.57 KB | 12.07 KB |
 | `@verajs/motion/motion-ssr` | 36.05 KB | 11.56 KB |
 | `@verajs/motion/motion-client` | 7.89 KB | 2.89 KB |

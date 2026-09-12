@@ -63,9 +63,9 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 343 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 942 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 186 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
-| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 009 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
+| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 022 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 888 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 997 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 986 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -123,7 +123,9 @@ designed page.
 - **`sensors`** — `in-view`, `size`, `pointer`, `elect`, `scroll-progress`, `swipe`. Every one
   degrades to a readable page when the capability is missing. `in-view` takes `:once` (latch —
   a reveal is not un-revealed) and `:down` (directional latch: only a downward exit resets, so
-  the reveal replays on the way back down); `pointer` takes `:viewport` for the ambient form,
+  the reveal replays on the way back down); `pointer` and `size` take `:viewport` — ambient pointer, and the screen question
+  (`data-vd-size="s:viewport"` + `data-vd-show="s.width < 768"`: breakpoints as ordinary
+  expressions, no named-band table to define);
   or wire it from JavaScript — `sensors({ pointer: 'p' })` is `<body data-vd-pointer=
   "p:viewport">` said from code, the dual for platforms that cannot author markup. `elect`
   holds an election among all elements sharing a key — the one MOST in view wins — the key holds the active

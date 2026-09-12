@@ -999,6 +999,16 @@ export const updateElement = (
     const gate = element.gateHeld ?? element.gateWas ?? matches;
     if (!gate) {
       if (force || element.timelinePosition !== element.lowestStart) {
+        /**
+         * A PLAYING element's gate closing is a REVERSED PLAY, not a snap (found live in the
+         * play lab: the CSS lane glided home on its transition while this path's instant sync
+         * teleported the ramp lane). The same proportional ramp that carried it out carries it
+         * back; animateElement's sync below defers to the armed clock. Scrub elements keep the
+         * instant rest — a gate closing on a scrub has no play-clock to honour.
+         */
+        if (element.playing && element.generated && !element.generated.transition) {
+          for (const d of element.generated.drives) rampTo(d.driven, element.lowestStart, element.generated.play ?? 0);
+        }
         element.timelinePosition = element.lowestStart;
         animateElement(element);
       }

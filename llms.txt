@@ -1034,7 +1034,9 @@ support or reduced-motion degrade to the instant swap).
 `<div data-vd-in-view="near" data-vd-fetch="{ url: …, on: 'vera:in-view', place: 'append' }">`,
 three existing pieces composing for real. `data-vd-in-view="seen:once"` latches (a reveal is not
 un-revealed); `"reveal:down"` is a directional latch — only a downward exit (the reader going
-back up) resets, so the reveal replays coming down; `data-vd-pointer="p:viewport"` measures the
+back up) resets, so the reveal replays coming down; `data-vd-size="s:viewport"` writes the WINDOW's size — breakpoints
+are ordinary expressions (`data-vd-show="s.width < 768"`), no band vocabulary to learn;
+`data-vd-pointer="p:viewport"` measures the
 whole viewport (the ambient form — `sensors({ pointer: 'p' })` sets exactly that attribute on
 body from JavaScript); `data-vd-elect="toc"` on each section holds an election — the one
 MOST in view wins, its id written to the key (`''` when none) — nav highlighting is `data-vd-class="{ active:

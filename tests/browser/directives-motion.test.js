@@ -283,3 +283,24 @@ it('when+play delivers CLIENT-SIDE on a real sheet — the empty noJsRule never 
   el.remove();
   await settled();
 });
+
+it('a RAMP-KEPT play reverses on gate close — a reversed play, never a snap (the play lab\'s find)', async () => {
+  const el = document.createElement('div');
+  el.setAttribute('data-vd-motion',
+    "{ keyframes: { opacity: '0% 0.2, 50% 1, 100% 0.8' }, when: '.go', play: 0.25, progress: '--q' }");
+  document.body.appendChild(el);
+  await settled();
+  el.classList.add('go');
+  await new Promise((r) => setTimeout(r, 450));
+  expect(Number(el.style.getPropertyValue('--q')), 'played to the end first').to.be.greaterThan(0.99);
+
+  el.classList.remove('go');
+  await new Promise((r) => setTimeout(r, 100));
+  const midway = Number(el.style.getPropertyValue('--q'));
+  expect(midway, 'mid-reverse the value is BETWEEN the ends — sweeping, not teleporting')
+    .to.be.greaterThan(0.05).and.lessThan(0.95);
+  await new Promise((r) => setTimeout(r, 400));
+  expect(Number(el.style.getPropertyValue('--q')), 'and it arrived home').to.equal(0);
+  el.remove();
+  await settled();
+});

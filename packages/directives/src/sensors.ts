@@ -292,7 +292,16 @@ const size: Directive = {
     example: 'data-vd-size="box"',
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-size', ctx);
+    const rawKey = keyFor(el, 'data-vd-size', ctx);
+    /**
+     * `:viewport` — the screen-question scope, same grammar as pointer's: writes the WINDOW's
+     * inner size on resize instead of this element's box. This is the breakpoint door done the
+     * vera way: no named-band table to define or collide over — `data-vd-show="s.width < 768"`
+     * says the band inline, and a page pays only when it asks. (The expression-grammar
+     * `@screen` alternative was declined: viewport state is a SENSOR's job.)
+     */
+    const viewport = rawKey?.endsWith(':viewport') ?? false;
+    const key = viewport ? rawKey!.slice(0, -':viewport'.length) : rawKey;
     if (!key) return;
     let last: Record<string, number | boolean> = { width: -1, height: -1 };
     const measure = () => {
