@@ -1036,8 +1036,8 @@ three existing pieces composing for real. `data-vd-in-view="seen:once"` latches 
 un-revealed); `"reveal:down"` is a directional latch — only a downward exit (the reader going
 back up) resets, so the reveal replays coming down; `data-vd-pointer="p:viewport"` measures the
 whole viewport (the ambient form — `sensors({ pointer: 'p' })` sets exactly that attribute on
-body from JavaScript); `data-vd-spy="toc"` on each section elects the one MOST in view and
-writes its id to the key (`''` when none) — nav highlighting is `data-vd-class="{ active:
+body from JavaScript); `data-vd-elect="toc"` on each section holds an election — the one
+MOST in view wins, its id written to the key (`''` when none) — nav highlighting is `data-vd-class="{ active:
 toc == 'intro' }"`. `data-vd-copy` takes `data-vd-copy-done="copied"`, a key written true on
 success and self-clearing 2s later — the badge is `data-vd-show="copied"`.
 

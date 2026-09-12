@@ -135,3 +135,25 @@ test('tick beside keyframes: both destinations fire from one number', async () =
   host.remove();
   await settled();
 });
+
+test('LATE BINDING: a function registered AFTER the element activated still runs — the natural page order', async () => {
+  /** Found live by the scrub lab: churn activation runs synchronously inside wireDirectives,
+   *  so `wireDirectives([motion]); wireFunctions({...})` — the order every page naturally
+   *  writes — registered one statement too late and the tick silently never ran. The door is
+   *  late-bound now: the unknown-name report still fires at activation, and the binding keeps
+   *  asking until the registry answers. */
+  const host = await mount(`<div data-vd-motion="{ function: 'latecomer', scroll: '100%, 0%' }">x</div>`);
+  const el = host.querySelector('div');
+  assert.ok(rejections(el).some((r) => r.code === 'motion-function-unknown'),
+    'the activation-time report still fires — the trap is named the moment it exists');
+
+  const landed = [];
+  wireFunctions({ latecomer: (node, p) => landed.push(p) });
+  /** Any drive write re-runs the tick; a resize/measure pass is the cheapest trigger. */
+  dom.window.dispatchEvent(new dom.window.Event('scroll'));
+  await new Promise((r) => setTimeout(r, 80));
+  await settled();
+  assert.ok(landed.length > 0, 'the late registration was found — one Map.get per frame only while unresolved');
+  host.remove();
+  await settled();
+});

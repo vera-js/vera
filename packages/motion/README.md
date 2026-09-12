@@ -42,11 +42,20 @@ write while a seek is in flight paints every frame the pipeline can actually del
 48 painted, 16 visual fps — 3.4× smoother from one condition):
 
 ```js
-wireFunctions({ scrub: (el, p) => { if (!el.seeking) el.currentTime = p * el.duration; } });
+wireFunctions({ scrub: (el, p) => {
+  const t = Math.min(1, Math.max(0, p));   // timeline positions are unclamped by design
+  if (!el.seeking && el.duration) el.currentTime = t * el.duration;
+} });
 ```
 ```html
-<video data-vd-motion="{ scroll: '80%, 20%', function: 'scrub' }" muted preload="auto" src="…"></video>
+<!-- sticky fullscreen scrub: a sticky element does not travel, so the RUNWAY is the scope -->
+<div class="runway"><div class="stage">
+  <video data-vd-motion="{ anchor: '.runway', scroll: 'top top, bottom bottom', function: 'scrub' }"
+         muted preload="auto" src="…"></video>
+</div></div>
 ```
+
+Live: `examples/directives/scrub-lab.html`.
 
 `fastSeek(p * duration)` trades frame accuracy for more paints where engines support it; start
 with the gate alone.

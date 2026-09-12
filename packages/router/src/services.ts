@@ -48,20 +48,23 @@ let animateNavigations = false;
  * beside `renderer`, `collections` and `autoloader(…)`, and which of them is a descriptor and
  * which is a connector is not something an app should have to know.
  */
-export const router = (given: Inserts | { animate?: boolean }): void | ((registry: Inserts) => void) => {
+export const router = (given: Inserts | { animate?: boolean; base?: string }): void | ((registry: Inserts) => void) => {
   if (typeof (given as Inserts)?.get === 'function') {
     registry = given as Inserts;
     return;
   }
-  const options = (given ?? {}) as { animate?: boolean };
+  const options = (given ?? {}) as { animate?: boolean; base?: string };
   if (__DEV__) {
     for (const key of Object.keys(options))
-      if (key !== 'animate')
-        console.warn(`[vera] router: \`${key}\` is not a router option, so it was ignored. The options are animate.`);
+      if (key !== 'animate' && key !== 'base')
+        console.warn(`[vera] router: \`${key}\` is not a router option, so it was ignored. The options are animate, base.`);
   }
   /** Applied immediately, not in the returned connector: the no-core path (`setRouterRenderer`)
    *  never wires the connector and must still be able to opt in. */
   if (options.animate === true) animateNavigations = true;
+  /** The one config door (docs teach this form); `setBasePath` remains as the no-core path's
+   *  imperative sibling, exactly as `setRouterRenderer` pairs with wiring. */
+  if (typeof options.base === 'string') setBasePath(options.base);
   return (given_: Inserts) => {
     registry = given_;
   };

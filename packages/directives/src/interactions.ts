@@ -537,17 +537,37 @@ const docClass: Directive = {
 
 /** Ref-counted — two open drawers must not fight over one overflow style. */
 let locks = 0;
+/** What the page's root carried before the first lock, restored after the last — a lock must
+ *  never clobber an author's own inline overflow. */
+let lockSaved: { overflow: string; padding: string } | null = null;
+
 const scrollLock: Directive = {
   name: 'scroll-lock',
   value: 'expression',
-  docs: { summary: 'Locks page scroll while the expression is truthy. Locks stack.', example: 'data-vd-scroll-lock="open"' },
+  docs: { summary: 'Locks page scroll while the expression is truthy, compensating the vanished scrollbar. Locks stack.', example: 'data-vd-scroll-lock="open"' },
   setup(el) {
     let holding = false;
     const set = (on: boolean) => {
       if (on === holding) return;
       holding = on;
       locks += on ? 1 : -1;
-      el.ownerDocument.documentElement.style.overflow = locks > 0 ? 'hidden' : '';
+      const root = el.ownerDocument.documentElement;
+      if (on && locks === 1) {
+        /**
+         * SCROLLBAR COMPENSATION — the half everyone forgets, measured by the twin engine
+         * shipping it first: hiding overflow removes the scrollbar and the whole page shifts
+         * sideways on open. padding-right sized to the vanished bar holds the layout still;
+         * zero on overlay-scrollbar platforms, where there is nothing to compensate.
+         */
+        const bar = (el.ownerDocument.defaultView?.innerWidth ?? root.clientWidth) - root.clientWidth;
+        lockSaved = { overflow: root.style.overflow, padding: root.style.paddingRight };
+        root.style.overflow = 'hidden';
+        if (bar > 0) root.style.paddingRight = `${bar}px`;
+      } else if (!on && locks === 0 && lockSaved) {
+        root.style.overflow = lockSaved.overflow;
+        root.style.paddingRight = lockSaved.padding;
+        lockSaved = null;
+      }
     };
     return {
       apply: (_element: Element, value: unknown) => {

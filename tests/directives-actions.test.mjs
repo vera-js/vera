@@ -149,3 +149,34 @@ test('copy-done: success writes the flag, and it self-clears for the badge patte
     if (restore) Object.defineProperty(globalThis, 'navigator', restore);
   }
 });
+
+test('scroll-lock compensates the vanished scrollbar and RESTORES the author\'s inline styles', async () => {
+  const root = doc.documentElement;
+  Object.defineProperty(root, 'clientWidth', { configurable: true, value: 1000 });
+  root.style.overflow = 'auto';
+  root.style.paddingRight = '3px';
+  try {
+    const host = doc.createElement('div');
+    host.innerHTML = `
+      <div data-vd-state="{ open: false }">
+        <aside data-vd-scroll-lock="open"></aside>
+        <button data-vd-on-click="{ open: !open }">toggle</button>
+      </div>`;
+    doc.body.appendChild(host);
+    await settled();
+    const toggle = () => { host.querySelector('button').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); };
+    toggle(); await settled();
+    assert.equal(root.style.overflow, 'hidden', 'locked');
+    assert.equal(root.style.paddingRight, `${dom.window.innerWidth - 1000}px`,
+      'padding sized to the vanished scrollbar — the page must not shift sideways');
+    toggle(); await settled();
+    assert.equal(root.style.overflow, 'auto', 'the AUTHOR\'S overflow came back, not empty string');
+    assert.equal(root.style.paddingRight, '3px', 'and the author\'s padding');
+    host.remove();
+    await settled();
+  } finally {
+    delete root.style.overflow;
+    root.style.overflow = '';
+    root.style.paddingRight = '';
+  }
+});

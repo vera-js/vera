@@ -541,19 +541,20 @@ export const createRuntimeElement = (
   let tickTeardown: (() => void) | null = null;
   const tickName = parsed.settings['function'];
   if (typeof tickName === 'string') {
-    const module = functionFor(tickName);
-    if (!module) rejectFor('motion-function-unknown', [tickName]);
-    else {
-      let dead = false;
-      tick = (progress: number): void => {
-        if (dead) return;
-        try {
-          module.run(node as HTMLElement, progress);
-        } catch (error) {
-          dead = true;
-          rejectFor('motion-function-threw', [tickName, String(error)]);
-        }
-      };
+    /**
+     * LATE-BOUND, because a registry is dynamic and an activation-time snapshot of one is
+     * wrong (the actions door's own rule, relearned here the hard way): churn activation runs
+     * SYNCHRONOUSLY inside wireDirectives, so the natural page order —
+     * `wireDirectives([motion]); wireFunctions({...});` — registered one statement too late
+     * and the function silently never ran (found live by the scrub lab). The unknown-name
+     * report still fires at activation exactly as before; the binding just keeps asking. The
+     * cost is one Map.get per frame ONLY while unresolved — once found, the module is held
+     * and its setup runs at that first landing.
+     */
+    let dead = false;
+    let bound: ReturnType<typeof functionFor> = null;
+    const bind = (module: NonNullable<ReturnType<typeof functionFor>>): void => {
+      bound = module;
       if (module.setup) {
         try {
           const off = module.setup(node as HTMLElement, parsed.settings, rejectFor);
@@ -563,7 +564,26 @@ export const createRuntimeElement = (
           rejectFor('motion-function-threw', [tickName, String(error)]);
         }
       }
-    }
+    };
+    const first = functionFor(tickName);
+    if (first) bind(first);
+    else rejectFor('motion-function-unknown', [tickName]);
+    tick = (progress: number): void => {
+      if (dead) return;
+      if (!bound) {
+        const found = functionFor(tickName);
+        if (!found) return;
+        bind(found);
+        if (dead) return;
+      }
+      try {
+        /** bind() above is what set it — the flow the checker cannot follow. */
+        bound!.run(node as HTMLElement, progress);
+      } catch (error) {
+        dead = true;
+        rejectFor('motion-function-threw', [tickName, String(error)]);
+      }
+    };
   }
 
   let generated: RuntimeElement['generated'] = null;

@@ -79,6 +79,12 @@
       "message": "data-vd-doc-class takes a braced object."
     },
     {
+      "code": "elect-no-id",
+      "params": [],
+      "message": "this section has no id, so the election has nothing to name.",
+      "fix": "Give the element an id — the state key holds the active id."
+    },
+    {
       "code": "every-bad-interval",
       "params": [
         "key"
@@ -141,6 +147,13 @@
       ],
       "message": "could not parse \"{raw}\": {detail}.",
       "fix": "Check the attribute value against the syntax for this directive."
+    },
+    {
+      "code": "fetch-bad-cache",
+      "params": [
+        "given"
+      ],
+      "message": "cache: {given} is not a positive number of seconds."
     },
     {
       "code": "fetch-bad-debounce",
@@ -1117,12 +1130,6 @@
         "cap"
       ],
       "message": "split=\"{mode}\" would make {count} pieces, over the {cap} limit."
-    },
-    {
-      "code": "spy-no-id",
-      "params": [],
-      "message": "this section has no id, so the election has nothing to name.",
-      "fix": "Give the element an id — the state key holds the active id."
     },
     {
       "code": "state-not-object",

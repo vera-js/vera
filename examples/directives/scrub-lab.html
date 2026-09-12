@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scrub lab — a video driven by scroll</title>
+<style>
+  body { margin: 0; font: 15px/1.5 system-ui; background: #0b0b10; color: #eee; }
+  /** The Apple-page shape: a 400vh runway; the video rides sticky and fullscreen through it. */
+  .runway { height: 400vh; position: relative; }
+  .stage { position: sticky; top: 0; height: 100vh; overflow: clip; }
+  video { width: 100vw; height: 100vh; object-fit: cover; display: block; }
+  .hud { position: fixed; top: 1rem; left: 1rem; z-index: 2; background: rgb(0 0 0 / 0.55);
+         padding: 0.6rem 1rem; border-radius: 0.6rem; font-variant-numeric: tabular-nums; }
+  .after { padding: 4rem 1.5rem; max-width: 700px; margin: 0 auto; }
+  #how summary { cursor: pointer; font-weight: 700; }
+  #how pre { background: #16161f; border-radius: 0.6rem; padding: 0.9rem; overflow-x: auto; font-size: 0.78rem; }
+  .note { color: #aaa; font-size: 0.9rem; }
+</style>
+
+<div class="hud">scroll — <span id="p">0.000</span> · frame time <span id="t">0.0</span>s</div>
+
+<div class="runway">
+  <div class="stage">
+    <video muted preload="auto" playsinline
+      src="https://greenlightdash.pro/wp-content/uploads/2026/05/videoupscale-web.mp4"
+      data-vd-motion="{ anchor: '.runway', scroll: 'top top, bottom bottom', function: 'scrub', progress: '--p' }"></video>
+  </div>
+</div>
+
+<div class="after">
+  <h2>that was the whole feature</h2>
+  <p class="note">One registered function and one attribute — the measured recipe, not a pack:
+  the seek gate (<code>if (!el.seeking)</code>) is what turned 5 visual fps into 16 on this very
+  file (181 writes painted 14 frames ungated; 48 painted 48 gated).</p>
+  <details id="how" open>
+    <summary>how this is built — the actual code on this page</summary>
+    <pre><code id="src-markup"></code></pre>
+    <pre><code id="src-wiring"></code></pre>
+  </details>
+</div>
+
+<script type="module">
+  /** The honesty device: the page shows its own code, captured before wiring. */
+  document.getElementById('src-markup').textContent =
+    document.querySelector('.runway').outerHTML.replace(/&gt;/g, '>');
+  /* .at(-1) because the marker also appears in this very line's split argument. */
+  document.getElementById('src-wiring').textContent =
+    document.querySelector('script[type=module]').textContent.split('/* wiring */').at(-1).trim();
+
+  /* wiring */
+  import { wire } from '/packages/core/dist/vera.min.js';
+  import { renderer } from '/packages/renderer/dist/vera-renderer.min.js';
+  import { wireDirectives, directives, motion, wireFunctions }
+    from '/packages/directives/dist/vera-directives.min.js';
+  wire([renderer, directives]);
+  wireDirectives([motion({ inertia: 0 })]);
+
+  /** THE RECIPE, verbatim from the README — the gate is the measured 3.4×. Registered AFTER
+   *  the pack on purpose: the natural order, which the late-bound function door now honors
+   *  (this page is the regression's living proof). */
+  wireFunctions({
+    scrub: (el, p) => {
+      const t = Math.min(1, Math.max(0, p)); /* timeline positions are unclamped by design */
+      if (!el.seeking && el.duration) el.currentTime = t * el.duration;
+    },
+  });
+
+  /* the HUD is just reflection over the same numbers */
+  const video = document.querySelector('video');
+  setInterval(() => {
+    document.getElementById('p').textContent =
+      (video.style.getPropertyValue('--p') || '0').slice(0, 6);
+    document.getElementById('t').textContent = video.currentTime.toFixed(1);
+  }, 100);
+</script>

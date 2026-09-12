@@ -368,6 +368,28 @@ test('debounce: a burst of triggers is ONE request, after the quiet', async () =
   await settled();
 });
 
+test('cache: a fresh GET replays from the held response — one wire hit inside the TTL', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ n: 0 }">
+      <button id="cached" data-vd-fetch="{ url: '${ORIGIN}/counted?who=cache', on: 'click', cache: 1 }">go</button>
+      <b data-vd-text="n"></b>
+    </div>`);
+  const button = host.querySelector('#cached');
+  button.click();
+  await until(() => host.querySelector('b').textContent !== '0', 'first landing');
+  const first = host.querySelector('b').textContent;
+  button.click();
+  await new Promise((r) => setTimeout(r, 120));
+  await settled();
+  assert.equal(host.querySelector('b').textContent, first,
+    'the second click replayed the HELD body — the server saw one request');
+  await new Promise((r) => setTimeout(r, 1000));
+  button.click();
+  await until(() => host.querySelector('b').textContent !== first, 'past the TTL, the wire again');
+  host.remove();
+  await settled();
+});
+
 test('THE HEADLINE: markup from the network is live on its first click — no hydration step', async () => {
   const host = await mount(`
     <div data-vd-state="{ clicks: 0 }">

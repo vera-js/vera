@@ -73,6 +73,9 @@ const resolveUrl = (raw: unknown): { href: string; sameOrigin: boolean } | null 
   return { href: url.href, sameOrigin };
 };
 
+/** GET responses held for `cache:` replay — keyed by resolved URL, shared across elements. */
+const responseCache = new Map<string, { at: number; type: string; body: string }>();
+
 /** Elements already warned about URL-bound feed depth — the pun guard fires once per element. */
 const warnedFeedDepth = new WeakSet<Element>();
 
@@ -138,6 +141,17 @@ const fetchDirective: Directive = {
           ? (read('method') as string).toUpperCase()
           : read('body') !== undefined ? 'POST' : 'GET';
 
+        /**
+         * `cache: 60` — seconds a GET's response stays reusable, keyed by the resolved URL and
+         * shared across elements (two widgets polling one endpoint cost one request). Fresh
+         * hits replay the stored body through the SAME response law, so a cached JSON patch
+         * and a cached markup swap behave exactly as their first landing did. POST and friends
+         * never cache — a mutation's answer is not a value.
+         */
+        const cacheRaw = read('cache');
+        const cacheFor = typeof cacheRaw === 'number' && cacheRaw > 0 ? cacheRaw * 1000 : 0;
+        if (cacheRaw !== undefined && cacheFor === 0) context.reject('fetch-bad-cache', [String(cacheRaw)]);
+
         /** One in flight per element: a later request aborts an earlier one, so a slow response
          *  can never land after a fast one and write stale state. */
         let inflight: AbortController | null = null;
@@ -151,6 +165,14 @@ const fetchDirective: Directive = {
           if (status) context.set(status, 'loading');
 
           try {
+            if (cacheFor && method === 'GET') {
+              const held = responseCache.get(target.href);
+              if (held && Date.now() - held.at < cacheFor) {
+                applyResponse(held.type, held.body);
+                if (status) context.set(status, 'idle');
+                return;
+              }
+            }
             const response = await fetch(target.href, {
               method,
               signal: controller.signal,
@@ -171,10 +193,27 @@ const fetchDirective: Directive = {
             }
 
             const type = response.headers.get('content-type') ?? '';
+            const body = await response.text();
+            if (cacheFor && method === 'GET') responseCache.set(target.href, { at: Date.now(), type, body });
+            applyResponse(type, body);
+            if (status) context.set(status, 'idle');
+          } catch (error) {
+            /** An abort is this pack's own doing — the successor request owns the outcome. */
+            if ((error as Error)?.name === 'AbortError') return;
+            if (status) context.set(status, 'error');
+            context.reject('fetch-threw', [String((error as Error)?.message ?? error)]);
+          } finally {
+            if (inflight === controller) inflight = null;
+          }
+        };
+
+        /** ONE RESPONSE LAW, both arrivals: the wire and the cache replay come through here,
+         *  so a cached JSON patch or markup swap behaves exactly as its first landing did. */
+        const applyResponse = (type: string, body: string): void => {
             if (type.includes('json')) {
               /** A STATE PATCH. Every reflection already reads these keys, so nothing here
                *  renders anything — the page updates itself. */
-              const data = await response.json();
+              const data: unknown = JSON.parse(body);
               if (data && typeof data === 'object' && !Array.isArray(data)) {
                 for (const [key, patch] of Object.entries(data as Record<string, unknown>)) {
                   /** `_vd` is the engine's reserved prefix; a server may not write there. */
@@ -249,7 +288,7 @@ const fetchDirective: Directive = {
                   );
                 }
               }
-              const markup = await response.text();
+              const markup = body;
               const current = claimCommit(into);
               /**
                * The kinds say what actually happens. A replace is one region morphing (`swap`).
@@ -286,15 +325,6 @@ const fetchDirective: Directive = {
                 else into.insertAdjacentHTML(place === 'append' ? 'beforeend' : 'afterbegin', markup);
               });
             }
-            if (status) context.set(status, 'idle');
-          } catch (error) {
-            /** An abort is this pack's own doing — the successor request owns the outcome. */
-            if ((error as Error)?.name === 'AbortError') return;
-            if (status) context.set(status, 'error');
-            context.reject('fetch-threw', [String((error as Error)?.message ?? error)]);
-          } finally {
-            if (inflight === controller) inflight = null;
-          }
         };
 
         /**

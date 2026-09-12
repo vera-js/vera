@@ -265,7 +265,7 @@ const inView: Directive = {
        * documented before anything dispatched it (the parity diff caught the gap). The state
        * half remains the reflection surface; this is the trigger surface.
        */
-      el.dispatchEvent(new CustomEvent('vera:in-view', { bubbles: true, composed: true, detail: { visible } }));
+      el.dispatchEvent(new CustomEvent('vera:in-view', { bubbles: true, composed: true, detail: { key, visible } }));
       if (once && visible) stop?.();
     }, margin);
     /**
@@ -391,10 +391,10 @@ const pointer: Directive = {
   },
 };
 
-/* ── spy: one-active-among-a-group, the scrollspy election ───────────────────────────────── */
+/* ── elect: one-active-among-a-group — the scrollspy election, named for the mechanism ────── */
 
 /**
- * `data-vd-spy="toc"` on each section: the state key holds the id of the section MOST IN VIEW
+ * `data-vd-elect="toc"` on each section: the state key holds the id of the section MOST IN VIEW
  * — the owner's sentence, and the semantics omni SHIPPED, twinned here verbatim from their
  * election lore rather than re-derived: one shared TALLY per elected key; every spy reports
  * its intersection RATIO at eleven thresholds (0, .1 … 1 — fine enough to follow scroll,
@@ -407,15 +407,15 @@ const pointer: Directive = {
  * observers — per-element booleans structurally cannot pick one of two adjacent sections both
  * legitimately in view — which is why this is a directive and not a recipe.
  */
-const SPY_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
-interface SpyGroup {
+const ELECT_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+interface ElectGroup {
   readonly members: Map<Element, { ratio: number; ctx: Ctx }>;
   observer: IntersectionObserver | null;
   current: string | null;
 }
-const spyGroups = new Map<string, SpyGroup>();
+const electGroups = new Map<string, ElectGroup>();
 
-const electSpy = (key: string, group: SpyGroup): void => {
+const runElection = (key: string, group: ElectGroup): void => {
   let best: { el: Element; ctx: Ctx; ratio: number } | null = null;
   for (const [el, member] of group.members) {
     if (member.ratio > 0 && (!best || member.ratio > best.ratio)) best = { el, ctx: member.ctx, ratio: member.ratio };
@@ -426,25 +426,25 @@ const electSpy = (key: string, group: SpyGroup): void => {
   (best?.ctx ?? [...group.members.values()][0]?.ctx)?.set(key, id);
 };
 
-const spy: Directive = {
-  name: 'spy',
+const elect: Directive = {
+  name: 'elect',
   value: 'literal',
   priority: 60,
   docs: {
     summary: "Elects the section MOST IN VIEW among all elements sharing this key — the state key holds its id, '' when none.",
-    example: 'data-vd-spy="toc"',
+    example: 'data-vd-elect="toc"',
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-spy', ctx);
+    const key = keyFor(el, 'data-vd-elect', ctx);
     if (!key) return;
     if (!el.id) {
-      ctx.reject('spy-no-id');
+      ctx.reject('elect-no-id');
       return;
     }
-    let group = spyGroups.get(key);
+    let group = electGroups.get(key);
     if (!group) {
       group = { members: new Map(), observer: null, current: null };
-      spyGroups.set(key, group);
+      electGroups.set(key, group);
       if (typeof IntersectionObserver === 'function') {
         const forKey = key;
         const forGroup = group;
@@ -453,8 +453,8 @@ const spy: Directive = {
             const member = forGroup.members.get(record.target);
             if (member) member.ratio = record.isIntersecting ? record.intersectionRatio : 0;
           }
-          electSpy(forKey, forGroup);
-        }, { threshold: SPY_THRESHOLDS });
+          runElection(forKey, forGroup);
+        }, { threshold: ELECT_THRESHOLDS });
       }
       /** Seeded, so `data-vd-class="{ active: toc == 'intro' }"` never reads undefined. */
       ctx.set(key, '');
@@ -471,10 +471,10 @@ const spy: Directive = {
     return () => {
       group!.observer?.unobserve(el);
       group!.members.delete(el);
-      electSpy(key, group!);
+      runElection(key, group!);
       if (group!.members.size === 0) {
         group!.observer?.disconnect();
-        spyGroups.delete(key);
+        electGroups.delete(key);
       }
     };
   },
@@ -689,7 +689,7 @@ export interface SensorsOptions {
 }
 
 const connect = (options?: SensorsOptions): EngineConnector => (seams) => {
-  for (const directive of [inView, size, pointer, spy, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
+  for (const directive of [inView, size, pointer, elect, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
   const ambient = options?.pointer;
   if (typeof ambient === 'string' && ambient !== '' && typeof document !== 'undefined') {
     const apply = () => document.body?.setAttribute('data-vd-pointer', `${ambient}:viewport`);

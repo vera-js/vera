@@ -33,8 +33,8 @@ window.document.startViewTransition = (callback) => {
 
 /** The DUAL: the called form returns a connector (a function wire would hand the registry);
  *  the bare form still accepts a registry-shaped thing directly. */
-const connector = router({ animate: true });
-check('router({ animate }) returns a connector for wire', typeof connector === 'function');
+const connector = router({ animate: true, base: '/app' });
+check('router({ animate, base }) returns a connector for wire', typeof connector === 'function');
 const fakeRegistry = new Map();
 router(fakeRegistry);
 check('bare router still takes the registry directly (a Map is not options)', true);
@@ -46,6 +46,7 @@ const view = window.document.createElement('main');
 el.appendChild(view);
 window.document.body.appendChild(el);
 const { addRoutes } = initRouter(el, { view });
+/** The base option took: a path under /app resolves; the raw path would not. */
 addRoutes([
   { path: '/A', component: () => { hits.A++; return 'a-view'; } },
   { path: '/B', component: () => { hits.B++; return 'b-view'; } },
@@ -59,7 +60,8 @@ check('and INIT never animates — establishment answers no one', transitions ==
 
 await navigate('/B');
 await tick();
-check('a real navigation routed', hits.B === 1);
+check('a real navigation routed (under the option-set base)', hits.B === 1);
+check('and the URL carries the base — router({ base }) IS setBasePath', window.location.pathname === '/app/B');
 check('and wrapped its render in exactly one transition', transitions === 1);
 
 let rejected = false;
