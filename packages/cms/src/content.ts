@@ -15,10 +15,10 @@ export type { Root, Block, Inline, ListItem, ContentFile, FrontmatterMap, Frontm
 export { serializeHtml } from './serialize.js';
 /** The read path proper: the pure query core, and the fetching reader over it. */
 export { queryEntries } from './query.js';
-export type { QueryOptions, ReaderEntry } from './query.js';
+export type { QueryOptions, ReaderEntry } from './types.js';
 export { createReader } from './reader.js';
 /** The runtime twin of serializeHtml: AST to real nodes, no article-sized innerHTML anywhere. */
 export { buildDom } from './dom.js';
-export type { BuildDomOptions } from './dom.js';
-export type { Reader, ReaderOptions } from './reader.js';
+export type { BuildDomOptions } from './types.js';
+export type { Reader, ReaderOptions } from './types.js';
 export type { Manifest, ManifestEntry } from './types.js';

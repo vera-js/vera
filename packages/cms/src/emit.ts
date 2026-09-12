@@ -1,3 +1,4 @@
+import type { CollectionSchema, Field, Schema } from './types.js';
 /**
  * The interchange artifact: each collection's frontmatter contract, emitted as standard JSON
  * Schema (2020-12). `content/schema.json` is the *authoring* format — compact, ours, written by
@@ -14,7 +15,6 @@
  *
  * The body is not here: this is the frontmatter's schema, and the body is markdown, not a field.
  */
-import { CollectionSchema, Field, Schema } from './schema.js';
 
 /**
  * One property's JSON Schema, from one declared field.

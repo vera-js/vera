@@ -8,26 +8,9 @@
  * declarative, JSON-able `where` belongs with the schema layer that can type it — a serializable
  * query only becomes *safe to hand an agent* once fields have declared types to validate against.
  */
-import type { ManifestEntry } from './types.js';
+import type { ManifestEntry, QueryOptions } from './types.js';
 
 /** A manifest row as a reader returns it — stamped with where it came from. */
-export type ReaderEntry = ManifestEntry & { collection: string };
-
-export type QueryOptions<E extends ManifestEntry> = {
-  /** Keep an entry when this answers true. Absent, everything qualifies. */
-  filter?: (entry: E) => boolean;
-  /**
-   * `'field'` ascending or `'field:desc'` — `date:desc` is the archetype. The field resolves from
-   * the entry's frontmatter first, then the row itself (`slug` works). Absent, manifest order —
-   * slug-sorted — stands.
-   */
-  sort?: string;
-  /** Rows to skip before taking, for pagination. */
-  offset?: number;
-  /** Most rows to return. */
-  limit?: number;
-};
-
 /**
  * Filters, sorts, and slices entries — the whole of what a listing page asks for.
  *

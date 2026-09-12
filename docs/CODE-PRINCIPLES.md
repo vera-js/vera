@@ -64,6 +64,14 @@ happened to get written.
 
 **The shape.** Every package keeps one `src/types.ts` holding its cross-file and public types.
 A type used by exactly one file stays in that file, **unexported** (`ref.ts` is the model).
+**One carve-out, added 2026-09-12 during the conventions pass** (owner-sanctioned, with the
+reasoning recorded rather than the rule silently softened): **a wireable factory's OPTIONS
+interface lives beside the factory it configures** — `RemoteOptions` next to `remote`,
+`SensorsOptions` next to `sensors` — exported from there even though it is single-file. It is
+the factory's signature: its field docs reference the factory's behavior lines away, and
+splitting the pair across files makes both halves read worse for no structural gain (an options
+bag imports nothing, so the import-graph-root property is not at stake). Everything else
+cross-file or public still moves to `types.ts`.
 `types.ts` **imports nothing from inside its own package** — `@verajs/shared-types` only — so it
 sits at the root of the package's import graph and circular imports among a package's modules are
 structurally impossible, not accidentally avoided. A type two *packages* share lives in

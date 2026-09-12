@@ -24,39 +24,7 @@
  * writer is handed one, or a function that produces one fresh per request.
  */
 import { serializeContent } from './write.js';
-import type { FrontmatterMap } from './types.js';
-
-export type WriterOptions = {
-  /** `owner/name`, the repository this writer commits into. */
-  repo: string;
-  /** The branch to pin and publish to. Default `main`; an editorial flow points this at a session branch. */
-  branch?: string;
-  /** The token, or a function producing one — never stored beyond the call that needs it. */
-  token: string | (() => string | Promise<string>);
-  /** The API root; override for GitHub Enterprise or a test double. */
-  api?: string;
-};
-
-export type Staged = { path: string; text: string | null };
-
-export type Writer = {
-  /** Pins the branch head this session edits against. Required before publish; safe to re-call. */
-  open(): Promise<{ base: string }>;
-  /** Stages one content entry — serialized, uuid added at creation if the data carries none. */
-  stage(collection: string, slug: string, entry: { data: FrontmatterMap; body: string }): void;
-  /** Stages any file — how generated artifacts (manifests, contracts) ride the same commit. */
-  stageFile(path: string, text: string): void;
-  /** Stages a content entry's removal. */
-  remove(collection: string, slug: string): void;
-  /** Stages any file's removal. */
-  removeFile(path: string): void;
-  /** What would publish: every staged path, removals marked null. */
-  status(): { base: string | null; staged: Staged[] };
-  /** Drops one staged path, or everything. */
-  discard(path?: string): void;
-  /** Everything staged, as one commit. The overlay clears only when the ref lands. */
-  publish(options: { message: string }): Promise<{ commit: string }>;
-};
+import type { Writer, WriterOptions } from './types.js';
 
 /**
  * Anything that becomes a repository path is bounded before it does (CODE-PRINCIPLES #8: bound

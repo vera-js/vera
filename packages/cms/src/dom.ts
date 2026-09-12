@@ -22,12 +22,7 @@
  * path's full parser reassembles them. Their block form passes through both paths via one parse
  * and agrees exactly; inline is prose position, and prose position is for prose-shaped tags.
  */
-import type { Block, Inline, ListItem, Root } from './types.js';
-
-export type BuildDomOptions = {
-  /** The document to create nodes with. Defaults to the global — a page, a worker shim, jsdom. */
-  document?: Document;
-};
+import type { Block, BuildDomOptions, Inline, ListItem, Root } from './types.js';
 
 /**
  * Builds a parsed tree into a DocumentFragment.

@@ -28,43 +28,9 @@
  * handful of field types cover real content models, the shapes here are what the tooling writes,
  * and anything the subset cannot say fails loudly at schema load rather than validating wrongly.
  */
-import type { FrontmatterMap, FrontmatterValue } from './types.js';
+import type { CollectionSchema, Field, FrontmatterMap, FrontmatterValue, Schema, Validation } from './types.js';
 
 /** The field vocabulary. `text` is multiline prose; `string` is a line. */
-export type Field =
-  | { type: 'string' | 'text' | 'number' | 'boolean' | 'date' | 'image'; required?: boolean }
-  | { type: 'select'; options: string[]; required?: boolean }
-  | { type: 'reference'; collection: string; required?: boolean }
-  | { type: 'list'; of: 'string' | 'number'; required?: boolean }
-  /**
-   * Term slugs from a taxonomy — and the taxonomy IS a collection, whose entries are the terms
-   * (a term is content: it has a title, a description body, an image if it wants one). The value
-   * is a list of slugs; whether every slug names a real term is checked across collections at
-   * publish, not here — one file cannot see another.
-   */
-  | { type: 'taxonomy'; taxonomy: string; required?: boolean };
-
-export type CollectionSchema = {
-  /** Declared fields by name. The implicit three are not declared here. */
-  fields?: { [name: string]: Field };
-  /** `false` for label-less collections; absent means titled. */
-  title?: false;
-  /** `false` for data-only collections; absent means the markdown body exists. */
-  body?: false;
-};
-
-export type Schema = {
-  version: 1;
-  collections: { [name: string]: CollectionSchema };
-};
-
-export type Validation = {
-  /** Broken promises — a declared field violated. The publish fails on any of these. */
-  errors: string[];
-  /** Degradations — unknown fields, missing implicit ones. The publish continues. */
-  warnings: string[];
-};
-
 const FIELD_TYPES = new Set(['string', 'text', 'number', 'boolean', 'date', 'image', 'select', 'reference', 'list', 'taxonomy']);
 /**
  * What a collection or field may be called. The pattern bounds every place these names travel —

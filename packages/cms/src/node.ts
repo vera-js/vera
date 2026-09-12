@@ -15,38 +15,11 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { generateManifest, serializeManifest, ContentSource } from './manifest.js';
-import { parseSchema, Schema } from './schema.js';
+import { generateManifest, serializeManifest } from './manifest.js';
+import { parseSchema } from './schema.js';
 import { checkReferences, generateTaxonomies, serializeTaxonomies } from './taxonomy.js';
 import { emitJsonSchemas } from './emit.js';
-import type { Manifest } from './types.js';
-
-export type BuildOptions = {
-  /** The content root — one subdirectory per collection. Default `content`. */
-  content?: string;
-  /** Where the artifacts go. Default `_manifests`, which is where `createReader` looks. */
-  out?: string;
-};
-
-export type BuildResult = {
-  /** Every file written, `site.json` included, in written order. */
-  written: string[];
-  /** The generator's warnings, prefixed with nothing — presentation is the caller's. */
-  warnings: string[];
-};
-
-export type CheckResult = {
-  /** Artifacts whose bytes differ from what the content produces now. */
-  stale: string[];
-  /** Artifacts the content calls for that are not on disk at all. */
-  missing: string[];
-  /**
-   * Artifacts on disk the content no longer produces — a deleted collection's committed manifest,
-   * still deployed and still answering queries for content that does not exist. The first check
-   * only compared the expected set, so an orphan passed silently; found by the 2026-09 audit.
-   */
-  orphaned: string[];
-};
+import type { BuildOptions, BuildResult, CheckResult, ContentSource, Manifest, Schema } from './types.js';
 
 /**
  * One collection's files, read off disk in sorted order.

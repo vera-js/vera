@@ -18,18 +18,7 @@
  * Pure on purpose, like the generator: manifests in, result out — the browser worker and the Node
  * CLI run the identical integrity check, so a site publishes to the same standard from either.
  */
-import { CollectionSchema, Schema } from './schema.js';
-import type { Manifest } from './types.js';
-
-export type TaxonomyIndex = {
-  version: 1;
-  /** taxonomy -> term slug -> where it is used. Terms nobody uses appear with count 0. */
-  taxonomies: {
-    [taxonomy: string]: {
-      [term: string]: { count: number; collections: { [collection: string]: number } };
-    };
-  };
-};
+import type { CollectionSchema, Manifest, Schema, TaxonomyIndex } from './types.js';
 
 /** The taxonomy fields a collection declares, as `[fieldName, termCollection]` pairs. */
 const taxonomyFieldsOf = (spec: CollectionSchema): [string, string][] =>

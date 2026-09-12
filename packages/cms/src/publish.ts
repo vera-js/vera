@@ -10,19 +10,19 @@ export type { Root, Block, Inline, ListItem, ContentFile, FrontmatterMap, Frontm
 export { serializeHtml } from './serialize.js';
 /** Publish-side only — the first export the two entries do NOT share: a site reads manifests, it never generates them. */
 export { generateManifest, serializeManifest } from './manifest.js';
-export type { ContentSource } from './manifest.js';
+export type { ContentSource } from './types.js';
 /** The schema layer — validation is a publish-time concern; a deployed site never re-checks itself. */
 export { parseSchema, validateEntry } from './schema.js';
-export type { Schema, CollectionSchema, Field, Validation } from './schema.js';
+export type { Schema, CollectionSchema, Field, Validation } from './types.js';
 /** The cross-collection taxonomy pass — integrity errors and the usage index. */
 export { generateTaxonomies, serializeTaxonomies, checkReferences } from './taxonomy.js';
 export { emitJsonSchema, emitJsonSchemas } from './emit.js';
 /** The write half: content serialization (round-trip-held) and the staged-workspace committer. */
 export { serializeContent } from './write.js';
 export { createWriter } from './writer.js';
-export type { Writer, WriterOptions, Staged } from './writer.js';
-export type { TaxonomyIndex } from './taxonomy.js';
+export type { Writer, WriterOptions, Staged } from './types.js';
+export type { TaxonomyIndex } from './types.js';
 /** The pure query core only — build code queries manifests it just generated; fetching stays in `content`. */
 export { queryEntries } from './query.js';
-export type { QueryOptions, ReaderEntry } from './query.js';
+export type { QueryOptions, ReaderEntry } from './types.js';
 export type { Manifest, ManifestEntry } from './types.js';

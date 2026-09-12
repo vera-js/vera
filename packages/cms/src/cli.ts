@@ -12,8 +12,9 @@
  * `process.exitCode` rather than `process.exit()`, so stdout finishes flushing before the process
  * ends.
  */
+import type { BuildOptions } from './types.js';
 import process from 'node:process';
-import { buildManifests, checkManifests, BuildOptions } from './node.js';
+import { buildManifests, checkManifests } from './node.js';
 
 /**
  * **Streams, never `console`, and both halves of that are conventions with teeth.** The production

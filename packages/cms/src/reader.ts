@@ -12,35 +12,8 @@
  * different factory — which mirrors where the credentials live: manifests are public files this
  * fetches with no auth at all.
  */
-import { queryEntries, QueryOptions, ReaderEntry } from './query.js';
-import { TaxonomyIndex } from './taxonomy.js';
-import type { Manifest } from './types.js';
-
-export type ReaderOptions = {
-  /**
-   * Where manifests live, ending in `/` — `${url}${collection}.json`. Defaults to `/_manifests/`,
-   * the underscore matching static-platform convention for infrastructure files. Absolute URLs
-   * work too, which is how one site reads another's manifests.
-   */
-  url?: string;
-};
-
-export type Reader = {
-  /** One entry by its address, or null — a missing entry is an answer, not an error. */
-  entry(collection: string, slug: string): Promise<ReaderEntry | null>;
-  /** One entry by its identity — how a `reference` field's value resolves to the row it names. */
-  byUuid(collection: string, uuid: string): Promise<ReaderEntry | null>;
-  /** Entries from one collection or several, filtered/sorted/sliced; rows say where they came from. */
-  entries(collection: string | string[], options?: QueryOptions<ReaderEntry>): Promise<ReaderEntry[]>;
-  /** The raw manifest, cached — for anything the query surface does not cover. */
-  manifest(collection: string): Promise<Manifest>;
-  /**
-   * A taxonomy's terms, ready for a cloud or a nav: the term entries (title, body-derived excerpt,
-   * whatever their files carry) with usage counts joined on from the generated index. Terms nobody
-   * uses arrive with `count: 0` — an archive page can decide not to link them.
-   */
-  terms(taxonomy: string): Promise<(ReaderEntry & { count: number })[]>;
-};
+import { queryEntries } from './query.js';
+import type { Manifest, Reader, ReaderEntry, ReaderOptions, TaxonomyIndex } from './types.js';
 
 /**
  * Creates a reader over a site's published manifests.

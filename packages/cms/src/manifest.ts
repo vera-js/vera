@@ -25,17 +25,10 @@
  * caller, not down here.
  */
 import { parseContent } from './frontmatter.js';
-import { CollectionSchema, validateEntry } from './schema.js';
-import type { Manifest, ManifestEntry } from './types.js';
+import { validateEntry } from './schema.js';
+import type { CollectionSchema, ContentSource, Manifest, ManifestEntry } from './types.js';
 
 /** What the generator needs to know about one file; discovery and reading are the caller's. */
-export type ContentSource = {
-  /** The file's name within its collection folder, e.g. `hello-world.md`. */
-  name: string;
-  /** The file's full text. */
-  text: string;
-};
-
 /**
  * Builds one collection's manifest from its files.
  *
