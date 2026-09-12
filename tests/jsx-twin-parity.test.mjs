@@ -151,4 +151,20 @@ test('and the mistakes it documents are refused by name', () => {
     /style expects a STRING/,
     'an object style should be named'
   );
+  /**
+   * A void element with children is the one markup shape the transform cannot normalise: there is
+   * no HTML that means what was written, so it refuses instead of guessing. Before this it emitted
+   * `<input>${label}</input>`, which the parser reads as an input followed by a loose text
+   * node — the BINDING silently left the element it was written inside.
+   */
+  assert.throws(
+    () => transformJsx('const a = <input>{label}</input>;', 'x.jsx'),
+    /<input> is a void element/,
+    'a binding inside a void element should be named, not relocated'
+  );
+  assert.throws(
+    () => transformJsx('const a = <p><br>text</br></p>;', 'x.jsx'),
+    /<br> is a void element/,
+    'and static children too'
+  );
 });

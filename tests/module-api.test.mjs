@@ -193,7 +193,7 @@ test('an element parses: tag, quoted attribute, text child — visible in the em
 
 test('a fragment parses into inline statics of one template', () => {
   assert.equal(jsx.transformJsx('const a = <><a/><b/></>;', 'f.jsx', { inject: false }),
-    'const a = html`<a /><b />`;');
+    'const a = html`<a></a><b></b>`;');
 });
 
 test('unterminated JSX falls back to leaving the code alone — null, never a throw', () => {
@@ -204,7 +204,7 @@ test('unterminated JSX falls back to leaving the code alone — null, never a th
 test('expression position bounds a JSX region: comparisons survive, assignments transform', () => {
   const comparison = 'if (a < b) run();';
   assert.equal(jsx.transformJsx(comparison), comparison, 'after an identifier, `<` is a comparison');
-  assert.match(jsx.transformJsx('const x = <b/>;'), /html`<b \/>`/, 'after `=`, it is markup');
+  assert.match(jsx.transformJsx('const x = <b/>;'), /html`<b><\/b>`/, 'after `=`, it is markup');
 });
 
 // ── wiring the raw render function instead of the module ────────────────────

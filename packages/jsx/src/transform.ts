@@ -1,3 +1,4 @@
+import { VOID_ELEMENTS } from '@verajs/shared-utils';
 import { findRoots } from './parser.js';
 import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
@@ -101,8 +102,24 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     setKey: (k: string) => void;
   }
 
+  /**
+   * What `key=…` means, for BOTH emitters.
+   *
+   * It exists as a function because writing it twice is how this audit's headline defect was born:
+   * the element path and the component path each answered a React question and drifted. Even here,
+   * with the two sites four lines apart, the first draft of the component half turned a bare
+   * `<Row key>` into `keyed(true, …)` while the element half makes it `keyed(null, …)`.
+   */
+  const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean): string => {
+    if (!isRoot)
+      throw new JsxError('key belongs on the JSX root returned from a list callback', code, fileName, attribute.start);
+    return attribute.kind === 'expr'
+      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute))
+      : JSON.stringify(attribute.kind === 'str' ? attribute.text : null);
+  };
+
   const emitRoot = (node: JsxNode): string => {
-    if (isComponentTag(node)) return emitComponent(node as ElementNode);
+    if (isComponentTag(node)) return emitComponent(node as ElementNode, true);
     const parts = [''];
     const exprs: string[] = [];
     let key: string | null = null;
@@ -131,12 +148,45 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     if (isComponentTag(node)) {
-      tpl.expr(emitComponent(node as ElementNode));
+      tpl.expr(emitComponent(node as ElementNode, false));
       return;
     }
     tpl.static('<' + node.tag);
     for (const attribute of node.attrs) emitAttribute(node, attribute, tpl, isRoot);
-    if (node.selfClosing) {
+    /**
+     * **The ELEMENT decides how the tag closes, never how the author spelled it** — which is
+     * HTML's own rule, and why `node.selfClosing` is deliberately not read here.
+     *
+     * JSX borrows XML's `<div/>`; HTML has no such syntax outside foreign content. Passed through,
+     * both spellings were wrong in opposite directions and both silently:
+     *
+     *     <div/><span>after</span>   parsed as  <div><span>after</span></div>   sibling swallowed
+     *     <br></br>                  parsed as  <br><br>                        one break, rendered twice
+     *
+     * Server and client agreed — the statics reach the browser either way — so nothing ever failed;
+     * the DOM simply had a shape the source never described. Emitting by element instead makes both
+     * spellings mean what every JSX toolchain already means by them.
+     *
+     * Foreign content needs no special case. Self-closing IS honoured inside `<svg>`/`<math>`, but
+     * `<circle></circle>` is equally valid there, and no SVG or MathML element shares a name with
+     * an HTML void element — so the rewrite is correct in both content modes without tracking which
+     * one we are in. The lookup lowercases because a host tag keeps the author's case (`<bR/>`),
+     * while HTML tag names do not.
+     */
+    if (VOID_ELEMENTS.has(node.tag.toLowerCase())) {
+      /**
+       * A void element cannot hold anything, so children are not a shape to normalise — there is no
+       * markup that means what was written. `<input>{label}</input>` put a BINDING after the input
+       * as a text node; refusing at compile time is the only channel that reaches the author.
+       */
+      if (node.children.length > 0)
+        throw new JsxError(
+          `<${node.tag}> is a void element — it has no end tag and cannot hold children. ` +
+            `Move them out, or use an element that can hold them.`,
+          code,
+          fileName,
+          node.start
+        );
       tpl.static(' />');
       return;
     }
@@ -175,8 +225,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     const literal = attribute.kind === 'str' ? attribute.text : null;
 
     if (name === 'key') {
-      if (!isRoot) throw new JsxError('key belongs on the JSX root returned from a list callback', code, fileName, attribute.start);
-      tpl.setKey(bound ? expression! : JSON.stringify(literal));
+      tpl.setKey(keyExpression(attribute, isRoot));
       return;
     }
     if (name === 'ref') {
@@ -245,12 +294,33 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
 
   const valueBase = (attribute: Extract<JsxAttribute, { valueStart: number }>): number => attribute.valueStart ?? 0;
 
-  /** `<App a={1}>kids</App>` -> `App({ a: 1, children: [...] })`. Spread is fine here. */
-  const emitComponent = (node: ElementNode): string => {
+  /**
+   * `<App a={1}>kids</App>` -> `App({ a: 1, children: [...] })`. Spread is fine here.
+   *
+   * **`key` is the one prop a component never receives**, and until 2026-09-12 it received it: the
+   * element path consumes `key` into `keyed(…)` and refuses a misplaced one by name, but this path
+   * never called `emitAttribute`, so it inherited neither. `<Row key={id}>` became
+   * `Row({ key: id })`, which reached `@verajs/renderer/tag`'s spread as an ordinary prop and wrote
+   * `key="7"` into the DOM — a junk attribute, and no list identity at all, so rows reconciled
+   * POSITIONALLY: focus, scroll and input state followed the index instead of the item.
+   *
+   * Every OTHER React rule the element path applies is deliberately NOT applied here, and that is
+   * not an omission. `className`, `onClick`, the boolean table and `dangerouslySetInnerHTML` are
+   * interpretations of an ATTRIBUTE; a component receives PROPS and decides for itself what they
+   * mean, which is React's rule too. Rewriting them on the way in would take that decision away
+   * from every component author. Where the component is `tag`'s — which does forward to an element
+   * — the mapping belongs at that runtime boundary, and `jsxName` is where it lives.
+   */
+  const emitComponent = (node: ElementNode, isRoot: boolean): string => {
     const props: string[] = [];
+    let key: string | null = null;
     for (const attribute of node.attrs) {
       if (attribute.spread) {
         props.push(`...${emitExpression(attribute.text, attribute.roots, valueBase(attribute))}`);
+        continue;
+      }
+      if (attribute.name === 'key') {
+        key = keyExpression(attribute, isRoot);
         continue;
       }
       if (attribute.kind === 'none') props.push(`${JSON.stringify(attribute.name)}: true`);
@@ -271,7 +341,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       }
       if (children.length) props.push(`children: [${children.join(', ')}]`);
     }
-    return `${node.tag}({ ${props.join(', ')} })`;
+    const call = `${node.tag}({ ${props.join(', ')} })`;
+    if (key === null) return call;
+    state.usedKeyed = true;
+    return `${keyedName}(${key}, ${call})`;
   };
 
   const { roots, mismatch } = findRoots(code);

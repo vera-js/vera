@@ -24,7 +24,7 @@ import { transformJsx } from '@verajs/jsx';
 const compile = (source) => transformJsx(source, 'app.tsx').replace(/^import .*\n/gm, '').trim();
 
 test('the renderer sigils mean the same thing in JSX', () => {
-  assert.equal(compile('const a = <x-el .rows={d} />;'), 'const a = html`<x-el .rows=${d} />`;');
+  assert.equal(compile('const a = <x-el .rows={d} />;'), 'const a = html`<x-el .rows=${d}></x-el>`;');
   assert.equal(compile('const a = <p ?hidden={f}>x</p>;'), 'const a = html`<p ?hidden=${f}>x</p>`;');
   assert.equal(compile('const a = <p @click={f}>x</p>;'), 'const a = html`<p @click=${f}>x</p>`;');
   assert.equal(compile('const a = <p &={r}>x</p>;'), 'const a = html`<p &=${r}>x</p>`;');
@@ -33,7 +33,7 @@ test('the renderer sigils mean the same thing in JSX', () => {
 test('a sigil the author wrote is not guessed at a second time', () => {
   /** `hidden` is in the boolean table and `onClick` is an event, and neither rule may fire twice. */
   assert.equal(compile('const a = <p ?hidden={f}>x</p>;'), 'const a = html`<p ?hidden=${f}>x</p>`;');
-  assert.equal(compile('const a = <p .value={v} />;'), 'const a = html`<p .value=${v} />`;');
+  assert.equal(compile('const a = <p .value={v} />;'), 'const a = html`<p .value=${v}></p>`;');
   /** And the guessing still happens for names written without one. */
   assert.equal(compile('const a = <p hidden={f}>x</p>;'), 'const a = html`<p ?hidden=${f}>x</p>`;');
   assert.equal(compile('const a = <p onClick={f}>x</p>;'), 'const a = html`<p @click=${f}>x</p>`;');

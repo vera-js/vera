@@ -58,6 +58,8 @@
  * by the DOM itself.
  */
 
+import { attributeValueComplaint } from './dev-values.js';
+
 export type TemplateResult = {
   /** 1 = html, 2 = svg, 3 = mathml — the markers core's built-in tags produce. */
   _$litType$?: number;
@@ -135,6 +137,20 @@ const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
  * not trigger, because it looks for the marker in `textContent` and finds none.
  */
 const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
+
+/**
+ * The void elements, as a regex rather than the `Set` in `@verajs/shared-utils`, and NOT imported
+ * from it — measured: an imported `new Set([...])` survives production because neither rollup nor
+ * terser can prove the constructor call is side-effect-free, so it sat at module scope costing
+ * **62 B gzipped on the base bundle** for a diagnostic production does not even run. A regex
+ * literal read only by `warnTagShape` goes when that dead function goes.
+ *
+ * So this is a second home for a fact `@verajs/shared-utils` owns, kept deliberately and in a
+ * different SHAPE because a hot file's byte budget forbids the shared one. That is only acceptable
+ * with an enforcer: `tests/markup-grammar-homes.test.mjs` drives this regex and the canonical set
+ * against each other, member by member, in both directions.
+ */
+const VOID_TAGS = /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
 const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 
 /** What an expression position turned out to be. */
@@ -159,7 +175,36 @@ const IN_BOUND_VALUE = 5; // collecting a bound attribute's statics
  * A small state machine rather than tail regexes, because `>` inside quoted attribute values and
  * inside comments must not terminate a tag, and raw-text elements swallow markup.
  */
-const scan = (strings: TemplateStringsArray) => {
+/**
+ * `__DEV__` only: the two ways a hand-written template describes a tree the parser will not build.
+ *
+ * `@verajs/jsx` normalises both at compile time, so this is the channel for the BUILDLESS path —
+ * which is this framework's baseline, not its fallback, and was the surface left broken when the
+ * compiler fix landed. It reaches the browser console on the client and during hydration; a
+ * server-only render never runs this scanner, so an SSR page that is never hydrated is not covered.
+ *
+ * The self-close test is `markup` ending in `/`, which is the same approximation the raw-text
+ * branch below already makes: an unquoted attribute value ending in a slash (`<div data-x=a/>`)
+ * reads the same way. That is not a false positive in any way that matters — measured, such a tag
+ * is an OPEN tag too and swallows what follows it exactly as `<div/>` does, so both the warning and
+ * the fix it names are correct for it.
+ */
+const warnTagShape = (tag: string, closing: boolean, selfClosed: boolean) => {
+  if (!closing && selfClosed && !VOID_TAGS.test(tag))
+    console.warn(
+      `[vera] renderer: <${tag}> is left OPEN by this template, so everything after it becomes its ` +
+        `child rather than its sibling. HTML has no self-closing syntax outside <svg> and <math> — ` +
+        `\`<${tag} />\` is an open tag, not an empty element. Write \`<${tag}></${tag}>\`. ` +
+        `(@verajs/jsx rewrites this for you; a hand-written template has to say it.)`
+    );
+  else if (closing && VOID_TAGS.test(tag))
+    console.warn(
+      `[vera] renderer: \`</${tag}>\` is read by the parser as ANOTHER <${tag}>, so this template ` +
+        `renders two where it describes one. A void element has no end tag — write \`<${tag}>\` alone.`
+    );
+};
+
+const scan = (strings: TemplateStringsArray, type = 1) => {
   const specs: Spec[] = [];
   let markup = '';
   let state = IN_TEXT;
@@ -168,6 +213,16 @@ const scan = (strings: TemplateStringsArray) => {
   let rawTag = ''; // which raw-text element we are inside
   let tagNameStart = 0; // markup index where the current tag's name begins
   let isClosing = false;
+  /**
+   * `__DEV__` only. Depth of `<svg>`/`<math>` nesting, because foreign content is the one place the
+   * parser DOES honour XML self-closing, so neither warning applies inside it. An `svg`/`mathml`
+   * template is already inside one, hence the seed from `type`.
+   *
+   * `<foreignObject>` re-enters HTML content and is deliberately not tracked: suppressing a warning
+   * there is a missed warning, while tracking it wrongly would be a wrong one, and a diagnostic
+   * that cries wolf is worse than one that stays quiet.
+   */
+  let foreign = type === 1 ? 0 : 1;
   let attrName = '';
   let statics: string[] = [];
   let pending = ''; // the static chunk currently being collected IN_BOUND_VALUE
@@ -225,6 +280,12 @@ const scan = (strings: TemplateStringsArray) => {
           state = IN_QUOTED_VALUE;
         } else if (ch === '>') {
           const tagName = markup.slice(tagNameStart).match(/^[a-zA-Z][^\s/>]*/)?.[0] ?? '';
+          if (__DEV__) {
+            const lower = tagName.toLowerCase();
+            const selfClosed = markup.endsWith('/');
+            if (lower === 'svg' || lower === 'math') foreign += isClosing ? -1 : selfClosed ? 0 : 1;
+            else if (foreign < 1) warnTagShape(tagName, isClosing, selfClosed);
+          }
           if (!isClosing && RAW_TEXT_TAGS.test(tagName) && !markup.endsWith('/')) {
             rawTag = tagName.toLowerCase();
             state = IN_RAW_TEXT;
@@ -455,7 +516,7 @@ class Template {
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
-    const { markup, specs } = scan(result.strings);
+    const { markup, specs } = scan(result.strings, type);
     this._element = doc.createElement('template');
     /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
     this._element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
@@ -896,7 +957,19 @@ class AttrPart implements Part {
         if (value == null) {
           if (this._present || this._committed !== UNSET) this._element.removeAttribute(this._name);
         }
-        else this._element.setAttribute(this._name, value as string);
+        else {
+          /**
+           * The same question `@verajs/renderer/spread` asks at its own sink, from the same home —
+           * the two are deliberately separate implementations (see spread's header on why), and a
+           * diagnostic that lived in only one of them would be the very defect this audit found.
+           * `setAttribute` performs the DOMString conversion itself; nothing is stringified here.
+           */
+          if (__DEV__) {
+            const complaint = attributeValueComplaint(this._element.localName, this._name, value);
+            if (complaint !== null) console.warn(`[vera] ${complaint}`);
+          }
+          this._element.setAttribute(this._name, value as string);
+        }
       } else if (kind === PROPERTY) {
         const target = this._element as unknown as Record<string, unknown>;
         const name = this._name;

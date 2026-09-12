@@ -60,6 +60,13 @@ export type JsxAttribute =
 
 export type JsxNode =
   | { fragment: true; children: JsxChild[]; start: number }
+  /**
+   * `selfClosing` records how the author SPELLED the tag, which is not how it is emitted: HTML
+   * decides that by element, so the transform reads `VOID_ELEMENTS` instead (see `emitInto`). The
+   * field stays because the parser's job is to report the source faithfully — a diagnostic that
+   * wants to speak about what was written needs it, and the emitter's choice not to is the
+   * emitter's.
+   */
   | { fragment?: undefined; tag: string; attrs: JsxAttribute[]; selfClosing: boolean; children: JsxChild[]; start: number };
 
 export type JsxChild =

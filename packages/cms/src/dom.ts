@@ -22,6 +22,7 @@
  * path's full parser reassembles them. Their block form passes through both paths via one parse
  * and agrees exactly; inline is prose position, and prose position is for prose-shaped tags.
  */
+import { VOID_ELEMENTS } from '@verajs/shared-utils';
 import type { Block, BuildDomOptions, Inline, ListItem, Root } from './types.js';
 
 /**
@@ -93,8 +94,6 @@ const raw = (value: string, doc: Document): DocumentFragment => {
   return template.content;
 };
 
-/** Elements that cannot hold children, so an open tag of one is complete, never a container. */
-const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
 /**
  * **Inline `html` nodes are tag FRAGMENTS, and the differential suite caught what that means.**
@@ -147,7 +146,7 @@ const inlines = (nodes: Inline[], doc: Document): Node[] => {
       content.childNodes.length === 1 &&
       element !== null &&
       element.nodeType === 1 &&
-      !VOID.has((element as Element).localName) &&
+      !VOID_ELEMENTS.has((element as Element).localName) &&
       (element as Element).childNodes.length === 0
     ) {
       sink(element);

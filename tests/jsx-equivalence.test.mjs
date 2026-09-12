@@ -53,7 +53,7 @@ const CASES = {
   'a slot with slotchange': ['<slot name="h" onSlotChange={s.fn}>fb</slot>', 'html`<slot name="h" @slotchange=${s.fn}>fb</slot>`'],
   'dangerouslySetInnerHTML': [
     '<b dangerouslySetInnerHTML={{ __html: s.str }} />',
-    'html`<b .innerHTML=${s.str} />`',
+    'html`<b .innerHTML=${s.str}></b>`',
   ],
   'a ref': ['<b ref={s.ref}>x</b>', 'html`<b ${s.ref}>x</b>`'],
   'a spread': ['<b {...s.props}>x</b>', 'html`<b ${spread(s.props)}>x</b>`'],
@@ -62,12 +62,30 @@ const CASES = {
   'nesting is inline statics': ['<div><b>{s.str}</b><i>y</i></div>', 'html`<div><b>${s.str}</b><i>y</i></div>`'],
   'a fragment': ['<><b>a</b><i>b</i></>', 'html`<b>a</b><i>b</i>`'],
   'a self-closing void element': ['<br />', 'html`<br />`'],
-  'a self-closing custom element': ['<my-comp />', 'html`<my-comp />`'],
-  'a dashed tag with a bound attribute': ['<my-comp foo={s.str} />', 'html`<my-comp foo=${s.str} />`'],
+  /**
+   * **The normalization cases, and the reason they are stated as pairs.**
+   *
+   * Until 2026-09-12 this corpus wrote `<my-comp />` on BOTH sides of five pairs, so it compared a
+   * defect against itself and passed for as long as the defect existed: JSX borrows XML's
+   * self-closing syntax, HTML has none outside foreign content, and the emitted `<my-comp />` was
+   * an OPEN tag that swallowed whatever followed it. A pin whose corpus is written by someone with
+   * the misconception cannot reach the misconception.
+   *
+   * These say it the other way round on purpose — the JSX spelling an author actually writes, and
+   * the template it must become — so the pair now ASSERTS the rewrite instead of blessing the
+   * absence of one. The sibling is load-bearing in the first case: without something after it,
+   * an open tag and an empty one serialize the same and the case proves nothing.
+   */
+  'a non-void element written self-closing': ['<><div /><span>after</span></>', 'html`<div></div><span>after</span>`'],
+  'a custom element written self-closing': ['<><my-el /><span>after</span></>', 'html`<my-el></my-el><span>after</span>`'],
+  'a void element written with an end tag': ['<><br></br><span>after</span></>', 'html`<br /><span>after</span>`'],
+  'a void element written bare, inside a parent': ['<p><br /><i>x</i></p>', 'html`<p><br /><i>x</i></p>`'],
+  'a self-closing custom element': ['<my-comp />', 'html`<my-comp></my-comp>`'],
+  'a dashed tag with a bound attribute': ['<my-comp foo={s.str} />', 'html`<my-comp foo=${s.str}></my-comp>`'],
   'a dashed tag with children': ['<my-comp>{s.str}</my-comp>', 'html`<my-comp>${s.str}</my-comp>`'],
   'a dashed tag with a dashed child': [
     '<my-comp><my-kid a="1" /></my-comp>',
-    'html`<my-comp><my-kid a="1" /></my-comp>`',
+    'html`<my-comp><my-kid a="1"></my-kid></my-comp>`',
   ],
   'a tag with several dashes': ['<a-b-c>x</a-b-c>', 'html`<a-b-c>x</a-b-c>`'],
   'a dashed tag with a slot': ['<my-comp slot="a">x</my-comp>', 'html`<my-comp slot="a">x</my-comp>`'],
@@ -111,7 +129,7 @@ const CASES = {
   'a dollar-brace in an attribute': ['<b title="a ${x} b">y</b>', 'html`<b title="a \\${x} b">y</b>`'],
   'a backtick in an attribute': ['<b title="a `t` b">y</b>', 'html`<b title="a \\`t\\` b">y</b>`'],
   'a backslash in an attribute': ['<b title="a \\ b">y</b>', 'html`<b title="a \\\\ b">y</b>`'],
-  'an svg element': ['<svg viewBox="0 0 1 1"><circle r={s.num} /></svg>', 'html`<svg viewBox="0 0 1 1"><circle r=${s.num} /></svg>`'],
+  'an svg element': ['<svg viewBox="0 0 1 1"><circle r={s.num} /></svg>', 'html`<svg viewBox="0 0 1 1"><circle r=${s.num}></circle></svg>`'],
   'an expression holding an element': ['<div>{<b>x</b>}</div>', 'html`<div>${html`<b>x</b>`}</div>`'],
   'nested lists': [
     '<ul>{s.arr.map((n) => <li><b>{n}</b></li>)}</ul>',
