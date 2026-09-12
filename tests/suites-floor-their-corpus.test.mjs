@@ -229,6 +229,14 @@ test('every suite that discovers a corpus and asserts emptiness has a floor', ()
     `only ${discovering} walk(s) matched the rule at all — the scan is broken, not the suites`
   );
   assert.ok(suites.length > 100, `only ${suites.length} suite file(s) found — the walk found nothing`);
+  /**
+   * **Identity, not only quantity** — and most of all here, since a rule that polices floors while
+   * holding only a count is the joke writing itself. A count is satisfied by any corpus of the
+   * right size; repoint the root at a sibling directory and it stays green. Two known members, one
+   * per directory, so a walk reading the wrong tree fails by name.
+   */
+  assert.ok(suites.includes('tests/dropped-element-bindings.test.mjs') && suites.includes('tests/browser/markup-grammar.test.js'),
+    `found ${suites.length} suite(s) but not the ones this rule was written against — it is reading the wrong tree`);
 
   assert.deepEqual(
     unfloored,

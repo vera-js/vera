@@ -185,6 +185,14 @@ test('every published bundle is covered by one rule or the other', () => {
    * neither minification rule. An exhaustiveness check that finds nothing to be exhaustive over
    * is not exhaustive, it is absent.
    */
+/**
+ * **A floor answers "is the corpus non-empty", never "is it the RIGHT corpus".** Repoint the root
+ * at a superset, a sibling, or a directory of decoys and a count floor stays green — measured. So
+ * this floor names a KNOWN MEMBER too: quantity closes one direction of the fault, identity
+ * closes the other. (The gap is the omni engine's, found by turning this audit's own
+ * "which direction did this close?" question on the floors it had just written.)
+ */
+  assert.ok(covered.has('packages/core/dist/vera.min.js'), 'the rule set no longer names core — it is describing a tree this is not');
   assert.ok(
     examined >= 15,
     `only ${examined} production bundle(s) were examined — the walk found nothing, so this rule ` +

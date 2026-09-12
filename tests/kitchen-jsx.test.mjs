@@ -31,7 +31,15 @@ const twins = readdirSync(jsxDir).filter((name) => name.endsWith('.jsx'));
  * `jsx/` directory would turn the JSX-vs-tagged-template parity check into a no-op that reads as
  * a green run. Four twins today; the floor is deliberately below that and above zero.
  */
+/**
+ * **A floor answers "is the corpus non-empty", never "is it the RIGHT corpus".** Repoint the root
+ * at a superset, a sibling, or a directory of decoys and a count floor stays green — measured. So
+ * every floor here names a KNOWN MEMBER too: quantity closes one direction of the fault, identity
+ * closes the other. (The gap is the omni engine's, found by turning this audit's own
+ * "which direction did this close?" question on the floors it had just written.)
+ */
 assert.ok(twins.length >= 3, `only ${twins.length} JSX twin(s) found in ${jsxDir.pathname} — the walk found nothing to compare`);
+assert.ok(twins.includes('sink-basics.jsx'), `the walk found ${twins.length} file(s) but not sink-basics.jsx — it is reading the wrong directory`);
 
 /** Compiled beside the originals, so their relative imports and tag names resolve identically. */
 const dir = mkdtempSync(new URL('./examples/kitchen-sink/.jsx-', root).pathname);

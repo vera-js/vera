@@ -42,6 +42,8 @@ test('the reader answers over the real artifacts, served as the page would fetch
    * per-item check below it — the suite would report a healthy site having examined nothing.
    */
   assert.ok(posts.length >= 2, `only ${posts.length} post(s) read — the reader found nothing to check`);
+  /** …and that they are THIS site's posts: a count is satisfied by any corpus of the right size. */
+  assert.ok(posts.every((post) => post.slug), 'every entry must carry a slug — otherwise this is not the posts collection');
   assert.ok(posts.every((post) => post.uuid !== null && post.excerpt !== null));
 
   const about = await reader.entry('pages', 'about');

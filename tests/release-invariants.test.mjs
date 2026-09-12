@@ -80,6 +80,10 @@ test('no workflow reaches for an NPM_TOKEN', () => {
    * artifacts.*
    */
   assert.ok(workflows.length >= 2, `only ${workflows.length} workflow(s) found — the glob is broken, not the workflows`);
+  /** Identity as well as quantity: a glob pointed at the wrong directory can still find two files. */
+  assert.ok(workflows.some((file) => file.endsWith('release.yml')),
+    `found ${workflows.length} workflow(s) but not release.yml — the glob is reading the wrong directory, ` +
+      `and this rule is about the RELEASE path specifically`);
   const offenders = workflows.filter((file) => /NPM_TOKEN/.test(read(file)));
   assert.deepEqual(offenders, [], `these reference NPM_TOKEN, which the release design forbids: ${offenders.join(', ')}`);
 });
