@@ -563,6 +563,14 @@ const copy: Directive = {
   value: 'literal',
   docs: { summary: 'Copies the value (or the element text) to the clipboard on click.', example: 'data-vd-copy' },
   setup(el, ctx) {
+    /**
+     * THE SUCCESS FLAG: `data-vd-copy-done="copied"` names a state key written `true` on a
+     * successful write and back to `false` two seconds later — the "Copied!" badge is
+     * `data-vd-show="copied"` and nothing else. A separate attribute because the VALUE is
+     * arbitrary text to copy; tokens cannot ride it.
+     */
+    const doneKey = el.getAttribute('data-vd-copy-done');
+    let revert: ReturnType<typeof setTimeout> | null = null;
     const onClick = () => {
       const textToCopy = el.getAttribute('data-vd-copy') || el.textContent || '';
       const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
@@ -570,7 +578,12 @@ const copy: Directive = {
         ctx.reject('copy-unavailable');
         return;
       }
-      clip.writeText(textToCopy).catch(() => ctx.reject('copy-refused'));
+      clip.writeText(textToCopy).then(() => {
+        if (!doneKey) return;
+        ctx.set(doneKey, true);
+        if (revert) clearTimeout(revert);
+        revert = setTimeout(() => ctx.set(doneKey, false), 2000);
+      }).catch(() => ctx.reject('copy-refused'));
     };
     el.addEventListener('click', onClick);
     return () => el.removeEventListener('click', onClick);

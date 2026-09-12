@@ -61,11 +61,11 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/core` | <!--size:directives.gzip.bytes-->6 141 B<!--/size:directives.gzip.bytes--> | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | <!--size:directives-standalone.gzip.bytes-->7 470 B<!--/size:directives-standalone.gzip.bytes--> | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 343 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
-| `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 760 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
+| `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 826 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 186 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
-| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 243 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
-| `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 669 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 922 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
+| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->2 949 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
+| `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 763 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->25 927 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -120,8 +120,14 @@ designed page.
   `text`, `every`, `watch`, `focus-*`, `scroll-*`, `persist`, `copy`, `doc-class`, `init`.
 - **`query`** — `route` publishes `@route`; `query` binds state keys to the URL's query string;
   `list` filters, sorts, facets, ranges and pages the elements already inside it and publishes its counts back into state.
-- **`sensors`** — `in-view`, `size`, `pointer`, `scroll-progress`, `swipe`. Every one degrades to
-  a readable page when the capability is missing.
+- **`sensors`** — `in-view`, `size`, `pointer`, `spy`, `scroll-progress`, `swipe`. Every one
+  degrades to a readable page when the capability is missing. `in-view` takes `:once` (latch —
+  a reveal is not un-revealed) and `:down` (directional latch: only a downward exit resets, so
+  the reveal replays on the way back down); `pointer` takes `:viewport` for the ambient form,
+  or wire it from JavaScript — `sensors({ pointer: 'p' })` is `<body data-vd-pointer=
+  "p:viewport">` said from code, the dual for platforms that cannot author markup. `spy`
+  elects the section MOST in view among all elements sharing a key — the key holds the active
+  id, `''` when none — which is the scrollspy nav in one attribute per section.
 - **`remote`** — `data-vd-fetch` and `data-vd-stream`. The stream is fetch's law at push
   cadence: a live connection opened at activation (`http(s)` URL → server-sent events, with the
   platform's own reconnect; `ws(s)` → WebSocket, with this pack's capped-backoff reconnect —
@@ -131,7 +137,9 @@ designed page.
   events; on a socket, `send: 'outbox'` makes writes to that key transmit (queued until open,
   wire-form-deduped, and a pre-seeded outbox never sends — establishment answers no one).
   For `data-vd-fetch`: a JSON response patches state; a markup response swaps a region,
-  same-origin only, always. `place: 'append'` or `'prepend'` accumulates instead of replacing —
+  same-origin only, always. `debounce: 250` holds the request until the trigger has been quiet
+  that long — filter-as-you-type stops costing one request per keystroke while the local state
+  write stays instant. `place: 'append'` or `'prepend'` accumulates instead of replacing —
   existing content is parsed around, never rewritten, so its state and handlers survive; infinite
   scroll is `on` an in-view event + `place: 'append'` + a page key, three existing pieces
   composing — but keep the feed's DEPTH out of `data-vd-query`: an accumulating view's middle

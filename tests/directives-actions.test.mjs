@@ -116,3 +116,36 @@ test('the registry is enumerable — that is most of why actions are named at al
   /** THE POINT: "what JavaScript can this page run" has a printable answer. */
   assert.ok(names.length > 0, 'the control');
 });
+
+test('copy-done: success writes the flag, and it self-clears for the badge pattern', async () => {
+  const written = [];
+  /** globalThis.navigator is getter-only in node 21+ — define over it, restore after. */
+  const restore = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: { clipboard: { writeText: (t) => { written.push(t); return Promise.resolve(); } } },
+  });
+  try {
+    const host = doc.createElement('div');
+    host.innerHTML = `
+      <div data-vd-state="{ copied: false }">
+        <button data-vd-copy="hello" data-vd-copy-done="copied">copy</button>
+        <span data-vd-show="copied">Copied!</span>
+      </div>`;
+    doc.body.appendChild(host);
+    await settled();
+    host.querySelector('button').click();
+    await new Promise((r) => setTimeout(r, 20));
+    await settled();
+    assert.deepEqual(written, ['hello'], 'the text reached the clipboard');
+    assert.equal(stateOf(host.firstElementChild).copied, true, 'the flag flipped — the badge shows');
+    assert.equal(host.querySelector('span').hidden, false);
+    await new Promise((r) => setTimeout(r, 2100));
+    await settled();
+    assert.equal(stateOf(host.firstElementChild).copied, false, 'and self-cleared two seconds on');
+    host.remove();
+    await settled();
+  } finally {
+    if (restore) Object.defineProperty(globalThis, 'navigator', restore);
+  }
+});

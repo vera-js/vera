@@ -297,15 +297,36 @@ const fetchDirective: Directive = {
           }
         };
 
+        /**
+         * DEBOUNCE, on the request maker because that is where the cost is: `debounce: 250`
+         * holds the request until the trigger has been quiet that long — filter-as-you-type
+         * stops firing one request per keystroke, which was this key's founding complaint.
+         * The state write itself stays instant (sync is local and cheap); only the wire waits.
+         */
+        const debounceRaw = read('debounce');
+        const debounce = typeof debounceRaw === 'number' && debounceRaw > 0 ? debounceRaw : 0;
+        if (debounceRaw !== undefined && debounce === 0) context.reject('fetch-bad-debounce', [String(debounceRaw)]);
+        let held: ReturnType<typeof setTimeout> | null = null;
+        const fire = (event?: Event): void => {
+          if (event && trigger === 'submit') event.preventDefault();
+          if (!debounce) {
+            void run(event);
+            return;
+          }
+          if (held) clearTimeout(held);
+          held = setTimeout(() => { held = null; void run(); }, debounce);
+        };
+
         /** `on: 'load'` means AT ACTIVATION — the same word, and the same meaning, `on-load` has. */
         if (trigger === 'load') {
           void run();
           return;
         }
-        element.addEventListener(trigger, run);
+        element.addEventListener(trigger, fire);
         return () => {
+          if (held) clearTimeout(held);
           inflight?.abort();
-          element.removeEventListener(trigger, run);
+          element.removeEventListener(trigger, fire);
         };
       },
     };

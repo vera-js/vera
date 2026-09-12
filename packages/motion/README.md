@@ -15,8 +15,8 @@ their own runtime, or emit first frames at build time.
 | entry | size (min+gzip) | what |
 | --- | --- | --- |
 | `@verajs/motion` / `./core` | <!--size:motion.gzip.bytes-->12 363 B<!--/size:motion.gzip.bytes--> | compiler + writer: parse the attribute, generate the CSS, name it deterministically |
-| `./ssr` | <!--size:motion-ssr.gzip.bytes-->11 844 B<!--/size:motion-ssr.gzip.bytes--> | `renderMotion(document)` — mark every in-scope element, emit one sheet per tree |
-| `./client` | <!--size:motion-client.gzip.bytes-->2 950 B<!--/size:motion-client.gzip.bytes--> | the reader: delivery, drive and registered functions, **no compiler** — the front-end cost when a server generated everything |
+| `./ssr` | <!--size:motion-ssr.gzip.bytes-->11 839 B<!--/size:motion-ssr.gzip.bytes--> | `renderMotion(document)` — mark every in-scope element, emit one sheet per tree |
+| `./client` | <!--size:motion-client.gzip.bytes-->2 957 B<!--/size:motion-client.gzip.bytes--> | the reader: delivery, drive and registered functions, **no compiler** — the front-end cost when a server generated everything |
 
 `./internal` also exists: the first-party seam the directives pack wires. It carries no stability
 promise beyond the two first parties — a third-party embedder belongs on `./core`.

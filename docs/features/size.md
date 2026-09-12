@@ -135,14 +135,14 @@ describing the bytes honestly.)*
 | `@verajs/directives/core` | 6 141 B | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | 7 470 B | the engine with its own store, for a page running no vera |
 | `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
-| `@verajs/directives/interactions` | 3 760 B | the interaction pack — events, reflections, state |
+| `@verajs/directives/interactions` | 3 826 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 186 B | the query pack — route, query, list |
-| `@verajs/directives/sensors` | 2 243 B | the sensors pack — environment to state |
-| `@verajs/directives/remote` | 3 669 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 25 922 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/directives/sensors` | 2 949 B | the sensors pack — environment to state |
+| `@verajs/directives/remote` | 3 763 B | the remote pack — server-driven interactions |
+| `@verajs/directives/motion` | 25 927 B | the motion pack — presets, easings, paint, path, sequence, split |
 | `@verajs/motion/core` | 12 363 B | the motion engine — compiler + writer, no directives engine, no packs |
-| `@verajs/motion/ssr` | 11 844 B | renderMotion — mark a server document, emit its sheet |
-| `@verajs/motion/client` | 2 950 B | the reader — delivery, drive and functions, no compiler |
+| `@verajs/motion/ssr` | 11 839 B | renderMotion — mark a server document, emit its sheet |
+| `@verajs/motion/client` | 2 957 B | the reader — delivery, drive and functions, no compiler |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).

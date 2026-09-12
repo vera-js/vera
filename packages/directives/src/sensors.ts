@@ -28,6 +28,7 @@
  *    engine, a server, a test DOM), the sensor reports the READABLE answer — in view, measured
  *    once — because content the page cannot sense must still be content the reader can see.
  */
+import { dual } from './dual.js';
 import { isObject } from './parse.js';
 import type { Directive, Ctx, EngineConnector } from './types.js';
 
@@ -203,7 +204,7 @@ const inView: Directive = {
    * prevent, in the one place a reader can never recover from it: no JavaScript, ever.
    */
   ssr: (el, _value, ctx) => {
-    const key = (el.getAttribute('data-vd-in-view') ?? '').trim().split(/\s+/)[0];
+    const key = (el.getAttribute('data-vd-in-view') ?? '').trim().split(/\s+/)[0]?.split(':')[0];
     if (key) ctx.set(key, true);
   },
   setup(el, ctx) {
@@ -221,8 +222,20 @@ const inView: Directive = {
      */
     const raw = (el.getAttribute('data-vd-in-view') ?? '').trim();
     const [name, line] = raw.split(/\s+/);
-    const key = keyFor(el, 'data-vd-in-view', ctx, name);
+    /**
+     * MODIFIERS ride the key token with the `:viewport` scope's grammar — `"seen:once"`,
+     * `"seen:once:down 30%"`. `:once` stops observing after the first true (a reveal is not
+     * un-revealed by scrolling away). `:down` is a DIRECTIONAL LATCH, omni's shipped
+     * semantics twinned: entering writes true and STAYS true while the reader continues on —
+     * the exit EDGE is the direction signal, with zero scroll-position bookkeeping. An exit
+     * whose box sits BELOW the viewport (top > 0) means the reader went back UP past it —
+     * reset to false so the reveal replays on the way down; an exit off the TOP keeps true.
+     */
+    const tokens = (name ?? '').split(':');
+    const key = keyFor(el, 'data-vd-in-view', ctx, tokens[0]);
     if (!key) return;
+    const once = tokens.includes('once');
+    const down = tokens.includes('down');
 
     let margin = '';
     if (line !== undefined) {
@@ -238,8 +251,14 @@ const inView: Directive = {
     let last: boolean | null = null;
     const stop = watchIntersect(el, (visible) => {
       if (visible === last) return;
+      if (down && !visible) {
+        /** The directional latch: only a downward exit (the box below the viewport — the
+         *  reader went back up) resets; leaving off the top keeps the reveal. */
+        if (el.getBoundingClientRect().top <= 0) return;
+      }
       last = visible;
       ctx.set(key, visible);
+      if (once && visible) stop?.();
     }, margin);
     /**
      * No observer means no way to know — and the honest answer there is VISIBLE, because the
@@ -310,15 +329,29 @@ const pointer: Directive = {
     example: 'data-vd-pointer="p"',
   },
   setup(el, ctx) {
-    const key = keyFor(el, 'data-vd-pointer', ctx);
-    if (!key) return;
+    const raw = keyFor(el, 'data-vd-pointer', ctx);
+    if (!raw) return;
+    /**
+     * THE `:viewport` SCOPE (ratified with the ambient dual): `data-vd-pointer="p:viewport"`
+     * measures across the WHOLE VIEWPORT instead of this element's box — the ambient form, and
+     * what `sensors({ pointer: 'p' })` delegates to by setting exactly this attribute on body.
+     * The suffix is a scope, not part of the key.
+     */
+    const viewport = raw.endsWith(':viewport');
+    const key = viewport ? raw.slice(0, -':viewport'.length) : raw;
+    if (!key) {
+      ctx.reject('sensor-no-key', ['data-vd-pointer']);
+      return;
+    }
     let x = 0.5;
     let y = 0.5;
     let inside = false;
     const write = coalesce(() => ctx.set(key, { x, y, inside }));
 
     const onMove = (event: Event) => {
-      const rect = (el as HTMLElement).getBoundingClientRect();
+      const rect = viewport
+        ? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+        : (el as HTMLElement).getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       const pointerEvent = event as unknown as { clientX: number; clientY: number };
       x = Math.min(Math.max((pointerEvent.clientX - rect.left) / rect.width, 0), 1);
@@ -330,6 +363,8 @@ const pointer: Directive = {
      * Leaving RE-CENTRES rather than freezing: a tilt card returns to rest instead of holding the
      * angle it happened to exit at, which reads as a bug on every page that has one.
      */
+    const moveTarget: EventTarget = viewport ? window : el;
+    const leaveTarget: EventTarget = viewport ? el.ownerDocument!.documentElement : el;
     const onLeave = () => {
       x = 0.5;
       y = 0.5;
@@ -337,13 +372,102 @@ const pointer: Directive = {
       write.run();
     };
 
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerleave', onLeave);
+    moveTarget.addEventListener('pointermove', onMove);
+    leaveTarget.addEventListener('pointerleave', onLeave);
     ctx.set(key, { x, y, inside });
     return () => {
       write.stop();
-      el.removeEventListener('pointermove', onMove);
-      el.removeEventListener('pointerleave', onLeave);
+      moveTarget.removeEventListener('pointermove', onMove);
+      leaveTarget.removeEventListener('pointerleave', onLeave);
+    };
+  },
+};
+
+/* ── spy: one-active-among-a-group, the scrollspy election ───────────────────────────────── */
+
+/**
+ * `data-vd-spy="toc"` on each section: the state key holds the id of the section MOST IN VIEW
+ * — the owner's sentence, and the semantics omni SHIPPED, twinned here verbatim from their
+ * election lore rather than re-derived: one shared TALLY per elected key; every spy reports
+ * its intersection RATIO at eleven thresholds (0, .1 … 1 — fine enough to follow scroll,
+ * coarse enough that a tally update is not per-pixel; their measured tuning knob); every
+ * report re-runs the election over the whole tally; ties resolve first-wins in insertion
+ * order, which is document order for static markup — the earlier section keeps it, no
+ * hysteresis needed at eleven steps. The empty string is the no-winner value, SEEDED at group
+ * birth so reflections never undefined-flash. A departing spy deletes its tally row on
+ * teardown, or a removed section could win forever. An election needs coordination between
+ * observers — per-element booleans structurally cannot pick one of two adjacent sections both
+ * legitimately in view — which is why this is a directive and not a recipe.
+ */
+const SPY_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+interface SpyGroup {
+  readonly members: Map<Element, { ratio: number; ctx: Ctx }>;
+  observer: IntersectionObserver | null;
+  current: string | null;
+}
+const spyGroups = new Map<string, SpyGroup>();
+
+const electSpy = (key: string, group: SpyGroup): void => {
+  let best: { el: Element; ctx: Ctx; ratio: number } | null = null;
+  for (const [el, member] of group.members) {
+    if (member.ratio > 0 && (!best || member.ratio > best.ratio)) best = { el, ctx: member.ctx, ratio: member.ratio };
+  }
+  const id = best ? best.el.id : '';
+  if (id === group.current) return;
+  group.current = id;
+  (best?.ctx ?? [...group.members.values()][0]?.ctx)?.set(key, id);
+};
+
+const spy: Directive = {
+  name: 'spy',
+  value: 'literal',
+  priority: 60,
+  docs: {
+    summary: "Elects the section MOST IN VIEW among all elements sharing this key — the state key holds its id, '' when none.",
+    example: 'data-vd-spy="toc"',
+  },
+  setup(el, ctx) {
+    const key = keyFor(el, 'data-vd-spy', ctx);
+    if (!key) return;
+    if (!el.id) {
+      ctx.reject('spy-no-id');
+      return;
+    }
+    let group = spyGroups.get(key);
+    if (!group) {
+      group = { members: new Map(), observer: null, current: null };
+      spyGroups.set(key, group);
+      if (typeof IntersectionObserver === 'function') {
+        const forKey = key;
+        const forGroup = group;
+        group.observer = new IntersectionObserver((records) => {
+          for (const record of records) {
+            const member = forGroup.members.get(record.target);
+            if (member) member.ratio = record.isIntersecting ? record.intersectionRatio : 0;
+          }
+          electSpy(forKey, forGroup);
+        }, { threshold: SPY_THRESHOLDS });
+      }
+      /** Seeded, so `data-vd-class="{ active: toc == 'intro' }"` never reads undefined. */
+      ctx.set(key, '');
+      group.current = '';
+    }
+    group.members.set(el, { ratio: 0, ctx });
+    if (group.observer) group.observer.observe(el);
+    /** No observer, no election — the FIRST member becomes current: a nav highlighting
+     *  something sensible is the readable-page answer. */
+    else if (group.current === '') {
+      group.current = el.id;
+      ctx.set(key, el.id);
+    }
+    return () => {
+      group!.observer?.unobserve(el);
+      group!.members.delete(el);
+      electSpy(key, group!);
+      if (group!.members.size === 0) {
+        group!.observer?.disconnect();
+        spyGroups.delete(key);
+      }
     };
   },
 };
@@ -543,7 +667,28 @@ const swipe: Directive = {
   },
 };
 
-/** `wireDirectives([sensors])` — no options; each sensor is inert until an element names a key. */
-export const sensors: EngineConnector = (seams) => {
-  for (const directive of [inView, size, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
+/**
+ * `wireDirectives([sensors])` bare, or `sensors({ pointer: 'p' })` — the AMBIENT dual, ratified
+ * as both doors with ONE implementation: the called form is for platform devs who cannot author
+ * markup (a WP theme, an embedder), and it DELEGATES by setting `data-vd-pointer="<key>:viewport"`
+ * on `<body>` — literally the markup composition, so the two doors cannot drift and the docs
+ * define one in terms of the other. Discipline over door-count.
+ */
+export interface SensorsOptions {
+  /** State key the viewport-scoped pointer writes to — `sensors({ pointer: 'p' })` is
+   *  `<body data-vd-pointer="p:viewport">` said from JavaScript. */
+  readonly pointer?: string;
+}
+
+const connect = (options?: SensorsOptions): EngineConnector => (seams) => {
+  for (const directive of [inView, size, pointer, spy, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
+  const ambient = options?.pointer;
+  if (typeof ambient === 'string' && ambient !== '' && typeof document !== 'undefined') {
+    const apply = () => document.body?.setAttribute('data-vd-pointer', `${ambient}:viewport`);
+    /** A head-loaded CDN script wires before <body> exists; the delegation waits for it. */
+    if (document.body) apply();
+    else document.addEventListener('DOMContentLoaded', apply, { once: true });
+  }
 };
+
+export const sensors = dual<SensorsOptions>(connect);

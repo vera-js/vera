@@ -34,9 +34,9 @@ class TestIntersectionObserver {
   unobserve(el) { this.targets.delete(el); }
   disconnect() { this.targets.clear(); observers.delete(this); }
 }
-const intersect = (el, isIntersecting) => {
+const intersect = (el, isIntersecting, extra = {}) => {
   for (const observer of observers) {
-    if (observer.targets.has(el)) observer.callback([{ target: el, isIntersecting }], observer);
+    if (observer.targets.has(el)) observer.callback([{ target: el, isIntersecting, intersectionRatio: isIntersecting ? 1 : 0, ...extra }], observer);
   }
 };
 
@@ -182,6 +182,101 @@ test('refusals: a sensor with no key, a swipe direction that does not exist', as
   if (!isProduction) {
     assert.ok(rejections(host.querySelector('#sideways')).some((r) => /left, right, up or down/.test(r.message)));
   }
+  host.remove();
+  await settled();
+});
+
+test('the :viewport scope measures the whole viewport; the ambient dual is the same attribute said from JS', async () => {
+  /** Half one: the scope suffix. */
+  const host = await mount(`
+    <div data-vd-state="{ p: {} }">
+      <div id="vp" data-vd-pointer="p:viewport" style="width:10px"></div>
+      <b data-vd-text="p.x"></b>
+    </div>`);
+  dom.window.dispatchEvent(new dom.window.Event('pointermove'));
+  const carrier = host.firstElementChild;
+  /** jsdom events lack clientX; construct with properties via Object.assign on a plain Event. */
+  const move = (cx, cy) => {
+    const event = new dom.window.Event('pointermove', { bubbles: true });
+    Object.assign(event, { clientX: cx, clientY: cy });
+    dom.window.dispatchEvent(event);
+  };
+  move(dom.window.innerWidth / 2, 10);
+  await settled();
+  await new Promise((r) => setTimeout(r, 30));
+  await settled();
+  assert.ok(Math.abs(stateOf(carrier).p.x - 0.5) < 0.01,
+    'x measured against the VIEWPORT, not the 10px element');
+  host.remove();
+  await settled();
+
+  /** Half two: the ambient dual DELEGATES — the called form is the body attribute, literally,
+   *  which is what makes equivalence structural rather than tested twice. */
+  const { sensors: sensorsDual } = await load('directives');
+  const connector = sensorsDual({ pointer: 'amb' });
+  assert.equal(typeof connector, 'function', 'the called form returns a connector for wireDirectives');
+  wireDirectives([connector]);
+  await settled();
+  assert.equal(doc.body.getAttribute('data-vd-pointer'), 'amb:viewport',
+    'the delegation: sensors({ pointer }) IS <body data-vd-pointer=\"key:viewport\"> said from JS');
+  doc.body.removeAttribute('data-vd-pointer');
+  await settled();
+});
+
+test(':once latches and :down is a directional latch — the exit edge is the signal', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ seen: false, reveal: false }">
+      <p id="o" data-vd-in-view="seen:once"></p>
+      <p id="d" data-vd-in-view="reveal:down"></p>
+    </div>`);
+  const carrier = host.firstElementChild;
+  const once = host.querySelector('#o');
+  const dn = host.querySelector('#d');
+
+  intersect(once, true); await settled();
+  assert.equal(stateOf(carrier).seen, true, ':once fired');
+  intersect(once, false); await settled();
+  assert.equal(stateOf(carrier).seen, true, 'and LATCHED — scrolling away does not unreveal');
+
+  intersect(dn, true); await settled();
+  assert.equal(stateOf(carrier).reveal, true, ':down entered');
+  /** Exit off the TOP (box above viewport): the reader continued down — the reveal keeps. */
+  dn.getBoundingClientRect = () => ({ top: -500, bottom: -100, left: 0, right: 0, width: 10, height: 400 });
+  intersect(dn, false); await settled();
+  assert.equal(stateOf(carrier).reveal, true, 'a top exit keeps the reveal');
+  intersect(dn, true); await settled();
+  /** Exit BELOW (box under viewport): the reader went back up — reset, so it replays. */
+  dn.getBoundingClientRect = () => ({ top: 900, bottom: 1300, left: 0, right: 0, width: 10, height: 400 });
+  intersect(dn, false); await settled();
+  assert.equal(stateOf(carrier).reveal, false, 'a bottom exit resets — omni\'s shipped directional latch');
+  host.remove();
+  await settled();
+});
+
+test('spy: the section MOST IN VIEW wins by ratio; ties go to document order; empty string seeds and clears', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ toc: 'unseeded' }">
+      <section id="s1" data-vd-spy="toc"></section>
+      <section id="s2" data-vd-spy="toc"></section>
+      <b data-vd-text="toc"></b>
+    </div>`);
+  const carrier = host.firstElementChild;
+  assert.equal(stateOf(carrier).toc, '', 'seeded to the no-winner value at group birth');
+  const [s1, s2] = host.querySelectorAll('section');
+
+  intersect(s1, true, { intersectionRatio: 0.4 }); await settled();
+  assert.equal(stateOf(carrier).toc, 's1', 'the only visible section wins');
+  intersect(s2, true, { intersectionRatio: 0.8 }); await settled();
+  assert.equal(stateOf(carrier).toc, 's2', 'the MOST in view wins — ratio, not order');
+  intersect(s2, true, { intersectionRatio: 0.4 }); await settled();
+  assert.equal(stateOf(carrier).toc, 's1', 'a tie resolves to document order — the earlier section keeps it');
+  intersect(s1, false); intersect(s2, false); await settled();
+  assert.equal(stateOf(carrier).toc, '', 'nothing in view is the empty string, never a stale id');
+
+  /** Teardown discipline: a departed section must not win forever. */
+  intersect(s1, true, { intersectionRatio: 0.6 }); await settled();
+  s1.remove(); await settled();
+  assert.equal(stateOf(carrier).toc, '', 'the departed winner\'s tally row died with it');
   host.remove();
   await settled();
 });

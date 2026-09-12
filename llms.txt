@@ -1016,7 +1016,9 @@ the bundle. `motionExtension` is also how a module adds animatable PROPERTIES (`
 … }`), SETTINGS (`{ key, type, … }`) or hooks an insert point (`preset`, `easing`, `prepare`,
 `release`, `teardown`, `forget`) — keys REPLACE with a warning, inserts CHAIN.
 
-**remote pack** — `data-vd-fetch="{ url, on, into, place, body, method, status, animate }"`. **The response
+**remote pack** — `data-vd-fetch="{ url, on, into, place, body, method, status, debounce, animate }"`.
+`debounce: 250` holds the request until the trigger is quiet that long (the wire waits; the
+local state write stays instant). **The response
 decides**: JSON is a state patch (existing reflections update themselves), anything else is markup
 swapped into `into` — and swapped markup is live immediately, because directives are never
 hydrated. Same-origin by default (`remote({ allowedOrigins, headers })` is the only way to widen,
@@ -1026,6 +1028,15 @@ of replacing it (existing DOM is parsed around, never rewritten — state and ha
 omit it for replace. `animate: true` morphs the swap old-to-new through
 `startViewTransition` (the flip door `list` uses — same guards: `on: 'load'` never animates, no
 support or reduced-motion degrade to the instant swap).
+
+**sensors, the sugar tier**: `data-vd-in-view="seen:once"` latches (a reveal is not
+un-revealed); `"reveal:down"` is a directional latch — only a downward exit (the reader going
+back up) resets, so the reveal replays coming down; `data-vd-pointer="p:viewport"` measures the
+whole viewport (the ambient form — `sensors({ pointer: 'p' })` sets exactly that attribute on
+body from JavaScript); `data-vd-spy="toc"` on each section elects the one MOST in view and
+writes its id to the key (`''` when none) — nav highlighting is `data-vd-class="{ active:
+toc == 'intro' }"`. `data-vd-copy` takes `data-vd-copy-done="copied"`, a key written true on
+success and self-clearing 2s later — the badge is `data-vd-show="copied"`.
 
 **`data-vd-stream="{ url, into, event, send, status, animate }"`** — the live half of the
 remote pack: a connection held open, each pushed message obeying fetch's law (JSON object =

@@ -22,6 +22,7 @@ import { load } from './dist.mjs';
 
 let slowFirst = true;
 let raceHits = 0;
+let countedHits = 0;
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const send = (status, type, body, delay = 0) =>
@@ -36,6 +37,7 @@ const server = createServer((req, res) => {
     return send(200, 'text/html',
       `<button id="arrived" data-vd-on-click="{ clicks: clicks + 1 }">arrived over the network</button>`);
   if (url.pathname === '/boom') return send(500, 'text/plain', 'no');
+  if (url.pathname === '/counted') { countedHits++; return send(200, 'application/json', JSON.stringify({ n: countedHits })); }
   /**
    * Ordering, keyed on what the SERVER received rather than on what the client tried: the first
    * request to ARRIVE is answered slowly with a stale value, the second quickly with a fresh one.
@@ -346,6 +348,24 @@ test('the pun guard: an accumulating feed with a URL-bound depth key warns once 
   } finally {
     console.warn = orig;
   }
+});
+
+test('debounce: a burst of triggers is ONE request, after the quiet', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ n: 0 }">
+      <button id="burst" data-vd-fetch="{ url: '${ORIGIN}/counted', on: 'click', debounce: 80 }">go</button>
+      <b data-vd-text="n"></b>
+    </div>`);
+  const button = host.querySelector('#burst');
+  for (let i = 0; i < 5; i++) {
+    button.click();
+    await new Promise((r) => setTimeout(r, 15));
+  }
+  await until(() => host.querySelector('b').textContent === '1', 'exactly one request reached the wire');
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(host.querySelector('b').textContent, '1', 'and the quiet brought no stragglers');
+  host.remove();
+  await settled();
 });
 
 test('THE HEADLINE: markup from the network is live on its first click — no hydration step', async () => {
