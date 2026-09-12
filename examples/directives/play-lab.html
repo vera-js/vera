@@ -20,12 +20,13 @@
 </style>
 
 <h1>play lab — who owns the clock under load?</h1>
-<p class="note">Both boxes run the same <code>when: '.on', play: 1</code> journey through the REAL
-engine. The left one's keyframes are simple from→to, so emission hands the clock to a
-<b>CSS transition</b> (the compositor). The right one's are a three-stop <b>pulse</b>, which only
-the <b>JS ramp</b> can express. Toggle mid-flight (~60% is the interesting spot) to feel the
-reversal semantics; then drag the jank slider up and toggle again — the decider question is how
-much of each lane's character survives a busy main thread.</p>
+<p class="note">Both boxes run the IDENTICAL journey — same keyframes, same explicit
+<code>ease: 'linear'</code>, same <code>play: 1</code> — through the real engine. The left one's
+clock is a <b>CSS transition</b> (the compositor); the right one carries a <code>progress</code>
+rider, which keeps its clock on the <b>JS ramp</b>. Scrolled forward they should be
+indistinguishable; the differences you are here to judge appear in exactly two places: toggle
+<b>mid-flight</b> (~60%) for the reversal semantics, and drag the <b>jank</b> slider up for who
+owns the clock under load.</p>
 
 <p>
   <button id="toggle">toggle ⇅</button>
@@ -37,19 +38,20 @@ much of each lane's character survives a busy main thread.</p>
   <div class="lane">
     <div class="track">
       <div class="box target" id="t-css"
-        data-vd-motion="{ keyframes: { translate-y: '0% 0px, 100% 120px', opacity: '0% 1, 100% 0.35' }, when: '.on', play: 1 }">CSS</div>
+        data-vd-motion="{ keyframes: { translate-y: '0% 0px, 100% 120px', opacity: '0% 1, 100% 0.35' }, ease: 'linear', when: '.on', play: 1 }">CSS</div>
     </div>
-    <p><b>transition-play</b> — from→to shapes compile to a compositor-owned transition; the
-    reversal follows the platform's reversing algorithm (retimed — faster back than forward).</p>
+    <p><b>transition-play</b> — the compositor's clock. Its reversal follows the platform's
+    reversing algorithm: RETIMED, so it comes home noticeably faster than it went out.</p>
   </div>
   <div class="lane">
     <div class="track">
       <div class="box target" id="t-ramp"
-        data-vd-motion="{ keyframes: { translate-y: '0% 0px, 50% 130px, 100% 120px', opacity: '0% 1, 100% 0.35' }, when: '.on', play: 1, progress: '--lab' }">RAMP</div>
+        data-vd-motion="{ keyframes: { translate-y: '0% 0px, 100% 120px', opacity: '0% 1, 100% 0.35' }, ease: 'linear', when: '.on', play: 1, progress: '--lab' }">RAMP</div>
     </div>
-    <p><b>ramp-play</b> — the <code>progress</code> rider keeps this one on the JS ramp (a rider
-    needs the per-frame number); the three-stop overshoot rides it. Reversal is proportional —
-    constant speed both ways, the ramp lab's candidate B.</p>
+    <p><b>ramp-play</b> — the JS ramp's clock (the <code>progress</code> rider needs the
+    per-frame number, which is what keeps it here). Reversal is proportional — constant speed
+    both ways, the ramp lab's candidate B. The asymmetry between the lanes on reversal is real
+    and is THE decision.</p>
   </div>
 </div>
 

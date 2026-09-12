@@ -303,6 +303,18 @@ const size: Directive = {
     const viewport = rawKey?.endsWith(':viewport') ?? false;
     const key = viewport ? rawKey!.slice(0, -':viewport'.length) : rawKey;
     if (!key) return;
+    if (viewport) {
+      const view = el.ownerDocument.defaultView;
+      if (!view) return;
+      const writeViewport = coalesce(() => ctx.set(key, { width: view.innerWidth, height: view.innerHeight }));
+      writeViewport.run();
+      const onResize = () => writeViewport.run();
+      view.addEventListener('resize', onResize, { passive: true });
+      return () => {
+        writeViewport.stop();
+        view.removeEventListener('resize', onResize);
+      };
+    }
     let last: Record<string, number | boolean> = { width: -1, height: -1 };
     const measure = () => {
       const node = el as HTMLElement;

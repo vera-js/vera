@@ -304,8 +304,9 @@ test('size:viewport answers the screen question — width in state, band said in
     </div>`);
   await new Promise((r) => setTimeout(r, 30));
   await settled();
-  assert.equal(stateOf(host.firstElementChild).s.width, dom.window.innerWidth,
-    'the VIEWPORT width, not the 10px element');
+  const got = stateOf(host.firstElementChild).s;
+  assert.equal(got.width, dom.window.innerWidth,
+    `the VIEWPORT width, not the 10px element (got ${JSON.stringify(got)})`);
   assert.equal(host.querySelector('p').hidden, false, 'and the band is an ordinary expression');
   host.remove();
   await settled();
