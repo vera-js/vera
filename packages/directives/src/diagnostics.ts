@@ -332,7 +332,6 @@ export const PROSE: Record<string, Prose> = {
   'motion-pointer-scroll-first': () => [`"scroll" leads the chain, and scroll is always available — nothing after it can ever drive.`, `Put the pointer source first: pointer: 'x, scroll'.`],
   'motion-pointer-unreachable': (tail: string) => [`after "scroll", ${tail} can never drive — scroll is always available.`],
   'motion-pointer-with-scroll': () => [`\`pointer\` and the \`scroll\` setting are two competing drivers.`, `Compose them as a chain instead: pointer: 'x, scroll'.`],
-  'motion-pointer-with-play': () => [`\`play\` does not compose with a pointer source yet — a play's driver is binary and cannot sweep to a pointer position (deferred from v1).`, `For the smooth mouse-follow feel, use inertia instead.`],
   'motion-pointer-with-stagger': () => [`\`stagger\` does not compose with a pointer source yet (deferred from v1).`],
   'motion-setting-pointer': () => [`pointer takes 'x', 'y' or 'distance', optionally chained with a trailing 'scroll' — like pointer: 'x, scroll'.`],
   'motion-play-with-inertia': () => [

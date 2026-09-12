@@ -615,12 +615,6 @@
       "message": "after \"scroll\", {tail} can never drive — scroll is always available."
     },
     {
-      "code": "motion-pointer-with-play",
-      "params": [],
-      "message": "`play` does not compose with a pointer source yet — a play's driver is binary and cannot sweep to a pointer position (deferred from v1).",
-      "fix": "For the smooth mouse-follow feel, use inertia instead."
-    },
-    {
       "code": "motion-pointer-with-scroll",
       "params": [],
       "message": "`pointer` and the `scroll` setting are two competing drivers.",

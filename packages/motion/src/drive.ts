@@ -42,8 +42,13 @@ const tick = (now: number): void => {
   last = now;
   for (const driven of active) {
     if (driven.mode === 'ramp') {
+      /** Floored at 0 as well as capped at 1: Firefox's rAF timestamp can LAG the
+       *  performance.now() rampTo captured, so an unfloored first tick computed a NEGATIVE t
+       *  and wrote a value BEHIND the start — a one-frame backward flicker at the start of
+       *  every play on that engine. Found by the pointer sweep pin, but the bug was every
+       *  ramp's, scroll plays included. */
       const t = driven.rampDuration <= 0 ? 1
-        : Math.min(1, (now - driven.rampStart) / (driven.rampDuration * 1000));
+        : Math.min(1, Math.max(0, (now - driven.rampStart) / (driven.rampDuration * 1000)));
       write(driven, driven.rampFrom + (driven.target - driven.rampFrom) * t);
       if (t >= 1) { driven.mode = 'idle'; active.delete(driven); }
       continue;

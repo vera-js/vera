@@ -805,15 +805,6 @@ export const parseMotion = (
       rejected.push({ code: 'motion-pointer-with-scroll', args: [] });
     if (settings['stagger'] !== undefined)
       rejected.push({ code: 'motion-pointer-with-stagger', args: [] });
-    /**
-     * DEFERRED from v1, measured rather than assumed: `play` emits TRANSITION mode, whose
-     * driver is binary (armed on/off, the platform owns the time) — it structurally cannot
-     * sweep to a pointer's 0.37. Composing them means the transition gauntlet learning a
-     * pointer row, which is a parity-locked emission change made with the twin, not here.
-     * The smooth mouse-follow feel lives in `inertia`, which composes today.
-     */
-    if (settings['play'] !== undefined)
-      rejected.push({ code: 'motion-pointer-with-play', args: [] });
     const scrollAt = chain.indexOf('scroll');
     if (scrollAt >= 0 && scrollAt < chain.length - 1)
       rejected.push({ code: 'motion-pointer-unreachable', args: [chain.slice(scrollAt + 1).join(', ')] });

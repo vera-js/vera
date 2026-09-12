@@ -1000,9 +1000,16 @@ export const updateElement = (
    * after the first forward play and never reverses.
    */
   if (element.playing) {
+    /** A pointer-sourced play SWEEPS TO THE POINTER'S NUMBER (SPEC-POINTER §4): the source
+     *  moves the target, the proportional ramp takes the time. The gauntlet's pointer row
+     *  guarantees such an element emitted SEEK, so the ramp clock below is always armed for
+     *  it. Threshold crossing is scroll's grammar; a chain resolved to `scroll` falls through. */
+    const pointered = element.pointerChain !== null && element.pointerActive !== 'scroll';
     const entered = win.start >= element.rangeStart;
     const exited = element.exitAt !== null && win.start >= element.exitAt;
-    const target = entered && !exited ? element.highestEnd : element.lowestStart;
+    const target = pointered
+      ? element.pointerValue
+      : entered && !exited ? element.highestEnd : element.lowestStart;
     if (!force && target === element.timelinePosition) return;
     /** The clock, armed before the bookkeeping below — `animateElement`'s sync then defers to
      *  it. Transition mode needs no clock at all: the marker flip in `animateElement` is the

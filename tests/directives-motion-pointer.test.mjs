@@ -61,7 +61,6 @@ test('FIXTURE 5 — every refusal, by its own name', async () => {
     ["{ keyframes: { opacity: '0% 0, 100% 1' }, pointer: 'scroll, x' }", 'motion-pointer-scroll-first'],
     ["{ keyframes: { opacity: '0% 0, 100% 1' }, pointer: 'y', scroll: '70%, 30%' }", 'motion-pointer-with-scroll'],
     ["{ keyframes: { opacity: '0% 0, 100% 1' }, pointer: 'y', stagger: '5%' }", 'motion-pointer-with-stagger'],
-    ["{ keyframes: { opacity: '0% 0, 100% 1' }, pointer: 'y', play: 0.3 }", 'motion-pointer-with-play'],
     ["{ keyframes: { opacity: '0% 0, 100% 1' }, pointer: 'x, scroll, y' }", 'motion-pointer-unreachable'],
     ["{ keyframes: { opacity: '0% 0, 100% 1' }, pointer: 'sideways' }", 'motion-setting-pointer'],
   ];
@@ -93,4 +92,18 @@ test('FIXTURE 6 — emission identity: pointer CSS is byte-identical to seek CSS
   assert.equal(pointerDoc.querySelector('[data-vm-motion]').getAttribute('data-vm-motion'),
     seekDoc.querySelector('[data-vm-motion]').getAttribute('data-vm-motion'),
     'and the marker hashes MATCH — same identity, different driver');
+});
+
+test('FIXTURE 7 — the gauntlet\'s pointer row: a pointer-sourced play emits SEEK, not transition', async () => {
+  const { renderMotion } = await load('directives/motion');
+  const page = (attr) => new JSDOM(`<!doctype html><body><div data-vd-motion="${attr}"></div></body>`).window.document;
+  const KEYS = "{ keyframes: { opacity: '0% 0.2, 100% 1' }";
+  const plainPlay = page(`${KEYS}, play: 0.3 }`);
+  const pointerPlay = page(`${KEYS}, pointer: 'x', play: 0.3 }`);
+  renderMotion(plainPlay);
+  renderMotion(pointerPlay);
+  const cssOf = (d) => d.head.querySelector('style[data-vm-sheet=\"motion\"]')?.textContent ?? '';
+  assert.match(cssOf(plainPlay), /transition-property/, 'the control: a plain play is transition mode');
+  assert.doesNotMatch(cssOf(pointerPlay), /transition-property/, 'the pointer row refused transition mode');
+  assert.match(cssOf(pointerPlay), /@keyframes vm-/, 'and it fell through to seek — the ramp\'s home');
 });

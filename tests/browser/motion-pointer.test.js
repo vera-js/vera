@@ -81,3 +81,24 @@ it('THE SMOOTHNESS PIN — under inertia, the chase travels monotonically to eac
   el.remove();
   await settled();
 });
+
+it('THE SWEEP PIN — under play, the ramp travels monotonically to the pointer and arrives', async function () {
+  if (!fine) this.skip();
+  /** play composes via the gauntlet's pointer row: seek emission, the proportional ramp
+   *  sweeping to each new pointer target at `play`-per-full-span speed. The original jitter
+   *  requirement, restored with the composition. */
+  const el = await mount("{ keyframes: { opacity: '0% 0.2, 100% 1' }, pointer: 'x', play: 0.25 }");
+  await move(0, 50);
+  await new Promise((r) => setTimeout(r, 400));
+  window.dispatchEvent(new PointerEvent('pointermove', { clientX: window.innerWidth, clientY: 50 }));
+  const samples = [];
+  for (let i = 0; i < 25; i++) {
+    await frame();
+    samples.push(progressOf(el));
+  }
+  const backsteps = samples.filter((v, i) => i > 0 && v < samples[i - 1] - 1e-6).length;
+  expect(backsteps, `no backward step across the sweep (${samples.map((s) => s.toFixed(2)).join(',')})`).to.equal(0);
+  expect(samples[samples.length - 1], 'and it arrived').to.be.closeTo(1, 0.05);
+  el.remove();
+  await settled();
+});

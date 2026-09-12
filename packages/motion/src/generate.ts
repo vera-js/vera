@@ -257,6 +257,14 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
   const transitionEmission = ((): Generated | null => {
     const play = parsed.settings['play'];
     if (typeof play !== 'number') return null;
+    /**
+     * THE POINTER ROW (SPEC-POINTER §4, second amendment — peer-ratified with the twin): a
+     * transition's driver is binary (armed on/off, the platform owning time) and cannot sweep
+     * to a pointer's fraction, so a pointer-sourced play falls THROUGH to seek emission, where
+     * the ramp clock sweeps to the pointer's number at `play`-proportional speed. Positioned
+     * with the driver-capability refusals, above the value-shape checks — it is one of them.
+     */
+    if (typeof parsed.settings['pointer'] === 'string') return null;
     if (typeof parsed.settings['function'] === 'string' || parsed.settings['progress'] !== undefined) return null;
     if (wantsTransformVar || wantsFilterVar) return null;
     if (!parsed.animations.length) return null;

@@ -962,9 +962,9 @@ half-diagonal, clamped so leaving scope reads exactly 1. A SOURCE CHAIN falls ba
 `pointer: 'x, scroll'` uses x on a fine hover-capable pointer, scroll otherwise, and where
 NOTHING is available the variable holds the first source's rest value (x/y 0.5, distance 1) —
 design keyframes so rest is the finished pose, and the page is complete on touch by default.
-`inertia` composes (the mouse-follow feel); the `scroll` SETTING, `stagger` and `play` beside
-`pointer` are refused by name (play's driver is binary and cannot sweep to a fraction —
-deferred, use inertia). The generated CSS is identical to scroll's: the pointer never joins the
+`inertia` composes (the mouse-follow feel), and so does `play` — a pointer-sourced play sweeps
+to each pointer position over `play`-proportional seconds; the `scroll` SETTING and `stagger`
+beside `pointer` are refused by name. The generated CSS is identical to scroll's: the pointer never joins the
 hash, so both drivers share one rule. `stagger` goes on the PARENT, and
 is refused with `play` until a per-sibling time delay exists. `inertia` smooths the value toward its
 target, the one thing CSS scroll-driven animation cannot do — that is a pure function of scroll
