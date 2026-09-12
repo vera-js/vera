@@ -119,6 +119,7 @@ export const PROSE: Record<string, Prose> = {
     'Leave it off for this element\u2019s own travel, or write "document" for the whole page.',
   ],
   'elect-no-id': () => [`this section has no id, so the election has nothing to name.`, `Give the element an id — the state key holds the active id.`],
+  'sensor-unknown-suffix': (flag: string, sensor: string, known: string) => [`:${flag} is not a ${sensor} suffix — the key would silently include it.`, `The ${sensor} suffixes are: ${known}.`],
   'sensor-no-key': (attr: string) => [`${attr} needs the name of a state key to write.`, `Write ${attr}="seen" and read it with data-vd-show="seen".`],
   'server-unsettled': (limit: string) => [`state was still changing after ${limit} server passes, so the markup may not be final.`, 'A directive is writing a different value every run — compare before writing.'],
   'state-not-object': () => [`data-vd-state takes a braced object.`, `Write data-vd-state="{ open: false }".`],

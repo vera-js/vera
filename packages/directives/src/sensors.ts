@@ -188,6 +188,39 @@ const keyFor = (el: Element, attr: string, ctx: Ctx, given?: string): string | n
   return key;
 };
 
+/**
+ * THE SUFFIX GRAMMAR'S ONE HOME (an enforcement-homes find: the modifiers lived as three
+ * inline parses — in-view's token split, and two viewport endsWith copies — with no
+ * manifest and, worse, no refusal: `p:viewprot` silently became a state key NAMED that). A
+ * literal sensor key is `name[:flag]*`; each sensor names the flags it understands, an unknown
+ * one refuses by name, and the exported table is what the grammar suite pins.
+ */
+export const SENSOR_SUFFIXES = {
+  'in-view': ['once', 'down', 'current'],
+  'pointer': ['viewport'],
+  'size': ['viewport'],
+} as const;
+
+const splitSuffixes = (
+  raw: string,
+  sensor: keyof typeof SENSOR_SUFFIXES,
+  ctx: Ctx
+): { key: string; flags: ReadonlySet<string> } | null => {
+  const [key = '', ...rest] = raw.split(':');
+  const known: readonly string[] = SENSOR_SUFFIXES[sensor];
+  for (const flag of rest) {
+    if (!known.includes(flag)) {
+      ctx.reject('sensor-unknown-suffix', [flag, sensor, known.join(', ')]);
+      return null;
+    }
+  }
+  if (key === '') {
+    ctx.reject('sensor-no-key', [`data-vd-${sensor}`]);
+    return null;
+  }
+  return { key, flags: new Set(rest) };
+};
+
 /* ── in-view ─────────────────────────────────────────────────────────────────────────────── */
 
 const inView: Directive = {
@@ -231,9 +264,9 @@ const inView: Directive = {
      * whose box sits BELOW the viewport (top > 0) means the reader went back UP past it —
      * reset to false so the reveal replays on the way down; an exit off the TOP keeps true.
      */
-    const tokens = (name ?? '').split(':');
-    const key = keyFor(el, 'data-vd-in-view', ctx, tokens[0]);
-    if (!key) return;
+    const parsedKey = splitSuffixes(name ?? '', 'in-view', ctx);
+    if (!parsedKey) return;
+    const { key, flags } = parsedKey;
     /**
      * `:current` — the ELECTION MODE (the owner's shape: this was never a separate directive,
      * it is what in-view means when many elements share one key): all sections carrying
@@ -241,9 +274,9 @@ const inView: Directive = {
      * winner's id ('' when none). The other suffixes are boolean-mode only; an election
      * neither latches nor cares about direction.
      */
-    if (tokens.includes('current')) return joinElection(el, ctx, key);
-    const once = tokens.includes('once');
-    const down = tokens.includes('down');
+    if (flags.has('current')) return joinElection(el, ctx, key);
+    const once = flags.has('once');
+    const down = flags.has('down');
 
     let margin = '';
     if (line !== undefined) {
@@ -301,16 +334,17 @@ const size: Directive = {
   },
   setup(el, ctx) {
     const rawKey = keyFor(el, 'data-vd-size', ctx);
+    if (!rawKey) return;
     /**
-     * `:viewport` — the screen-question scope, same grammar as pointer's: writes the WINDOW's
-     * inner size on resize instead of this element's box. This is the breakpoint door done the
-     * vera way: no named-band table to define or collide over — `data-vd-show="s.width < 768"`
-     * says the band inline, and a page pays only when it asks. (The expression-grammar
-     * `@screen` alternative was declined: viewport state is a SENSOR's job.)
+     * `:viewport` — the screen-question scope: the WINDOW's inner size on resize instead of
+     * this element's box. The breakpoint door done the vera way — no named-band table;
+     * `data-vd-show="s.width < 768"` says the band inline. (The expression-grammar `@screen`
+     * alternative was declined: viewport state is a SENSOR's job.)
      */
-    const viewport = rawKey?.endsWith(':viewport') ?? false;
-    const key = viewport ? rawKey!.slice(0, -':viewport'.length) : rawKey;
-    if (!key) return;
+    const parsedKey = splitSuffixes(rawKey, 'size', ctx);
+    if (!parsedKey) return;
+    const { key, flags } = parsedKey;
+    const viewport = flags.has('viewport');
     if (viewport) {
       const view = el.ownerDocument.defaultView;
       if (!view) return;
@@ -369,17 +403,13 @@ const pointer: Directive = {
     const raw = keyFor(el, 'data-vd-pointer', ctx);
     if (!raw) return;
     /**
-     * THE `:viewport` SCOPE (ratified with the ambient dual): `data-vd-pointer="p:viewport"`
-     * measures across the WHOLE VIEWPORT instead of this element's box — the ambient form, and
-     * what `sensors({ pointer: 'p' })` delegates to by setting exactly this attribute on body.
-     * The suffix is a scope, not part of the key.
+     * `:viewport` (ratified with the ambient dual): measures across the WHOLE VIEWPORT instead
+     * of this element's box — the ambient form, what `sensors({ pointer: 'p' })` delegates to.
      */
-    const viewport = raw.endsWith(':viewport');
-    const key = viewport ? raw.slice(0, -':viewport'.length) : raw;
-    if (!key) {
-      ctx.reject('sensor-no-key', ['data-vd-pointer']);
-      return;
-    }
+    const parsedKey = splitSuffixes(raw, 'pointer', ctx);
+    if (!parsedKey) return;
+    const { key, flags } = parsedKey;
+    const viewport = flags.has('viewport');
     let x = 0.5;
     let y = 0.5;
     let inside = false;
@@ -707,6 +737,12 @@ export interface SensorsOptions {
 }
 
 const connect = (options?: SensorsOptions): EngineConnector => (seams) => {
+  /** Same rule as remote's, same enumeration find. */
+  if (__DEV__ && options) {
+    for (const key of Object.keys(options))
+      if (key !== 'pointer')
+        console.warn(`[vera] sensors: \`${key}\` is not a sensors option, so it was ignored. The options are pointer.`);
+  }
   for (const directive of [inView, size, pointer, scrollProgress, scrollDirection, swipe]) seams.directive(directive);
   const ambient = options?.pointer;
   if (typeof ambient === 'string' && ambient !== '' && typeof document !== 'undefined') {

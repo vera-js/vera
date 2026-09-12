@@ -668,6 +668,14 @@ const streamDirective: Directive = {
  * locally so this pack imports nothing from the engine.
  */
 const connect = (options?: RemoteOptions): EngineConnector => (seams) => {
+  /** An option this pack does not have is a mistake, and silence about it is the bug (the
+   *  router's rule, applied here by the enforcement-homes enumeration — this dual and sensors'
+   *  were the two silent ones; motion already warned). */
+  if (__DEV__ && options) {
+    for (const key of Object.keys(options))
+      if (key !== 'allowedOrigins' && key !== 'headers')
+        console.warn(`[vera] remote: \`${key}\` is not a remote option, so it was ignored. The options are allowedOrigins, headers.`);
+  }
   allowedOrigins = [];
   for (const entry of options?.allowedOrigins ?? []) {
     try {
