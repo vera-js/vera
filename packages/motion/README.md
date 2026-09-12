@@ -35,6 +35,22 @@ text, audio; the attribute names a function and never contains one).
 first frame from emitted CSS before any JavaScript loads — the same output `renderMotion`
 produces on a live server. Any toolchain that ends in HTML files can run it as a build step.
 
+**Video scroll-scrub is a RECIPE on the tick door, measured, not a pack** — but the recipe
+needs its gate. Writing `currentTime` per frame queues seeks the engine coalesces badly
+(measured on a real 10s mp4: 181 writes painted 14 frames — under 5 visual fps); holding the
+write while a seek is in flight paints every frame the pipeline can actually deliver (48 writes,
+48 painted, 16 visual fps — 3.4× smoother from one condition):
+
+```js
+wireTicks({ scrub: (el, p) => { if (!el.seeking) el.currentTime = p * el.duration; } });
+```
+```html
+<video data-vd-motion="{ scroll: '80%, 20%', tick: 'scrub' }" muted preload="auto" src="…"></video>
+```
+
+`fastSeek(p * duration)` trades frame accuracy for more paints where engines support it; start
+with the gate alone.
+
 **The buildless ladder** — first-frame options for a page with no build step at all, in order of
 effort: (1) load the script at **body-end with a sync wire** — elements generate before first
 paint in practice, and the residual risk is a slow-network flash; (2) opt into

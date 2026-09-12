@@ -1029,7 +1029,10 @@ omit it for replace. `animate: true` morphs the swap old-to-new through
 `startViewTransition` (the flip door `list` uses — same guards: `on: 'load'` never animates, no
 support or reduced-motion degrade to the instant swap).
 
-**sensors, the sugar tier**: `data-vd-in-view="seen:once"` latches (a reveal is not
+**sensors, the sugar tier**: `data-vd-in-view` also DISPATCHES `vera:in-view` (bubbling,
+`detail.visible`) on every transition — the trigger surface: infinite scroll is a sentinel
+`<div data-vd-in-view="near" data-vd-fetch="{ url: …, on: 'vera:in-view', place: 'append' }">`,
+three existing pieces composing for real. `data-vd-in-view="seen:once"` latches (a reveal is not
 un-revealed); `"reveal:down"` is a directional latch — only a downward exit (the reader going
 back up) resets, so the reveal replays coming down; `data-vd-pointer="p:viewport"` measures the
 whole viewport (the ambient form — `sensors({ pointer: 'p' })` sets exactly that attribute on

@@ -258,6 +258,14 @@ const inView: Directive = {
       }
       last = visible;
       ctx.set(key, visible);
+      /**
+       * THE EVENT HALF: `vera:in-view` (bubbling, composed, `detail: { visible }`) fires on
+       * every transition, because a state write alone cannot TRIGGER anything — fetch listens
+       * for events, and "infinite scroll = a sentinel's in-view + place: 'append'" was
+       * documented before anything dispatched it (the parity diff caught the gap). The state
+       * half remains the reflection surface; this is the trigger surface.
+       */
+      el.dispatchEvent(new CustomEvent('vera:in-view', { bubbles: true, composed: true, detail: { visible } }));
       if (once && visible) stop?.();
     }, margin);
     /**

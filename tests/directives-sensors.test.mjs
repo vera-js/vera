@@ -253,6 +253,21 @@ test(':once latches and :down is a directional latch — the exit edge is the si
   await settled();
 });
 
+test('in-view dispatches vera:in-view — the trigger surface fetch composes with', async () => {
+  const host = await mount(`
+    <div data-vd-state="{ seen: false }">
+      <p id="sentinel" data-vd-in-view="seen"></p>
+    </div>`);
+  const heard = [];
+  host.addEventListener('vera:in-view', (e) => heard.push(e.detail.visible));
+  const sentinel = host.querySelector('#sentinel');
+  intersect(sentinel, true); await settled();
+  intersect(sentinel, false); await settled();
+  assert.deepEqual(heard, [true, false], 'one bubbling event per transition, detail carrying the answer');
+  host.remove();
+  await settled();
+});
+
 test('spy: the section MOST IN VIEW wins by ratio; ties go to document order; empty string seeds and clears', async () => {
   const host = await mount(`
     <div data-vd-state="{ toc: 'unseeded' }">
