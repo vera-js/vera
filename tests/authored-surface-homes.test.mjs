@@ -60,6 +60,14 @@ test('every event the framework dispatches is on the manifest — names are API'
   const spec = new Set(SPEC);
   const undocumented = [...found].filter((e) => !spec.has(e));
   const phantom = SPEC.filter((e) => !found.has(e));
+  /**
+   * **The floor.** This walk discovers its corpus, and both assertions below pass on an empty one —
+   * except that `phantom` would then name every manifest entry, so the reverse direction has been
+   * carrying the floor implicitly. Stated outright, because an implicit floor is one refactor away
+   * from being no floor: if the phantom check is ever narrowed, the undocumented check would go on
+   * passing over a walk that found nothing.
+   */
+  assert.ok(found.size > 0, 'the source walk found no dispatched events at all — it scanned nothing');
   assert.deepEqual(undocumented, [], `events dispatched but not on the manifest: ${undocumented.join(', ')}`);
   assert.deepEqual(phantom, [], `events on the manifest nothing dispatches: ${phantom.join(', ')}`);
 });

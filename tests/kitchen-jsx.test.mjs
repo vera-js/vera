@@ -25,6 +25,13 @@ import assert from 'node:assert/strict';
 const root = new URL('../', import.meta.url);
 const jsxDir = new URL('./examples/kitchen-sink/jsx/', root);
 const twins = readdirSync(jsxDir).filter((name) => name.endsWith('.jsx'));
+/**
+ * **A DISCOVERED corpus needs a floor, or an empty walk is a clean pass.** This suite's whole
+ * output is `failures.length === 0`, and zero twins produces zero failures — so a renamed or moved
+ * `jsx/` directory would turn the JSX-vs-tagged-template parity check into a no-op that reads as
+ * a green run. Four twins today; the floor is deliberately below that and above zero.
+ */
+assert.ok(twins.length >= 3, `only ${twins.length} JSX twin(s) found in ${jsxDir.pathname} — the walk found nothing to compare`);
 
 /** Compiled beside the originals, so their relative imports and tag names resolve identically. */
 const dir = mkdtempSync(new URL('./examples/kitchen-sink/.jsx-', root).pathname);

@@ -22,6 +22,9 @@ const failures = [];
 const check = (name, condition, extra = '') => (condition ? pass++ : failures.push(`${name} ${extra}`));
 
 /** Every file under a directory, recursively, matching an extension. */
+/** How many example files the walks below actually visited — see the floor at the end. */
+let scanned = 0;
+
 const files = (directory, extensions) => {
   const found = [];
   const walk = (path) => {
@@ -37,6 +40,7 @@ const files = (directory, extensions) => {
 
 /* ── every example module parses ────────────────────────────────────────────────────────────── */
 for (const file of files(at('examples'), ['.js', '.mjs'])) {
+  scanned++;
   const relative = file.slice(at('examples').length + 1);
   try {
     execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' });
@@ -56,6 +60,7 @@ const withoutComments = (source) =>
 
 /* ── every relative import points at a file that exists ─────────────────────────────────────── */
 for (const file of files(at('examples'), ['.js', '.mjs', '.ts', '.tsx'])) {
+  scanned++;
   const source = withoutComments(readFileSync(file, 'utf8'));
   const directory = file.slice(0, file.lastIndexOf('/'));
   for (const [, specifier] of source.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
@@ -68,6 +73,7 @@ for (const file of files(at('examples'), ['.js', '.mjs', '.ts', '.tsx'])) {
 
 /* ── every bundle path an example points at is one the build writes ─────────────────────────── */
 for (const file of files(at('examples'), ['.html', '.js', '.mjs'])) {
+  scanned++;
   const source = file.endsWith('.html') ? readFileSync(file, 'utf8') : withoutComments(readFileSync(file, 'utf8'));
   for (const [, path] of source.matchAll(/["'](\/packages\/[^"']+\.js)["']/g)) {
     check(
@@ -83,4 +89,14 @@ if (failures.length) {
   for (const failure of failures) console.log('    ' + failure);
 }
 console.log(`examples: ${pass} checks across every example module`);
+/**
+ * **The floor, without which this whole suite is a no-op.** Every check above walks `examples/`
+ * and pushes failures; an empty walk pushes none, so a moved or renamed directory would pass
+ * silently — and `examples/` HAS been restructured. Counting what was actually examined is the
+ * only thing that separates "the examples are fine" from "there were no examples".
+ */
+assert.ok(
+  scanned >= 20,
+  `only ${scanned} example file(s) were examined — the walk found nothing, so this suite checked nothing`
+);
 assert.equal(failures.length, 0);

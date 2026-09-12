@@ -37,6 +37,11 @@ test('the reader answers over the real artifacts, served as the page would fetch
 
   const posts = await reader.entries('posts', { sort: 'date:desc' });
   assert.deepEqual(posts.map((post) => post.slug), ['on-lists', 'counting-things', 'first-light']);
+  /**
+   * **`[].every(…)` is true**, so without a floor an empty read passes this assertion and every
+   * per-item check below it — the suite would report a healthy site having examined nothing.
+   */
+  assert.ok(posts.length >= 2, `only ${posts.length} post(s) read — the reader found nothing to check`);
   assert.ok(posts.every((post) => post.uuid !== null && post.excerpt !== null));
 
   const about = await reader.entry('pages', 'about');
@@ -44,13 +49,17 @@ test('the reader answers over the real artifacts, served as the page would fetch
 });
 
 test('every content file parses and renders — the articles the page will fetch all work', () => {
+  let rendered = 0;
   for (const collection of readdirSync(join(SITE, 'content'), { withFileTypes: true })) {
     if (!collection.isDirectory()) continue;
     for (const name of readdirSync(join(SITE, 'content', collection.name))) {
       const { root, data } = parseContent(readFileSync(join(SITE, 'content', collection.name, name), 'utf8'));
       const html = serializeHtml(root);
+      rendered++;
       assert.ok(html.length > 0, `${collection.name}/${name} rendered nothing`);
       assert.equal(typeof data.title, 'string', `${collection.name}/${name} has no title`);
     }
   }
+  /** And the outer walk too: no collections means no renders and a green run. */
+  assert.ok(rendered >= 4, `only ${rendered} entr(y|ies) rendered — the content walk found nothing`);
 });
