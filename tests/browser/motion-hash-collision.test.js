@@ -47,9 +47,25 @@ it('the collision is real in this engine, and the two bodies are distinct', () =
  *
  * **And the two candidate fixes are not the same size, which a first reading gets backwards.**
  * FNV-1a is not cryptographic, so the question is not only whether a collision happens by ACCIDENT
- * but whether one can be MADE. Measured on the machine this was written on: a TARGETED collision at
- * 32 bits costs about 2^32 hashes, which is ~121 seconds of naive single-threaded JavaScript. Not
- * hours; minutes.
+ * but whether one can be MADE — and those are different problems with different costs:
+ *
+ * - **Birthday** (the attacker controls BOTH bodies) is 2^(n/2): 2^16 here, instant. It buys
+ *   nothing — making two of your own rules share a name is not an attack.
+ * - **Second preimage** (collide with a rule ALREADY on the page, whose hash is public in the
+ *   selector and in `data-vm-for`) is 2^n: **2^32 here, 2^64 at omni's width.** That is the attack
+ *   this defect enables, and it is the number that matters.
+ *
+ * At 32 bits the second preimage is roughly a billion hashes per minute of ordinary hardware away.
+ * At 64 bits the same work is geological. So a wider hash is NOT merely an accident fix — against
+ * the real attack it is a 2^32 improvement.
+ *
+ * **An empirical demonstration was attempted and FAILED for instrument reasons, which is recorded
+ * rather than dropped.** Six billion candidates over ~18 minutes produced no preimage, and that
+ * null is worth nothing: the candidate family (a counter rendered into a fixed prefix/suffix)
+ * turned out to sample the hash space non-uniformly — 3M candidates yielded 44 collisions where a
+ * uniform hash gives ~1048, i.e. it maps near-injectively onto a SUBSET that need not contain the
+ * target. A search whose space is not validated cannot distinguish "hard" from "looking in the
+ * wrong place". The 2^32 figure above stands on arithmetic, not on that run.
  *
  * - **A wider hash** (omni's twin is 64-bit; the width difference is a recorded divergence, so
  *   closing it is a ratified-surface change rather than an audit repair) removes the ACCIDENT and
