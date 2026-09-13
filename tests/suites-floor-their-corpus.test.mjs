@@ -98,10 +98,54 @@ const suites = [
 ];
 
 /**
+ * Every test file under `tests/`, found RECURSIVELY and without knowing the shape of the tree —
+ * the independent enumeration the frame check below compares against.
+ */
+const everyTestFile = (dir, prefix = 'tests') => {
+  const out = [];
+  for (const entry of readdirSync(`${root}${dir}`, { withFileTypes: true })) {
+    if (entry.isDirectory()) out.push(...everyTestFile(`${dir}/${entry.name}`, `${prefix}/${entry.name}`));
+    else if (/\.test\.[cm]?[jt]s$/.test(entry.name)) out.push(`${dir}/${entry.name}`);
+  }
+  return out;
+};
+
+/**
  * A positive control on the INSTRUMENT, run against text rather than the tree — because a lint
  * reporting "0 problems" and a lint that cannot see anything produce the same output, and this file
  * exists precisely to say that those are different. Nothing here touches a real suite.
  */
+/**
+ * **THE FRAME CHECK — a floor validates the SAMPLE and says nothing about the SPACE.**
+ *
+ * Every assertion in this file is a claim about EVERY suite, and the two `readdirSync` calls above
+ * are non-recursive and extension-specific. Add `tests/unit/thing.test.mjs` tomorrow and this rule
+ * silently narrows to a smaller tree and goes on reporting a clean sweep — and the floors it
+ * already carries CANNOT NOTICE, because a floor asks "did I find enough of what I looked at",
+ * never "did I look at the right things".
+ *
+ * So the space is checked against an independent enumeration rather than against itself. The move
+ * is the one that settled a failed second-preimage search elsewhere in this audit: ASK SOMETHING
+ * ELSE HOW BIG THE SPACE IS. There, counting collisions against n²/2m revealed a candidate
+ * generator covering a subset of the hash space; here, a recursive walk reveals a frame covering a
+ * subset of the tree. Same defect, and no floor substitutes for it.
+ *
+ * (The omni engine found exactly this in their equivalent lint — 69 browser specs outside its walk,
+ * with its own count-and-identity floors passing honestly throughout.)
+ */
+test('the rule looks at every test file that exists, not merely at the ones it knows about', () => {
+  const framed = new Set(suites);
+  const unseen = everyTestFile('tests').filter((file) => !framed.has(file));
+  assert.ok(suites.length > 100, `only ${suites.length} suite(s) framed — the walk itself found nothing`);
+  assert.deepEqual(
+    unseen,
+    [],
+    `these test files exist and this rule never looked at them, so every "clean sweep" above was ` +
+      `over a smaller tree than the one that ships:\n  ${unseen.join('\n  ')}\n\n` +
+      `Widen the two walks at the top of this file — do not add an exemption.`
+  );
+});
+
 test('the detector can tell a floored suite from an unfloored one', () => {
   const unfloored = `
     import { readdirSync } from 'node:fs';
