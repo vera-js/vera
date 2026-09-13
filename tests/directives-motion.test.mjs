@@ -347,7 +347,7 @@ test('a value the grammar refuses is REPORTED, not merely discarded', async () =
     <div id="p1" data-vd-motion="{ opacity: 0">p1</div>
     <div id="p2" data-vd-motion="{ !!! }">p2</div>
     <div id="p3" data-vd-motion="{ stagger: 2, x">p3</div>
-    <div id="p4" data-vd-motion="{ nonsense: 3 }">p4</div>`);
+    <div id="p4" data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, nonsense: 3 }">p4</div>`);
 
   /** The three the empty catches discard — each must surface from the element's own activation. */
   for (const id of ['p1', 'p2', 'p3']) {
@@ -362,9 +362,25 @@ test('a value the grammar refuses is REPORTED, not merely discarded', async () =
    * grammar computes and nothing carries is indistinguishable, to the person who typed it, from
    * a setting that silently does nothing.
    */
-  const inner = rejections(host.querySelector('#p4'));
+  const p4 = host.querySelector('#p4');
+  const inner = rejections(p4);
   assert.ok(inner.some((r) => r.code === 'motion-no-such-key'),
     'a typo INSIDE an otherwise usable value must be reported, not swallowed with the good half');
   if (!isProduction)
     assert.ok(inner.some((r) => /nonsense/.test(r.message)), 'and it must name the key that was wrong');
+
+  /**
+   * **And the element STILL WIRES — which is the whole reason the report has to exist.**
+   *
+   * This control states the severity rather than merely guarding against vacuity. If a refused
+   * setting took its element down, the author would notice without any report and the channel
+   * would be redundant; it is precisely because the good half works, the markup looks right and
+   * the page animates that an unreported typo is invisible. Asserting the refusal without
+   * asserting the wiring would pass just as well on an engine that refused the whole element,
+   * which is a different product with a different bug.
+   *
+   * (The control is the omni engine's — they added it to the twin of this fix on their side, and
+   * it is a better statement of the case than the one this test shipped with an hour earlier.)
+   */
+  assert.ok(animating(p4), 'the element must still animate — an unreported typo is only invisible because the rest works');
 });
