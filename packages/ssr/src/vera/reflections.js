@@ -681,14 +681,52 @@ export const interfaceFor = (tag, Base) => {
         },
       });
     } else if (kind === 'number') {
-      const absent = entry[2];
+      
+/**
+ * **HTML's "rules for parsing integers", which `Number.parseInt` is not.**
+ *
+ * Measured against Chromium, Firefox and WebKit by `tests/browser/reflection-parsing.test.js`;
+ * `Number.parseInt(raw, 10)` diverged from all three on two inputs, and both are the shape this
+ * package's README calls its worst: the server and the client disagree about something neither of
+ * them renders, so nothing fails until a hydration mismatch surfaces somewhere else entirely.
+ *
+ * | attribute value      | every engine | `parseInt` |
+ * | -------------------- | ------------ | ---------- |
+ * | `9007199254740993`   | the default  | 9007199254740992 |
+ * | `"\u00a05"` (NBSP)   | the default  | 5 |
+ *
+ * The first: the value is outside a `long`, so it is INVALID and the property answers its default —
+ * not a float that lost its last digits. The second: these rules skip ASCII whitespace only, while
+ * `parseInt` skips every Unicode space, so a non-breaking space made a value parse here that no
+ * engine accepts.
+ */
+const ASCII_SPACE = ' \t\n\f\r';
+const LONG_MIN = -2147483648;
+const LONG_MAX = 2147483647;
+
+const parseReflectedInteger = (raw) => {
+  let i = 0;
+  while (i < raw.length && ASCII_SPACE.includes(raw[i])) i++;
+  let sign = 1;
+  if (raw[i] === '-') {
+    sign = -1;
+    i++;
+  } else if (raw[i] === '+') i++;
+  const start = i;
+  while (i < raw.length && raw[i] >= '0' && raw[i] <= '9') i++;
+  if (i === start) return null;
+  const value = sign * Number(raw.slice(start, i));
+  return value < LONG_MIN || value > LONG_MAX ? null : value;
+};
+
+const absent = entry[2];
       define(proto, property, {
         get() {
           const raw = this.getAttribute(attribute);
           if (raw === null) return absent;
           /** A browser answers the default for anything it cannot parse, not `NaN`. */
-          const parsed = Number.parseInt(raw, 10);
-          return Number.isNaN(parsed) ? absent : parsed;
+          const parsed = parseReflectedInteger(raw);
+          return parsed === null ? absent : parsed;
         },
         /**
          * **A numeric property converts before it writes, and this wrote the value verbatim.**
