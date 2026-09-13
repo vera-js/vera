@@ -99,6 +99,22 @@ const suites = [
 ];
 
 /**
+ * **ONE definition of "test-shaped", shared by both frame layers.**
+ *
+ * They were written separately and did not agree: the recursive walk matched `.test.` only while
+ * the git census matched `.test.` and `.spec.`. A `.spec.` file under `tests/` was therefore
+ * invisible to BOTH — the walk did not consider it a test, and the census saw it inside the frame —
+ * so an unfloored one passed every layer in silence. Verified by planting exactly that and watching
+ * four green checks.
+ *
+ * WHEN TWO LAYERS CROSS-CHECK EACH OTHER THEY MUST SHARE THE DEFINITION OF THE THING BEING
+ * COUNTED, or the cross-check is satisfiable by the two disagreeing about the subject — and a
+ * disagreement about the subject looks exactly like agreement about the answer. (The omni engine's,
+ * from hitting the same split between their own two layers.)
+ */
+const TEST_SHAPED = /\.(test|spec)\.[cm]?[jt]s$/;
+
+/**
  * Every test file under `tests/`, found RECURSIVELY and without knowing the shape of the tree —
  * the independent enumeration the frame check below compares against.
  */
@@ -106,7 +122,7 @@ const everyTestFile = (dir, prefix = 'tests') => {
   const out = [];
   for (const entry of readdirSync(`${root}${dir}`, { withFileTypes: true })) {
     if (entry.isDirectory()) out.push(...everyTestFile(`${dir}/${entry.name}`, `${prefix}/${entry.name}`));
-    else if (/\.test\.[cm]?[jt]s$/.test(entry.name)) out.push(`${dir}/${entry.name}`);
+    else if (TEST_SHAPED.test(entry.name)) out.push(`${dir}/${entry.name}`);
   }
   return out;
 };
@@ -163,7 +179,7 @@ test('the rule looks at every test file that exists, not merely at the ones it k
 test('nothing test-shaped is tracked outside the frame, and that is checked rather than assumed', () => {
   const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
     .split('\n')
-    .filter((path) => /\.(test|spec)\.[cm]?[jt]s$/.test(path));
+    .filter((path) => TEST_SHAPED.test(path));
   assert.ok(tracked.length > 100, `git reports only ${tracked.length} test file(s) — the question was not asked properly`);
 
   const outside = tracked.filter((path) => !path.startsWith('tests/'));
