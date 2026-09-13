@@ -24,6 +24,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const root = new URL('../', import.meta.url).pathname;
 
@@ -143,6 +144,35 @@ test('the rule looks at every test file that exists, not merely at the ones it k
     `these test files exist and this rule never looked at them, so every "clean sweep" above was ` +
       `over a smaller tree than the one that ships:\n  ${unseen.join('\n  ')}\n\n` +
       `Widen the two walks at the top of this file — do not add an exemption.`
+  );
+});
+
+/**
+ * **The frame's OWN boundary re-earns its reason, instead of resting on a comment.**
+ *
+ * The walk above covers `tests/` and nothing else. That is correct today for a reason nobody
+ * wrote down in executable form: everything test-shaped outside it is either scratch or the Studio
+ * repo cloned in, both gitignored, both with their own gates. An exclusion whose justification is
+ * a sentence in a comment is the allowance that never has to be re-earned — so this asks GIT, which
+ * is the authority on what this repository actually contains, and fails the moment a tracked test
+ * file appears anywhere else.
+ *
+ * (The move is the omni engine's, from discovering a fourth suite family one message after
+ * declaring their frame complete: a frame is not fixed by widening it once, only by deriving it.)
+ */
+test('nothing test-shaped is tracked outside the frame, and that is checked rather than assumed', () => {
+  const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+    .split('\n')
+    .filter((path) => /\.(test|spec)\.[cm]?[jt]s$/.test(path));
+  assert.ok(tracked.length > 100, `git reports only ${tracked.length} test file(s) — the question was not asked properly`);
+
+  const outside = tracked.filter((path) => !path.startsWith('tests/'));
+  assert.deepEqual(
+    outside,
+    [],
+    `these test files are TRACKED and live outside this rule's frame, so nothing here has ever ` +
+      `looked at them:\n  ${outside.join('\n  ')}\n\n` +
+      `Widen the walks — do not add an exemption.`
   );
 });
 
