@@ -300,8 +300,16 @@ const refreshFallbacks = (): void => {
  * Synchronous, and the caller marks the element AFTER it returns — the invariant in the header.
  * The `cssText` is only read the first time a hash is seen; identical animations hand in identical
  * text by construction, since the hash IS the text.
+ *
+ * **Returns whether the rule was accepted, and the caller MUST act on false.** It returned `void`
+ * until 2026-09-13, which made the refusal below decorative: the caller went on to mark the element
+ * with this very hash, so it matched the OTHER body's selector and wore its animation — the exact
+ * silent-wrong-animation the refusal exists to prevent, produced BY the refusal. A false also means
+ * this caller was never counted in, so its key must not be released later against an entry it does
+ * not own. (Found by omni working through the same repair on their scoped-CSS registry, where the
+ * marker is likewise published into the markup.)
  */
-export const acquire = (root: SheetRoot, hash: string, cssText: string): void => {
+export const acquire = (root: SheetRoot, hash: string, cssText: string): boolean => {
   usable ??= constructed(root);
 
   const entry = entries.get(hash);
@@ -332,7 +340,7 @@ export const acquire = (root: SheetRoot, hash: string, cssText: string): void =>
      */
     if (entry.cssText !== cssText) {
       pageProblem('motion-rule-name-collision', [hash]);
-      return;
+      return false;
     }
     entry.count++;
   } else {
@@ -359,6 +367,7 @@ export const acquire = (root: SheetRoot, hash: string, cssText: string): void =>
   } else if (!entry) {
     refreshFallbacks();
   }
+  return true;
 };
 
 /**

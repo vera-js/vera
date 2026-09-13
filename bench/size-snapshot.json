@@ -95,20 +95,20 @@
       "gzip": 3888
     },
     "directives-motion": {
-      "raw": 79439,
-      "gzip": 26099
+      "raw": 79525,
+      "gzip": 26076
     },
     "motion": {
-      "raw": 37661,
-      "gzip": 12485
+      "raw": 37669,
+      "gzip": 12487
     },
     "motion-ssr": {
-      "raw": 37063,
-      "gzip": 11933
+      "raw": 37127,
+      "gzip": 11968
     },
     "motion-client": {
-      "raw": 8384,
-      "gzip": 3076
+      "raw": 8392,
+      "gzip": 3079
     }
   },
   "apps": [

@@ -194,47 +194,58 @@ const inlineDeliver = (node: Element, generatedCss: Generated): void => {
   style.textContent = inlineCssFor(generatedCss);
 };
 
-const deliverGenerated = (node: Element, generatedCss: Generated): string[] => {
+/**
+ * What delivery achieved: the keys actually acquired, and whether the registry REFUSED any rule.
+ * A refusal is not a partial success — the caller must not mark the element (see its call site).
+ */
+type Delivered = { readonly keys: string[]; readonly refused: boolean };
+
+const deliverGenerated = (node: Element, generatedCss: Generated): Delivered => {
   const sheetRoot = node.getRootNode() as SheetRoot;
+  const keys: string[] = [];
+  let refused = false;
+  /**
+   * ONLY REAL RULES REACH THE SHEET. A deliberately empty slot — the when-fold's `noJsRule`
+   * is '' by design — must never be inserted: every real engine's insertRule throws
+   * SyntaxError on '', which quarantined the whole directive with a bare DOMException code
+   * 12, while jsdom's permissive sheet accepted it — so the defect lived exactly in the
+   * matrix cell no suite runs (production bundle × real engine) and only a demo page could
+   * find it. Skipped rules skip their keys too, so release stays balanced.
+   *
+   * **And only ACQUIRED rules are counted.** The seek path used to build its key list from
+   * `generatedCss` after the fact, which returned a key for any rule the registry had refused;
+   * releasing it at teardown then decremented the entry that legitimately OWNS that name, evicting
+   * a rule still in use by another element. One helper for both modes so the two lists cannot
+   * drift again.
+   */
+  const take = (key: string, text: string): void => {
+    if (!text) return;
+    if (acquire(sheetRoot, key, text)) keys.push(key);
+    else refused = true;
+  };
+
   /** Transition mode is three rules, ORDER-SENSITIVE: base, then active (they tie on
    *  specificity — the flip's whole mechanism is the later rule winning while the marker is
    *  present), then the no-JS block. */
   if (generatedCss.mode === 'transition') {
-    /**
-     * ONLY REAL RULES REACH THE SHEET. A deliberately empty slot — the when-fold's `noJsRule`
-     * is '' by design — must never be inserted: every real engine's insertRule throws
-     * SyntaxError on '', which quarantined the whole directive with a bare DOMException code
-     * 12, while jsdom's permissive sheet accepted it — so the defect lived exactly in the
-     * matrix cell no suite runs (production bundle × real engine) and only a demo page could
-     * find it. Skipped rules skip their keys too, so release stays balanced.
-     */
-    const acquired: string[] = [];
-    const take = (suffix: string, text: string): void => {
-      if (!text) return;
-      acquire(sheetRoot, `${generatedCss.hash}#${suffix}`, text);
-      acquired.push(`${generatedCss.hash}#${suffix}`);
-    };
-    take('b', generatedCss.elementRule);
-    take('t', generatedCss.armedRule);
-    take('on', generatedCss.activeRule);
-    take('nj', generatedCss.noJsRule);
-    take('rm', generatedCss.reducedRule);
-    return acquired;
+    take(`${generatedCss.hash}#b`, generatedCss.elementRule);
+    take(`${generatedCss.hash}#t`, generatedCss.armedRule);
+    take(`${generatedCss.hash}#on`, generatedCss.activeRule);
+    take(`${generatedCss.hash}#nj`, generatedCss.noJsRule);
+    take(`${generatedCss.hash}#rm`, generatedCss.reducedRule);
+    return { keys, refused };
   }
-  for (const group of generatedCss.groups) acquire(sheetRoot, group.hash, group.rule);
+  for (const group of generatedCss.groups) take(group.hash, group.rule);
   for (const segment of generatedCss.segments) {
-    for (const rule of segment.rules) acquire(sheetRoot, rule.hash, rule.rule);
+    for (const rule of segment.rules) take(rule.hash, rule.rule);
   }
-  acquire(sheetRoot, `${generatedCss.hash}#el`, generatedCss.elementRule);
+  take(`${generatedCss.hash}#el`, generatedCss.elementRule);
   for (const [i, segment] of generatedCss.segments.entries()) {
-    acquire(sheetRoot, `${generatedCss.hash}#m${i}`, segment.media);
+    take(`${generatedCss.hash}#m${i}`, segment.media);
   }
   /** LAST: tier N's timing override must outrank the base shorthand on order. */
-  if (generatedCss.nativeRule) acquire(sheetRoot, `${generatedCss.hash}#n`, generatedCss.nativeRule);
-  return [...generatedCss.groups.map((g) => g.hash),
-    ...generatedCss.segments.flatMap((seg, i) =>
-      [...seg.rules.map((rule) => rule.hash), `${generatedCss.hash}#m${i}`]), `${generatedCss.hash}#el`,
-    ...(generatedCss.nativeRule ? [`${generatedCss.hash}#n`] : [])];
+  take(`${generatedCss.hash}#n`, generatedCss.nativeRule);
+  return { keys, refused };
 };
 
 /**
@@ -257,9 +268,23 @@ const regenerateRules = (element: RuntimeElement, win: WindowSize): void => {
     return;
   }
   if (fresh.hash === element.generated.hash) return;
-  const keys = element.generated.inline
-    ? (inlineDeliver(element.node, fresh), [])
-    : deliverGenerated(element.node, fresh);
+  let keys: string[] = [];
+  if (element.generated.inline) inlineDeliver(element.node, fresh);
+  else {
+    const delivered = deliverGenerated(element.node, fresh);
+    keys = delivered.keys;
+    /**
+     * A refusal here is better off than at activation: this element already HAS a working rule set
+     * from its last measure. So hand back the half-acquired new keys and keep the old ones — the
+     * element keeps animating at the previous geometry, which is stale rather than wrong, and the
+     * next measure retries. Marking with `fresh.hash` would point it at whichever body legitimately
+     * owns that name; `acquire` has already reported by name.
+     */
+    if (delivered.refused) {
+      for (const key of keys) release(key);
+      return;
+    }
+  }
   /** New rules IN before old rules out — an element must never reference a name mid-swap. */
   element.node.setAttribute('data-vm-motion', fresh.hash);
   for (const key of element.generated.hashes) release(key);
@@ -601,8 +626,21 @@ export const createRuntimeElement = (
          *  inside the child (inlineCssFor). Nothing to release at teardown; the child goes. */
         inlineDeliver(node, generatedCss);
       } else {
-        acquiredKeys = deliverGenerated(node, generatedCss);
+        const delivered = deliverGenerated(node, generatedCss);
+        acquiredKeys = delivered.keys;
         setTails(NEUTRALISERS);
+        /**
+         * **A REFUSED rule means this element must go unmarked, not merely unstyled.** The marker
+         * IS the selector every generated rule matches on, so writing it while a rule was refused
+         * hands the element the rule that legitimately owns that name — it would animate, with
+         * someone else's animation. Unstyled beats wrongly styled. Hand back whatever this element
+         * did acquire (or those rules outlive the only reference to them) and take the early exit;
+         * `acquire` has already reported the collision by name.
+         */
+        if (delivered.refused) {
+          for (const key of acquiredKeys) release(key);
+          return null;
+        }
       }
     }
     /**

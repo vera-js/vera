@@ -59,26 +59,47 @@ const NEUTRALISERS =
  * rule is the cascade invariant from stage 5b: they tie it on specificity, so sheet source order
  * decides, and a switch emitted first loses everywhere, silently.
  */
-const collect = (sheet: Sheet, generated: Generated): void => {
+/**
+ * Returns false if any rule was REFUSED, meaning this element must not be marked.
+ *
+ * **First body wins, and a mismatch is refused rather than overwritten.** These were unconditional
+ * `set` calls until 2026-09-13, which is the client registry's defect with the sign flipped: there
+ * the second body was dropped, here the second body OVERWROTE the first, and every element already
+ * marked with that hash silently rendered with the newcomer's animation. Worse than the client's
+ * version in one specific way — the two engines disagreed about which body owns a name, so a page
+ * that server-rendered one animation would hydrate into the other.
+ *
+ * First-wins matches `registry.ts`'s `acquire` exactly, which is the property that matters: the
+ * server and the client must resolve a contested name the same way or hydration diverges.
+ */
+const collect = (sheet: Sheet, generated: Generated): boolean => {
+  let refused = false;
+  const put = (key: string, text: string): void => {
+    if (!text) return;
+    const existing = sheet.get(key);
+    if (existing === undefined) sheet.set(key, text);
+    else if (existing !== text) refused = true;
+  };
   if (generated.mode === 'transition') {
     /** Base, active, no-JS — the order IS the mechanism (specificity ties, later wins). A
      *  no-JS visitor gets the ACTIVE values statically: the base state is the hidden one. */
-    sheet.set(`${generated.hash}#b`, generated.elementRule);
-    sheet.set(`${generated.hash}#t`, generated.armedRule);
-    sheet.set(`${generated.hash}#on`, generated.activeRule);
-    sheet.set(`${generated.hash}#nj`, generated.noJsRule);
-    sheet.set(`${generated.hash}#rm`, generated.reducedRule);
-    return;
+    put(`${generated.hash}#b`, generated.elementRule);
+    put(`${generated.hash}#t`, generated.armedRule);
+    put(`${generated.hash}#on`, generated.activeRule);
+    put(`${generated.hash}#nj`, generated.noJsRule);
+    put(`${generated.hash}#rm`, generated.reducedRule);
+    return !refused;
   }
-  for (const group of generated.groups) sheet.set(group.hash, group.rule);
+  for (const group of generated.groups) put(group.hash, group.rule);
   for (const segment of generated.segments) {
-    for (const rule of segment.rules) sheet.set(rule.hash, rule.rule);
+    for (const rule of segment.rules) put(rule.hash, rule.rule);
   }
-  sheet.set(`${generated.hash}#el`, generated.elementRule);
+  put(`${generated.hash}#el`, generated.elementRule);
   for (const [i, segment] of generated.segments.entries()) {
-    sheet.set(`${generated.hash}#m${i}`, segment.media);
+    put(`${generated.hash}#m${i}`, segment.media);
   }
-  if (generated.nativeRule) sheet.set(`${generated.hash}#n`, generated.nativeRule);
+  put(`${generated.hash}#n`, generated.nativeRule);
+  return !refused;
 };
 
 /**
@@ -174,7 +195,16 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
       } else {
         let sheet = sheets.get(root);
         if (!sheet) sheets.set(root, (sheet = new Map()));
-        collect(sheet, generated);
+        /**
+         * A refusal means this element goes UNMARKED, not merely unstyled: the marker IS the
+         * selector, so writing it would hand the element whichever body legitimately owns that
+         * name — it would animate, with the wrong animation. Counted as skipped, which is what
+         * `renderMotion` already reports for an element it could not serve.
+         */
+        if (!collect(sheet, generated)) {
+          skipped++;
+          continue;
+        }
         for (const v of generated.vars) varNames.add(v.name);
       }
       el.setAttribute('data-vm-motion', generated.hash);
