@@ -404,6 +404,31 @@ all ten is not a footnote to any of them.
   completion.** And where the audience is not present at the door — a warning printed during server
   rendering, read by a build terminal — say so as a gap rather than count it as a channel.
 
+- **The calling code is an audience too, and the signature is its only channel.** The bullet above
+  was *satisfied* by the defect that produced this one: `acquire` refused a rule whose name was held
+  by different text, reported it by name, and returned `void`. The human was told. The program could
+  not be — so every call site was structurally forced to assume success, and the caller went on to
+  mark the element with that very hash. The marker IS the selector, so the element matched the other
+  body's rule and animated with someone else's animation: the exact failure the refusal existed to
+  prevent, produced BY the refusal. **A refusal that cannot be observed is not a refusal, it is a
+  comment** (omni's formulation, and it is better than "check the return value" — it locates the
+  fault in the signature, so no call site was individually careless, which is also why two readings
+  walked past it). The same `void` had a second shape downstream: the teardown key list was
+  **reconstructed from the generated object after the fact** rather than recorded as the work
+  happened, so it listed keys for rules the registry had refused, and releasing them decremented an
+  entry another element legitimately owned. **Make the record a consequence of the action, never a
+  reconstruction of it.** Not mechanical, which is why it is here — 19 refusal sites in this repo sit
+  inside `void` functions and most are perfectly correct, because their callers genuinely have
+  nothing to do. What separates a bug is whether the caller then performs an action *only valid if
+  the refusal did not happen*, and no signature shows that.
+- **Two implementations of one contract must resolve contested state by the same rule, and parity on
+  the key cannot see it.** The client registry kept the first body on a name collision; SSR's
+  `collect` used an unconditional `Map.set` and kept the LAST. Both were self-consistent, both passed
+  a byte-parity fixture over the generated text, and together they meant a page could server-render
+  one animation and hydrate into another — the two halves disagreeing about which body owns a name,
+  which no test of the *naming function* can reach. Only feeding two different bodies to both paths,
+  **in both orders**, distinguishes them.
+
 **Where a lesson is mechanical, make it a lint.** Prose in the file where a lesson was learned does
 not travel; its only enforcement is whether the next person happens to read that file. Five of these
 walks were written *after* the lesson was available, and the mechanical rule found two more that two
