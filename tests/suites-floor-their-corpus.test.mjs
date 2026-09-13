@@ -93,11 +93,6 @@ const FLOOR = { test: (text) => Object.values(FLOOR_CLAUSES).some((clause) => cl
  */
 const NO_FLOOR_NEEDED = new Map([]);
 
-const suites = [
-  ...readdirSync(`${root}tests`).filter((name) => name.endsWith('.test.mjs')).map((name) => `tests/${name}`),
-  ...readdirSync(`${root}tests/browser`).filter((name) => name.endsWith('.test.js')).map((name) => `tests/browser/${name}`),
-];
-
 /**
  * **ONE definition of "test-shaped", shared by both frame layers.**
  *
@@ -113,6 +108,12 @@ const suites = [
  * from hitting the same split between their own two layers.)
  */
 const TEST_SHAPED = /\.(test|spec)\.[cm]?[jt]s$/;
+
+const suites = [
+  ...readdirSync(`${root}tests`).filter((name) => TEST_SHAPED.test(name)).map((name) => `tests/${name}`),
+  ...readdirSync(`${root}tests/browser`).filter((name) => TEST_SHAPED.test(name)).map((name) => `tests/browser/${name}`),
+];
+
 
 /**
  * Every test file under `tests/`, found RECURSIVELY and without knowing the shape of the tree —
