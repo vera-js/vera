@@ -21,30 +21,79 @@ import { pageProblem } from './schema.js';
 
 
 /**
- * FNV-1a, 32-bit, hex — the content hash that names a rule.
+ * FNV-1a, 64-bit, as fourteen base36 characters — the content hash that names a rule.
  *
  * **It exists for determinism across two processes, not for speed or dedup.** The server and the
  * client must independently arrive at the same name for the same generated text, or SSR markup
  * carries names the client never defines. A `Map` to a counter would dedup perfectly and break
- * exactly that; a faster library hash would need to ship in the min bundle AND run server-side,
- * byte-for-byte agreed, to save time nobody measured being spent — this hashes a few hundred bytes
- * once per DISTINCT animation, never per element and never per frame.
+ * exactly that, and so would anything stateful: activation order is UNKNOWABLE here, because a
+ * client root is walked at custom-element upgrade and the autoloader makes that `await import()`
+ * over the network. Two loads of one page can differ from each other. The name must therefore be a
+ * pure function of its own body and of nothing else — see `tests/motion-order-independence.test.mjs`.
  *
- * 32 bits is enough on purpose: at a hundred distinct animations the birthday bound is ~1e-6, and a
- * collision's cost is a wrong animation on one page, not corruption.
+ * **Why 64 and not 32.** The previous 32-bit form said "32 bits is enough on purpose: a collision's
+ * cost is a wrong animation on one page, not corruption". The first half was optimistic and the
+ * second was the thing worth fixing — a wrong animation IS the defect, `acquire` discards the
+ * `cssText` it is handed on a hit, and a searched-for pair (`r7wzx` / `ra6cd`) demonstrated it in
+ * Chromium. Measured rates for N distinct rules on a page:
+ *
+ * | bits | accident @10k rules | targeted second preimage |
+ * | ---- | ------------------- | ------------------------ |
+ * | 32   | 1 in 83             | ~13 minutes              |
+ * | 64   | 1 in 370 billion    | ~10^5 years              |
+ *
+ * **Why base36 and not a denser alphabet, which is a measured reversal.** The first 64-bit form
+ * packed six bits per character over `[A-Za-z0-9_-]`, reaching eleven characters on the reasoning
+ * that a CSS identifier accepts all 64 symbols so hex was wasting half of each character. True, and
+ * it cost **105 B gzipped** — the 64-character alphabet is a high-entropy literal gzip cannot
+ * compress, and the packing loop is hand-rolled where `toString(36)` is free. Two 32-bit halves in
+ * base36 are seven characters each, so the name is 14 rather than 11. Those three characters are
+ * repeated per element and per selector, which is exactly the shape gzip erases; the 105 B were
+ * paid once per bundle by every consumer. Measured both ways before choosing.
+ *
+ * A leading digit is therefore possible, which is fine in both positions the name appears: an
+ * attribute VALUE (`[data-vm-motion="…"]`), and after the `vm-` prefix in a keyframes identifier.
+ *
+ * The FUNCTION matches omni's twin (`fnv1a64`), which the shared corpus in
+ * `docs/motion-spec/fixtures/hash-vectors.json` pins; only the ENCODING differs (they hex), and the
+ * engines never share generated rules, so the names were already distinct by ratified decision.
  */
-export const contentHash = (text: string): string => {
-  let hash = 0x811c9dc5;
+
+/** The 64-bit accumulator in four 16-bit limbs. `Math.imul` cannot carry 64 bits, and BigInt
+ *  measured 5.5x slower and ships heavier; the limb form is what omni's PHP twin uses too. */
+const fnv1a64 = (text: string): [number, number, number, number] => {
+  let a0 = 0x2325, a1 = 0x8422, a2 = 0x9ce4, a3 = 0xcbf2;
   for (let i = 0; i < text.length; i++) {
     /* eslint-disable no-bitwise -- FNV-1a IS bitwise; the rule guards `&`-for-`&&` typos, and a
-       hash function is its legitimate exception. The xor folds each byte in; `>>> 0` reads the
-       accumulator as unsigned so the hex is stable across the sign bit. */
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
+       hash function is its legitimate exception. */
+    a0 ^= text.charCodeAt(i) & 0xffff;
+    /* eslint-enable no-bitwise */
+    /** The prime 0x100000001b3 has two non-zero limbs: b0 = 0x1b3 and b2 = 0x100. */
+    const c0 = a0 * 0x1b3;
+    const c1 = a1 * 0x1b3 + Math.floor(c0 / 65536);
+    const c2 = a2 * 0x1b3 + a0 * 0x100 + Math.floor(c1 / 65536);
+    const c3 = a3 * 0x1b3 + a1 * 0x100 + Math.floor(c2 / 65536);
+    /* eslint-disable no-bitwise */
+    a0 = c0 & 0xffff; a1 = c1 & 0xffff; a2 = c2 & 0xffff; a3 = c3 & 0xffff;
+    /* eslint-enable no-bitwise */
   }
-  return (hash >>> 0).toString(16).padStart(8, '0');
-  /* eslint-enable no-bitwise */
+  return [a0, a1, a2, a3];
 };
+
+export const contentHash = (text: string): string => {
+  const [a0, a1, a2, a3] = fnv1a64(text);
+  return (a1 * 65536 + a0).toString(36).padStart(7, '0') +
+    (a3 * 65536 + a2).toString(36).padStart(7, '0');
+};
+
+/**
+ * There is deliberately NO hex twin of the above. One existed briefly, to check this function
+ * against the shared cross-engine corpus — and it shipped in `vera-motion.min.js` and
+ * `vera-motion-client.min.js`, verification-only code in every consumer's bundle. The corpus check
+ * now DECODES a name back to its 64 bits (`tests/motion-registry-hash.test.mjs`), which costs
+ * nothing here and tests strictly more: a hex twin shares the hash but bypasses the encoding, so a
+ * mis-packed name would pass while every generated rule name was wrong.
+ */
 
 /**
  * The custom properties this page has registered, so a duplicate is skipped rather than thrown.
@@ -256,8 +305,37 @@ export const acquire = (root: SheetRoot, hash: string, cssText: string): void =>
   usable ??= constructed(root);
 
   const entry = entries.get(hash);
-  if (entry) entry.count++;
-  else {
+  if (entry) {
+    /**
+     * **INSURANCE, not the fix, and no longer the bug-catcher it briefly was.** Two things keep
+     * distinct bodies from arriving here under one name, and both are upstream: the name is 64 bits
+     * (so accidents are ~1 in 370 billion at ten thousand rules), and `generate.ts` derives it from
+     * the RULES THEMSELVES rather than from a curated summary of the parse (so a body cannot depend
+     * on something the name does not cover).
+     *
+     * That second property is what this check earned its place finding. Before it, `animation-range`
+     * read `scroll` while the name did not, and two elements differing only in scroll range shared
+     * one name — the second's rule discarded, the element silently wearing the first's range. That
+     * class is now closed by construction, which downgrades this from a guard against a LIKELY
+     * failure to a guard against an impossible one.
+     *
+     * It stays because the failure is invisible by nature — the alternative to a cheap assertion is
+     * never finding out — and because it is nearly free: ~12 ns on the DEDUPE path (the common one;
+     * two hundred elements sharing an animation are 199 hits) against the 440 ns already spent
+     * hashing that same body. Under 3% of work the code does anyway.
+     *
+     * Refusing rather than renaming is forced and deliberate: by now the name is inside this
+     * rule's selector, inside the `animation-name` that references it, and on the element's
+     * marker. A rename here would have to reach all three, and deciding WHICH body renames cannot
+     * be done without state — which activation order makes unusable (see
+     * `tests/motion-order-independence.test.mjs`).
+     */
+    if (entry.cssText !== cssText) {
+      pageProblem('motion-rule-name-collision', [hash]);
+      return;
+    }
+    entry.count++;
+  } else {
     entries.set(hash, { count: 1, cssText });
     order.push(hash);
     if (usable) {

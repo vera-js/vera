@@ -33,7 +33,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.windo
 /** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
  *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
-const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
+const animating = (el) => /^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? '');
 const { wireDirectives, motion, presets, motionExtension, settled, rejections } =
   await load('directives');
 

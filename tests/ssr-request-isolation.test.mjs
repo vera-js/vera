@@ -346,7 +346,7 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   assert.ok(rendered[0].includes('PUBLIC'), `the injected element took the parent's instance: ${markup}`);
   assert.ok(rendered[1].includes('SUPER-SECRET'), `the parent's own child lost its data: ${markup}`);
   /** And the marker itself is internal: nothing this module wrote may reach the page. */
-  assert.ok(!/vera-ssr-[0-9a-f]{8}-/.test(markup), `an internal marker reached the output: ${markup}`);
+  assert.ok(!/vera-ssr-[0-9a-z]{14}-/.test(markup), `an internal marker reached the output: ${markup}`);
 }
 
 /**

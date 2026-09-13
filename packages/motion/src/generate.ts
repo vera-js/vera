@@ -630,22 +630,8 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
     }
   }
 
-  /** The MARKER hash covers every group's identity and the segment map, so two elements differing
-   *  only in an ease, a smoothing rate or a band are two identities — while keyframes rules still
-   *  dedupe under their own content hashes. */
-  const hash = contentHash(
-    generatedGroups.map((g) => `${g.hash}:${g.ease}:${g.varName}`).join('|') +
-    segments.map((s, i) => `|${s.min}-${s.max}:${segmentNames[i]!.join(',')}`).join(''));
-
-  /** One rule per insertRule call — each media switch is its OWN rule, filled here because its
-   *  selector embeds the marker hash computed just above. It switches the WHOLE name list: every
-   *  entry's timing function and delay stay positional, so the list length never changes. */
-  for (const [i, segment] of segments.entries()) {
-    const query = [segment.min > 0 ? `(min-width: ${segment.min}px)` : '',
-      Number.isFinite(segment.max) ? `(max-width: ${segment.max}px)` : ''].filter(Boolean).join(' and ');
-    segment.media =
-      `@media ${query} { [data-vm-motion="${hash}"][data-vm-motion] { animation-name: ${segmentNames[i]!.join(', ')}; } }`;
-  }
+  /** The marker is NOT derived here — it is the hash of the rules themselves, so it cannot be
+   *  computed until they exist. See `rulesFor` at the end of this function. */
 
   /**
    * Seeked, never played: 1s is the seek SPACE (progress 0-1 maps to 0-1s), `paused` pins it, and
@@ -766,8 +752,62 @@ const nativeRangeFor = (parsed: ParsedElement): string | null => {
   return `${spell(from)} ${spell(to)}`;
 };
 
-  let nativeRange: string | null = null;
   const per = (value: string): string => generatedGroups.map(() => value).join(', ');
+  /**
+   * Hoisted ABOVE the naming because it is an INPUT to it. This is the line the old curated hash
+   * could not see: the range reads `scroll`, `scroll` was not on the list, so two elements
+   * differing only in scroll range derived ONE name and the second's rule was discarded — leaving
+   * it wearing the first's range, silently, wherever native scroll timelines exist.
+   */
+  const nativeRange = generatedGroups.length ? nativeRangeFor(parsed) : null;
+
+  /**
+   * **Every rule this marker names, as a function of the marker — which is what lets the marker be
+   * a function of the rules.**
+   *
+   * The name is `contentHash(rulesFor(''))`: the exact CSS about to be emitted, with the name
+   * itself held out. Holding it out is free and necessary — free because the marker appears in
+   * SELECTOR position only and never in a body, necessary because a name cannot be an input to its
+   * own derivation. Emission is then the same expression evaluated at the real mark, so the text
+   * that was hashed and the text that ships cannot drift apart.
+   *
+   * This replaced a hand-curated summary of the parse — group hashes, eases, var names, the segment
+   * map — and that shape IS the bug it fixes: a curated list has to be re-audited every time a
+   * setting starts reaching CSS, and `scroll` is the one that was missed. There is no list here to
+   * fall behind. It is also what the TRANSITION path above already does (it hashes its declaration
+   * text), so the two naming sites are one idea now instead of two shapes.
+   *
+   * **ORDER AND SEPARATOR ARE SPEC, not detail** — the PHP twin must join these identically to
+   * derive identical names, and so must SSR. Positions are fixed (element, native, then one per
+   * segment in order) and an absent rule keeps its empty slot rather than being filtered out, so a
+   * missing rule can never shift another rule's contribution to the hash.
+   */
+  const rulesFor = (mark: string): readonly string[] => {
+    const on = `[data-vm-motion="${mark}"]`;
+    return [
+      generatedGroups.length ? `${on}[data-vm-motion] { ${declarations} }` : '',
+      nativeRange !== null
+        ? `@supports (animation-timeline: view()) { ${on}[data-vm-native] { ` +
+          `animation-delay: ${per('0s')}; animation-duration: ${per('auto')}; ` +
+          `animation-play-state: ${per('running')}; ` +
+          `animation-timeline: ${per('view(block)')}; ` +
+          `animation-range: ${per(nativeRange)}; } }`
+        : '',
+      /** One rule per insertRule call — each media switch is its OWN rule and its own registry key.
+       *  It switches the WHOLE name list: every entry's timing function and delay stay positional,
+       *  so the list length never changes. */
+      ...segments.map((segment, i) => {
+        const query = [segment.min > 0 ? `(min-width: ${segment.min}px)` : '',
+          Number.isFinite(segment.max) ? `(max-width: ${segment.max}px)` : ''].filter(Boolean).join(' and ');
+        return `@media ${query} { ${on}[data-vm-motion] { animation-name: ${segmentNames[i]!.join(', ')}; } }`;
+      }),
+    ];
+  };
+
+  const hash = contentHash(rulesFor('').join('\n'));
+  const [elementRule = '', nativeRule = '', ...segmentMedia] = rulesFor(hash);
+  for (const [i] of segments.entries()) segments[i]!.media = segmentMedia[i]!;
+
   return {
     hash,
     mode: 'seek',
@@ -775,13 +815,7 @@ const nativeRangeFor = (parsed: ParsedElement): string | null => {
     armedRule: '',
     noJsRule: '',
     reducedRule: '',
-    nativeRule: (generatedGroups.length && (nativeRange = nativeRangeFor(parsed)) !== null)
-      ? `@supports (animation-timeline: view()) { [data-vm-motion="${hash}"][data-vm-native] { ` +
-        `animation-delay: ${per('0s')}; animation-duration: ${per('auto')}; ` +
-        `animation-play-state: ${per('running')}; ` +
-        `animation-timeline: ${per('view(block)')}; ` +
-        `animation-range: ${per(nativeRange)}; } }`
-      : '',
+    nativeRule,
     groups: generatedGroups,
     segments,
     vars,
@@ -789,7 +823,7 @@ const nativeRangeFor = (parsed: ParsedElement): string | null => {
     /** Empty for a tick-only element — no animation list means no declarations to carry, and the
      *  runtime skips delivery entirely on zero groups. */
     elementStyle: generatedGroups.length ? declarations : '',
-    elementRule: generatedGroups.length ? `[data-vm-motion="${hash}"][data-vm-motion] { ${declarations} }` : '',
+    elementRule,
   };
 };
 

@@ -83,7 +83,7 @@ test('a throwing tick dies alone, once — no console storm, no page damage', as
   assert.ok(reasons.some((r) => r.code === 'motion-function-threw'), 'reported where a GUI reads');
   if (!isProduction) assert.ok(reasons.some((r) => /boom/.test(r.message)), 'carrying the error');
   /** The neighbour is untouched — one bad tick costs its own element, never the page. */
-  assert.match(host.querySelector('#good').getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/);
+  assert.match(host.querySelector('#good').getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/);
 
   host.remove();
   await settled();
@@ -130,7 +130,7 @@ test('tick beside keyframes: both destinations fire from one number', async () =
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, function: 'probe', scroll: '100%, 0%' }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'the CSS half generated');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/, 'the CSS half generated');
   assert.ok(seen.length > before, 'and the tick half ran beside it');
   host.remove();
   await settled();

@@ -55,6 +55,7 @@ export const ENTRY = {
   'directives/interactions': ['directives', 'vera-directives-interactions'],
   'directives/motion': ['directives', 'vera-directives-motion'],
   motion: ['motion', 'vera-motion'],
+  'motion/internal': ['motion', 'vera-motion-internal'],
   'motion/ssr': ['motion', 'vera-motion-ssr'],
   'motion/client': ['motion', 'vera-motion-client'],
   'directives/remote': ['directives', 'vera-directives-remote'],

@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-12",
+  "taken": "2026-09-13",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -95,20 +95,20 @@
       "gzip": 3888
     },
     "directives-motion": {
-      "raw": 79221,
-      "gzip": 25986
+      "raw": 79439,
+      "gzip": 26099
     },
     "motion": {
-      "raw": 37443,
-      "gzip": 12363
+      "raw": 37661,
+      "gzip": 12485
     },
     "motion-ssr": {
-      "raw": 36917,
-      "gzip": 11839
+      "raw": 37063,
+      "gzip": 11933
     },
     "motion-client": {
-      "raw": 8075,
-      "gzip": 2957
+      "raw": 8384,
+      "gzip": 3076
     }
   },
   "apps": [

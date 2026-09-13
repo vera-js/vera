@@ -30,7 +30,7 @@ const { wireDirectives, motion, presets, settled, rejections } = await load('dir
 /** THE FLIP'S INSTRUMENT — see directives-motion.test.mjs: jsdom evaluates no CSS animation, so
  *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
-const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
+const animating = (el) => /^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? '');
 
 
 /** `fade-up` redefined to fade OUT and travel nowhere, so "whose fade-up ran" is visible in the DOM. */

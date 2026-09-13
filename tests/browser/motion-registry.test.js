@@ -41,7 +41,7 @@ it('the hash agrees with the server, byte for byte', () => {
    * carries names the client must independently re-derive, so the two runtimes agreeing on one
    * fixture is the whole requirement, pinned from both sides.
    */
-  expect(contentHash(RULE)).to.equal('d2db0bb4');
+  expect(contentHash(RULE)).to.equal('1ykmer807ltjw9');
 });
 
 it('CONTROL: the name resolves nowhere before any acquire', async () => {

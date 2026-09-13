@@ -52,7 +52,7 @@ test('a from→to play compiles to TRANSITION mode: three rules, longhands, no v
     `<div data-vd-motion="{ keyframes: { opacity: '0% 0.2, 100% 1', translate-y: '0% 40px, 100% 0px' }, when: '.go', play: 0.6, ease: 'ease-out' }">x</div>`);
   const el = host.querySelector('div');
   const hash = el.getAttribute('data-vm-motion');
-  assert.match(hash ?? '', /^[0-9a-f]{8}$/, 'marked');
+  assert.match(hash ?? '', /^[0-9a-z]{14}$/, 'marked');
   assert.equal(el.style.getPropertyValue('--vm-p'), '', 'no seek variable exists in this mode');
 
   const css = sheetText();
@@ -88,7 +88,7 @@ test('a shaped single member synthesizes linear() — overshoot points and all',
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { translate-y: '0% 24px, 70% -5px, 100% 0px' }, when: '.go', play: 0.55 }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/);
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/);
   const css = sheetText();
   /** Normalised (v−v0)/(vN−v0): 24→0 over the run, so the −5 dip lands PAST 1 — overshoot. */
   assert.match(css, /transition-timing-function: linear\(0 0%, 1\.20[0-9]* 70%, 1 100%\)/,
@@ -125,7 +125,7 @@ test('the ramp fallback holds exactly the agreed matrix', async () => {
   ]) {
     const host = await mount(`<div data-vd-motion="${raw.replaceAll('"', '&quot;')}">x</div>`);
     const el = host.querySelector('div');
-    assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, `${why}: still animates`);
+    assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/, `${why}: still animates`);
     const css = sheetText();
     assert.ok(!new RegExp(`\\[data-vm-motion="${el.getAttribute('data-vm-motion')}"\\]\\[data-vm-on\\]`).test(css),
       `${why}: seek mode, no active rule`);
@@ -161,7 +161,7 @@ test('TIER C: a plain scrub is cascade-driven — constants written once, the va
    *  the tier-J layering case. Value truth: the browser parity suite's twin A rides this tier. */
   const host = await mount(`<div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' } }">x</div>`);
   const el = host.querySelector('div');
-  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'generated');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/, 'generated');
   assert.equal(el.style.getPropertyValue('--vm-p'), '', 'no inline seek write');
   assert.notEqual(el.style.getPropertyValue('--vm-r0'), '', 'range start constant');
   assert.notEqual(el.style.getPropertyValue('--vm-r1'), '', 'range size constant');

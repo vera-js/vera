@@ -35,7 +35,7 @@ const doc = dom.window.document;
  * 0→1 opacity fixtures, so the numeric expectations carry over unchanged.
  */
 const progressOf = (el) => Number(el.style.getPropertyValue('--vm-p'));
-const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
+const animating = (el) => /^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? '');
 /**
  * Bounded poll — for elements whose preset carries `play` (the shipped ten ramp over 0.6s now),
  * "reached the end" is a claim about the RAMP COMPLETING, and sampling one frame after settle
@@ -197,7 +197,7 @@ test('ease needs no module anywhere, and an inexpressible value refuses BY NAME'
   /** The easings pack is RETIRED with the inline path: the browser evaluates every curve, so
    *  there is no module to demand and no wiring step to forget. */
   assert.equal(rejections(el).length, 0, 'no module demanded for a curve the browser solves');
-  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'rides the generated path');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/, 'rides the generated path');
   host.remove();
   await settled();
 

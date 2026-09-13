@@ -1,143 +1,116 @@
 /**
- * **The rule registry trusts a 32-bit hash as if it were the text it was derived from.**
+ * **The registry trusted a name as if it were the text it was derived from. Now the name IS the
+ * text, and this is what holds that closed in a real engine.**
  *
  * `acquire(root, hash, cssText)` looks the hash up and, on a hit, increments a count and DISCARDS
- * the `cssText` it was handed. `registry.ts` states the assumption in its own words — *"the cssText
- * is only read the first time a hash is seen; identical animations hand in identical text by
- * construction, since the hash IS the text"* — and that is the one thing a hash is not. `contentHash`
- * is FNV-1a over 32 bits, so distinct bodies can and do share a name.
+ * the `cssText` it was handed. That is correct only while the name is a function of the text. Twice
+ * it was not:
  *
- * The collision below was FOUND by search, not assumed: `"r7wzx"` and `"ra6cd"` both hash to
- * `5cdf4d19`, from 474,782 candidates. When it happens, the second animation is never inserted and
- * every element that asked for it wears the first one's rule instead — silently, with no error
- * anywhere, because from the registry's point of view the rule it wanted was already there.
+ * 1. **The name was 32 bits.** Distinct bodies collided by accident — `"r7wzx"` and `"ra6cd"` both
+ *    hashed to `5cdf4d19`, found by search from 474,782 candidates. At ten thousand rules on a page
+ *    that is about 1 in 83. It is now FNV-1a 64-bit spelled as fourteen base36 characters, which
+ *    moves accidents to ~1 in 370 billion and a targeted second preimage from roughly 13 minutes to
+ *    geological time. (A denser 11-character packing over `[A-Za-z0-9_-]` was built first and
+ *    reversed: the 64-symbol alphabet is a literal gzip cannot compress, and it measured 105 B
+ *    gzipped per bundle against three characters of marker that gzip erases.)
+ * 2. **The name did not cover its own content**, which was the worse half and is why the pair above
+ *    is only half the story. The marker was hashed from a curated summary of the parse — group
+ *    hashes, eases, var names, the segment map — while `animation-range` was generated from the
+ *    `scroll` setting, which appeared on no list. Two elements sharing keyframes and differing only
+ *    in scroll range derived ONE name; the second's rule was discarded and that element silently
+ *    animated over the first element's range, wherever native scroll timelines exist. No search
+ *    required, no improbability — ordinary authoring. `generate.ts` now hashes the emitted rules
+ *    themselves, with the marker held out of its own selector, so a body cannot depend on something
+ *    the name does not see. `tests/motion-name-covers-css.test.mjs` sweeps that across the parser's
+ *    whole settings vocabulary; this file is the engine-side half.
  *
- * Probability is the honest part of the severity: for N distinct rules on one page it is about
- * N²/2³³ — negligible at ten rules, around 1% at ten thousand. Rare, permanent when it happens, and
- * invisible. Which of the two available fixes is right is the owner's call, for the reasons set
- * out on the record below — neither is an audit repair.
- *
- * **This lives in the browser suite because it cannot be asked anywhere else.** Constructible
- * stylesheets and `adoptedStyleSheets` are absent under jsdom, so the registry's insert path never
- * runs there and a node-side pin would observe nothing at all.
+ * **It lives in the browser suite because the insert path cannot be asked anywhere else.**
+ * Constructible stylesheets and `adoptedStyleSheets` are absent under jsdom, so the registry takes
+ * its `<style>` fallback there and a node-side pin would observe a different code path.
  */
 import { expect } from '@esm-bundle/chai';
 import { contentHash, acquire, release } from '../../packages/motion/dist/development/vera-motion.js';
 
-/** The colliding pair, restated here as data rather than recomputed — a search is not a spec. */
+/** The pair that collided at 32 bits, kept as DATA rather than recomputed — a search is not a spec,
+ *  and the point of keeping them is that they must no longer collide. */
 const LEFT = 'r7wzx';
 const RIGHT = 'ra6cd';
 
 const rulesOf = (root) =>
   [...root.adoptedStyleSheets].flatMap((sheet) => [...sheet.cssRules].map((rule) => rule.cssText));
 
-it('the collision is real in this engine, and the two bodies are distinct', () => {
-  expect(contentHash(LEFT), 'the search result must still hold').to.equal(contentHash(RIGHT));
+const withRoot = (run) => {
+  const host = document.createElement('div');
+  host.attachShadow({ mode: 'open' });
+  document.body.appendChild(host);
+  try {
+    run(host.shadowRoot);
+  } finally {
+    host.remove();
+  }
+};
+
+it('the pair that collided at 32 bits no longer does', () => {
   expect(LEFT).to.not.equal(RIGHT);
+  expect(
+    contentHash(LEFT),
+    'these two bodies shared a name at 32 bits. If they share one again the width has regressed'
+  ).to.not.equal(contentHash(RIGHT));
+});
+
+it('a name is fourteen base36 characters', () => {
+  /** The format is adoption surface — it goes into `data-vm-motion` and into every selector built
+   *  from it — so it is pinned rather than left to inference. */
+  expect(contentHash('anything at all')).to.match(/^[0-9a-z]{14}$/);
+});
+
+it('two animations with different bodies both reach the sheet', () => {
+  withRoot((root) => {
+    const a = contentHash(LEFT);
+    const b = contentHash(RIGHT);
+    expect(a, 'the two must differ, or this asserts nothing').to.not.equal(b);
+
+    acquire(root, a, `.vm-${LEFT} { opacity: 1; }`);
+    acquire(root, b, `.vm-${RIGHT} { opacity: 0; }`);
+    const rules = rulesOf(root);
+
+    expect(rules.some((text) => text.includes(LEFT)), 'the first').to.equal(true);
+    expect(rules.some((text) => text.includes(RIGHT)), 'the second').to.equal(true);
+
+    release(a);
+    release(b);
+  });
 });
 
 /**
- * **A RECORD of the current behaviour, not a blessing of it.** The desired behaviour is that both
- * animations reach the sheet; what happens is that the second is discarded. This asserts what
- * happens so the record cannot rot — if the registry ever starts comparing the text it was handed,
- * or the hash widens, this test fails and that is the signal to delete it.
+ * **The net, exercised directly rather than waited for.** A real collision is now unreachable —
+ * that is the point of everything above — so the only honest way to test the refusal is to hand
+ * `acquire` one key with two different bodies on purpose. It must keep the first and refuse the
+ * second, never overwrite and never silently serve the wrong one.
  *
- * The fix is NOT a dev warning: a collision needs thousands of distinct rules on one page, which is
- * a production shape, and a development diagnostic folds away exactly where it would be needed.
- *
- * **And the two candidate fixes are not the same size, which a first reading gets backwards.**
- * FNV-1a is not cryptographic, so the question is not only whether a collision happens by ACCIDENT
- * but whether one can be MADE — and those are different problems with different costs:
- *
- * - **Birthday** (the attacker controls BOTH bodies) is 2^(n/2): 2^16 here, instant. It buys
- *   nothing — making two of your own rules share a name is not an attack.
- * - **Second preimage** (collide with a rule ALREADY on the page, whose hash is public in the
- *   selector and in `data-vm-for`) is 2^n: **2^32 here, 2^64 at omni's width.** That is the attack
- *   this defect enables, and it is the number that matters.
- *
- * At 32 bits the second preimage is roughly a billion hashes per minute of ordinary hardware away.
- * At 64 bits the same work is geological. So a wider hash is NOT merely an accident fix — against
- * the real attack it is a 2^32 improvement.
- *
- * **An empirical demonstration was attempted and FAILED for instrument reasons, which is recorded
- * rather than dropped.** Six billion candidates over ~18 minutes produced no preimage, and that
- * null is worth nothing: the candidate family (a counter rendered into a fixed prefix/suffix)
- * turned out to sample the hash space non-uniformly — 3M candidates yielded 44 collisions where a
- * uniform hash gives ~1048, i.e. it maps near-injectively onto a SUBSET that need not contain the
- * target. A search whose space is not validated cannot distinguish "hard" from "looking in the
- * wrong place". The 2^32 figure above stands on arithmetic, not on that run.
- *
- * - **A wider hash** (omni's twin is 64-bit; the width difference is a recorded divergence, so
- *   closing it is a ratified-surface change rather than an audit repair) removes the ACCIDENT and
- *   moves the deliberate cost to 2^64. It does not close the class.
- * - **Comparing `cssText` on a hit** closes BOTH, for one string comparison. What it can do on a
- *   mismatch is the open question: this registry cannot rename, because the hash is already in the
- *   rule's selector AND in the element's `data-vm-for` marker by the time `acquire` sees it, so it
- *   can only refuse — which turns "wears the wrong animation" into "wears none, and says so".
- *   Renaming would mean re-deriving in `generate.ts`, and the marker's relationship to the content
- *   hash is adoption surface shared with omni.
- *
- * Whether the deliberate half is reachable here at all depends on the app: a motion value is
- * author-written, so it takes an application interpolating untrusted input into one. It buys a
- * cosmetic result — another element wearing your animation, no privilege crossing — so this is not
- * filed as a security finding. The asymmetry is recorded because it decides which fix is complete.
- * Owner's call, with omni in the loop either way. (The asymmetry is theirs; the timing is measured
- * here.)
+ * Refusing rather than renaming is forced: by the time `acquire` sees a body the name is already in
+ * this rule's selector, in the `animation-name` referencing it, and on the element's marker — and
+ * deciding WHICH body renames cannot be done without state, which activation order makes unusable
+ * (`tests/motion-order-independence.test.mjs`).
  */
-it('KNOWN: a second animation under a colliding hash is discarded, and the first is served', () => {
-  const host = document.createElement('div');
-  host.attachShadow({ mode: 'open' });
-  document.body.appendChild(host);
-  const root = host.shadowRoot;
+it('a second body under one key is refused, and the first is left intact', () => {
+  withRoot((root) => {
+    const key = contentHash('forced-key');
+    acquire(root, key, '.vm-first { opacity: 1; }');
+    expect(
+      rulesOf(root).some((text) => text.includes('vm-first')),
+      'NON-ZERO CONTROL: the first rule must actually be inserted, or everything below is vacuous'
+    ).to.equal(true);
 
-  const hash = contentHash(LEFT);
-  acquire(root, hash, `.vm-${LEFT} { opacity: 1; }`);
-  const afterFirst = rulesOf(root);
-  /** NON-ZERO CONTROL: with nothing inserted, everything below is vacuous. */
-  expect(afterFirst.some((text) => text.includes(LEFT)), 'the first rule must actually be inserted')
-    .to.equal(true);
+    acquire(root, key, '.vm-second { opacity: 0; }');
+    const rules = rulesOf(root);
 
-  acquire(root, hash, `.vm-${RIGHT} { opacity: 0; }`);
-  const afterSecond = rulesOf(root);
+    expect(rules.some((text) => text.includes('vm-second')),
+      'the mismatched body must not reach the sheet under a name derived from different text')
+      .to.equal(false);
+    expect(rules.some((text) => text.includes('vm-first')),
+      'and the body that legitimately owns the name must survive').to.equal(true);
 
-  expect(
-    afterSecond.some((text) => text.includes(RIGHT)),
-    'RECORD CHANGED: the second animation now reaches the sheet. The collision is fixed — delete ' +
-      'this test rather than update it.'
-  ).to.equal(false);
-  expect(
-    afterSecond.some((text) => text.includes(LEFT)),
-    'and the first is what every element asking for either one still wears'
-  ).to.equal(true);
-
-  release(root, hash);
-  release(root, hash);
-  host.remove();
-});
-
-/**
- * The control that keeps the case honest: two animations whose hashes DIFFER must both be present.
- * Without it, a registry that inserted nothing on any second acquire would look identical to one
- * with a collision bug, and the finding above would be about the wrong thing.
- */
-it('two animations with different hashes both reach the sheet', () => {
-  const host = document.createElement('div');
-  host.attachShadow({ mode: 'open' });
-  document.body.appendChild(host);
-  const root = host.shadowRoot;
-
-  const a = contentHash('alpha');
-  const b = contentHash('beta');
-  expect(a, 'the control pair must not itself collide').to.not.equal(b);
-
-  acquire(root, a, '.vm-alpha { opacity: 1; }');
-  acquire(root, b, '.vm-beta { opacity: 0; }');
-  const rules = rulesOf(root);
-
-  expect(rules.some((text) => text.includes('alpha')), 'the first').to.equal(true);
-  expect(rules.some((text) => text.includes('beta')), 'the second').to.equal(true);
-
-  release(root, a);
-  release(root, b);
-  host.remove();
+    release(key);
+  });
 });

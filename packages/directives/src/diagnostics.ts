@@ -402,6 +402,12 @@ export const PROSE: Record<string, Prose> = {
     'Give each property its own ease (or align the stops), and CSS carries it.',
   ],
   'motion-unsupported': () => ['required APIs unavailable, animation disabled.'],
+  /** Two distinct rule bodies derived one 64-bit name. The second is refused rather than allowed
+   *  to overwrite — an element wearing another animation is the failure this prevents. */
+  'motion-rule-name-collision': (name) => [
+    `two different animations derived the same rule name (${name}), so the second was not applied`,
+    'a rule name is the hash of the CSS it names, so this should be unreachable — please report it.',
+  ],
   'motion-sequence-origins-not-list': (kind) => [
     `sequence allowedOrigins must be a list, not ${kind}; ignoring it.`,
     'Write one origin as a list of one, for example ["https://cdn.example"].',

@@ -717,6 +717,14 @@
       "fix": "This should be unreachable — please report the value that did this."
     },
     {
+      "code": "motion-rule-name-collision",
+      "params": [
+        "name"
+      ],
+      "message": "two different animations derived the same rule name ({name}), so the second was not applied",
+      "fix": "a rule name is the hash of the CSS it names, so this should be unreachable — please report it."
+    },
+    {
       "code": "motion-second-base",
       "params": [
         "where",

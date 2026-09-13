@@ -37,14 +37,14 @@ test('an in-scope element is marked, and its sheet carries the whole delivery in
 
   assert.equal(report.rendered, 1);
   const el = doc.querySelector('#a');
-  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/, 'marked with the content hash');
+  assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/, 'marked with the content hash');
 
   const style = doc.head.querySelector('style[data-vm-sheet="motion"]');
   assert.ok(style, 'one owned style in head');
   const css = style.textContent;
   assert.match(css, /@property --vm-p \{ syntax: '<number>'; inherits: false; initial-value: 0; \}/,
     'the variable is typed and defaults to 0 — frame 0 with no JS');
-  assert.match(css, /@keyframes vm-[0-9a-f]{8}/, 'the generated rule');
+  assert.match(css, /@keyframes vm-[0-9a-z]{14}/, 'the generated rule');
   assert.match(css, new RegExp(`\\[data-vm-motion="${el.getAttribute('data-vm-motion')}"\\]`), 'the element rule');
   assert.ok(css.trimEnd().endsWith('@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }'),
     'the neutraliser is LAST — its position is its function');
@@ -66,7 +66,7 @@ test('two identical elements share every rule; a tuned third adds its own', () =
   const report = renderMotion(doc);
   assert.equal(report.rendered, 3);
   const css = doc.head.querySelector('style[data-vm-sheet="motion"]').textContent;
-  const keyframes = css.match(/@keyframes vm-[0-9a-f]{8}/g) ?? [];
+  const keyframes = css.match(/@keyframes vm-[0-9a-z]{14}/g) ?? [];
   assert.equal(keyframes.length, 2, 'two distinct animations, three elements — content-hash dedupe');
   const [first, second] = [...doc.querySelectorAll('[data-vm-motion]')];
   assert.equal(first.getAttribute('data-vm-motion'), second.getAttribute('data-vm-motion'), 'twins share identity');
@@ -77,7 +77,7 @@ test('a preset resolves through the SAME wire array the page uses', () => {
   doc.body.innerHTML = `<div data-vd-motion="fade-up">x</div>`;
   const report = renderMotion(doc, { wire: [presets] });
   assert.equal(report.rendered, 1, 'the preset expanded server-side');
-  assert.match(doc.querySelector('div').getAttribute('data-vm-motion') ?? '', /^[0-9a-f]{8}$/);
+  assert.match(doc.querySelector('div').getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/);
 });
 
 test('stagger renders SERVER-SIDE since 8a — % offsets go out inline; tick-only still waits for JS', () => {

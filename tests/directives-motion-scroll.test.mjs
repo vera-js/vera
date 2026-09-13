@@ -45,7 +45,7 @@ const at = async (attr, top = 100) => {
  *  value-level claims live in the browser suites; jsdom reads the generated SURFACE. Progress maps
  *  1:1 onto the old 0→1 opacity fixtures, so numeric expectations carry over unchanged. */
 const progressOf = (el) => Number(el.style.getPropertyValue('--vm-p'));
-const animating = (el) => /^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? '');
+const animating = (el) => /^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? '');
 const sheetText = () => {
   const doc = dom.window.document;
   const adopted = [...doc.adoptedStyleSheets ?? []].flatMap((sheet) => [...sheet.cssRules].map((r) => r.cssText));
@@ -251,7 +251,7 @@ test('duplicate positions are a refusal with the LAST writer pinned — the from
     assert.ok(reasons.some((r) => /100%/.test(r.message)), 'names the position');
     assert.ok(reasons.some((r) => /positions/.test(r.fix ?? '')), 'and teaches the spelling');
   }
-  assert.ok(/^[0-9a-f]{8}$/.test(el.getAttribute('data-vm-motion') ?? ''),
+  assert.ok(/^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? ''),
     'the value still resolves — last writer wins, like the band merge');
 });
 
