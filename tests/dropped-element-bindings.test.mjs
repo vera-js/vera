@@ -128,6 +128,90 @@ test('the author is told, and only when something was actually lost',
     }
   });
 
+/**
+ * **Reshaping is not the same as invalid, and a diagnostic built here must know the difference.**
+ *
+ * Of the cases above, `a row without a tbody` and `a list item in a list item` are **conforming
+ * HTML**: the `<tbody>` start tag and the `</li>` end tag are both omissible, so the parser is
+ * inserting exactly what the spec prescribes. They are not authoring mistakes and a warning that
+ * fires on them is a false positive on correct code.
+ *
+ * That class is far wider than those two — **every omissible tag produces it**, and the corpus below
+ * is nine of them. It is pinned because the open question this file exists next to is whether to add
+ * a content-model warning for reshaping, and the tempting mechanism (compare the tree you got against
+ * the tree your template describes) fires on every one of these. A structural differential is
+ * therefore NOT the cheap alternative to a conformance table that it first appears to be: to stay
+ * quiet here it would have to know which tags are omissible, which is a content-model table arriving
+ * by the back door. Warn on INVALID nesting or do not warn at all.
+ *
+ * The other half of the pin is the stronger one: every binding must land on its own element through
+ * all of this. The suite above checks the witness after the structure; this checks each binding
+ * inside it too, because an implied close or an implied open moves elements the template never
+ * mentioned and addressed pairing is what has to survive that.
+ */
+const VALID_RESHAPES = {
+  'implied </p>': ['<p title=', '>a</p><p title=', '>b</p><b title=', '>after</b>'],
+  'implied </li>': ['<ul><li title=', '>a<li title=', '>b</ul><b title=', '>after</b>'],
+  'implied </li> in an ol': ['<ol><li title=', '>a<li title=', '>b</ol><b title=', '>after</b>'],
+  'implied <tbody>': ['<table><tr title=', '><td title=', '>c</table><b title=', '>after</b>'],
+  'implied </td>': ['<table><tr><td title=', '>a<td title=', '>b</table><b title=', '>after</b>'],
+  'implied </option>': ['<select><option title=', '>a<option title=', '>b</select><b title=', '>after</b>'],
+  'implied </dt> and </dd>': ['<dl><dt title=', '>a<dd title=', '>b</dl><b title=', '>after</b>'],
+  'implied </th>': ['<table><tr><th title=', '>a<th title=', '>b</table><b title=', '>after</b>'],
+  'a thead then an implied tbody':
+    ['<table><thead><tr><td title=', '>h</thead><tr><td title=', '>c</table><b title=', '>after</b>'],
+  /** The control: nothing about this one is reshaped, so a failure here is the harness, not HTML. */
+  'CONTROL ordinary nesting': ['<div title=', '><span title=', '>x</span></div><b title=', '>after</b>'],
+};
+
+test('conforming HTML the parser reshapes keeps every binding on its own element', async () => {
+  let checked = 0;
+  for (const [name, strings] of Object.entries(VALID_RESHAPES)) {
+    const { host } = await render([...strings], ['ONE', 'TWO', 'survivor']);
+    const landed = [...host.querySelectorAll('[title]')].map((el) => el.getAttribute('title'));
+    assert.deepEqual(landed, ['ONE', 'TWO', 'survivor'],
+      `${name}: bindings did not land in order on their own elements`);
+    checked++;
+    host.remove();
+  }
+  assert.equal(checked, Object.keys(VALID_RESHAPES).length,
+    'NON-ZERO CONTROL: every case must actually have been rendered');
+  assert.ok(checked >= 9, 'the corpus is a floor, not a census — conforming reshapes are many');
+});
+
+/**
+ * The control that stops the two tests around it passing vacuously. If a corpus entry's markup did
+ * not actually reshape — a typo, or a construction the parser leaves alone — it would be testing
+ * ordinary nesting under an alarming name, and both neighbours would go green having proved nothing
+ * about implied tags at all.
+ */
+test('the corpus actually reshapes — implied tags really are being inserted and closed', async () => {
+  const { host: table } = await render(
+    [...VALID_RESHAPES['implied <tbody>']], ['ONE', 'TWO', 'survivor']);
+  assert.ok(table.querySelector('tbody'),
+    'the parser must have inserted a <tbody> the template never wrote, or this case reshapes nothing');
+  table.remove();
+
+  const { host: list } = await render(
+    [...VALID_RESHAPES['implied </li>']], ['ONE', 'TWO', 'survivor']);
+  const items = [...list.querySelectorAll('li')];
+  assert.equal(items.length, 2, 'both list items must exist');
+  assert.ok(!items[0].contains(items[1]),
+    'the second <li> must be a SIBLING — if it nested, the implied close never happened');
+  list.remove();
+});
+
+test('conforming HTML never warns, however much the parser moves it',
+  { skip: isProduction && 'diagnostics are folded away' }, async () => {
+    for (const [name, strings] of Object.entries(VALID_RESHAPES)) {
+      const { warned, host } = await render([...strings], ['ONE', 'TWO', 'survivor']);
+      assert.deepEqual(warned, [],
+        `${name}: this markup is CONFORMING — the parser is doing what the spec prescribes, and ` +
+          'telling the author they made a mistake is a false positive on correct code');
+      host.remove();
+    }
+  });
+
 test('the warning names the element that was DISCARDED, not one that rendered',
   { skip: isProduction && 'diagnostics are folded away' }, async () => {
     const { warned, host } = await render(
