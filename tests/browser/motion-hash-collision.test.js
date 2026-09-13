@@ -14,7 +14,8 @@
  *
  * Probability is the honest part of the severity: for N distinct rules on one page it is about
  * N²/2³³ — negligible at ten rules, around 1% at ten thousand. Rare, permanent when it happens, and
- * invisible; the fix is not a bigger hash but a comparison the registry can already afford.
+ * invisible. Which of the two available fixes is right is the owner's call, for the reasons set
+ * out on the record below — neither is an audit repair.
  *
  * **This lives in the browser suite because it cannot be asked anywhere else.** Constructible
  * stylesheets and `adoptedStyleSheets` are absent under jsdom, so the registry's insert path never
