@@ -325,3 +325,46 @@ test('an unwired pack key names the PACK, and the literal map cannot drift from 
       `SHIPPED_PACK_KEYS is missing ${key} → ${pack}; the literal drifted from motion-vocabulary.json`);
   }
 });
+
+/**
+ * **A refusal DEFERRED to another site is a claim about that site, and this is what checks it.**
+ *
+ * Two reads in `@verajs/motion` discard a parse failure on purpose — `declaresStagger` in
+ * `parse.ts` and `frameSettings` in `sequence.ts` both do `catch { }` with a comment saying "its
+ * own activation reports the parse failure". Both re-read the same attribute the directive is
+ * about to parse properly, so staying quiet is right: reporting there would double every message.
+ *
+ * But a deferral is only as good as its target, and nothing verified the target existed. That is
+ * the shape the omni engine found on their side in its purest form — a refusal their grammar
+ * COMPUTES and NAMES (`motion-no-such-key`, with the offending key) and then drops on the floor,
+ * because nothing carries it to the author. Ours carries it; the last case below is what says so,
+ * and it is here to stay true rather than to have been true once.
+ *
+ * Development-only: production keeps the codes and folds the prose.
+ */
+test('a value the grammar refuses is REPORTED, not merely discarded', async () => {
+  const host = await mount(`
+    <div id="p1" data-vd-motion="{ opacity: 0">p1</div>
+    <div id="p2" data-vd-motion="{ !!! }">p2</div>
+    <div id="p3" data-vd-motion="{ stagger: 2, x">p3</div>
+    <div id="p4" data-vd-motion="{ nonsense: 3 }">p4</div>`);
+
+  /** The three the empty catches discard — each must surface from the element's own activation. */
+  for (const id of ['p1', 'p2', 'p3']) {
+    const reported = rejections(host.querySelector(`#${id}`));
+    assert.ok(reported.some((r) => r.code === 'motion-parse-failed'),
+      `${id}: a malformed value was discarded by the stagger/sequence read and reported by nobody`);
+  }
+
+  /**
+   * And a well-formed value carrying ONE bad key: the element still wires, because the rest is
+   * usable — and the refusal for the key that is not must still reach the author. A refusal the
+   * grammar computes and nothing carries is indistinguishable, to the person who typed it, from
+   * a setting that silently does nothing.
+   */
+  const inner = rejections(host.querySelector('#p4'));
+  assert.ok(inner.some((r) => r.code === 'motion-no-such-key'),
+    'a typo INSIDE an otherwise usable value must be reported, not swallowed with the good half');
+  if (!isProduction)
+    assert.ok(inner.some((r) => /nonsense/.test(r.message)), 'and it must name the key that was wrong');
+});
