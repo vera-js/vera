@@ -44,10 +44,29 @@ it('the collision is real in this engine, and the two bodies are distinct', () =
  *
  * The fix is NOT a dev warning: a collision needs thousands of distinct rules on one page, which is
  * a production shape, and a development diagnostic folds away exactly where it would be needed.
- * The two real options are a wider hash (omni's twin uses FNV-1a over 64 bits; the width difference
- * is a recorded divergence, so closing it is a ratified-surface change, not an audit repair) or a
- * `cssText` comparison on a hit, which cannot rename a rule whose selector already carries the hash
- * and so can only refuse. Owner's call.
+ *
+ * **And the two candidate fixes are not the same size, which a first reading gets backwards.**
+ * FNV-1a is not cryptographic, so the question is not only whether a collision happens by ACCIDENT
+ * but whether one can be MADE. Measured on the machine this was written on: a TARGETED collision at
+ * 32 bits costs about 2^32 hashes, which is ~121 seconds of naive single-threaded JavaScript. Not
+ * hours; minutes.
+ *
+ * - **A wider hash** (omni's twin is 64-bit; the width difference is a recorded divergence, so
+ *   closing it is a ratified-surface change rather than an audit repair) removes the ACCIDENT and
+ *   moves the deliberate cost to 2^64. It does not close the class.
+ * - **Comparing `cssText` on a hit** closes BOTH, for one string comparison. What it can do on a
+ *   mismatch is the open question: this registry cannot rename, because the hash is already in the
+ *   rule's selector AND in the element's `data-vm-for` marker by the time `acquire` sees it, so it
+ *   can only refuse — which turns "wears the wrong animation" into "wears none, and says so".
+ *   Renaming would mean re-deriving in `generate.ts`, and the marker's relationship to the content
+ *   hash is adoption surface shared with omni.
+ *
+ * Whether the deliberate half is reachable here at all depends on the app: a motion value is
+ * author-written, so it takes an application interpolating untrusted input into one. It buys a
+ * cosmetic result — another element wearing your animation, no privilege crossing — so this is not
+ * filed as a security finding. The asymmetry is recorded because it decides which fix is complete.
+ * Owner's call, with omni in the loop either way. (The asymmetry is theirs; the timing is measured
+ * here.)
  */
 it('KNOWN: a second animation under a colliding hash is discarded, and the first is served', () => {
   const host = document.createElement('div');
