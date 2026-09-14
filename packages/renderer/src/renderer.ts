@@ -507,6 +507,43 @@ const warnSlotless = (root: Element) => {
  * pointing an author at a tag that rendered correctly is the precise failure this message exists
  * to cure.
  */
+/**
+ * **A child binding directly inside `<table>` renders one shape and PARSES as another.**
+ *
+ * `<table>${rows}</table>` is conforming HTML — `<tbody>` is omissible — and it is the one place a
+ * legal template does not survive a round trip through the platform:
+ *
+ * - CLIENT RENDER inserts the rows with DOM calls, which apply no parser rules: `table > tr`.
+ * - The SAME markup PARSED — a server render the browser re-parses, `innerHTML`, a static file —
+ *   gets the implied section: `table > tbody > tr`.
+ *
+ * Measured, both shapes, same template. So a stylesheet written `table > tr` matches on one path
+ * and not the other, and hydration discards the server's markup for that container and rebuilds it
+ * (*"expected `<tr>` and found `<tbody>`"*) — silently in production, where this call is folded away.
+ *
+ * **Why this is a warning and not a repair.** Whatever is emitted, the browser re-parses it, and the
+ * parser ALWAYS inserts the section — so the only shape all three paths agree on is one where the
+ * section is already in the template. The framework could insert it, but that changes the DOM shape
+ * of every existing client-rendered table, across the renderer AND `@verajs/ssr`'s serializer, and
+ * rests on the SSR shim agreeing with browsers about implied tags. One word from the author reaches
+ * the same fixed point with none of that. Owner's call, recorded rather than assumed.
+ *
+ * Scoped to `<table>` deliberately: `<tbody>` (from rows) and `<colgroup>` (from `<col>`) are the
+ * only implied START tags reachable inside a template fragment, and both are children of `<table>`.
+ * The omissible END tags — `</li>`, `</p>`, `</td>`, `</option>` and the rest — insert nothing, so
+ * they round-trip correctly and are pinned doing so in `tests/dropped-element-bindings.test.mjs`.
+ */
+const warnImplicitSection = (parent: Element | null) => {
+  if (parent?.localName !== 'table') return;
+  console.warn(
+    '[vera] renderer: a binding sits directly inside <table>, where the HTML parser inserts a ' +
+      '<tbody> that a client render does not. The same template then renders as `table > tr` and ' +
+      'parses as `table > tbody > tr`, so `table > tr` selectors match on only one path and ' +
+      'hydration rebuilds this container instead of adopting it. Write the section explicitly — ' +
+      '`<table><tbody>${rows}</tbody></table>` — and every path agrees.'
+  );
+};
+
 const warnDroppedBinding = (specs: Spec[], from: number, count: number) => {
   const lost = specs[from];
   const where = lost?._tag
@@ -652,6 +689,7 @@ class Template {
         /** Re-aim the walker before removing the node it stands on. */
         markerWalker.currentNode = primedText;
         (node as Comment).remove();
+        if (__DEV__) warnImplicitSection(primedText.parentNode as Element | null);
         parts.push({ _type: CHILD, _index: -1, _node: primedText });
         consumeIgnored();
       }
