@@ -790,6 +790,29 @@ export interface RenderMotionOptions {
    * client's `motion({ hoist: false })` so hydration takes the children over in place.
    */
   readonly inline?: boolean;
+  /**
+   * Carry this pass's problems into the rendered page, as one inline `<script>` that logs them to
+   * the browser console.
+   *
+   * **It exists because the audience is not at the other door.** `problems` is returned to the
+   * caller, which is a server process; an author working on an SSR-ONLY page — no hydration, so no
+   * client scanner ever runs — is looking at a browser, and nothing reaches them there. A refusal
+   * only the server terminal hears is a refusal the person who wrote the value never gets.
+   *
+   * Defaults to `process.env.NODE_ENV !== 'production'`, the convention every JS toolchain already
+   * trained people to expect, and which this package can read because it is Node-only. Pass `false`
+   * to be certain (an unset `NODE_ENV` otherwise counts as development), or `true` to force it on in
+   * a staging build.
+   *
+   * Emits nothing at all when the pass found no problems, so a clean page carries zero bytes.
+   */
+  readonly diagnostics?: boolean;
+  /**
+   * CSP nonce for that script. **Without one, a strict `script-src` blocks it silently** — and a
+   * channel that is blocked reports exactly like a page with no problems, which is the failure the
+   * option above exists to fix. If the page sets a nonce, this must be it.
+   */
+  readonly nonce?: string;
 }
 
 /** What one pass did — counts for the caller's logs, problems for its diagnostics. */

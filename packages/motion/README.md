@@ -15,7 +15,7 @@ their own runtime, or emit first frames at build time.
 | entry | size (min+gzip) | what |
 | --- | --- | --- |
 | `@verajs/motion` / `./core` | <!--size:motion.gzip.bytes-->12 487 B<!--/size:motion.gzip.bytes--> | compiler + writer: parse the attribute, generate the CSS, name it deterministically |
-| `./ssr` | <!--size:motion-ssr.gzip.bytes-->11 968 B<!--/size:motion-ssr.gzip.bytes--> | `renderMotion(document)` — mark every in-scope element, emit one sheet per tree |
+| `./ssr` | <!--size:motion-ssr.gzip.bytes-->12 314 B<!--/size:motion-ssr.gzip.bytes--> | `renderMotion(document)` — mark every in-scope element, emit one sheet per tree |
 | `./client` | <!--size:motion-client.gzip.bytes-->3 079 B<!--/size:motion-client.gzip.bytes--> | the reader: delivery, drive and registered functions, **no compiler** — the front-end cost when a server generated everything |
 
 `./internal` also exists: the first-party seam the directives pack wires. It carries no stability
@@ -34,6 +34,25 @@ text, audio; the attribute names a function and never contains one).
 `vera-motion-emit` (this package's bin) rewrites static HTML files so motion elements paint their
 first frame from emitted CSS before any JavaScript loads — the same output `renderMotion`
 produces on a live server. Any toolchain that ends in HTML files can run it as a build step.
+
+### Seeing what the server refused
+
+`renderMotion` returns `{ rendered, skipped, rules, problems }`. On a page that also hydrates, the
+client reports its own refusals to the browser console — but an **SSR-only** page never runs that
+scanner, so `problems` was the only copy, sitting in a server process while the person who wrote the
+value looked at a browser.
+
+So the pass also emits one inline `<script data-vm-diagnostics>` that logs every problem it found:
+
+```js
+renderMotion(document, { wire: [motion, presets] });            // NODE_ENV !== 'production'
+renderMotion(document, { wire: [...], diagnostics: false });    // never
+renderMotion(document, { wire: [...], diagnostics: true, nonce });  // staging, CSP page
+```
+
+A clean page emits nothing, so this costs zero bytes when there is nothing to say. **Pass `nonce` if
+your page sets a CSP nonce** — a strict `script-src` blocks the script silently, and a blocked
+channel is indistinguishable from a page with no problems.
 
 **Video scroll-scrub is a RECIPE on the tick door, measured, not a pack** — but the recipe
 needs its gate. Writing `currentTime` per frame queues seeks the engine coalesces badly

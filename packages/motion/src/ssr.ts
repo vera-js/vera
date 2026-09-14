@@ -27,7 +27,7 @@ import { generateSimple, inlineCssFor } from './generate.js';
 import { STAGGER_PROPERTY } from './registry.js';
 
 import { registerVocabulary, setProblemReporter } from './schema.js';
-import type { Generated, RenderMotionOptions, RenderMotionReport } from './types.js';
+import type { DroppedElement, Generated, RenderMotionOptions, RenderMotionReport } from './types.js';
 
 
 
@@ -120,6 +120,64 @@ const styleIn = (root: Document | ShadowRoot, doc: Document): HTMLStyleElement =
 };
 
 /**
+ * Carries this pass's problems to the browser console, for the author who is looking at a page
+ * rather than at a server terminal.
+ *
+ * **The escaping is the load-bearing part, and it is not cosmetic.** A problem's arguments are
+ * author content — selectors, property names, attribute values, and on a data-driven page values
+ * that came from a database. Interpolating those into a `<script>` is an injection site: `textContent`
+ * does NOT escape inside a script element (the HTML parser treats it as raw text), so a value
+ * containing `</script>` would close the block and everything after it would parse as markup. Every
+ * argument therefore goes through `JSON.stringify` with `<` escaped to `<`, which is inert
+ * inside a string literal and cannot end the element. `tests/motion-ssr-diagnostics.test.mjs` feeds
+ * it a breakout attempt on purpose.
+ *
+ * One grouped message, never one call per problem: *"a channel that reports once lies about
+ * completion"* — an author who fixes the first of four and re-renders should see the other three,
+ * not discover them one render at a time.
+ */
+const emitDiagnostics = (
+  doc: Document,
+  problems: readonly { code: string; args: readonly string[] }[],
+  options: RenderMotionOptions
+): void => {
+  /** Nothing to say costs nothing: a clean page carries no script at all. */
+  if (!problems.length) return;
+  /**
+   * Read off the REALM rather than a bare `process` global (CODE-PRINCIPLES §2, and this package
+   * carries no Node types): server rendering is Node-only in practice, but the module must still
+   * compile and run where `process` is simply absent, and there it counts as development.
+   */
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env;
+  const wanted = options.diagnostics ?? env?.['NODE_ENV'] !== 'production';
+  if (!wanted) return;
+
+  /** The `[vera]` prefix is applied at the LOG call below rather than baked into these strings,
+   *  so `tests/diagnostics-convention.test.mjs` can see a literal first argument. It could not read
+   *  a prefix that lived only inside the data, and a convention a checker cannot verify is one that
+   *  drifts — this is the same lesson as the allowance rule, reached from the other side. */
+  const lines = problems.map(({ code, args }) =>
+    `${code}${args.length ? ` (${args.join(', ')})` : ''}`);
+  /** `<` is the only character that can end a raw-text element; escaping it is sufficient and
+   *  leaves the text readable in devtools. `U+2028`/`U+2029` are JSON-legal but break older
+   *  parsers as literal line terminators, so they go too. */
+  const payload = JSON.stringify(lines)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+
+  const script = doc.createElement('script');
+  if (options.nonce !== undefined) script.setAttribute('nonce', options.nonce);
+  script.setAttribute('data-vm-diagnostics', '');
+  script.textContent =
+    `(function(){var m=${payload};` +
+    `console.warn('[vera] motion: '+m.length+' problem'+(m.length>1?'s':'')+' during server render');` +
+    `for(var i=0;i<m.length;i++)console.warn('[vera] motion: '+m[i]);})();`;
+  (doc.body ?? doc.head ?? doc.documentElement)?.appendChild(script);
+};
+
+/**
  * Emits generated motion CSS for a server-rendered document, in place.
  *
  * Marks every in-scope `data-vd-motion` element with its content-hash identity (`data-vm-motion`) and
@@ -149,7 +207,28 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
 
   const walk = (root: Document | ShadowRoot): void => {
     for (const el of root.querySelectorAll(`[${MOTION_ATTR}]`)) {
-      const parsed = parseMotion(el, el.getAttribute(MOTION_ATTR) ?? '', {});
+      /**
+       * **The parse context is what was missing, and the channel below is downstream of it.**
+       * `parseMotion` collects every element-level refusal into `context.dropped` (for an element
+       * whose whole value failed) or onto `parsed.rejected` (for one that partly survived). This
+       * call passed `{}`, so `context.dropped?.push(…)` was a no-op and **every element-level
+       * diagnostic the server produced was discarded** — a bad easing, an out-of-range number, an
+       * unknown property, a malformed object: ten hostile values measured, zero problems reported.
+       * The element was silently skipped or silently rendered wrong, and `renderMotion`'s `problems`
+       * only ever carried page-level codes. The client drains both lists; this now does the same.
+       */
+      const dropped: DroppedElement[] = [];
+      const parsed = parseMotion(el, el.getAttribute(MOTION_ATTR) ?? '', { dropped });
+      for (const entry of dropped) {
+        for (const r of entry.rejected) {
+          problems.push({ code: r.code, args: [r.where ?? '', ...r.args].map(String) });
+        }
+      }
+      if (parsed) {
+        for (const r of parsed.rejected) {
+          problems.push({ code: r.code, args: [r.where ?? '', ...r.args].map(String) });
+        }
+      }
       const generated = parsed ? generateSimple(parsed) : null;
       if (!generated || (!generated.groups.length && generated.mode !== 'transition')) {
         skipped++;
@@ -244,6 +323,8 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
         `@property ${name} { syntax: '<number>'; inherits: false; initial-value: 0; }`),
       NEUTRALISERS].join('\n');
   }
+
+  emitDiagnostics(doc, problems, options);
 
   return { rendered, skipped, rules, problems };
 };
