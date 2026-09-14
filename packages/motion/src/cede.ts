@@ -51,8 +51,18 @@ const CASCADE_GUARDS: readonly Guard[] = [
     typeof parsed.settings['play'] === 'number' ? 'play walks the timeline in one step' : null],
   ['no-when', ({ parsed }) =>
     typeof parsed.settings['when'] === 'string' ? 'a gate needs the JS watch' : null],
-  /** SPEC-POINTER §5: there is no CSS pointer timeline. When the platform ships one, this row
-   *  comes out — the table doing its job. */
+  /**
+   * SPEC-POINTER §5: there is no CSS pointer timeline.
+   *
+   * **When one ships, this row becomes a PROBE — it does not come out.** The instruction here used
+   * to say "comes out", and following it would be a defect: a capability ships in one engine years
+   * before it ships in all of them, and deleting the guard cedes pointer-driven elements to the
+   * cascade everywhere — including the engines with no pointer timeline, where nothing would drive
+   * them and they would simply sit still. Tier N already shows the correct shape for exactly this
+   * situation: `['engine-support', ({ env }) => env.supportsViewTimeline ? null : …]`, a row that
+   * asks the environment rather than assuming it. Add `supportsPointerTimeline` to `env`, memoize
+   * the probe in the runtime beside `supportsViewTimeline`, and change this refusal to consult it.
+   */
   ['no-pointer', ({ parsed }) =>
     typeof parsed.settings['pointer'] === 'string' ? 'a pointer source needs its JS driver' : null],
   ['no-run-once', ({ parsed }) =>
