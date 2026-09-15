@@ -143,9 +143,9 @@ describing the bytes honestly.)*
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 3 167 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 888 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 26 400 B | the motion pack — presets, easings, paint, path, sequence, split |
-| `@verajs/motion/core` | 12 487 B | the motion engine — compiler + writer, no directives engine, no packs |
-| `@verajs/motion/ssr` | 12 314 B | renderMotion — mark a server document, emit its sheet |
+| `@verajs/directives/motion` | 26 450 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/motion/core` | 12 538 B | the motion engine — compiler + writer, no directives engine, no packs |
+| `@verajs/motion/ssr` | 12 369 B | renderMotion — mark a server document, emit its sheet |
 | `@verajs/motion/client` | 3 079 B | the reader — delivery, drive and functions, no compiler |
 <!--/size:table.permodule-->
 

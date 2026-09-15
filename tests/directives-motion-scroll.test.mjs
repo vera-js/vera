@@ -241,15 +241,42 @@ test('teardown removes the progress property', async () => {
 });
 
 
-test('duplicate positions are a refusal with the LAST writer pinned — the from→to trap is TOLD', async () => {
-  /** Three independent strikes bought this rule: the grammar's own author wrote '0deg, 360deg'
-   *  meaning from→to, both lone values landed at 100%, and the rotation silently did nothing. */
+test('an all-bare list is a sequence spread evenly — the from→to trap is now the SPELLING', async () => {
+  /**
+   * This example bought the duplicate rule: the grammar's own author wrote `'0deg, 360deg'` meaning
+   * from→to, both lone values landed at 100%, and the rotation silently did nothing. It is now
+   * ordinary valid syntax — a positionless list is a SEQUENCE, spread evenly — so the trap is
+   * closed by the grammar rather than reported by a refusal.
+   */
   const el = await at(`{ keyframes: { rotate: '0deg, 360deg' } }`);
+  assert.deepEqual(
+    rejections(el).filter((r) => r.code === 'motion-duplicate-position'), [],
+    'a two-value bare list is from→to, not a contradiction');
+  assert.ok(/^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? ''), 'and it resolves');
+});
+
+test('duplicate positions are still a refusal when a position is written TWICE', async () => {
+  /**
+   * The rule survives its motivating example, narrowed to the genuine contradiction: an EXPLICIT
+   * position repeated. This is the one case of forty-three the twin's refusal-order corpus keeps —
+   * the other forty-two were the old all-bare reading and were cleared with this change.
+   */
+  const el = await at(`{ keyframes: { translate-y: '50% 10px, 50% 40px, 100% 0px' } }`);
   const reasons = rejections(el);
   assert.ok(reasons.some((r) => r.code === 'motion-duplicate-position'), 'a contradiction, not an omission');
   if (!isProduction) {
-    assert.ok(reasons.some((r) => /100%/.test(r.message)), 'names the position');
-    assert.ok(reasons.some((r) => /positions/.test(r.fix ?? '')), 'and teaches the spelling');
+    assert.ok(reasons.some((r) => /50%/.test(r.message)), 'names the position');
+    /** The advice has to cover BOTH causes, because this case mixes nothing — every stop here
+     *  carries a position, and the previous wording told the author to stop mixing. */
+    assert.ok(reasons.some((r) => /written twice/.test(r.fix ?? '')), 'names the repeat cause');
+  }
+
+  /** The other cause: a positionless stop landing on an explicit 100%. */
+  const mixed = await at(`{ keyframes: { opacity: '50% .5, 1, 0' } }`);
+  const mixedReasons = rejections(mixed);
+  assert.ok(mixedReasons.some((r) => r.code === 'motion-duplicate-position'), 'still refused');
+  if (!isProduction) {
+    assert.ok(mixedReasons.some((r) => /positionless stop/.test(r.fix ?? '')), 'names the mixing cause');
   }
   assert.ok(/^[0-9a-z]{14}$/.test(el.getAttribute('data-vm-motion') ?? ''),
     'the value still resolves — last writer wins, like the band merge');

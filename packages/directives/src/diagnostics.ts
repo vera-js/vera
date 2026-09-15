@@ -283,7 +283,8 @@ export const PROSE: Record<string, Prose> = {
   ],
   'motion-duplicate-position': (where, position) => [
     `${where ? `${where}: ` : ''}two keyframes at ${position} — the later one is used.`,
-    "Two lone values both mean the END: write positions, e.g. '0% 0deg, 100% 360deg'.",
+    'Either a position is written twice, or a positionless stop landed on an explicit 100%. ' +
+      'An ALL-positionless list spreads evenly instead, so give every stop a position or none.',
   ],
   'motion-mixed-units': (where, first, used) => [
     `${where}: ${first} and ${used} in one animation; ${used} is used throughout.`,

@@ -65,7 +65,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 202 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
 | `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 167 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 888 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
-| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->26 400 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
+| `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->26 450 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 
 Packs you never import cost nothing — pinned by a Rollup tree-shaking test, not asserted.
 
@@ -165,6 +165,29 @@ designed page.
 
   <div data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1' }, scroll: '50%', play: 0.6 }">…</div>
   ```
+
+  Keyframes are `'progress value'` pairs, and three rules cover everything else the grammar does
+  with them. **A lone value is the end**, and a list of lone values is a sequence spread evenly —
+  `'0, 1'` is `'0% 0, 100% 1'`, `'0, 1, 0, 1'` is 0%/33.333%/66.667%/100% — until one explicit
+  position appears anywhere, which turns the spreading off. **A missing `0%` or `100%` frame comes
+  from the element's own value, exactly like CSS `@keyframes`** — which is what makes the lone value
+  work at all: `opacity: '0.2'` is a single frame at 100%, animated to from wherever the element
+  already is. If you want the value held instead, write the stop: `'0% 0, 50% 0, 80% 1'`.
+
+  **One exception applies today and is being reviewed.** Properties that share an easing compile
+  into a single `@keyframes` rule, and every stop in that rule lists all of them — so a property
+  stopping short of an end takes its own first or last value there, rather than the element's,
+  whenever another property in the same group reaches that end. `{ opacity: '0.2' }` animates;
+  `{ opacity: '0.2', scale: '0, 1' }` pins opacity at `0.2` from 0% and it never moves. Two lone
+  values together (`{ opacity: '0.2', scale: '0.5' }`) are fine, because neither reaches an end.
+  **Writing the stop is exact in every case** — `opacity: '0% 1, 100% 0.2'` — and is the form to
+  reach for when a property animates alongside others.
+
+  **One
+  malformed entry refuses that whole property by name** — the element's other properties still
+  animate, and the survivors are never re-timed around the hole, because choosing a re-timing would
+  be the engine guessing at an animation the author never wrote. **A list over 256 stops is refused
+  whole** for the same reason: truncating it would silently animate to the wrong end value.
 
   **`scroll` names where the animation begins and ends. Scrubbing spreads it across that span;
   playing runs it at each end.** Without `play` it tracks scroll position; with `play` (in seconds)

@@ -70,11 +70,30 @@ test('paint refuses the image-sourcing family even where CSS.supports is absent'
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { background: '0% red, 100% image-set(&quot;https://evil.test/x&quot; 1x)' } }">x</div>`);
   const el = host.querySelector('div');
-  assert.ok(rejections(el).some((r) => r.code === 'motion-bad-value'), 'the fetching value was dropped');
-  /** The clean keyframe survives ALONE in the generated rule — the refused value reaches no CSS. */
+  assert.ok(rejections(el).some((r) => r.code === 'motion-bad-value'), 'the fetching value was refused');
+
+  /**
+   * **The whole list goes, not just the offending entry.** This used to assert that the clean
+   * `red` keyframe survived alone; under the malformed-entry rule nothing from a refused list
+   * reaches CSS, which serves this test's actual purpose — keeping a fetching value out of any
+   * sheet — more strongly rather than less.
+   */
   const css = [...doc.querySelectorAll('style[data-vm-sheet="motion"]')].map((n) => n.textContent).join('\n');
-  assert.match(css, /background: red/, 'the clean keyframe survived');
-  assert.ok(!css.includes('image-set'), 'and the refused one is nowhere in any sheet');
+  assert.ok(!css.includes('image-set'), 'the refused value is nowhere in any sheet');
+  assert.ok(!/background:\s*red/.test(css), 'and neither is the rest of the list it came from');
+  host.remove();
+  await settled();
+});
+
+test('CONTROL: a clean paint list does reach the sheet', async () => {
+  /**
+   * Without this the assertions above are satisfied by an empty sheet — which is exactly what a
+   * broken paint pack, or a mount that never rendered, would also produce.
+   */
+  const host = await mount(
+    `<div data-vd-motion="{ keyframes: { background: '0% red, 100% blue' } }">x</div>`);
+  const css = [...doc.querySelectorAll('style[data-vm-sheet="motion"]')].map((n) => n.textContent).join('\n');
+  assert.match(css, /background:\s*red/, 'a list with nothing wrong in it emits');
   host.remove();
   await settled();
 });
@@ -213,4 +232,39 @@ test('a split container does not animate as a block — its value is the templat
   assert.equal(p.style.filter, '', 'the container itself carries no animation style');
   host.remove();
   await settled();
+});
+
+/**
+ * **The multi-token retry path spreads too**, and nothing else reaches it.
+ *
+ * A positionless value only takes the `!hasPosition` branch when it is a SINGLE token — any
+ * whitespace commits the entry to the position branch, which then fails to parse a position and
+ * retries the whole entry as a value. So `shadow: '0 2px 8px …'` arrives at the spread through a
+ * different door from `opacity: '0, 1'`, and the all-bare rule has to hold on both.
+ *
+ * It needs the paint pack wired, which is why it lives here rather than beside the other
+ * `'0, 1'` cases — `shadow` refuses with `motion-pack-unwired` on its own.
+ */
+test('an all-bare list of MULTI-TOKEN values spreads, through the retry path', async () => {
+  const host = await mount(
+    `<div data-vd-motion="{ keyframes: { shadow: '0 2px 8px #0003, 0 1px 2px #0002' } }">x</div>`);
+  const el = host.querySelector('div');
+  assert.deepEqual(
+    rejections(el).filter((r) => r.code === 'motion-duplicate-position'), [],
+    'two multi-token values are from→to, not two stops at 100%');
+  assert.ok(el.hasAttribute('data-vm-motion'), 'and the element resolves');
+});
+
+test('CONTROL: the retry path is the one being taken', async () => {
+  /**
+   * Without this, the test above passes on a `shadow` the parser never read as multi-token — the
+   * refusal would simply be absent for the wrong reason. A LONE multi-token value has to land at
+   * 100%, which only the retry branch does.
+   */
+  const host = await mount(
+    `<div data-vd-motion="{ keyframes: { shadow: '0 2px 8px #0003' } }">x</div>`);
+  const el = host.querySelector('div');
+  assert.deepEqual(rejections(el).filter((r) => r.code === 'motion-bad-position'), [],
+    'a multi-token value is read WHOLE, not refused as a bad position');
+  assert.ok(el.hasAttribute('data-vm-motion'), 'the lone multi-token value resolves');
 });
