@@ -1,10 +1,10 @@
 {
-  "name": "@verajs/reactivity",
+  "name": "@verajs/store",
   "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },
-  "description": "Reactivity primitives VeraJS core does not ship: memoised derived values, and more to come. Each reachable on its own subpath so a buildless page loads only what it uses.",
+  "description": "Store and reactivity primitives VeraJS core does not ship: memoised derived values, reactive collections, and more to come. Each reachable on its own subpath so a buildless page loads only what it uses.",
   "license": "MIT",
   "engines": {
     "node": ">=20"
@@ -12,28 +12,28 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vera-js/vera.git",
-    "directory": "packages/reactivity"
+    "directory": "packages/store"
   },
   "author": "Brian Grider <hello@verajs.com>",
   "homepage": "https://verajs.dev",
-  "main": "./dist/vera-reactivity.min.js",
-  "types": "./dist/development/vera-reactivity.d.ts",
+  "main": "./dist/vera-store.min.js",
+  "types": "./dist/development/vera-store.d.ts",
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/development/vera-reactivity.d.ts",
-      "development": "./dist/development/vera-reactivity.js",
-      "default": "./dist/vera-reactivity.min.js"
+      "types": "./dist/development/vera-store.d.ts",
+      "development": "./dist/development/vera-store.js",
+      "default": "./dist/vera-store.min.js"
     },
     "./computed": {
-      "types": "./dist/development/vera-reactivity-computed.d.ts",
-      "development": "./dist/development/vera-reactivity-computed.js",
-      "default": "./dist/vera-reactivity-computed.min.js"
+      "types": "./dist/development/vera-store-computed.d.ts",
+      "development": "./dist/development/vera-store-computed.js",
+      "default": "./dist/vera-store-computed.min.js"
     },
     "./collections": {
-      "types": "./dist/development/vera-reactivity-collections.d.ts",
-      "development": "./dist/development/vera-reactivity-collections.js",
-      "default": "./dist/vera-reactivity-collections.min.js"
+      "types": "./dist/development/vera-store-collections.d.ts",
+      "development": "./dist/development/vera-store-collections.js",
+      "default": "./dist/vera-store-collections.min.js"
     }
   },
   "files": [
@@ -110,18 +110,18 @@
       ]
     }
   },
-  "filename": "vera-reactivity",
+  "filename": "vera-store",
   "dependencies": {
     "@verajs/core": "^0.2.1"
   },
   "keywords": [
     "verajs",
     "vera",
+    "store",
     "reactivity",
     "computed",
     "memo",
     "derived",
-    "store",
     "map",
     "set",
     "collections"
