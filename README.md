@@ -15,11 +15,11 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/styles` | 1.41 KB | 772 B |
 | `@verajs/renderer/spread` | 2.51 KB | 1.28 KB |
 | `@verajs/renderer/tag` | 3.82 KB | 1.94 KB |
-| `@verajs/reactivity` | 1.28 KB | 677 B |
+| `@verajs/store` | 1.28 KB | 677 B |
 | `@verajs/jsx` | 9.13 KB | 3.61 KB |
 | `@verajs/jsx/standalone` | 9.46 KB | 3.82 KB |
-| `@verajs/reactivity/computed` | 298 B | 241 B |
-| `@verajs/reactivity/collections` | 1.07 KB | 576 B |
+| `@verajs/store/computed` | 298 B | 241 B |
+| `@verajs/store/collections` | 1.07 KB | 576 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
 | `@verajs/renderer/hydrate` | 16.60 KB | 6.10 KB |
@@ -69,7 +69,7 @@ module system is open — use the prebuilt ones or write your own.
 @verajs/autoloader    lazy-loads custom elements on discovery
 @verajs/styles        adopts `static styles` — shadow sheets, @scope for light DOM
 @verajs/renderer/slots  `<slot>` in LIGHT DOM, with the platform's own semantics
-@verajs/reactivity    computed values; reactive Map/Set for stores
+@verajs/store    computed values; reactive Map/Set for stores
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
 ```

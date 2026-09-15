@@ -25,7 +25,7 @@ const PROD = {
   inserts: 'packages/inserts/dist/vera-inserts.min.js',
   styles: 'packages/styles/dist/vera-styles.min.js',
   autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
-  collections: 'packages/reactivity/dist/vera-reactivity-collections.min.js',
+  collections: 'packages/reactivity/dist/vera-store-collections.min.js',
   keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
   slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
@@ -33,7 +33,7 @@ const PROD = {
 };
 
 /**
- * The deliberate exception, and the only one: `@verajs/reactivity` builds **on** core's public API
+ * The deliberate exception, and the only one: `@verajs/store` builds **on** core's public API
  * rather than implementing an extension point, so it must import core in every mode instead of
  * inlining it.
  *
@@ -47,8 +47,8 @@ const PROD = {
  * existed nothing checked that it was still there.
  */
 const EXTERNAL_CORE = {
-  reactivity: 'packages/reactivity/dist/vera-reactivity.min.js',
-  computed: 'packages/reactivity/dist/vera-reactivity-computed.min.js',
+  reactivity: 'packages/reactivity/dist/vera-store.min.js',
+  computed: 'packages/reactivity/dist/vera-store-computed.min.js',
 };
 
 // ── cross-bundle contracts ──────────────────────────────────────────────────
@@ -146,7 +146,7 @@ test('production bundles are standalone — no bare workspace imports', () => {
   }
 });
 
-test('@verajs/reactivity imports core in production rather than inlining it', () => {
+test('@verajs/store imports core in production rather than inlining it', () => {
   for (const [name, path] of Object.entries(EXTERNAL_CORE)) {
     assert.match(
       read(path),

@@ -20,7 +20,7 @@
  * ## The list is derived, because a hand-written one is its own boundary
  *
  * This suite listed its twelve entries by hand for exactly one pass, and in that pass it already
- * missed `@verajs/reactivity/computed` — a subpath with a full development/production/types triple
+ * missed `@verajs/store/computed` — a subpath with a full development/production/types triple
  * that simply was not typed into the array.
  *
  * So the entries come from the `exports` maps themselves. A subpath added tomorrow is covered the day

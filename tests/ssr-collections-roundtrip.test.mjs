@@ -15,7 +15,7 @@ import { load } from './dist.mjs';
 const serverHtml = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr';
   import { wire } from '@verajs/core';
-  const { collections } = await import('@verajs/reactivity/collections');
+  const { collections } = await import('@verajs/store/collections');
   wire([collections]);
   process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/map-driven-ssr.js', 'file://' + process.cwd() + '/'))).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });

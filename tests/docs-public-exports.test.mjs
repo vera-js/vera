@@ -10,7 +10,7 @@
  * *silent* export impossible — adding one to the public surface now requires writing its name down
  * somewhere, which is the moment to notice you did not mean to export it.
  *
- * Two real leaks were found by running this the first time: `@verajs/reactivity`'s `collectionMethod`
+ * Two real leaks were found by running this the first time: `@verajs/store`'s `collectionMethod`
  * and `GLOBAL`, which are the `'collection'` extension point and are the only way to implement one,
  * and `@verajs/renderer/tag`'s `jsxName` and `BOOLEAN_ATTRIBUTES`, which exist so
  * `tests/jsx-name-mapping.test.mjs` can hold them against `@verajs/jsx`'s deliberate second copy.
@@ -41,9 +41,9 @@ const PACKAGES = {
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
   '@verajs/styles': 'styles',
-  '@verajs/reactivity': 'reactivity',
-  '@verajs/reactivity/computed': 'reactivity/computed',
-  '@verajs/reactivity/collections': 'reactivity/collections',
+  '@verajs/store': 'reactivity',
+  '@verajs/store/computed': 'reactivity/computed',
+  '@verajs/store/collections': 'reactivity/collections',
   '@verajs/inserts': 'inserts',
   '@verajs/jsx': 'jsx',
 };

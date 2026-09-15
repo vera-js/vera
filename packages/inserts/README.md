@@ -101,7 +101,7 @@ carrying its own:
 import { wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
 import { router } from '@verajs/router';
-import { collections } from '@verajs/reactivity/collections';
+import { collections } from '@verajs/store/collections';
 
 wire([renderer, router, collections]);
 ```

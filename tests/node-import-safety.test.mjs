@@ -58,9 +58,9 @@ const importInNode = (specifier) => {
 const SAFE = [
   '@verajs/core',
   '@verajs/inserts',
-  '@verajs/reactivity',
-  '@verajs/reactivity/collections',
-  '@verajs/reactivity/computed',
+  '@verajs/store',
+  '@verajs/store/collections',
+  '@verajs/store/computed',
   '@verajs/renderer/keyed',
   '@verajs/renderer/slots',
   '@verajs/renderer/spread',

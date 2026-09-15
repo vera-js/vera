@@ -139,7 +139,7 @@ test('a render that throws leaves the page as it was, and recovers on the next w
  * **Every extension point the types declare is documented, and behaves as the section says.**
  *
  * `packages/inserts/README.md` is the whole public description of this surface, and it listed five
- * of seven. `'collection'` — the point `@verajs/reactivity/collections` ships to implement — and
+ * of seven. `'collection'` — the point `@verajs/store/collections` ships to implement — and
  * `'value'` were in `InsertFunctionMap` and in neither the table nor the throws section, so an
  * author of either had no documented answer to "what happens if mine throws".
  *

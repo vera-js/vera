@@ -1,5 +1,5 @@
 /**
- * `@verajs/reactivity/computed` — memoised derived values.
+ * `@verajs/store/computed` — memoised derived values.
  *
  * The distinction being tested is against a plain function, not against nothing. `() => a + b` runs
  * on every read; a computed runs once per *change*, and only when something it actually read moves.

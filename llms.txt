@@ -246,7 +246,7 @@ exists, before its first render; this is how `@verajs/styles` attaches), `'proxy
 `undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
 suppress default propagation), `'error'` (a hook threw), `'collection'` (a method read off a
 `Map`/`Set` in a store — type-keyed, so plain-object reads never reach it; how
-`@verajs/reactivity/collections` attaches), and `'value'` (a child-position value the renderer has
+`@verajs/store/collections` attaches), and `'value'` (a child-position value the renderer has
 no built-in answer for — return `true` to claim it; strings, numbers and nullish values never reach
 it). `@verajs/inserts`' README documents each signature. `revision` (from `@verajs/inserts`) bumps
 on every registration, so a reader may cache a chain against it.
@@ -261,19 +261,19 @@ yields that number** instead of the value. Write observers with a block body —
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
-import { collections } from '@verajs/reactivity/collections';
+import { collections } from '@verajs/store/collections';
 import { renderInto } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 ```
 
-### Collections (`@verajs/reactivity/collections`)
+### Collections (`@verajs/store/collections`)
 
 Reactive `Map` and `Set` in stores. **Not in core since 0.2.0** — most stores hold plain objects
 and every app was paying 367 B for it. Wire once at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
-import { collections } from '@verajs/reactivity/collections';
+import { collections } from '@verajs/store/collections';
 wire(collections);
 ```
 
@@ -798,7 +798,7 @@ Semantics worth stating:
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.
 
-### Reactive collections — semantics (`@verajs/reactivity/collections`, wired above)
+### Reactive collections — semantics (`@verajs/store/collections`, wired above)
 
 ```js
 const state = createStore({ tags: new Set(), users: new Map() });
@@ -1346,7 +1346,7 @@ Say so rather than inventing an API:
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
   components. No decorators ever (they cannot run without a build step).
-- **`computed` is `@verajs/reactivity/computed`** (<!--size:computed.gzip-->241 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
+- **`computed` is `@verajs/store/computed`** (<!--size:computed.gzip-->241 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
     per change rather than once per read, and only when something it actually read moves. It is a
     store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**

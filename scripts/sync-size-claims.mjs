@@ -45,7 +45,7 @@ const TARGETS = [
   // inside a tarball. The root README ships nowhere.
   /**
    * A claim's key and the README carrying it are no longer the same name. `spread` is an entry of
-   * `@verajs/renderer` and `computed` one of `@verajs/reactivity`, so `dir` says where the README
+   * `@verajs/renderer` and `computed` one of `@verajs/store`, so `dir` says where the README
    * lives when it differs from the claim key. Deduplicated, since one README can hold several.
    */
   ...new Set(MODULES.map((m) => `packages/${m.dir ?? m.pkg}/README.md`)),
