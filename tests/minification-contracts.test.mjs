@@ -43,7 +43,7 @@ const PROD = {
  * then never invalidate again: no error, no warning, and only in a production build. That is the
  * exact failure `@verajs/styles` shipped once already.
  *
- * `alwaysExternal` in `packages/reactivity/rollup.config.js` is what holds it, and until this test
+ * `alwaysExternal` in `packages/store/rollup.config.js` is what holds it, and until this test
  * existed nothing checked that it was still there.
  */
 const EXTERNAL_CORE = {

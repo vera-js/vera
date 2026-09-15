@@ -39,7 +39,7 @@
         "./packages/inserts:build",
         "./packages/jsx:build",
         "./packages/motion:build",
-        "./packages/reactivity:build",
+        "./packages/store:build",
         "./packages/renderer:build",
         "./packages/router:build",
         "./packages/ui:build",

@@ -61,7 +61,7 @@ const importmap = (renderer) =>
         '@verajs/router': '/packages/router/dist/development/vera-router.js',
         '@verajs/autoloader': '/packages/autoloader/dist/development/vera-autoloader.js',
         '@verajs/styles': '/packages/styles/dist/development/vera-styles.js',
-        '@verajs/store/collections': '/packages/reactivity/dist/development/vera-store-collections.js',
+        '@verajs/store/collections': '/packages/store/dist/development/vera-store-collections.js',
         '@verajs/inserts': '/packages/inserts/dist/development/vera-inserts.js',
       },
     },

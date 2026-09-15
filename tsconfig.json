@@ -67,7 +67,7 @@
         "./packages/renderer/src/index.ts"
       ],
       "@verajs/store": [
-        "./packages/reactivity/src/index.ts"
+        "./packages/store/src/index.ts"
       ],
       "@verajs/renderer/spread": [
         "./packages/renderer/src/spread.ts"
