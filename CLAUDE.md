@@ -122,6 +122,15 @@ code, so they are not re-litigated.
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
   built `dist`; ssr is the one that does.
+- **A killed build ORPHANS `wireit`, and the next one deadlocks behind the lock it left.** Killing
+  `npm run build` — a tool timeout, a cancelled command, Ctrl-C at the wrong moment — does not take
+  its `wireit` and `rollup` children with it. They stay alive holding the build lock, and every
+  later build waits on an owner that is gone. **The signature is progress stopping below 100% with
+  nothing running** — `98% [43 / 44] [0 running]` — which is indistinguishable from a slow build and
+  will be waited out indefinitely. Diagnose it, never wait: `ps aux | grep -E "wireit|rollup"` and
+  look at the START column; anything older than the current build is stale. Kill those PIDs (leave
+  VS Code's `wireit` extension server alone) and the blocked build completes immediately. Measured
+  2026-09-14, after a 10-minute foreground timeout left three processes holding the lock.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 
