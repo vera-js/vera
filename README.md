@@ -24,16 +24,16 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
 | `@verajs/renderer/hydrate` | 16.60 KB | 6.10 KB |
 | `@verajs/inserts` | 486 B | 357 B |
-| `@verajs/directives` | 15.50 KB | 6.00 KB |
-| `@verajs/directives/directives-standalone` | 19.00 KB | 7.29 KB |
-| `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
+| `@verajs/directives` | 15.59 KB | 6.01 KB |
+| `@verajs/directives/directives-standalone` | 19.09 KB | 7.31 KB |
+| `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
 | `@verajs/directives/directives-sensors` | 7.77 KB | 3.09 KB |
 | `@verajs/directives/directives-remote` | 9.31 KB | 3.80 KB |
-| `@verajs/directives/directives-motion` | 78.70 KB | 25.83 KB |
-| `@verajs/motion` | 36.94 KB | 12.24 KB |
-| `@verajs/motion/motion-ssr` | 37.29 KB | 12.08 KB |
+| `@verajs/directives/directives-motion` | 78.79 KB | 25.85 KB |
+| `@verajs/motion` | 37.03 KB | 12.26 KB |
+| `@verajs/motion/motion-ssr` | 37.39 KB | 12.10 KB |
 | `@verajs/motion/motion-client` | 8.20 KB | 3.01 KB |
 <!--/size:table.modules-->
 

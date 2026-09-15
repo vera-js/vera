@@ -67,16 +67,16 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 15867,
-      "gzip": 6141
+      "raw": 15965,
+      "gzip": 6158
     },
     "directives-standalone": {
-      "raw": 19452,
-      "gzip": 7470
+      "raw": 19550,
+      "gzip": 7487
     },
     "directives-expressions": {
-      "raw": 5540,
-      "gzip": 2343
+      "raw": 5618,
+      "gzip": 2361
     },
     "directives-interactions": {
       "raw": 10896,
@@ -95,16 +95,16 @@
       "gzip": 3888
     },
     "directives-motion": {
-      "raw": 80584,
-      "gzip": 26450
+      "raw": 80682,
+      "gzip": 26467
     },
     "motion": {
-      "raw": 37825,
-      "gzip": 12538
+      "raw": 37923,
+      "gzip": 12557
     },
     "motion-ssr": {
-      "raw": 38186,
-      "gzip": 12369
+      "raw": 38284,
+      "gzip": 12387
     },
     "motion-client": {
       "raw": 8392,
