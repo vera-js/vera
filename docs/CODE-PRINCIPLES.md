@@ -55,7 +55,9 @@ indistinguishable in style from the code around it.
   example that needs a bundle points at `packages/<pkg>/dist/`; it never gets its own copy.
 - **Commit after everything — a checkout should never cost data loss.** Work happens on a local
   work branch off the integration branch, committed after every meaningful step and **always before
-  any `checkout`, `reset`, `revert`, `stash`, `rebase` or branch switch**. Those commits are never
+  any `checkout`, `reset`, `revert`, `stash`, `rebase` or branch switch**. **When unsure whether to
+  commit, ask what losing the work right now would cost — if it is more than a minute to redo,
+  commit.** Those commits are never
   pushed: the audit gate governs what *lands*, not whether work is *saved*, so committing early
   costs nothing and protects everything. Two corollaries, both learned the expensive way: **revert
   by explicit path, never `.`**, while work you intend to keep is uncommitted; and a patch file is
