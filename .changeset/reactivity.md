@@ -4,7 +4,7 @@
 
 New package: reactivity primitives `@verajs/core` deliberately does not ship.
 
-Ships `@verajs/reactivity/computed` — memoised derived values. `() => a + b` runs on every read;
+Ships `@verajs/store/computed` — memoised derived values. `() => a + b` runs on every read;
 `computed(() => a + b)` runs once per **change**, and only when something it actually read moves.
 Reading it a hundred times in one render costs one evaluation and an unrelated store write costs
 none, which is the whole reason the primitive exists — and the one property the older "computed is a

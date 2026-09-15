@@ -16,7 +16,7 @@ Measured by deleting the `_$apply$` branch and rebuilding: **5 B** (3 815 agains
 wrong, in opposite directions. The figure is now dated and its method recorded, because nothing
 generates it.
 
-**`@verajs/reactivity`'s "you pay 233 B for memoised derivations" is 241 B**, and now carries a
+**`@verajs/store`'s "you pay 233 B for memoised derivations" is 241 B**, and now carries a
 `<!--size:computed.gzip-->` marker, so it is generated rather than remembered. Verified by corrupting
 it and watching `sync-size-claims --check` fail.
 

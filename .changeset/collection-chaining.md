@@ -18,5 +18,5 @@ shows one, and nothing throws or logs.
 `forEach` had the same escape by another door — its callback's third argument was the raw collection,
 so a callback writing through it mutated past the proxy.
 
-`@verajs/reactivity/collections` grows 38 B gzipped, effectively all of it the `forEach` receiver;
+`@verajs/store/collections` grows 38 B gzipped, effectively all of it the `forEach` receiver;
 returning the receiver from `set` and `add` is free.
