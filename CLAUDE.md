@@ -122,6 +122,22 @@ code, so they are not re-litigated.
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
   built `dist`; ssr is the one that does.
+- **A package rename has SIX reference forms, and a grep for the package's own name reaches only
+  three.** Each needs its own pass: (1) the scoped specifier `@verajs/<name>`; (2) the bundle
+  filename `vera-<name>`; (3) the directory path `packages/<name>`; (4) **internal keys** —
+  `scripts/size-modules.mjs`'s `pkg`/`dir`, the names passed to `load()`, `tests/dist.mjs`'s ENTRY
+  tuples, snapshot keys; (5) the **bare short name** in prose and package lists (`` `reactivity` ``,
+  never the specifier); (6) **`package-lock.json`'s workspace entries**, where a stale one makes
+  `npm ci` fail at INSTALL, before a single test, for a reason that looks nothing like a rename.
+  **Release-coupled pieces move WITH the rename, not after:** existing changeset FRONTMATTER
+  (`tests/changesets.test.mjs` rejects a package it cannot find in the manifests), unreleased
+  changeset BODY text (it becomes the new package's first CHANGELOG), and
+  `tests/docs-removed-apis.test.mjs` keyed on the SCOPED specifier — the bare word collides with the
+  on-npm sentences below. **What does NOT move until the publish:** those on-npm status sentences in
+  `llms.txt` and `README.md`, which `tests/release-invariants.test.mjs` ties to the release TAG, so
+  editing them early turns the gate red and tagging makes the edit required. Measured on
+  `@verajs/reactivity` → `@verajs/store`, 2026-09-14: grep found 1–3, the clean-worktree gate caught
+  4 and 5, and the audit caught 6 plus two more of 5.
 - **A killed build ORPHANS `wireit`, and the next one deadlocks behind the lock it left.** Killing
   `npm run build` — a tool timeout, a cancelled command, Ctrl-C at the wrong moment — does not take
   its `wireit` and `rollup` children with it. They stay alive holding the build lock, and every
