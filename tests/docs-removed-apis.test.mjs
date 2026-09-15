@@ -306,7 +306,7 @@ test('nothing on the removed list is still exported', async () => {
     globalThis[key] = dom.window[key];
 
   const surface = new Set();
-  for (const bundle of ['core', 'renderer', 'router', 'autoloader', 'inserts', 'styles', 'reactivity'])
+  for (const bundle of ['core', 'renderer', 'router', 'autoloader', 'inserts', 'styles', 'store'])
     for (const name of Object.keys(await import(distUrl(bundle)))) surface.add(name);
 
   const resurrected = Object.keys(REMOVED).filter((name) => surface.has(name));

@@ -41,9 +41,9 @@ const PACKAGES = {
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
   '@verajs/styles': 'styles',
-  '@verajs/store': 'reactivity',
-  '@verajs/store/computed': 'reactivity/computed',
-  '@verajs/store/collections': 'reactivity/collections',
+  '@verajs/store': 'store',
+  '@verajs/store/computed': 'store/computed',
+  '@verajs/store/collections': 'store/collections',
   '@verajs/inserts': 'inserts',
   '@verajs/jsx': 'jsx',
 };

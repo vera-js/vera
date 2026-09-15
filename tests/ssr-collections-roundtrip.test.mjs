@@ -29,7 +29,7 @@ const frame = () => new Promise((resolve) => dom.window.setTimeout(resolve, 10))
 
 const core = await load('core');
 const { renderer } = await load('renderer/hydrate');
-const { collections } = await load('reactivity/collections');
+const { collections } = await load('store/collections');
 core.wire([renderer, collections]);
 
 test('a Map-driven component serializes, hydrates by adoption, and stays live', async () => {

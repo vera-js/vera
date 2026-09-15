@@ -350,7 +350,7 @@ test('styles + hold: five park/restore cycles adopt once and hoist once', async 
  */
 test('collections + keyed: map mutations move rows by identity, batches coalesce', async () => {
   const { init, render, createStore } = core;
-  core.wire([await load('reactivity/collections').then((m) => m.collections)]);
+  core.wire([await load('store/collections').then((m) => m.collections)]);
   /**
    * This file's globals deliberately omit `requestAnimationFrame`, so the scheduler runs its
    * synchronous fallback — under which a clear() RENDERS the empty list before the reinserts
@@ -448,7 +448,7 @@ test('hold + keyed: rows share the call site and never each other\'s parked stat
  */
 test('computed + untrack: one render per dep write, none per untracked write', async () => {
   const { init, render, createStore, untrack } = core;
-  const { computed } = await load('reactivity');
+  const { computed } = await load('store');
   const hadRaf = 'requestAnimationFrame' in globalThis;
   globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
   globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;

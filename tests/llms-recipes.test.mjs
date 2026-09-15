@@ -30,7 +30,7 @@ const PACKAGES = {
   '@verajs/renderer': 'renderer',
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/spread': 'renderer/spread',
-  '@verajs/store': 'reactivity',
+  '@verajs/store': 'store',
 };
 const resolveImports = (code) =>
   code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, specifier) => {

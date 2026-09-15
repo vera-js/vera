@@ -77,8 +77,8 @@ const NO_SIZE_CLAIM = {
     'in the public modules table would read as an extra cost nobody pays. Worth a row of its own.',
   '@verajs/store':
     'ENROLLED 2026-09-11 (owner-approved); the oversight it looked like. ' +
-    'the table looks more like an oversight than a decision. `reactivity/computed` and ' +
-    '`reactivity/collections` are both claimed; the base entry is not.',
+    'the table looks more like an oversight than a decision. `store/computed` and ' +
+    '`store/collections` are both claimed; the base entry is not.',
 };
 
 const NO_RECIPE_MAPPING = {

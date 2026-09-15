@@ -32,7 +32,7 @@ const { keyed } = await load('renderer/keyed');
 const { tag } = await load('renderer/tag');
 const routerModule = await load('router');
 const { navigate } = routerModule;
-const reactivity = await load('reactivity');
+const reactivity = await load('store');
 const styleModule = await load('styles');
 
 const skip = isProduction && 'development-only diagnostics';

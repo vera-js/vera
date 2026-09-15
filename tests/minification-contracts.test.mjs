@@ -25,7 +25,7 @@ const PROD = {
   inserts: 'packages/inserts/dist/vera-inserts.min.js',
   styles: 'packages/styles/dist/vera-styles.min.js',
   autoloader: 'packages/autoloader/dist/vera-autoloader.min.js',
-  collections: 'packages/reactivity/dist/vera-store-collections.min.js',
+  collections: 'packages/store/dist/vera-store-collections.min.js',
   keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
   slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
@@ -47,8 +47,8 @@ const PROD = {
  * existed nothing checked that it was still there.
  */
 const EXTERNAL_CORE = {
-  reactivity: 'packages/reactivity/dist/vera-store.min.js',
-  computed: 'packages/reactivity/dist/vera-store-computed.min.js',
+  reactivity: 'packages/store/dist/vera-store.min.js',
+  computed: 'packages/store/dist/vera-store-computed.min.js',
 };
 
 // ── cross-bundle contracts ──────────────────────────────────────────────────

@@ -35,7 +35,7 @@ const LIMITATIONS = [
   ],
   [
     'computed is eager, not lazy',
-    'packages/reactivity/README.md',
+    'packages/store/README.md',
     'It is eager, not lazy',
     'the name promises the opposite in Vue, Solid and Preact',
   ],
