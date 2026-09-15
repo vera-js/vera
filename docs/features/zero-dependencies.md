@@ -26,12 +26,12 @@ measured in [size.md](size.md):
 <!--/size:table.deps-->
 
 **All eleven published packages** declare no third-party dependency: `core`, `renderer`, `router`,
-`autoloader`, `inserts`, `jsx`, `ssr`, `reactivity`, `styles`, `eslint-config` and `tsconfig`. The
+`autoloader`, `inserts`, `jsx`, `ssr`, `store`, `styles`, `eslint-config` and `tsconfig`. The
 only entries in any `dependencies` field are first-party — `@verajs/inserts` for core, and
-`@verajs/core` for `reactivity` — and the production bundles inline them.
+`@verajs/core` for `store` — and the production bundles inline them.
 
 Verify by enumerating rather than by list, since a list is what went stale here: this said "seven"
-from before `reactivity` and `styles` were split out of core in 0.2.0, and the command below named
+from before `store` and `styles` were split out of core in 0.2.0, and the command below named
 the same seven, so running it confirmed the claim about a subset while reading as though it covered
 everything.
 
