@@ -16,6 +16,7 @@ import { functionFor } from './functions.js';
 
 import { verifyDelivered } from './verify.js';
 import { cessions } from './cede.js';
+import { CLOSEST_OPEN } from './schema.js';
 import { acquire, release, ensureProperty, setTails, STAGGER_PROPERTY, SCROLL_PROPERTY, RANGE_START_PROPERTY, RANGE_SIZE_PROPERTY } from './registry.js';
 
 import { syncTo, rampTo, dispose } from './drive.js';
@@ -848,6 +849,29 @@ const scrollHalves = (element: RuntimeElement): [string | undefined, string | un
   return [first || undefined, second || undefined];
 };
 
+/**
+ * The element an `anchor` names, for BOTH consumers — the range resolver and the pointer scope.
+ * They used to resolve it separately and DIFFERENTLY: this one through the element's own root, the
+ * pointer one through `ownerDocument`, so a component in a shadow tree anchored correctly for scroll
+ * and reached into the page for pointer.
+ *
+ * `closest(…)` walks UP from the element, so it crosses no shadow boundary and needs no root —
+ * which is also why it is the right spelling for a repeated component: every copy resolves to its
+ * own ancestor, where a shared `#id` resolves all of them to the first one on the page.
+ */
+const anchorElement = (node: HTMLElement, selector: string): HTMLElement | null => {
+  if (selector.startsWith(CLOSEST_OPEN)) {
+    /** `closest` is INCLUSIVE — an element that itself matches is its own anchor. Deliberate: a
+     *  card that carries both the motion attribute and `.card` should measure against itself, and
+     *  the alternative would need a second spelling to say so. */
+    return node.closest(selector.slice(CLOSEST_OPEN.length, -1)) as HTMLElement | null;
+  }
+  /** Resolved in the element's OWN root, so a component can anchor to its own section without
+   *  reaching into the page — the same rule `path-selector` follows. */
+  const root = node.getRootNode() as ParentNode;
+  return (root.querySelector?.(selector) ?? null) as HTMLElement | null;
+};
+
 export const resolveRange = (
   element: RuntimeElement,
   settings: RuntimeSettings,
@@ -855,6 +879,7 @@ export const resolveRange = (
 ): void => {
   let anchorStart = element.start;
   let anchorSize = element.size;
+
 
   const selector = element.parsed.settings['anchor'];
   /**
@@ -874,10 +899,7 @@ export const resolveRange = (
     return;
   }
   if (typeof selector === 'string' && selector !== '') {
-    /** Resolved in the element's OWN root, so a component can anchor to its own section without
-     *  reaching into the page — the same rule `path-selector` follows. */
-    const root = element.node.getRootNode() as ParentNode;
-    const found = root.querySelector?.(selector) as HTMLElement | null;
+    const found = anchorElement(element.node, selector);
     if (found) {
       const box = getElementSize(found, settings.scrollDirection, settings.scrollElement);
       anchorStart = box.start;
@@ -931,7 +953,7 @@ export const resolvePointerSource = (chain: readonly string[]): string | null =>
 export const pointerSourceValue = (element: RuntimeElement, clientX: number, clientY: number): number => {
   const anchor = element.parsed.settings['anchor'];
   const scope = typeof anchor === 'string'
-    ? (anchor === 'self' ? element.node : element.node.ownerDocument?.querySelector(anchor)) : null;
+    ? (anchor === 'self' ? element.node : anchorElement(element.node, anchor)) : null;
   const rect = scope
     ? scope.getBoundingClientRect()
     : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };

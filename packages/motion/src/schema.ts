@@ -283,11 +283,14 @@ export const SETTINGS = [
    *   scroll: 'top 60%'           begins when this element's top is 60% down; default end
    *   scroll: 'top top, bottom bottom'   the span a sticky element is pinned for
    *   anchor: '#section'          measure against a section instead, for a sticky child
+   *   anchor: 'closest(.card)'    measure against the nearest ANCESTOR matching it — what a
+   *                               component inside a repeated section needs, where `#section`
+   *                               would resolve every copy to the first one on the page
    *
    * With `play`, the two halves are the two EVENTS rather than the ends of a span: in at the first,
    * out (reversed) at the second. One half means one threshold, crossed both ways.
    */
-  { key: 'anchor', type: 'selector', parse: (raw) => (raw.trim() === 'self' ? 'self' : parseSelector(raw, true)) },
+  { key: 'anchor', type: 'selector', parse: (raw) => parseAnchor(raw) },
   { key: 'scroll', type: 'range', parse: (raw) => parseScrollRange(raw) },
   /**
    * **Seconds, and its presence is what makes this a play rather than a scrub.** Seconds because
@@ -1123,6 +1126,39 @@ export const parseMeasure = (
  *
  * @param lists whether a comma-separated list is meaningful for this caller
  */
+/**
+ * The `closest(` wrapper, in ONE place. The parser writes it and the runtime reads it back off the
+ * stored setting, so the two would otherwise agree by coincidence across a module boundary.
+ */
+export const CLOSEST_OPEN = 'closest(';
+
+/**
+ * `anchor`, which is TWO spellings of one idea: measure against some other element.
+ *
+ * - `self` — the element's own transit.
+ * - `closest(<selector>)` — the nearest ANCESTOR matching it, `Element.closest`. What a component
+ *   inside a repeated section needs, where the section has no id to point at and every copy would
+ *   otherwise resolve to the first one on the page.
+ * - anything else — a selector, resolved with `querySelector`.
+ *
+ * **A selector LIST is refused for the plain form and allowed inside `closest()`**, and the
+ * difference is not a nicety: `querySelector('.a, .b')` returns whichever matches FIRST IN DOCUMENT
+ * ORDER, so `.a, .b` reads like "either" and silently means "whichever the page happens to put
+ * first" — recovery, not API. `Element.closest('.a, .b')` walks up from this element and returns
+ * the nearest ancestor matching EITHER, which is unambiguous and is the same rule `when` already
+ * relies on with `matches()`. The test is not "does a comma appear" but *"does the resolution pick
+ * one arbitrarily, or does it mean any?"*
+ */
+export const parseAnchor = (raw: string): string | null => {
+  const value = raw.trim();
+  if (value === 'self') return 'self';
+  if (value.startsWith(CLOSEST_OPEN) && value.endsWith(')')) {
+    const inner = parseSelector(value.slice(CLOSEST_OPEN.length, -1), true);
+    return inner === null ? null : `${CLOSEST_OPEN}${inner})`;
+  }
+  return parseSelector(value);
+};
+
 export const parseSelector = (raw: string, lists = false): string | null => {
   const value = raw.trim();
   if (value === '' || value.length > 200) return null;

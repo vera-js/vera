@@ -48,11 +48,7 @@ const corpus = JSON.parse(readFileSync(
  * the fixture is stale and the entry disappears when omni's line is updated.
  */
 const KNOWN = new Map([
-  // ── vera is WRONG and the fix belongs here. Each disappears when it is built. ──────────────
   ['bare non-keyword still asks for quotes', { fields: 'rejected', why: 'vera motion-setting-not-plain predates the quotes ruling; should be motion-quote-the-value', fix: 'vera' }],
-  ['anchor closest form', { fields: 'rejected+settings', why: 'closest() is in the shared spec and unimplemented here — a feature gap, not a refusal (ruled to build 2026-09-14)', fix: 'vera' }],
-  ['anchor closest list accepted (Element.closest takes one)', { fields: 'rejected+settings', why: 'as above; a selector LIST must refuse, since Element.closest takes one', fix: 'vera' }],
-  ['anchor list refused (querySelector first-of-any)', { fields: 'rejected+settings', why: 'vera ACCEPTS `.a, .b`, which silently means "the first match" — recovery, not API; ruled to refuse', fix: 'vera' }],
 ]);
 
 /** A case with an `engines` field is a recorded divergence; vera asserts its own branch. */

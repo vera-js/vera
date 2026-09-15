@@ -968,7 +968,14 @@ coming back up past it); two halves are an entrance and an exit. `run-once` latc
 play. `play` beside `inertia` is refused (same transition); `ease` composes with a play — the clock is
 linear over `play` seconds and the easing reshapes each segment as it is swept, so
 `keyframes: { scale: '0% 0, 100% 1' }, ease: 'ease-in-out', play: 0.6` reads exactly as written. **`when: '.selector'` GATES** — it animates while matching and
-rests at its start otherwise; `when` + `play` is a UI transition. **`pointer: 'x' | 'y' |
+rests at its start otherwise; `when` + `play` is a UI transition. **`anchor` measures against ANOTHER
+element** — `anchor: '#section'` (found with `querySelector`), `anchor: 'closest(.card)'` (the element
+ITSELF or its nearest matching ancestor — `Element.closest`, which is inclusive and stops at a shadow
+boundary), or `anchor: 'self'` (the element's own transit). Use `closest()` in repeated markup: with a
+plain selector every copy resolves to whichever the document puts first. A selector LIST is refused
+for the plain form and allowed inside `closest()` — `querySelector('.a, .b')` silently means
+"whichever is first in the document", `closest('.a, .b')` means "the nearest ancestor matching
+either". **`pointer: 'x' | 'y' |
 'distance'` drives the SAME timeline by pointer position instead of scroll** — `x`/`y` track the
 viewport (or the `anchor`'s box), `distance` is euclidean from the scope's center over its
 half-diagonal, clamped so leaving scope reads exactly 1. A SOURCE CHAIN falls back:
