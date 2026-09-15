@@ -1,5 +1,5 @@
 ---
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
 A chained `set` or `add` on a store's `Map` or `Set` now notifies for every link, and `forEach` hands

@@ -1,5 +1,5 @@
 ---
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
 Say that `computed` is eager, because the name promises the opposite everywhere else

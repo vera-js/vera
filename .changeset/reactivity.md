@@ -1,5 +1,5 @@
 ---
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
 New package: reactivity primitives `@verajs/core` deliberately does not ship.

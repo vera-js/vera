@@ -1,7 +1,7 @@
 ---
 '@verajs/core': minor
 '@verajs/inserts': patch
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
 Reactive `Map`/`Set` moves out of core, to `@verajs/reactivity/collections`

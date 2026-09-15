@@ -1,6 +1,6 @@
 ---
 '@verajs/renderer': patch
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
 Correct three size claims that nothing regenerated
