@@ -30,9 +30,9 @@
       "raw": 3912,
       "gzip": 1983
     },
-    "reactivity": {
-      "raw": 1311,
-      "gzip": 677
+    "store": {
+      "raw": 1301,
+      "gzip": 673
     },
     "jsx": {
       "raw": 9352,
@@ -43,12 +43,12 @@
       "gzip": 3908
     },
     "computed": {
-      "raw": 298,
-      "gzip": 241
+      "raw": 293,
+      "gzip": 238
     },
     "collections": {
-      "raw": 1097,
-      "gzip": 576
+      "raw": 1087,
+      "gzip": 571
     },
     "keyed": {
       "raw": 2008,

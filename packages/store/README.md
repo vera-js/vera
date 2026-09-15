@@ -8,8 +8,8 @@ would otherwise pay for.
 
 | Entry | | |
 | --- | ---: | --- |
-| `@verajs/store/computed` | <!--size:computed.gzip-->241 B<!--/size:computed.gzip--> | memoised derived values |
-| `@verajs/store/collections` | <!--size:collections.gzip-->576 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
+| `@verajs/store/computed` | <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> | memoised derived values |
+| `@verajs/store/collections` | <!--size:collections.gzip-->571 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
 subpath and a buildless page downloads only that one. Both entries are **additive**: neither inlines
@@ -117,7 +117,7 @@ component; one at module scope lasts for the page. There is nothing to dispose.
 
 It is built on `createStore` and `createHook` through their public API — `@verajs/core` grew **two
 bytes**, for returning a function it already constructed. That is the module system doing its job:
-you pay <!--size:computed.gzip-->241 B<!--/size:computed.gzip--> if you want memoised derivations and nothing at all if you do not.
+you pay <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> if you want memoised derivations and nothing at all if you do not.
 
 Unlike the other modules, this one keeps `@verajs/core` **external** in every build rather than
 inlining it. It is built *on* core rather than beside it, and a standalone copy would hand a CDN
