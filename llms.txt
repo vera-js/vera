@@ -714,7 +714,7 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `reactivity`, `reactivity/collections`, `renderer/keyed`, `renderer/slots`,
+  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow
