@@ -8,13 +8,13 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 <!--size:table.modules-->
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
-| `@verajs/core` | 6.92 KB | **3.04 KB** |
-| `@verajs/renderer` | 11.31 KB | 4.38 KB |
+| `@verajs/core` | 7.26 KB | **3.17 KB** |
+| `@verajs/renderer` | 11.73 KB | 4.54 KB |
 | `@verajs/router` | 10.66 KB | 4.45 KB |
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
-| `@verajs/renderer/spread` | 2.64 KB | 1.34 KB |
-| `@verajs/renderer/tag` | 3.87 KB | 1.95 KB |
+| `@verajs/renderer/spread` | 3.05 KB | 1.54 KB |
+| `@verajs/renderer/tag` | 4.27 KB | 2.14 KB |
 | `@verajs/store` | 1.27 KB | 673 B |
 | `@verajs/jsx` | 9.13 KB | 3.61 KB |
 | `@verajs/jsx/standalone` | 9.46 KB | 3.82 KB |
@@ -22,7 +22,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/store/collections` | 1.06 KB | 571 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
-| `@verajs/renderer/hydrate` | 16.60 KB | 6.10 KB |
+| `@verajs/renderer/hydrate` | 17.02 KB | 6.25 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 | `@verajs/directives` | 15.59 KB | 6.01 KB |
 | `@verajs/directives/directives-standalone` | 19.09 KB | 7.31 KB |
@@ -37,12 +37,12 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/motion/motion-client` | 8.34 KB | 3.07 KB |
 <!--/size:table.modules-->
 
-A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.6 KB<!--/size:app.kb--> gzipped**. For
+A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.9 KB<!--/size:app.kb--> gzipped**. For
 comparison, `react` + `react-dom` is roughly <!--size:react.kb-->59 KB<!--/size:react.kb--> gzipped.
 
 `@verajs/core` ships **no renderer of its own** — `render()` without one warns in development and
 displays nothing. A renderer is the one module every app needs, which is why
-<!--size:app.kb-->6.6 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
+<!--size:app.kb-->6.9 KB<!--/size:app.kb--> is quoted for core *plus* a renderer rather than for core alone.
 Reproduce it with `cd bench && npm install`, then `npm run build && node bench/size.mjs` from the
 repository root.
 
