@@ -1,6 +1,6 @@
 {
   "name": "@verajs/store",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publishConfig": {
     "access": "public"
   },
@@ -112,7 +112,7 @@
   },
   "filename": "vera-store",
   "dependencies": {
-    "@verajs/core": "^0.2.1"
+    "@verajs/core": "^0.3.0"
   },
   "keywords": [
     "verajs",

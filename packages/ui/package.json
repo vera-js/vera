@@ -30,9 +30,9 @@
     }
   },
   "peerDependencies": {
-    "@verajs/core": ">=0.2.0",
+    "@verajs/core": ">=0.3.0",
     "@verajs/hooks": ">=0.0.0",
-    "@verajs/renderer": ">=0.1.0"
+    "@verajs/renderer": ">=0.2.0"
   },
   "files": [
     "dist",
