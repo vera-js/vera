@@ -120,6 +120,27 @@ Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`:
 store, wire that, and mutating methods notify like any other write. Without it core says so the first
 time one is read.
 
+```js
+import { createStore, ref, shallowRef, untrack, deps } from '@verajs/core';
+
+const state = createStore({ filter: 'all', rows: [] });
+const focus = ref(null);                    // read and written as focus.value, deeply tracked
+const frame = shallowRef(new Float32Array(64)); // .value tracked; the contents deliberately not
+
+const total = () => untrack(() => state.rows.length);  // read without subscribing
+deps(state.filter);                          // subscribe explicitly, without using the value yet
+```
+
+One more, for servers: `setStaticStores(true)` makes every store created from then on a **plain
+object** — no proxy, no tracking, reads at raw property speed. It exists for `@verajs/ssr`, which
+turns it on around a render that declared itself static; in a browser it would give you a
+framework that never updates (development throws on any write to such a store to say so).
+
+```js
+import { setStaticStores } from '@verajs/core';
+setStaticStores(true);   // server-side, around a static render — never in a browser
+```
+
 ### What "deep" reaches, and what it does not
 
 A store proxies **plain objects, arrays, class instances, `Object.create(null)` objects, and the four
@@ -192,6 +213,11 @@ useEffect(() => {
   const id = setInterval(tick, 1000);
   return () => clearInterval(id);
 });
+
+useLayoutEffect(() => {
+  // runs before the render pass commits — measure here, and writes cannot cause a visible flash
+  height = list.getBoundingClientRect().height;
+});
 ```
 
 The difference between coalesced and sync is what they observe:
@@ -245,6 +271,26 @@ holding its value at the start and at the end.
 | `wire([renderer])` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
+
+```js
+import { init, mount, useRender, useEffect, mathml, html,
+         setRenderScheduler, microtask, setHtml, setCss } from '@verajs/core';
+
+class TickerLogger extends HTMLElement {
+  connectedCallback() {
+    init(this);                          // light DOM: no second argument
+    useEffect(() => console.log(state.tick));
+    mount();                             // commits the setup — this component draws nothing
+  }
+}
+
+const formula = html`<math>${mathml`<mi>x</mi><mo>=</mo><mn>${x}</mn>`}</math>`;
+
+useRender(() => html`<p>${state.n}</p>`, element);  // re-declare a render OUTSIDE the setup window
+
+setRenderScheduler(microtask);           // Lit/Vue-style timing instead of requestAnimationFrame
+setHtml(myHtml); setCss(myCss);          // swap the template tags a whole app resolves through
+```
 
 **`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the
 first pass of every hook registered since `init()` and clears the instance. `render(template)` is
@@ -325,6 +371,19 @@ write — return `false` to hold the default propagation back), `'error'` (a hoo
 `'collection'` (a `Map`/`Set` method read in a store — how `@verajs/store/collections`
 attaches) and `'value'` (a child-position value the renderer has no built-in answer for).
 [`@verajs/inserts`](../inserts) documents each one, with signatures.
+
+```js
+import { wire, inserts, createHook } from '@verajs/core';
+
+wire({ on: 'error', fn: (error, element) => report(error, element.localName), priority: 50 });
+
+const errorChain = inserts.get('error');            // the registry itself: name -> ordered chain
+
+createHook({                                        // your own hook type, scheduled like the rest
+  callback: (change, first) => { if (!first) log(change); },
+  priority: 60,                                     // after render (50), before useEffect (75)
+});
+```
 
 **Take `wire` from `@verajs/core`, not from `@verajs/inserts`.** A production bundle inlines the
 registry, so registering through a separately imported copy writes to a map core never reads — it

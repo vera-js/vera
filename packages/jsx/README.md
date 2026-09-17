@@ -37,10 +37,25 @@ Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Im
 
 For a playground with no build at all, `@verajs/jsx/standalone` transforms
 `<script type="text/vera-jsx">` blocks in the browser. It is for demos — the transform runs on every
-page load.
+page load. Blocks present at `DOMContentLoaded` run in document order automatically; a block that
+arrives LATER — CMS content, a demo injected after load — is run by hand with `runBlock`:
+
+```js
+import { runBlock } from '@verajs/jsx/standalone';
+
+const script = document.querySelector('script[type="text/vera-jsx"]#late');
+await runBlock(script);   // fetches src or reads inline text, transforms, imports as a module
+```
 
 `transformJsx(source, fileName, options?)` is the transform itself, if you are wiring a different
-bundler or writing a test.
+bundler or writing a test:
+
+```js
+import { transformJsx } from '@verajs/jsx';
+
+const js = transformJsx(source, 'widget.jsx');                    // imports injected automatically
+const bare = transformJsx(source, 'widget.jsx', { inject: false }); // you provide html/keyed/spread
+```
 
 ## What JSX means here
 

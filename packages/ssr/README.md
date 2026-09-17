@@ -390,6 +390,16 @@ are retired; strategy 4 is the only one shipped.
 `renderToString` / `renderToStringAsync`; these are listed so their presence is a decision rather
 than an accident.
 
+```js
+import { renderToString, renderToStringAsync, registry, serializeTemplate } from '@verajs/ssr';
+
+const { html: markup } = await renderToString(new URL('./components/app.js', import.meta.url));
+const page = await renderToStringAsync(entry);        // same signature, awaits async lifecycles
+
+registry.has('app-shell');                            // true once the component module has run
+const fragment = serializeTemplate(html`<p>${x}</p>`); // one template to markup, no component scan
+```
+
 ## For AI assistants — and anyone who wants the whole API on one page
 
 The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API

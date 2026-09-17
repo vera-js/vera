@@ -115,7 +115,18 @@ Setting the property on the host works too, from anywhere — `el.style.setPrope
 So `static styles` is deliberately not reactive: it carries the structure, custom properties carry
 what changes. Verified against a real browser in `tests/browser/styles-dynamic.test.js`.
 
-`applyStyles(styles, element)` is exported for manual use.
+`applyStyles(styles, element)` is exported for manual use — the adoption step alone, for an element
+whose lifecycle this package's `init` insert never sees:
+
+```js
+import { styles, adoptStyles, applyStyles } from '@verajs/styles';
+import { wire } from '@verajs/core';
+
+wire([styles]);                                    // the module — registers adoptStyles on 'init'
+wire({ on: 'init', fn: adoptStyles, priority: 50 }); // the same registration, written out
+
+applyStyles(MyPanel.styles, detachedPanel);        // adopt into one element by hand
+```
 
 This lived in `@verajs/core` until 0.2.0. It moved because most apps do not use `static styles` and
 every app was paying for it. If a component declares `static styles` with this package absent, core

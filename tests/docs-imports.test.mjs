@@ -43,6 +43,7 @@ const PACKAGES = {
   '@verajs/store/computed': 'store/computed',
   /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
   '@verajs/jsx': 'jsx',
+  '@verajs/jsx/standalone': 'jsx/standalone',
   /** Unpublished (`private: true`) like cms below, and held to the same bar for the same reason. */
   /** Unpublished (`private: true` until its audits land), but its READMEs and the autoloader's
    *  lazy-directive recipe are in this repository and a reader will act on them. */

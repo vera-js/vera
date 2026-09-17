@@ -1284,8 +1284,9 @@ blob. Bare specifiers inside resolve through the page's import map.
 6. **JS + JSX only.** Nothing strips TypeScript types in the browser; TSX needs the build path.
 7. **Prefer stable shapes over conditional swaps** — see the renderer section. Toggling `hidden`
    keeps template identity and skips the clear/insert churn.
-8. **Reach for `hidden={…}`, not `?hidden=${…}`, inside JSX.** Boolean attributes bound in JSX
-   compile to the `?attr` form for you.
+8. **Reach for `hidden={…}`, not `?hidden=${…}`, inside JSX.** On an HTML tag a bound boolean
+   attribute compiles to the `?attr` form for you; on a component tag it is a prop like any other
+   (`.hidden=${…}` — the platform accessor reflects it, so the element still hides).
 9. **A custom element is written as itself** — `<my-comp foo={x}>…</my-comp>`, dashes and all. It is
    markup, not a function component, so it compiles into the template's statics rather than into a
    call. (Dashed tags did not parse before 0.2.0 and were emitted verbatim, which failed at load.)

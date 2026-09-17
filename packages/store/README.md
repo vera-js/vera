@@ -152,6 +152,23 @@ development and, in production, subscribe to one string while notifying another.
 `ownKeys` and from a `size` read; a collection implementation notifies it on every mutation that adds
 or removes an entry. Notify something else and `${state.map.size}` silently stops updating.
 
+```js
+import { collectionMethod, GLOBAL } from '@verajs/store/collections';
+import { wire } from '@verajs/core';
+
+/** The signature is the `'collection'` insert's own — `collectionMethod` IS the registered fn,
+ *  so a custom implementation wraps it: claim your type, delegate everything else verbatim.
+ *  Core calls the chain's FIRST entry and caches it, so register before the first store read. */
+wire({
+  on: 'collection',
+  priority: 40, // before the stock one at 50 — first in the chain is the one core calls
+  fn: (obj, prop, propValue, addCallback, runCallbacks) =>
+    obj instanceof MyCollection
+      ? wrapMyCollection(obj, prop, propValue, addCallback, runCallbacks) // notify GLOBAL on shape changes
+      : collectionMethod(obj, prop, propValue, addCallback, runCallbacks),
+});
+```
+
 ## For AI assistants — and anyone who wants the whole API on one page
 
 The repository root's [`llms.txt`](../../llms.txt) is the complete, hand-maintained API

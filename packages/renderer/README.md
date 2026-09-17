@@ -793,7 +793,17 @@ each other in the same corner, and the second one's teardown would stop profilin
 which kept repainting a frozen report.
 
 Full API: `startProfiling()`, `stopProfiling()`, `getReport()`, `isProfiling()`, `profile(fn)`,
-`formatReport(report)`, `showProfiler(options?)`.
+`formatReport(report)`, `showProfiler(options?)`. The first four are `profile()` unrolled, for a
+session that does not fit one callback — a long-running tab, a REPL:
+
+```js
+import { startProfiling, stopProfiling, getReport, isProfiling } from '@verajs/renderer/profiler';
+
+startProfiling();
+// … interact with the app for as long as you like …
+if (isProfiling()) console.log(formatReport(getReport()));   // read mid-flight without stopping
+stopProfiling();                                             // freezes the report
+```
 
 This costs production nothing, and there is nothing to strip: the instrumentation sits behind a
 `__DEV__` constant the build folds to `false`, so `vera-renderer.min.js` is byte-identical whether
@@ -902,7 +912,14 @@ They are the table this entry uses to map React's names, and `@verajs/jsx` carri
 deliberately — the two are build-time and runtime, and a shared package would be a dependency where
 a test does the job. `tests/jsx-name-mapping.test.mjs` asserts the two agree on every key, and it can
 only do that against the built artifact, which is why they are exported at all. Read them if you are
-writing something that has to agree with both; do not build on them.
+writing something that has to agree with both; do not build on them:
+
+```js
+import { jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
+
+jsxName('className');              // 'class' — the runtime half of the React-name mapping
+BOOLEAN_ATTRIBUTES.has('disabled'); // true — the names the tag entry toggles rather than assigns
+```
 
 ## Extending it — `_$apply$` and `_$child$`
 
