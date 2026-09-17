@@ -1766,6 +1766,17 @@ export class ElementShim extends ContainerShim {
   get style() {
     return styleView(this);
   }
+  /**
+   * The platform's `style` is `[SameObject, PutForwards=cssText]` — `el.style = 'color: red'`
+   * assigns THROUGH to `cssText` in every engine (and in jsdom, the regression net). The shim
+   * declared only the getter, so the ordinary spelling threw `Cannot set property` server-side:
+   * a component-prop delivery of `.style` was refused as read-only while the client accepted and
+   * reflected it — the exact server/client divergence the differential rule exists to catch.
+   * `[LegacyNullToEmptyString]` rides the same IDL attribute, so `null` means `''`.
+   */
+  set style(value) {
+    /** @type {{ cssText: string }} */ (styleView(this)).cssText = value === null ? '' : `${value}`;
+  }
   removeAttribute(name) {
     name = this._name(name);
     if (!this._attributes.has(name)) return;

@@ -1294,7 +1294,8 @@ blob. Bare specifiers inside resolve through the page's import map.
     `<x-rows rows={data} count={3} active>` passes `rows`, `count` and `active` (`true`) as
     properties, by identity: the component reads `this.rows` reactively with nothing declared, and
     SSR delivers the same props to the child's server render. The exceptions are derivations, not
-    a vocabulary: hyphenated names (`data-*`, `aria-*`) have no property spelling by construction,
+    a vocabulary: names that cannot be JS identifiers (`data-*`, `aria-*`, `xlink:href`) have no
+    property spelling by construction,
     and `class`/`for` — the two names the DOM itself renamed — stay attributes (write `className`,
     as in React). None of the HTML-control guesses apply on components: `disabled={x}` is the
     component's own prop, never a `?disabled` toggle. Platform names still behave: `title`, `id`,

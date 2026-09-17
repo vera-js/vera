@@ -16,8 +16,8 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/renderer/spread` | 3.09 KB | 1.55 KB |
 | `@verajs/renderer/tag` | 4.32 KB | 2.16 KB |
 | `@verajs/store` | 1.27 KB | 673 B |
-| `@verajs/jsx` | 9.29 KB | 3.65 KB |
-| `@verajs/jsx/standalone` | 9.61 KB | 3.85 KB |
+| `@verajs/jsx` | 9.30 KB | 3.67 KB |
+| `@verajs/jsx/standalone` | 9.63 KB | 3.87 KB |
 | `@verajs/store/computed` | 293 B | 238 B |
 | `@verajs/store/collections` | 1.06 KB | 571 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |

@@ -95,8 +95,9 @@ component reads `this.date`, reactively, with nothing declared (see `@verajs/cor
 section). `date="literal"` is a prop too, and none of the HTML-control guesses above apply —
 `disabled={x}` on a component is that component's own prop, not a `?disabled` toggle.
 
-No table decides which names qualify. Two derivations carve out the attributes: a **hyphenated
-name** (`data-*`, `aria-*`) has no property spelling by construction, and `class` / `for` (the two
+No table decides which names qualify. Two derivations carve out the attributes: a **name that
+cannot be a JS identifier** (`data-*`, `aria-*`, `xlink:href`) has no property spelling by
+construction, and `class` / `for` (the two
 names the DOM itself renamed, because JS refuses them as identifiers) stay attributes — write
 `className` on components exactly as in React. Everything else is classified by the element's own
 prototype chain at runtime: `title`, `id`, `slot` or `style` land on the platform accessor that

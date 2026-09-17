@@ -26,12 +26,13 @@ import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from '.
  *
  * On a COMPONENT tag (dash-named), **a bare prop is a PROP** — `<calendar-day date={d}>` emits
  * `.date=${d}`, which is React's own semantics and the reason JSX exists here. No name table
- * decides which names qualify: a hyphenated name (`data-*`, `aria-*`) has no property spelling by
- * construction and stays an attribute, the two names the DOM itself renamed (`NAME_MAP`'s targets,
- * `class`/`for` — renamed because JS syntax refuses them) stay attributes, and everything else is
- * classified by the element's own prototype chain at runtime: the renderer hands `title`, `id` or
- * `style` to the platform accessor that owns it, a declared pair to its setter, and the rest to
- * `init()`'s adoption. The HTML rows above are untouched — `<div title={x}>` is still an attribute.
+ * decides which names qualify: a name that cannot be a JS identifier (`data-*`, `aria-*`,
+ * `xlink:href` — see `IDENTIFIER`) has no property spelling by construction and stays an
+ * attribute, the two names the DOM itself renamed (`NAME_MAP`'s targets, `class`/`for` — renamed
+ * because JS syntax refuses them) stay attributes, and everything else is classified by the
+ * element's own prototype chain at runtime: the renderer hands `title`, `id` or `style` to the
+ * platform accessor that owns it, a declared pair to its setter, and the rest to `init()`'s
+ * adoption. The HTML rows above are untouched — `<div title={x}>` is still an attribute.
  */
 
 export const BOOLEAN_ATTRIBUTES = new Set([
@@ -48,6 +49,14 @@ export const NAME_MAP = { className: 'class', htmlFor: 'for' };
  * author meant. Every other non-hyphenated name on a component is a prop.
  */
 const RENAMED_ATTRIBUTES = new Set<string>(Object.values(NAME_MAP));
+
+/**
+ * A name that could be a JS property access — which is what qualifies it as a PROP spelling on a
+ * component tag. One grammar instead of a vocabulary: `data-x`, `aria-label` and `xlink:href` all
+ * fail it (no property spelling exists for them by construction), so they stay attributes with no
+ * list naming them.
+ */
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 /** The renderer's binding sigils. An attribute name that opens with one is the author's own choice. */
 const SIGILS = new Set(['.', '?', '@', '&']);
@@ -290,12 +299,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * component by identity and `init()`'s adoption makes it reactive; the runtime classifies the
      * names this transform cannot — the element's own prototype chain hands `title` or `id` to
      * the platform, a declared pair to its setter — which is what makes this safe with no name
-     * table here. Hyphenated names have no property spelling by construction, and `class`/`for`
+     * table here. A name that cannot be a JS identifier (`data-x`, `aria-label`, `xlink:href` — see
+     * `IDENTIFIER`) has no property spelling by construction, and `class`/`for`
      * (`RENAMED_ATTRIBUTES`) were renamed by the DOM itself, so those stay attributes; the form
      * guesses below (`value`/`checked`, the boolean table) are interpretations of HTML controls
      * and deliberately never reach a component — its `disabled={x}` is its own prop.
      */
-    if (_node.tag.includes('-') && !name.includes('-') && !RENAMED_ATTRIBUTES.has(name)) {
+    if (_node.tag.includes('-') && IDENTIFIER.test(name) && !RENAMED_ATTRIBUTES.has(name)) {
       tpl.static(` .${name}=`);
       tpl.expr(bound ? expression! : JSON.stringify(attribute.kind === 'none' ? true : literal));
       return;
