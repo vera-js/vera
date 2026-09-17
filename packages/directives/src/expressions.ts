@@ -138,13 +138,18 @@ const compile = (source: string, from = 0, stopAt: string | null = null): { thun
         for (;;) {
           ws();
           const start = i;
-          if (source[i] === "'" || source[i] === '"') {
-            const q = source[i];
+          const q = source[i];
+          const quoted = q === "'" || q === '"';
+          if (quoted) {
             i++;
             while (!done() && peek() !== q) i++;
             i++;
           } else while (!done() && (isId(peek()) || peek() === '.' || peek() === '@')) i++;
-          const key = source.slice(start, i).replace(/^['"]|['"]$/g, '');
+          /** Sliced INSIDE the quotes. This carried a `.replace(/^['"]…/)` since before the quoted
+           *  key was handled anywhere else, which made the file's own no-regex promise at the top
+           *  false the whole time — the ReDoS class was still absent (that pattern cannot
+           *  backtrack), but the SENTENCE was not true, and the next reader trusts the sentence. */
+          const key = quoted ? source.slice(start + 1, i - 1) : source.slice(start, i);
           if (!key) fail('object-bad-key', start, 'expected a key');
           if (FORBIDDEN.has(key)) fail('name-forbidden', start, `"${key}" is not a legal key`);
           ws();
@@ -302,13 +307,37 @@ const parseObject = (source: string, from: number): { node: ParsedObject; end: n
   for (;;) {
     ws();
     const start = i;
-    if (source[i] === '@') i++;
-    /** A custom property is a key: `{ --x: p.x }`. Same rule the base grammar uses — see
-     *  `startsCustomProperty`, which exists because this was written out three times. */
-    if (startsCustomProperty(source, i)) { i++; while (i < source.length && isId(source[i])) i++; }
-    else if (isDigit(source[i])) while (i < source.length && isDigit(source[i])) i++;
-    else if (isIdStart(source[i])) while (i < source.length && (isId(source[i]) || source[i] === '.')) i++;
-    const key = source.slice(start, i);
+    /**
+     * **A QUOTED KEY IS A KEY** — `{ 'open': false }`, which JS accepts and this reader did not.
+     * The THIRD copy of this rule (the comment below has always said so): the shared grammar and
+     * the expression tier's own object reader both take quoted keys, and this one refused them, so
+     * `data-vd-state="{ 'open': false }"` died with `object-bad-key` while the identical value
+     * parsed everywhere else. Fixed 2026-09-14 alongside the shared grammar — one defect, three
+     * addresses.
+     */
+    const quote = source[i];
+    /**
+     * **A QUOTED KEY IS A KEY** — `{ 'open': false }`, which JS accepts and this reader refused,
+     * so `data-vd-state="{ 'open': false }"` died with `object-bad-key` while the identical value
+     * parsed in the shared grammar and in the expression tier's own object reader above. The THIRD
+     * copy of this rule; the comment below has always said it was written out three times.
+     *
+     * Scanned past and stripped, matching the sibling reader rather than branching the whole key
+     * computation — measured, the branching shape cost 48 B gzipped here and this one costs 20.
+     */
+    const quoted = quote === "'" || quote === '"';
+    if (quoted) { i++; while (i < source.length && source[i] !== quote) i++; i++; }
+    else {
+      if (source[i] === '@') i++;
+      /** A custom property is a key: `{ --x: p.x }`. Same rule the base grammar uses — see
+       *  `startsCustomProperty`, which exists because this was written out three times. */
+      if (startsCustomProperty(source, i)) { i++; while (i < source.length && isId(source[i])) i++; }
+      else if (isDigit(source[i])) while (i < source.length && isDigit(source[i])) i++;
+      else if (isIdStart(source[i])) while (i < source.length && (isId(source[i]) || source[i] === '.')) i++;
+    }
+    /** Sliced INSIDE the quotes rather than stripped afterwards — this file promises at the top
+     *  that no regex touches author input, and a `.replace(/^['"]…/)` here would make that false. */
+    const key = quoted ? source.slice(start + 1, i - 1) : source.slice(start, i);
     if (!key || key === '@') fail('object-bad-key', start, 'expected a key');
     ws();
     if (source[i] !== ':') fail('object-missing-colon', i, `expected ":" after "${key}"`);

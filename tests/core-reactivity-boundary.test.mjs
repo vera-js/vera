@@ -5,7 +5,7 @@
  * literally — so the boundary has to be written down and held. It is not arbitrary: the types on the
  * far side carry their state in **internal slots** rather than in properties, so a proxy cannot
  * observe a change to them and in several cases cannot even be called on one. That is the same
- * reason `@verajs/reactivity/collections` has to re-bind `Map` and `Set` methods.
+ * reason `@verajs/store/collections` has to re-bind `Map` and `Set` methods.
  *
  * There is deliberately no runtime warning. A `Date` read to format it is far more common than a
  * `Date` read to mutate it, so a warning would fire on the ordinary case — which is why this is a

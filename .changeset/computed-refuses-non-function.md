@@ -1,5 +1,5 @@
 ---
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
 `computed` refuses a non-function by name

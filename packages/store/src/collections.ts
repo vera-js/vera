@@ -2,14 +2,14 @@ import type { StoreProxyKeys } from '@verajs/shared-types';
 import type { CollectionInsert } from '@verajs/inserts';
 
 /**
- * `@verajs/reactivity/collections` — reactive `Map` and `Set` inside VeraJS stores.
+ * `@verajs/store/collections` — reactive `Map` and `Set` inside VeraJS stores.
  *
  * Wire it once, at your app entry, alongside the renderer:
  *
  * ```js
  * import { wire } from '@verajs/core';
  * import { renderer } from '@verajs/renderer';
- * import { collections } from '@verajs/reactivity/collections';
+ * import { collections } from '@verajs/store/collections';
  *
  * wire([renderer, collections]);
  * ```
@@ -205,7 +205,7 @@ export const collectionMethod = (
  * register below 50 to run first, or at 50 to replace this entirely.
  */
 export const collections = {
-  name: '@verajs/reactivity/collections',
+  name: '@verajs/store/collections',
   on: 'collection' as const,
   /**
    * Annotated, not inferred. `collectionMethod` returns `unknown`, and an inferred `unknown` return

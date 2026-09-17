@@ -62,7 +62,7 @@ they run, so a write to `state.count` schedules exactly the work that read it.
 | `deps(...values)` | touch values explicitly, to register them as dependencies |
 | `store._delete()` | sever every subscription for an object store at once |
 
-Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/reactivity/collections`: put one in a
+Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
 store, wire that, and mutating methods notify like any other write. Without it core says so the first
 time one is read.
 
@@ -268,7 +268,7 @@ batching are all built this way, outside core, on the same public surface you ha
 
 The points are `'render'`, `'init'`, `'proxy-handler'` (a store read), `'set-handler'` (a store
 write — return `false` to hold the default propagation back), `'error'` (a hook threw),
-`'collection'` (a `Map`/`Set` method read in a store — how `@verajs/reactivity/collections`
+`'collection'` (a `Map`/`Set` method read in a store — how `@verajs/store/collections`
 attaches) and `'value'` (a child-position value the renderer has no built-in answer for).
 [`@verajs/inserts`](../inserts) documents each one, with signatures.
 

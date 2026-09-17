@@ -15,7 +15,7 @@ import { load } from './dist.mjs';
 const serverHtml = execFileSync(process.execPath, ['--conditions', 'development', '--input-type=module', '-e', `
   import { renderToString } from '@verajs/ssr';
   import { wire } from '@verajs/core';
-  const { collections } = await import('@verajs/reactivity/collections');
+  const { collections } = await import('@verajs/store/collections');
   wire([collections]);
   process.stdout.write((await renderToString(new URL('./tests/fixtures/ssr/map-driven-ssr.js', 'file://' + process.cwd() + '/'))).html);
 `], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
@@ -29,7 +29,7 @@ const frame = () => new Promise((resolve) => dom.window.setTimeout(resolve, 10))
 
 const core = await load('core');
 const { renderer } = await load('renderer/hydrate');
-const { collections } = await load('reactivity/collections');
+const { collections } = await load('store/collections');
 core.wire([renderer, collections]);
 
 test('a Map-driven component serializes, hydrates by adoption, and stays live', async () => {

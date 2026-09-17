@@ -22,7 +22,7 @@ for (const key of ['document', 'HTMLElement', 'Node', 'Element', 'customElements
 
 const core = await load('core');
 const { renderInto, renderer } = await load('renderer');
-const reactivity = await load('reactivity');
+const reactivity = await load('store');
 core.wire({ on: 'render', fn: renderInto, priority: 50 });
 
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));

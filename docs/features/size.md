@@ -127,26 +127,26 @@ describing the bytes honestly.)*
 | `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
 | `@verajs/renderer/spread` | 1 315 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 1 983 B | `<${tag}>` — runtime tag names, in templates and JSX |
-| `@verajs/reactivity` | 677 B | the standalone store — subscriptions without components |
+| `@verajs/store` | 673 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 3 701 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
 | `@verajs/jsx/standalone` | 3 908 B | JSX in the browser with no build — the CodePen path |
-| `@verajs/reactivity/computed` | 241 B | memoised derived values |
-| `@verajs/reactivity/collections` | 576 B | reactive `Map` and `Set` in a store |
+| `@verajs/store/computed` | 238 B | memoised derived values |
+| `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/hydrate` | 6 243 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
 | `@verajs/inserts` | 357 B | the extension point |
-| `@verajs/directives/core` | 6 141 B | the engine — registry, activation, context, delegation (core external) |
-| `@verajs/directives/standalone` | 7 470 B | the engine with its own store, for a page running no vera |
-| `@verajs/directives/expressions` | 2 343 B | the expression tier — arithmetic, comparisons, calls |
+| `@verajs/directives/core` | 6 158 B | the engine — registry, activation, context, delegation (core external) |
+| `@verajs/directives/standalone` | 7 487 B | the engine with its own store, for a page running no vera |
+| `@verajs/directives/expressions` | 2 361 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 942 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |
 | `@verajs/directives/sensors` | 3 167 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 888 B | the remote pack — server-driven interactions |
-| `@verajs/directives/motion` | 26 400 B | the motion pack — presets, easings, paint, path, sequence, split |
-| `@verajs/motion/core` | 12 487 B | the motion engine — compiler + writer, no directives engine, no packs |
-| `@verajs/motion/ssr` | 12 314 B | renderMotion — mark a server document, emit its sheet |
-| `@verajs/motion/client` | 3 079 B | the reader — delivery, drive and functions, no compiler |
+| `@verajs/directives/motion` | 26 558 B | the motion pack — presets, easings, paint, path, sequence, split |
+| `@verajs/motion/core` | 12 621 B | the motion engine — compiler + writer, no directives engine, no packs |
+| `@verajs/motion/ssr` | 12 447 B | renderMotion — mark a server document, emit its sheet |
+| `@verajs/motion/client` | 3 139 B | the reader — delivery, drive and functions, no compiler |
 <!--/size:table.permodule-->
 
 You only ship what you use — the modules are independent. See [module-system.md](module-system.md).

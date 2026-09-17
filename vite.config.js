@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
  * server hosts run against **sources** and an edit shows up on reload.
  *
  * **Derived rather than listed.** The list was written by hand and had fallen four packages behind:
- * `@verajs/styles`, `@verajs/reactivity/collections`, `@verajs/renderer/keyed` and
+ * `@verajs/styles`, `@verajs/store/collections`, `@verajs/renderer/keyed` and
  * `@verajs/renderer/spread` are all used by the examples and none was aliased, so the dev server
  * served those from `dist` while serving the rest from `src` — a mixture nothing announced, where
  * editing one package took effect immediately and editing another silently did nothing until a

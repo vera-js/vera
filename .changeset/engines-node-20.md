@@ -4,7 +4,7 @@
 '@verajs/eslint-config': patch
 '@verajs/inserts': patch
 '@verajs/jsx': patch
-'@verajs/reactivity': patch
+'@verajs/store': patch
 '@verajs/renderer': patch
 '@verajs/router': patch
 '@verajs/ssr': patch

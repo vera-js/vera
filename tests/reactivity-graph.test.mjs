@@ -26,7 +26,7 @@ for (const key of [
 const core = await load('core');
 const { createStore, useSyncEffect, useEffect, init, render, mount: commit, html, wire } = core;
 const { renderer } = await load('renderer');
-const { computed } = await load('reactivity');
+const { computed } = await load('store');
 wire([renderer]);
 
 const settle = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));

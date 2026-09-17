@@ -88,6 +88,24 @@ export const parseValue = (source: string): Parsed => {
    */
   const key = (): string => {
     const start = i;
+    /**
+     * **A QUOTED KEY IS A KEY.** These braces carry JS object semantics, and JS accepts
+     * `{ 'a': 1 }` and `{ "a": 1 }` — the grammar accepted neither while accepting the bare form,
+     * so `data-vd-state="{ 'open': false }"` failed to parse and the whole directive died with
+     * `object-bad-key`. One grammar, every consumer: the same value reached motion as
+     * `{ keyframes: { 'translate-y': … } }` and was refused there too.
+     *
+     * Read through `string()` rather than a second scanner, so a quoted key gets the same
+     * termination handling as any other string — and so the RESULT is an ordinary name that flows
+     * into exactly the downstream checks a bare key does. Quoting must not be a way to smuggle
+     * `__proto__` past a guard that was only looking at bare identifiers.
+     */
+    if (source[i] === "'" || source[i] === '"') {
+      const quoted = string(source[i]!);
+      /** `{ '': 1 }` is not a key with an unusual spelling, it is a missing one. */
+      if (quoted === '') fail('object-bad-key', start, 'expected a key');
+      return quoted;
+    }
     if (source[i] === '@') i++;
     if (startsCustomProperty(source, i)) {
       i++;

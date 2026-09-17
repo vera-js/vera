@@ -133,10 +133,10 @@ test('every published package has what npm needs to publish it', () => {
 /**
  * **`llms.txt` must not say a package is on npm before it is.**
  *
- * It listed `@verajs/reactivity` among the packages "live" on npm. That package has never been
+ * It listed `@verajs/store` among the packages "live" on npm. That package has never been
  * published — confirmed against the registry, and independently against the release tags, which is
  * the check used here because it needs no network. A reader following the file's own list runs
- * `npm i @verajs/reactivity` and gets a 404, and `llms.txt` is the file most likely to be copied.
+ * `npm i @verajs/store` and gets a 404, and `llms.txt` is the file most likely to be copied.
  *
  * A package with no `@verajs/<name>@*` tag has never been released — `scripts/tag-release.mjs`
  * tags on release and reports the untagged ones — so the tags are the local record of what exists

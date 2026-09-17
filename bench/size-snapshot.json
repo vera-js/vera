@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-14",
+  "taken": "2026-09-15",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -30,9 +30,9 @@
       "raw": 3912,
       "gzip": 1983
     },
-    "reactivity": {
-      "raw": 1311,
-      "gzip": 677
+    "store": {
+      "raw": 1301,
+      "gzip": 673
     },
     "jsx": {
       "raw": 9352,
@@ -43,12 +43,12 @@
       "gzip": 3908
     },
     "computed": {
-      "raw": 298,
-      "gzip": 241
+      "raw": 293,
+      "gzip": 238
     },
     "collections": {
-      "raw": 1097,
-      "gzip": 576
+      "raw": 1087,
+      "gzip": 571
     },
     "keyed": {
       "raw": 2008,
@@ -67,16 +67,16 @@
       "gzip": 357
     },
     "directives": {
-      "raw": 15867,
-      "gzip": 6141
+      "raw": 15965,
+      "gzip": 6158
     },
     "directives-standalone": {
-      "raw": 19452,
-      "gzip": 7470
+      "raw": 19550,
+      "gzip": 7487
     },
     "directives-expressions": {
-      "raw": 5540,
-      "gzip": 2343
+      "raw": 5618,
+      "gzip": 2361
     },
     "directives-interactions": {
       "raw": 10896,
@@ -95,20 +95,20 @@
       "gzip": 3888
     },
     "directives-motion": {
-      "raw": 80428,
-      "gzip": 26400
+      "raw": 80898,
+      "gzip": 26558
     },
     "motion": {
-      "raw": 37669,
-      "gzip": 12487
+      "raw": 38074,
+      "gzip": 12621
     },
     "motion-ssr": {
-      "raw": 38030,
-      "gzip": 12314
+      "raw": 38436,
+      "gzip": 12447
     },
     "motion-client": {
-      "raw": 8392,
-      "gzip": 3079
+      "raw": 8538,
+      "gzip": 3139
     }
   },
   "apps": [

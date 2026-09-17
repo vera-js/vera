@@ -1,17 +1,17 @@
 ---
 '@verajs/core': minor
 '@verajs/inserts': patch
-'@verajs/reactivity': patch
+'@verajs/store': patch
 ---
 
-Reactive `Map`/`Set` moves out of core, to `@verajs/reactivity/collections`
+Reactive `Map`/`Set` moves out of core, to `@verajs/store/collections`
 
 Most stores hold plain objects, and every app was carrying 367 B gzipped for collections it never
 created. An app without a `Map` in a store is now **292 B smaller**; one with a `Map` pays **24 B**
 over having it built in.
 
 ```js
-+ import { collections } from '@verajs/reactivity/collections';
++ import { collections } from '@verajs/store/collections';
 - wire([renderer]);
 + wire([renderer, collections]);
 ```

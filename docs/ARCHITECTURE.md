@@ -140,7 +140,7 @@ elements are not retained. Anything that stores a strong element reference defea
 
 The `'proxy-handler'` insert is the extension point for transforming values as they are read
 (`examples/cdn-js/src/inserts/computed.js` demonstrates it). Map/Set reactivity is **not** built
-on it: after a spell inside core it moved out to `@verajs/reactivity/collections` on its own
+on it: after a spell inside core it moved out to `@verajs/store/collections` on its own
 **type-keyed `'collection'` insert point** — core computes `isSetOrMap` once and only collection
 reads ever reach the chain, which is what makes reactive collections affordable outside core where
 the per-read `'proxy-handler'` walk was not.

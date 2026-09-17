@@ -10,7 +10,7 @@ import pkg from './package.json' with { type: 'json' };
  *   defining under their own tag names). Costs nothing to ship and cannot be retrofitted once
  *   side-effect imports are documented usage.
  *
- * `@verajs/core` and `@verajs/hooks` stay external in every build, as `@verajs/reactivity` keeps
+ * `@verajs/core` and `@verajs/hooks` stay external in every build, as `@verajs/store` keeps
  * core: the controllers' stores must live in the same core the app renders with — a bundled
  * private copy would hold state nothing else can see. The importmap resolves both on a CDN page.
  * @verajs/renderer/slots joins them: slotted() reads the wired module's HOSTS map, so a bundled

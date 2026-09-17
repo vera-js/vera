@@ -283,11 +283,14 @@ export const SETTINGS = [
    *   scroll: 'top 60%'           begins when this element's top is 60% down; default end
    *   scroll: 'top top, bottom bottom'   the span a sticky element is pinned for
    *   anchor: '#section'          measure against a section instead, for a sticky child
+   *   anchor: 'closest(.card)'    measure against the nearest ANCESTOR matching it — what a
+   *                               component inside a repeated section needs, where `#section`
+   *                               would resolve every copy to the first one on the page
    *
    * With `play`, the two halves are the two EVENTS rather than the ends of a span: in at the first,
    * out (reversed) at the second. One half means one threshold, crossed both ways.
    */
-  { key: 'anchor', type: 'selector', parse: (raw) => (raw.trim() === 'self' ? 'self' : parseSelector(raw, true)) },
+  { key: 'anchor', type: 'selector', parse: (raw) => parseAnchor(raw) },
   { key: 'scroll', type: 'range', parse: (raw) => parseScrollRange(raw) },
   /**
    * **Seconds, and its presence is what makes this a play rather than a scrub.** Seconds because
@@ -855,13 +858,26 @@ const whyRefused = (raw: string, property: PropertyDef): Refusal => {
  * Parses one comma-separated keyframe list: `"0% 0px, 30% 45px, 100% 400px"`.
  *
  * A lone token is the end value — the sugar that keeps the common case short.
- * Two tokens are a position and a value. A malformed entry drops only itself,
- * so the rest of the property still animates.
+ * Two tokens are a position and a value.
+ *
+ * **A malformed entry refuses the whole list for that property**, and the refusal names the entry.
+ * It used to drop only itself and let the rest animate, which reads as forgiving and is not: the
+ * survivors then had to be re-timed around the hole, and every way of doing that is the engine
+ * guessing at an intent the author never expressed. `'0, bad, 1, 0'` either retimed three stops
+ * into halves or left a gap; `'0, 50% bad, 1'` spread a list whose author had written a position.
+ * Refusing removes the guess rather than choosing between its wrong answers — other properties on
+ * the element are untouched.
  */
 export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeList => {
   const keyframes: RawKeyframe[] = [];
   const rejected: Refusal[] = [];
   let geometryDependent = false;
+  /**
+   * How many entries arrived WITHOUT a position, counted as they are created rather than inferred
+   * afterwards. A stored `100%` is ambiguous once written — it is equally the lone-value sugar and
+   * an author's explicit `100%` — so the only place that knows is the branch that made it.
+   */
+  let bare = 0;
 
   /**
    * A value written with nothing in it is a mistake worth naming: someone
@@ -871,6 +887,8 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
   if (raw.trim() === '') {
     return { keyframes, rejected: [{ code: 'motion-no-keyframes', args: [] }], geometryDependent };
   }
+
+  const before = rejected.length;
 
   for (const entry of splitTopLevel(raw)) {
     if (keyframes.length >= MAX_KEYFRAMES) {
@@ -906,6 +924,7 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
     const textField = text !== undefined ? { text } : {};
 
     if (!hasPosition) {
+      bare++;
       keyframes.push({ position: 100, positionUnit: '%', value, unit, ...textField });
       continue;
     }
@@ -925,6 +944,9 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
        */
       const whole = parseMeasure(trimmed, property);
       if (whole) {
+        /** A multi-token value that read whole is still POSITIONLESS — `shadow: '0 2px 8px #0003,
+         *  0 1px 2px #0002'` is a from→to pair like any other. */
+        bare++;
         keyframes.push({ position: 100, positionUnit: '%', value: whole.value, unit: whole.unit,
           ...(whole.text !== undefined ? { text: whole.text } : {}) });
         continue;
@@ -937,11 +959,80 @@ export const parseKeyframeList = (raw: string, property: PropertyDef): KeyframeL
   }
 
   /**
-   * DUPLICATE POSITIONS are a contradiction, not an omission (the mixed-units rule's sibling,
-   * with three independent strikes behind it: the grammar's own author wrote `'0deg, 360deg'`
-   * meaning from→to, both lone values landed at 100%, and the animation silently degenerated to
-   * one frame). The LAST writer is pinned — matching the band merge's replace semantics — and
-   * the author is TOLD.
+   * **AN ALL-BARE LIST IS A SEQUENCE, SPREAD EVENLY** — `'0, 1'` is `'0% 0, 100% 1'`, and
+   * `'0, 1, 0, 1'` is 0%, 33.333%, 66.667%, 100%. Writing the positions when there are only two
+   * stops is a formality, and a longer bare list has exactly one sensible reading.
+   *
+   * Three rules, each load-bearing and each agreed with omni's twin:
+   *
+   * - `i * 100 / (N - 1)`, in that order. The algebraically identical `(i / (N - 1)) * 100`
+   *   differs in the last few significant digits — measured, 4 965 of ~20 000 positions across
+   *   N = 3..200 — and while the house formatter erases every one of those differences, a RAW
+   *   position compared or hashed between engines would not.
+   * - The endpoints are COMPUTED like every other stop, not special-cased. `i * 100 / last` is
+   *   exact at both ends for every divisor this can see — `0 * 100 / n` is 0 and `n * 100 / n` is
+   *   100 in IEEE-754 for all n in 1..4096, and MAX_KEYFRAMES is 256 — so the ternaries that used
+   *   to pin them were guarding against a rounding error that cannot occur.
+   * - Positions stay raw here. Rounding happens once, at emission, through `format`.
+   *
+   * ONLY when every entry was positionless. One explicit position anywhere keeps today's rule, so
+   * `'0% 0, 1'` is still 0%→100% and `'50% .5, 1, 0'` is still the duplicate refusal below.
+   */
+  /**
+   * **ONE MALFORMED ENTRY REFUSES THE WHOLE LIST.** The refusal above still names the entry, so the
+   * author is told exactly what failed — what does not happen is the engine animating a list it had
+   * to guess at.
+   *
+   * **The distinction this rests on is API versus recovery, not strict versus forgiving.** The
+   * grammar assumes plenty and should: `'0, 1'` meaning 0%→100%, a lone value meaning "animate to
+   * this", `data-vd-motion="fade-up"` naming a preset. Those are not the engine inferring an
+   * intent — they are shorthand spellings of the documented API, and an author can read the rule,
+   * predict the result and rely on it. Recovering from a malformed entry is none of those: it is
+   * undocumented, invisible, and the animation it produces depends on WHICH entry broke. That is
+   * the only kind of assumption this engine refuses to make (the owner's rule, 2026-09-14).
+   *
+   * It is also what makes the rule below safe to state simply. When a refused entry merely dropped
+   * itself, the survivors had to carry the AUTHORED index of the entry they came from — otherwise
+   * `'0, bad, 1, 0'` retimed the survivors into halves, and `'0, 50% bad, 1'` spread a list whose
+   * author had written a position. Both of those were bugs of interpretation, and neither can exist
+   * when there is nothing left to interpret.
+   */
+  if (rejected.length > before) keyframes.length = 0;
+
+  /**
+   * An all-positionless list is a SEQUENCE, spread evenly: `'0, 1'` is `'0% 0, 100% 1'` and
+   * `'0, 1, 0, 1'` is 0%, 33.333%, 66.667%, 100%. Only when EVERY entry is positionless — one
+   * explicit position anywhere keeps the old rule, so `'0% 0, 1'` is still 0%→100%.
+   *
+   * `i * 100 / (n - 1)`, in that order, and the ends need no pinning: the expression is EXACT at
+   * both of them for every list length the parser can produce (checked for every divisor to 4096;
+   * `MAX_KEYFRAMES` is 256). The algebraically identical `(i / (n - 1)) * 100` is NOT — it differs
+   * in the last significant digits — and while the house formatter erases that, a raw position
+   * compared or hashed between engines would not.
+   *
+   * Positions stay raw. Rounding happens once, at emission, through `format`.
+   */
+  if (bare === keyframes.length && keyframes.length >= 2) {
+    const last = keyframes.length - 1;
+    for (let i = 0; i <= last; i++) {
+      /** REPLACED, not mutated: a keyframe's fields are readonly, and they are readonly because
+       *  band merging holds references to them. Every entry here was pushed with `'%'` already. */
+      keyframes[i] = { ...keyframes[i]!, position: (i * 100) / last };
+    }
+  }
+
+  /**
+   * DUPLICATE POSITIONS are a contradiction, not an omission (the mixed-units rule's sibling).
+   * The LAST writer is pinned — matching the band merge's replace semantics — and the author is
+   * TOLD.
+   *
+   * **Its motivating example is no longer one of its cases.** The rule was written because the
+   * grammar's own author wrote `'0deg, 360deg'` meaning from→to, both lone values landed at 100%,
+   * and the animation silently degenerated to one frame. That list is now SPREAD above and is
+   * ordinary valid syntax, so what reaches here is only a genuine contradiction: an explicit
+   * position repeated, or a positionless stop colliding with an explicit 100%. The cases in the
+   * twin's refusal-order corpus that were the old reading have been
+   * cleared; what remains is the explicit-duplicate case, `'50% 10px, 50% 40px, 100% 0px'`.
    */
   for (let i = keyframes.length - 1; i >= 0; i--) {
     const k = keyframes[i]!;
@@ -1035,6 +1126,39 @@ export const parseMeasure = (
  *
  * @param lists whether a comma-separated list is meaningful for this caller
  */
+/**
+ * The `closest(` wrapper, in ONE place. The parser writes it and the runtime reads it back off the
+ * stored setting, so the two would otherwise agree by coincidence across a module boundary.
+ */
+export const CLOSEST_OPEN = 'closest(';
+
+/**
+ * `anchor`, which is TWO spellings of one idea: measure against some other element.
+ *
+ * - `self` — the element's own transit.
+ * - `closest(<selector>)` — the nearest ANCESTOR matching it, `Element.closest`. What a component
+ *   inside a repeated section needs, where the section has no id to point at and every copy would
+ *   otherwise resolve to the first one on the page.
+ * - anything else — a selector, resolved with `querySelector`.
+ *
+ * **A selector LIST is refused for the plain form and allowed inside `closest()`**, and the
+ * difference is not a nicety: `querySelector('.a, .b')` returns whichever matches FIRST IN DOCUMENT
+ * ORDER, so `.a, .b` reads like "either" and silently means "whichever the page happens to put
+ * first" — recovery, not API. `Element.closest('.a, .b')` walks up from this element and returns
+ * the nearest ancestor matching EITHER, which is unambiguous and is the same rule `when` already
+ * relies on with `matches()`. The test is not "does a comma appear" but *"does the resolution pick
+ * one arbitrarily, or does it mean any?"*
+ */
+export const parseAnchor = (raw: string): string | null => {
+  const value = raw.trim();
+  if (value === 'self') return 'self';
+  if (value.startsWith(CLOSEST_OPEN) && value.endsWith(')')) {
+    const inner = parseSelector(value.slice(CLOSEST_OPEN.length, -1), true);
+    return inner === null ? null : `${CLOSEST_OPEN}${inner})`;
+  }
+  return parseSelector(value);
+};
+
 export const parseSelector = (raw: string, lists = false): string | null => {
   const value = raw.trim();
   if (value === '' || value.length > 200) return null;

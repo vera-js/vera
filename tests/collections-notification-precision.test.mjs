@@ -40,7 +40,7 @@ for (const key of [
 const core = await load('core');
 const { renderer } = await load('renderer');
 const { html } = await load('renderer/tag');
-const { collections } = await load('reactivity/collections');
+const { collections } = await load('store/collections');
 core.wire([renderer, collections]);
 
 const app = dom.window.document.getElementById('app');

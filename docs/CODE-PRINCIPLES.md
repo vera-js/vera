@@ -53,6 +53,20 @@ indistinguishable in style from the code around it.
   exist as both `.ts` and `.js` — twins drift silently, in *both* directions.
 - **Artifacts are never committed.** `dist/` is gitignored and produced only by `npm run build`. An
   example that needs a bundle points at `packages/<pkg>/dist/`; it never gets its own copy.
+- **Commit after everything — a checkout should never cost data loss.** Work happens on a local
+  work branch off the integration branch, committed after every meaningful step and **always before
+  any `checkout`, `reset`, `revert`, `stash`, `rebase` or branch switch**. **When unsure whether to
+  commit, ask what losing the work right now would cost — if it is more than a minute to redo,
+  commit.** Those commits are never
+  pushed: the audit gate governs what *lands*, not whether work is *saved*, so committing early
+  costs nothing and protects everything. Two corollaries, both learned the expensive way: **revert
+  by explicit path, never `.`**, while work you intend to keep is uncommitted; and a patch file is
+  the fallback for what genuinely cannot be committed, never the mechanism. (A package rename — a
+  `git mv`, a 49-file rewrite, and four path fixes found only by watching the build break — was
+  called "reproducible" when nothing on disk reproduced it: it existed solely as inline shell
+  heredocs. A `git checkout HEAD -- .` intended for **three** files then erased all of it. Either
+  half alone was survivable — committed work would have outlived the `.`, and a path-scoped revert
+  would have spared the uncommitted edits; together they cost the whole pass.)
 - **Don't silently refactor.** If a better pattern exists, or you hit a legacy/experimental area,
   complete the asked task and *flag* the improvement with why/where/how — the developer decides.
 

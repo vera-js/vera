@@ -246,7 +246,7 @@ exists, before its first render; this is how `@verajs/styles` attaches), `'proxy
 `undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
 suppress default propagation), `'error'` (a hook threw), `'collection'` (a method read off a
 `Map`/`Set` in a store — type-keyed, so plain-object reads never reach it; how
-`@verajs/reactivity/collections` attaches), and `'value'` (a child-position value the renderer has
+`@verajs/store/collections` attaches), and `'value'` (a child-position value the renderer has
 no built-in answer for — return `true` to claim it; strings, numbers and nullish values never reach
 it). `@verajs/inserts`' README documents each signature. `revision` (from `@verajs/inserts`) bumps
 on every registration, so a reader may cache a chain against it.
@@ -261,19 +261,19 @@ yields that number** instead of the value. Write observers with a block body —
 ```js
 import { initRouter, navigate, setMatchFunction } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
-import { collections } from '@verajs/reactivity/collections';
+import { collections } from '@verajs/store/collections';
 import { renderInto } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 ```
 
-### Collections (`@verajs/reactivity/collections`)
+### Collections (`@verajs/store/collections`)
 
 Reactive `Map` and `Set` in stores. **Not in core since 0.2.0** — most stores hold plain objects
 and every app was paying 367 B for it. Wire once at your app entry:
 
 ```js
 import { wire } from '@verajs/core';
-import { collections } from '@verajs/reactivity/collections';
+import { collections } from '@verajs/store/collections';
 wire(collections);
 ```
 
@@ -714,7 +714,7 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `reactivity`, `reactivity/collections`, `renderer/keyed`, `renderer/slots`,
+  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow
@@ -798,7 +798,7 @@ Semantics worth stating:
 - `resolve: (tag, dir) => url` replaces URL building for a layout `dir/tag.ext` cannot express
   (`tag/tag.js`, `tag/index.js`). The result is still bounded by the entry file's directory.
 
-### Reactive collections — semantics (`@verajs/reactivity/collections`, wired above)
+### Reactive collections — semantics (`@verajs/store/collections`, wired above)
 
 ```js
 const state = createStore({ tags: new Set(), users: new Map() });
@@ -934,7 +934,20 @@ scroll: '70%, 50%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: i
 like CSS `top:`). Progress is how far the element has travelled UP through its range — `0%` just
 arriving at the bottom, `100%` just leaving at the top, which is the direction CSS `view()` runs.
 A property written at the top level, or a setting written inside `keyframes`, is refused by name
-with the move spelled out. Keyframes are `'progress value'` pairs; a lone value is the end.
+with the move spelled out. Keyframes are `'progress value'` pairs; a lone value is the end. **A list
+of lone values is a sequence spread evenly** — `'0, 1'` is `'0% 0, 100% 1'` and `'0, 1, 0, 1'` is
+0%/33.333%/66.667%/100%; one explicit position anywhere turns that off. **A missing `0%` or `100%`
+frame comes from the ELEMENT'S OWN VALUE, exactly like CSS `@keyframes`** — that is why a lone value
+works at all (`opacity: '0.2'` is one frame at 100%, animated to from wherever the element is).
+Write the stop to hold instead: `'0% 0, 50% 0, 80% 1'`. **One current exception, being reviewed:**
+properties sharing an easing are compiled into one `@keyframes` rule, and a property that stops
+short of an end takes its own first/last value there rather than the element's when another property
+in that group reaches it — so `{ opacity: '0.2', scale: '0, 1' }` pins opacity at `0.2` throughout
+while `{ opacity: '0.2' }` animates. Writing the stop (`opacity: '0% 1, 100% 0.2'`) is exact in
+every case and is the reliable form. **One malformed entry refuses the whole
+property by name** — the other properties on the element still animate, and nothing is re-timed
+around the hole. **Over 256 stops the list is refused** rather than truncated, since a truncated
+list is a different animation nobody wrote.
 Per-property easing uses the nested form `{ frames: '…', ease: '…' }`. Width bands merge over the
 base, by registered name or literal range (`'…; [mobile]: …'`, `'…; [0-560]: …'`); the names come
 from `motion({ breakpoints })`, which is JavaScript, never an attribute. **`scroll` names where the animation begins and ends;
@@ -955,7 +968,14 @@ coming back up past it); two halves are an entrance and an exit. `run-once` latc
 play. `play` beside `inertia` is refused (same transition); `ease` composes with a play — the clock is
 linear over `play` seconds and the easing reshapes each segment as it is swept, so
 `keyframes: { scale: '0% 0, 100% 1' }, ease: 'ease-in-out', play: 0.6` reads exactly as written. **`when: '.selector'` GATES** — it animates while matching and
-rests at its start otherwise; `when` + `play` is a UI transition. **`pointer: 'x' | 'y' |
+rests at its start otherwise; `when` + `play` is a UI transition. **`anchor` measures against ANOTHER
+element** — `anchor: '#section'` (found with `querySelector`), `anchor: 'closest(.card)'` (the element
+ITSELF or its nearest matching ancestor — `Element.closest`, which is inclusive and stops at a shadow
+boundary), or `anchor: 'self'` (the element's own transit). Use `closest()` in repeated markup: with a
+plain selector every copy resolves to whichever the document puts first. A selector LIST is refused
+for the plain form and allowed inside `closest()` — `querySelector('.a, .b')` silently means
+"whichever is first in the document", `closest('.a, .b')` means "the nearest ancestor matching
+either". **`pointer: 'x' | 'y' |
 'distance'` drives the SAME timeline by pointer position instead of scroll** — `x`/`y` track the
 viewport (or the `anchor`'s box), `distance` is euclidean from the scope's center over its
 half-diagonal, clamped so leaving scope reads exactly 1. A SOURCE CHAIN falls back:
@@ -1326,7 +1346,7 @@ Say so rather than inventing an API:
   templates too. **For a no-build app, see "Buildless JSX — the whole recipe" above.** JSX styles
   the templates only: components remain platform classes, so there are no hooks in function
   components. No decorators ever (they cannot run without a build step).
-- **`computed` is `@verajs/reactivity/computed`** (<!--size:computed.gzip-->241 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
+- **`computed` is `@verajs/store/computed`** (<!--size:computed.gzip-->238 B<!--/size:computed.gzip-->), not core. `computed(() => a + b)` evaluates once
     per change rather than once per read, and only when something it actually read moves. It is a
     store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**

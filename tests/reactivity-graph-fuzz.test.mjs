@@ -43,7 +43,7 @@ for (const key of [
   globalThis[key] = dom.window[key];
 
 const { createStore } = await load('core');
-const { computed } = await load('reactivity');
+const { computed } = await load('store');
 
 const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
 

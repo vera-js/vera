@@ -590,7 +590,7 @@ allocation per instance — so `import '@verajs/renderer'` on a server throws
 
 This is worth stating because [`@verajs/router`](../router#node-and-ssr) documents the opposite
 about itself, and the asymmetry is easy to read the wrong way. The rest of the family is Node-safe:
-`@verajs/core`, `@verajs/inserts`, `@verajs/reactivity` and `/collections`, `@verajs/router`,
+`@verajs/core`, `@verajs/inserts`, `@verajs/store` and `/collections`, `@verajs/router`,
 `@verajs/styles`, `@verajs/autoloader`, `@verajs/jsx` (the transform), `@verajs/ssr` — **and
 `@verajs/renderer/keyed`, `/spread` and `/tag`**, which hold no DOM of their own even though their
 parent entry does.

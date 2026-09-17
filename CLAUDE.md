@@ -75,7 +75,7 @@ code, so they are not re-litigated.
   regression.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
-  `@verajs/reactivity`, `@verajs/reactivity/collections`, anything built on core's public API — resolves core
+  `@verajs/store`, `@verajs/store/collections`, anything built on core's public API — resolves core
   through `exports.default`, which is `dist/*.min.js`. The probe then holds **two cores**: writes go
   to one store registry and subscriptions live in the other, so reactivity looks completely dead and
   every `__DEV__` guard looks missing. This has produced false "computed is inert" and "the guard
@@ -122,6 +122,31 @@ code, so they are not re-litigated.
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
   built `dist`; ssr is the one that does.
+- **A package rename has SIX reference forms, and a grep for the package's own name reaches only
+  three.** Each needs its own pass: (1) the scoped specifier `@verajs/<name>`; (2) the bundle
+  filename `vera-<name>`; (3) the directory path `packages/<name>`; (4) **internal keys** —
+  `scripts/size-modules.mjs`'s `pkg`/`dir`, the names passed to `load()`, `tests/dist.mjs`'s ENTRY
+  tuples, snapshot keys; (5) the **bare short name** in prose and package lists (`` `reactivity` ``,
+  never the specifier); (6) **`package-lock.json`'s workspace entries**, where a stale one makes
+  `npm ci` fail at INSTALL, before a single test, for a reason that looks nothing like a rename.
+  **Release-coupled pieces move WITH the rename, not after:** existing changeset FRONTMATTER
+  (`tests/changesets.test.mjs` rejects a package it cannot find in the manifests), unreleased
+  changeset BODY text (it becomes the new package's first CHANGELOG), and
+  `tests/docs-removed-apis.test.mjs` keyed on the SCOPED specifier — the bare word collides with the
+  on-npm sentences below. **What does NOT move until the publish:** those on-npm status sentences in
+  `llms.txt` and `README.md`, which `tests/release-invariants.test.mjs` ties to the release TAG, so
+  editing them early turns the gate red and tagging makes the edit required. Measured on
+  `@verajs/reactivity` → `@verajs/store`, 2026-09-14: grep found 1–3, the clean-worktree gate caught
+  4 and 5, and the audit caught 6 plus two more of 5.
+- **A killed build ORPHANS `wireit`, and the next one deadlocks behind the lock it left.** Killing
+  `npm run build` — a tool timeout, a cancelled command, Ctrl-C at the wrong moment — does not take
+  its `wireit` and `rollup` children with it. They stay alive holding the build lock, and every
+  later build waits on an owner that is gone. **The signature is progress stopping below 100% with
+  nothing running** — `98% [43 / 44] [0 running]` — which is indistinguishable from a slow build and
+  will be waited out indefinitely. Diagnose it, never wait: `ps aux | grep -E "wireit|rollup"` and
+  look at the START column; anything older than the current build is stale. Kill those PIDs (leave
+  VS Code's `wireit` extension server alone) and the blocked build completes immediately. Measured
+  2026-09-14, after a 10-minute foreground timeout left three processes holding the lock.
 - **Public-facing claims:** `docs/features/` — every claim there must stay measured and reproducible;
   if a change moves a number, update the feature doc in the same pass
 

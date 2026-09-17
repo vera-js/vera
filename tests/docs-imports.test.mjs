@@ -37,10 +37,10 @@ const PACKAGES = {
   '@verajs/router': 'router',
   '@verajs/autoloader': 'autoloader',
   '@verajs/styles': 'styles',
-  '@verajs/reactivity/collections': 'reactivity/collections',
+  '@verajs/store/collections': 'store/collections',
   '@verajs/inserts': 'inserts',
-  '@verajs/reactivity': 'reactivity',
-  '@verajs/reactivity/computed': 'reactivity/computed',
+  '@verajs/store': 'store',
+  '@verajs/store/computed': 'store/computed',
   /** Build-time, so `dist.mjs` resolves it to its source under both conditions — see `UNBUILT` there. */
   '@verajs/jsx': 'jsx',
   /** Unpublished (`private: true`) like cms below, and held to the same bar for the same reason. */

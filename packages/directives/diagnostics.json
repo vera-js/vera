@@ -343,7 +343,7 @@
         "position"
       ],
       "message": "{where}: two keyframes at {position} — the later one is used.",
-      "fix": "Two lone values both mean the END: write positions, e.g. '0% 0deg, 100% 360deg'."
+      "fix": "Either a position is written twice, or a positionless stop landed on an explicit 100%. An ALL-positionless list spreads evenly instead, so give every stop a position or none."
     },
     {
       "code": "motion-function-not-function",

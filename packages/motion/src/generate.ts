@@ -513,6 +513,18 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
       { value: a.property.initial, unit: a.unit, position: 0, positionUnit: '%' },
       { value: a.property.initial, unit: a.unit, position: 100, positionUnit: '%' },
     ];
+    /**
+     * **A missing `0%`/`100%` frame is NOT synthesised here — CSS constructs it from the element's
+     * own computed value, and that is the documented rule.** `opacity: '0.2'` is one frame at 100%
+     * and animates TO 0.2 from wherever the element already is; that shorthand IS the lone-value
+     * API, and it exists only because the platform fills the missing end.
+     *
+     * This padded both ends for a while, so that a list starting past 0% would HOLD its first value
+     * rather than interpolate from the element's. It reads like a fix and is not: a lone value is
+     * itself a list that does not reach 0%, so the padding turned `'0.2'` into `0% 0.2, 100% 0.2`
+     * — a constant, with no animation at all. Reverted 2026-09-14. An author who wants the hold
+     * writes it: `'0% 0, 50% 0, 80% 1'`.
+     */
     const framesOfN = (a: ElementMotion): readonly RawKeyframe[] => {
       const list = percentised(raw(a));
       return list.length ? list : resting(a);

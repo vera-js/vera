@@ -38,14 +38,14 @@ const REMOVED = {
   /** The renderer's own `render` is `renderInto` — but `render` still exists in core, so the
    *  name cannot go on this list. `tests/docs-moved-render.test.mjs` covers it by specifier. */
   connectRouter: 'router',
-  '@verajs/collections': '@verajs/reactivity/collections',
+  '@verajs/collections': '@verajs/store/collections',
   /** The JS easing-solver pack died with the inline write path (the sweep): the browser is the
    *  easing solver on every path, so `ease` works with nothing wired. The bare word 'easing(s)'
    *  is ordinary prose; the API NAME only ever appeared in wire arrays and import lists, which
    *  is what this pin greps for. */
   'wireDirectives([motion, easings])': 'ease just works — no module',
   "{ easings }": 'ease just works — no module',
-  'map-support': '@verajs/reactivity/collections',
+  'map-support': '@verajs/store/collections',
   /** A fossil of the multi-strategy SSR era; the plain specifier was always the same module. */
   '@verajs/ssr/vera': '@verajs/ssr',
   /** The phase-4 fold-in entry for '@verajs/motion' LEFT this list on 2026-09-10: the package
@@ -306,7 +306,7 @@ test('nothing on the removed list is still exported', async () => {
     globalThis[key] = dom.window[key];
 
   const surface = new Set();
-  for (const bundle of ['core', 'renderer', 'router', 'autoloader', 'inserts', 'styles', 'reactivity'])
+  for (const bundle of ['core', 'renderer', 'router', 'autoloader', 'inserts', 'styles', 'store'])
     for (const name of Object.keys(await import(distUrl(bundle)))) surface.add(name);
 
   const resurrected = Object.keys(REMOVED).filter((name) => surface.has(name));

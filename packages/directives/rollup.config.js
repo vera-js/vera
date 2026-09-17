@@ -9,7 +9,7 @@ import pkg from './package.json' with { type: 'json' };
  *
  * - `vera-directives` — engine + every pack, core INLINED in prod (paste-and-go; substrate
  *   adoption makes it safe beside vera.min.js — the engine uses the wired core's stamp).
- * - `vera-directives-core` — the engine alone, core external in EVERY mode (reactivity's
+ * - `vera-directives-core` — the engine alone, core external in EVERY mode (store's
  *   precedent): the à-la-carte entry for pages that already load vera, and the artifact the §14
  *   budget is measured against.
  * - `vera-directives-standalone` — the engine alone with core's store machinery inlined, for

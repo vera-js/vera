@@ -34,7 +34,7 @@ globalThis.cancelAnimationFrame = () => {};
 const core = await load('core');
 const { renderer } = await load('renderer');
 const { styles } = await load('styles');
-const { collections } = await load('reactivity/collections');
+const { collections } = await load('store/collections');
 
 /** Every descriptor-shaped module. `router` and `autoloader` are connectors, checked separately. */
 const MODULES = [

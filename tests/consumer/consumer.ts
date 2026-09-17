@@ -25,14 +25,14 @@ import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/rende
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
 import { adoptStyles, applyStyles, styles } from '@verajs/styles';
-import { collections, computed } from '@verajs/reactivity';
+import { collections, computed } from '@verajs/store';
 /**
  * The SUBPATH entries too, not only the package they are re-exported from. A consumer may install
  * either spelling, and only these compile the declarations those subpaths actually publish — the
  * base entry's types say nothing about them.
  */
-import { collections as collectionsEntry } from '@verajs/reactivity/collections';
-import { computed as computedEntry } from '@verajs/reactivity/computed';
+import { collections as collectionsEntry } from '@verajs/store/collections';
+import { computed as computedEntry } from '@verajs/store/computed';
 
 interface Row { id: number; label: string }
 
@@ -110,7 +110,7 @@ back(); forward(); go(-1);
  */
 import { allowRenderLoop, setStaticStores } from '@verajs/core';
 import { revision } from '@verajs/inserts';
-import { GLOBAL, collectionMethod } from '@verajs/reactivity';
+import { GLOBAL, collectionMethod } from '@verajs/store';
 import {
   formatReport, getReport, isProfiling, profile, showProfiler, startProfiling, stopProfiling,
 } from '@verajs/renderer/profiler';

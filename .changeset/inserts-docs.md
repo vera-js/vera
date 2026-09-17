@@ -6,7 +6,7 @@
 
 `'collection'` and `'value'` were both declared in `InsertFunctionMap` and absent from the README —
 from the table that lists the points and from the section that says what happens when one throws. The
-first is the point `@verajs/reactivity/collections` ships to implement; the second is the documented
+first is the point `@verajs/store/collections` ships to implement; the second is the documented
 way to claim a child-position value of a type you do not own. An author of either had no description
 of the signature and no answer to "what happens if mine throws".
 

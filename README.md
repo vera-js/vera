@@ -15,26 +15,26 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/styles` | 1.41 KB | 772 B |
 | `@verajs/renderer/spread` | 2.51 KB | 1.28 KB |
 | `@verajs/renderer/tag` | 3.82 KB | 1.94 KB |
-| `@verajs/reactivity` | 1.28 KB | 677 B |
+| `@verajs/store` | 1.27 KB | 673 B |
 | `@verajs/jsx` | 9.13 KB | 3.61 KB |
 | `@verajs/jsx/standalone` | 9.46 KB | 3.82 KB |
-| `@verajs/reactivity/computed` | 298 B | 241 B |
-| `@verajs/reactivity/collections` | 1.07 KB | 576 B |
+| `@verajs/store/computed` | 293 B | 238 B |
+| `@verajs/store/collections` | 1.06 KB | 571 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
 | `@verajs/renderer/hydrate` | 16.60 KB | 6.10 KB |
 | `@verajs/inserts` | 486 B | 357 B |
-| `@verajs/directives` | 15.50 KB | 6.00 KB |
-| `@verajs/directives/directives-standalone` | 19.00 KB | 7.29 KB |
-| `@verajs/directives/directives-expressions` | 5.41 KB | 2.29 KB |
+| `@verajs/directives` | 15.59 KB | 6.01 KB |
+| `@verajs/directives/directives-standalone` | 19.09 KB | 7.31 KB |
+| `@verajs/directives/directives-expressions` | 5.49 KB | 2.31 KB |
 | `@verajs/directives/directives-interactions` | 10.64 KB | 3.85 KB |
 | `@verajs/directives/directives-query` | 7.40 KB | 3.13 KB |
 | `@verajs/directives/directives-sensors` | 7.77 KB | 3.09 KB |
 | `@verajs/directives/directives-remote` | 9.31 KB | 3.80 KB |
-| `@verajs/directives/directives-motion` | 78.54 KB | 25.78 KB |
-| `@verajs/motion` | 36.79 KB | 12.19 KB |
-| `@verajs/motion/motion-ssr` | 37.14 KB | 12.03 KB |
-| `@verajs/motion/motion-client` | 8.20 KB | 3.01 KB |
+| `@verajs/directives/directives-motion` | 79.00 KB | 25.94 KB |
+| `@verajs/motion` | 37.18 KB | 12.33 KB |
+| `@verajs/motion/motion-ssr` | 37.54 KB | 12.16 KB |
+| `@verajs/motion/motion-client` | 8.34 KB | 3.07 KB |
 <!--/size:table.modules-->
 
 A typical app — core plus a renderer, bundled and tree-shaken — is **about <!--size:app.kb-->6.6 KB<!--/size:app.kb--> gzipped**. For
@@ -69,7 +69,7 @@ module system is open — use the prebuilt ones or write your own.
 @verajs/autoloader    lazy-loads custom elements on discovery
 @verajs/styles        adopts `static styles` — shadow sheets, @scope for light DOM
 @verajs/renderer/slots  `<slot>` in LIGHT DOM, with the platform's own semantics
-@verajs/reactivity    computed values; reactive Map/Set for stores
+@verajs/store    computed values; reactive Map/Set for stores
 @verajs/jsx           JSX/TSX as a build plugin; compiles away, zero client runtime
 @verajs/ssr           server-side rendering (Node only)
 ```
