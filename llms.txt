@@ -1194,13 +1194,13 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
      auto-injected either — import it, as this block does. -->
 <script type="importmap">
 { "imports": {
-    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.2.1/dist/vera.min.js",
-    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.5/dist/vera-renderer.min.js",
-    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.1.5/dist/vera-renderer-keyed.min.js"
+    "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.3.0/dist/vera.min.js",
+    "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.0/dist/vera-renderer.min.js",
+    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.0/dist/vera-renderer-keyed.min.js"
 } }
 </script>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.1.3/dist/vera-jsx-standalone.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.2.0/dist/vera-jsx-standalone.min.js"></script>
 
 <my-app></my-app>
 
