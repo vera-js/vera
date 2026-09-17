@@ -130,8 +130,9 @@ const claimInstance = (state, ordinal, tag) => {
 /**
  * One delivery, shared by the written form and the spread form. `__proto__` is skipped for the
  * same reason `renderToString`'s own `props` option skips it — `[[Set]]` replaces the element's
- * prototype — and a throwing setter gets the same named refusal `prepareInstance` gives, since
- * `Cannot set property x` names neither the component nor that a server render was running.
+ * prototype. What a failed assignment means is decided in the catch below, by the client's rule;
+ * `prepareInstance`'s `props` OPTION keeps its stricter throw-on-readonly contract deliberately —
+ * an API argument is the caller's explicit data, a template binding is a component boundary.
  */
 const deliverProperty = (node, tag, name, value) => {
   if (name === '__proto__') return;

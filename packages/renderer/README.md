@@ -797,7 +797,7 @@ Full API: `startProfiling()`, `stopProfiling()`, `getReport()`, `isProfiling()`,
 session that does not fit one callback — a long-running tab, a REPL:
 
 ```js
-import { startProfiling, stopProfiling, getReport, isProfiling } from '@verajs/renderer/profiler';
+import { startProfiling, stopProfiling, getReport, isProfiling, formatReport } from '@verajs/renderer/profiler';
 
 startProfiling();
 // … interact with the app for as long as you like …
