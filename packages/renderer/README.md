@@ -649,6 +649,36 @@ Keys are strings carrying sigils, so TypeScript cannot check them against the el
 That is a genuine step down from written bindings, and the trade for names that are not known until
 runtime.
 
+### `props()` — a typed bag of property bindings
+
+For the common case where every key is a **property**, `props()` removes both the sigils and the
+typing gap:
+
+```js
+import { props } from '@verajs/renderer/spread';
+
+html`<calendar-day ${props({ date, events })}></calendar-day>`
+```
+
+```jsx
+<calendar-day {...props({ date, events })}></calendar-day>
+```
+
+One function, both surfaces — JSX compiles `{...x}` to `spread(x)`, and `spread()` recognises an
+already-branded result, so the two spellings are literally the same call. It exists because an
+attribute is always a string: an array, a `Date` or a store can only reach a custom element as a
+property, and JSX's grammar cannot spell `.date=` at all.
+
+Three rules, each earned:
+
+- **Keys are property names, never sigils** — `props({ date })` binds `.date`. Events and boolean
+  attributes keep their own spellings (`@click`/`onClick`, `?disabled`); this bag is properties
+  only, by definition.
+- **A key that arrives later is still spelled now**: `props({ date: loaded ? date : null })` —
+  key present from the first render — never `props(loaded ? { date } : {})`.
+- **A type argument makes the bag checked**: `props<CalendarDay>({ dat })` is a compile error
+  naming the misspelling — the checking that sigil-keyed spread genuinely cannot have.
+
 ### Removing a key
 
 A key that disappears between renders **restores what the element held before the binding existed**.
@@ -688,7 +718,7 @@ a pair of totals — the totals move with every change to this package and the d
 which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
 for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
 dated; re-measure the same way if it matters.
-The entry itself is **<!--size:spread.gzip-->1.28 KB<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->1.34 KB<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -830,7 +860,7 @@ life of three defects.
   writing tests for it.
 - HTML only. There is no `svg`/`mathml` equivalent yet.
 
-<!--size:tag.gzip-->1.94 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+<!--size:tag.gzip-->1.95 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 

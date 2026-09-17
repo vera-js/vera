@@ -368,7 +368,24 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
  * Branded rather than duck-typed: the element position already means "element ref", and a props bag
  * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
  */
-export const spread = (props: Record<string, unknown>) => {
+/** The branded, self-applying result — what the renderer's element position recognises. */
+type SpreadResult = {
+  _props: Record<string, unknown>;
+  _$apply$: unknown;
+  _$attrs$: unknown;
+};
+export const spread = (props: Record<string, unknown>): SpreadResult => {
+  /**
+   * **Already branded → returned as-is.** `spread(spread(x))` arises legitimately: JSX compiles
+   * `{...props({ date })}` to `spread(props({ date }))`, and `props()` below already returns the
+   * branded result. Without this line the brand itself would be iterated as a bag and bind
+   * attributes named `_props`, `_$apply$` and `_$attrs$`. Detected by the brand's PRESENCE, never
+   * by identity with this bundle's `apply` — on a CDN page the renderer and a second copy of this
+   * module are separate bundles with separate `apply` functions, and a result from either must
+   * pass through both (the two-registry failure shape `tests/cdn-cross-bundle.test.mjs` guards).
+   */
+  if (props !== null && typeof props === 'object' && (props as SpreadResult)._$apply$ !== undefined)
+    return props as SpreadResult;
   /**
    * **A props bag that is not an object is iterated anyway, and a browser accepts the result.**
    *
@@ -414,4 +431,33 @@ export const spread = (props: Record<string, unknown>) => {
     _$apply$: apply,
     _$attrs$: attributes,
   };
+};
+
+/**
+ * A bag of PROPERTY bindings — the object form of `.name=${value}`, one call in both surfaces:
+ *
+ * ```js
+ * html`<calendar-day ${props({ date, events })}></calendar-day>`
+ * ```
+ * ```jsx
+ * <calendar-day {...props({ date, events })}></calendar-day>
+ * ```
+ *
+ * Exists because an attribute is always a string: an array, a `Date` or a store can only reach a
+ * custom element as a property, and JSX's grammar cannot spell `.date=` (`TS1003`). Every key is a
+ * property NAME, never a sigil — `props({ date })` binds `.date`, so `props({ '.date': d })` would
+ * bind `..date` and is the caller's mistake to keep.
+ *
+ * Properties only, by definition: events and boolean attributes keep their own spellings
+ * (`@click`/`onClick`, `?disabled`). **A key that arrives later must still be SPELLED now** —
+ * `props({ date: loaded ? date : null })`, never `props(loaded ? { date } : {})` — so the binding
+ * exists from the first render rather than appearing mid-life.
+ *
+ * With an explicit type argument the bag is checked against the element —
+ * `props<CalendarDay>({ dat })` is a compile error naming the misspelling.
+ */
+export const props = <T extends object = Record<string, unknown>>(values: Partial<T>): SpreadResult => {
+  const sigiled: Record<string, unknown> = {};
+  for (const key of Object.keys(values)) sigiled[`.${key}`] = (values as Record<string, unknown>)[key];
+  return spread(sigiled);
 };

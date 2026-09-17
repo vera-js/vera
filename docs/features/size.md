@@ -125,8 +125,8 @@ describing the bytes honestly.)*
 | `@verajs/router` | 4 560 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 681 B | lazy component discovery |
 | `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
-| `@verajs/renderer/spread` | 1 315 B | `${spread(props)}` — runtime-named bindings |
-| `@verajs/renderer/tag` | 1 983 B | `<${tag}>` — runtime tag names, in templates and JSX |
+| `@verajs/renderer/spread` | 1 372 B | `${spread(props)}` — runtime-named bindings |
+| `@verajs/renderer/tag` | 1 996 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/store` | 673 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 3 701 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
 | `@verajs/jsx/standalone` | 3 908 B | JSX in the browser with no build — the CodePen path |

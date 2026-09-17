@@ -438,7 +438,7 @@ thing — including `&ref` for an element ref. A key that cannot be written into
 (whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
 those and markup cannot carry them, so both sides refuse them rather than disagreeing.
 `@verajs/renderer` costs 5 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->1.28 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+is <!--size:spread.gzip-->1.34 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
@@ -450,6 +450,22 @@ attribute in server markup exactly as it overwrites one on the client — the or
 construction. Bind `null` when you mean removal.
 
 Several spreads on one element are fine; each element position owns its own keys.
+
+**`props()` — a typed bag of PROPERTY bindings**, same entry point. One call in both surfaces:
+
+```js
+import { props } from '@verajs/renderer/spread';
+
+html`<calendar-day ${props({ date, events })}></calendar-day>`   // template
+<calendar-day {...props({ date, events })}></calendar-day>        // JSX — compiles to the same call
+```
+
+Use it to pass a NON-STRING to a custom element — an array, a `Date`, a store — which an attribute
+cannot carry and JSX cannot spell as `.date=`. Keys are property names, never sigils
+(`props({ date })` binds `.date`); events and booleans keep their own spellings. A key that arrives
+later is still spelled now — `props({ date: loaded ? date : null })`, key present from the first
+render, never `props(loaded ? { date } : {})`. With a type argument the bag is checked:
+`props<CalendarDay>({ dat })` is a compile error naming the misspelling.
 
 Keys are strings carrying sigils, so TypeScript cannot check them against the element — the trade
 for names not known until runtime.
