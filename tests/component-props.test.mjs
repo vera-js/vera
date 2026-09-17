@@ -30,7 +30,7 @@ wire([renderer]);
 
 const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 const text = (el) => (el.shadowRoot ?? el).textContent.trim();
-const mount = (tag) => {
+const mount = () => {
   const host = document.createElement('div');
   document.body.append(host);
   return host;
