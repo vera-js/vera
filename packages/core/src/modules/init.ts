@@ -216,15 +216,60 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
      */
     let state: Record<string, unknown> | undefined;
     element._$adopt$ = (key, value) => {
-      if (__DEV__ && typeof (Object.getPrototypeOf(element) as Record<string, unknown>)[key] === 'function') {
-        console.warn(
-          `[vera] <${element.localName}> received a bound property \`.${key}\` that shadows its own ` +
-            `${key}() method — the accessor now answers for both, so \`this.${key}()\` will throw.\n` +
-            `Rename one of the two; a bound property always wins on the instance.`
-        );
+      /**
+       * **A key something already receives is handed over, never adopted.** The recorders walk for
+       * accessors at COMMIT time, but a record can predate the upgrade that brought one — a lazy
+       * component declaring its own `get item()`/`set item()` pair would otherwise have the drain
+       * shadow that pair with a store accessor, and its setter logic would never run again. The
+       * own descriptor and the prototype chain are asked separately, because the lazy flow leaves
+       * an own DATA property (the raw pre-upgrade write, or the field that clobbered it) sitting
+       * in front of exactly that pair — it is deleted so the hand-off reaches their setter. Read
+       * through DESCRIPTORS only: touching `proto[key]` directly would invoke a getter with the
+       * prototype as `this`, which throws for any accessor built on private fields. The same walk
+       * carries the method-shadow warning, off the descriptor's `value` for the same reason, and
+       * a GET-ONLY property is refused by name — assigning it would throw out of `init()`, and a
+       * silent skip would be a refusal with no channel.
+       */
+      const el = element as unknown as Record<string, unknown>;
+      const own = Object.getOwnPropertyDescriptor(element, key);
+      if (own !== undefined && (own.get !== undefined || own.set !== undefined)) {
+        el[key] = value;
+        return;
+      }
+      let proto: object | null = Object.getPrototypeOf(element);
+      while (proto !== null) {
+        const desc = Object.getOwnPropertyDescriptor(proto, key);
+        if (desc !== undefined) {
+          if (desc.set !== undefined) {
+            if (own !== undefined) delete el[key];
+            el[key] = value;
+            return;
+          }
+          if (desc.get !== undefined) {
+            /** The raw pre-upgrade write is residue shadowing a read-only surface — cleared, so
+             *  the class's getter answers again, exactly as if the binding had never landed. */
+            if (own !== undefined) delete el[key];
+            if (__DEV__)
+              console.warn(
+                `[vera] <${element.localName}> received a bound property \`.${key}\`, but its class ` +
+                  `declares \`${key}\` as a getter with no setter — the value cannot be delivered ` +
+                  `and the binding is ignored. Add a setter, or stop binding it.`
+              );
+            return;
+          }
+          if (__DEV__ && typeof desc.value === 'function') {
+            console.warn(
+              `[vera] <${element.localName}> received a bound property \`.${key}\` that shadows its own ` +
+                `${key}() method — the accessor now answers for both, so \`this.${key}()\` will throw.\n` +
+                `Rename one of the two; a bound property always wins on the instance.`
+            );
+          }
+          break;
+        }
+        proto = Object.getPrototypeOf(proto);
       }
       state ??= createStore({}) as Record<string, unknown>;
-      delete (element as unknown as Record<string, unknown>)[key];
+      delete el[key];
       Object.defineProperty(element, key, {
         get: () => state![key],
         set: (next: unknown) => {

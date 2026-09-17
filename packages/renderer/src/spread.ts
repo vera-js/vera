@@ -130,7 +130,7 @@ const adopt = (element: Element, name: string, value: unknown): boolean => {
     return true;
   }
   const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const firstRecording = !(name in record);
+  const firstRecording = !Object.hasOwn(record, name);
   record[name] = value;
   /** Prototype, never `el.constructor` — a bag key named `constructor` shadows the real one with
    *  an own property, and no property write can move a prototype (`__proto__` is refused above). */
@@ -142,8 +142,19 @@ const adopt = (element: Element, name: string, value: unknown): boolean => {
   if (__DEV__ && win !== null && !upgraded && firstRecording) {
     const tag = element.localName;
     win.customElements.whenDefined(tag).then(() => {
-      const desc = Object.getOwnPropertyDescriptor(el, name);
-      if (desc?.get === undefined && el[name] !== record[name])
+      /** Ownership is asked of the whole CHAIN — see the twin: a drain accessor, a handed-to
+       *  prototype pair, or a refused get-only surface all mean nothing is left to report. */
+      let owner: object | null = el;
+      let owned = false;
+      while (owner !== null) {
+        const desc = Object.getOwnPropertyDescriptor(owner, name);
+        if (desc !== undefined) {
+          owned = desc.get !== undefined || desc.set !== undefined;
+          break;
+        }
+        owner = Object.getPrototypeOf(owner);
+      }
+      if (!owned && el[name] !== record[name])
         console.warn(
           `[vera] renderer: the value bound by \`.${name}\` on <${tag}> was replaced while the ` +
             `element upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits ` +

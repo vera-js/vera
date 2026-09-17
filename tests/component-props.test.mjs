@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { load } from './dist.mjs';
+import { load, isProduction } from './dist.mjs';
 
 const dom = new JSDOM('<!doctype html><body></body>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'HTMLElement', 'customElements', 'Node', 'Element',
@@ -192,6 +192,50 @@ test('a key arriving AFTER init() is adopted live — the conditional-keys idiom
   draw({ '.a': 1, '.b': 3 });
   await frame(); await frame();
   assert.equal(text(el), '1 3', 'and stays reactive on later commits');
+});
+
+test('a component’s own accessor pair is handed the value, never hijacked by the drain', async () => {
+  const host = mount();
+  renderInto(html`<cp-own-accessor ${props({ item: 'delivered' })}></cp-own-accessor>`, host);
+  let setterRan = 0;
+  customElements.define('cp-own-accessor', class extends HTMLElement {
+    #item;
+    get item() { return this.#item; }
+    set item(value) { setterRan++; this.#item = value; }   // private-field pair — the drain must not shadow it
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.item}</p>`);
+    }
+  });
+  dom.window.customElements.upgrade(host);
+  await frame(); await frame();
+  const el = host.querySelector('cp-own-accessor');
+  assert.equal(setterRan, 1, 'the recorded value went through the class’s own setter');
+  assert.equal(text(el), 'delivered');
+  assert.equal(Object.getOwnPropertyDescriptor(el, 'item'), undefined,
+    'no own accessor shadows the pair — the class still owns the property');
+});
+
+test('a getter-only property refuses by name instead of throwing out of init()', async () => {
+  const warned = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warned.push(args.join(' '));
+  const host = mount();
+  renderInto(html`<cp-readonly ${props({ locked: 'overwrite' })}></cp-readonly>`, host);
+  customElements.define('cp-readonly', class extends HTMLElement {
+    get locked() { return 'immutable'; }
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.locked}</p>`);
+    }
+  });
+  dom.window.customElements.upgrade(host);
+  await frame(); await frame();
+  console.warn = realWarn;
+  assert.equal(text(host.querySelector('cp-readonly')), 'immutable', 'the getter still answers');
+  const complaints = warned.filter((w) => w.includes('locked'));
+  assert.equal(complaints.length, isProduction ? 0 : 1,
+    'development names the refused binding once; production is silent');
 });
 
 test('the drain runs once: a reconnect keeps the adopted values and their reactivity', async () => {

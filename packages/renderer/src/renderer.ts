@@ -887,7 +887,7 @@ const commitAdopt = (element: Element, name: string, value: unknown): boolean =>
     return true;
   }
   const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const firstRecording = !(name in record);
+  const firstRecording = !Object.hasOwn(record, name);
   record[name] = value;
   /**
    * Upgrade is read off the PROTOTYPE, never off `el.constructor`: a spread bag's keys are runtime
@@ -919,8 +919,20 @@ const commitAdopt = (element: Element, name: string, value: unknown): boolean =>
   if (__DEV__ && win !== null && !upgraded && firstRecording) {
     const tag = element.localName;
     win.customElements.whenDefined(tag).then(() => {
-      const desc = Object.getOwnPropertyDescriptor(el, name);
-      if (desc?.get === undefined && el[name] !== record[name])
+      /** Ownership is asked of the whole CHAIN: the drain's own accessor, a class's prototype
+       *  pair the value was handed to, or a get-only surface the drain refused by name — every
+       *  one means the property has an owner and this closure has nothing left to report. */
+      let carrier: object | null = el;
+      let owned = false;
+      while (carrier !== null) {
+        const desc = Object.getOwnPropertyDescriptor(carrier, name);
+        if (desc !== undefined) {
+          owned = desc.get !== undefined || desc.set !== undefined;
+          break;
+        }
+        carrier = Object.getPrototypeOf(carrier);
+      }
+      if (!owned && el[name] !== record[name])
         console.warn(
           `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
             `while the element upgraded. A class field is the usual cause: at ES2022 ` +

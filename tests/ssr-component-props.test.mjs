@@ -49,11 +49,23 @@ const again = await renderToString(fixture);
 assert.equal(again.html, markup, 'deterministic across renders');
 
 /**
- * A getter-only property refuses with a named error, exactly as `renderToString`'s own `props`
- * option refuses — naming the tag and the property, not `Cannot set property x of #<Class>`.
+ * Contested state resolves by the CLIENT's rule, both directions. A getter with no setter is a
+ * refusal — warned by name, the render carried on with the getter's own value, exactly what the
+ * client's `init()` adoption does — while a setter that THROWS is the component's own error and
+ * stays one, named against the tag and property.
  */
+const warned = [];
+const realWarn = console.warn;
+console.warn = (...args) => warned.push(args.join(' '));
+const readonly = await renderToString(new URL('./fixtures/ssr/component-props-readonly-ssr.js', import.meta.url));
+console.warn = realWarn;
+assert.ok(readonly.html.includes('<p>immutable</p>'),
+  'a get-only property keeps answering with its own value — the page still renders');
+assert.equal(warned.filter((w) => w.includes('locked')).length, 1,
+  'and the refusal is named, once, on the [vera] channel');
+
 await assert.rejects(
-  renderToString(new URL('./fixtures/ssr/component-props-readonly-ssr.js', import.meta.url)),
-  /refused the bound property `\.locked`/,
-  'a throwing setter is reported against the tag and property'
+  renderToString(new URL('./fixtures/ssr/component-props-throwing-ssr.js', import.meta.url)),
+  /refused the bound property `\.strict`.*setter threw/,
+  'a setter that throws is the component’s own error, reported against the tag and property'
 );

@@ -2,7 +2,7 @@
 
 ## The claim
 
-**A working VeraJS app is about <!--size:app.kb-->6.9 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->7 028 B<!--/size:app.bytes-->) — <!--size:app.rank-->6th<!--/size:app.rank--> of
+**A working VeraJS app is about <!--size:app.kb-->7.0 KB<!--/size:app.kb--> gzipped (<!--size:app.bytes-->7 119 B<!--/size:app.bytes-->) — <!--size:app.rank-->6th<!--/size:app.rank--> of
 <!--size:app.count-->10<!--/size:app.count--> frameworks measured, level with Lit and Preact, and 10x smaller than React.**
 
 ## The evidence
@@ -15,10 +15,10 @@ tree-shaken, gzipped:
 | --- | ---: | ---: |
 | Van.js | 1 219 B | 1.0x |
 | Solid *(needs a compiler)* | 4 446 B | 3.6x |
-| **VeraJS + lit-html** | **5 602 B** | 4.6x |
+| **VeraJS + lit-html** | **5 699 B** | 4.7x |
 | Lit | 5 871 B | 4.8x |
 | Preact + signals | 6 031 B | 4.9x |
-| **VeraJS + own renderer** | **7 028 B** | 5.8x |
+| **VeraJS + own renderer** | **7 119 B** | 5.8x |
 | petite-vue | 7 258 B | 6.0x |
 | Alpine.js | 19 438 B | 15.9x |
 | Vue | 25 259 B | 20.7x |
@@ -33,7 +33,7 @@ signals, solid-js + solid-js/web). Every figure above comes from an app that act
 state on screen.
 
 This is also why the number is *lower* than the standalone bundles it replaces: `vera.min.js` plus
-`vera-renderer.min.js` is <!--size:stack.bytes-->7 909 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->7 028 B<!--/size:app.bytes-->, because a bundler
+`vera-renderer.min.js` is <!--size:stack.bytes-->8 009 B<!--/size:stack.bytes--> gzipped against the app's <!--size:app.bytes-->7 119 B<!--/size:app.bytes-->, because a bundler
 drops the core exports an app does not use.
 
 ## Measured on a list, not only a counter
@@ -45,10 +45,10 @@ the thing reconciliation exists for:
 
 | | gzipped |
 | --- | ---: |
-| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->7 768 B<!--/size:list.bytes-->** |
+| VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->7 852 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-<!--size:list.vs-lit.bytes-->-942 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
+<!--size:list.vs-lit.bytes-->-1 026 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -64,9 +64,9 @@ It is not what every page loads. `createProxy` is **37% of core's minified bytes
 drops it for a component that never creates a store — a marketing page, a server-rendered article,
 anything progressively enhanced rather than driven by state. Measured the same way, tree-shaken:
 
-**<!--size:app.static.kb-->6.9 KB<!--/size:app.static.kb--> gzipped
-(<!--size:app.static.bytes-->7 035 B<!--/size:app.static.bytes-->) —
-<!--size:app.static.underlit-->-1 164 B<!--/size:app.static.underlit--> under Lit.**
+**<!--size:app.static.kb-->7.0 KB<!--/size:app.static.kb--> gzipped
+(<!--size:app.static.bytes-->7 126 B<!--/size:app.static.bytes-->) —
+<!--size:app.static.underlit-->-1 255 B<!--/size:app.static.underlit--> under Lit.**
 
 Two things this is not. It is **not the same app** as the rows in the table above — it renders once
 and updates nothing, where every one of those renders reactive state, so it is a page against their
@@ -76,9 +76,9 @@ already produces from the same package when the code does not reach for a store.
 
 ## The honest framing
 
-**There is no smaller honest number than <!--size:app.kb-->6.9 KB<!--/size:app.kb-->.** Core ships no
+**There is no smaller honest number than <!--size:app.kb-->7.0 KB<!--/size:app.kb-->.** Core ships no
 renderer — `render()` with none registered warns and paints nothing — so "core alone" is not a tier
-anyone can ship. Quoting core's standalone <!--size:core.gzip-->3.17 KB<!--/size:core.gzip--> as an
+anyone can ship. Quoting core's standalone <!--size:core.gzip-->3.26 KB<!--/size:core.gzip--> as an
 app size would be a bait-and-switch.
 
 *(Until 0.2.0 core carried a small default renderer, and this page quoted it as a 2.3 KB tier. It
@@ -90,14 +90,14 @@ claim to be smallest. Both are fair trades to explain: Van.js has no keyed recon
 list change rebuilds the list; Solid needs its compiler.
 
 **The Solid comparison, stated precisely:** Solid is <!--size:app.solid.bytes-->4 446 B<!--/size:app.solid.bytes--> and requires its compiler;
-VeraJS + own renderer is <!--size:app.bytes-->7 028 B<!--/size:app.bytes--> and requires nothing. That is the price of needing no
+VeraJS + own renderer is <!--size:app.bytes-->7 119 B<!--/size:app.bytes--> and requires nothing. That is the price of needing no
 toolchain — say it exactly that way, because a reader who checks will find the numbers.
 
 **VeraJS is level with Lit, not under it — say it precisely.** VeraJS + own renderer
-(<!--size:app.bytes-->7 028 B<!--/size:app.bytes-->) is within ten bytes of Lit
+(<!--size:app.bytes-->7 119 B<!--/size:app.bytes-->) is within ten bytes of Lit
 (<!--size:app.lit.bytes-->5 871 B<!--/size:app.lit.bytes-->), currently on the wrong side of it, and under
 Preact + signals (<!--size:app.preact-signals.bytes-->6 031 B<!--/size:app.preact-signals.bytes-->); the lit-html
-pairing (<!--size:app.verajs-lit-html.bytes-->5 602 B<!--/size:app.verajs-lit-html.bytes-->) is lower still. A gap that
+pairing (<!--size:app.verajs-lit-html.bytes-->5 699 B<!--/size:app.verajs-lit-html.bytes-->) is lower still. A gap that
 small is not a claim in either direction — "level with Lit" is the honest sentence, and it survives
 the next commit either way, which "under Lit" does not. The ordering has already changed twice.
 
@@ -120,13 +120,13 @@ describing the bytes honestly.)*
 <!--size:table.permodule-->
 | Module | gzip | |
 | --- | ---: | --- |
-| `@verajs/core` | 3 250 B | state (incl. Map and Set), hooks, lifecycle, render |
-| `@verajs/renderer` | 4 659 B | keyed template renderer, refs, `hold` |
+| `@verajs/core` | 3 339 B | state (incl. Map and Set), hooks, lifecycle, render |
+| `@verajs/renderer` | 4 670 B | keyed template renderer, refs, `hold` |
 | `@verajs/router` | 4 560 B | nested routes, params, wildcards, redirects, scroll memory |
 | `@verajs/autoloader` | 1 681 B | lazy component discovery |
 | `@verajs/styles` | 772 B | `static styles` adoption, shadow and light DOM |
-| `@verajs/renderer/spread` | 1 577 B | `${spread(props)}` — runtime-named bindings |
-| `@verajs/renderer/tag` | 2 196 B | `<${tag}>` — runtime tag names, in templates and JSX |
+| `@verajs/renderer/spread` | 1 590 B | `${spread(props)}` — runtime-named bindings |
+| `@verajs/renderer/tag` | 2 210 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/store` | 673 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 3 701 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
 | `@verajs/jsx/standalone` | 3 908 B | JSX in the browser with no build — the CodePen path |
@@ -134,7 +134,7 @@ describing the bytes honestly.)*
 | `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
-| `@verajs/renderer/hydrate` | 6 404 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
+| `@verajs/renderer/hydrate` | 6 412 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
 | `@verajs/inserts` | 357 B | the extension point |
 | `@verajs/directives/core` | 6 158 B | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | 7 487 B | the engine with its own store, for a page running no vera |

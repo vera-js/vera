@@ -138,9 +138,34 @@ const deliverProperty = (node, tag, name, value) => {
   try {
     node[name] = value;
   } catch (error) {
+    /**
+     * The CLIENT's rule, applied here so the two halves resolve the same contested state the same
+     * way: a getter with NO setter is a refusal — warned by name, the binding ignored, the render
+     * carried on, exactly what `init()`'s adoption does — while a setter that THREW is the
+     * component's own error and stays one, named against the tag and property rather than as
+     * `Cannot set property x of #<Class>`. Diverging here meant one binding produced a page on
+     * the client and an empty render server-side.
+     */
+    let carrier = node;
+    let refusable = false;
+    while (carrier !== null) {
+      const desc = Object.getOwnPropertyDescriptor(carrier, name);
+      if (desc !== undefined) {
+        refusable = desc.get !== undefined && desc.set === undefined;
+        break;
+      }
+      carrier = Object.getPrototypeOf(carrier);
+    }
+    if (refusable) {
+      console.warn(
+        `[vera] ssr: <${tag}> declares \`${name}\` as a getter with no setter — the bound value ` +
+          `cannot be delivered and the binding is ignored. Add a setter, or stop binding it.`
+      );
+      return;
+    }
     throw new TypeError(
       `ssr: <${tag}> refused the bound property \`.${name}\` — ${String(/** @type {Error} */ (error).message)}. ` +
-        `A read-only property cannot be set; pass it as an attribute, or give the class a setter.`
+        `Its setter threw; the binding's value is the argument it was given.`
     );
   }
 };
