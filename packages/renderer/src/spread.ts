@@ -24,6 +24,8 @@ const BOOLEAN = 2;
 const LIVE = 3;
 const EVENT = 4;
 const REF = 5;
+/** A binding gone inert — a get-only property refusal; `write` matches it against nothing. */
+const REFUSED = -1;
 
 /**
  * A key that cannot be written into a tag, and therefore cannot be used at all.
@@ -109,25 +111,42 @@ const UNSET = Symbol();
  * clobber detector rides along, because a bag key and a written binding are the same mistake with
  * the same author watching.
  *
- * Returns `true` when the binding should stop routing through here.
+ * Returns the binding's NEXT kind, exactly as the twin does: `PROPERTY` to latch onto the plain
+ * write, `REFUSED` to go inert (a get-only surface), `0` to keep adopting.
  */
-const adopt = (element: Element, name: string, value: unknown): boolean => {
+const adopt = (element: Element, name: string, value: unknown): number => {
   const el = element as unknown as Record<string, unknown>;
-  el[name] = value;
+  /** The walk comes BEFORE the write — see the twin: a setter receives (its throw is the
+   *  component's own error), a getter with no setter refuses instead of throwing a raw TypeError
+   *  out of the render, and the dev warning defers to `_$adopt$`'s own refusal where it exists. */
   let carrier: object | null = el;
   while (carrier !== null) {
     const desc = Object.getOwnPropertyDescriptor(carrier, name);
     if (desc !== undefined) {
-      if (desc.get !== undefined || desc.set !== undefined) return true;
-      break; // an own data property — the write above, or a field: nothing receives it
+      if (desc.set !== undefined) {
+        el[name] = value;
+        return PROPERTY;
+      }
+      if (desc.get !== undefined) {
+        if (el._$adopt$ !== undefined) (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+        else if (__DEV__)
+          console.warn(
+            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no ` +
+              `setter — the value bound by \`.${name}\` cannot be delivered and the binding is ` +
+              `ignored. Add a setter, or stop binding it.`
+          );
+        return REFUSED;
+      }
+      break; // a data property — an own field, or an inherited default: nothing receives it
     }
     carrier = Object.getPrototypeOf(carrier);
   }
+  el[name] = value;
   /** An initialized component receives live through `_$adopt$` — a record after the drain would
    *  never be read again. The door a spread bag's conditional key arrives through, reactive. */
   if (el._$adopt$ !== undefined) {
     (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
-    return true;
+    return PROPERTY;
   }
   const record = (el._$props$ ??= {}) as Record<string, unknown>;
   const firstRecording = !Object.hasOwn(record, name);
@@ -165,7 +184,7 @@ const adopt = (element: Element, name: string, value: unknown): boolean => {
         );
     });
   }
-  return upgraded;
+  return upgraded ? PROPERTY : 0;
 };
 
 /**
@@ -289,7 +308,11 @@ const write = (binding: Binding, value: unknown) => {
     }
   } else if (kind === PROPERTY) {
     if (binding._recording) {
-      if (adopt(element, name, value)) binding._recording = false;
+      const next = adopt(element, name, value);
+      if (next !== 0) {
+        binding._recording = false;
+        if (next === REFUSED) binding._kind = REFUSED; // inert: `write` matches it against nothing
+      }
     } else (element as unknown as Record<string, unknown>)[name] = value;
   } else if (kind === BOOLEAN) {
     element.toggleAttribute(name, !!value);

@@ -857,25 +857,52 @@ const PROP_ADOPT = 6;
  * separate bundle with no shared registry — the `_$`-sigiled member is the cross-bundle channel,
  * and the recorder there is this one's deliberate twin.
  *
- * Returns `true` when the part should flip to plain `PROPERTY`: something receives the property, or
- * the element is upgraded (its record is final — `init()` drains it in the same tick) or has no
- * realm. A dash-named element that never upgrades and never receives keeps recording, so its record
- * stays current rather than staling. The one retention this leaves: a defined non-vera element with
- * a plain data property keeps its FIRST committed values in `_$props$` for its lifetime — bounded,
- * one generation, and the part itself already retains the current generation in `_committed`.
+ * Returns the part's NEXT kind: `PROPERTY` once something receives the property or the element is
+ * upgraded (its record is final — `init()` drains it in the same tick) or has no realm; `REFUSED`
+ * for a getter with no setter, so the binding goes inert instead of the flipped plain write
+ * throwing on the next commit; `0` to stay adopting — a dash-named element that never upgrades and
+ * never receives keeps recording, so its record stays current rather than staling. The one
+ * retention this leaves: a defined non-vera element with a plain data property keeps its FIRST
+ * committed values in `_$props$` for its lifetime — bounded, one generation, and the part itself
+ * already retains the current generation in `_committed`.
  */
-const commitAdopt = (element: Element, name: string, value: unknown): boolean => {
+const commitAdopt = (element: Element, name: string, value: unknown): number => {
   const el = element as unknown as Record<string, unknown>;
-  el[name] = value;
+  /**
+   * The walk comes BEFORE the write, because what the walk finds decides whether writing is even
+   * legal: a SETTER receives the value (and a setter that throws is the component's own error), a
+   * GETTER with no setter cannot — the old order assigned first, which in strict mode threw a raw
+   * TypeError out of the render for the eager spelling of exactly the case the drain refuses by
+   * name for the lazy one. Same contested state, one rule, both arrival orders — and the server's
+   * `deliverProperty` applies it too. The dev warning defers to `_$adopt$` where it exists: an
+   * initialized component's drain already speaks, and two voices for one binding is noise.
+   */
   let carrier: object | null = el;
   while (carrier !== null) {
     const desc = Object.getOwnPropertyDescriptor(carrier, name);
     if (desc !== undefined) {
-      if (desc.get !== undefined || desc.set !== undefined) return true;
-      break; // an own data property — the write above, or a field: nothing receives it
+      if (desc.set !== undefined) {
+        el[name] = value;
+        return PROPERTY;
+      }
+      if (desc.get !== undefined) {
+        /** An initialized component's receiver owns the refusal (and its channel); for anything
+         *  else this is the only door, so it says so itself. Either way the binding goes INERT —
+         *  flipping to `PROPERTY` would make the next commit's plain write throw. */
+        if (el._$adopt$ !== undefined) (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+        else if (__DEV__)
+          console.warn(
+            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no ` +
+              `setter — the value bound by \`.${name}=\${…}\` cannot be delivered and the binding ` +
+              `is ignored. Add a setter, or stop binding it.`
+          );
+        return REFUSED;
+      }
+      break; // a data property — an own field, or an inherited default: nothing receives it
     }
     carrier = Object.getPrototypeOf(carrier);
   }
+  el[name] = value;
   /**
    * An initialized component receives LIVE: `init()` left `_$adopt$` on the element, and a key it
    * has not adopted yet goes through that door — a record here would never be read again, because
@@ -884,7 +911,7 @@ const commitAdopt = (element: Element, name: string, value: unknown): boolean =>
    */
   if (el._$adopt$ !== undefined) {
     (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
-    return true;
+    return PROPERTY;
   }
   const record = (el._$props$ ??= {}) as Record<string, unknown>;
   const firstRecording = !Object.hasOwn(record, name);
@@ -944,7 +971,7 @@ const commitAdopt = (element: Element, name: string, value: unknown): boolean =>
         );
     });
   }
-  return upgraded;
+  return upgraded ? PROPERTY : 0;
 };
 /**
  * Calls an element ref, and survives one that throws.
@@ -1277,7 +1304,8 @@ class AttrPart implements Part {
         if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
         this._handler = (value as EventListener) ?? null;
       } else if (kind === PROP_ADOPT) {
-        if (commitAdopt(this._element, this._name, value)) this._kind = PROPERTY;
+        const next = commitAdopt(this._element, this._name, value);
+        if (next !== 0) this._kind = next;
       } else if (value != null) {
         /**
          * Element ref: `<input ${myRef} />`. A function is called with the element; an object gets

@@ -238,6 +238,45 @@ test('a getter-only property refuses by name instead of throwing out of init()',
     'development names the refused binding once; production is silent');
 });
 
+test('EAGER get-only refuses identically — one rule for both arrival orders, and no throw', async () => {
+  const warned = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warned.push(args.join(' '));
+  customElements.define('cp-readonly-eager', class extends HTMLElement {
+    get locked() { return 'immutable'; }
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.locked}</p>`);
+    }
+  });
+  const host = mount();
+  const draw = (n) => renderInto(html`<cp-readonly-eager .locked=${n}></cp-readonly-eager>`, host);
+  draw('first');                                // the old order threw a raw TypeError right here
+  await frame(); await frame();
+  draw('second');                               // and the post-flip plain write threw here
+  await frame(); await frame();
+  console.warn = realWarn;
+  assert.equal(text(host.querySelector('cp-readonly-eager')), 'immutable', 'the getter still answers');
+  assert.equal(warned.filter((w) => w.includes('locked')).length, isProduction ? 0 : 1,
+    'refused by name once — the receiver is the one voice, not one per commit');
+});
+
+test('a non-vera get-only element gets the refusal from the renderer itself', () => {
+  const warned = [];
+  const realWarn = console.warn;
+  console.warn = (...args) => warned.push(args.join(' '));
+  customElements.define('cp-foreign-readonly', class extends HTMLElement {
+    get frozen() { return 'theirs'; }
+  });
+  const host = mount();
+  renderInto(html`<cp-foreign-readonly .frozen=${'mine'}></cp-foreign-readonly>`, host);
+  console.warn = realWarn;
+  const el = host.querySelector('cp-foreign-readonly');
+  assert.equal(el.frozen, 'theirs', 'no write reached the getter-only surface, and nothing threw');
+  assert.equal(warned.filter((w) => w.includes('frozen')).length, isProduction ? 0 : 1,
+    'the renderer names the refusal — no init() means no other voice exists');
+});
+
 test('the drain runs once: a reconnect keeps the adopted values and their reactivity', async () => {
   customElements.define('cp-reconnect', class extends HTMLElement {
     connectedCallback() {
