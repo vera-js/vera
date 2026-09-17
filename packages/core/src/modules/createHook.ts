@@ -54,6 +54,13 @@ export const deferInHookContext = <A extends unknown[]>(work: (...args: A) => vo
 };
 
 /**
+ * The priority `useRender` registers at — between `useLayoutEffect` (25) and the effects (75).
+ * One home for the number, because `init()`'s late-prop adoption re-runs exactly the render slot
+ * and a second literal would drift the moment either moved.
+ */
+export const RENDER_PRIORITY = 50;
+
+/**
  * Creates a hook that will trigger a callback whenever any state that is inside the hook changes.
  * Each hook needs a callback and a priority level where lower runs earlier and higher runs later.
  *

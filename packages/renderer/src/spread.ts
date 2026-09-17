@@ -101,11 +101,13 @@ const UNSET = Symbol();
 
 /**
  * The deliberate twin of `commitAdopt` in `./renderer.ts` — independent bundles, neither imports
- * the other, so the rule is copied and a fix visits both. Full reasoning there; the short form:
- * after the write, an accessor anywhere on the chain means something receives this property and
- * the binding can latch onto the plain write for good. Unreceived, the value is recorded under the
- * element-carried `_$props$` — the cross-bundle channel core's `init()` drains — and the latch
- * closes once the element is upgraded (its record is final) or has no realm.
+ * the other, so the rule is copied IN FULL and a fix visits both. Full reasoning there; the short
+ * form: after the write, an accessor anywhere on the chain means something receives this property
+ * and the binding can latch onto the plain write for good. Unreceived, the value is recorded under
+ * the element-carried `_$props$` — the cross-bundle channel core's `init()` drains — and the latch
+ * closes once the element is upgraded (its record is final) or has no realm. The development
+ * clobber detector rides along, because a bag key and a written binding are the same mistake with
+ * the same author watching.
  *
  * Returns `true` when the binding should stop routing through here.
  */
@@ -127,9 +129,32 @@ const adopt = (element: Element, name: string, value: unknown): boolean => {
     (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
     return true;
   }
-  ((el._$props$ ??= {}) as Record<string, unknown>)[name] = value;
-  const win = element.ownerDocument.defaultView as unknown as { HTMLElement: unknown } | null;
-  return win === null || el.constructor !== win.HTMLElement;
+  const record = (el._$props$ ??= {}) as Record<string, unknown>;
+  const firstRecording = !(name in record);
+  record[name] = value;
+  /** Prototype, never `el.constructor` — a bag key named `constructor` shadows the real one with
+   *  an own property, and no property write can move a prototype (`__proto__` is refused above). */
+  const win = element.ownerDocument.defaultView as unknown as {
+    HTMLElement: { prototype: object };
+    customElements: CustomElementRegistry;
+  } | null;
+  const upgraded = win === null || Object.getPrototypeOf(el) !== win.HTMLElement.prototype;
+  if (__DEV__ && win !== null && !upgraded && firstRecording) {
+    const tag = element.localName;
+    win.customElements.whenDefined(tag).then(() => {
+      const desc = Object.getOwnPropertyDescriptor(el, name);
+      if (desc?.get === undefined && el[name] !== record[name])
+        console.warn(
+          `[vera] renderer: the value bound by \`.${name}\` on <${tag}> was replaced while the ` +
+            `element upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits ` +
+            `\`${name};\`, which runs during upgrade and overwrites whatever was set beforehand — ` +
+            `write it \`declare ${name}?: …\` instead, which emits nothing. A component that ` +
+            `calls init() adopts bound properties automatically and never sees this; this ` +
+            `element did not. Ignore this if the component replaced the value on purpose.`
+        );
+    });
+  }
+  return upgraded;
 };
 
 /**
@@ -489,9 +514,11 @@ export const spread = (props: Record<string, unknown>): SpreadResult => {
  * bind `..date` and is the caller's mistake to keep.
  *
  * Properties only, by definition: events and boolean attributes keep their own spellings
- * (`@click`/`onClick`, `?disabled`). **A key that arrives later must still be SPELLED now** —
- * `props({ date: loaded ? date : null })`, never `props(loaded ? { date } : {})` — so the binding
- * exists from the first render rather than appearing mid-life.
+ * (`@click`/`onClick`, `?disabled`). **Prefer keys spelled conditionally over bags that change
+ * shape** — `props({ date: loaded ? date : null })` over `props(loaded ? { date } : {})`. Both
+ * work: a key appearing later on a component goes through `_$adopt$` and arrives reactive, and a
+ * key that disappears restores what the element held — but a stable shape updates in place, the
+ * same reason templates prefer `?hidden` over swapped subtrees.
  *
  * With an explicit type argument the bag is checked against the element —
  * `props<CalendarDay>({ dat })` is a compile error naming the misspelling.

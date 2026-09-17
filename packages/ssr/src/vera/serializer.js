@@ -109,6 +109,43 @@ const COMPONENT_PROP = 5;
 const plans = new WeakMap();
 
 /**
+ * Gets-or-creates the instance a component-prop slot delivers to, per application state (see
+ * `adoption` in `serializeTemplate`). A new instance is registered exactly as `appendChild`
+ * registers a component-built child, and its marker text is queued on `state.mark` for the caller
+ * to write into the open tag being emitted — the string boundary is crossed by the marker while
+ * the values stay on the node, by identity. `prepareInstance` unregisters and unstamps it as it
+ * renders, and the end-of-render sweep removes any marker whose tag never rendered.
+ */
+const claimInstance = (state, ordinal, tag) => {
+  let node = state.instances.get(ordinal);
+  if (node === undefined) {
+    node = new (registry.get(tag))();
+    node.localName = tag;
+    state.mark += ` ${INSTANCE_ATTRIBUTE}="${markPending(node)}"`;
+    state.instances.set(ordinal, node);
+  }
+  return node;
+};
+
+/**
+ * One delivery, shared by the written form and the spread form. `__proto__` is skipped for the
+ * same reason `renderToString`'s own `props` option skips it — `[[Set]]` replaces the element's
+ * prototype — and a throwing setter gets the same named refusal `prepareInstance` gives, since
+ * `Cannot set property x` names neither the component nor that a server render was running.
+ */
+const deliverProperty = (node, tag, name, value) => {
+  if (name === '__proto__') return;
+  try {
+    node[name] = value;
+  } catch (error) {
+    throw new TypeError(
+      `ssr: <${tag}> refused the bound property \`.${name}\` — ${String(/** @type {Error} */ (error).message)}. ` +
+        `A read-only property cannot be set; pass it as an attribute, or give the class a setter.`
+    );
+  }
+};
+
+/**
  * Whether the text so far leaves us inside an open tag — the question every sigil test below
  * silently assumed the answer to.
  *
@@ -319,13 +356,16 @@ const compile = (strings) => {
       const sigilName = sigil[2] ?? '';
       if (kind === '?') {
         kinds.push(BOOLEAN);
-      } else if (kind === '.' && sigilName && owner.includes('-')) {
+      } else if ((kind === '.' || kind === '!') && sigilName && owner.includes('-')) {
         /**
          * A property on a COMPONENT tag is neither markup nor a client concern: it is the data the
          * child renders from, so it is delivered to the instance the nested-component scan will
          * render — before `FORM_ATTRIBUTES`, because `.value` on `<my-input>` is that component's
-         * prop, not a form control's dirty value. Whether the tag is actually registered is a
-         * render-time question (the registry fills as modules execute), answered in the case below.
+         * prop, not a form control's dirty value. `!name` is here beside `.name` for the same
+         * reason it serializes as `.name` on form controls, and because a spread reports `!` keys
+         * as properties — the two spellings of one binding must get one answer. Whether the tag is
+         * actually registered is a render-time question (the registry fills as modules execute),
+         * answered in the case below.
          */
         kinds.push(COMPONENT_PROP);
       } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigilName)) {
@@ -431,48 +471,16 @@ export const serializeTemplate = (template) => {
    * template N times builds N (each application gets a fresh map). Created on the first delivered
    * key; a template with no component props never allocates it.
    */
-  let instances = null;
   /**
-   * The marker for a just-built instance, held here rather than appended directly because the
-   * spread path folds `out` while delivering — a direct append mid-fold would be overwritten by
-   * the folded result. Each case that can deliver flushes it into the open tag it is building.
+   * The instances this application is delivering properties to, allocated on the FIRST
+   * component-prop slot — `serializeTemplate` is the hot path the public SSR numbers rest on, and
+   * a template with no component props (almost all of them) must pay one `null` local and nothing
+   * else. `instances` is keyed by element ordinal, so `<x-row .a=${…} .b=${…}>` builds ONE
+   * instance for both keys while a list's N applications build N; `mark` is the marker text for a
+   * just-built instance, held rather than appended directly because the spread path folds `out`
+   * while delivering — each delivering case flushes it into the open tag it is building.
    */
-  let pendingMark = '';
-  const instanceFor = (ordinal, tag) => {
-    instances ??= new Map();
-    let node = instances.get(ordinal);
-    if (node === undefined) {
-      node = new (registry.get(tag))();
-      node.localName = tag;
-      /**
-       * Registered exactly as `appendChild` registers a component-built child, and the marker is
-       * written into the open tag being emitted, so the nested-component scan renders THIS
-       * instance — the string boundary is crossed by the marker while the values stay on the
-       * node, by identity. `prepareInstance` unregisters and unstamps it as it renders, and the
-       * end-of-render sweep removes any marker whose tag never rendered.
-       */
-      pendingMark += ` ${INSTANCE_ATTRIBUTE}="${markPending(node)}"`;
-      instances.set(ordinal, node);
-    }
-    return node;
-  };
-  /**
-   * One delivery, shared by the written form and the spread form. `__proto__` is skipped for the
-   * same reason `renderToString`'s own `props` option skips it — `[[Set]]` replaces the element's
-   * prototype — and a throwing setter gets the same named refusal `prepareInstance` gives, since
-   * `Cannot set property x` names neither the component nor that a server render was running.
-   */
-  const deliver = (node, tag, name, value) => {
-    if (name === '__proto__') return;
-    try {
-      node[name] = value;
-    } catch (error) {
-      throw new TypeError(
-        `ssr: <${tag}> refused the bound property \`.${name}\` — ${String(/** @type {Error} */ (error).message)}. ` +
-          `A read-only property cannot be set; pass it as an attribute, or give the class a setter.`
-      );
-    }
-  };
+  let adoption = null;
   /**
    * Content that belongs *after* the tag being built rather than inside it — a `<textarea>`'s
    * value, which is text and not an attribute. Written into the next static right after the `>`
@@ -504,15 +512,20 @@ export const serializeTemplate = (template) => {
            * attributes on a component never builds one.
            */
           const componentTag = owners[i].includes('-') && registry.has(owners[i]) ? owners[i] : '';
-          const folded = foldSpread(out, value._$attrs$(), (name, propValue) => {
-            if (componentTag === '') return false;
-            deliver(instanceFor(elements[i], componentTag), componentTag, name, propValue);
-            return true;
-          });
+          const folded = foldSpread(
+            out,
+            value._$attrs$(),
+            componentTag === ''
+              ? undefined
+              : (name, propValue) => {
+                  adoption ??= { instances: new Map(), mark: '' };
+                  deliverProperty(claimInstance(adoption, elements[i], componentTag), componentTag, name, propValue);
+                }
+          );
           out = folded.out;
-          if (pendingMark !== '') {
-            out += pendingMark;
-            pendingMark = '';
+          if (adoption !== null && adoption.mark !== '') {
+            out += adoption.mark;
+            adoption.mark = '';
           }
           if (folded.text !== null) pendingText = folded.text;
           if (folded.select !== null) out += ` ${SELECT_MARK}="${selectValues.push(folded.select) - 1}"`;
@@ -657,10 +670,11 @@ export const serializeTemplate = (template) => {
          * modules execute.
          */
         if (registry.has(owners[i])) {
-          deliver(instanceFor(elements[i], owners[i]), owners[i], names[i], value);
-          if (pendingMark !== '') {
-            out += pendingMark;
-            pendingMark = '';
+          adoption ??= { instances: new Map(), mark: '' };
+          deliverProperty(claimInstance(adoption, elements[i], owners[i]), owners[i], names[i], value);
+          if (adoption.mark !== '') {
+            out += adoption.mark;
+            adoption.mark = '';
           }
         }
         break;
@@ -881,10 +895,13 @@ const foldSpread = (out, entries, deliverProp) => {
     /**
      * A property key on a rendered component tag is handed to the caller's delivery — the same
      * door the written `.prop=${…}` form takes, because `props()` IS a spread and a key must mean
-     * the same thing in both spellings. The callback answers false off a component tag, and the
-     * key falls through to the rules below unchanged.
+     * the same thing in both spellings. The callback exists only when the owner is a registered
+     * component; everywhere else the key falls through to the rules below unchanged.
      */
-    if (kind === 'p' && deliverProp !== undefined && deliverProp(name, value)) continue;
+    if (kind === 'p' && deliverProp !== undefined) {
+      deliverProp(name, value);
+      continue;
+    }
     const serializes =
       kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && FORM_ATTRIBUTES.includes(name));
     if (!serializes) continue;

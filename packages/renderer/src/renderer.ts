@@ -886,9 +886,21 @@ const commitAdopt = (element: Element, name: string, value: unknown): boolean =>
     (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
     return true;
   }
-  ((el._$props$ ??= {}) as Record<string, unknown>)[name] = value;
-  const win = element.ownerDocument.defaultView as unknown as { HTMLElement: unknown } | null;
-  const upgraded = win === null || el.constructor !== win.HTMLElement;
+  const record = (el._$props$ ??= {}) as Record<string, unknown>;
+  const firstRecording = !(name in record);
+  record[name] = value;
+  /**
+   * Upgrade is read off the PROTOTYPE, never off `el.constructor`: a spread bag's keys are runtime
+   * data, so a bag carrying a key named `constructor` writes an own property that shadows the real
+   * one, and a check that reads it would then misjudge every later commit. No property write can
+   * move an element's prototype — the one assignment that could, `__proto__`, both twins refuse.
+   * The realm comes from the element, as always.
+   */
+  const win = element.ownerDocument.defaultView as unknown as {
+    HTMLElement: { prototype: object };
+    customElements: CustomElementRegistry;
+  } | null;
+  const upgraded = win === null || Object.getPrototypeOf(el) !== win.HTMLElement.prototype;
   /**
    * **The clobber detector, for the element the drain will never reach.** A component that calls
    * `init()` has the record re-applied, so for it the pre-upgrade window is repaired; an element
@@ -897,15 +909,18 @@ const commitAdopt = (element: Element, name: string, value: unknown): boolean =>
    * warning. Told apart by OWNERSHIP, not by value: after the definition arrives (and, for a
    * connected element, `connectedCallback` and the drain have run synchronously inside `define()`),
    * an own accessor means the drain took the property and there is nothing to report. Identity
-   * would lie here — a drained value reads back through the store's proxy, so `el[name] !== value`
-   * is true of every repaired object prop. Development only; production carries no check, no
-   * message, no `whenDefined` subscription.
+   * against the COMMITTED value would lie twice — a drained value reads back through the store's
+   * proxy, and a value superseded by a later pre-upgrade commit differs without anything being
+   * wrong — so the comparison is against the RECORD, which later recordings keep current, and the
+   * subscription is installed once per (element, property), on the first recording. The registry
+   * is the element's own realm's. Development only; production carries no check, no message, no
+   * `whenDefined` subscription.
    */
-  if (__DEV__ && !upgraded) {
+  if (__DEV__ && win !== null && !upgraded && firstRecording) {
     const tag = element.localName;
-    customElements.whenDefined(tag).then(() => {
+    win.customElements.whenDefined(tag).then(() => {
       const desc = Object.getOwnPropertyDescriptor(el, name);
-      if (desc?.get === undefined && el[name] !== value)
+      if (desc?.get === undefined && el[name] !== record[name])
         console.warn(
           `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
             `while the element upgraded. A class field is the usual cause: at ES2022 ` +

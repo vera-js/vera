@@ -2,7 +2,7 @@ import { inserts, InitInsert } from '@verajs/inserts';
 import { currentInstance } from '../store/store.js';
 import type { ComponentElement } from '../types.js';
 import { createStore } from './createStore.js';
-import { reportHookError } from './createHook.js';
+import { reportHookError, RENDER_PRIORITY } from './createHook.js';
 
 /** Dev-only, and once per page: a missing `@verajs/styles` is silent otherwise. */
 let warnedAboutStyles = false;
@@ -237,12 +237,12 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
       /**
        * A key arriving AFTER the drain reaches a render that never read it through the store — its
        * first read was a plain `undefined`, untracked — so no write would ever repaint. Re-run the
-       * element's RENDER hooks (priority 50, `useRender`'s slot) once: the pass reads the new
+       * element's RENDER hooks (`RENDER_PRIORITY` — `useRender`'s slot) once: the pass reads the new
        * accessor, and that read subscribes it for every later commit. Effects are deliberately not
        * forced — a side effect must not re-fire because a prop arrived. During the drain this is
        * naturally a no-op: `init()` has just reset `_hooks`, so there is nothing to run yet.
        */
-      const slot = element._hookPriorities?.indexOf(50) ?? -1;
+      const slot = element._hookPriorities?.indexOf(RENDER_PRIORITY) ?? -1;
       if (slot !== -1)
         element._hooks?.[slot]?.forEach((hook) => {
           if (hook) hook({}, true);

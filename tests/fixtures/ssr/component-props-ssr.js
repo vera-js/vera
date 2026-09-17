@@ -9,7 +9,7 @@ class PropsRow extends HTMLElement {
       () =>
         html`<p>
           ${this.item ? this.item.label : 'no-item'} · ${this.value === undefined ? 'no-value' : String(this.value)} ·
-          ${this.getAttribute('data-kind') ?? 'no-attr'}
+          ${this.getAttribute('data-kind') ?? 'no-attr'} · ${this.live === undefined ? 'no-live' : String(this.live)}
         </p>`
     );
   }
@@ -22,7 +22,7 @@ class PropsPage extends HTMLElement {
     const rows = [{ label: 'alpha' }, { label: 'beta' }];
     render(
       () => html`
-        <props-row .item=${{ label: 'written' }} .value=${7} data-kind="written"></props-row>
+        <props-row .item=${{ label: 'written' }} .value=${7} !live=${true} data-kind="written"></props-row>
         <props-row ${props({ item: { label: 'spread' } })} data-kind="spread"></props-row>
         ${rows.map((item) => html`<props-row .item=${item}></props-row>`)}
         <props-unloaded .item=${{ label: 'client-only' }}></props-unloaded>

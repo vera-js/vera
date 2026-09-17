@@ -1,5 +1,5 @@
 import type { ComponentElement, RenderTemplate, Signal } from '../types.js';
-import { createHook, deferInHookContext } from '../modules/createHook.js';
+import { createHook, deferInHookContext, RENDER_PRIORITY } from '../modules/createHook.js';
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';
 import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
@@ -124,6 +124,6 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
         throw error;
       }
     },
-    priority: 50,
+    priority: RENDER_PRIORITY,
   });
 };

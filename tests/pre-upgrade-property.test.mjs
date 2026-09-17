@@ -45,6 +45,7 @@ for (const k of ['window', 'document', 'customElements', 'HTMLElement', 'Node', 
   globalThis[k] = dom.window[k];
 
 const { renderInto } = await load('renderer');
+const { spread } = await load('renderer/spread');
 /** The shape core's built-in `html` tag produces, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
@@ -144,6 +145,30 @@ check('a defined field initializer runs BEFORE the commit, so the binding wins',
   host.querySelector('preup-fielded').count === 5,
   `got ${JSON.stringify(host.querySelector('preup-fielded').count)}`);
 check('with nothing to warn about', took().length === 0, took().join(' | '));
+
+/* ── several pre-upgrade commits are ONE observation, not one warning each ────────────────────── */
+host = mount();
+const redraw = (n) => renderInto(html`<preup-repeat .step=${n}></preup-repeat>`, host);
+redraw(1); redraw(2); redraw(3);
+await frame();
+took = since();
+customElements.define('preup-repeat', class extends HTMLElement { step; });
+await frame();
+check('the clobber of a re-committed binding warns exactly once, against the LAST value',
+  took().filter((w) => w.includes('step')).length === (isProduction ? 0 : 1),
+  `${took().filter((w) => w.includes('step')).length} warning(s) — a subscription per commit ` +
+    `false-warns for every superseded value`);
+
+/* ── the spread twin carries the same detector ────────────────────────────────────────────────── */
+host = mount();
+renderInto(html`<preup-spread ${spread({ '.item': store })}></preup-spread>`, host);
+await frame();
+took = since();
+customElements.define('preup-spread', class extends HTMLElement { item; });
+await frame();
+check(`a spread bag's clobbered key ${isProduction ? 'is silent in production' : 'warns in development'} too`,
+  took().filter((w) => w.includes('item')).length === (isProduction ? 0 : 1),
+  took().join(' | '));
 
 console.warn = realWarn;
 

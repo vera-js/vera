@@ -21,12 +21,12 @@ const rows = [...markup.matchAll(/<p>\s*([^<]*?)\s*<\/p>/g)].map(([, text]) => t
 assert.deepEqual(
   rows,
   [
-    'written · 7 · written',
-    'spread · no-value · spread',
-    'alpha · no-value · no-attr',
-    'beta · no-value · no-attr',
+    'written · 7 · written · true',
+    'spread · no-value · spread · no-live',
+    'alpha · no-value · no-attr · no-live',
+    'beta · no-value · no-attr · no-live',
   ],
-  'written .prop, props()/spread, and each list row render from the delivered values — by identity, per instance'
+  'written .prop, !prop, props()/spread, and each list row render from the delivered values — by identity, per instance'
 );
 
 assert.ok(
