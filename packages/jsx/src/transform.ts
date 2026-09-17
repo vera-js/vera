@@ -23,6 +23,15 @@ import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from '.
  *   key={k} (on a JSX root)       -> keyed(k, html`…`)
  *   style                         -> a STRING (object styles are a compile error)
  *   {...spread} on an element     -> `${spread(props)}` via @verajs/renderer/spread
+ *
+ * On a COMPONENT tag (dash-named), **a bare prop is a PROP** — `<calendar-day date={d}>` emits
+ * `.date=${d}`, which is React's own semantics and the reason JSX exists here. No name table
+ * decides which names qualify: a hyphenated name (`data-*`, `aria-*`) has no property spelling by
+ * construction and stays an attribute, the two names the DOM itself renamed (`NAME_MAP`'s targets,
+ * `class`/`for` — renamed because JS syntax refuses them) stay attributes, and everything else is
+ * classified by the element's own prototype chain at runtime: the renderer hands `title`, `id` or
+ * `style` to the platform accessor that owns it, a declared pair to its setter, and the rest to
+ * `init()`'s adoption. The HTML rows above are untouched — `<div title={x}>` is still an attribute.
  */
 
 export const BOOLEAN_ATTRIBUTES = new Set([
@@ -31,6 +40,14 @@ export const BOOLEAN_ATTRIBUTES = new Set([
 ]);
 
 export const NAME_MAP = { className: 'class', htmlFor: 'for' };
+
+/**
+ * The attribute names a COMPONENT tag keeps as attributes: exactly `NAME_MAP`'s targets, derived
+ * rather than listed twice. These are the two names the DOM itself renamed because JS syntax
+ * refuses them as identifiers — which is also why they can never be the property spelling an
+ * author meant. Every other non-hyphenated name on a component is a prop.
+ */
+const RENAMED_ATTRIBUTES = new Set<string>(Object.values(NAME_MAP));
 
 /** The renderer's binding sigils. An attribute name that opens with one is the author's own choice. */
 const SIGILS = new Set(['.', '?', '@', '&']);
@@ -264,6 +281,23 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (/^on[A-Z]/.test(name)) {
       tpl.static(` @${name.slice(2).toLowerCase()}=`);
       tpl.expr(bound ? expression! : JSON.stringify(literal));
+      return;
+    }
+    /**
+     * **On a component tag, a bare prop is a PROP** — React's semantics, and the reason this
+     * surface exists. `date={d}`, `date="literal"` and the bare flag `active` all emit `.name`
+     * bindings (`active` is `true`, as JSX has always meant it), so the value reaches the
+     * component by identity and `init()`'s adoption makes it reactive; the runtime classifies the
+     * names this transform cannot — the element's own prototype chain hands `title` or `id` to
+     * the platform, a declared pair to its setter — which is what makes this safe with no name
+     * table here. Hyphenated names have no property spelling by construction, and `class`/`for`
+     * (`RENAMED_ATTRIBUTES`) were renamed by the DOM itself, so those stay attributes; the form
+     * guesses below (`value`/`checked`, the boolean table) are interpretations of HTML controls
+     * and deliberately never reach a component — its `disabled={x}` is its own prop.
+     */
+    if (_node.tag.includes('-') && !name.includes('-') && !RENAMED_ATTRIBUTES.has(name)) {
+      tpl.static(` .${name}=`);
+      tpl.expr(bound ? expression! : JSON.stringify(attribute.kind === 'none' ? true : literal));
       return;
     }
     if (name === 'value' || name === 'checked') {

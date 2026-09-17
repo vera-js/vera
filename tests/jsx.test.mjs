@@ -48,6 +48,30 @@ for (const expected of ['class="a"', ' for="f"', '.value=${s.v}', 'value="dv"', 
 }
 assert.ok(!emitted.includes('defaultValue') && !emitted.includes('dangerously'), 'react names fully translated');
 
+// ── 1b. on a COMPONENT tag, a bare prop is a PROP ──
+/**
+ * The emitted `.name` bindings land on the reception machinery `tests/component-props.test.mjs`
+ * pins end to end (adoption, platform hand-off, SSR delivery), so the runtime half is proven
+ * there; THIS matrix pins the grammar. The two exception families are derivations, not a
+ * vocabulary: hyphenated names have no property spelling by construction, and `class`/`for` are
+ * the two names the DOM itself renamed because JS refuses them as identifiers.
+ */
+const component = transformJsx(`
+const view = (s) => (
+  <calendar-day date={s.date} label="lit" active disabled={s.d} slot="side"
+    className="c" data-track="t" aria-label="cal" onPick={s.f}>
+    <div title={s.t} />
+  </calendar-day>
+);`, 'c.jsx', { inject: false });
+for (const expected of ['.date=${s.date}', '.label=${"lit"}', '.active=${true}', '.disabled=${s.d}',
+  '.slot=${"side"}', 'class="c"', 'data-track="t"', 'aria-label="cal"', '@pick=${s.f}']) {
+  assert.ok(component.includes(expected), `component mapping emits ${expected}`);
+}
+assert.ok(component.includes('title=${s.t}') && !component.includes('.title'),
+  'an HTML tag inside the component keeps attribute semantics — the rule is per element, not per file');
+assert.ok(!component.includes('?disabled'),
+  'the boolean-attribute guess is an HTML-control interpretation and never reaches a component');
+
 // ── 2. behavior: events, keyed identity, conditionals — through the real engine ──
 const mod = await compile(PRELUDE + `
 export const app = (s) => (

@@ -44,9 +44,10 @@ bundler or writing a test.
 
 ## What JSX means here
 
-Everything below is the *whole* mapping. An attribute that appears in none of these rules is written
-into the template verbatim, which is what you want for `data-*`, `aria-*`, `xlink:href` and every
-ordinary HTML attribute — **write those exactly as they appear in HTML**, not camel-cased.
+Everything below is the *whole* mapping. On an **HTML tag**, an attribute that appears in none of
+these rules is written into the template verbatim, which is what you want for `data-*`, `aria-*`,
+`xlink:href` and every ordinary HTML attribute — **write those exactly as they appear in HTML**,
+not camel-cased.
 
 | Written | Becomes | Notes |
 | --- | --- | --- |
@@ -70,6 +71,22 @@ ordinary HTML attribute — **write those exactly as they appear in HTML**, not 
 
 Boolean attributes: `disabled`, `hidden`, `readonly`, `required`, `open`, `selected`, `multiple`,
 `autofocus`, `autoplay`, `controls`, `loop`, `muted`, `playsinline`, `inert`, `reversed`.
+
+### On a component tag, a prop is a prop
+
+On a **dash-named tag**, JSX means what it means in React: `<calendar-day date={date} count={3}
+active>` passes `date`, `count` and `active` (`true`) as **properties**, by identity — the
+component reads `this.date`, reactively, with nothing declared (see `@verajs/core`'s Props
+section). `date="literal"` is a prop too, and none of the HTML-control guesses above apply —
+`disabled={x}` on a component is that component's own prop, not a `?disabled` toggle.
+
+No table decides which names qualify. Two derivations carve out the attributes: a **hyphenated
+name** (`data-*`, `aria-*`) has no property spelling by construction, and `class` / `for` (the two
+names the DOM itself renamed, because JS refuses them as identifiers) stay attributes — write
+`className` on components exactly as in React. Everything else is classified by the element's own
+prototype chain at runtime: `title`, `id`, `slot` or `style` land on the platform accessor that
+owns them and reflect as always, a class's declared `get`/`set` pair receives through its setter,
+and the rest adopt. Server rendering delivers the same props to the child's server render.
 
 ### Self-closing is JSX's syntax, not HTML's
 

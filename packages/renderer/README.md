@@ -662,10 +662,14 @@ html`<calendar-day ${props({ date, events })}></calendar-day>`
 
 ```jsx
 <calendar-day {...props({ date, events })}></calendar-day>
+<calendar-day date={date} events={events} />   // JSX only: bare props ARE props on a component tag
 ```
 
 One function, both surfaces — JSX compiles `{...x}` to `spread(x)`, and `spread()` recognises an
-already-branded result, so the two spellings are literally the same call. It exists because an
+already-branded result, so the two spellings are literally the same call. In JSX the bag is
+optional altogether: on a dash-named tag a bare prop compiles to the `.name` binding directly
+(`@verajs/jsx`'s README has the two attribute carve-outs), so `props()` is the template's
+spelling and the bag for names not known until runtime. It exists because an
 attribute is always a string: an array, a `Date` or a store can only reach a custom element as a
 property, and JSX's grammar cannot spell `.date=` at all.
 

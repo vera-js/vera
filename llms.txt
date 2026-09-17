@@ -458,6 +458,7 @@ import { props } from '@verajs/renderer/spread';
 
 html`<calendar-day ${props({ date, events })}></calendar-day>`   // template
 <calendar-day {...props({ date, events })}></calendar-day>        // JSX — compiles to the same call
+<calendar-day date={date} events={events} />                      // JSX — bare props ARE props on a component tag
 ```
 
 Use it to pass a NON-STRING to a custom element — an array, a `Date`, a store — which an attribute
@@ -1288,18 +1289,19 @@ blob. Bare specifiers inside resolve through the page's import map.
 9. **A custom element is written as itself** — `<my-comp foo={x}>…</my-comp>`, dashes and all. It is
    markup, not a function component, so it compiles into the template's statics rather than into a
    call. (Dashed tags did not parse before 0.2.0 and were emitted verbatim, which failed at load.)
-10. **Hand a custom element structured data with `.prop={…}`, never `prop={…}`.** All four renderer
-    sigils work in JSX and mean exactly what they mean in `html` — `.prop=`, `?bool=`, `@event=`,
-    `&ref=` — and a name written with one is passed through untouched rather than guessed at again.
-    Without the dot it is an *attribute*, and an attribute carries a string, so
-    `<x-rows rows={data}>` delivers `"1,2,3"` and `<x-rows .rows={data}>` delivers the array. This is
-    the only property binding besides `value` and `checked`, which are special-cased. (Before 0.2.0
-    `.rows={…}` was not an attribute name at all: the parser treated the file as "not JSX" and
-    emitted **the whole file** untransformed, so every other component in it stopped compiling too.)
-    Since 2026-09 the renderer **says so in development**: any non-primitive reaching an attribute
-    sink is named, with what it would become — an array joined by commas, a function as its own
-    source text, a `Date` carrying the timezone of whichever side rendered it. Primitives and `URL`
-    pass; the accepted set is a closed list, not a predicate.
+10. **On a component tag, a bare prop is a PROP — React's own semantics.**
+    `<x-rows rows={data} count={3} active>` passes `rows`, `count` and `active` (`true`) as
+    properties, by identity: the component reads `this.rows` reactively with nothing declared, and
+    SSR delivers the same props to the child's server render. The exceptions are derivations, not
+    a vocabulary: hyphenated names (`data-*`, `aria-*`) have no property spelling by construction,
+    and `class`/`for` — the two names the DOM itself renamed — stay attributes (write `className`,
+    as in React). None of the HTML-control guesses apply on components: `disabled={x}` is the
+    component's own prop, never a `?disabled` toggle. Platform names still behave: `title`, `id`,
+    `slot`, `style` land on the platform accessor that owns them and reflect as always. All four
+    renderer sigils (`.prop=`, `?bool=`, `@event=`, `&ref=`) also work in JSX and are passed
+    through untouched — spell one when you want a specific binding, e.g. `?bool` to toggle a real
+    attribute on a component for CSS. On an HTML tag, `rows={data}` is still an attribute, and the
+    renderer names any non-primitive reaching an attribute sink in development.
 11. **A name the mapping does not know is written verbatim**, so spell HTML attributes the way HTML
     does — `xlink:href`, not `xlinkHref`. Only `className`→`class` and `htmlFor`→`for` are renamed.
 12. **Self-closing is JSX's syntax, not HTML's, and the compiler normalises both directions.**
