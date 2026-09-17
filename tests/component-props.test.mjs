@@ -277,6 +277,24 @@ test('a non-vera get-only element gets the refusal from the renderer itself', ()
     'the renderer names the refusal — no init() means no other voice exists');
 });
 
+test('!prop on a component delivers the property — the client half of the SSR fixture’s live row', async () => {
+  /** `tests/ssr-component-props.test.mjs` pins `!live=${true}` rendering `true` server-side and
+   *  claims the client renders the same string; THIS is that pin — the claim held only by
+   *  reasoning until it existed. LIVE bindings write the property directly (no record, no adopt),
+   *  so the component reads a plain own property. */
+  customElements.define('cp-live', class extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.flag === undefined ? 'no-flag' : String(this.flag)}</p>`);
+    }
+  });
+  const host = mount();
+  renderInto(html`<cp-live !flag=${true}></cp-live>`, host);
+  await frame(); await frame();
+  assert.equal(text(host.querySelector('cp-live')), 'true',
+    'the live-bound property reaches the component — same string the server renders');
+});
+
 test('the drain runs once: a reconnect keeps the adopted values and their reactivity', async () => {
   customElements.define('cp-reconnect', class extends HTMLElement {
     connectedCallback() {
