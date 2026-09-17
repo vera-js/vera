@@ -51,6 +51,52 @@ document.body.append(document.createElement('click-counter'));
 Nothing here declares a dependency. `render` and `useEffect` subscribe to whatever they read while
 they run, so a write to `state.count` schedules exactly the work that read it.
 
+## Props — what a parent passes in
+
+A parent binds **properties**; the component reads them off `this`. Nothing is declared on either
+side — no `static properties`, no props argument to `init()`:
+
+<!-- recipe -->
+```js
+import { init, render, wire, html } from '@verajs/core';
+import { renderer, renderInto } from '@verajs/renderer';
+import { props } from '@verajs/renderer/spread';
+
+wire([renderer]);
+
+customElements.define(
+  'order-summary',
+  class extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.customer} — ${this.items.length} items</p>`);
+    }
+  }
+);
+
+renderInto(
+  html`<order-summary ${props({ customer: 'Ada', items: [{ sku: 'a' }, { sku: 'b' }] })}></order-summary>`,
+  document.body
+);
+```
+
+`init()` **adopts** what the parent's property bindings delivered: each bound key becomes a
+store-backed accessor on the element, so a read in a render is tracked and the parent's next
+commit re-renders — reactivity in both directions, with values arriving **by identity** (an
+array, a `Date`, a store or a `ref()` passed down stays itself, and stays live). Three things
+worth knowing:
+
+- **Values come from property bindings** — `.date=${…}` in a template, `props({ date })` in
+  either surface, or a sigil-keyed `spread()` bag. An attribute (`date="…"`) is a string in
+  markup, not a prop; the renderer README draws the full property/attribute line.
+- **Lazy modules are safe.** A value bound before the component's module ran would be destroyed
+  by class-field initializers at upgrade; the renderer records it and `init()` re-applies —
+  a bound value outranks a class default, in both field spellings (`item;` and `item = default`).
+- **A prop's default belongs where the prop is born**: bind
+  `props({ date: date ?? defaultDate })` in the parent, or read `this.date ?? defaultDate` in the
+  component — a class field initializer is not a default for a bound key, because bound always
+  wins.
+
 ## State
 
 | | |

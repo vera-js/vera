@@ -60,6 +60,22 @@ export type ComponentProperties = {
    * contract like `_hooks` and must never be mangled.
    */
   _root?: ShadowRoot;
+  /**
+   * What a parent's property bindings delivered before this element could receive them, recorded
+   * by `@verajs/renderer` (both its template parts and `spread`) and drained by `init()` into
+   * reactive accessors. A cross-BUNDLE contract, not just cross-package: the recorders live in
+   * separately built bundles on a CDN page, so the `_$…$` sigil is what keeps the name stable
+   * under mangling. Deleted by the drain; absent on any element whose parent bound nothing.
+   */
+  _$props$?: Record<string, unknown>;
+  /**
+   * The live half of the same contract: `init()` installs this receiver once per element, and a
+   * property delivered AFTER the drain — a hydrated child whose parent commits late, a spread bag
+   * growing a key on a live element — is handed here by the renderer instead of recorded. Adopting
+   * a key defines the store-backed accessor and seeds it, so a late prop is exactly as reactive as
+   * an early one.
+   */
+  _$adopt$?: (key: string, value: unknown) => void;
 };
 
 /** A constructed stylesheet paired with its source text — shared with `@verajs/styles`, one home. */

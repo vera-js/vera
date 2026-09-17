@@ -674,10 +674,36 @@ Three rules, each earned:
 - **Keys are property names, never sigils** — `props({ date })` binds `.date`. Events and boolean
   attributes keep their own spellings (`@click`/`onClick`, `?disabled`); this bag is properties
   only, by definition.
-- **A key that arrives later is still spelled now**: `props({ date: loaded ? date : null })` —
-  key present from the first render — never `props(loaded ? { date } : {})`.
+- **Prefer keys spelled conditionally over bags that change shape**:
+  `props({ date: loaded ? date : null })` — key present from the first render — over
+  `props(loaded ? { date } : {})`. Both work (a key that appears later on a component is adopted
+  live, and one that disappears restores what the element held), but a stable shape means values
+  update in place, the same reason templates prefer `?hidden` over swapped subtrees.
 - **A type argument makes the bag checked**: `props<CalendarDay>({ dat })` is a compile error
   naming the misspelling — the checking that sigil-keyed spread genuinely cannot have.
+
+### How a component receives them
+
+Nothing to declare on the other side — no `static properties`, no props argument. A component that
+calls `init()` finds every bound property on `this`, **reactively**: reading `this.date` in a
+render tracks it, the parent's next commit re-renders, and a store or `ref()` passed through stays
+live because it arrives by identity. The full reception contract — including what happens when the
+component's module loads *after* the parent rendered — is documented with `init()` in
+`@verajs/core`'s README; this package's half is the delivery:
+
+- **A property is not an attribute.** `date="…"` is an attribute — always a string, visible in
+  markup. `.date=${…}`/`props({ date })` is a property — any value, by identity, invisible to
+  `getAttribute`. Components receive **properties**; attributes are for CSS hooks and static
+  markup.
+- **Delivery survives lazy definition.** A property bound before the element's module runs would
+  otherwise be destroyed by the class's field initializers at upgrade (at ES2022,
+  `item?: T` emits a real `item;` that runs during upgrade). The renderer records what nothing
+  received yet, and `init()` re-applies it — so a bound value outranks a class default, in both
+  field spellings. Elements that never call `init()` keep the development warning and the
+  `declare` advice instead.
+- **Platform and foreign elements are untouched.** A property with an accessor anywhere —
+  `.title`, a Lit-style element, anything that already receives it — is delivered plainly and
+  never recorded.
 
 ### Removing a key
 

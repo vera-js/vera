@@ -1,6 +1,10 @@
 /**
  * A `.prop=${…}` binding on a custom element that has not upgraded yet is destroyed when the
- * element upgrades, and the framework reports it rather than repairing it.
+ * element upgrades. For an element that never calls `init()` — everything this file constructs —
+ * the framework reports it rather than repairing it; a component that DOES call `init()` has the
+ * bound value re-applied from the renderer's `_$props$` record, which is
+ * `tests/component-props.test.mjs`'s half of the contract. This file pins the never-drained half:
+ * the clobber still happens, development still warns, production stays silent.
  *
  * The mechanism: the property lands as an own property on an un-upgraded instance. When the
  * definition arrives — lazily imported, code-split, or a module that simply had not run yet —
@@ -9,13 +13,12 @@
  * `item?: Thing` emits `item;`, i.e. `Object.defineProperty(this, 'item', { value: undefined })`.
  * The bound value is gone before the component reads it, and nothing throws.
  *
- * Repair was implemented and then removed deliberately, which is what most of this file pins down.
- * Re-applying the value when the slot came back `undefined` handled `item?: Thing` but not
- * `item = someDefault` — that overwrites with the default and never looks clobbered, so the repair
- * was silently partial and made one mistake behave two different ways depending on spelling. It
- * also cost 74 B in every app while leaving `declare` mandatory regardless, because a property
- * assigned imperatively cannot be recovered by anyone: the renderer never saw it, and by the time
- * `init()` runs in `connectedCallback` the value is already gone.
+ * An earlier repair — no record, re-apply when the slot came back `undefined` — was removed as
+ * silently partial: `item = someDefault` overwrites with the default and never looks clobbered, so
+ * one mistake behaved two different ways depending on spelling. The record answers that (the drain
+ * re-applies unconditionally, both spellings), but only where a drain runs; imperative assignments
+ * the renderer never saw remain unrecoverable for anyone, which is why `declare` stays the advice
+ * for elements outside `init()`.
  *
  * Detection covers both spellings and costs production nothing.
  *

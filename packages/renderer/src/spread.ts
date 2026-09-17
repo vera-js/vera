@@ -100,6 +100,39 @@ const refusedSink = (key: string): string | null => {
 const UNSET = Symbol();
 
 /**
+ * The deliberate twin of `commitAdopt` in `./renderer.ts` — independent bundles, neither imports
+ * the other, so the rule is copied and a fix visits both. Full reasoning there; the short form:
+ * after the write, an accessor anywhere on the chain means something receives this property and
+ * the binding can latch onto the plain write for good. Unreceived, the value is recorded under the
+ * element-carried `_$props$` — the cross-bundle channel core's `init()` drains — and the latch
+ * closes once the element is upgraded (its record is final) or has no realm.
+ *
+ * Returns `true` when the binding should stop routing through here.
+ */
+const adopt = (element: Element, name: string, value: unknown): boolean => {
+  const el = element as unknown as Record<string, unknown>;
+  el[name] = value;
+  let carrier: object | null = el;
+  while (carrier !== null) {
+    const desc = Object.getOwnPropertyDescriptor(carrier, name);
+    if (desc !== undefined) {
+      if (desc.get !== undefined || desc.set !== undefined) return true;
+      break; // an own data property — the write above, or a field: nothing receives it
+    }
+    carrier = Object.getPrototypeOf(carrier);
+  }
+  /** An initialized component receives live through `_$adopt$` — a record after the drain would
+   *  never be read again. The door a spread bag's conditional key arrives through, reactive. */
+  if (el._$adopt$ !== undefined) {
+    (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+    return true;
+  }
+  ((el._$props$ ??= {}) as Record<string, unknown>)[name] = value;
+  const win = element.ownerDocument.defaultView as unknown as { HTMLElement: unknown } | null;
+  return win === null || el.constructor !== win.HTMLElement;
+};
+
+/**
  * A class, not an object literal, so `handleEvent` exists once on the prototype. As a literal it was
  * a fresh closure per bound key — allocation proportional to the size of every props bag.
  */
@@ -111,6 +144,10 @@ class Binding {
   _initial: unknown;
   _committed: unknown = UNSET;
   _handler: EventListener | null = null;
+  /** Twin of AttrPart's `PROP_ADOPT`: a property binding on a dashed tag goes through `adopt`
+   *  until something receives the property, then latches onto the plain write. Bindings persist
+   *  per element in `owned`, so the latch is safe here too. */
+  _recording = false;
 
   constructor(element: Element, key: string) {
     const first = key[0];
@@ -136,6 +173,7 @@ class Binding {
     this._kind = kind;
     this._name = name;
     this._element = element;
+    this._recording = kind === PROPERTY && element.localName.includes('-');
     this._initial =
       kind === ATTR
         ? element.getAttribute(name)
@@ -214,7 +252,9 @@ const write = (binding: Binding, value: unknown) => {
       element.setAttribute(name, `${value}`);
     }
   } else if (kind === PROPERTY) {
-    (element as unknown as Record<string, unknown>)[name] = value;
+    if (binding._recording) {
+      if (adopt(element, name, value)) binding._recording = false;
+    } else (element as unknown as Record<string, unknown>)[name] = value;
   } else if (kind === BOOLEAN) {
     element.toggleAttribute(name, !!value);
   } else if (kind === REF) {

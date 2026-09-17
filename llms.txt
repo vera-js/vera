@@ -462,10 +462,18 @@ html`<calendar-day ${props({ date, events })}></calendar-day>`   // template
 
 Use it to pass a NON-STRING to a custom element — an array, a `Date`, a store — which an attribute
 cannot carry and JSX cannot spell as `.date=`. Keys are property names, never sigils
-(`props({ date })` binds `.date`); events and booleans keep their own spellings. A key that arrives
-later is still spelled now — `props({ date: loaded ? date : null })`, key present from the first
-render, never `props(loaded ? { date } : {})`. With a type argument the bag is checked:
+(`props({ date })` binds `.date`); events and booleans keep their own spellings. Prefer keys
+spelled conditionally — `props({ date: loaded ? date : null })` — over bags that change shape
+(both work; a stable shape updates in place). With a type argument the bag is checked:
 `props<CalendarDay>({ dat })` is a compile error naming the misspelling.
+
+**Receiving props needs NO declaration.** A component that calls `init()` reads every bound
+property off `this`, reactively: a render that reads `this.date` tracks it, the parent's next
+commit re-renders, and a store or `ref()` passed down stays live (values arrive by identity). No `static properties`, no props argument, no `declare` needed — a value bound before
+the component's module ran is recorded and re-applied by `init()`, so a bound value outranks a
+class field default in both spellings (`item;` and `item = default`). Attributes are different:
+`date="…"` is always a string in markup; props are properties. Elements that never call `init()`
+(plain custom elements) get properties written plainly, exactly as before.
 
 Keys are strings carrying sigils, so TypeScript cannot check them against the element — the trade
 for names not known until runtime.
