@@ -1,11 +1,15 @@
 import { escapeHtml, escapeRawText } from './shim.js';
+import { registry } from './registry.js';
+import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
 
 /**
  * The vera-native template serializer: flattens core's `html` template objects to markup with
  * the renderer's sigil semantics applied server-side.
  *
  *   `?bool=${x}`   -> `bool=""` when truthy, nothing when falsy
- *   `.prop=${x}`   -> mirrored to an attribute for form state (value/checked/selected), else dropped
+ *   `.prop=${x}`   -> on a rendered COMPONENT tag, delivered to the instance the nested scan
+ *                     renders (by identity, never markup); on a form control, mirrored to an
+ *                     attribute (value/checked/selected); else dropped
  *   `@event=${fn}` -> dropped (behavior is the client's job)
  *   `&ref=${r}`    -> dropped
  *   `attr=${x}`    -> quoted, escaped
@@ -98,6 +102,8 @@ const BOOLEAN = 1;
 const FORM_PROP = 2;
 const DROPPED = 3;
 const ATTRIBUTE = 4;
+/** `.prop` on a component tag: delivered to the instance the scan will render, never markup. */
+const COMPONENT_PROP = 5;
 
 /** strings identity -> { parts, kinds, names } — computed once per call site, ever. */
 const plans = new WeakMap();
@@ -250,6 +256,13 @@ const compile = (strings) => {
    * difference is what the static ends with, so it is settled here rather than guessed at render.
    */
   const elementPositions = [];
+  /**
+   * Which ELEMENT each slot belongs to — an ordinal that advances when a tag opens. The owner tag
+   * NAME cannot tell two sibling `<x-row .item=${…}>`s apart, and component-prop delivery needs
+   * to: every slot sharing an ordinal delivers to one instance, per application.
+   */
+  const elements = [];
+  let elementOrdinal = 0;
   /** Names written so far in the tag being built — statics and earlier bindings alike. */
   let written = new Set();
   /** A spread's keys are runtime values, so a tag holding one can never be settled here. */
@@ -282,6 +295,7 @@ const compile = (strings) => {
       written = new Set();
       dynamicTag = false;
       owner = openTagName(part);
+      if (opensTag) elementOrdinal++;
     }
     /**
      * Names in the statics are recorded from the text that is actually **emitted**, which is the
@@ -305,6 +319,15 @@ const compile = (strings) => {
       const sigilName = sigil[2] ?? '';
       if (kind === '?') {
         kinds.push(BOOLEAN);
+      } else if (kind === '.' && sigilName && owner.includes('-')) {
+        /**
+         * A property on a COMPONENT tag is neither markup nor a client concern: it is the data the
+         * child renders from, so it is delivered to the instance the nested-component scan will
+         * render — before `FORM_ATTRIBUTES`, because `.value` on `<my-input>` is that component's
+         * prop, not a form control's dirty value. Whether the tag is actually registered is a
+         * render-time question (the registry fills as modules execute), answered in the case below.
+         */
+        kinds.push(COMPONENT_PROP);
       } else if ((kind === '.' || kind === '!') && FORM_ATTRIBUTES.includes(sigilName)) {
         kinds.push(FORM_PROP);
       } else {
@@ -316,6 +339,7 @@ const compile = (strings) => {
       raws.push(tagState.rawTag);
       attrValues.push(false);
       elementPositions.push(false);
+      elements.push(elementOrdinal);
       if (sigilName) written.add(sigilName.toLowerCase());
       continue;
     }
@@ -336,6 +360,7 @@ const compile = (strings) => {
       raws.push(tagState.rawTag);
       attrValues.push(false);
       elementPositions.push(false);
+      elements.push(elementOrdinal);
       continue;
     }
 
@@ -359,6 +384,7 @@ const compile = (strings) => {
       raws.push(tagState.rawTag);
       attrValues.push(false);
       elementPositions.push(false);
+      elements.push(elementOrdinal);
       written.add(name.toLowerCase());
       continue;
     }
@@ -380,6 +406,7 @@ const compile = (strings) => {
     /** Inside a tag, and not inside an attribute value: `<input ${ref} />`, `<b ${spread(…)}>`. */
     const elementPosition = tagState.inTag && !tagState.inValue;
     elementPositions.push(elementPosition);
+    elements.push(elementOrdinal);
     /** A spread's keys are unknown until it runs, so its tag can no longer be settled here. */
     if (elementPosition) dynamicTag = true;
   }
@@ -388,15 +415,64 @@ const compile = (strings) => {
   if (openQuote && last.startsWith(openQuote)) last = last.slice(1);
   parts.push(last);
 
-  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions };
+  const plan = { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements };
   plans.set(strings, plan);
   return plan;
 };
 
 export const serializeTemplate = (template) => {
   const { strings, values } = template;
-  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions } = plans.get(strings) ?? compile(strings);
+  const { parts, kinds, names, strip, owners, raws, attrValues, elementPositions, elements } =
+    plans.get(strings) ?? compile(strings);
   let out = '';
+  /**
+   * The instances this application is delivering properties to, keyed by element ordinal — so
+   * `<x-row .a=${…} .b=${…}>` builds ONE instance for both keys, and a list rendering the same
+   * template N times builds N (each application gets a fresh map). Created on the first delivered
+   * key; a template with no component props never allocates it.
+   */
+  let instances = null;
+  /**
+   * The marker for a just-built instance, held here rather than appended directly because the
+   * spread path folds `out` while delivering — a direct append mid-fold would be overwritten by
+   * the folded result. Each case that can deliver flushes it into the open tag it is building.
+   */
+  let pendingMark = '';
+  const instanceFor = (ordinal, tag) => {
+    instances ??= new Map();
+    let node = instances.get(ordinal);
+    if (node === undefined) {
+      node = new (registry.get(tag))();
+      node.localName = tag;
+      /**
+       * Registered exactly as `appendChild` registers a component-built child, and the marker is
+       * written into the open tag being emitted, so the nested-component scan renders THIS
+       * instance — the string boundary is crossed by the marker while the values stay on the
+       * node, by identity. `prepareInstance` unregisters and unstamps it as it renders, and the
+       * end-of-render sweep removes any marker whose tag never rendered.
+       */
+      pendingMark += ` ${INSTANCE_ATTRIBUTE}="${markPending(node)}"`;
+      instances.set(ordinal, node);
+    }
+    return node;
+  };
+  /**
+   * One delivery, shared by the written form and the spread form. `__proto__` is skipped for the
+   * same reason `renderToString`'s own `props` option skips it — `[[Set]]` replaces the element's
+   * prototype — and a throwing setter gets the same named refusal `prepareInstance` gives, since
+   * `Cannot set property x` names neither the component nor that a server render was running.
+   */
+  const deliver = (node, tag, name, value) => {
+    if (name === '__proto__') return;
+    try {
+      node[name] = value;
+    } catch (error) {
+      throw new TypeError(
+        `ssr: <${tag}> refused the bound property \`.${name}\` — ${String(/** @type {Error} */ (error).message)}. ` +
+          `A read-only property cannot be set; pass it as an attribute, or give the class a setter.`
+      );
+    }
+  };
   /**
    * Content that belongs *after* the tag being built rather than inside it — a `<textarea>`'s
    * value, which is text and not an attribute. Written into the next static right after the `>`
@@ -421,8 +497,23 @@ export const serializeTemplate = (template) => {
       case TEXT:
         /** A spread rewrites the open tag it sits in, so it is folded rather than appended. */
         if (value !== null && typeof value === 'object' && value._$attrs$) {
-          const folded = foldSpread(out, value._$attrs$());
+          /**
+           * A spread's property keys deliver exactly as the written form above does — `props()`
+           * IS a spread, so this is the surface the headline API arrives through. Lazily: the
+           * receiving instance is built on the spread's first property key, so a spread of plain
+           * attributes on a component never builds one.
+           */
+          const componentTag = owners[i].includes('-') && registry.has(owners[i]) ? owners[i] : '';
+          const folded = foldSpread(out, value._$attrs$(), (name, propValue) => {
+            if (componentTag === '') return false;
+            deliver(instanceFor(elements[i], componentTag), componentTag, name, propValue);
+            return true;
+          });
           out = folded.out;
+          if (pendingMark !== '') {
+            out += pendingMark;
+            pendingMark = '';
+          }
           if (folded.text !== null) pendingText = folded.text;
           if (folded.select !== null) out += ` ${SELECT_MARK}="${selectValues.push(folded.select) - 1}"`;
         }
@@ -556,7 +647,24 @@ export const serializeTemplate = (template) => {
         if (strip[i]) out = removeAttribute(out, names[i]);
         if (value != null) out += ` ${names[i]}="${escapeHtml(serializeValue(value, true))}"`;
         break;
-      /** DROPPED: '@' and '&' and a non-form '.' or '!': nothing — client concerns. */
+      case COMPONENT_PROP:
+        /**
+         * Delivered only when the tag is REGISTERED — a component this process will render, whose
+         * server output should come from the same data its client render gets. An unregistered
+         * dashed tag (client-only, autoloaded later) is left exactly as before: the tag passes
+         * through as markup, the property is the client's to apply, nothing here to receive it.
+         * Registration is asked per render, not per plan, because the registry fills as component
+         * modules execute.
+         */
+        if (registry.has(owners[i])) {
+          deliver(instanceFor(elements[i], owners[i]), owners[i], names[i], value);
+          if (pendingMark !== '') {
+            out += pendingMark;
+            pendingMark = '';
+          }
+        }
+        break;
+      /** DROPPED: '@' and '&' and a non-component, non-form '.' or '!': nothing — client concerns. */
     }
   }
   const tail = parts[kinds.length];
@@ -758,7 +866,7 @@ const removeAttribute = (out, name) => {
   return out.slice(0, tagStart) + stripAttribute(out.slice(tagStart), name);
 };
 
-const foldSpread = (out, entries) => {
+const foldSpread = (out, entries, deliverProp) => {
   const tagStart = out.lastIndexOf('<');
   let tag = out.slice(tagStart);
   let added = '';
@@ -770,6 +878,13 @@ const foldSpread = (out, entries) => {
   const owner = openTagName(out);
   const isFormElement = FORM_ELEMENTS.has(owner);
   for (const [kind, name, value] of entries) {
+    /**
+     * A property key on a rendered component tag is handed to the caller's delivery — the same
+     * door the written `.prop=${…}` form takes, because `props()` IS a spread and a key must mean
+     * the same thing in both spellings. The callback answers false off a component tag, and the
+     * key falls through to the rules below unchanged.
+     */
+    if (kind === 'p' && deliverProp !== undefined && deliverProp(name, value)) continue;
     const serializes =
       kind === 'a' || kind === 'b' || (kind === 'p' && isFormElement && FORM_ATTRIBUTES.includes(name));
     if (!serializes) continue;

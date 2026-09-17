@@ -635,10 +635,7 @@ export class ContainerShim extends EventTarget {
      * A registered component that has not rendered is marked, so the scan over this markup renders
      * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
      */
-    if (node?.openTag && registry.has(node.localName) && !node._rendered) {
-      node.setAttribute(INSTANCE_ATTRIBUTE, String(++instanceCount));
-      pendingInstances.set(String(instanceCount), node);
-    }
+    if (node?.openTag && registry.has(node.localName) && !node._rendered) markPending(node);
     /**
      * **A node cannot contain itself.** Retaining nodes makes this reachable where inlining markup
      * never could: appending an ancestor into its own descendant would recurse forever the next
@@ -2250,6 +2247,22 @@ export const pendingInstances = new Map();
 export const INSTANCE_ATTRIBUTE = `vera-ssr-${crypto.randomUUID()}`;
 
 let instanceCount = 0;
+
+/**
+ * Marks `node` as a prepared instance and returns its id, so the nested-component scan renders THIS
+ * instance rather than a fresh copy built from its markup. Two callers, one discipline:
+ * `appendChild` below, for an element a component built itself, and the template serializer, for a
+ * component tag whose property bindings it is delivering — both stamp the node (so `prepareInstance`
+ * can unregister it by the attribute) and both rely on the unguessable name above.
+ *
+ * @param {any} node @returns {string} the instance id, for the caller that writes markup itself
+ */
+export const markPending = (node) => {
+  const id = String(++instanceCount);
+  node.setAttribute(INSTANCE_ATTRIBUTE, id);
+  pendingInstances.set(id, node);
+  return id;
+};
 
 /** One `ElementInternals` per element, as `attachInternals` guarantees. */
 const internals = new WeakMap();

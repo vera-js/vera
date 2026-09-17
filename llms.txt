@@ -473,14 +473,19 @@ commit re-renders, and a store or `ref()` passed down stays live (values arrive 
 the component's module ran is recorded and re-applied by `init()`, so a bound value outranks a
 class field default in both spellings (`item;` and `item = default`). Attributes are different:
 `date="…"` is always a string in markup; props are properties. Elements that never call `init()`
-(plain custom elements) get properties written plainly, exactly as before.
+(plain custom elements) get properties written plainly, exactly as before. SSR included: a bound
+property reaches the child's SERVER render too (by identity, never markup), so server and client
+render the same content from the same data.
 
 Keys are strings carrying sigils, so TypeScript cannot check them against the element — the trade
 for names not known until runtime.
 
-SSR serializes a spread: attributes, truthy booleans and the form properties (`value`, `checked`,
-`selected`) reach markup; events and other properties are client state. Escaping stays in
-`@verajs/ssr`, in one place, exactly as for written bindings.
+SSR serializes a spread: attributes, truthy booleans and — on form controls — the form properties
+(`value`, `checked`, `selected`) reach markup; events are client state. A property on a rendered
+COMPONENT tag is DELIVERED to that child's server render instead (written `.prop` and
+`props()`/spread alike): the child SSRs from the same data its client render gets, the markup never
+carries the property, and an unregistered dashed tag passes through for the client to handle.
+Escaping stays in `@verajs/ssr`, in one place, exactly as for written bindings.
 
 **The protocol is public.** A value at element position carrying `_$apply$(element, part)` applies
 itself, and `_$attrs$()` lets it serialize server-side. Spread is the first user; any renderer

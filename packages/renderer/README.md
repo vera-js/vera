@@ -704,6 +704,9 @@ component's module loads *after* the parent rendered — is documented with `ini
 - **Platform and foreign elements are untouched.** A property with an accessor anywhere —
   `.title`, a Lit-style element, anything that already receives it — is delivered plainly and
   never recorded.
+- **SSR delivers, never serializes.** Under `@verajs/ssr`, a property bound on a rendered
+  component tag reaches that child's server render by identity — the markup never carries it, and
+  an unregistered tag passes through for the client to handle.
 
 ### Removing a key
 

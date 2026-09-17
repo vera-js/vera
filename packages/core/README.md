@@ -96,6 +96,9 @@ worth knowing:
   `props({ date: date ?? defaultDate })` in the parent, or read `this.date ?? defaultDate` in the
   component — a class field initializer is not a default for a bound key, because bound always
   wins.
+- **SSR delivers them too.** Under `@verajs/ssr`, a property bound on a rendered component tag
+  reaches that child's server render by identity, so the server's output comes from the same data
+  the client render gets.
 
 ## State
 
