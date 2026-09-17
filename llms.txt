@@ -462,7 +462,9 @@ html`<calendar-day ${props({ date, events })}></calendar-day>`   // template
 ```
 
 Use it to pass a NON-STRING to a custom element — an array, a `Date`, a store — which an attribute
-cannot carry and JSX cannot spell as `.date=`. Keys are property names, never sigils
+cannot carry. In JSX, bare props (rule 10 below) or the sigil spelling `.date={d}` do the same job;
+props() is the bag TSX's type-checker is happiest with (`.date=` trips TS1003 there) and the one
+that checks its keys against the element. Keys are property names, never sigils
 (`props({ date })` binds `.date`); events and booleans keep their own spellings. Prefer keys
 spelled conditionally — `props({ date: loaded ? date : null })` — over bags that change shape
 (both work; a stable shape updates in place). With a type argument the bag is checked:

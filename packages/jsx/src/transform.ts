@@ -232,7 +232,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     }
   };
 
-  const emitAttribute = (_node: JsxNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
+  const emitAttribute = (_node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
     if (attribute.spread) {
       /**
        * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is

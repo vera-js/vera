@@ -671,7 +671,8 @@ optional altogether: on a dash-named tag a bare prop compiles to the `.name` bin
 (`@verajs/jsx`'s README has the two attribute carve-outs), so `props()` is the template's
 spelling and the bag for names not known until runtime. It exists because an
 attribute is always a string: an array, a `Date` or a store can only reach a custom element as a
-property, and JSX's grammar cannot spell `.date=` at all.
+property — and while vera's JSX accepts the sigil spelling `.date={d}`, TSX's type-checker refuses
+it (TS1003), so the bag is the typed path.
 
 Three rules, each earned:
 

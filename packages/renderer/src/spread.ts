@@ -543,7 +543,8 @@ export const spread = (props: Record<string, unknown>): SpreadResult => {
  * ```
  *
  * Exists because an attribute is always a string: an array, a `Date` or a store can only reach a
- * custom element as a property, and JSX's grammar cannot spell `.date=` (`TS1003`). Every key is a
+ * custom element as a property — vera's JSX accepts the sigil spelling, TSX's type-checker refuses
+ * it (`TS1003`), and this bag is the typed path either way. Every key is a
  * property NAME, never a sigil — `props({ date })` binds `.date`, so `props({ '.date': d })` would
  * bind `..date` and is the caller's mistake to keep.
  *
