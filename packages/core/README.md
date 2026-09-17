@@ -97,8 +97,10 @@ worth knowing:
   component — a class field initializer is not a default for a bound key, because bound always
   wins.
 - **A class that declares its own accessors keeps them.** A `get item()`/`set item()` pair
-  receives bound values through the setter — adoption never shadows it — and a getter with no
-  setter refuses the binding by name in development instead of silently losing the value.
+  receives bound values through the setter — adoption never shadows it — which also means the
+  pair owns its reactivity: back it with your own store (`set item(v) { this.#state.item = v }`)
+  and later commits re-render exactly as adopted props do. A getter with no setter refuses the
+  binding by name in development instead of silently losing the value.
 - **SSR delivers them too.** Under `@verajs/ssr`, a property bound on a rendered component tag
   reaches that child's server render by identity, so the server's output comes from the same data
   the client render gets.

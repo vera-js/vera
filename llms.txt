@@ -472,10 +472,12 @@ property off `this`, reactively: a render that reads `this.date` tracks it, the 
 commit re-renders, and a store or `ref()` passed down stays live (values arrive by identity). No `static properties`, no props argument, no `declare` needed — a value bound before
 the component's module ran is recorded and re-applied by `init()`, so a bound value outranks a
 class field default in both spellings (`item;` and `item = default`). Attributes are different:
-`date="…"` is always a string in markup; props are properties. Elements that never call `init()`
-(plain custom elements) get properties written plainly, exactly as before. SSR included: a bound
-property reaches the child's SERVER render too (by identity, never markup), so server and client
-render the same content from the same data.
+`date="…"` is always a string in markup; props are properties. A class declaring its own
+`get`/`set` pair keeps it — values arrive through the setter, and the pair owns its reactivity
+(back it with your own store). Elements that never call `init()` (plain custom elements) get
+properties written plainly, exactly as before. SSR included: a bound property reaches the child's
+SERVER render too (by identity, never markup), so server and client render the same content from
+the same data.
 
 Keys are strings carrying sigils, so TypeScript cannot check them against the element — the trade
 for names not known until runtime.

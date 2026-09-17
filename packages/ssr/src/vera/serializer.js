@@ -491,12 +491,6 @@ export const serializeTemplate = (template) => {
     plans.get(strings) ?? compile(strings);
   let out = '';
   /**
-   * The instances this application is delivering properties to, keyed by element ordinal — so
-   * `<x-row .a=${…} .b=${…}>` builds ONE instance for both keys, and a list rendering the same
-   * template N times builds N (each application gets a fresh map). Created on the first delivered
-   * key; a template with no component props never allocates it.
-   */
-  /**
    * The instances this application is delivering properties to, allocated on the FIRST
    * component-prop slot — `serializeTemplate` is the hot path the public SSR numbers rest on, and
    * a template with no component props (almost all of them) must pay one `null` local and nothing
