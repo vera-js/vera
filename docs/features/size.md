@@ -134,7 +134,7 @@ describing the bytes honestly.)*
 | `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
 | `@verajs/renderer/slots` | 3 426 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
-| `@verajs/renderer/hydrate` | 6 427 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
+| `@verajs/renderer/hydrate` | 6 442 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
 | `@verajs/inserts` | 357 B | the extension point |
 | `@verajs/directives/core` | 6 158 B | the engine — registry, activation, context, delegation (core external) |
 | `@verajs/directives/standalone` | 7 487 B | the engine with its own store, for a page running no vera |

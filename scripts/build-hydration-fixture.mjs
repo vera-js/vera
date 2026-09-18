@@ -57,7 +57,16 @@ const contents =
     await fixture('slot-card-ssr.js', {
       children: '<h2 slot="header">Hydrated header</h2>plain body<b>bold</b><p slot="nowhere">parked</p>',
     })
-  )};\n`;
+  )};\n` +
+  /**
+   * COMPONENT PROPS, delivered server-side and re-delivered by hydration. The server renders each
+   * child from the values its parent bound (written `.prop`, `!prop`, `props()`/spread, and a
+   * list); the browser suite asserts hydration converges on the same content and that the adopted
+   * props are live afterwards. This is the seam nothing else exercises through the real pipeline:
+   * the child hydrates BEFORE its parent's parts commit, so the props arrive late, through
+   * `_$adopt$` — the ordering jsdom suites can only imitate.
+   */
+  `export const COMPONENT_PROPS_HTML = ${JSON.stringify(await fixture('component-props-ssr.js'))};\n`;
 
 if (check) {
   let committed;

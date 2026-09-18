@@ -1188,13 +1188,27 @@ class AttrPart implements Part {
     if (kind === LIVE) {
       this._committed = value;
       /**
-       * **Except while adopting.** Hydration reaches a DOM a person may already have used, and the
-       * click that checked a radio happened before any handler existed to tell the store about it —
-       * so re-asserting the server's choice here would throw the interaction away and nothing would
-       * ever put it back. Recorded, not written, exactly as the other form properties are; the
-       * first state-driven render after that applies live semantics normally.
+       * **Except while adopting — on a form control.** Hydration reaches a DOM a person may
+       * already have used, and the click that checked a radio happened before any handler existed
+       * to tell the store about it — so re-asserting the server's choice here would throw the
+       * interaction away and nothing would ever put it back. Recorded, not written, exactly as
+       * the other form properties are; the first state-driven render after that applies live
+       * semantics normally.
+       *
+       * **A COMPONENT tag is the exception to the exception**: there is no user-editable carrier
+       * behind `!prop` on a component — it is a property delivery spelled with `!` — and the
+       * server DELIVERED it to the child's render, so yielding here dropped the one copy the
+       * client would ever get and hydration regressed the child's content to its prop-less state.
+       * Found by the hydration fixture on its first run. The write is unconditional and routes
+       * through the element like any component prop: an accessor receives it, an initialized
+       * component adopts it live.
        */
-      if (!(__HYDRATING__ && adopting)) {
+      if (__HYDRATING__ && adopting) {
+        /** Routed through `commitAdopt`, not written raw: the child hydrated BEFORE this commit,
+         *  so only the adoption door re-runs its render. The part stays `LIVE` — the return is
+         *  deliberately dropped — so live semantics resume on the next state-driven render. */
+        if (this._element.localName.includes('-')) commitAdopt(this._element, this._name, value);
+      } else {
         const liveTarget = this._element as unknown as Record<string, unknown>;
         if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
       }

@@ -59,8 +59,8 @@
       "gzip": 3426
     },
     "hydrate": {
-      "raw": 17553,
-      "gzip": 6427
+      "raw": 17611,
+      "gzip": 6442
     },
     "inserts": {
       "raw": 486,

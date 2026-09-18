@@ -22,7 +22,7 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | `@verajs/store/collections` | 1.06 KB | 571 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 8.98 KB | 3.35 KB |
-| `@verajs/renderer/hydrate` | 17.14 KB | 6.28 KB |
+| `@verajs/renderer/hydrate` | 17.20 KB | 6.29 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 | `@verajs/directives` | 15.59 KB | 6.01 KB |
 | `@verajs/directives/directives-standalone` | 19.09 KB | 7.31 KB |
