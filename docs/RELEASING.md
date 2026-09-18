@@ -27,7 +27,7 @@ git push --follow-tags
 
 **Commit before tagging.** `tag-release.mjs` tags `HEAD`, so running it first points every tag at
 the commit *before* the bump — a `@verajs/core@0.2.1` tag on a tree that still says `0.2.0`. It does
-not break publishing, because CI compares master's manifests against the registry and never reads a
+not break publishing, because CI compares main's manifests against the registry and never reads a
 tag, which is why the ordering was wrong here for several releases without anyone noticing. It does
 make every tag a lie about what it contains.
 
@@ -44,7 +44,7 @@ credential anywhere.
 
 ## What CI does
 
-[`release.yml`](../.github/workflows/release.yml) runs on every push to `master` and executes
+[`release.yml`](../.github/workflows/release.yml) runs on every push to `main` and executes
 `changeset publish`, which publishes any package whose version is not yet on npm and **skips
 everything already published**. A push with no version change is a green no-op.
 

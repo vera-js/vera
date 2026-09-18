@@ -100,7 +100,7 @@ for (const { dir, name, version } of packages) {
   /**
    * A package with no tags at all has never been released, so an untagged current version is its
    * normal state rather than a botched release — the tag arrives when it is first published. This
-   * check exists to catch a version *bumped* on master without its tag, which cannot be true of a
+   * check exists to catch a version *bumped* on main without its tag, which cannot be true of a
    * package that has never had one. Reported so it is visible, not failed.
    */
   if (!allTags.some((t) => t.startsWith(`${name}@`))) {

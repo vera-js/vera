@@ -495,7 +495,7 @@ Both ordering rules are load-bearing and both were wrong here at some point. Ski
 publishes nothing while CI reports success; tagging before it points every tag at the pre-bump
 commit. Full walkthrough in `docs/RELEASING.md`.
 
-CI publishes whatever master has that npm does not, authenticated by npm **Trusted Publishing**
+CI publishes whatever main has that npm does not, authenticated by npm **Trusted Publishing**
 (OIDC). Three invariants that silently break publishing if violated:
 
 - **`release.yml` must keep its name** — the trust binding on every published package names

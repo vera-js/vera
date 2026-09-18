@@ -1,12 +1,12 @@
 name: Release
 on:
   push:
-    branches: [master]
+    branches: [main]
 concurrency: release-${{ github.ref }}
 
 # Releases are cut locally: `npx changeset version` bumps versions and writes
 # CHANGELOGs, you review the diff, commit and push. This workflow publishes
-# whatever is on master and not yet on npm. `changeset publish` skips anything
+# whatever is on main and not yet on npm. `changeset publish` skips anything
 # already published, so an ordinary push is a green no-op.
 #
 # Deliberately no Version PR. See internal/docs/RELEASE-DESIGN.md for the full
@@ -38,7 +38,7 @@ jobs:
         run: |
           pending=$(ls .changeset/*.md 2>/dev/null | grep -cv 'README' || true)
           if [ "${pending:-0}" -gt 0 ]; then
-            echo "::notice::${pending} changeset(s) on master have not been versioned. Nothing will publish until 'npx changeset version' is run and pushed."
+            echo "::notice::${pending} changeset(s) on main have not been versioned. Nothing will publish until 'npx changeset version' is run and pushed."
           fi
 
       - name: Publish to npm
