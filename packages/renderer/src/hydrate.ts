@@ -39,10 +39,11 @@ import {
   renderer as baseRenderer,
   declareRemovalWork,
 } from './renderer.js';
-import type { Template, Part, Item, TemplateResult, KeyedResult } from './renderer.js';
+import type { Template, Item, KeyedResult } from './renderer.js';
+import type { Part, TemplateResult } from './types.js';
 
 export { hold } from './renderer.js';
-export type { TemplateResult } from './renderer.js';
+export type { TemplateResult } from './types.js';
 
 /** Internal bail signal — never escapes `tryAdopt`. */
 const MISMATCH = {};
@@ -185,7 +186,7 @@ type AdoptState = {
   _nodeIndex: number;
   _out: Part[];
   /** Taken-over slot states — parked at teardown, never committed (kept OUT of `_parts`). */
-  _slotStates?: import('./renderer.js').SlotSeamState[];
+  _slotStates?: import('./types.js').SlotSeamState[];
 };
 
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in

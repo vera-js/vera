@@ -88,7 +88,18 @@ bag imports nothing, so the import-graph-root property is not at stake). Everyth
 cross-file or public still moves to `types.ts`.
 `types.ts` **imports nothing from inside its own package** — `@verajs/shared-types` only — so it
 sits at the root of the package's import graph and circular imports among a package's modules are
-structurally impossible, not accidentally avoided. A type two *packages* share lives in
+structurally impossible, not accidentally avoided. That property is not decorative: when
+`@verajs/renderer` finally got a `types.ts` on 2026-09-17 it dissolved a live cycle nobody had
+noticed, `profiler.ts` ↔ `overlay.ts`, each importing the other's type.
+
+**The one structural limit, recorded 2026-09-17 rather than left as a silent violation.** A type
+whose definition NAMES a runtime value in the same package — a class, a const — is downstream of
+that value in the import graph by definition, and cannot be hoisted above it. `ListStrategy` names
+the `ChildPart` class and `Item` names `Instance`, so both stay beside those classes with a comment
+saying why, and `KeyedResult` follows the type it composes. The alternative is to restate the
+class's shape in `types.ts`, which is the twin this section already forbids two paragraphs down.
+This is a limit on what the rule can reach, not permission to keep data shapes out of `types.ts`:
+everything that names no runtime value still moves. A type two *packages* share lives in
 `@verajs/shared-types`, and each package re-exports it so its own public surface stays whole.
 Always `.ts`, never a hand-written `.d.ts` — declaration files describe existing JS; as source they
 are a twin waiting to drift.

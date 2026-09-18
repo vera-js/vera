@@ -43,41 +43,13 @@ import {
 } from './renderer.js';
 import type { ChildPart } from './renderer.js';
 import { mountOverlay } from './overlay.js';
-import type { OverlayOptions } from './overlay.js';
+import type { Churn, OverlayOptions, ProfileReport } from './types.js';
 
-export type { OverlayOptions } from './overlay.js';
+export type { Churn, OverlayOptions, ProfileReport } from './types.js';
 
 export { renderInto, hold, renderer } from './renderer.js';
-export type { TemplateResult } from './renderer.js';
+export type { TemplateResult } from './types.js';
 
-/** One template identity replacing another at the same position, and how often. */
-export type Churn = {
-  /** The template that was torn down, rendered readably. */
-  from: string;
-  /** The template that replaced it. */
-  to: string;
-  /** How many times this exact swap happened while profiling. */
-  count: number;
-  /** Where in the DOM it happened, e.g. `main#app > ul.list`. First occurrence only. */
-  where: string;
-};
-
-export type ProfileReport = {
-  /** Completed top-level `render()` calls. Nested renders are folded into their outermost frame. */
-  frames: number;
-  /** Total milliseconds spent inside `render()`. */
-  ms: number;
-  /** The slowest single frame, in milliseconds. */
-  slowestFrameMs: number;
-  /** Templates committed in place — the good path. */
-  updates: number;
-  /** Templates rendered into a slot that held nothing. Unavoidable and not a problem. */
-  creates: number;
-  /** Templates that replaced a *different* template — a teardown, not an update. */
-  rebuilds: number;
-  /** Rebuilds grouped by template pair, worst first. */
-  churn: Churn[];
-};
 
 let active = false;
 let frames = 0;

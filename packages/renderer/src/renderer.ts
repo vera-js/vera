@@ -60,14 +60,9 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-export type TemplateResult = {
-  /** 1 = html, 2 = svg, 3 = mathml — the markers core's built-in tags produce. */
-  _$litType$?: number;
-  strings: TemplateStringsArray;
-  values: unknown[];
-  /** Set by `keyed()`; drives keyed list reconciliation. */
-  key?: unknown;
-};
+import type { Part, SlotSeamState, TemplateResult } from './types.js';
+
+export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
 
 /**
@@ -443,9 +438,6 @@ type TemplatePart = {
  * applier precedent). An app that never wires it pays one registry lookup per template
  * CONSTRUCTION (once per shape) and nothing per render.
  */
-/** The state a taken-over slot hands back; `_$park$` (sigiled, mangle-safe) is called before the
- *  instance's DOM is bulk-discarded so the USER'S nodes are rescued first. */
-export type SlotSeamState = { _$park$?: () => void };
 /** The registered `'slot'` insert is a plain function per wire's contract: take over one cloned
  *  `<slot>` for the given root, or decline with null/undefined (native slotting proceeds). */
 type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
@@ -783,10 +775,6 @@ const getTemplate = (result: TemplateResult) => {
 };
 
 /** Anything bound to a live position: commits values[index..], returns the next value index. */
-type Part = {
-  _commit(values: unknown[], index: number): number;
-};
-
 const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 
 /** Never equal to any user value, so the first commit always runs. */
@@ -1414,6 +1402,17 @@ const detachItem = (item: Item) => {
 };
 
 /**
+ * **These three stay here rather than in `types.ts`, and the reason is structural.**
+ *
+ * `ListStrategy` names the `ChildPart` class and `Item` names `Instance`, which puts both
+ * downstream of this file in the import graph — a `types.ts` that imported them would stop being
+ * the graph's root, which is the single property §1 asks of it. `KeyedResult` composes
+ * `ListStrategy` and inherits the same position. Restating those classes structurally in
+ * `types.ts` to satisfy the letter of the rule would create the twin §1 forbids, so the rule
+ * records the limit instead.
+ */
+
+/**
  * A value that names the strategy able to reconcile a list of its kind. `keyed()` in
  * `@verajs/renderer/keyed` is the only producer today; the shape is deliberately open so a
  * virtualizer or an async list can ship as its own module without this file learning about it.
@@ -1429,6 +1428,11 @@ export type ListStrategy = (
   end: Node | null
 ) => Item[];
 
+/**
+ * A `TemplateResult` that `keyed()` has marked, so the child part reconciles it as a list instead
+ * of replacing the subtree. `$r` is absent on every ordinary template, which is what keeps the
+ * unkeyed path free of any list machinery.
+ */
 export type KeyedResult = TemplateResult & { $r?: ListStrategy };
 
 /**
@@ -1738,7 +1742,7 @@ class TextPart implements Part {
  * `previous` is whatever this applier returned at this part on the last render, which is where a
  * applier keeps its continuity. Returning nothing is fine for one that has none.
  */
-export type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
+type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
   /**
    * Optional teardown, hung on the **applier** rather than on the value.
    *
@@ -1763,7 +1767,7 @@ export type Applier = ((part: { _$commit$(value: unknown): void }, previous: unk
  * portal, a virtualizer. The built-ins below register through it too, so a third party's kind is
  * not second-class to one that shipped in the box.
  */
-export type ValueHandler = (part: object, value: unknown) => boolean | void;
+type ValueHandler = (part: object, value: unknown) => boolean | void;
 
 /**
  * The registry this renderer reads `'value'` handlers from, handed over by {@link renderer}.
@@ -2548,7 +2552,7 @@ export {
   PROFILE_FRAME_END,
 };
 /** @internal */
-export type { Part, Item, TemplatePart };
+export type { Item, TemplatePart };
 
 
 /**

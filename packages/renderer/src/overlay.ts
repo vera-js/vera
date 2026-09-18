@@ -11,16 +11,10 @@
  * 3. **It must work with no toolchain**, like everything else here — no CSS file, no framework,
  *    one import.
  */
-import type { ProfileReport } from './profiler.js';
+import type { OverlayOptions, ProfileReport } from './types.js';
 
-export type OverlayOptions = {
-  /** Corner to pin to. Default `bottom-right`. */
-  corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-  /** How often to repaint, in milliseconds. Default 400. */
-  interval?: number;
-  /** Churn rows to show before collapsing the rest into a count. Default 4. */
-  rows?: number;
-};
+export type { OverlayOptions } from './types.js';
+
 
 const CSS = `
 :host { all: initial; }
