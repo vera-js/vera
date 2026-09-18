@@ -1653,8 +1653,9 @@ const isTemplateResult = (value: object): value is TemplateResult =>
  * silent for exactly the common case. One function, two call sites, per the standing rule that a
  * deliberate duplication is a fix's second address.
  *
- * Reached only on a COMMIT, so it is not once-per-render: both sinks dirty-check first, and an
- * unchanged value never arrives twice.
+ * Both sinks gate this on the value CHANGING — not merely on reaching a commit — so an unchanged
+ * `false` is reported once and not once per render. `ChildPart` needed that stated explicitly: its
+ * dirty check sits below, and calling this above it spammed every pass.
  */
 const warnBooleanChild = (value: unknown): void => {
   if (typeof value !== 'boolean') return;
@@ -2068,7 +2069,14 @@ class ChildPart implements Part {
       return;
     }
     if (typeof value !== 'object') {
-      if (__DEV__) warnBooleanChild(value);
+      /**
+       * Gated on the value CHANGING, which is the same condition the commit below uses. Called
+       * before that check it fired on every render of an unchanged `false` — a channel that
+       * repeats is as useless as one that stays silent, and the comment on `warnBooleanChild`
+       * claimed this was already true. `_value` holds whatever was last committed here, so a part
+       * arriving from a template state differs and reports once.
+       */
+      if (__DEV__ && this._value !== value) warnBooleanChild(value);
       if (this._mode === TEXT) {
         if (this._value !== value) {
           this._value = value;

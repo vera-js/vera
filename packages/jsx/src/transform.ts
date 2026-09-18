@@ -66,7 +66,8 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
  * from any module that compiles no JSX children.
  */
 const CHILD_HELPER = '$veraChild';
-const CHILD_HELPER_SOURCE = `const ${CHILD_HELPER} = (v) => (typeof v === 'boolean' ? null : v);\n`;
+/** Its body, beside its name — the two are one fact, and a caller resolves the name per module. */
+const childHelperSource = (name: string) => `const ${name} = (v) => (typeof v === 'boolean' ? null : v);\n`;
 
 /** The renderer's binding sigils. An attribute name that opens with one is the author's own choice. */
 const SIGILS = new Set(['.', '?', '@', '&']);
@@ -110,6 +111,22 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [mathmlName, mathmlFrom] = options.mathml ?? ['mathml', '@verajs/core'];
 
   const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedSvg: false, usedMathml: false, usedChild: false };
+
+  /**
+   * **A name the module does not already use**, because injecting a second `const $veraChild`
+   * makes the whole module a `SyntaxError` — *"Identifier '$veraChild' has already been
+   * declared"* — and in a browser that is caught and logged, so the page simply does nothing.
+   *
+   * This repo has met that failure before, one line away: the import injector carries a `bound`
+   * set for exactly it, after a duplicate `import { html }` killed modules the same way. The
+   * lesson was recorded there and this reintroduced it, which is what the standing rule about a
+   * house rule living in one of two homes is about.
+   *
+   * A text search rather than a scope analysis, matching this transform's lexical design: a hit
+   * inside a string or a comment only makes it pick a different name, which costs nothing.
+   */
+  let childHelper = CHILD_HELPER;
+  for (let n = 2; code.includes(childHelper); n++) childHelper = `${CHILD_HELPER}${n}`;
 
   /**
    * **The content mode a JSX expression sits in, tracked lexically** — the namespace fix React
@@ -280,7 +297,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * about falsiness, which is why it cannot be a truthiness test.
        */
       state.usedChild = true;
-      tpl.expr(`${CHILD_HELPER}(${emitExpression(child.expr, child.roots, child.exprStart, mode)})`);
+      tpl.expr(`${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart, mode)})`);
     } else {
       emitInto(child as JsxNode, tpl, false, mode);
     }
@@ -432,7 +449,15 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           const text = collapseText(child.text);
           if (text !== '') children.push(JSON.stringify(text));
         } else if ('expr' in child && child.expr !== undefined) {
-          children.push(emitExpression(child.expr, child.roots, child.exprStart, mode));
+          /**
+           * A component's children take the same rule as an element's, because the author wrote
+           * the same thing: `<Row>{cond && <em/>}</Row>` must not hand `Row` a `false` that its
+           * own `${children}` then renders as the word. Filtered to `null`, so the array's LENGTH
+           * is unchanged for a component that counts its children — only what renders differs.
+           * A nested JSX element below needs no filter: a template result is never a boolean.
+           */
+          state.usedChild = true;
+          children.push(`${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart, mode)})`);
         } else {
           children.push(emitRoot(child as JsxNode, mode));
         }
@@ -505,6 +530,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * by the equivalence suites, which compile with `inject: false`; a user of that option would
    * have met the same ReferenceError.
    */
-  if (state.usedChild) prefix += CHILD_HELPER_SOURCE;
+  if (state.usedChild) prefix += childHelperSource(childHelper);
   return prefix + out;
 };

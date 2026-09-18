@@ -123,6 +123,34 @@ assert.ok(svgInjected.includes("import { svg } from '@verajs/core';"), 'the svg 
   assert.ok(!transformJsx('export const v = <b>static</b>;', 'g.jsx').includes('$veraChild'),
     'a module with no child expressions carries no helper at all');
 
+  /**
+   * **The helper must not collide with a name the module already uses.** A second
+   * `const $veraChild` is a SyntaxError that kills the whole module — the same failure a
+   * duplicate `import { html }` caused before the import injector grew its `bound` set, which is
+   * why this is pinned rather than trusted. A text search is the right granularity here: a hit in
+   * a comment or a string only costs a different name.
+   */
+  const owned = transformJsx('const $veraChild = 1; export const v = (x) => <p>{x}</p>;', 'h.jsx', { inject: false });
+  assert.match(owned, /const \$veraChild2 = \(v\)/, 'the helper steps aside when the name is taken');
+  assert.match(owned, /\$veraChild2\(x\)/, 'and the call site uses the same stepped-aside name');
+  assert.equal((owned.match(/const \$veraChild\b/g) ?? []).length, 1, 'the author’s own declaration is untouched');
+  const both = transformJsx('const $veraChild = 1, $veraChild2 = 2; export const v = (x) => <p>{x}</p>;', 'i.jsx', { inject: false });
+  assert.match(both, /const \$veraChild3 = /, 'and keeps stepping until the name is free');
+
+  /**
+   * **A COMPONENT's children take the same rule**, because the author wrote the same thing.
+   * Without it `<Row>{cond && <em/>}</Row>` handed `Row` a `false` that its own `${children}`
+   * rendered as the word — measured before this was added. Filtering to `null` leaves the array's
+   * length alone, so a component that counts its children is unaffected.
+   */
+  const kids = transformJsx('const v = <Row>{c && <em/>}</Row>;', 'j.jsx', { inject: false });
+  assert.match(kids, /children: \[\$veraChild\(c && /, 'a component child expression is filtered too');
+  assert.doesNotMatch(
+    transformJsx('const v = <Row><em>x</em></Row>;', 'k.jsx', { inject: false }),
+    /\$veraChild/,
+    'a nested ELEMENT child needs no filter — a template result is never a boolean'
+  );
+
   const mod = await compile(PRELUDE + 'export const v = (s) => <b>{s.f && <i>x</i>}</b>;\n' +
     'export const t = (s) => <b>{s.t && <i>x</i>}</b>;\n' +
     'export const z = (s) => <b>{s.zero && <i>x</i>}</b>;');

@@ -183,8 +183,17 @@ React's rule, in the grammar React users write:
 
 A hand-written template renders the word **"false"** there, matching lit — and `@verajs/renderer`
 says so in development. **This is the one value semantic on which JSX and a template differ.** It is
-done by filtering the child in your own module (a ~45-byte local the compiler injects), so the
-renderer and `@verajs/ssr` never learn a new rule: they receive `null`, which they already drop.
+done by filtering the child in your own module, so the renderer and `@verajs/ssr` never learn a new
+rule: they receive `null`, which they already drop.
+
+That filter is the one thing this compiler adds to your output, so it is worth recognising:
+
+```js
+const $veraChild = (v) => (typeof v === 'boolean' ? null : v);   // injected, ~60 B, once per module
+```
+
+It is emitted only into modules that have JSX child expressions, and it steps aside — `$veraChild2`,
+`$veraChild3` — if your module already uses the name.
 
 Two consequences worth knowing:
 

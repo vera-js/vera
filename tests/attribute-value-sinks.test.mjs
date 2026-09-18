@@ -223,6 +223,39 @@ test('a boolean child still renders, and development says so',
       assert.equal(childComplaint(quiet).message, null, `${JSON.stringify(quiet)} is not a complaint`);
   });
 
+/**
+ * **Once per distinct value, not once per render.** Both child sinks gate the report on the value
+ * CHANGING. `ChildPart`'s dirty check sits below the branch this is reported from, so calling it
+ * above spammed a warning every pass for an unchanged `false` — measured at four renders, four
+ * warnings — while its own comment claimed otherwise. A channel that repeats is as useless as one
+ * that stays quiet, and the same rule that forbids over-deduping forbids this.
+ */
+test('the same boolean is reported once, and a different one still speaks',
+  { skip: isProduction && 'diagnostics are folded away', concurrency: false }, () => {
+    const host = doc.createElement('div');
+    const real = console.warn;
+    const seen = [];
+    console.warn = (message) => seen.push(String(message));
+    /**
+     * ONE `strings` array, hoisted. Template identity is that array, so building a fresh one per
+     * call makes every render a rebuild rather than an update — a new part each time, reporting
+     * each time, which looks exactly like the spam this test is here to catch. The repo's oldest
+     * probe rule, and it caught this test before this test caught anything.
+     */
+    const strings = Object.assign(['<p>', '</p>'], { raw: [] });
+    const draw = (value) => renderInto({ ['_$litType$']: 1, strings, values: [value] }, host);
+    try {
+      draw(false);
+      draw(false);
+      draw(false);
+      assert.equal(seen.length, 1, 'three identical commits report once');
+      draw(true);
+      assert.equal(seen.length, 2, 'but a different boolean is its own observation');
+    } finally {
+      console.warn = real;
+    }
+  });
+
 test('production carries neither the check nor the message',
   { skip: !isProduction && 'this is the production half' }, () => {
     const off = childComplaint(false);
