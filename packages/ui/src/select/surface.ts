@@ -1,3 +1,5 @@
+import type { ComponentSurface } from '../types.js';
+
 /**
  * The select's declared surface — every name a consumer can depend on, as data. This object is
  * the source three things are generated from and checked against: `custom-elements.json` (the
@@ -224,16 +226,4 @@ export const selectSurface = {
      *  in the box-shadow's color-mix), completing the README's every-color-is-a-token claim. */
     '--vera-shadow',
   ],
-} as const;
-
-/**
- * The shape a surface declaration has, taken from the declaration itself rather than written out
- * beside it — so the object above stays the authority and the two can never disagree. `as const`
- * is what makes this worth having: the type carries the literal tags, names and token strings, not
- * `string`, so a consumer reading a surface gets the real vocabulary.
- *
- * Kept as a type only. The surfaces are documentation-as-data for the manifest generator, the docs
- * page and the drift test — never imported by a runtime entry, because the prose is a kilobyte that
- * would otherwise ship in every bundle (it did, once). Consumers read `custom-elements.json`.
- */
-export type ComponentSurface = typeof selectSurface;
+} as const satisfies ComponentSurface;
