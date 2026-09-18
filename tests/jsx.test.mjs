@@ -73,6 +73,41 @@ assert.ok(component.includes('title=${s.t}') && !component.includes('.title'),
 assert.ok(!component.includes('?disabled'),
   'the boolean-attribute guess is an HTML-control interpretation and never reaches a component');
 
+// ── 1c. expressions inside <svg>/<math> compile their roots in the right namespace ──
+/**
+ * A template's namespace is decided by the tag that parses it, so a map callback's shapes inside
+ * `<svg>` compiled as html`` yielded HTMLUnknownElements that never draw — and JSX has no svg`` of
+ * its own to reach for, so NO spelling worked. The surrounding element now decides, lexically:
+ * `<svg>` children compile with the svg tag, `<math>` with mathml, `<foreignObject>` flips back.
+ */
+const svgOut = transformJsx(`
+const icon = (pts) => (
+  <svg viewBox="0 0 10 10">
+    {pts.map((p) => <circle key={p} cx={p} cy="5" r="1" />)}
+    <foreignObject><div>{pts.length > 0 && <em>n</em>}</div></foreignObject>
+  </svg>
+);
+const formula = (x) => <math>{x && <mi>x</mi>}</math>;`, 's.jsx', { inject: false });
+assert.ok(/keyed\(p, svg`<circle/.test(svgOut), 'a mapped shape inside <svg> compiles with the svg tag');
+assert.ok(/html`<em>n<\/em>`/.test(svgOut), '<foreignObject> flips its expressions back to html``');
+assert.ok(/mathml`<mi>x<\/mi>`/.test(svgOut), 'expressions inside <math> compile with mathml``');
+const svgInjected = transformJsx('export const v = (pts) => <svg>{pts.map((p) => <rect key={p} />)}</svg>;', 'si.jsx');
+assert.ok(svgInjected.includes("import { svg } from '@verajs/core';"), 'the svg import is injected when used');
+
+/** And EXECUTED: the compiled output renders real SVG-namespace elements through the real engine. */
+{
+  const { svg } = await load('core');
+  globalThis.__vera.svg = svg;
+  const svgMod = await compile('const { html, keyed, svg } = globalThis.__vera;\n' +
+    'export const icon = (pts) => <svg viewBox="0 0 10 10">{pts.map((p) => <circle key={p} cx={p} cy="5" r="1" />)}</svg>;');
+  const svgHost = dom.window.document.getElementById('root');
+  renderInto(svgMod.icon([1, 2, 3]), svgHost);
+  const circles = [...svgHost.querySelectorAll('circle')];
+  assert.equal(circles.length, 3, 'the mapped shapes rendered');
+  assert.ok(circles.every((c) => c.namespaceURI === 'http://www.w3.org/2000/svg'),
+    `shapes parse in the SVG namespace, not as HTMLUnknownElements — got ${circles[0]?.namespaceURI}`);
+}
+
 // ── 2. behavior: events, keyed identity, conditionals — through the real engine ──
 const mod = await compile(PRELUDE + `
 export const app = (s) => (

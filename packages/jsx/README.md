@@ -131,6 +131,25 @@ spread beats an earlier one, and a later *written binding* like `disabled={false
 earlier spread's `true`. When a static must win, write it as a binding — `title={"x"}` — or drop
 the key from the bag.
 
+### SVG and MathML just work
+
+A template's namespace is decided by the tag that parses it, which is why hand-written templates
+reach for core's `svg`/`mathml` tags inside `<svg>`/`<math>`. In JSX the compiler picks the tag for
+you, from the position the expression is written in:
+
+```jsx
+<svg viewBox="0 0 24 24">
+  {points.map((p) => <circle key={p.id} cx={p.x} cy={p.y} r="2" />)}   // compiles with svg``
+  <foreignObject><div>{label}</div></foreignObject>                    // …and this flips back to html``
+</svg>
+```
+
+Shapes mapped in a list, built conditionally, or written inline all parse in the SVG namespace —
+no workaround, nothing to import (the `svg` import is injected like `html` is). One boundary to
+know: a **function component** compiles where it is *defined*, so one that returns bare shapes
+(`const Dot = () => <circle r="2" />`) defined outside any `<svg>` compiles as HTML. Give an icon
+component its own `<svg>` wrapper — the React convention anyway — or define the shape inline.
+
 ### The renderer's sigils work too
 
 `.prop=`, `?bool=`, `@event=` and `&ref=` mean in JSX exactly what they mean in `html`, and a name

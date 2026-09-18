@@ -96,14 +96,35 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
+  const [svgName, svgFrom] = options.svg ?? ['svg', '@verajs/core'];
+  const [mathmlName, mathmlFrom] = options.mathml ?? ['mathml', '@verajs/core'];
 
-  const state = { usedHtml: false, usedKeyed: false, usedSpread: false };
+  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedSvg: false, usedMathml: false };
+
+  /**
+   * **The content mode a JSX expression sits in, tracked lexically** — the namespace fix React
+   * users never have to think about, done at compile time. A template's namespace is decided by
+   * the tag that parses it, so a map callback's shapes inside `<svg>` compiled as `html\`…\``
+   * yielded HTMLUnknownElements that never draw; there was NO JSX spelling that worked, because
+   * JSX has no `svg\`\`` of its own. Now the surrounding element decides: expressions inside
+   * `<svg>` compile their roots with the `svg` tag, inside `<math>` with `mathml`, and
+   * `<foreignObject>` flips back to HTML — exactly the tag an author writing templates by hand
+   * would have to pick, picked from the same lexical position. A component's children inherit the
+   * mode of the position they are WRITTEN in, which is the least-surprise reading of an
+   * unknowable runtime placement, and what a hand-written template would do too.
+   */
+  type Mode = 0 | 1 | 2; // html | svg | math
+  const HTML_MODE = 0;
+  const SVG_MODE = 1;
+  const MATH_MODE = 2;
+  const childMode = (tag: string, mode: Mode): Mode =>
+    tag === 'svg' ? SVG_MODE : tag === 'math' ? MATH_MODE : tag === 'foreignObject' ? HTML_MODE : mode;
 
   /** An expression slice with any JSX roots inside it transformed (bottom-up, offsets stable). */
-  const emitExpression = (text: string, roots: JsxRoot[], base: number): string => {
+  const emitExpression = (text: string, roots: JsxRoot[], base: number, mode: Mode): string => {
     let out = text;
     for (const root of [...roots].sort((a, b) => b.start - a.start)) {
-      out = out.slice(0, root.start - base) + emitRoot(root.node) + out.slice(root.end - base);
+      out = out.slice(0, root.start - base) + emitRoot(root.node, mode) + out.slice(root.end - base);
     }
     return out;
   };
@@ -136,16 +157,16 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * with the two sites four lines apart, the first draft of the component half turned a bare
    * `<Row key>` into `keyed(true, …)` while the element half makes it `keyed(null, …)`.
    */
-  const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean): string => {
+  const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean, mode: Mode): string => {
     if (!isRoot)
       throw new JsxError('key belongs on the JSX root returned from a list callback', code, fileName, attribute.start);
     return attribute.kind === 'expr'
-      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute))
+      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode)
       : JSON.stringify(attribute.kind === 'str' ? attribute.text : null);
   };
 
-  const emitRoot = (node: JsxNode): string => {
-    if (isComponentTag(node)) return emitComponent(node as ElementNode, true);
+  const emitRoot = (node: JsxNode, mode: Mode): string => {
+    if (isComponentTag(node)) return emitComponent(node as ElementNode, true, mode);
     const parts = [''];
     const exprs: string[] = [];
     let key: string | null = null;
@@ -157,9 +178,12 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       },
       setKey: (k) => (key = k),
     };
-    emitInto(node, tpl, true);
-    state.usedHtml = true;
-    let out = htmlName + '`' + parts.reduce((acc, p, i) => acc + (i ? '${' + exprs[i - 1] + '}' : '') + p, '') + '`';
+    emitInto(node, tpl, true, mode);
+    const tagName = mode === SVG_MODE ? svgName : mode === MATH_MODE ? mathmlName : htmlName;
+    if (mode === SVG_MODE) state.usedSvg = true;
+    else if (mode === MATH_MODE) state.usedMathml = true;
+    else state.usedHtml = true;
+    let out = tagName + '`' + parts.reduce((acc, p, i) => acc + (i ? '${' + exprs[i - 1] + '}' : '') + p, '') + '`';
     if (key !== null) {
       state.usedKeyed = true;
       out = `${keyedName}(${key}, ${out})`;
@@ -168,17 +192,18 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   };
 
   /** Emits an element/fragment INLINE into the current template context. */
-  const emitInto = (node: JsxNode, tpl: Template, isRoot: boolean): void => {
+  const emitInto = (node: JsxNode, tpl: Template, isRoot: boolean, mode: Mode): void => {
     if (node.fragment) {
-      for (const child of node.children) emitChild(child, tpl);
+      for (const child of node.children) emitChild(child, tpl, mode);
       return;
     }
     if (isComponentTag(node)) {
-      tpl.expr(emitComponent(node as ElementNode, false));
+      tpl.expr(emitComponent(node as ElementNode, false, mode));
       return;
     }
+    const inner = childMode(node.tag, mode);
     tpl.static('<' + node.tag);
-    for (const attribute of node.attrs) emitAttribute(node, attribute, tpl, isRoot);
+    for (const attribute of node.attrs) emitAttribute(node, attribute, tpl, isRoot, mode);
     /**
      * **The ELEMENT decides how the tag closes, never how the author spelled it** — which is
      * HTML's own rule, and why `node.selfClosing` is deliberately not read here.
@@ -217,22 +242,22 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     tpl.static('>');
-    for (const child of node.children) emitChild(child, tpl);
+    for (const child of node.children) emitChild(child, tpl, inner);
     tpl.static(`</${node.tag}>`);
   };
 
-  const emitChild = (child: JsxChild, tpl: Template): void => {
+  const emitChild = (child: JsxChild, tpl: Template, mode: Mode): void => {
     if ('text' in child && child.text !== undefined) {
       const text = collapseText(child.text);
       if (text !== '') tpl.static(escapeStatic(text));
     } else if ('expr' in child && child.expr !== undefined) {
-      tpl.expr(emitExpression(child.expr, child.roots, child.exprStart));
+      tpl.expr(emitExpression(child.expr, child.roots, child.exprStart, mode));
     } else {
-      emitInto(child as JsxNode, tpl, false);
+      emitInto(child as JsxNode, tpl, false, mode);
     }
   };
 
-  const emitAttribute = (_node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
+  const emitAttribute = (_node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean, mode: Mode): void => {
     if (attribute.spread) {
       /**
        * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is
@@ -241,17 +266,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        */
       state.usedSpread = true;
       tpl.static(' ');
-      tpl.expr(`${spreadName}(${emitExpression(attribute.text, attribute.roots, attribute.valueStart)})`);
+      tpl.expr(`${spreadName}(${emitExpression(attribute.text, attribute.roots, attribute.valueStart, mode)})`);
       return;
     }
     let name = attribute.name;
     const bound = attribute.kind === 'expr';
     const expression = attribute.kind === 'expr'
-      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute)) : null;
+      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode) : null;
     const literal = attribute.kind === 'str' ? attribute.text : null;
 
     if (name === 'key') {
-      tpl.setKey(keyExpression(attribute, isRoot));
+      tpl.setKey(keyExpression(attribute, isRoot, mode));
       return;
     }
     if (name === 'ref') {
@@ -266,7 +291,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       const bearer = attribute as Extract<JsxAttribute, { kind: 'expr' }>;
       const innerStart = valueBase(bearer) + bearer.text.indexOf(inner);
       tpl.static(' .innerHTML=');
-      tpl.expr(emitExpression(inner, bearer.roots, innerStart));
+      tpl.expr(emitExpression(inner, bearer.roots, innerStart, mode));
       return;
     }
     if (name === 'style' && attribute.kind === 'expr' && /^\s*\{/.test(attribute.text)) {
@@ -355,21 +380,21 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * from every component author. Where the component is `tag`'s — which does forward to an element
    * — the mapping belongs at that runtime boundary, and `jsxName` is where it lives.
    */
-  const emitComponent = (node: ElementNode, isRoot: boolean): string => {
+  const emitComponent = (node: ElementNode, isRoot: boolean, mode: Mode): string => {
     const props: string[] = [];
     let key: string | null = null;
     for (const attribute of node.attrs) {
       if (attribute.spread) {
-        props.push(`...${emitExpression(attribute.text, attribute.roots, valueBase(attribute))}`);
+        props.push(`...${emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode)}`);
         continue;
       }
       if (attribute.name === 'key') {
-        key = keyExpression(attribute, isRoot);
+        key = keyExpression(attribute, isRoot, mode);
         continue;
       }
       if (attribute.kind === 'none') props.push(`${JSON.stringify(attribute.name)}: true`);
       else if (attribute.kind === 'str') props.push(`${JSON.stringify(attribute.name)}: ${JSON.stringify(attribute.text)}`);
-      else props.push(`${JSON.stringify(attribute.name)}: ${emitExpression(attribute.text, attribute.roots, valueBase(attribute))}`);
+      else props.push(`${JSON.stringify(attribute.name)}: ${emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode)}`);
     }
     if (node.children && node.children.length > 0) {
       const children = [];
@@ -378,9 +403,9 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           const text = collapseText(child.text);
           if (text !== '') children.push(JSON.stringify(text));
         } else if ('expr' in child && child.expr !== undefined) {
-          children.push(emitExpression(child.expr, child.roots, child.exprStart));
+          children.push(emitExpression(child.expr, child.roots, child.exprStart, mode));
         } else {
-          children.push(emitRoot(child as JsxNode));
+          children.push(emitRoot(child as JsxNode, mode));
         }
       }
       if (children.length) props.push(`children: [${children.join(', ')}]`);
@@ -411,7 +436,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
 
   let out = code;
   for (const root of roots.sort((a, b) => b.start - a.start)) {
-    out = out.slice(0, root.start) + emitRoot(root.node) + out.slice(root.end);
+    out = out.slice(0, root.start) + emitRoot(root.node, HTML_MODE) + out.slice(root.end);
   }
 
   /** Auto-inject imports for what the emitted code uses (opt out with options.inject: false). */
@@ -436,6 +461,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (state.usedHtml && !has(htmlName)) inject += `import { ${htmlName} } from '${htmlFrom}';\n`;
     if (state.usedKeyed && !has(keyedName)) inject += `import { ${keyedName} } from '${keyedFrom}';\n`;
     if (state.usedSpread && !has(spreadName)) inject += `import { ${spreadName} } from '${spreadFrom}';\n`;
+    if (state.usedSvg && !has(svgName)) inject += `import { ${svgName} } from '${svgFrom}';\n`;
+    if (state.usedMathml && !has(mathmlName)) inject += `import { ${mathmlName} } from '${mathmlFrom}';\n`;
     out = inject + out;
   }
   return out;

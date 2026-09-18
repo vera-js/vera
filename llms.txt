@@ -208,6 +208,12 @@ render(() => html`
 `);
 ```
 
+This is a TEMPLATE rule. In JSX the compiler picks the tag from the expression's lexical position —
+shapes mapped in a list or built conditionally inside `<svg>` compile with `svg``` automatically
+(`<foreignObject>` flips back to HTML, `<math>` uses `mathml```), so JSX authors never write the
+namespace tags by hand. One boundary: a function component compiles where it is DEFINED, so give an
+icon component its own `<svg>` wrapper or define the shape inline.
+
 `html` alone would produce an `HTMLUnknownElement` named `circle`, which parses fine and never
 renders. Bindings, keyed lists and in-place updates all work the same inside these tags.
 
