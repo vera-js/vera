@@ -56,11 +56,20 @@ const SETTLE_MS = 250;
  * both axes, so a looping animation (a spinner) cannot hang the suite.
  */
 const rounds = 8;
-const settle = async () => {
+/**
+ * **A third way it failed, and the reason `settle` takes a root.**
+ *
+ * `document.getAnimations()` does not report animations running inside a SHADOW TREE on WebKit, and
+ * this component's menu lives in one — so the wait found nothing to wait for and returned straight
+ * into the fade it was meant to outlast, which is the same failure the paragraph above describes
+ * with a different cause. It cost a false colour-contrast violation on Linux WebKit while Chromium,
+ * Firefox and macOS WebKit stayed green. `ShadowRoot.getAnimations()` reports them, so ask both.
+ */
+const settle = async (root) => {
   await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
   for (let round = 0; round < rounds; round++) {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const running = document.getAnimations?.() ?? [];
+    const running = [...(document.getAnimations?.() ?? []), ...(root?.getAnimations?.() ?? [])];
     if (running.length === 0) return;
     await Promise.all(
       running.map((animation) =>
@@ -70,6 +79,30 @@ const settle = async () => {
         ])
       )
     );
+  }
+};
+
+/**
+ * **Wait for the menu's fade to REST, measuring the quantity axe will measure.**
+ *
+ * `settle()` above is the general guard and it is not sufficient here, for a reason that only shows
+ * up on one engine: it waits on `document.getAnimations()`, and WebKit does not report animations
+ * running inside a SHADOW TREE there. The menu lives in one. So on WebKit the wait found nothing to
+ * wait for, returned into the fade, and axe composited the option text through an in-flight opacity
+ * — reporting `#818189` on white at 3.86:1 for text that is `#71717a` at 8.6:1 once it rests. The
+ * numbers gave it away: #71717a over white at ~89% alpha is exactly #818189.
+ *
+ * That is the false positive this file's header already warns about, arriving past the fixed
+ * `SETTLE_MS` sleep that was guarding against it — 250 ms is enough for a 140 ms transition only
+ * while the runner is not loaded enough to start it late. This polls the resting value instead,
+ * which is the only formulation that does not depend on how busy the machine is.
+ */
+const rested = async (root) => {
+  const menu = root.querySelector('[part="menu"]');
+  if (menu === null) return;
+  for (let i = 0; i < 200; i++) {
+    if (Number(getComputedStyle(menu).opacity) === 1) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
 
@@ -84,13 +117,14 @@ const audit = async (name, { setup, value, open = false, type } = {}) => {
   const root = element.shadowRoot ?? element;
   if (open) {
     root.querySelector('[part="trigger"]').click();
-    await settle();
+    await settle(root);
+    await rested(root);
   }
   if (type !== undefined) {
     const search = root.querySelector('[part="search"]');
     search.value = type;
     search.dispatchEvent(new Event('input', { bubbles: true }));
-    await settle();
+    await settle(root);
   }
   const results = await window.axe.run(element, { resultTypes: ['violations'] });
   /**
