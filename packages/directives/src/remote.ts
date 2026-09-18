@@ -39,7 +39,7 @@ import { isObject } from './parse.js';
 import type { Directive, Ctx, EngineConnector, ListChange } from './types.js';
 
 
-export interface RemoteOptions {
+export type RemoteOptions = {
   /**
    * Origins this pack may request beyond the page's own. FACTORY ONLY — an attribute can never
    * widen it. Cross-origin responses are read as JSON state patches; markup from another origin
@@ -48,7 +48,7 @@ export interface RemoteOptions {
   readonly allowedOrigins?: readonly string[];
   /** Headers sent with every request — where a CSRF token belongs. */
   readonly headers?: Readonly<Record<string, string>>;
-}
+};
 
 /** Page-level policy, set by the factory before any element activates. */
 let allowedOrigins: string[] = [];
@@ -387,7 +387,7 @@ const resolveStreamUrl = (raw: unknown): { href: string; sameOrigin: boolean; tr
   return { href: url.href, sameOrigin, transport: socket ? 'ws' : 'sse' };
 };
 
-interface StreamSub {
+type StreamSub = {
   readonly element: Element;
   readonly context: Ctx;
   into: unknown;
@@ -395,7 +395,7 @@ interface StreamSub {
   lastStatus?: string;
   animate: boolean;
   events: readonly string[];
-}
+};
 
 /**
  * CONNECTIONS ARE SHARED PER URL — a page with five live regions on one feed holds ONE
@@ -403,7 +403,7 @@ interface StreamSub {
  * unshared EventSources plus the page's own traffic is a stalled page. Subscribers carry their
  * own targets and status keys; the connection carries the wire.
  */
-interface SharedStream {
+type SharedStream = {
   readonly transport: 'sse' | 'ws';
   readonly sameOrigin: boolean;
   readonly subs: Set<StreamSub>;
@@ -414,7 +414,7 @@ interface SharedStream {
   timer: ReturnType<typeof setTimeout> | null;
   /** sse only: event name → the attached dispatcher, so a stale name can be detached. */
   readonly listening: Map<string, (event: Event) => void>;
-}
+};
 
 const streams = new Map<string, SharedStream>();
 

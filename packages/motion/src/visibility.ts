@@ -26,7 +26,7 @@ import type { RuntimeElement } from './types.js';
  *    animations is not worth having.
  */
 
-export interface VisibilityTracker {
+export type VisibilityTracker = {
   /** Elements currently worth updating. Iterate this, not the full list. */
   readonly active: ReadonlySet<RuntimeElement>;
   /**
@@ -55,7 +55,7 @@ export interface VisibilityTracker {
   observe(element: RuntimeElement): void;
   unobserve(element: RuntimeElement): void;
   disconnect(): void;
-}
+};
 
 /**
  * How far beyond the viewport an element can still be animating.

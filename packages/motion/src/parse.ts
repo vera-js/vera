@@ -111,11 +111,11 @@ const indexIn = (host: Element, node: Element): number => {
 };
 
 /** What one property collected from the keys inside `keyframes`. */
-interface Collected {
+type Collected = {
   base?: string;
   /** The nested form's per-property ease, validated. */
   ease?: string;
-}
+};
 
 /** The shipped packs' keys, by pack — for the refusal above only. Literal, never imported (the
  *  additive-bundle rule), and pinned against motion-vocabulary.json by the drift test. */

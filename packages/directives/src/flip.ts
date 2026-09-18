@@ -36,7 +36,7 @@ const TREATMENT: Record<ListChange['kind'], { readonly wave: boolean }> = {
   enter: { wave: false },
 };
 
-interface FlipContext {
+type FlipContext = {
   readonly doc: Document;
   /** The directive's own opt-in (`animate: true`). */
   readonly animate: boolean;
@@ -54,7 +54,7 @@ interface FlipContext {
    * an element that enters without a transition needs no name.
    */
   readonly after?: () => readonly ListChange[];
-}
+};
 
 type StartViewTransition = (cb: () => void) =>
   { finished: Promise<unknown>; skipTransition?: () => void };

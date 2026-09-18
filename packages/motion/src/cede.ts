@@ -26,7 +26,7 @@
 import { PROGRESS_PROPERTY } from './registry.js';
 import type { Generated, ParsedElement, RuntimeSettings } from './types.js';
 
-interface CessionContext {
+type CessionContext = {
   readonly parsed: ParsedElement;
   readonly generated: Generated;
   readonly settings: RuntimeSettings;
@@ -38,7 +38,7 @@ interface CessionContext {
     readonly unobstructed: boolean;
     readonly hasFunction: boolean;
   };
-}
+};
 
 type Guard = readonly [name: string, refuses: (ctx: CessionContext) => string | null];
 

@@ -783,9 +783,9 @@ const getTemplate = (result: TemplateResult) => {
 };
 
 /** Anything bound to a live position: commits values[index..], returns the next value index. */
-interface Part {
+type Part = {
   _commit(values: unknown[], index: number): number;
-}
+};
 
 const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
 

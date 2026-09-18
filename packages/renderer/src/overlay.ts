@@ -13,14 +13,14 @@
  */
 import type { ProfileReport } from './profiler.js';
 
-export interface OverlayOptions {
+export type OverlayOptions = {
   /** Corner to pin to. Default `bottom-right`. */
   corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   /** How often to repaint, in milliseconds. Default 400. */
   interval?: number;
   /** Churn rows to show before collapsing the rest into a count. Default 4. */
   rows?: number;
-}
+};
 
 const CSS = `
 :host { all: initial; }

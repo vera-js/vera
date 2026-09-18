@@ -2,9 +2,10 @@
  * Shareable ESLint flat config for VeraJS.
  *
  * Deliberately narrow. It does not opine on your JavaScript style, bring a parser, or pull in a
- * plugin — both rules are ESLint built-ins driven by a selector, so this package has no
- * dependencies. It covers the two VeraJS mistakes that produce **no error at all**: the code runs,
- * the wrong thing happens, and there is nothing to search for.
+ * plugin — every rule is an ESLint built-in driven by a selector, so this package has no
+ * dependencies. It covers the two VeraJS mistakes that produce **no error at all** — the code runs,
+ * the wrong thing happens, and there is nothing to search for — plus one convention a published
+ * package wants (`type` over `interface`) that no other rule expresses without overreaching.
  *
  *   import vera from '@verajs/eslint-config';
  *   export default [...vera];
@@ -44,6 +45,41 @@
  * the syntax says which kind a field will receive, and the cost of being wrong is silent data loss
  * against the cost of one keyword, so the rule still flags every one.
  */
+/**
+ * **`type` unless the interface genuinely extends — CODE-PRINCIPLES §1.3, made mechanical.**
+ *
+ * The convention was written down and enforced by nothing, so 64 non-extending interfaces
+ * accumulated across six packages before anything went looking. Prose in a document is enforced
+ * only by whoever happens to read it.
+ *
+ * The 64th is why this is a SELECTOR and not a script. A regex sweep found 63 by testing for
+ * `\bextends\b` between the interface name and the brace — which `MatchResult<P extends ParamData>`
+ * satisfies with a type-parameter CONSTRAINT, so the one interface whose heritage clause was hardest
+ * to eyeball by hand was the one the sweep silently cleared. `:has(TSInterfaceHeritage)` asks the
+ * parser for the heritage clause itself and cannot confuse the two.
+ *
+ * It is not a cosmetic difference in either direction. A type alias carries an implicit index
+ * signature an interface does not, so the two disagree about assignability to
+ * `Record<string, unknown>`; and an interface is open to DECLARATION MERGING, which is the half
+ * that matters for a published package — a consumer can silently reshape a type you export.
+ *
+ * `@typescript-eslint/consistent-type-definitions` is deliberately not used for this: its `type`
+ * option forbids every interface, including the genuine extension the principles name as the model
+ * (`interface ComponentHook extends Omit<Hook, …>`). A rule that contradicts the convention it
+ * enforces teaches people to switch it off. This says exactly what the principle says.
+ *
+ * Where merging is the POINT, disable it with the reason — `JSX.IntrinsicElements` is the case in
+ * this repo: a TSX consumer augments it with their own custom elements, and a type alias cannot be
+ * augmented at all.
+ */
+export const noNonExtendingInterface = {
+  selector: 'TSInterfaceDeclaration:not(:has(TSInterfaceHeritage))',
+  message:
+    'Use a `type` unless the interface genuinely extends another. An interface is open to ' +
+    'declaration merging, which a published type is not meant to be, and a type alias carries the ' +
+    'implicit index signature an interface lacks. Where merging IS the point, disable this and say why.',
+};
+
 export const noCustomElementClassFields = {
   selector:
     ':matches(ClassDeclaration, ClassExpression)[superClass.name=/^HTML[A-Za-z]*Element$/]' +
@@ -87,7 +123,7 @@ export default [
   {
     files: ['**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
     rules: {
-      'no-restricted-syntax': ['error', noCustomElementClassFields],
+      'no-restricted-syntax': ['error', noCustomElementClassFields, noNonExtendingInterface],
       'no-restricted-imports': ['error', { paths: [noInsertFromInsertsPackage] }],
     },
   },

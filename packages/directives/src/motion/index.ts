@@ -34,7 +34,7 @@ const CONFIG_ATTR = 'data-vd-motion-group';
 
 /* ── factory options and page defaults ────────────────────────────────────── */
 
-export interface MotionOptions {
+export type MotionOptions = {
   /** Seconds the element takes to reach the position scroll says it should be at. */
   inertia?: number;
   /** Timing function of that catch-up. Handed to CSS. */
@@ -63,7 +63,7 @@ export interface MotionOptions {
    * JS instead).
    */
   inline?: boolean;
-}
+};
 
 const DEFAULTS = {
   inertia: 0.1,

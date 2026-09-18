@@ -40,14 +40,14 @@ export type ScrollBehaviorFunction = (to: RouteSnapshot, saved?: [number, number
 
 export type RouteEvent = 'before-leave' | 'before-route' | 'after-route';
 
-export interface RouterSettings {
+export type RouterSettings = {
   hashChangeFunction?: HashChangeFunction;
   scrollBehavior?: ScrollBehaviorFunction;
   match: <P extends ParamData>(routePattern: string) => MatchFunction<P>;
   pushHash?: boolean;
-}
+};
 
-export interface RouteSnapshot {
+export type RouteSnapshot = {
   path: string | (() => string);
   params?: RouteParams;
   /** Parsed query string — the query rides in the URL but never reaches pattern matching. */
@@ -57,7 +57,7 @@ export interface RouteSnapshot {
   meta?: RouteMeta;
   /** The fragment, `#` included, or `''`. Updated on a hash-only change without re-routing. */
   hash?: string;
-}
+};
 
 /**
  * Arbitrary data attached to a route and handed to every guard, action and component on the
@@ -75,7 +75,7 @@ export type Route = {
   parent?: Route;
 } & RouteOptions;
 
-export interface RouteOptions {
+export type RouteOptions = {
   path: (() => string) | string;
   /**
    * A stable handle for this route, so links and redirects are built from `resolve(name, params)`
@@ -116,12 +116,12 @@ export interface RouteOptions {
    */
   redirect?: string | ((params: RouteParams, to: RouteSnapshot) => string);
   view?: RouteAction | string | HTMLElement | ShadowRoot;
-}
+};
 
-export interface BaseRouterOptions {
+export type BaseRouterOptions = {
   focusView?: boolean;
   view: HTMLElement | ShadowRoot | string;
-}
+};
 
 export interface ElementsData extends BaseRouterOptions {
   currentRoute?: RouteSnapshot;
@@ -176,7 +176,7 @@ export type AddRoutes = <const Paths extends readonly (string | (() => string))[
   [K in keyof Paths]: TypedRouteOptions<Paths[K]>;
 }) => void;
 
-export interface RouterMethods {
+export type RouterMethods = {
   addRoutes: AddRoutes;
   /** Removes a named route and its aliases. Returns whether anything was removed. */
   removeRoute: (name: string) => boolean;
@@ -185,7 +185,7 @@ export interface RouterMethods {
   deleteRouter: () => void;
   on: (event: RouteEvent, handler: RouteEventHandler) => void;
   off: (event: RouteEvent, handler: RouteEventHandler) => void;
-}
+};
 
 /**
  * The params a pattern produces, read off the pattern **as a type**.
@@ -238,10 +238,10 @@ export type RouteEventHandler = (to: RouteSnapshot, from?: RouteSnapshot) => unk
 /**
  * A match result contains data about the path match.
  */
-export interface MatchResult<P extends ParamData> {
+export type MatchResult<P extends ParamData> = {
   path: string;
   params: P;
-}
+};
 /**
  * A match is either `false` (no match) or a match result.
  */

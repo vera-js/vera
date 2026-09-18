@@ -22,7 +22,7 @@ export type SheetRoot = Document | ShadowRoot;
  * `written` is null until the first write, which is how "paint the initial state immediately"
  * and "chase from where you are" stay distinguishable without a flag.
  */
-export interface Driven {
+export type Driven = {
   readonly node: HTMLElement;
   /** The custom property this element's animation seeks by — `--vm-p`, or the author's rename. */
   readonly varName: string;
@@ -41,7 +41,7 @@ export interface Driven {
    * Pre-bound by the runtime (containment and reporting live there); the loop just calls it.
    */
   readonly run: ((progress: number) => void) | null;
-}
+};
 
 /** Value units the grammar accepts — LITERAL here (types.ts imports nothing); the runtime
  *  arrays in schema are pinned to these unions in both directions by satisfies + an
@@ -52,7 +52,7 @@ export type PositionUnit = '%' | 'vh' | 'vw' | 'px' | 'rem';
 
 export type Category = 'transform' | 'filter' | 'border';
 
-export interface RawKeyframe {
+export type RawKeyframe = {
   /** In `positionUnit`, NOT yet normalised to a timeline fraction. */
   readonly position: number;
   readonly positionUnit: PositionUnit;
@@ -67,7 +67,7 @@ export interface RawKeyframe {
    * curves could not carry a string, not because stepping was wanted.
    */
   readonly text?: string;
-}
+};
 
 /**
  * A viewport-width range, in CSS pixels. `max` is `Infinity` for an open end.
@@ -75,10 +75,10 @@ export interface RawKeyframe {
  * that resolves to one of these at parse time, so the runtime only ever deals
  * in ranges and a name costs nothing once parsed.
  */
-export interface Range {
+export type Range = {
   readonly min: number;
   readonly max: number;
-}
+};
 
 /** Keyframes that apply only inside a range. */
 export interface Band extends Range {
@@ -103,7 +103,7 @@ export type Refusal = {
   readonly where?: string;
 };
 
-export interface PropertyDef {
+export type PropertyDef = {
   /** Key spelling, kebab-case: `translate-y`. */
   readonly key: string;
   readonly parse?: (raw: string) => number | null;
@@ -163,13 +163,13 @@ export interface PropertyDef {
     settings: Readonly<Record<string, string | number | boolean>>,
     reject: (code: string, args?: readonly string[]) => void
   ) => void | (() => void);
-}
+};
 
 /**
  * Element-level settings. Kept in a namespace disjoint from property names so
  * an object key resolves unambiguously; a test enforces that.
  */
-export interface SettingDef {
+export type SettingDef = {
   /**
    * A module's own validator, given the raw authored text. Returning null
    * rejects it, exactly as a built-in type would. This is what lets a module
@@ -200,7 +200,7 @@ export interface SettingDef {
   readonly min?: number;
   readonly max?: number;
   readonly allowed?: readonly string[];
-}
+};
 
 export type Wirable = PropertyDef | SettingDef | Insert | WirableFactory;
 
@@ -219,10 +219,10 @@ export type WirableTree = Wirable | readonly WirableTree[];
  * settings beside it. The index signature is the settings half — it cannot be narrower without
  * restating the settings table here, which a wired pack may have extended anyway.
  */
-export interface Preset {
+export type Preset = {
   readonly keyframes?: Readonly<Record<string, string>>;
   readonly [setting: string]: unknown;
-}
+};
 
 /**
  * The preset pack — ten named motion values, wired like any other vocabulary.
@@ -268,7 +268,7 @@ export type PresetTable = Readonly<Record<string, Preset>>;
  * the MOTION PACK's internal seams — the engine's own inserts are a different
  * system; these fire from the motion directive's lifecycle.
  */
-export interface InsertMap {
+export type InsertMap = {
   /**
    * Turns a preset NAME into the motion value it stands for, or null if this pack does not know it.
    * The presets module — and, deliberately, anyone else's: the shipped table is one registration on
@@ -306,13 +306,13 @@ export interface InsertMap {
    * can rely on its per-element work having already run.
    */
   forget: () => void;
-}
+};
 
 export type Insert = {
   [K in keyof InsertMap]: { readonly on: K; readonly fn: InsertMap[K] };
 }[keyof InsertMap];
 
-export interface ElementMotion {
+export type ElementMotion = {
   readonly property: PropertyDef;
   readonly unit: Unit;
   /**
@@ -340,9 +340,9 @@ export interface ElementMotion {
    * as the element-level value is; carried here as the validated STRING.
    */
   readonly ease?: string;
-}
+};
 
-export interface ParseContext {
+export type ParseContext = {
   /**
    * Named width ranges, so `opacity-mobile` can mean whatever this site
    * calls mobile. A name is only ever an alias for a range.
@@ -363,7 +363,7 @@ export interface ParseContext {
    * this, and at 0 there is no transition for the easing to shape.
    */
   readonly inertia?: number;
-}
+};
 
 /**
  * One element's diagnostics. `node` is `null` for a problem with the
@@ -371,17 +371,17 @@ export interface ParseContext {
  * refused and fell back on. Consumers iterating this must expect the null;
  * there is at most one such entry, and it sorts first.
  */
-export interface RejectedElement {
+export type RejectedElement = {
   readonly node: Element | null;
   readonly rejected: readonly Refusal[];
-}
+};
 
 /** The same, for an element rather than for the configuration. */
 export interface DroppedElement extends RejectedElement {
   readonly node: Element;
 }
 
-export interface ParsedElement {
+export type ParsedElement = {
   readonly node: Element;
   readonly animations: readonly ElementMotion[];
   readonly settings: Readonly<Record<string, string | number | boolean>>;
@@ -395,7 +395,7 @@ export interface ParsedElement {
   readonly stagger?: { readonly position: number; readonly positionUnit: PositionUnit };
   /** Values the schema could not accept, for diagnostics. Empty on a clean parse. */
   readonly rejected: readonly Refusal[];
-}
+};
 
 /**
  * Geometry: every reading the runtime takes from the page.
@@ -406,7 +406,7 @@ export interface ParsedElement {
  * reading and put back** — both `offsetTop` and a rect follow sticky positioning, which turns a
  * question about the element's slot into one about where the page happens to be scrolled.
  */
-export interface WindowSize {
+export type WindowSize = {
   /** Scroll offset at the leading edge of the viewport. */
   readonly start: number;
   readonly end: number;
@@ -420,7 +420,7 @@ export interface WindowSize {
    * to know whether the page is long enough to finish it.
    */
   readonly reach: number;
-}
+};
 
 /**
  * The element's measured geometry, for values whose keyframe POSITIONS are lengths (vh/px/rem) —
@@ -429,15 +429,15 @@ export interface WindowSize {
  * Absent (the SSR pass, the test door), geometry-position values answer null and wait for the
  * client's first measure — frame 0 is the natural state there, honestly.
  */
-export interface GeometryContext {
+export type GeometryContext = {
   readonly scrollWindow: number;
   readonly win: WindowSize;
   readonly root: number;
-}
+};
 
 /** One easing group: the animations sharing one timing function and one seek variable, emitted
  *  as one `@keyframes` rule and one entry in the element's `animation` list. */
-export interface GeneratedGroup {
+export type GeneratedGroup = {
   /** Content hash of this group's base body — the registry key its rule is acquired under. */
   readonly hash: string;
   /** The animation name, `vm-<hash>` — derived, carried so no caller re-derives it differently. */
@@ -448,10 +448,10 @@ export interface GeneratedGroup {
   readonly ease: string;
   /** The variable THIS group seeks by — the base variable, or a per-category one. */
   readonly varName: string;
-}
+};
 
 /** What generation hands the caller: the rules to acquire, and the declarations the element carries. */
-export interface Generated {
+export type Generated = {
   /** The MARKER — content hash over the whole identity (groups × segments), the `data-vm-motion` value. */
   readonly hash: string;
   /**
@@ -528,7 +528,7 @@ export interface Generated {
    * twin); the runtime delivers THIS.
    */
   readonly elementRule: string;
-}
+};
 
 /** What a tick receives: the element and how far through its range it is. Nothing else — no
  *  scroll position (the framework's business), no curve (there is none), no return value. */
@@ -541,16 +541,16 @@ export type MotionFunction = (node: HTMLElement, progress: number) => void;
  * edited — the engine's rebuild-on-edit is the staleness story, exactly as it was for property
  * modules. A bare function is the common case; the descriptor is the one shape richer.
  */
-export interface MotionFunctionModule {
+export type MotionFunctionModule = {
   readonly run: MotionFunction;
   readonly setup?: (
     node: HTMLElement,
     settings: Readonly<Record<string, string | number | boolean>>,
     reject: (code: string, args?: readonly string[]) => void
   ) => (() => void) | void;
-}
+};
 
-export interface RuntimeSettings {
+export type RuntimeSettings = {
   readonly scrollDirection: string;
   /** The scrolling container, when it is not the window. Geometry is relative to it. */
   readonly scrollElement?: Window | HTMLElement | null;
@@ -574,9 +574,9 @@ export interface RuntimeSettings {
   readonly inline?: boolean;
   readonly translateZFix?: boolean;
   readonly transformOrigin?: string;
-}
+};
 
-export interface RuntimeElement {
+export type RuntimeElement = {
   readonly node: HTMLElement;
   readonly parsed: ParsedElement;
   /**
@@ -732,16 +732,16 @@ export interface RuntimeElement {
    * module-level rejections map.
    */
   readonly reject: (code: string, args?: readonly string[]) => void;
-}
+};
 
 /** What the parse layer needs from a region — see `ParseContext`. */
-export interface RegionParseContext {
+export type RegionParseContext = {
   readonly breakpoints: ReadonlyMap<string, Range>;
   readonly dropped: DroppedElement[];
   readonly inertia: number;
-}
+};
 
-export interface Region {
+export type Region = {
   add(parsed: ParsedElement, rejectFor: (reason: string) => void): RuntimeElement | null;
   remove(node: Element): void;
   /** Re-measure geometry after an external layout change — the old `refresh()`. */
@@ -755,9 +755,9 @@ export interface Region {
   destroy(): void;
   /** @internal preference plumbing */
   _setEnabled(on: boolean): void;
-}
+};
 
-export interface MotionEventDetail {
+export type MotionEventDetail = {
   /** Timeline position at the moment it fired: 0 entering, 1 fully left. */
   readonly progress: number;
   /**
@@ -771,9 +771,9 @@ export interface MotionEventDetail {
    * than a `composedPath()[0]` incantation the docs would have to teach.
    */
   readonly element: HTMLElement;
-}
+};
 
-export interface RenderMotionOptions {
+export type RenderMotionOptions = {
   /**
    * The SAME array the page hands `wireDirectives` — `[motion, presets, paint, sequence]` — so a
    * preset name or a pack property resolves on the server exactly as it will on the client. Only
@@ -813,10 +813,10 @@ export interface RenderMotionOptions {
    * option above exists to fix. If the page sets a nonce, this must be it.
    */
   readonly nonce?: string;
-}
+};
 
 /** What one pass did — counts for the caller's logs, problems for its diagnostics. */
-export interface RenderMotionReport {
+export type RenderMotionReport = {
   /** Elements marked and covered by emitted CSS. */
   readonly rendered: number;
   /**
@@ -829,4 +829,4 @@ export interface RenderMotionReport {
   readonly rules: number;
   /** Everything refused along the way, in the same code+args shape the client reports. */
   readonly problems: readonly { readonly code: string; readonly args: readonly string[] }[];
-}
+};

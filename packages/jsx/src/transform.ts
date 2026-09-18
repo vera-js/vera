@@ -170,11 +170,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const isComponentTag = (node: JsxNode): boolean =>
     !node.fragment && (!/^[a-z]/.test((node as ElementNode).tag) || (node as ElementNode).tag.includes('.'));
 
-  interface Template {
+  type Template = {
     static: (s: string) => void;
     expr: (e: string) => void;
     setKey: (k: string) => void;
-  }
+  };
 
   /**
    * What `key=…` means, for BOTH emitters.

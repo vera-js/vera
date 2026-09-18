@@ -571,13 +571,13 @@ export const parseRange = (
   return named ? breakpoints?.get(named[1]!) ?? null : null;
 };
 
-export interface KeyframeList {
+export type KeyframeList = {
   readonly keyframes: readonly RawKeyframe[];
   /** True if any position uses a unit that depends on geometry (anything but `%`). */
   readonly geometryDependent: boolean;
   /** Entries that failed validation, for diagnostics. */
   readonly rejected: readonly Refusal[];
-}
+};
 
 /**
  * Parses a keyframe position — a number with a mandatory unit. The unit is

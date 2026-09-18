@@ -26,18 +26,18 @@ import { createProxy } from '../services/createProxy.js';
  * the first applicable signature and `ReturnType` against the last one, and `tests/types/public-api.ts`
  * asks the second question.
  */
-interface Ref {
+type Ref = {
   <T = undefined>(): { value: T | undefined };
   <T>(initialValue: T): { value: T };
-}
+};
 
 export const ref: Ref = <T,>(initialValue?: T) => createProxy({ value: initialValue }) as { value: T };
 
 /** Same shape as {@link ref}, and empty for the same reason. */
-interface ShallowRef {
+type ShallowRef = {
   <T = undefined>(): { value: T | undefined; _ignore: boolean };
   <T>(initialValue: T): { value: T; _ignore: boolean };
-}
+};
 
 export const shallowRef: ShallowRef = <T,>(initialValue?: T) =>
   createProxy({ value: initialValue, _ignore: true }) as { value: T; _ignore: boolean };

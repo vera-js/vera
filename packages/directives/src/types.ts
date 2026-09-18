@@ -185,7 +185,7 @@ export type EngineConnector = (seams: EngineSeams) => void;
  *              kind a producer cannot hand over up front — the elements are born inside the
  *              commit — so they arrive through the flip door's `after` producer.
  */
-export interface ListChange {
+export type ListChange = {
   readonly item: Element;
   readonly kind: 'move' | 'fade' | 'swap' | 'enter';
-}
+};

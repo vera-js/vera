@@ -39,7 +39,7 @@ import { forgetStagger } from './parse.js';
 import type { DroppedElement, InsertMap, Range, Region, RegionParseContext, RuntimeElement, RuntimeSettings } from './types.js';
 
 
-export interface RegionOptions {
+export type RegionOptions = {
   readonly axis: 'vertical' | 'horizontal';
   readonly scrollElement: Window | HTMLElement;
   readonly inertia: number;
@@ -50,7 +50,7 @@ export interface RegionOptions {
   readonly onProgress?: ((node: HTMLElement, progress: number) => void) | undefined;
   /** `true` = inline delivery (the cache-escape hatch); see RuntimeSettings.inline. */
   readonly inline?: boolean;
-}
+};
 
 
 /**

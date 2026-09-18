@@ -15,10 +15,10 @@ import { propertyOrder } from './schema.js';
 import type { PropertyDef, Unit } from './types.js';
 
 
-export interface AppliedAnimation {
+export type AppliedAnimation = {
   readonly property: PropertyDef;
   readonly unit: Unit;
-}
+};
 
 /**
  * Rounds to a sane precision before it reaches the DOM. Sub-pixel noise past
@@ -49,11 +49,11 @@ const composeFunctions = (
   return out;
 };
 
-export interface CategoryWrite {
+export type CategoryWrite = {
   readonly animations: readonly AppliedAnimation[];
   /** Typed arrays are the normal case — they are pre-allocated per element. */
   readonly values: ArrayLike<number>;
-}
+};
 
 /**
  * Composes the `transform` string for a whole category.

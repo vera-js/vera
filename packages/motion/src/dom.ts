@@ -1,11 +1,11 @@
 import type { RawKeyframe, WindowSize } from './types.js';
 
 
-export interface ElementBox {
+export type ElementBox = {
   readonly start: number;
   readonly end: number;
   readonly size: number;
-}
+};
 
 /**
  * Whether a node is sticky, remembered for the length of one measure pass.

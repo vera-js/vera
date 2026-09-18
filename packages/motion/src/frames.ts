@@ -21,7 +21,7 @@
  * end to end would hold on to gigabytes.
  */
 
-export interface SequenceOptions {
+export type SequenceOptions = {
   /** Base url; the frame index and extension are appended. Already origin-checked. */
   readonly url: string;
   /** How many frames the sequence has. */
@@ -58,13 +58,13 @@ export interface SequenceOptions {
    * position moves at all, and draws twice when it does.
    */
   readonly tween?: boolean;
-}
+};
 
-export interface Sequence {
+export type Sequence = {
   /** Draw the frame for a 0-based index. Safe to call every frame. */
   draw(index: number): void;
   destroy(): void;
-}
+};
 
 const DEFAULTS = { pad: 4, window: 24, concurrency: 6 } as const;
 

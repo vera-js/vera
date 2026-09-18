@@ -51,7 +51,7 @@ export { renderInto, hold, renderer } from './renderer.js';
 export type { TemplateResult } from './renderer.js';
 
 /** One template identity replacing another at the same position, and how often. */
-export interface Churn {
+export type Churn = {
   /** The template that was torn down, rendered readably. */
   from: string;
   /** The template that replaced it. */
@@ -60,9 +60,9 @@ export interface Churn {
   count: number;
   /** Where in the DOM it happened, e.g. `main#app > ul.list`. First occurrence only. */
   where: string;
-}
+};
 
-export interface ProfileReport {
+export type ProfileReport = {
   /** Completed top-level `render()` calls. Nested renders are folded into their outermost frame. */
   frames: number;
   /** Total milliseconds spent inside `render()`. */
@@ -77,7 +77,7 @@ export interface ProfileReport {
   rebuilds: number;
   /** Rebuilds grouped by template pair, worst first. */
   churn: Churn[];
-}
+};
 
 let active = false;
 let frames = 0;

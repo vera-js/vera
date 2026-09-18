@@ -82,14 +82,14 @@ export type ComponentProperties = {
 export type { CSSResultGroup } from '@verajs/shared-types';
 
 /** Hook with a callback and priority */
-export interface Hook {
+export type Hook = {
   /** Callback to execute when hook is triggered */
   callback: HookCallback | null;
   /** Element to bind hook to, ignoring the init element */
   element?: ComponentElement;
   /** Priority relative to other hooks */
   priority: number | null;
-}
+};
 
 /** Returned from a hook to undo whatever it set up; run before the next pass and on teardown. */
 export type HookCleanup = () => void;

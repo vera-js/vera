@@ -43,11 +43,11 @@ import type { ElementMotion, Generated, ParsedElement, RawKeyframe, RuntimeEleme
  * `timelinePosition` is public because the README teaches it: the same number
  * `onProgress` reports, readable without a callback from your own loop.
  */
-export interface MotionElement {
+export type MotionElement = {
   readonly node: HTMLElement;
   /** Timeline progress — `0` entering the scroll window, `1` fully left, unclamped. */
   readonly timelinePosition: number;
-}
+};
 
 
 /**

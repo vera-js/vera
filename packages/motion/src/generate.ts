@@ -71,11 +71,11 @@ const valueAtFrames = (frames: readonly RawKeyframe[], position: number): number
 };
 
 /** One group's working state while its rules are composed. */
-interface Grouped {
+type Grouped = {
   readonly ease: string;
   readonly varName: string;
   readonly members: ElementMotion[];
-}
+};
 
 /**
  * The simple case, or null.

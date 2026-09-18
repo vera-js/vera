@@ -128,14 +128,14 @@ const drawerFor = (
   return entry;
 };
 
-export interface SequenceOptions {
+export type SequenceOptions = {
   /**
    * Extra origins frames may be fetched from. Same-origin otherwise, and an
    * attribute can never widen it — the decision belongs to whoever wires
    * the module, not to the markup.
    */
   readonly allowedOrigins?: readonly string[];
-}
+};
 
 /**
  * Normalised, and complained about when it cannot be. `parseUrl` compares

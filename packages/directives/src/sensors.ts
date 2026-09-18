@@ -467,11 +467,11 @@ const pointer: Directive = {
  * legitimately in view — which is why this is a directive and not a recipe.
  */
 const ELECT_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
-interface ElectGroup {
+type ElectGroup = {
   readonly members: Map<Element, { ratio: number; ctx: Ctx }>;
   observer: IntersectionObserver | null;
   current: string | null;
-}
+};
 const electGroups = new Map<string, ElectGroup>();
 
 const runElection = (key: string, group: ElectGroup): void => {
@@ -730,11 +730,11 @@ const swipe: Directive = {
  * on `<body>` — literally the markup composition, so the two doors cannot drift and the docs
  * define one in terms of the other. Discipline over door-count.
  */
-export interface SensorsOptions {
+export type SensorsOptions = {
   /** State key the viewport-scoped pointer writes to — `sensors({ pointer: 'p' })` is
    *  `<body data-vd-pointer="p:viewport">` said from JavaScript. */
   readonly pointer?: string;
-}
+};
 
 const connect = (options?: SensorsOptions): EngineConnector => (seams) => {
   /** Same rule as remote's, same enumeration find. */

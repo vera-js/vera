@@ -3,8 +3,8 @@
 Shareable ESLint flat config for VeraJS.
 
 It covers two mistakes that produce **no error at all** — the code runs, the wrong thing happens,
-and there is nothing to search for. Everything else is left alone: no style opinions, no parser, no
-plugin, no dependencies.
+and there is nothing to search for — plus one convention a published package wants and nothing else
+enforces. Everything else is left alone: no style opinions, no parser, no plugin, no dependencies.
 
 ```sh
 npm i -D @verajs/eslint-config
@@ -91,12 +91,39 @@ Take `wire` from the package that owns the extension point: `@verajs/core` for `
 `proxy-handler`, `set-handler`, `error` and `init`. Importing `@verajs/inserts` for anything else —
 the registry itself — is untouched by this rule.
 
+### `type` unless the interface genuinely extends
+
+```ts
+export interface Options { mode: string }           // ✗ error
+export type Options = { mode: string };             // ✓
+export interface ComponentHook extends Hook { … }   // ✓ — it extends
+```
+
+An **interface is open to declaration merging**, and for a type you publish that is a door you did
+not mean to leave open: a consumer writes `declare module` with the same interface name and silently
+adds members to your type, in their build, with no error on either side. A type alias simply cannot
+be merged. The two also disagree about assignability — a type alias carries an implicit index
+signature, so it satisfies `Record<string, unknown>` where the identical interface does not, which
+is the version of this that shows up as a confusing error rather than as silence.
+
+Where merging **is** the point, disable it and say so. `JSX.IntrinsicElements` is the canonical
+case: a TSX app adds its own custom elements by merging into it, and a type alias would remove the
+only way to do that.
+
+`@typescript-eslint/consistent-type-definitions` is deliberately not what this uses. Its `type`
+option forbids *every* interface, including the genuine extension — and a rule that contradicts the
+convention it enforces just teaches people to switch it off.
+
 ## Composing
 
-Both rule bodies are exported if you would rather assemble them yourself:
+The rule bodies are exported if you would rather assemble them yourself:
 
 ```js
-import { noCustomElementClassFields, noInsertFromInsertsPackage } from '@verajs/eslint-config';
+import {
+  noCustomElementClassFields,
+  noInsertFromInsertsPackage,
+  noNonExtendingInterface,
+} from '@verajs/eslint-config';
 ```
 
 ## License
