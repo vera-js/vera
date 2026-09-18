@@ -295,6 +295,55 @@ test('!prop on a component delivers the property — the client half of the SSR 
     'the live-bound property reaches the component — same string the server renders');
 });
 
+test('the whole JSX thread: bare-prop source compiles, renders, adopts, and stays reactive', async () => {
+  /**
+   * Every seam of this thread is pinned elsewhere — the transform's grammar in `jsx.test.mjs`,
+   * the `.name` runtime here — but no other test walks it END TO END: author-shaped JSX in,
+   * reactive component out. This is that walk, through the real transform and the real engine.
+   */
+  const { transformJsx } = await load('jsx');
+  const { writeFileSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+
+  const compiled = transformJsx(
+    `const { html } = globalThis.__cpJsx;
+     export const view = (model, n) => <cp-jsx-thread model={model} count={n} active />;`,
+    'thread.jsx',
+    { inject: false }
+  );
+  assert.ok(compiled.includes('.model=') && compiled.includes('.count=') && compiled.includes('.active=${true}'),
+    'the transform emitted property bindings for the bare props');
+
+  globalThis.__cpJsx = { html };
+  const dir = mkdtempSync(join(tmpdir(), 'vera-cp-jsx-'));
+  writeFileSync(join(dir, 'thread.mjs'), compiled);
+  const { view } = await import(pathToFileURL(join(dir, 'thread.mjs')).href);
+  rmSync(dir, { recursive: true, force: true });
+
+  customElements.define('cp-jsx-thread', class extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.model.label} ${String(this.count)} ${String(this.active)}</p>`);
+    }
+  });
+  const host = mount();
+  const model = createStore({ label: 'jsx' });
+  renderInto(view(model, 1), host);
+  await frame(); await frame();
+  const el = host.querySelector('cp-jsx-thread');
+  assert.equal(text(el), 'jsx 1 true', 'bare JSX props arrived as reactive props, flag included');
+
+  renderInto(view(model, 2), host);
+  await frame(); await frame();
+  assert.equal(text(el), 'jsx 2 true', 'the parent’s re-render lands in the adopted accessor');
+
+  model.label = 'live';
+  await frame(); await frame();
+  assert.equal(text(el), 'live 2 true', 'a store passed as a bare JSX prop stays reactive');
+});
+
 test('the drain runs once: a reconnect keeps the adopted values and their reactivity', async () => {
   customElements.define('cp-reconnect', class extends HTMLElement {
     connectedCallback() {
