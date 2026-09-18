@@ -93,7 +93,30 @@ const audit = async (name, { setup, value, open = false, type } = {}) => {
     await settle();
   }
   const results = await window.axe.run(element, { resultTypes: ['violations'] });
-  const summary = results.violations.map((violation) => `${violation.id}: ${violation.help}`).join('; ');
+  /**
+   * The message names the offending NODE and the numbers behind the rule, not just the rule.
+   *
+   * It used to report `color-contrast: Elements must meet minimum color contrast ratio thresholds`
+   * and nothing else, which is the rule's generic help text and identifies neither the element nor
+   * the ratio. When exactly that fired on Linux WebKit in CI — while Chromium, Firefox and macOS
+   * WebKit all passed — there was no way to tell a real contrast miss from an engine difference in
+   * how the colours resolve, and nothing to reproduce from. A failure that cannot be acted on is a
+   * failure that gets muted.
+   */
+  const summary = results.violations
+    .map((violation) => {
+      const where = violation.nodes
+        .map((node) => {
+          const target = Array.isArray(node.target) ? node.target.join(' ') : String(node.target);
+          const why = [...(node.any ?? []), ...(node.all ?? []), ...(node.none ?? [])]
+            .map((check) => `${check.message}${check.data ? ` ${JSON.stringify(check.data)}` : ''}`)
+            .join(' | ');
+          return `${target} → ${why}`;
+        })
+        .join('\n      ');
+      return `${violation.id}: ${violation.help}\n      ${where}`;
+    })
+    .join('; ');
   expect(results.violations, `${name} — ${summary}`).to.have.length(0);
   element.remove();
 };

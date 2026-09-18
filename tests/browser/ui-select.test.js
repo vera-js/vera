@@ -90,8 +90,20 @@ it('the menu fades and slides rather than jumping, and the arrow flips — polle
   }
   expect(mid, 'opacity never took a value between 0 and 1 — it jumped').to.be.a('number');
 
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  expect(Number(getComputedStyle(menu).opacity)).to.equal(1);
+  /**
+   * Polled to SETTLEMENT for the same reason the loop above is polled, which this assertion used
+   * to ignore: it slept a fixed 250 ms into a 140 ms transition and demanded exactly `1`. That is
+   * the fixed-instant sample the comment above warns against, just at the other end — and a loaded
+   * CI runner does not honour it. Linux WebKit reported 0.998519 and failed the run while Chromium,
+   * Firefox and macOS WebKit all passed, which is what a machine-dependent assertion looks like.
+   */
+  let opacity = 0;
+  for (let i = 0; i < 200; i++) {
+    opacity = Number(getComputedStyle(menu).opacity);
+    if (opacity === 1) break;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(opacity, 'the fade settled fully open').to.equal(1);
   expect(getComputedStyle(menu).visibility).to.equal('visible');
   expect(getComputedStyle(trigger, '::after').transform).to.not.equal(closedArrow, 'the arrow flipped');
   element.remove();
