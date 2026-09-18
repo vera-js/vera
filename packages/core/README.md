@@ -317,11 +317,16 @@ async connectedCallback() {
 
 Server-side this is already handled for you: `renderToStringAsync` awaits `connectedCallback`.
 
-**Taking input from an attribute.** Attributes are half of how a web component receives anything, and
-the wiring is yours: write the new value into a store the template reads. The one sharp edge is the
-platform's ordering — `attributeChangedCallback` runs *before* `connectedCallback` for any attribute
-already in the markup, so the store does not exist yet on that first call. Guard it, and read the
-initial value in `connectedCallback`:
+**Taking input from an attribute.** Attributes are the other half of how a web component receives
+anything — [Props](#props--what-a-parent-passes-in) is the half that carries *values*, and an
+attribute carries a **string** that is visible in markup, which makes it the right channel for CSS
+hooks, static markup and anything a person may write by hand in HTML. Reach for a prop for data
+(objects, arrays, stores, dates) and an attribute for the rest.
+
+Unlike props, the wiring here is yours: write the new value into a store the template reads. The one
+sharp edge is the platform's ordering — `attributeChangedCallback` runs *before* `connectedCallback`
+for any attribute already in the markup, so the store does not exist yet on that first call. Guard
+it, and read the initial value in `connectedCallback`:
 
 ```js
 static observedAttributes = ['label'];

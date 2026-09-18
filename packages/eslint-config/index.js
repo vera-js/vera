@@ -36,9 +36,13 @@
  * field. The regex covers customized built-ins (`HTMLDivElement` and friends) as well as
  * `HTMLElement`.
  *
- * Stricter than strictly necessary, on purpose. A field nothing sets from outside is harmless, but
- * nothing can tell the two apart from the syntax — and the cost of being wrong is silent data loss
- * against the cost of one keyword.
+ * Stricter than strictly necessary, on purpose — and one case is now genuinely covered without it:
+ * a property a TEMPLATE BINDING delivered is recorded by `@verajs/renderer` and re-applied by
+ * `init()` after upgrade, in both field spellings, so a component that calls `init()` keeps its
+ * bound props whatever you write. What no repair reaches is an IMPERATIVE assignment
+ * (`el.item = data`) before upgrade — the renderer never saw it, so nothing recorded it. Nothing in
+ * the syntax says which kind a field will receive, and the cost of being wrong is silent data loss
+ * against the cost of one keyword, so the rule still flags every one.
  */
 export const noCustomElementClassFields = {
   selector:

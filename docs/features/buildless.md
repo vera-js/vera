@@ -11,8 +11,11 @@ TypeScript — never a prerequisite.
 This is not a convenience feature bolted on; it is a **hard constraint on the design** that rules
 things out:
 
-- **No JSX.** It cannot run in a browser uncompiled. Templates are tagged template literals, which
-  are native.
+- **No JSX in the baseline.** It cannot run in a browser uncompiled, so nothing here requires it —
+  templates are tagged template literals, which are native. (JSX is available as an *opt-in* both
+  ways: `@verajs/jsx` as a build plugin, or `@verajs/jsx/standalone`, which compiles
+  `<script type="text/vera-jsx">` blocks in the browser with no toolchain. The point of the
+  constraint is that the framework never assumes a compiler, not that you may not use one.)
 - **No decorators**, and no TypeScript-only runtime syntax (`enum`, parameter properties).
 - **Browser-ready ESM output** — no `process.env`, no `require`, no import rewriting.
 

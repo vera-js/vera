@@ -47,7 +47,7 @@ Reproduce it with `cd bench && npm install`, then `npm run build && node bench/s
 repository root.
 
 > **Status: early, pre-1.0.** Published to npm since 2026-08-21 — `core`, `renderer`, `router`,
-> `autoloader`, `inserts`, `styles`, `reactivity`, `jsx` and `ssr` are live, each with a
+> `autoloader`, `inserts`, `styles`, `store`, `jsx` and `ssr` are live, each with a
 > provenance attestation.
 > Versions are per-package and move independently; npm is the source of truth for current numbers.
 > The structure and tooling are still being reworked, after which the project gets an honest
@@ -203,6 +203,43 @@ customElements.define('click-counter', ClickCounter);
 
 Reactivity is transparent — read `state.count` inside `render` or `useEffect` and that effect
 re-runs when it changes. There is no dependency array to maintain.
+
+### Passing data to a child component
+
+A parent binds **properties**; the child reads them off `this`. Nothing is declared on either side —
+no `static properties`, no props argument, no base class — and what arrives is the value itself, so
+an array, a `Date` or a store stays what it is and stays live:
+
+```ts
+// parent
+render(() => html`<order-row .item=${row}></order-row>`);
+
+// child — no declaration anywhere
+class OrderRow extends HTMLElement {
+  connectedCallback() {
+    init(this, { mode: 'open' });
+    render(() => html`<p>${this.item.label}</p>`);   // reading this.item tracks it
+  }
+}
+```
+
+Reading a bound property inside `render` subscribes to it, so the parent's next render updates the
+child. It works the same when the child's module loads late, and `@verajs/ssr` delivers the same
+values to the child's server render.
+
+### TSX
+
+`@verajs/jsx` compiles JSX and TSX into these same templates at build time — zero runtime. Two
+tsconfig settings are required, and the second is the one people miss:
+
+```jsonc
+{ "compilerOptions": { "jsx": "preserve", "types": ["@verajs/jsx"] } }
+```
+
+Without `"types"`, every element errors with `TS7026`: the JSX namespace ships with the plugin's
+declarations, and a TSX app configures the plugin in `vite.config.js` without ever importing it.
+On a dash-named tag a bare prop is a **prop** — `<order-row item={row} />` binds the property, as
+React would. Full rules: [`packages/jsx/README.md`](packages/jsx/README.md).
 
 ---
 

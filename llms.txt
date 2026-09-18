@@ -19,7 +19,7 @@ lit's own output rather than asserting it. VeraJS ships its own renderer and nee
 >
 > **Current facts (2026-08-31):**
 > - All nine runtime packages are on npm: `@verajs/core`, `renderer`, `router`, `autoloader`,
->   `inserts`, `styles`, `reactivity`, `jsx` and `ssr` — each release with a GitHub Actions
+>   `inserts`, `styles`, `store`, `jsx` and `ssr` — each release with a GitHub Actions
 >   provenance attestation (`npm audit signatures`).
 > - `@verajs/renderer` is browser-confirmed fastest-or-tied against lit-html on the benchmark's
 >   eight operations; prefer it.
@@ -142,6 +142,43 @@ the right tool.
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
 | `setStaticStores` | `(on: boolean) => void` | Server-only; `@verajs/ssr` calls it for `{ static: true }` renders — see the SSR section. In a browser it gives you a framework that does not update. |
+
+### Props — passing data to a child component
+
+**A parent binds properties; the child reads them off `this`. Nothing is declared on either side.**
+No `static properties`, no props argument, no `declare`, no base class.
+
+```js
+// parent — any of these three spellings
+html`<order-row .item=${row} .index=${i}></order-row>`          // template
+html`<order-row ${props({ item: row, index: i })}></order-row>` // props(), from @verajs/renderer/spread
+<order-row item={row} index={i} />                              // JSX — bare props ARE props on a dashed tag
+
+// child — no declaration anywhere
+customElements.define('order-row', class extends HTMLElement {
+  connectedCallback() {
+    init(this, { mode: 'open' });
+    render(() => html`<p>${this.index}: ${this.item.label}</p>`);   // reading this.item TRACKS it
+  }
+});
+```
+
+`init()` **adopts** every bound property into a store-backed accessor, so a read in a render is
+tracked and the parent's next commit re-renders the child. Values arrive **by identity** — an
+array, a `Date`, a `createStore` store or a `ref()` stays itself and stays live, which is how a
+child re-renders when the parent mutates the object it was given.
+
+| Rule | |
+| --- | --- |
+| **Props are PROPERTIES, not attributes** | `item="…"` is an attribute and always a string. `.item=${…}`, `props({ item })` and JSX `item={…}` on a dashed tag are properties, any type, invisible to `getAttribute`. |
+| **Lazy definition is safe** | A value bound before the child's module loads is recorded and re-applied by `init()`, repairing the ES2022 class-field clobber in both spellings. No `declare` needed for bound props. |
+| **Defaults belong to the parent** | `props({ date: date ?? today })`, or read `this.date ?? today`. A class field default does not win — a bound value outranks it, which is what props mean. |
+| **Your own accessors are kept** | A `get item()`/`set item()` pair receives through its setter and owns its reactivity (back it with your own store). A getter with no setter refuses the binding by name in development. |
+| **SSR delivers them too** | `@verajs/ssr` hands the same values to the child's server render, so server and client render the same content. |
+| **A key can arrive later** | A spread bag that grows a key on a live child is adopted reactively. Prefer stable shapes anyway (`props({ date: loaded ? date : null })`). |
+
+Attributes are still the right channel for CSS hooks and static markup; `attributeChangedCallback`
+is the platform's own and untouched by any of this.
 
 ### Effects
 
@@ -632,6 +669,70 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
   renderer's instrumentation sits behind a `__DEV__` constant the build folds to `false`, so
   `vera-renderer.min.js` is byte-identical with and without it. Same rule as hydrate — never mix
   entries in one app.
+
+### JSX / TSX (`@verajs/jsx`) — build-time, zero runtime
+
+Opt-in, and **never required** — templates are the baseline. A hand-rolled parser compiles JSX into
+the renderer's own tagged templates at build time, so what ships is `html\`…\`` with nothing added
+to the bundle, and one JSX call site is one template call site (nested markup becomes inline
+statics, so template identity and every renderer fast path hold).
+
+```js
+// vite.config.js
+import { veraJsx } from '@verajs/jsx';
+export default { plugins: [veraJsx()] };
+```
+
+```jsonc
+// tsconfig.json — BOTH lines, and the second is the one people miss
+{ "compilerOptions": {
+    "jsx": "preserve",         // the plugin transforms JSX; `react-jsx` would emit _jsx() calls it never sees
+    "types": ["@verajs/jsx"]   // loads the JSX namespace — without it EVERY element errors TS7026
+} }
+```
+
+**Without `types`, TSX does not compile.** The namespace ships with this package's declarations, but
+a TSX app imports `@verajs/core` and configures the plugin in `vite.config.js` — it never imports
+`@verajs/jsx`, so TypeScript never loads them. The typings are permissive (every element accepts
+every prop), so `key`, `onClick` and bare props all type-check; a fully typed per-element surface is
+the known long tail, and the checked path for a component's props is `props<CalendarDay>({ … })`.
+
+`.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed`, `spread`, `svg` and
+`mathml` are injected as needed (`inject: false` to provide them yourself; each is also individually
+configurable — `html: ['h', 'my-lib']`).
+
+**What it compiles to.** `onClick={f}` → `@click=${f}`; `className`/`htmlFor` → `class`/`for`;
+`value`/`checked` → `.value`/`.checked` and `defaultValue`/`defaultChecked` → the attributes;
+the boolean-attribute table → `?attr=${…}`; `key={id}` → `keyed(id, …)` on a list callback's root;
+`ref={r}` → an element-position ref; `{...rest}` → `spread(rest)`;
+`dangerouslySetInnerHTML={{ __html: h }}` → `.innerHTML=${h}`; `<Comp a={1}>kids</Comp>` →
+`Comp({ a: 1, children: […] })`; `<>…</>` → the children; `<div />` and `<br></br>` are both
+normalised to what the ELEMENT requires. The four renderer sigils pass through untouched in `.jsx`
+— but **TSX cannot parse them** (`.date={d}` is TS1003), so in TSX write the bare prop or
+`{...props({ date })}`.
+
+**Two rules depend on position, and both are the reason this is not just a name table:**
+
+- **On a dash-named tag, a bare prop is a PROP** — `<calendar-day date={d} count={3} active>` emits
+  `.date=${d}`, `.count=${3}`, `.active=${true}`, delivered by identity and adopted reactively (see
+  *Props* above). Carve-outs, both derivations rather than a list: a name that cannot be a JS
+  identifier (`data-*`, `aria-*`, `xlink:href`) has no property spelling and stays an attribute, and
+  `class`/`for` — the two names the DOM itself renamed — stay attributes (write `className`, as in
+  React). None of the HTML-control guesses apply on a component: `disabled={x}` is its own prop.
+- **Inside `<svg>`/`<math>`, expressions compile in that namespace** — a mapped or conditional shape
+  becomes `svg\`…\`` (or `mathml\`…\``) automatically, `<foreignObject>` flips back to HTML. A
+  function component compiles where it is DEFINED, so give an icon component its own `<svg>` wrapper.
+
+**Refused with file/line/column** rather than passed to the next tool: a mismatched closing tag,
+`key` anywhere but a list callback's root, children inside a void element, `dangerouslySetInnerHTML`
+in any other shape, an object `style`, a sigil with no value. Anything that does not parse is left
+exactly as written, because `a < b` has to survive.
+
+**Exports.** `veraJsx(options?)` is the bundler plugin; `transformJsx(source, fileName, options?)`
+is the transform itself, for another bundler or a test; and `@verajs/jsx/standalone` exports
+`runBlock(scriptElement)` for a `script[type="text/vera-jsx"]` block that arrives **after**
+`DOMContentLoaded` — CMS content, a demo injected later — since blocks present at load run
+automatically in document order. For no build at all, see **Buildless JSX — the whole recipe** below.
 
 ### Router
 
@@ -1225,18 +1326,19 @@ the price of the modules being genuinely independent of core.
 For CodePen, a demo or a single-file app. Copy this shape; it works with no toolchain at all.
 
 ```html
-<!-- All three entries are required, for two different reasons. The transform auto-injects
-     `import { html } from '@verajs/core'` into every block, and — only when you write `key={…}` on a
-     JSX element — `import { keyed } from '@verajs/renderer/keyed'`. Note the subpath: mapping
-     `@verajs/renderer` alone is not enough for `key={…}`, and the page fails at import time with
-     "Failed to resolve module specifier". The `@verajs/renderer` entry is needed for the
-     `import { renderer }` below, which you write yourself. An explicit `keyed(…)` call is not
-     auto-injected either — import it, as this block does. -->
+<!-- Every entry is required, for two different reasons. The transform AUTO-INJECTS what a block
+     uses: `html` always, plus `keyed` for `key={…}`, `spread` for `{...rest}`, and `svg`/`mathml`
+     for expressions inside `<svg>`/`<math>`. The last two come from `@verajs/core`, already mapped;
+     the other two are SUBPATHS, and mapping `@verajs/renderer` alone does not cover them — the page
+     fails at import time with "Failed to resolve module specifier". The plain `@verajs/renderer`
+     entry is for the `import { renderer }` below, which you write yourself; an explicit `keyed(…)`
+     call is not auto-injected either — import it, as this block does. -->
 <script type="importmap">
 { "imports": {
     "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.3.0/dist/vera.min.js",
     "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.0/dist/vera-renderer.min.js",
-    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.0/dist/vera-renderer-keyed.min.js"
+    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.0/dist/vera-renderer-keyed.min.js",
+    "@verajs/renderer/spread": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.0/dist/vera-renderer-spread.min.js"
 } }
 </script>
 
@@ -1256,12 +1358,24 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
      <Row a={x}>kid</Row> compiles to Row({ a: x, children: ["kid"] }). */
   const Row = ({ label, onPick }) => <li onClick={onPick}>{label}</li>;
 
+  /* A real child COMPONENT. On a dash-named tag a bare prop is a PROP: `count={state.n}` below
+     compiles to `.count=${state.n}`, arrives by identity, and is adopted reactively — nothing
+     declared here, and the parent's next render updates it. */
+  class TallyBadge extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => <b>picked: {String(this.count)}</b>);
+    }
+  }
+  customElements.define('tally-badge', TallyBadge);
+
   class MyApp extends HTMLElement {
     connectedCallback() {
       init(this);                       // light DOM; init(this, { mode: 'open' }) for shadow
       render(() => (
         <ul>
           {[1, 2, 3].map((i) => keyed(i, <Row label={`row ${i}`} onPick={() => state.n = i} />))}
+          <tally-badge count={state.n} />
         </ul>
       ));
     }
@@ -1438,15 +1552,37 @@ Say so rather than inventing an API:
 9. An autoloaded file that loads and defines a different tag than its name → reported via
    `vera:autoload-error` and the console; the module must define the element it is named for.
 10. **TypeScript: a plain class field on a custom element silently destroys values set before the
-   element upgrades.** Use `declare`. See below — this one is invisible and costs you real data.
+   element upgrades.** Bound properties are repaired automatically (see *Props*), but a value
+   assigned **imperatively** — `el.rows = data` before the definition loads — is gone for good.
+   Use `declare`. See below; this one is invisible and costs you real data.
+11. **Passing an object to a component as an attribute.** `<x-rows rows=${data}>` in a template, or
+   `rows={data}` on an **HTML** tag in JSX, is an *attribute* — always a string, so an array
+   arrives as `"1,2,3"`. Bind a property: `.rows=${data}`, `props({ rows: data })`, or — on a
+   dash-named tag in JSX — the bare `rows={data}`, which already means the property. Development
+   names any non-primitive that reaches an attribute sink.
+12. **TSX: forgetting `"types": ["@verajs/jsx"]`, or writing a sigil.** Without that tsconfig entry
+   every element errors `TS7026` — the namespace ships with the plugin's declarations and a TSX app
+   never imports the plugin. And `.date={d}` does not parse in `.tsx` (`TS1003`, TypeScript's own
+   parser, before this plugin sees the file): write the bare prop, or `{...props({ date })}`.
 
-## TypeScript: always `declare` custom-element fields
+## TypeScript: `declare` custom-element fields
 
 ```ts
 class ChildElement extends HTMLElement {
   declare item?: { message: string };   // correct — emits nothing
-  // item?: { message: string };        // WRONG — emits `item;`
+  // item?: { message: string };        // emits `item;`, which runs during upgrade
 }
+```
+
+**Bound properties no longer need this** — a component that calls `init()` has them re-applied
+after upgrade (see *Props*, and both field spellings are repaired). `declare` is still the rule for
+everything else, and still the safe habit, because of the one case nothing can recover: a property
+assigned **imperatively** (`el.item = data`) before the element upgrades. Measured, all three:
+
+```
+.item=${…} bound, plain field, component calls init()  ->  value survives   (adopted and re-applied)
+el.item = … imperative, plain field, init()            ->  value LOST       (the renderer never saw it)
+el.item = … imperative, `declare item`                 ->  value survives   (no field to overwrite it)
 ```
 
 At target ES2022 `useDefineForClassFields` is on, so a field *declaration* is a runtime
@@ -1462,22 +1598,31 @@ instance; then `define` upgrades it synchronously, the field initializer runs, a
 overwritten with `undefined`. Nothing throws. The component renders empty and the bug looks like
 broken reactivity.
 
-`@verajs/renderer` **warns in development** when a bound property is replaced during upgrade, and
-production carries neither the check nor the message. It does not repair it, deliberately: a repair
-would cover `item?: Thing` but not `item = someDefault`, so the same mistake would behave two ways
-depending on spelling — and a property assigned imperatively is unrecoverable by anyone, since the
-renderer never saw it and class fields initialise the instant `super()` returns, before either the
-constructor body or `connectedCallback` can look. `declare` is the rule, not a suggestion.
+**What repairs it, and what cannot.** `@verajs/renderer` records every property binding nothing has
+received yet, and `init()` re-applies the record after construction — unconditionally, so BOTH
+spellings (`item;` and `item = someDefault`) resolve to the bound value: a bound value outranks a
+class default, which is what props mean. That covers the common case completely and is why bound
+props need no declaration of any kind.
 
-`npx eslint` flags it too, if you use the config in this repo.
+It cannot cover a property assigned **imperatively**, because the renderer never saw it and class
+fields initialise the instant `super()` returns — before the constructor body or
+`connectedCallback` can look. For an element that never calls `init()`, nothing drains the record
+either, so the clobber stands and `@verajs/renderer` **warns in development** (once per binding);
+production carries neither the check nor the message.
+
+`npx eslint` flags every plain class field on a custom element, if you use the config in this repo
+— deliberately stricter than the repair, because nothing in the syntax says whether a field will be
+written from outside, and the cost of being wrong is silent data loss against the cost of one
+keyword.
 
 All of the above is about a definition that arrives **late**. When the element is already defined
 at render time, the binding goes through the class: the renderer stamps instances with
 `importNode`, whose cloning steps upgrade defined elements at clone time, so a class **setter
 fires** with the bound value (nothing shadows it) and a field initializer runs **before** the
 commit, so the binding wins over the default — the same order hydration always had, since
-server-rendered elements upgrade at parse. `declare` remains the rule because you do not control
-when a consumer's module graph defines your element.
+server-rendered elements upgrade at parse. `declare` remains the safe habit because you do not
+control when a consumer's module graph defines your element — but for BOUND properties the repair
+above makes both orders agree, which is the point of it.
 
 ## Repository
 

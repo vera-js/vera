@@ -68,6 +68,16 @@ document.body.appendChild(el);
 await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 const rows = [...el.querySelectorAll('li')].map((n) => n.textContent);
 if (rows.join('|') !== 'row 1|row 2|row 3') throw new Error('rendered ' + JSON.stringify(rows));
+/**
+ * The recipe also teaches the headline semantics — a bare prop on a dash-named tag IS a property —
+ * so the block asserts it rather than merely surviving it: \`count={state.n}\` has to arrive on the
+ * child and be readable as \`this.count\`. Written as text the claim would be untested; the whole
+ * reason this file exists is that llms.txt is the most-copied code in the project.
+ */
+const badge = el.querySelector('tally-badge');
+if (!badge?.shadowRoot) throw new Error('the child component did not render a shadow root');
+if (badge.shadowRoot.textContent.trim() !== 'picked: 0')
+  throw new Error('bare JSX prop did not reach the child: ' + JSON.stringify(badge.shadowRoot.textContent));
 process.stdout.write('ok');
 `;
   const setup = new URL('./dom-globals.mjs', import.meta.url).href;
@@ -106,7 +116,13 @@ test('every specifier the JSX transform injects is in the buildless import map',
   const text = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
   /** `llms.txt` carries two import maps — the plain CDN one and the JSX one — and only the JSX
    * recipe has anything injected into it. Take the last map before the first JSX block. */
-  const jsxAt = text.indexOf('<script type="text/vera-jsx">');
+  /**
+   * Anchored on the BLOCK, not on any mention of the tag: prose that names
+   * `<script type="text/vera-jsx">` inline would otherwise be found first, and the check would
+   * then look for an import map before a sentence and report the recipe as mapless. The same
+   * `>\n` anchor `jsxBlocks` uses above, so the two agree on what a block is by construction.
+   */
+  const jsxAt = text.indexOf('<script type="text/vera-jsx">\n');
   assert.ok(jsxAt > 0, 'the buildless JSX recipe is gone');
   const maps = [...text.slice(0, jsxAt).matchAll(/<script type="importmap">\s*(\{[\s\S]*?\})\s*<\/script>/g)];
   assert.ok(maps.length, 'the buildless JSX recipe no longer has an import map before it');

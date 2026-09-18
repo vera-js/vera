@@ -25,15 +25,28 @@ import { veraJsx } from '@verajs/jsx';
 export default { plugins: [veraJsx()] };
 ```
 
-Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Imports for `html` and
-`keyed` are added when a file needs them.
+Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Imports for `html`,
+`keyed`, `spread`, `svg` and `mathml` are added when a file needs them.
 
 | Option | Default | Means |
 | --- | --- | --- |
-| `inject` | `true` | Add the `html` / `keyed` imports. `false` if you import them yourself |
+| `inject` | `true` | Add the imports below. `false` if you import them yourself |
 | `html` | `['html', '@verajs/core']` | `[export, module]` to import `html` from |
 | `keyed` | `['keyed', '@verajs/renderer/keyed']` | `[export, module]` to import `keyed` from |
 | `spread` | `['spread', '@verajs/renderer/spread']` | `[export, module]` to import `spread` from, for `{...rest}` on elements |
+| `svg` | `['svg', '@verajs/core']` | `[export, module]` for expressions inside `<svg>` — see [SVG and MathML](#svg-and-mathml-just-work) |
+| `mathml` | `['mathml', '@verajs/core']` | the same, for expressions inside `<math>` |
+
+**Writing TSX? Add the types, or nothing type-checks.** The JSX namespace ships with this package's
+declarations, but a TSX app imports `@verajs/core` and never imports the plugin, so TypeScript
+never loads them and every element errors with **TS7026** (*"JSX element implicitly has type 'any'
+because no interface 'JSX.IntrinsicElements' exists"*). One line fixes it — see
+[TypeScript](#typescript):
+
+```jsonc
+// tsconfig.json
+{ "compilerOptions": { "jsx": "preserve", "types": ["@verajs/jsx"] } }
+```
 
 For a playground with no build at all, `@verajs/jsx/standalone` transforms
 `<script type="text/vera-jsx">` blocks in the browser. It is for demos — the transform runs on every
@@ -83,9 +96,18 @@ not camel-cased.
 | `<div />` | `<div></div>` | **the element decides how the tag closes, not the spelling** |
 | `<br></br>` | `<br />` | the same rule, the other way |
 | `{/* … */}` and `{}` | nothing | |
+| `.prop=`, `?bool=`, `@event=`, `&ref=` | passed through untouched | the renderer's own sigils; **`.jsx` only** — TSX cannot parse them ([TypeScript](#typescript)) |
 
 Boolean attributes: `disabled`, `hidden`, `readonly`, `required`, `open`, `selected`, `multiple`,
 `autofocus`, `autoplay`, `controls`, `loop`, `muted`, `playsinline`, `inert`, `reversed`.
+
+**Two rules depend on where the tag sits**, and both have their own section because neither is a
+name in a table:
+
+| Where | Written | Becomes | |
+| --- | --- | --- | --- |
+| on a **dash-named** tag | `<calendar-day date={d}>` | `.date=${d}` — a **property** | [below](#on-a-component-tag-a-prop-is-a-prop) |
+| inside `<svg>` / `<math>` | `{pts.map((p) => <circle … />)}` | `svg\`<circle …>\`` | [below](#svg-and-mathml-just-work) |
 
 ### On a component tag, a prop is a prop
 
@@ -205,8 +227,37 @@ unclosed element (`<p>x` with no `</p>`) reaches your bundler as written and is 
 
 ## TypeScript
 
-This package ships the JSX namespace with its generated declarations. Set `"jsx": "preserve"` in `tsconfig.json` and
-let the plugin do the transform — `react-jsx` would emit `_jsx()` calls this never sees.
+Two settings, and the second is the one people miss:
+
+```jsonc
+// tsconfig.json
+{
+  "compilerOptions": {
+    "jsx": "preserve",          // the PLUGIN transforms JSX — `react-jsx` would emit _jsx() calls this never sees
+    "types": ["@verajs/jsx"]    // loads the JSX namespace, without which nothing type-checks
+  }
+}
+```
+
+**Why the second line is required.** This package ships the JSX namespace with its generated
+declarations — but a TSX app imports `@verajs/core` and configures the plugin in `vite.config.js`;
+it never *imports* `@verajs/jsx`, so TypeScript never loads its declarations and every element
+errors with **TS7026**. Naming it in `types` loads the ambient declarations without importing
+anything at runtime. A per-file `/// <reference types="@verajs/jsx" />` works identically if you
+would rather not touch `types` (which, once set, also narrows what else is auto-included).
+
+**What the typings do and do not check.** They are deliberately permissive — every element accepts
+every prop (`IntrinsicElements` is an index signature), so TSX compiles today and `key={id}`,
+`onClick={fn}` and bare props on a component all type-check. A fully typed per-element surface is
+the known long tail. Two consequences worth knowing:
+
+- **A misspelled prop is not caught by TypeScript here.** For the props you pass a component, the
+  checked path is `props<CalendarDay>({ dat })` from `@verajs/renderer/spread`, which *is* checked
+  against the element and names the misspelling.
+- **The sigil spellings do not parse in TSX.** `.date={d}` is valid in `.jsx` and trips **TS1003**
+  (*"Identifier expected"*) in `.tsx`, because the TypeScript parser reads the attribute name
+  before this plugin ever sees the file. In TSX, write the bare prop (`date={d}`) — which means the
+  same thing on a component tag — or `{...props({ date })}`.
 
 ## What it is not
 

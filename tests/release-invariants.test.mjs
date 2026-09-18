@@ -15,7 +15,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { globSync, readFileSync, existsSync } from 'node:fs';
+import { globSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
@@ -142,23 +142,57 @@ test('every published package has what npm needs to publish it', () => {
  * tags on release and reports the untagged ones — so the tags are the local record of what exists
  * on the registry.
  */
-test('llms.txt does not claim an unreleased package is on npm', () => {
-  const doc = readFileSync(new URL('../llms.txt', import.meta.url), 'utf8');
-  /** The sentence anchors moved when the list was rewritten (2026-08-31); the mechanism did not. */
-  const claim = /packages are on npm:([\s\S]*?)provenance attestation/.exec(doc);
-  assert.ok(claim, 'the "on npm" list in llms.txt has changed shape');
+/**
+ * **The same claim lives in two files, and both are read before anyone installs anything** —
+ * `llms.txt` because it is the most-copied, `README.md` because it is what npm and GitHub show. A
+ * rule enforced in one of two homes is enforced in neither: the README's copy drifted while this
+ * test watched the other one.
+ */
+const ON_NPM_CLAIMS = [
+  ['llms.txt', /packages are on npm:([\s\S]*?)provenance attestation/],
+  ['README.md', /Published to npm since[\s\S]*?—([\s\S]*?)are live/],
+];
 
-  /** Names inside that sentence, `@verajs/`-prefixed or bare. */
-  const listed = [...claim[1].matchAll(/`@?(?:verajs\/)?([a-z-]+)`/g)].map((m) => m[1]);
-  assert.ok(listed.length >= 5, `only found ${listed.length} package names in the claim`);
-
+test('neither llms.txt nor README.md claims a package is on npm when it is not', () => {
   const tags = execFileSync('git', ['tag', '--list', '@verajs/*'], { cwd: root, encoding: 'utf8' });
   const released = new Set([...tags.matchAll(/@verajs\/([a-z-]+)@/g)].map((m) => m[1]));
 
-  const overclaimed = listed.filter((name) => !released.has(name));
-  assert.deepEqual(
-    overclaimed,
-    [],
-    `llms.txt says these are on npm and they carry no release tag, so they have never been published: ${overclaimed.join(', ')}`
+  /**
+   * **A tag is not enough, because tags outlive packages.** `@verajs/reactivity` was published,
+   * renamed to `@verajs/store`, and unpublished — and its tag stayed, so a tags-only check read
+   * the stale claim as true while a reader following it got a 404 from `npm i`. That is the exact
+   * failure this test was written for, arriving by the one route it could not see. A name must
+   * therefore ALSO still be a publishable package in this repository: renames and removals are
+   * then caught offline, deterministically, by the tree itself.
+   */
+  const publishable = new Set(
+    readdirSync(new URL('../packages', import.meta.url)).filter((name) => {
+      const manifest = new URL(`../packages/${name}/package.json`, import.meta.url);
+      if (!existsSync(manifest)) return false;
+      return JSON.parse(readFileSync(manifest, 'utf8')).private !== true;
+    })
   );
+  assert.ok(publishable.size >= 5, `only ${publishable.size} publishable packages found — the scan is broken, not the docs`);
+
+  for (const [file, pattern] of ON_NPM_CLAIMS) {
+    const doc = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    const claim = pattern.exec(doc);
+    assert.ok(claim, `the "on npm" list in ${file} has changed shape`);
+
+    /** Names inside that sentence, `@verajs/`-prefixed or bare. */
+    const listed = [...claim[1].matchAll(/`@?(?:verajs\/)?([a-z-]+)`/g)].map((m) => m[1]);
+    assert.ok(listed.length >= 5, `only found ${listed.length} package names in ${file}'s claim`);
+
+    assert.deepEqual(
+      listed.filter((name) => !released.has(name)),
+      [],
+      `${file} says these are on npm and they carry no release tag, so they have never been published`
+    );
+    assert.deepEqual(
+      listed.filter((name) => !publishable.has(name)),
+      [],
+      `${file} says these are on npm, but they are not publishable packages in this repository any more — ` +
+        `a rename or a removal leaves the tag behind, so the claim is stale and \`npm i\` gives a 404`
+    );
+  }
 });
