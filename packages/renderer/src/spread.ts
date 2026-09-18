@@ -527,7 +527,7 @@ export const spread = (props: object | null | undefined): SpreadResult => {
    * development build stops being a faithful model of the production one, which is the property that
    * makes testing in it worth anything. Costs 27 B gzipped (842 → 869, A-B-A) and buys the two builds agreeing.
    */
-  if (props === null || props === undefined || typeof props !== 'object' || Array.isArray(props)) {
+  if (props === null || typeof props !== 'object' || Array.isArray(props)) {
     if (__DEV__)
       console.warn(
         `[vera] spread: ignoring a props bag that is not a plain object — received ` +
