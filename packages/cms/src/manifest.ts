@@ -28,7 +28,6 @@ import { parseContent } from './frontmatter.js';
 import { validateEntry } from './schema.js';
 import type { CollectionSchema, ContentSource, Manifest, ManifestEntry } from './types.js';
 
-/** What the generator needs to know about one file; discovery and reading are the caller's. */
 /**
  * Builds one collection's manifest from its files.
  *

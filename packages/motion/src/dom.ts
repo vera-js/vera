@@ -11,7 +11,7 @@ import type { RawKeyframe, WindowSize } from './types.js';
  * a right-to-left horizontal scroller `start` is already turned round to match where `scrollLeft`
  * reads 0. The cost is integer rounding, which is nothing at the scale scroll geometry works at.
  */
-export type ElementBox = {
+type ElementBox = {
   readonly start: number;
   readonly end: number;
   readonly size: number;

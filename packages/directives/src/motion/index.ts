@@ -34,6 +34,20 @@ const CONFIG_ATTR = 'data-vd-motion-group';
 
 /* ── factory options and page defaults ────────────────────────────────────── */
 
+/**
+ * The pack's PAGE DEFAULTS — `motion({ … })`, read once when the connector runs and inherited by
+ * every region the page creates.
+ *
+ * Most of these are defaults rather than settings: `data-vd-motion-group` may override `inertia`,
+ * `inertia-ease`, `ease` and `translate-z-fix` for its own subtree, and an individual element's
+ * value overrides them again. The exceptions are the POLICY-SHAPED keys — `breakpoints` and
+ * `inline` — which no attribute can reach at all, because an attribute may be written by a CMS, a
+ * template someone else fills, or an attacker: registering a breakpoint name or changing the
+ * page's CSS delivery mode is the page author's decision, made in JavaScript they wrote.
+ *
+ * An unusable value is dropped and reported as a page problem rather than throwing — a bad entry
+ * in `breakpoints` costs that one name, not the whole table.
+ */
 export type MotionOptions = {
   /** Seconds the element takes to reach the position scroll says it should be at. */
   inertia?: number;

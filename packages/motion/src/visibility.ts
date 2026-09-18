@@ -26,7 +26,7 @@ import type { RuntimeElement } from './types.js';
  *    animations is not worth having.
  */
 
-export type VisibilityTracker = {
+type VisibilityTracker = {
   /** Elements currently worth updating. Iterate this, not the full list. */
   readonly active: ReadonlySet<RuntimeElement>;
   /**

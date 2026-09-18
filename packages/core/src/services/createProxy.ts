@@ -1,4 +1,4 @@
-import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
+import type { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
 import { getType, isSetOrMap, isWeakCollection, prioritySlot } from '@verajs/shared-utils';
 import { inserts, revision, ProxyHandlerInsert, SetHandlerInsert } from '@verajs/inserts';
 import { hooksQueue, proxyCallbacks } from '../store/store.js';

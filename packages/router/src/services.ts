@@ -5,7 +5,7 @@ import type { Inserts } from '@verajs/inserts';
 import { elements, elementsData, names, routers, routerSettings, state } from './state.js';
 import { emitEvent, focusView, removeHashFragment } from './utils.js';
 import { stripTrailingSlash } from '@verajs/shared-utils';
-import { Renderer } from '@verajs/shared-types';
+import type { Renderer } from '@verajs/shared-types';
 
 /**
  * How this package finds a renderer, and the reason it now imports nothing.

@@ -1,4 +1,4 @@
-import type { InsertFunctionMap, Inserts } from './types.js';
+import type { InsertFunctionMap } from './types.js';
 
 export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof InsertFunctionMap][]>();
 
@@ -12,28 +12,12 @@ export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof 
  * `_p` is a cross-bundle contract read by every inlined copy of this module. Never rename it and
  * never let a minifier mangle it.
  */
+import type { InsertDescriptor, Registerable } from './types.js';
+
+export type { Connector, InsertDescriptor, Registerable } from './types.js';
+
 type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
 
-/**
- * Everything an app can hand to {@link wire}: a **descriptor** naming the chain it belongs
- * in, or a **connector** — a function handed the registry, which is how a package that imports
- * nothing gets wired to it.
- */
-export type InsertDescriptor = {
-  on: keyof InsertFunctionMap;
-  fn: InsertFunctionMap[keyof InsertFunctionMap];
-  priority: number;
-  /** For the collision message below. A package should set it; an inline descriptor need not. */
-  name?: string;
-  /**
-   * Called with the registry as the descriptor is wired, for a package that also needs to *read* a
-   * chain. `@verajs/renderer` uses it: the same entry that registers it as the renderer hands it
-   * the registry it reads `'value'` handlers from, so an app writes one thing, not two.
-   */
-  connect?: (registry: Inserts) => void;
-};
-export type Connector = (registry: Inserts) => void;
-export type Registerable = InsertDescriptor | Connector;
 
 /**
  * Wires modules into the framework: one call, from data rather than side effects.

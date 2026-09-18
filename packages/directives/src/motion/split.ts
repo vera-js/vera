@@ -32,10 +32,23 @@ import { MOTION_ATTR, serializeMotion } from '@verajs/motion/internal';
 import { parseValue, isObject } from '../parse.js';
 import type { Parsed, ParsedObject } from '../parse.js';
 
-export type SplitMode = 'chars' | 'words' | 'lines';
+/**
+ * The granularity `data-vd-split` breaks text at — the whole of the directive's value vocabulary,
+ * and anything else is refused rather than guessed at (`split-bad-mode`).
+ *
+ * They are not three sizes of one operation. `chars` and `words` are decided from the string —
+ * `chars` by grapheme cluster, so a flag or a combining mark stays one piece — while `lines` is a
+ * LAYOUT question: the words are laid out first and grouped by the vertical position the browser
+ * actually chose, so the answer depends on the element's width and changes with it.
+ */
+type SplitMode = 'chars' | 'words' | 'lines';
 
 const SPLIT_ATTR = 'data-vd-split';
-const MODES: readonly string[] = ['chars', 'words', 'lines'];
+const MODES: readonly SplitMode[] = ['chars', 'words', 'lines'];
+
+/** Narrows the attribute's string to the vocabulary, so every `mode === …` below is checked. */
+const isSplitMode = (value: string): value is SplitMode =>
+  (MODES as readonly string[]).includes(value);
 
 /**
  * How many pieces one element may be broken into. Every piece becomes a span
@@ -146,7 +159,7 @@ export const splitDirective: Directive = {
      *  production, and each refusal gets a name a docs page and Studio can address. */
     const reject = (code: string, args?: readonly string[]): void => ctx.reject(code, args ?? []);
     const mode = (el.getAttribute(SPLIT_ATTR) ?? '').trim();
-    if (!MODES.includes(mode)) {
+    if (!isSplitMode(mode)) {
       reject('split-bad-mode', [mode]);
       return;
     }

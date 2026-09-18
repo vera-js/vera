@@ -3,7 +3,7 @@ import { createHook, deferInHookContext, RENDER_PRIORITY } from '../modules/crea
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';
 import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
-import { Renderer } from '@verajs/shared-types';
+import type { Renderer } from '@verajs/shared-types';
 
 /** One warning per page, not per render. */
 let warnedNoRenderer = false;

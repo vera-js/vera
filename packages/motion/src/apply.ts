@@ -22,7 +22,7 @@ import type { PropertyDef, Unit } from './types.js';
  * generator and the server pass hand their own richer element shapes to the same composer
  * without converting anything.
  */
-export type AppliedAnimation = {
+type AppliedAnimation = {
   readonly property: PropertyDef;
   readonly unit: Unit;
 };
@@ -64,7 +64,7 @@ const composeFunctions = (
  * arguments a caller could get out of step. The values are the element's pre-allocated buffer,
  * so composing a frame allocates nothing beyond the string it returns.
  */
-export type CategoryWrite = {
+type CategoryWrite = {
   readonly animations: readonly AppliedAnimation[];
   /** Typed arrays are the normal case — they are pre-allocated per element. */
   readonly values: ArrayLike<number>;

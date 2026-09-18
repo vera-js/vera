@@ -1,17 +1,6 @@
-/**
- * How a re-render is deferred. Swappable for the same reason `setHtml` is, and for the same reason
- * the renderer itself is wired rather than built in: the right answer depends on the app, and the
- * framework should not decide it for you.
- *
- * The default is an animation frame, which aligns updates to the display and coalesces naturally.
- * The cost is a frame boundary: work scheduled in `requestAnimationFrame` leaves the browser only
- * the remainder of that frame to lay out and paint, which shows up as latency on large updates.
- *
- * A microtask is what Lit and Vue use — the DOM is updated immediately and the browser gets the
- * whole frame to paint. Usually faster for big trees, at the cost of possibly running more than
- * once per frame if writes straddle microtask boundaries.
- */
-export type RenderScheduler = (run: () => void) => void;
+import type { RenderScheduler } from '../types.js';
+
+export type { RenderScheduler } from '../types.js';
 
 const animationFrame: RenderScheduler = (run) =>
   /** `typeof` rather than a bare reference: off-browser the global is undefined, not falsy. */

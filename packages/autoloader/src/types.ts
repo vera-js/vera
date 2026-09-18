@@ -1,3 +1,12 @@
+/**
+ * What `autoloader(import.meta.url, dir, options)` accepts beyond its two required arguments.
+ *
+ * Every field has a default, and the reason they exist is that a tag name does not determine a URL:
+ * the default `dir/tag.extension` suits most projects, `extension` covers a dev server that serves
+ * `.ts`, and `resolve` replaces the path building entirely for anything else. Containment against
+ * `rootDir`'s directory is enforced whichever you use — a tag name reaches the network, so it is
+ * treated as untrusted input rather than as a path fragment.
+ */
 export type AutoloaderOptions = {
   /**
    * File extension appended to the tag name when building a component's URL.
@@ -56,6 +65,14 @@ export type DirectiveLoaderOptions = {
   resolve?: (name: string, dir: string) => string;
 };
 
+/**
+ * What `directiveLoader(...)` returns: the loader function itself, carrying the descriptor members
+ * `wire` reads — the dual shape described in `CLAUDE.md`, so one value is both callable and
+ * wireable.
+ *
+ * `fn` is `never` because the descriptor's callable half IS the function; the field exists only so
+ * the object satisfies the descriptor shape, and nothing should ever read it.
+ */
 export type DirectiveLoaderInstance = ((name: string, element: Element) => boolean | Promise<unknown>) & {
   /** The URL this loader would fetch for a name — for modulepreload warming and for asking
    *  "why is it fetching that". Throws where `load` would decline. */

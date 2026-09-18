@@ -15,6 +15,15 @@ import { createStore, useEffect } from '@verajs/core';
 import { useDismiss } from './useDismiss.js';
 import type { AssignedParts, LifecycleElement, SelectConfig, SelectOption } from './types.js';
 
+/**
+ * The name a host component annotates its controller field with — `ReturnType` rather than a
+ * hand-written interface, deliberately: a restated shape is the twin CODE-PRINCIPLES §1 forbids,
+ * and here it would be a twin of the one thing in this package that changes most. Adding a member
+ * to the returned object publishes it; there is no second list to remember.
+ *
+ * The cost of that choice, stated rather than discovered: every member of the returned object is
+ * public API for life, so a helper that is not meant to be one stays a local and is not returned.
+ */
 export type SelectController = ReturnType<typeof useSelect>;
 
 export const useSelect = (element: LifecycleElement, config: SelectConfig = {}) => {

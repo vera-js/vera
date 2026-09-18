@@ -30,8 +30,7 @@ import type { Writer, WriterOptions } from './types.js';
  * Anything that becomes a repository path is bounded before it does (CODE-PRINCIPLES #8: bound
  * whatever turns outside text into a path) — measured before the bound existed:
  * `stage('../.github/workflows', …)` staged a workflow file, which on a push would run it.
- */
-/**
+ *
  * Collections match the schema's own name rule exactly — a collection the writer accepts must be
  * one the schema can declare and the reader can fetch, or the three disagree about the same name.
  * Slugs additionally allow dots (`v1.2-notes` is a fine file name), never doubled.

@@ -1,3 +1,7 @@
+import type { Parsed, ParsedObject, Path } from './types.js';
+
+export type { Parsed, ParsedObject, Path, ValueError } from './types.js';
+
 /**
  * The phase-1 value grammar: LITERALS, PATHS (`open`, `user.name`, `@count`, `!path`), and the
  * braced OBJECT (`{ key: value, ... }`, nesting allowed). This is deliberately the pre-expression
@@ -15,15 +19,13 @@
  * `@verajs/autoloader` gives its refusals, not a subclass.
  */
 
-export type ValueError = Error & { code: string; at: number };
 
 const fail = (code: string, at: number, message: string): never => {
   throw Object.assign(new Error(message), { code, at });
 };
 
-export type Path = { kind: 'path'; negate: boolean; global: boolean; segments: string[] };
-export type Parsed = string | number | boolean | null | Path | ParsedObject | Parsed[];
-export type ParsedObject = { [key: string]: Parsed };
+
+
 
 /**
  * One cache for every attribute string on the page. CMS lists repeat identical attribute text

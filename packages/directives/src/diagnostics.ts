@@ -33,7 +33,7 @@
  * template literal, which stringifies a number or a null exactly as the console would print it, so
  * demanding `String(...)` at forty call sites would buy nothing but noise.
  */
-export type Prose = (...args: string[]) => [string, string?];
+type Prose = (...args: string[]) => [string, string?];
 
 /**
  * The PARSER's refusals, which arrive differently from every other code here.

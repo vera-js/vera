@@ -2,4 +2,6 @@
 export type { CSSResultGroup } from '@verajs/shared-types';
 
 /** Any element that may carry `static styles` on its constructor. */
-export type StyledElement = HTMLElement & { shadowRoot: ShadowRoot | null };
+export interface StyledElement extends HTMLElement {
+  shadowRoot: ShadowRoot | null;
+}

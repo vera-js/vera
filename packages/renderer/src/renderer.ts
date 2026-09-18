@@ -1433,7 +1433,9 @@ export type ListStrategy = (
  * of replacing the subtree. `$r` is absent on every ordinary template, which is what keeps the
  * unkeyed path free of any list machinery.
  */
-export type KeyedResult = TemplateResult & { $r?: ListStrategy };
+export interface KeyedResult extends TemplateResult {
+  $r?: ListStrategy;
+}
 
 /**
  * A list item is either ELEMENT-MODE — a single-root template instance whose one element IS the

@@ -72,7 +72,7 @@ export type SequenceOptions = {
  * it cancels nothing: images already in flight keep their handlers and keep arriving, which on a
  * long sequence is exactly the connection storm this module exists to have fixed.
  */
-export type Sequence = {
+type Sequence = {
   /** Draw the frame for a 0-based index. Safe to call every frame. */
   draw(index: number): void;
   destroy(): void;

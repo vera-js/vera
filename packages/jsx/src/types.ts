@@ -36,6 +36,14 @@ declare global {
   }
 }
 
+/**
+ * What `transformJsx(source, filename, options)` and the bundler plugins accept.
+ *
+ * Every entry but `inject` names an import as `[importedName, moduleSpecifier]`, which is how the
+ * output is retargeted at a different renderer without touching a line of JSX — point `html` at
+ * your own tag and the compiled templates call it instead. `inject: false` suppresses the import
+ * statements while still emitting the calls, for a file that already has them in scope.
+ */
 export type VeraJsxOptions = {
   /** Skip auto-injecting `html`/`keyed`/`spread` imports. */
   inject?: boolean;
@@ -63,6 +71,13 @@ export type ParseState = {
   mismatch: JsxMismatch | null;
 };
 
+/**
+ * The one parse failure the walker reports, as a closing tag that did not match what was open.
+ *
+ * Only the FIRST is kept: after a mismatch the walker's idea of nesting is already wrong, so every
+ * later complaint is a consequence of this one and naming them all buries the real cause. `at` is a
+ * character offset into the original source, so the caller can turn it into a line and column.
+ */
 export type JsxMismatch = {
   expected: string;
   found: string;
@@ -76,6 +91,12 @@ export type JsxAttribute =
   | { spread?: undefined; name: string; kind: 'str'; text: string; start: number }
   | { spread?: undefined; name: string; kind: 'expr'; text: string; roots: JsxRoot[]; start: number; valueStart: number };
 
+/**
+ * One element or fragment in the parsed tree, discriminated on `fragment`.
+ *
+ * `start` is an offset into the original source and is carried on every node so a diagnostic can
+ * point at the JSX the author wrote rather than at the generated template.
+ */
 export type JsxNode =
   | { fragment: true; children: JsxChild[]; start: number }
   /**
@@ -87,6 +108,12 @@ export type JsxNode =
    */
   | { fragment?: undefined; tag: string; attrs: JsxAttribute[]; selfClosing: boolean; children: JsxChild[]; start: number };
 
+/**
+ * What can sit inside an element: literal text, an `{expression}`, or a nested node.
+ *
+ * Text is kept verbatim rather than trimmed — whitespace between inline elements is significant in
+ * HTML, and the emitter is the only place that knows enough to decide what to collapse.
+ */
 export type JsxChild =
   | { text: string }
   | { expr: string; roots: JsxRoot[]; exprStart: number }

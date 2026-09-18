@@ -473,7 +473,20 @@ type SpreadResult = {
   _$apply$: unknown;
   _$attrs$: unknown;
 };
-export const spread = (props: Record<string, unknown>): SpreadResult => {
+/**
+ * `object | null | undefined`, not `Record<string, unknown>`, and the difference is the whole
+ * reason this signature is written out: a type ALIAS satisfies an index signature implicitly while
+ * an INTERFACE does not, so `spread(myProps)` was a TS2345 for every user who declared their props
+ * the way the TypeScript handbook teaches — while the sibling `props()` accepted the same value,
+ * because it is generic. Two functions in one module disagreeing about a user's own type is the
+ * kind of thing nobody reports as a bug; they just stop using the one that refused them.
+ *
+ * `null`/`undefined` stay admissible on purpose: JSX compiles `{...maybe}` straight to a call here,
+ * and the runtime already answers for a bad bag with a development warning a few lines down rather
+ * than a throw. Narrowing the type would move that failure to compile time for a pattern the
+ * runtime deliberately tolerates.
+ */
+export const spread = (props: object | null | undefined): SpreadResult => {
   /**
    * **Already branded → returned as-is.** `spread(spread(x))` arises legitimately: JSX compiles
    * `{...props({ date })}` to `spread(props({ date }))`, and `props()` below already returns the
@@ -514,7 +527,7 @@ export const spread = (props: Record<string, unknown>): SpreadResult => {
    * development build stops being a faithful model of the production one, which is the property that
    * makes testing in it worth anything. Costs 27 B gzipped (842 → 869, A-B-A) and buys the two builds agreeing.
    */
-  if (props === null || typeof props !== 'object' || Array.isArray(props)) {
+  if (props === null || props === undefined || typeof props !== 'object' || Array.isArray(props)) {
     if (__DEV__)
       console.warn(
         `[vera] spread: ignoring a props bag that is not a plain object — received ` +
@@ -526,7 +539,13 @@ export const spread = (props: Record<string, unknown>): SpreadResult => {
     props = {};
   }
   return {
-    _props: props,
+    /**
+     * The one cast the widened parameter costs. Everything downstream reads this bag with
+     * `Object.keys`/`Object.entries`, which answer for any object, and the branch above has already
+     * replaced anything that is not a plain object — so the shape is a record by construction, not
+     * by assertion.
+     */
+    _props: props as Record<string, unknown>,
     _$apply$: apply,
     _$attrs$: attributes,
   };

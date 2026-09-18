@@ -99,8 +99,12 @@ the `ChildPart` class and `Item` names `Instance`, so both stay beside those cla
 saying why, and `KeyedResult` follows the type it composes. The alternative is to restate the
 class's shape in `types.ts`, which is the twin this section already forbids two paragraphs down.
 This is a limit on what the rule can reach, not permission to keep data shapes out of `types.ts`:
-everything that names no runtime value still moves. A type two *packages* share lives in
-`@verajs/shared-types`, and each package re-exports it so its own public surface stays whole.
+everything that names no runtime value still moves. A type two *packages* share lives in a shared
+package — `@verajs/shared-types`, or `@verajs/shared-utils` for the types belonging to a shared
+implementation, as the value grammar's do — and each package re-exports it so its own public surface
+stays whole. A `types.ts` importing from one of those is importing from OUTSIDE its package and
+keeps its position at the root; going through a local re-export shim does not, which is what
+`@verajs/directives` was doing until 2026-09-17.
 Always `.ts`, never a hand-written `.d.ts` — declaration files describe existing JS; as source they
 are a twin waiting to drift.
 
@@ -109,10 +113,22 @@ are a twin waiting to drift.
 1. **Every exported type carries JSDoc**, one-liners included. The types file is the package's
    front door and reads as documentation.
 2. **PascalCase noun phrases, family-prefixed** — `Component*`, `Hook*`, `Signal*` — so related
-   types sort and read together.
+   types sort and read together. This governs the API surface. A non-exported **type-level
+   assertion**, which exists only so that a drift becomes a compile error rather than a review item,
+   is not a noun phrase and is marked with a leading underscore to say it is not API:
+   `type _UnitsExhaustive = Unit extends (typeof UNITS)[number] ? true : never`.
 3. **`type` unless extending; `interface` only for genuine extension** (`ComponentHook extends
    Omit<Hook, …>`). This is a safety choice as much as style: interfaces are open to declaration
-   merging, and the public types are not meant to be silently augmentable.
+   merging, and the public types are not meant to be silently augmentable. **Enforced since
+   2026-09-17** by `noNonExtendingInterface` in `@verajs/eslint-config`, after prose alone let 64
+   accumulate; where merging IS the point (`JSX.IntrinsicElements`, `ImportMeta`) disable it and say
+   why, because a type alias cannot be augmented at all.
+   **Composition takes the `extends` spelling, not `&`**, and that is the same rule seen from the
+   other side rather than an exception to it: `interface X extends Base` reports an incompatible
+   member as an error, while `type X = Base & { … }` silently resolves it to `never` and every
+   read of it keeps compiling. It is also what TypeScript's own performance guidance recommends —
+   which is about intersections specifically, not about type aliases, and so agrees with this rule
+   rather than contradicting it.
 4. **No enums** — literal unions (`type ResultType = 1 | 2 | 3`). Enums generate runtime code,
    which breaks type erasure.
 5. **Underscore-prefixed expandos are cross-boundary contracts**: the comment states who reads

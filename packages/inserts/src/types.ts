@@ -1,4 +1,4 @@
-import { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
+import type { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
 
 /**
  * Runs when a store property is **read**, and what it returns becomes the value read.
@@ -25,6 +25,17 @@ export type ProxyHandlerInsert = <T extends object>(
   ) => void
 ) => ProxyObject<T>;
 
+/**
+ * The renderer chain: what `render()` calls to put a template on screen. Core ships none, so an app
+ * with no renderer wired warns in development and displays nothing.
+ *
+ * `any` rather than `unknown` throughout, and this is the reason (CODE-PRINCIPLES §1.8 wants it
+ * stated): the template argument is whatever the WIRED renderer's tag produced, a type this
+ * package cannot name without depending on every renderer that might be wired — which is exactly
+ * the dependency the insert system exists to avoid. `unknown` does not work in its place, because
+ * every renderer would then have to cast its own template type back out at its entry point. The
+ * looseness is confined to this one signature; each renderer's own surface is fully typed.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RendererInsert = (template: any, container: HTMLElement, ...args: any[]) => any;
 
@@ -143,6 +154,10 @@ export type LoaderInsert = (name: string, element: Element) => boolean | Promise
  */
 export type SettleInsert = (element: HTMLElement) => void;
 
+/**
+ * Every extension point in the framework, and the signature each one's chain must satisfy. This map
+ * is the whole contract: adding a point means adding a line here, and `wire` will then accept it.
+ */
 export type InsertFunctionMap = {
   'proxy-handler': ProxyHandlerInsert;
   'render': RendererInsert;
@@ -156,6 +171,15 @@ export type InsertFunctionMap = {
   'settle': SettleInsert;
 };
 
+/**
+ * The registry itself — one `Map` from point name to its chain, held by core and handed to any
+ * module that asks for it.
+ *
+ * There is exactly one per app, and that is load-bearing rather than incidental: production bundles
+ * inline their dependencies, so a module that imported `@verajs/inserts` and built its own registry
+ * would write to a map core never reads — working in development and silently doing nothing in
+ * production. Modules take `wire` from `@verajs/core` for this reason.
+ */
 export type Inserts = Map<
   keyof InsertFunctionMap,
   (
@@ -171,3 +195,31 @@ export type Inserts = Map<
     | SettleInsert
   )[]
 >;
+
+/**
+ * Everything an app can hand to {@link wire}: a **descriptor** naming the chain it belongs
+ * in, or a **connector** — a function handed the registry, which is how a package that imports
+ * nothing gets wired to it.
+ */
+export type InsertDescriptor = {
+  on: keyof InsertFunctionMap;
+  fn: InsertFunctionMap[keyof InsertFunctionMap];
+  priority: number;
+  /** For the collision message below. A package should set it; an inline descriptor need not. */
+  name?: string;
+  /**
+   * Called with the registry as the descriptor is wired, for a package that also needs to *read* a
+   * chain. `@verajs/renderer` uses it: the same entry that registers it as the renderer hands it
+   * the registry it reads `'value'` handlers from, so an app writes one thing, not two.
+   */
+  connect?: (registry: Inserts) => void;
+};
+/**
+ * A function handed the registry instead of a chain entry — how a package that registers nothing
+ * still gets a reference to the map core reads. It is told apart from a descriptor structurally:
+ * a function whose `on` is `undefined` is a connector.
+ */
+export type Connector = (registry: Inserts) => void;
+
+/** Either form {@link wire} accepts, so a module can ship as whichever one suits it. */
+export type Registerable = InsertDescriptor | Connector;

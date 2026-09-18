@@ -75,7 +75,7 @@ export const swapCleanup = (previous: HookCleanup | void, next: HookCleanup | vo
  * consults the order at all. Folding them costs one object where there were two arrays and a
  * `WeakMap` entry, and measured ~10% off a server render, whose every subscription is built cold.
  */
-export type PropSubscriptions = {
+type PropSubscriptions = {
   /** Priority-ordered callback sets. Walked by index on every write. */
   slots: Set<WeakRef<HookCallback>>[];
   /** Parallel priorities, read only when a slot has to be inserted. */

@@ -152,7 +152,7 @@ export const PROPERTIES = [
  * nothing is a worse failure than a clear rejection.
  */
 
-export type PropertyName = (typeof PROPERTIES)[number]['key'];
+type PropertyName = (typeof PROPERTIES)[number]['key'];
 
 const BY_KEY = new Map<string, PropertyDef>(
   PROPERTIES.map((p) => [p.key, p as PropertyDef])
@@ -581,7 +581,7 @@ export const parseRange = (
  * `rejected` gets nothing rather than a curve the engine guessed at. Other properties on the
  * element are untouched either way.
  */
-export type KeyframeList = {
+type KeyframeList = {
   readonly keyframes: readonly RawKeyframe[];
   /** True if any position uses a unit that depends on geometry (anything but `%`). */
   readonly geometryDependent: boolean;

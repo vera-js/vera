@@ -10,7 +10,6 @@
  */
 import type { ManifestEntry, QueryOptions } from './types.js';
 
-/** A manifest row as a reader returns it — stamped with where it came from. */
 /**
  * Filters, sorts, and slices entries — the whole of what a listing page asks for.
  *

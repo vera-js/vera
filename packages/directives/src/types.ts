@@ -2,11 +2,37 @@
  * The directive contract — DESIGN-DIRECTIVES §2, as refined by §19.1. These words face every
  * directive author; keep them exactly as the design doc records them.
  */
-import type { Parsed, ParsedObject } from './parse.js';
+import type { Parsed, ParsedObject } from '@verajs/shared-utils';
 
+/**
+ * What `setup` hands back: the ONE-TIME release for wiring that outlives values — a listener, an
+ * observer, a region, a timer. Called once, when the instance is destroyed (the element left the
+ * document, or its attribute changed and the engine is rebuilding the instance), after the last
+ * `Cleanup` has run. A throw here is caught and recorded as `teardown-threw`, not propagated.
+ */
 export type Teardown = () => void;
+
+/**
+ * What `apply` hands back: the PER-RUN undo. `apply` re-runs on every state change it read, and
+ * the engine calls the previous run's cleanup before each re-run as well as at destruction — so a
+ * cleanup unwinds exactly one run's effects and never setup's.
+ *
+ * Structurally identical to `Teardown` on purpose; the two names exist because the lifetimes are
+ * not, and a directive's source should say which one it is returning.
+ */
 export type Cleanup = () => void;
 
+/**
+ * The directive's handle on the element it is running for — built per element×directive at
+ * activation, and the only way a directive touches state, evaluates values or refuses.
+ *
+ * Two things a reader cannot see in the shape. **Reads subscribe**: `get` and `eval` run inside
+ * the engine-owned hook that wraps `apply`, so touching a key is what makes this directive re-run
+ * when that key changes — there is no subscription call, and a read moved out of `apply` silently
+ * stops tracking. And **the element and attribute are already bound in**, which is why `reject`
+ * takes only a code: the engine knows which directive on which element is refusing, so a
+ * directive never names itself.
+ */
 export type Ctx = {
   /** Read a context key (nearest OWNER; `@key` reads the page store). Dotted tails walk own props. */
   get: (key: string) => unknown;
@@ -131,6 +157,19 @@ export type Directive =
  */
 export type AnyDirective = Omit<DirectiveOf<'expression'>, 'value'> & { value: ValueClass };
 
+/**
+ * One recorded refusal — the entry `ctx.reject` appends and `rejections()` reads back. A directive
+ * declining to act never throws and never stops its siblings; it leaves one of these behind, which
+ * is what lets Studio, a test or a devtools panel ask an element why nothing happened.
+ *
+ * **`message` and `fix` are DEVELOPMENT-ONLY, and a consumer must not build on them.** Production
+ * keeps the data a tool can act on — `element`, `directive`, `code` — and folds the prose away
+ * entirely (`message` is `''`, `fix` is `undefined`), because the sentences are bytes an end user
+ * cannot use. Match on `code`; it is stable and it is what the docs URL is keyed to.
+ *
+ * `element` is null for a refusal that belongs to the page rather than a node — a bad factory
+ * option, a rejection raised before any element was reached.
+ */
 export type Rejection = {
   element: Element | null;
   directive: string;
@@ -168,6 +207,22 @@ export type EngineSeams = {
   action: (name: string, args: readonly unknown[], element: Element | null) => unknown;
 };
 
+/**
+ * A PACK: the other thing `wireDirectives` accepts beside a plain `Directive`. The engine calls it
+ * once, at wire time, with a fresh `EngineSeams`; the body registers whatever the pack contributes
+ * — directives, a parser, a vocabulary — and returns nothing, because a pack's effect is what it
+ * put in the registry, not a value.
+ *
+ * **The discriminator is `typeof === 'function'`**, which is what makes the dual shape possible: a
+ * factory that returns one of these is called by the AUTHOR with options, and the connector it
+ * returns is called by the ENGINE with seams (see `dual`, and the wireable-module rule in
+ * CLAUDE.md). A dual therefore has to tell the two calls apart itself, by testing the seams'
+ * `_$seams$` mark.
+ *
+ * A connector takes its seams from the engine that called it rather than importing engine state,
+ * so a pack stays an additive bundle: `import type` here erases at build, and no second registry
+ * can come into existence across a bundle boundary.
+ */
 export type EngineConnector = (seams: EngineSeams) => void;
 
 /**
@@ -189,3 +244,17 @@ export type ListChange = {
   readonly item: Element;
   readonly kind: 'move' | 'fade' | 'swap' | 'enter';
 };
+
+/**
+ * The `$` vocabulary the engine ships — the DECLARATION, apart from the engine that registers it.
+ *
+ * Its own module for the same reason `docs-url.ts` and `scripts/size-modules.mjs` are: something
+ * other than the runtime needs to read it. `scripts/sync-diagnostics.mjs` publishes this list into
+ * `diagnostics.json` and into the documentation, and a hand-typed second copy of a vocabulary is a
+ * copy that drifts — which is how `$x $y $button` came to be written in three places with nothing
+ * checking any of them against the code.
+ *
+ * Getters return PRIMITIVES (design §20.1): deterministic, serializable, and safe to log, diff, or
+ * hand to an agent. The engine enforces that in development.
+ */
+export type Payload = Record<string, (event: Event) => string | number | boolean | null>;

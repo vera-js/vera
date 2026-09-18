@@ -1,16 +1,6 @@
-/**
- * The `$` vocabulary the engine ships — the DECLARATION, apart from the engine that registers it.
- *
- * Its own module for the same reason `docs-url.ts` and `scripts/size-modules.mjs` are: something
- * other than the runtime needs to read it. `scripts/sync-diagnostics.mjs` publishes this list into
- * `diagnostics.json` and into the documentation, and a hand-typed second copy of a vocabulary is a
- * copy that drifts — which is how `$x $y $button` came to be written in three places with nothing
- * checking any of them against the code.
- *
- * Getters return PRIMITIVES (design §20.1): deterministic, serializable, and safe to log, diff, or
- * hand to an agent. The engine enforces that in development.
- */
-export type Payload = Record<string, (event: Event) => string | number | boolean | null>;
+import type { Payload } from './types.js';
+
+export type { Payload } from './types.js';
 
 /** Every event answers `$type`, whatever else it offers — one getter, not one per base. */
 export const TYPE: Payload = { type: (event) => event.type };

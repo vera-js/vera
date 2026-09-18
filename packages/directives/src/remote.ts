@@ -39,6 +39,18 @@ import { isObject } from './parse.js';
 import type { Directive, Ctx, EngineConnector, ListChange } from './types.js';
 
 
+/**
+ * The pack's PAGE POLICY — `remote({ … })`, applied before any element activates.
+ *
+ * Both fields exist because they must not be attribute-settable. `data-vd-fetch` is markup, and
+ * markup may come from a CMS, a template someone else fills, or an attacker who can write an
+ * attribute; the request-maker's trust boundary therefore lives in JavaScript the page author
+ * wrote. Widening it here widens it for the whole page, so an allowlist entry is a decision about
+ * every `data-vd-fetch` on it, not about one element.
+ *
+ * Note what an allowlist does NOT buy: an allowed origin may return a JSON state patch, never
+ * markup. HTML is swapped same-origin only, always, with no option to change it.
+ */
 export type RemoteOptions = {
   /**
    * Origins this pack may request beyond the page's own. FACTORY ONLY — an attribute can never

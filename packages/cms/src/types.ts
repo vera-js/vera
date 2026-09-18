@@ -224,7 +224,9 @@ export type ContentSource = {
  * lets `entries(['posts', 'notes'])` answer with one array whose rows still each say where they
  * came from.
  */
-export type ReaderEntry = ManifestEntry & { collection: string };
+export interface ReaderEntry extends ManifestEntry {
+  collection: string;
+}
 
 /**
  * What a listing page asks of a set of manifest rows: filter, then sort, then slice — in that
