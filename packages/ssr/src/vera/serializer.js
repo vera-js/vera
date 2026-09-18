@@ -13,7 +13,10 @@ import { INSTANCE_ATTRIBUTE, markPending } from './nodes.js';
  *   `@event=${fn}` -> dropped (behavior is the client's job)
  *   `&ref=${r}`    -> dropped
  *   `attr=${x}`    -> quoted, escaped
- *   text `${x}`    -> escaped; nested templates and arrays flatten; null/undefined/false vanish
+ *   text `${x}`    -> escaped; nested templates and arrays flatten; only null/undefined vanish
+ *                     (`false` renders the word, as the client and as a JS template literal do —
+ *                     measured on both sides; saying otherwise here described a divergence that
+ *                     does not exist and would have sent someone hunting a hydration bug)
  *
  * Like the client renderer, analysis is **per template identity**: each call site's frozen
  * `strings` array is classified once into a plan (slot kinds + pre-trimmed static parts), cached
