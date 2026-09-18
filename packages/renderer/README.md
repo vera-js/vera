@@ -1061,7 +1061,7 @@ Directives other renderers ship, and what replaces them here.
 | `ifDefined()` | built in — `null`/`undefined` remove an attribute |
 | `classMap()` / `styleMap()` | build the string: `class="base ${extra}"` |
 | `guard()` | reactivity already skips unchanged work |
-| `until()`, `asyncReplace()` | render a loading state and re-render from an effect — or nine lines against [`_$child$`](#extending-it--apply-and-child) |
+| `until()`, `asyncReplace()` | render a loading state and re-render from an effect — or nine lines against [`_$child$`](#extending-it--_apply-and-_child) |
 | `unsafeHTML()` | `.innerHTML=${trusted}`, above |
 | `literal()` / `static-html` | [`/tag`](#verajsrenderertag) — and a tag doubles as a JSX component |
 | `live()` | [`!name`](#name--a-live-property) — a sigil, for the case that needs it |
