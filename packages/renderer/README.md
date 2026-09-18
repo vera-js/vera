@@ -283,6 +283,13 @@ Native `<slot>` needs a shadow root. This entry teaches the renderer to distribu
 component's own children into the `<slot name="…">` positions of its template, so **one component
 works in both modes** — users write `<div slot="title">` exactly as they would against shadow DOM.
 
+**Wire it at your app entry, before anything renders.** A template resolves this once, at
+construction, and is interned per call site for the life of the page — so wiring `slots` after a
+component has already rendered does not reach that component, and it keeps showing its fallback
+content while the children the host was given sit beside it as stray markup. Development names it
+when it happens, but the rule is cheaper than the diagnostic: wire it in the same call as the
+renderer, `wire([renderer, slots])`.
+
 Given this markup:
 
 ```html
