@@ -1,5 +1,44 @@
 # @verajs/renderer
 
+## 0.2.2
+
+### Patch Changes
+
+- 3e72abd: A boolean child renders nothing in JSX, and is named in a template
+  
+  `{items.length > 0 && <em/>}` is the most common JSX conditional, and when the test failed it put
+  the word "false" on the page. Each grammar now answers the way its own users expect.
+  
+  **JSX drops it**, React's rule. The transform filters child expressions — element children and a
+  component's children alike — through a module-local helper, so the value reaching the renderer and
+  `@verajs/ssr` is `null`, which both already drop: no renderer change, no serializer change, and no
+  new import specifier. Only booleans, so `{0 && <x/>}` still renders `0` exactly as React does. A
+  module that compiles no JSX children carries none of it, and the helper steps aside if your module
+  already uses the name.
+  
+  **A template keeps lit's behaviour exactly** — anything not nullish renders — and development now
+  names a boolean child at the binding, once per distinct value. That is the one value semantic on
+  which JSX and a hand-written template differ, so the warning is also what meets JSX-shaped code
+  pasted into a template. Production carries neither the check nor the message: the renderer bundle
+  is byte-identical.
+  
+  Measured: the filter's cost is below the noise floor in all three engines.
+- d490915: `spread()` accepts a props type declared as an `interface`
+  
+  `spread()` was typed `Record<string, unknown>`, which a TypeScript **interface** does not satisfy —
+  a type alias carries an implicit index signature and an interface does not. So a user who declared
+  their props the way the TypeScript handbook teaches got `TS2345: Index signature for type 'string'
+  is missing in type 'CardProps'`, while the sibling `props()` accepted the identical value because
+  it is generic. Two functions in one module disagreeing about the caller's own type is not something
+  people report as a bug; they stop using the one that refused them.
+  
+  The parameter is now `object | null | undefined`. Nullish stays admissible deliberately: JSX
+  compiles `{...maybe}` straight to a call here, and the runtime already answers a bad bag with a
+  development warning rather than a throw, so narrowing the type would move that failure to compile
+  time for a pattern the runtime tolerates on purpose.
+  
+  Type-only — the bundle is byte-identical, and every call that compiled before still does.
+
 ## 0.2.1
 
 ### Patch Changes

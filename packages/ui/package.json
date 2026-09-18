@@ -32,7 +32,7 @@
   "peerDependencies": {
     "@verajs/core": ">=0.3.1",
     "@verajs/hooks": ">=0.0.0",
-    "@verajs/renderer": ">=0.2.1"
+    "@verajs/renderer": ">=0.2.2"
   },
   "files": [
     "dist",
