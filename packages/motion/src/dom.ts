@@ -1,6 +1,16 @@
 import type { RawKeyframe, WindowSize } from './types.js';
 
 
+/**
+ * One element's slot along the scroll axis, in the **scroller's** coordinates rather than the
+ * viewport's — `getElementSize` takes a custom container's own offset back off, so these numbers
+ * compare directly against a scroll position without any further arithmetic.
+ *
+ * Layout metrics throughout (`offsetTop`, `offsetWidth`/`offsetHeight`), never a rect, so an
+ * element mid-`scale()` cannot measure its own animation and feed it back into its timeline; in
+ * a right-to-left horizontal scroller `start` is already turned round to match where `scrollLeft`
+ * reads 0. The cost is integer rounding, which is nothing at the scale scroll geometry works at.
+ */
 export type ElementBox = {
   readonly start: number;
   readonly end: number;

@@ -60,6 +60,18 @@ export type SequenceOptions = {
   readonly tween?: boolean;
 };
 
+/**
+ * A live scrubber over one canvas — the handle `createSequence` returns.
+ *
+ * `draw` is safe to call on every frame because it quantises and returns early when the picture
+ * would not change, so a caller never has to rate-limit it; it also takes a fractional index, and
+ * the window fetching and eviction happen as a side effect of drawing rather than on a schedule
+ * of their own.
+ *
+ * `destroy` is not optional. Dropping the reference releases the decoded frames eventually, but
+ * it cancels nothing: images already in flight keep their handlers and keep arriving, which on a
+ * long sequence is exactly the connection storm this module exists to have fixed.
+ */
 export type Sequence = {
   /** Draw the frame for a 0-based index. Safe to call every frame. */
   draw(index: number): void;

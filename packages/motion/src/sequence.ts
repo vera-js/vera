@@ -128,6 +128,16 @@ const drawerFor = (
   return entry;
 };
 
+/**
+ * What WIRING this pack takes — the trust decision, and deliberately nothing else. Every other
+ * knob (`frame-url`, `frame-count`, `frame-pad`, `frame-ext`, `frame-tween`) is an element
+ * setting, because those describe one canvas while this describes what the page as a whole is
+ * willing to fetch: it belongs to whoever assembles the page, and markup must never be able to
+ * widen it.
+ *
+ * Distinct from `frames.ts`'s same-named type, which is the drawer's per-canvas options; this one
+ * is the wirable's, and it is the one re-exported from `@verajs/motion/internal`.
+ */
 export type SequenceOptions = {
   /**
    * Extra origins frames may be fetched from. Same-origin otherwise, and an

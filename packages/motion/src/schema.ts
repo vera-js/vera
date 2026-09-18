@@ -571,6 +571,16 @@ export const parseRange = (
   return named ? breakpoints?.get(named[1]!) ?? null : null;
 };
 
+/**
+ * What parsing one property's keyframe list yields: the stops, plus the two answers a caller
+ * cannot recover by looking at them.
+ *
+ * **A non-empty `rejected` means `keyframes` is empty.** One malformed entry refuses the whole
+ * list for that property (see `parseKeyframeList`) rather than dropping itself, so this is never
+ * a partial curve somebody downstream has to re-time around a hole — and a caller that ignores
+ * `rejected` gets nothing rather than a curve the engine guessed at. Other properties on the
+ * element are untouched either way.
+ */
 export type KeyframeList = {
   readonly keyframes: readonly RawKeyframe[];
   /** True if any position uses a unit that depends on geometry (anything but `%`). */

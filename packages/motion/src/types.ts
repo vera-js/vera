@@ -48,10 +48,38 @@ export type Driven = {
  *  exhaustiveness assertion, so drift is a compile error. */
 export type Unit = 'px' | 'deg' | '%' | 'rem' | 'em' | 'vh' | 'vw' | '';
 
+/**
+ * Units a keyframe's POSITION may carry — a different set from `Unit` on purpose, because a
+ * position is a place on the timeline and `deg` or `em` mean nothing there.
+ *
+ * `%` is the only one that resolves without touching the page (a fraction of the scroll range the
+ * element names); every other unit has to be measured against geometry, which is what makes a
+ * curve `geometryDependent` and what commits it to being rebuilt on every resize. A position
+ * always carries one of these, and that single rule is what keeps a bare number unambiguously a
+ * VALUE — it is why `opacity: '0'` can go on meaning "animate to 0" beside the list form.
+ */
 export type PositionUnit = '%' | 'vh' | 'vw' | 'px' | 'rem';
 
+/**
+ * How a property reaches the DOM, which decides how it is WRITTEN rather than what it means.
+ * `transform` and `filter` members compose into one function list each — order is load-bearing
+ * there, since CSS transform functions do not commute, hence `propertyOrder` — and can carry
+ * their own seek variable when a category smooths at its own inertia. Everything else, `border`
+ * included, is a plain declaration; `border` is a name for that group rather than a behaviour.
+ *
+ * A wired module may name a category of its own (`paint`, `svgPath`), which is why
+ * `PropertyDef.category` widens this to any string: an unrecognised one is simply written as a
+ * plain property. The category is never spelled in an authored key — `translate-y` is always a
+ * transform, so it is derived once from the vocabulary instead of repeated on every element.
+ */
 export type Category = 'transform' | 'filter' | 'border';
 
+/**
+ * One authored stop, parsed and no further. The position is still in the unit it was written in
+ * and the value in the property's, because normalising a position needs the element's box and
+ * the viewport — readings parse has no business taking. The runtime builds the curve from these
+ * and rebuilds it whenever the page is measured.
+ */
 export type RawKeyframe = {
   /** In `positionUnit`, NOT yet normalised to a timeline fraction. */
   readonly position: number;
@@ -103,6 +131,23 @@ export type Refusal = {
   readonly where?: string;
 };
 
+/**
+ * One animatable key in the vocabulary. A built-in and anything a wired module contributes are
+ * the SAME shape, which is what makes a module indistinguishable from a built-in everywhere
+ * downstream — `from` is the only field that tells them apart, and it exists for a GUI rather
+ * than for the runtime.
+ *
+ * **A definition must be able to write something.** `registerVocabulary` refuses one carrying
+ * neither `cssFunction` nor `cssProperty` (`motion-property-writes-nothing`): a key that parses
+ * values and puts them nowhere is accepted in silence and moves nothing, which is the worst
+ * failure this table can produce. `cssFunction` makes it a member of the transform or filter
+ * list; `cssProperty` makes it a plain declaration. `parse` and `parseText` decide how the
+ * authored value is READ — text properties still name their `cssProperty`.
+ *
+ * A definition also declares `category` where a `SettingDef` declares `type`, and that is the
+ * whole distinction between the two at registration time; carrying both is refused as a mistake
+ * rather than resolved by which field is read first.
+ */
 export type PropertyDef = {
   /** Key spelling, kebab-case: `translate-y`. */
   readonly key: string;
@@ -202,6 +247,15 @@ export type SettingDef = {
   readonly allowed?: readonly string[];
 };
 
+/**
+ * One registration, in any of the shapes `registerVocabulary` accepts.
+ *
+ * They are told apart **structurally**, not by a tag: `on` names an insert point, `type` a
+ * setting, `category` a property, and a function is a factory to call. That is what lets a module
+ * be written as a plain object literal with no ceremony in it — and it is why something that is
+ * none of the four is reported by name (`motion-not-a-module`) rather than ignored, since a
+ * default import of a named export is `undefined` and that is the ordinary way to get this wrong.
+ */
 export type Wirable = PropertyDef | SettingDef | Insert | WirableFactory;
 
 /** A module that takes options; calling it is optional. */
@@ -308,10 +362,30 @@ export type InsertMap = {
   forget: () => void;
 };
 
+/**
+ * A registration on one of the pack's insert points — a DISCRIMINATED pair rather than
+ * `{ on: string; fn: Function }`, so `on` fixes `fn`'s signature: a handler taking a node
+ * type-checks against `release` and not against `forget`. The looser shape would accept exactly
+ * the misspelling and the wrong-arity mistake this mechanism exists to catch, both of which fail
+ * by a callback quietly never running.
+ *
+ * Registration is by identity within each point's chain, so wiring the same module twice installs
+ * it once.
+ */
 export type Insert = {
   [K in keyof InsertMap]: { readonly on: K; readonly fn: InsertMap[K] };
 }[keyof InsertMap];
 
+/**
+ * One PROPERTY's animation on one element: the validated curve, still in authored units, plus
+ * everything needed to resolve it later and nothing that would have to be re-derived.
+ *
+ * The property is carried by reference rather than by key, so a wired module's definition and a
+ * built-in are literally the same object here and nothing downstream looks either up again. One
+ * unit governs the whole curve — the first keyframe that names one sets it, and a later keyframe
+ * naming a different one is a refusal, not a conversion: values along a curve are interpolated
+ * against each other, so a curve running from `rem` to `vh` means nothing.
+ */
 export type ElementMotion = {
   readonly property: PropertyDef;
   readonly unit: Unit;
@@ -342,6 +416,17 @@ export type ElementMotion = {
   readonly ease?: string;
 };
 
+/**
+ * What the region lends the parse pass. Everything here is a fact parse cannot derive from the
+ * attribute in front of it — what this site's breakpoint names mean, where the diagnostics of an
+ * element that is dropped WHOLE should go, and the inertia an element inherits when it names
+ * none.
+ *
+ * Every field is optional, and that is what lets `parseMotion` serve a caller with no region at
+ * all: the server pass hands only `dropped`, the parity door (`fromAttribute`) hands `{}`. A parse with
+ * no context still validates identically; it just has no names to resolve and nowhere to put the
+ * one refusal that needs the region's own value.
+ */
 export type ParseContext = {
   /**
    * Named width ranges, so `opacity-mobile` can mean whatever this site
@@ -381,6 +466,17 @@ export interface DroppedElement extends RejectedElement {
   readonly node: Element;
 }
 
+/**
+ * One element validated and not yet measured — the entire handoff from parse to everything
+ * downstream, and the unit both the runtime and the server generator work from, which is what
+ * keeps the two passes honest about producing the same CSS.
+ *
+ * Carrying `rejected` beside the animations is deliberate: an element whose value was PARTLY
+ * valid still animates the parts that were, and these are what a console line or a GUI panel
+ * reports about the rest. An element where nothing validated has no `ParsedElement` at all — its
+ * reasons go to `ParseContext.dropped`, because that is precisely the element somebody is staring
+ * at when they ask why nothing is animating.
+ */
 export type ParsedElement = {
   readonly node: Element;
   readonly animations: readonly ElementMotion[];
@@ -550,6 +646,17 @@ export type MotionFunctionModule = {
   ) => (() => void) | void;
 };
 
+/**
+ * The region's defaults as the FRAME PATH sees them: one object, shared by every element in the
+ * region and read on every pass, so it holds what the loop asks for and in the form the loop asks
+ * for it. That is why it is not simply `RegionOptions` — `scrollElement` is null for the window
+ * here, since "is there a container to measure against" is the question the geometry code
+ * actually has, and `axis` arrives under the name the measuring functions use.
+ *
+ * An element that writes its own `inertia`, `ease` or `transform-origin` overrides these; nothing
+ * here is written back when it does, so the region's values stay the inheritance and never become
+ * the last element's.
+ */
 export type RuntimeSettings = {
   readonly scrollDirection: string;
   /** The scrolling container, when it is not the window. Geometry is relative to it. */
@@ -576,6 +683,21 @@ export type RuntimeSettings = {
   readonly transformOrigin?: string;
 };
 
+/**
+ * One element as the frame loop sees it: the parsed value, every reading taken from the page, and
+ * every answer derived from those readings — so that a frame reads fields and re-derives nothing.
+ *
+ * **The split to keep in mind when adding a field is measure-time versus frame-time.** The mutable
+ * fields here are re-derived when the page is MEASURED — a resize, a `refresh()`, a mutation — and
+ * never per frame; `unfinishable`, `pinBlocked` and `flatBlocked` are answers about a layout that
+ * changes under the page, which is why they are re-derived rather than decided once at
+ * construction. One of these objects is allocated per element for its whole life.
+ *
+ * It is also the record of what the runtime TOOK OVER, and `clearElement` is the other half of
+ * that promise: `restore` hands the author's inline styles back, `generated.hashes` counts the
+ * element out of the shared rule registry, `generated.drives` stops its clocks, and
+ * `tickTeardown` drops whatever a tick module was holding.
+ */
 export type RuntimeElement = {
   readonly node: HTMLElement;
   readonly parsed: ParsedElement;
@@ -741,6 +863,23 @@ export type RegionParseContext = {
   readonly inertia: number;
 };
 
+/**
+ * One scroll context's handle — what `createRegion` returns and what the embedder holds onto.
+ *
+ * Membership is PUSHED: the engine's activation churn adds and removes elements as they appear
+ * and leave, so `add`/`remove` are the whole story and no scanning, signature or MutationObserver
+ * machinery survives behind them. Everything else is a re-derivation that an outside event forces
+ * and the region cannot observe for itself — a layout change it did not cause, a `when` selector
+ * flipping, a stagger group gaining or losing a member.
+ *
+ * `add` is idempotent per node — an element already here comes back unchanged — and answers null
+ * only when the region is destroyed or the value proved inexpressible, whose refusal is recorded
+ * by then either way.
+ *
+ * **Regions partition.** An element belongs to the nearest region above it and to no other, which
+ * is why a module's `teardown` must consult `owns` before releasing anything (see
+ * `InsertMap.teardown`): wiring is page-level while regions are not.
+ */
 export type Region = {
   add(parsed: ParsedElement, rejectFor: (reason: string) => void): RuntimeElement | null;
   remove(node: Element): void;
@@ -757,6 +896,16 @@ export type Region = {
   _setEnabled(on: boolean): void;
 };
 
+/**
+ * The `detail` of every `vd:motion:*` event — the library's one outbound channel, and the reason
+ * `events.ts` merges these into the global event maps rather than leaving every consumer to cast
+ * an `Event` at the point it is most annoying to have to.
+ *
+ * **Per-frame progress does not come this way.** These fire a handful of times per element, where
+ * a `CustomEvent` is free and buys delegation from `document`; a dispatch per element per frame
+ * costs multiples of the library's entire frame budget even with nobody listening, which is why
+ * that is the `onProgress` callback. The measurement is in `events.ts`.
+ */
 export type MotionEventDetail = {
   /** Timeline position at the moment it fired: 0 entering, 1 fully left. */
   readonly progress: number;
@@ -773,6 +922,16 @@ export type MotionEventDetail = {
   readonly element: HTMLElement;
 };
 
+/**
+ * What `renderMotion` takes. Nothing here changes what the CSS says — the emission is determined
+ * by the markup — and every option is about a SEAM the server pass sits on.
+ *
+ * `wire` is the vocabulary seam: the server has to resolve a preset name or a pack's property the
+ * same way the client will, or it emits markup the client then disagrees with. `inline` is the
+ * delivery seam, and it has a client half (`motion({ hoist: false })`) that must match.
+ * `diagnostics` and `nonce` are the audience seam: `problems` comes back to a server process,
+ * while the person who wrote the value is looking at a browser.
+ */
 export type RenderMotionOptions = {
   /**
    * The SAME array the page hands `wireDirectives` — `[motion, presets, paint, sequence]` — so a

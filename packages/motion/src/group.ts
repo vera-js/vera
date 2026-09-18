@@ -39,6 +39,19 @@ import { forgetStagger } from './parse.js';
 import type { DroppedElement, InsertMap, Range, Region, RegionParseContext, RuntimeElement, RuntimeSettings } from './types.js';
 
 
+/**
+ * One scroll context's configuration, **fully resolved**: the embedder validates and defaults
+ * every field before it gets here (the directive does it in `regionOptions`, reporting each key
+ * it had to fall back on), so the region applies no defaults of its own and a bad value never
+ * reaches it silently.
+ *
+ * These are the values an element INHERITS, not the values it gets — `inertia`, `ease` and
+ * `transformOrigin` are element settings too, and an element that writes its own wins. What has
+ * no element-level spelling is what belongs to the container rather than to anything in it:
+ * `axis` and `scrollElement`. Pass `window` as the scroller for the page region; `createRegion`
+ * stores that as null, because geometry is only measured relative to a container when there is
+ * one to be relative to.
+ */
 export type RegionOptions = {
   readonly axis: 'vertical' | 'horizontal';
   readonly scrollElement: Window | HTMLElement;
