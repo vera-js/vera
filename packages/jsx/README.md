@@ -199,9 +199,14 @@ Two consequences worth knowing:
 
 - **Only booleans.** `{0 && <x/>}` still renders `0`, exactly as React does — the rule is about
   booleans, not falsiness.
-- **A boolean *inside an array* still renders**, because the filter sees the array, not its items:
+- **A boolean *inside an array* still renders** — the filter sees the array, not its items, so
   `{rows.map((r) => r.ok && <li/>)}` puts "false" on the page for each failing row. Development
-  names it, and `{rows.filter((r) => r.ok).map(…)}` is the fix.
+  names it, and `{rows.filter((r) => r.ok).map(…)}` is the fix. **This is where vera and React
+  deliberately part**, and the reason is measured: React filters children recursively, and doing
+  the same here costs ~135 ns against ~15 ns per list child *even when the array holds no
+  booleans at all* — roughly doubling the commit of every list to correct a case the development
+  warning already names. Paying that on every list to fix some lists is the wrong trade for a
+  renderer whose lists are its hottest path.
 
 A module that compiles no JSX children carries none of this.
 

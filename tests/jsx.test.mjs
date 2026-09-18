@@ -143,6 +143,20 @@ assert.ok(svgInjected.includes("import { svg } from '@verajs/core';"), 'the svg 
    * rendered as the word — measured before this was added. Filtering to `null` leaves the array's
    * length alone, so a component that counts its children is unaffected.
    */
+  /**
+   * **The filter is one level deep, and that is a measured decision.** React filters children
+   * recursively, so `{rows.map((r) => r.ok && <li/>)}` drops the failing rows there and renders
+   * "false" for each of them here. Matching React costs ~135 ns against ~15 ns per list child
+   * even for arrays holding no booleans — roughly doubling every list commit to fix some lists —
+   * so the development warning carries this case instead. Pinned so the divergence stays a
+   * decision rather than becoming a surprise.
+   */
+  assert.match(
+    transformJsx('const v = <ul>{rows.map((r) => r.ok && <li/>)}</ul>;', 'arr.jsx', { inject: false }),
+    /\$veraChild\(rows\.map/,
+    'the array itself is filtered, not its items'
+  );
+
   const kids = transformJsx('const v = <Row>{c && <em/>}</Row>;', 'j.jsx', { inject: false });
   assert.match(kids, /children: \[\$veraChild\(c && /, 'a component child expression is filtered too');
   assert.doesNotMatch(
