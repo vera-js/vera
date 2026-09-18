@@ -38,6 +38,18 @@ const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), 
 const TAGS = ['div', 'span', 'p', 'b', 'em', 'section'];
 const EXPRESSIONS = ['s.str', 's.num', 's.t', 's.f', 's.arr'];
 /**
+ * **Child expressions draw from a pool without bare booleans, and that is a statement, not a
+ * dodge.** A boolean child is the ONE value semantic on which JSX and a hand-written template
+ * differ on purpose: JSX drops it (React's rule, where React expectations live) and a template
+ * renders the word, matching lit. Generating it here would report that intended divergence as a
+ * fuzz failure on roughly a third of trees, drowning the defects this suite exists to find.
+ *
+ * The exception is pinned explicitly — and in both directions — by the hand-written cases in
+ * `./jsx-equivalence.test.mjs`, and the renderer names a boolean child in development. Attributes
+ * still fuzz `s.t`/`s.f` below, because the boolean rule is about CHILD positions only.
+ */
+const CHILD_EXPRESSIONS = EXPRESSIONS.filter((e) => e !== 's.t' && e !== 's.f');
+/**
  * Static text carries the characters that mean something inside a **template literal** — a backtick, a
  * backslash, a bare `$` — because JSX text is not a template literal and the transform has to escape
  * them on the way in. Without them, weakening `escapeStatic` survived this suite untouched.
@@ -121,7 +133,7 @@ const build = (random, depth) => {
       childrenTpl.push(escapeForTemplate(text));
       kinds.push('text');
     } else if (kind < 0.7 || depth >= 2) {
-      const expression = pick(EXPRESSIONS);
+      const expression = pick(CHILD_EXPRESSIONS);
       childrenJsx.push(`{${expression}}`);
       childrenTpl.push(`\${${expression}}`);
       kinds.push('expr');

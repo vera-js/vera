@@ -25,7 +25,12 @@ export default class SinkBasics extends HTMLElement {
         <h4>Nothing to click. Its twin in jsx/ renders the same DOM, which tests/kitchen-jsx.test.mjs checks.</h4>
         <p id="text">${state.text}</p>
         <p id="multi">${state.text} and ${state.count}</p>
-        <p id="falsy">[${0}][${false}][${null}][${undefined}][${''}]</p>
+        <!-- \`false\` is deliberately absent: a boolean child is the ONE value on which a
+             template and its JSX twin differ (a template renders the word, JSX drops it, and the
+             renderer says so in development), so it is not part of the JSX-comparable subset this
+             component exists to prove. It is pinned in tests/attribute-value-sinks.test.mjs and
+             tests/jsx-equivalence.test.mjs instead. -->
+        <p id="falsy">[${0}][${null}][${undefined}][${''}]</p>
         <p id="nested"><em>${state.text}</em></p>
         <p id="list">${[1, 2, 3]}</p>
 

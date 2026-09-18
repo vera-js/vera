@@ -32,8 +32,10 @@ export default class SinkBasics extends HTMLElement {
         <p id="multi">
           {state.text} and {state.count}
         </p>
+        {/* `false` is deliberately absent — see the twin: a boolean child is the one value on
+            which JSX and a template differ, so it is not part of the comparable subset. */}
         <p id="falsy">
-          [{0}][{false}][{null}][{undefined}][{''}]
+          [{0}][{null}][{undefined}][{''}]
         </p>
         <p id="nested">
           <em>{state.text}</em>

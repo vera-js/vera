@@ -108,6 +108,34 @@ assert.ok(svgInjected.includes("import { svg } from '@verajs/core';"), 'the svg 
     `shapes parse in the SVG namespace, not as HTMLUnknownElements — got ${circles[0]?.namespaceURI}`);
 }
 
+// ── 1d. a boolean child renders nothing, and only a boolean ──
+/**
+ * React's rule, in the grammar React users write. The template equivalent still renders the word
+ * `false` — that divergence is stated as an equality in `./jsx-equivalence.test.mjs` and named by
+ * the renderer's development warning — so this pins the JSX half: compiled AND executed, because
+ * the compiled text alone cannot show that the helper actually filters.
+ */
+{
+  const compiled = transformJsx('export const v = (s) => <b>{s.f && <i>x</i>}</b>;', 'f.jsx', { inject: false });
+  assert.ok(compiled.includes('$veraChild('), 'a child expression is wrapped');
+  assert.ok(/const \$veraChild = /.test(compiled),
+    'and the helper is DEFINED even with inject:false — it is a local const, not an import');
+  assert.ok(!transformJsx('export const v = <b>static</b>;', 'g.jsx').includes('$veraChild'),
+    'a module with no child expressions carries no helper at all');
+
+  const mod = await compile(PRELUDE + 'export const v = (s) => <b>{s.f && <i>x</i>}</b>;\n' +
+    'export const t = (s) => <b>{s.t && <i>x</i>}</b>;\n' +
+    'export const z = (s) => <b>{s.zero && <i>x</i>}</b>;');
+  const box = dom.window.document.getElementById('root');
+  renderInto(mod.v({ f: false }), box);
+  assert.equal(box.querySelector('b').textContent, '', 'a false child renders NOTHING, not "false"');
+  renderInto(mod.t({ t: true }), box);
+  assert.equal(box.querySelector('b').textContent, 'x', 'a true test still renders its element');
+  renderInto(mod.z({ zero: 0 }), box);
+  assert.equal(box.querySelector('b').textContent, '0',
+    '`0` still renders — the rule is booleans, not falsiness, exactly as React has it');
+}
+
 // ── 2. behavior: events, keyed identity, conditionals — through the real engine ──
 const mod = await compile(PRELUDE + `
 export const app = (s) => (

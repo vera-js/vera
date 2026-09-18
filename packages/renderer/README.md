@@ -138,7 +138,8 @@ What a child position does with each kind of value. These match lit-html exactly
 
 | Value | Renders |
 | --- | --- |
-| string, number, `true`, `false`, `0` | as text — `${cond && 'x'}` puts the word `false` on the page |
+| string, number, `0` | as text |
+| `true`, `false` | as text — **and development says so**; see below |
 | `null`, `undefined` | nothing |
 | a template result | the template, updated in place while its shape holds |
 | an array or iterable | each entry in order; key them with `keyed()` |
@@ -147,6 +148,22 @@ What a child position does with each kind of value. These match lit-html exactly
 
 Strings render as **text**, always. There is no path by which an interpolated value becomes markup
 — see [Trusted HTML](#trusted-html-and-why-there-is-no-unsafehtml).
+
+### A boolean child renders the word, and JSX is the exception
+
+`${items.length > 0 && html\`…\`}` is the ordinary conditional idiom, and when the test fails the
+whole expression is `false` — which renders the text **"false"** on the page. The value is
+legitimate and nothing throws, so **development names it** at the binding rather than leaving it to
+be found by looking at the page. Write the form that renders nothing:
+
+```js
+html`<p>${cond ? html`<em>yes</em>` : null}</p>`     // or: ${(cond && html`…`) || null}
+```
+
+**In JSX the same code needs no change** — `@verajs/jsx` compiles a boolean child away, which is
+React's rule and where React expectations live. That is the **one** value semantic on which JSX and
+a hand-written template differ, and this warning is what meets JSX-shaped code pasted into a
+template. `0` still renders in both, exactly as in React: the rule is about booleans, not falsiness.
 
 A DOM node renders as itself, which is how a template holds something another library owns:
 

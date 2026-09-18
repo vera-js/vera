@@ -719,6 +719,12 @@ normalised to what the ELEMENT requires. The four renderer sigils pass through u
   identifier (`data-*`, `aria-*`, `xlink:href`) has no property spelling and stays an attribute, and
   `class`/`for` — the two names the DOM itself renamed — stay attributes (write `className`, as in
   React). None of the HTML-control guesses apply on a component: `disabled={x}` is its own prop.
+- **A boolean CHILD renders nothing** — `{items.length > 0 && <em/>}` renders nothing when the test
+  fails, React's rule. A hand-written template renders the word "false" there (lit's rule, which the
+  renderer matches on purpose and names in development), so **this is the one value semantic on
+  which JSX and a template differ**. Only booleans: `{0 && <x/>}` still renders `0`, as in React. A
+  boolean INSIDE an array still renders — `{rows.map((r) => r.ok && <li/>)}` — because the filter
+  sees the array, not its items; use `rows.filter(…)`.
 - **Inside `<svg>`/`<math>`, expressions compile in that namespace** — a mapped or conditional shape
   becomes `svg\`…\`` (or `mathml\`…\``) automatically, `<foreignObject>` flips back to HTML. A
   function component compiles where it is DEFINED, so give an icon component its own `<svg>` wrapper.
@@ -1555,12 +1561,16 @@ Say so rather than inventing an API:
    element upgrades.** Bound properties are repaired automatically (see *Props*), but a value
    assigned **imperatively** — `el.rows = data` before the definition loads — is gone for good.
    Use `declare`. See below; this one is invisible and costs you real data.
-11. **Passing an object to a component as an attribute.** `<x-rows rows=${data}>` in a template, or
+11. **`{cond && x}` in a TEMPLATE renders the word "false"** when `cond` is false — the value is
+   not nullish, so it renders, exactly as lit does. Development names it. Write
+   `${cond ? x : null}` or `${(cond && x) || null}`. **In JSX this is already handled** — a boolean
+   child compiles away — which is the one value semantic where the two grammars differ.
+12. **Passing an object to a component as an attribute.** `<x-rows rows=${data}>` in a template, or
    `rows={data}` on an **HTML** tag in JSX, is an *attribute* — always a string, so an array
    arrives as `"1,2,3"`. Bind a property: `.rows=${data}`, `props({ rows: data })`, or — on a
    dash-named tag in JSX — the bare `rows={data}`, which already means the property. Development
    names any non-primitive that reaches an attribute sink.
-12. **TSX: forgetting `"types": ["@verajs/jsx"]`, or writing a sigil.** Without that tsconfig entry
+13. **TSX: forgetting `"types": ["@verajs/jsx"]`, or writing a sigil.** Without that tsconfig entry
    every element errors `TS7026` — the namespace ships with the plugin's declarations and a TSX app
    never imports the plugin. And `.date={d}` does not parse in `.tsx` (`TS1003`, TypeScript's own
    parser, before this plugin sees the file): write the bare prop, or `{...props({ date })}`.

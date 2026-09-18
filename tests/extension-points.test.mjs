@@ -95,7 +95,9 @@ test('the veraJsx bundler plugin transforms exactly the files it should', async 
   const run = (id) => plugin.transform.call({}, 'const a = <p>{1}</p>;', id);
   for (const id of ['/app/x.jsx', '/app/x.tsx']) {
     const result = run(id);
-    assert.ok(result && /html`<p>\$\{1\}<\/p>`/.test(result.code), `${id} was not transformed`);
+    /** The child expression is wrapped — JSX drops a boolean child, so every child goes through
+     *  the module-local filter. Matching the wrapper keeps this pinned to real output. */
+    assert.ok(result && /html`<p>\$\{\$veraChild\(1\)\}<\/p>`/.test(result.code), `${id} was not transformed`);
   }
   for (const id of ['/app/x.js', '/app/x.ts']) {
     assert.equal(run(id), null, `${id} must be left alone`);
@@ -111,7 +113,10 @@ test('and honours the documented options', async () => {
 
   const bare = veraJsx({ inject: false }).transform.call({}, 'const a = <p>{1}</p>;', '/app/x.jsx').code;
   assert.doesNotMatch(bare, /^import/m, '{ inject: false } must not add an import');
-  assert.match(bare, /html`<p>\$\{1\}<\/p>`/, 'but must still compile the JSX');
+  assert.match(bare, /html`<p>\$\{\$veraChild\(1\)\}<\/p>`/, 'but must still compile the JSX');
+  /** `inject` governs IMPORTS; the child filter is a module-local const, so the output stays valid
+   *  even when the caller supplies its own `html` — without it the module throws at first render. */
+  assert.match(bare, /const \$veraChild = /, 'and must still DEFINE the helper it calls');
 });
 
 /**
@@ -135,7 +140,7 @@ test('JSX-shaped text that is not JSX is left alone', async () => {
   /** And real JSX beside a string still compiles — the discrimination has to work both ways. */
   const mixed = String(transformJsx('const s = "<b>x</b>"; const a = <p>{1}</p>;', '/app/x.jsx', { inject: false }));
   assert.match(mixed, /const s = "<b>x<\/b>";/, 'the string was rewritten');
-  assert.match(mixed, /html`<p>\$\{1\}<\/p>`/, 'the real JSX was not compiled');
+  assert.match(mixed, /html`<p>\$\{\$veraChild\(1\)\}<\/p>`/, 'the real JSX was not compiled');
 });
 
 

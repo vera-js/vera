@@ -108,6 +108,7 @@ name in a table:
 | --- | --- | --- | --- |
 | on a **dash-named** tag | `<calendar-day date={d}>` | `.date=${d}` — a **property** | [below](#on-a-component-tag-a-prop-is-a-prop) |
 | inside `<svg>` / `<math>` | `{pts.map((p) => <circle … />)}` | `svg\`<circle …>\`` | [below](#svg-and-mathml-just-work) |
+| any **child** position | `{cond && <em/>}` | nothing when `cond` is false | [below](#a-boolean-child-renders-nothing) |
 
 ### On a component tag, a prop is a prop
 
@@ -171,6 +172,29 @@ no workaround, nothing to import (the `svg` import is injected like `html` is). 
 know: a **function component** compiles where it is *defined*, so one that returns bare shapes
 (`const Dot = () => <circle r="2" />`) defined outside any `<svg>` compiles as HTML. Give an icon
 component its own `<svg>` wrapper — the React convention anyway — or define the shape inline.
+
+### A boolean child renders nothing
+
+React's rule, in the grammar React users write:
+
+```jsx
+{items.length > 0 && <em>{items.length} items</em>}   // renders nothing when the list is empty
+```
+
+A hand-written template renders the word **"false"** there, matching lit — and `@verajs/renderer`
+says so in development. **This is the one value semantic on which JSX and a template differ.** It is
+done by filtering the child in your own module (a ~45-byte local the compiler injects), so the
+renderer and `@verajs/ssr` never learn a new rule: they receive `null`, which they already drop.
+
+Two consequences worth knowing:
+
+- **Only booleans.** `{0 && <x/>}` still renders `0`, exactly as React does — the rule is about
+  booleans, not falsiness.
+- **A boolean *inside an array* still renders**, because the filter sees the array, not its items:
+  `{rows.map((r) => r.ok && <li/>)}` puts "false" on the page for each failing row. Development
+  names it, and `{rows.filter((r) => r.ok).map(…)}` is the fix.
+
+A module that compiles no JSX children carries none of this.
 
 ### The renderer's sigils work too
 

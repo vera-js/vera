@@ -1634,6 +1634,39 @@ const isTemplateResult = (value: object): value is TemplateResult =>
  * with a text node — so the steady state is compare-and-assign on `.data`. This part carries only
  * that, upgrading itself to a full ChildPart the first time it sees null, a template, or an array.
  */
+/**
+ * **A boolean in a child position renders the WORD, and almost nobody means that.**
+ *
+ * `${items.length > 0 && html`…`}` is the ordinary conditional idiom, and when the test is false
+ * the whole expression is `false` — which becomes the text `false` on the page. Nothing throws;
+ * the value is legitimate; only the intent is wrong. lit-html does the same and this renderer
+ * matches it deliberately (anything not nullish renders), so the BEHAVIOUR stays and the mistake
+ * is named where it happens instead of being found by looking at the page.
+ *
+ * `@verajs/jsx` compiles this case away — in JSX a boolean child becomes nothing, React's rule,
+ * because that is where React expectations live. **That is the one value semantic on which JSX and
+ * a hand-written template differ**, which makes this the warning that meets JSX-shaped code pasted
+ * into a template.
+ *
+ * Called from BOTH child sinks, because a text position is a `TextPart` until something upgrades
+ * it and a boolean never triggers that upgrade — putting the check in `ChildPart` alone left it
+ * silent for exactly the common case. One function, two call sites, per the standing rule that a
+ * deliberate duplication is a fix's second address.
+ *
+ * Reached only on a COMMIT, so it is not once-per-render: both sinks dirty-check first, and an
+ * unchanged value never arrives twice.
+ */
+const warnBooleanChild = (value: unknown): void => {
+  if (typeof value !== 'boolean') return;
+  console.warn(
+    `[vera] renderer: a child position was given \`${value}\`, which renders as the word ` +
+      `"${value}" — the usual cause is \`\${cond && …}\` with a false \`cond\`.\n` +
+      `Write \`\${cond ? … : null}\`, or \`\${(cond && …) || null}\`; \`null\` and \`undefined\` are ` +
+      `the values that render nothing. If you meant to display the boolean, say so with ` +
+      `\`\${String(value)}\` and this goes quiet.`
+  );
+};
+
 class TextPart implements Part {
   _text: Text;
   _value: unknown = '';
@@ -1690,6 +1723,7 @@ class TextPart implements Part {
       return index + 1;
     }
     if (value !== this._value) {
+      if (__DEV__) warnBooleanChild(value);
       this._value = value;
       this._text.data = value as string;
     }
@@ -2034,6 +2068,7 @@ class ChildPart implements Part {
       return;
     }
     if (typeof value !== 'object') {
+      if (__DEV__) warnBooleanChild(value);
       if (this._mode === TEXT) {
         if (this._value !== value) {
           this._value = value;

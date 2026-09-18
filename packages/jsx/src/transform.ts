@@ -58,6 +58,16 @@ const RENAMED_ATTRIBUTES = new Set<string>(Object.values(NAME_MAP));
  */
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
+/**
+ * The module-local filter injected for JSX child expressions — see `emitChild`. Named with a `$`
+ * so it cannot collide with an author's identifier, and DEFINED per module rather than imported:
+ * an import would need a new specifier in every buildless import map (the exact gotcha the CDN
+ * recipe documents), while forty-odd bytes inline cost a bundler nothing and are dropped entirely
+ * from any module that compiles no JSX children.
+ */
+const CHILD_HELPER = '$veraChild';
+const CHILD_HELPER_SOURCE = `const ${CHILD_HELPER} = (v) => (typeof v === 'boolean' ? null : v);\n`;
+
 /** The renderer's binding sigils. An attribute name that opens with one is the author's own choice. */
 const SIGILS = new Set(['.', '?', '@', '&']);
 
@@ -99,7 +109,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [svgName, svgFrom] = options.svg ?? ['svg', '@verajs/core'];
   const [mathmlName, mathmlFrom] = options.mathml ?? ['mathml', '@verajs/core'];
 
-  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedSvg: false, usedMathml: false };
+  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedSvg: false, usedMathml: false, usedChild: false };
 
   /**
    * **The content mode a JSX expression sits in, tracked lexically** — the namespace fix React
@@ -251,7 +261,26 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       const text = collapseText(child.text);
       if (text !== '') tpl.static(escapeStatic(text));
     } else if ('expr' in child && child.expr !== undefined) {
-      tpl.expr(emitExpression(child.expr, child.roots, child.exprStart, mode));
+      /**
+       * **A boolean child renders nothing — React's rule, in the grammar React users write.**
+       *
+       * `{items.length > 0 && <em/>}` evaluates to `false` when the test fails, and a template
+       * renders that as the word "false" (lit's rule, which `@verajs/renderer` matches on purpose).
+       * It is the single most common JSX conditional and nobody means the text, so the child is
+       * filtered here — the one value semantic on which JSX and a hand-written template differ,
+       * and the reason the renderer names a boolean child in development.
+       *
+       * Filtered in USER CODE, before the value reaches a template: the renderer and
+       * `@verajs/ssr` both already drop `null`, so neither needs to know this rule exists and
+       * there is no second implementation to keep in step. Costs a module-local arrow and one
+       * call per child value — measured at or below the noise floor in all three engines, and a
+       * bundle that compiles no JSX never sees it.
+       *
+       * `{0 && <x/>}` still renders `0`, exactly as React does: the rule is about booleans, not
+       * about falsiness, which is why it cannot be a truthiness test.
+       */
+      state.usedChild = true;
+      tpl.expr(`${CHILD_HELPER}(${emitExpression(child.expr, child.roots, child.exprStart, mode)})`);
     } else {
       emitInto(child as JsxNode, tpl, false, mode);
     }
@@ -440,6 +469,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   }
 
   /** Auto-inject imports for what the emitted code uses (opt out with options.inject: false). */
+  /** Imports first, then the child helper — so the emitted module reads the way one is written. */
+  let prefix = '';
   if (options.inject !== false) {
     /**
      * Every name any import statement already binds, so injecting a second declaration of one is
@@ -463,7 +494,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (state.usedSpread && !has(spreadName)) inject += `import { ${spreadName} } from '${spreadFrom}';\n`;
     if (state.usedSvg && !has(svgName)) inject += `import { ${svgName} } from '${svgFrom}';\n`;
     if (state.usedMathml && !has(mathmlName)) inject += `import { ${mathmlName} } from '${mathmlFrom}';\n`;
-    out = inject + out;
+    prefix = inject;
   }
-  return out;
+  /**
+   * **Outside the `inject` branch, because `inject` governs IMPORTS and this is not one.**
+   *
+   * `inject: false` means "I import `html`/`keyed`/`spread` myself" — a caller cannot reasonably
+   * be asked to also declare a helper this compiler invented, and emitting the call without its
+   * definition produces a module that throws `$veraChild is not defined` at first render. Caught
+   * by the equivalence suites, which compile with `inject: false`; a user of that option would
+   * have met the same ReferenceError.
+   */
+  if (state.usedChild) prefix += CHILD_HELPER_SOURCE;
+  return prefix + out;
 };

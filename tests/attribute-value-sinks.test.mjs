@@ -182,3 +182,50 @@ test('the same kind is reported once per binding — but a different kind still 
     assert.notEqual(complainAbout('dedup', [1]).message, null, 'an array is a different complaint');
     assert.notEqual(complainAbout('dedup', new Date(0)).message, null, 'and so is a Date');
   });
+
+/**
+ * **A boolean in a CHILD position is the other half of "a value nobody meant to interpolate."**
+ *
+ * `${cond && html`…`}` with a false `cond` puts the word "false" on the page. The value is
+ * legitimate, nothing throws, and `@verajs/renderer` renders it deliberately — lit does the same,
+ * and templates are lit-shaped on purpose. So the behaviour stays and the MISTAKE is named, which
+ * is the only channel left when the author's intent and the language's answer disagree.
+ *
+ * It carries a second job: `@verajs/jsx` compiles a boolean child away (React's rule, where React
+ * expectations live), so this is the one value semantic on which JSX and a hand-written template
+ * differ — and this warning is what meets someone who pastes JSX-shaped code into a template.
+ */
+const childComplaint = (value) => {
+  const host = doc.createElement('div');
+  const real = console.warn;
+  const seen = [];
+  console.warn = (message) => seen.push(String(message));
+  try {
+    renderInto({ ['_$litType$']: 1, strings: Object.assign(['<p>', '</p>'], { raw: [] }), values: [value] }, host);
+  } finally {
+    console.warn = real;
+  }
+  return { text: host.textContent, message: seen.find((m) => m.includes('child position')) ?? null };
+};
+
+test('a boolean child still renders, and development says so',
+  { skip: isProduction && 'diagnostics are folded away' }, () => {
+    const off = childComplaint(false);
+    assert.equal(off.text, 'false', 'the behaviour is unchanged — lit parity is the point');
+    assert.match(off.message, /cond && /, 'and the message names the idiom that produced it');
+    assert.match(off.message, /cond \? … : null/, 'and the fix');
+
+    assert.equal(childComplaint(true).text, 'true', '`true` renders too');
+    assert.notEqual(childComplaint(true).message, null, 'and is named for the same reason');
+
+    /** The values that legitimately render nothing must stay silent, or the channel is noise. */
+    for (const quiet of [null, undefined, 0, '', 'text'])
+      assert.equal(childComplaint(quiet).message, null, `${JSON.stringify(quiet)} is not a complaint`);
+  });
+
+test('production carries neither the check nor the message',
+  { skip: !isProduction && 'this is the production half' }, () => {
+    const off = childComplaint(false);
+    assert.equal(off.text, 'false', 'behaviour is identical in both builds');
+    assert.equal(off.message, null, 'and the diagnostic is folded away');
+  });

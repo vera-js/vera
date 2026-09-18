@@ -120,7 +120,21 @@ const CASES = {
     'html`<ul>${s.arr.map((n) => keyed(n, html`<li>${n}</li>`))}</ul>`',
   ],
   'a conditional': ["<b>{s.t ? 'y' : 'n'}</b>", "html`<b>${s.t ? 'y' : 'n'}</b>`"],
-  'a false conditional': ['<b>{s.f && <i>x</i>}</b>', 'html`<b>${s.f && html`<i>x</i>`}</b>`'],
+  /**
+   * **The one place JSX deliberately does NOT equal the template you would write by hand**, so it
+   * is stated as the equality that DOES hold rather than removed: `{cond && …}` with a false
+   * `cond` renders nothing in JSX (React's rule, where React expectations live), which is the
+   * template `${null}` — not the template `${s.f && …}`, which renders the word "false" and still
+   * does, because `@verajs/renderer` matches lit exactly and templates are lit-shaped.
+   *
+   * Writing the pair this way keeps the suite's premise honest: every case here is still an
+   * equality, and this one names which equality. The renderer warns in development when a boolean
+   * reaches a child position, which is what catches JSX-shaped code pasted into a template.
+   */
+  'a false conditional — JSX drops the boolean': ['<b>{s.f && <i>x</i>}</b>', 'html`<b>${null}</b>`'],
+  'a TRUE conditional still renders its element': ['<b>{s.t && <i>x</i>}</b>', 'html`<b>${html`<i>x</i>`}</b>`'],
+  /** Falsiness is not the rule — only booleans. `0` renders, exactly as it does in React. */
+  'a zero conditional still renders the zero': ['<b>{s.zero && <i>x</i>}</b>', 'html`<b>${0}</b>`'],
   'data and aria attributes': [
     '<b data-x={s.str} aria-label={s.str}>x</b>',
     'html`<b data-x=${s.str} aria-label=${s.str}>x</b>`',
@@ -193,7 +207,7 @@ const H1 = tag\`h1\`;
 ${compiled}
 
 const s = {
-  str: 'v', num: 3, t: true, f: false,
+  str: 'v', num: 3, t: true, f: false, zero: 0,
   arr: [1, 2],
   fn: () => {},
   ref: { current: null },
