@@ -115,7 +115,9 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
           console.warn(
             `[vera] <${element.localName}> renders \`${hit.name}\`, but no directives engine is wired, ` +
               `so that attribute does nothing.\n` +
-              `Wire it once at your app entry:\n\n` +
+              `\`@verajs/directives\` is NOT PUBLISHED YET — \`npm i\` will 404 — so if this markup ` +
+              `came from a demo, remove the attribute or write the behaviour yourself for now.\n` +
+              `When it ships, it is wired once at your app entry:\n\n` +
               `  import { wire } from '@verajs/core';\n` +
               `  import { directives } from '@verajs/directives';\n` +
               `  wire([renderer, directives]);\n\n` +
