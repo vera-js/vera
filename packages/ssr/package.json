@@ -1,6 +1,6 @@
 {
   "name": "@verajs/ssr",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Vera-native server-side rendering. Node-only, plain ESM, zero dependencies.",
   "license": "MIT",
   "engines": {
@@ -22,8 +22,8 @@
     }
   },
   "peerDependencies": {
-    "@verajs/core": "^0.3.0",
-    "@verajs/styles": "^0.1.1"
+    "@verajs/core": "^0.3.1",
+    "@verajs/styles": "^0.1.2"
   },
   "files": [
     "src",
