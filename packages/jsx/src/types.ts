@@ -33,6 +33,24 @@ declare global {
     interface ElementChildrenAttribute {
       children: object;
     }
+    /**
+     * **What every element and COMPONENT may carry on top of its own props.**
+     *
+     * This is the half `IntrinsicElements` cannot reach. A dash-named tag goes through the index
+     * signature above and accepts anything; a FUNCTION COMPONENT is checked against its own
+     * parameter type instead, so `<Card key={id} title="x" />` was `TS2322 — Property 'key' does
+     * not exist on type '{ title: string }'` while compiling and running perfectly. The transform
+     * handles `key` in both emitters on purpose (`tpl.setKey` for an element, and the component
+     * emitter lifts it out of the props bag), so the types were forbidding a feature the compiler
+     * implements — the worst kind of gap, because the fix people reach for is a cast.
+     *
+     * `unknown` rather than React's `string | number`: this renderer compares keys by value and
+     * `TemplateResult.key` is `unknown`, so anything usable as an identity is legitimate here.
+     */
+    // eslint-disable-next-line no-restricted-syntax -- ditto: tsc reads this by shape, and it merges
+    interface IntrinsicAttributes {
+      key?: unknown;
+    }
   }
 }
 

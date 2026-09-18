@@ -27,7 +27,17 @@ import { execFileSync } from 'node:child_process';
  * `paths`, so imports resolve through `exports` -> `types` exactly as npm resolves them — and it
  * requires a build, because there is nothing to resolve to otherwise.
  */
-const configs = [...globSync('packages/*/tsconfig.json').sort(), 'tsconfig.json', 'tests/consumer/tsconfig.json'];
+const configs = [
+  ...globSync('packages/*/tsconfig.json').sort(),
+  'tsconfig.json',
+  'tests/consumer/tsconfig.json',
+  /**
+   * The TSX pass is its own config because it needs the two options the docs tell a TSX app to set
+   * — `"jsx": "preserve"` and `"types": ["@verajs/jsx"]` — and the sibling consumer config
+   * deliberately sets `"types": []`. Checking the documented setup means compiling with it.
+   */
+  'tests/consumer/tsconfig.tsx.json',
+];
 let failed = 0;
 
 for (const config of configs) {
@@ -36,6 +46,8 @@ for (const config of configs) {
       ? 'root (examples + tests/types)'
       : config === 'tests/consumer/tsconfig.json'
         ? 'consumer (shipped .d.ts)'
+        : config === 'tests/consumer/tsconfig.tsx.json'
+          ? 'consumer TSX (shipped .d.ts + JSX namespace)'
         : config.split('/')[1];
   try {
     execFileSync('npx', ['tsc', '--noEmit', '-p', config], { encoding: 'utf8', stdio: 'pipe' });
