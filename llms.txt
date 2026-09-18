@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->6.6 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->7.0 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -207,6 +207,12 @@ render(() => html`
   </svg>
 `);
 ```
+
+This is a TEMPLATE rule. In JSX the compiler picks the tag from the expression's lexical position —
+shapes mapped in a list or built conditionally inside `<svg>` compile with `svg``` automatically
+(`<foreignObject>` flips back to HTML, `<math>` uses `mathml```), so JSX authors never write the
+namespace tags by hand. One boundary: a function component compiles where it is DEFINED, so give an
+icon component its own `<svg>` wrapper or define the shape inline.
 
 `html` alone would produce an `HTMLUnknownElement` named `circle`, which parses fine and never
 renders. Bindings, keyed lists and in-place updates all work the same inside these tags.
@@ -438,7 +444,7 @@ thing — including `&ref` for an element ref. A key that cannot be written into
 (whitespace, a quote, `<`, `>`, `/`, `=`, a backtick, a control character); browsers accept some of
 those and markup cannot carry them, so both sides refuse them rather than disagreeing.
 `@verajs/renderer` costs 5 B for the protocol whether or not you install this; the package
-is <!--size:spread.gzip-->1.28 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
+is <!--size:spread.gzip-->1.60 KB<!--/size:spread.gzip--> and only apps importing it pay. Runtime is
 at parity with writing the bindings out.
 
 **Removing a key restores what the element held before the binding existed** — it does not remove
@@ -451,12 +457,46 @@ construction. Bind `null` when you mean removal.
 
 Several spreads on one element are fine; each element position owns its own keys.
 
+**`props()` — a typed bag of PROPERTY bindings**, same entry point. One call in both surfaces:
+
+```js
+import { props } from '@verajs/renderer/spread';
+
+html`<calendar-day ${props({ date, events })}></calendar-day>`   // template
+<calendar-day {...props({ date, events })}></calendar-day>        // JSX — compiles to the same call
+<calendar-day date={date} events={events} />                      // JSX — bare props ARE props on a component tag
+```
+
+Use it to pass a NON-STRING to a custom element — an array, a `Date`, a store — which an attribute
+cannot carry. In JSX, bare props (rule 10 below) or the sigil spelling `.date={d}` do the same job;
+props() is the bag TSX's type-checker is happiest with (`.date=` trips TS1003 there) and the one
+that checks its keys against the element. Keys are property names, never sigils
+(`props({ date })` binds `.date`); events and booleans keep their own spellings. Prefer keys
+spelled conditionally — `props({ date: loaded ? date : null })` — over bags that change shape
+(both work; a stable shape updates in place). With a type argument the bag is checked:
+`props<CalendarDay>({ dat })` is a compile error naming the misspelling.
+
+**Receiving props needs NO declaration.** A component that calls `init()` reads every bound
+property off `this`, reactively: a render that reads `this.date` tracks it, the parent's next
+commit re-renders, and a store or `ref()` passed down stays live (values arrive by identity). No `static properties`, no props argument, no `declare` needed — a value bound before
+the component's module ran is recorded and re-applied by `init()`, so a bound value outranks a
+class field default in both spellings (`item;` and `item = default`). Attributes are different:
+`date="…"` is always a string in markup; props are properties. A class declaring its own
+`get`/`set` pair keeps it — values arrive through the setter, and the pair owns its reactivity
+(back it with your own store). Elements that never call `init()` (plain custom elements) get
+properties written plainly, exactly as before. SSR included: a bound property reaches the child's
+SERVER render too (by identity, never markup), so server and client render the same content from
+the same data.
+
 Keys are strings carrying sigils, so TypeScript cannot check them against the element — the trade
 for names not known until runtime.
 
-SSR serializes a spread: attributes, truthy booleans and the form properties (`value`, `checked`,
-`selected`) reach markup; events and other properties are client state. Escaping stays in
-`@verajs/ssr`, in one place, exactly as for written bindings.
+SSR serializes a spread: attributes, truthy booleans and — on form controls — the form properties
+(`value`, `checked`, `selected`) reach markup; events are client state. A property on a rendered
+COMPONENT tag is DELIVERED to that child's server render instead (written `.prop` and
+`props()`/spread alike): the child SSRs from the same data its client render gets, the markup never
+carries the property, and an unregistered dashed tag passes through for the client to handle.
+Escaping stays in `@verajs/ssr`, in one place, exactly as for written bindings.
 
 **The protocol is public.** A value at element position carrying `_$apply$(element, part)` applies
 itself, and `_$attrs$()` lets it serialize server-side. Spread is the first user; any renderer
@@ -464,7 +504,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.38 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.58 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -1252,23 +1292,26 @@ blob. Bare specifiers inside resolve through the page's import map.
 6. **JS + JSX only.** Nothing strips TypeScript types in the browser; TSX needs the build path.
 7. **Prefer stable shapes over conditional swaps** — see the renderer section. Toggling `hidden`
    keeps template identity and skips the clear/insert churn.
-8. **Reach for `hidden={…}`, not `?hidden=${…}`, inside JSX.** Boolean attributes bound in JSX
-   compile to the `?attr` form for you.
+8. **Reach for `hidden={…}`, not `?hidden=${…}`, inside JSX.** On an HTML tag a bound boolean
+   attribute compiles to the `?attr` form for you; on a component tag it is a prop like any other
+   (`.hidden=${…}` — the platform accessor reflects it, so the element still hides).
 9. **A custom element is written as itself** — `<my-comp foo={x}>…</my-comp>`, dashes and all. It is
    markup, not a function component, so it compiles into the template's statics rather than into a
    call. (Dashed tags did not parse before 0.2.0 and were emitted verbatim, which failed at load.)
-10. **Hand a custom element structured data with `.prop={…}`, never `prop={…}`.** All four renderer
-    sigils work in JSX and mean exactly what they mean in `html` — `.prop=`, `?bool=`, `@event=`,
-    `&ref=` — and a name written with one is passed through untouched rather than guessed at again.
-    Without the dot it is an *attribute*, and an attribute carries a string, so
-    `<x-rows rows={data}>` delivers `"1,2,3"` and `<x-rows .rows={data}>` delivers the array. This is
-    the only property binding besides `value` and `checked`, which are special-cased. (Before 0.2.0
-    `.rows={…}` was not an attribute name at all: the parser treated the file as "not JSX" and
-    emitted **the whole file** untransformed, so every other component in it stopped compiling too.)
-    Since 2026-09 the renderer **says so in development**: any non-primitive reaching an attribute
-    sink is named, with what it would become — an array joined by commas, a function as its own
-    source text, a `Date` carrying the timezone of whichever side rendered it. Primitives and `URL`
-    pass; the accepted set is a closed list, not a predicate.
+10. **On a component tag, a bare prop is a PROP — React's own semantics.**
+    `<x-rows rows={data} count={3} active>` passes `rows`, `count` and `active` (`true`) as
+    properties, by identity: the component reads `this.rows` reactively with nothing declared, and
+    SSR delivers the same props to the child's server render. The exceptions are derivations, not
+    a vocabulary: names that cannot be JS identifiers (`data-*`, `aria-*`, `xlink:href`) have no
+    property spelling by construction,
+    and `class`/`for` — the two names the DOM itself renamed — stay attributes (write `className`,
+    as in React). None of the HTML-control guesses apply on components: `disabled={x}` is the
+    component's own prop, never a `?disabled` toggle. Platform names still behave: `title`, `id`,
+    `slot`, `style` land on the platform accessor that owns them and reflect as always. All four
+    renderer sigils (`.prop=`, `?bool=`, `@event=`, `&ref=`) also work in JSX and are passed
+    through untouched — spell one when you want a specific binding, e.g. `?bool` to toggle a real
+    attribute on a component for CSS. On an HTML tag, `rows={data}` is still an attribute, and the
+    renderer names any non-primitive reaching an attribute sink in development.
 11. **A name the mapping does not know is written verbatim**, so spell HTML attributes the way HTML
     does — `xlink:href`, not `xlinkHref`. Only `className`→`class` and `htmlFor`→`for` are renamed.
 12. **Self-closing is JSX's syntax, not HTML's, and the compiler normalises both directions.**

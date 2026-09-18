@@ -34,6 +34,22 @@ Chains are stored dense and priority-sorted rather than indexed by priority: ind
 (a renderer at 50 produced a 51-element array with 50 of them) and every chain is walked on the hot
 path, which cost roughly 238 ns per store read.
 
+Two more exports, for a module that reads chains on its own hot path:
+
+```js
+import { inserts, revision } from '@verajs/inserts';
+
+let cached = inserts.get('proxy-handler');   // the registry: Map of name -> ordered chain
+let seen = revision;                          // bumped by every registration
+const chain = () => (seen === revision ? cached : ((seen = revision), (cached = inserts.get('proxy-handler'))));
+```
+
+`revision` is a live binding, not a getter — reading it is a variable access, which is the point:
+the chains that matter are read on every store read and write, a `Map.get` there measured at 13%
+of a tracked read, and a registration is a once-per-app event, so the cost sits on the
+registration side. (Remember the rule below before importing `inserts` directly: **registering**
+goes through core's `wire`, always.)
+
 ## The extension points
 
 | Name | Runs when | Signature |

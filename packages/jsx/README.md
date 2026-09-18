@@ -37,16 +37,32 @@ Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Im
 
 For a playground with no build at all, `@verajs/jsx/standalone` transforms
 `<script type="text/vera-jsx">` blocks in the browser. It is for demos — the transform runs on every
-page load.
+page load. Blocks present at `DOMContentLoaded` run in document order automatically; a block that
+arrives LATER — CMS content, a demo injected after load — is run by hand with `runBlock`:
+
+```js
+import { runBlock } from '@verajs/jsx/standalone';
+
+const script = document.querySelector('script[type="text/vera-jsx"]#late');
+await runBlock(script);   // fetches src or reads inline text, transforms, imports as a module
+```
 
 `transformJsx(source, fileName, options?)` is the transform itself, if you are wiring a different
-bundler or writing a test.
+bundler or writing a test:
+
+```js
+import { transformJsx } from '@verajs/jsx';
+
+const js = transformJsx(source, 'widget.jsx');                    // imports injected automatically
+const bare = transformJsx(source, 'widget.jsx', { inject: false }); // you provide html/keyed/spread
+```
 
 ## What JSX means here
 
-Everything below is the *whole* mapping. An attribute that appears in none of these rules is written
-into the template verbatim, which is what you want for `data-*`, `aria-*`, `xlink:href` and every
-ordinary HTML attribute — **write those exactly as they appear in HTML**, not camel-cased.
+Everything below is the *whole* mapping. On an **HTML tag**, an attribute that appears in none of
+these rules is written into the template verbatim, which is what you want for `data-*`, `aria-*`,
+`xlink:href` and every ordinary HTML attribute — **write those exactly as they appear in HTML**,
+not camel-cased.
 
 | Written | Becomes | Notes |
 | --- | --- | --- |
@@ -70,6 +86,23 @@ ordinary HTML attribute — **write those exactly as they appear in HTML**, not 
 
 Boolean attributes: `disabled`, `hidden`, `readonly`, `required`, `open`, `selected`, `multiple`,
 `autofocus`, `autoplay`, `controls`, `loop`, `muted`, `playsinline`, `inert`, `reversed`.
+
+### On a component tag, a prop is a prop
+
+On a **dash-named tag**, JSX means what it means in React: `<calendar-day date={date} count={3}
+active>` passes `date`, `count` and `active` (`true`) as **properties**, by identity — the
+component reads `this.date`, reactively, with nothing declared (see `@verajs/core`'s Props
+section). `date="literal"` is a prop too, and none of the HTML-control guesses above apply —
+`disabled={x}` on a component is that component's own prop, not a `?disabled` toggle.
+
+No table decides which names qualify. Two derivations carve out the attributes: a **name that
+cannot be a JS identifier** (`data-*`, `aria-*`, `xlink:href`) has no property spelling by
+construction, and `class` / `for` (the two
+names the DOM itself renamed, because JS refuses them as identifiers) stay attributes — write
+`className` on components exactly as in React. Everything else is classified by the element's own
+prototype chain at runtime: `title`, `id`, `slot` or `style` land on the platform accessor that
+owns them and reflect as always, a class's declared `get`/`set` pair receives through its setter,
+and the rest adopt. Server rendering delivers the same props to the child's server render.
 
 ### Self-closing is JSX's syntax, not HTML's
 
@@ -97,6 +130,25 @@ position-independent by construction. Every dynamic-vs-dynamic order works as in
 spread beats an earlier one, and a later *written binding* like `disabled={false}` beats an
 earlier spread's `true`. When a static must win, write it as a binding — `title={"x"}` — or drop
 the key from the bag.
+
+### SVG and MathML just work
+
+A template's namespace is decided by the tag that parses it, which is why hand-written templates
+reach for core's `svg`/`mathml` tags inside `<svg>`/`<math>`. In JSX the compiler picks the tag for
+you, from the position the expression is written in:
+
+```jsx
+<svg viewBox="0 0 24 24">
+  {points.map((p) => <circle key={p.id} cx={p.x} cy={p.y} r="2" />)}   // compiles with svg``
+  <foreignObject><div>{label}</div></foreignObject>                    // …and this flips back to html``
+</svg>
+```
+
+Shapes mapped in a list, built conditionally, or written inline all parse in the SVG namespace —
+no workaround, nothing to import (the `svg` import is injected like `html` is). One boundary to
+know: a **function component** compiles where it is *defined*, so one that returns bare shapes
+(`const Dot = () => <circle r="2" />`) defined outside any `<svg>` compiles as HTML. Give an icon
+component its own `<svg>` wrapper — the React convention anyway — or define the shape inline.
 
 ### The renderer's sigils work too
 

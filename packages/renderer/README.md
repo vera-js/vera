@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.38 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.58 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -649,6 +649,70 @@ Keys are strings carrying sigils, so TypeScript cannot check them against the el
 That is a genuine step down from written bindings, and the trade for names that are not known until
 runtime.
 
+### `props()` — a typed bag of property bindings
+
+For the common case where every key is a **property**, `props()` removes both the sigils and the
+typing gap:
+
+```js
+import { props } from '@verajs/renderer/spread';
+
+html`<calendar-day ${props({ date, events })}></calendar-day>`
+```
+
+```jsx
+<calendar-day {...props({ date, events })}></calendar-day>
+<calendar-day date={date} events={events} />   // JSX only: bare props ARE props on a component tag
+```
+
+One function, both surfaces — JSX compiles `{...x}` to `spread(x)`, and `spread()` recognises an
+already-branded result, so the two spellings are literally the same call. In JSX the bag is
+optional altogether: on a dash-named tag a bare prop compiles to the `.name` binding directly
+(`@verajs/jsx`'s README has the two attribute carve-outs), so `props()` is the template's
+spelling and the bag for names not known until runtime. It exists because an
+attribute is always a string: an array, a `Date` or a store can only reach a custom element as a
+property — and while vera's JSX accepts the sigil spelling `.date={d}`, TSX's type-checker refuses
+it (TS1003), so the bag is the typed path.
+
+Three rules, each earned:
+
+- **Keys are property names, never sigils** — `props({ date })` binds `.date`. Events and boolean
+  attributes keep their own spellings (`@click`/`onClick`, `?disabled`); this bag is properties
+  only, by definition.
+- **Prefer keys spelled conditionally over bags that change shape**:
+  `props({ date: loaded ? date : null })` — key present from the first render — over
+  `props(loaded ? { date } : {})`. Both work (a key that appears later on a component is adopted
+  live, and one that disappears restores what the element held), but a stable shape means values
+  update in place, the same reason templates prefer `?hidden` over swapped subtrees.
+- **A type argument makes the bag checked**: `props<CalendarDay>({ dat })` is a compile error
+  naming the misspelling — the checking that sigil-keyed spread genuinely cannot have.
+
+### How a component receives them
+
+Nothing to declare on the other side — no `static properties`, no props argument. A component that
+calls `init()` finds every bound property on `this`, **reactively**: reading `this.date` in a
+render tracks it, the parent's next commit re-renders, and a store or `ref()` passed through stays
+live because it arrives by identity. The full reception contract — including what happens when the
+component's module loads *after* the parent rendered — is documented with `init()` in
+`@verajs/core`'s README; this package's half is the delivery:
+
+- **A property is not an attribute.** `date="…"` is an attribute — always a string, visible in
+  markup. `.date=${…}`/`props({ date })` is a property — any value, by identity, invisible to
+  `getAttribute`. Components receive **properties**; attributes are for CSS hooks and static
+  markup.
+- **Delivery survives lazy definition.** A property bound before the element's module runs would
+  otherwise be destroyed by the class's field initializers at upgrade (at ES2022,
+  `item?: T` emits a real `item;` that runs during upgrade). The renderer records what nothing
+  received yet, and `init()` re-applies it — so a bound value outranks a class default, in both
+  field spellings. Elements that never call `init()` keep the development warning and the
+  `declare` advice instead.
+- **Platform and foreign elements are untouched.** A property with an accessor anywhere —
+  `.title`, a Lit-style element, anything that already receives it — is delivered plainly and
+  never recorded.
+- **SSR delivers, never serializes.** Under `@verajs/ssr`, a property bound on a rendered
+  component tag reaches that child's server render by identity — the markup never carries it, and
+  an unregistered tag passes through for the client to handle.
+
 ### Removing a key
 
 A key that disappears between renders **restores what the element held before the binding existed**.
@@ -688,7 +752,7 @@ a pair of totals — the totals move with every change to this package and the d
 which is the mistake this line already made once. `llms.txt` and this file disagreed about the figure
 for a while, at 16 B and 8 B respectively, and both were wrong. Nothing regenerates it, so it is
 dated; re-measure the same way if it matters.
-The entry itself is **<!--size:spread.gzip-->1.28 KB<!--/size:spread.gzip-->** gzipped, and only apps
+The entry itself is **<!--size:spread.gzip-->1.60 KB<!--/size:spread.gzip-->** gzipped, and only apps
 that import it pay for that.
 
 Runtime is at parity with writing the bindings out: both do one comparison per binding per render,
@@ -730,7 +794,17 @@ each other in the same corner, and the second one's teardown would stop profilin
 which kept repainting a frozen report.
 
 Full API: `startProfiling()`, `stopProfiling()`, `getReport()`, `isProfiling()`, `profile(fn)`,
-`formatReport(report)`, `showProfiler(options?)`.
+`formatReport(report)`, `showProfiler(options?)`. The first four are `profile()` unrolled, for a
+session that does not fit one callback — a long-running tab, a REPL:
+
+```js
+import { startProfiling, stopProfiling, getReport, isProfiling, formatReport } from '@verajs/renderer/profiler';
+
+startProfiling();
+// … interact with the app for as long as you like …
+if (isProfiling()) console.log(formatReport(getReport()));   // read mid-flight without stopping
+stopProfiling();                                             // freezes the report
+```
 
 This costs production nothing, and there is nothing to strip: the instrumentation sits behind a
 `__DEV__` constant the build folds to `false`, so `vera-renderer.min.js` is byte-identical whether
@@ -830,7 +904,7 @@ life of three defects.
   writing tests for it.
 - HTML only. There is no `svg`/`mathml` equivalent yet.
 
-<!--size:tag.gzip-->1.94 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
+<!--size:tag.gzip-->2.20 KB<!--/size:tag.gzip--> gzipped, which includes `/spread` — the factory
 needs it to apply props whose names it cannot know. Additive, like `/spread` and unlike the other
 entries: it inlines no renderer internals, so it is safe alongside any of them.
 
@@ -839,7 +913,14 @@ They are the table this entry uses to map React's names, and `@verajs/jsx` carri
 deliberately — the two are build-time and runtime, and a shared package would be a dependency where
 a test does the job. `tests/jsx-name-mapping.test.mjs` asserts the two agree on every key, and it can
 only do that against the built artifact, which is why they are exported at all. Read them if you are
-writing something that has to agree with both; do not build on them.
+writing something that has to agree with both; do not build on them:
+
+```js
+import { jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
+
+jsxName('className');              // 'class' — the runtime half of the React-name mapping
+BOOLEAN_ATTRIBUTES.has('disabled'); // true — the names the tag entry toggles rather than assigns
+```
 
 ## Extending it — `_$apply$` and `_$child$`
 

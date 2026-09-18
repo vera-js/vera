@@ -81,14 +81,21 @@ const CASES = {
   'a void element written with an end tag': ['<><br></br><span>after</span></>', 'html`<br /><span>after</span>`'],
   'a void element written bare, inside a parent': ['<p><br /><i>x</i></p>', 'html`<p><br /><i>x</i></p>`'],
   'a self-closing custom element': ['<my-comp />', 'html`<my-comp></my-comp>`'],
-  'a dashed tag with a bound attribute': ['<my-comp foo={s.str} />', 'html`<my-comp foo=${s.str}></my-comp>`'],
+  /** On a component tag, a bare prop is a PROP — bound, literal, or bare flag alike. */
+  'a dashed tag with a bound prop': ['<my-comp foo={s.str} />', 'html`<my-comp .foo=${s.str}></my-comp>`'],
   'a dashed tag with children': ['<my-comp>{s.str}</my-comp>', 'html`<my-comp>${s.str}</my-comp>`'],
   'a dashed tag with a dashed child': [
     '<my-comp><my-kid a="1" /></my-comp>',
-    'html`<my-comp><my-kid a="1"></my-kid></my-comp>`',
+    'html`<my-comp><my-kid .a=${"1"}></my-kid></my-comp>`',
   ],
   'a tag with several dashes': ['<a-b-c>x</a-b-c>', 'html`<a-b-c>x</a-b-c>`'],
-  'a dashed tag with a slot': ['<my-comp slot="a">x</my-comp>', 'html`<my-comp slot="a">x</my-comp>`'],
+  /** `slot` is a prop like any other — the platform accessor it lands on reflects it back. */
+  'a dashed tag with a slot': ['<my-comp slot="a">x</my-comp>', 'html`<my-comp .slot=${"a"}>x</my-comp>`'],
+  /** The names with no property spelling stay attributes: hyphenated, and the DOM-renamed pair. */
+  'a dashed tag with hyphenated and renamed attributes': [
+    '<my-comp data-x="1" aria-label="l" className="c" />',
+    'html`<my-comp data-x="1" aria-label="l" class="c"></my-comp>`',
+  ],
   /**
    * A **dynamic tag**. `<H>` compiles to `H({…})` and a `tag` *is* that function, so the same value
    * covers both notations — which is only worth anything if the two produce the same template.

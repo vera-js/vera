@@ -635,10 +635,7 @@ export class ContainerShim extends EventTarget {
      * A registered component that has not rendered is marked, so the scan over this markup renders
      * this instance instead of a new one built from the tag it wrote. See `pendingInstances`.
      */
-    if (node?.openTag && registry.has(node.localName) && !node._rendered) {
-      node.setAttribute(INSTANCE_ATTRIBUTE, String(++instanceCount));
-      pendingInstances.set(String(instanceCount), node);
-    }
+    if (node?.openTag && registry.has(node.localName) && !node._rendered) markPending(node);
     /**
      * **A node cannot contain itself.** Retaining nodes makes this reachable where inlining markup
      * never could: appending an ancestor into its own descendant would recurse forever the next
@@ -1769,6 +1766,17 @@ export class ElementShim extends ContainerShim {
   get style() {
     return styleView(this);
   }
+  /**
+   * The platform's `style` is `[SameObject, PutForwards=cssText]` — `el.style = 'color: red'`
+   * assigns THROUGH to `cssText` in every engine (and in jsdom, the regression net). The shim
+   * declared only the getter, so the ordinary spelling threw `Cannot set property` server-side:
+   * a component-prop delivery of `.style` was refused as read-only while the client accepted and
+   * reflected it — the exact server/client divergence the differential rule exists to catch.
+   * `[LegacyNullToEmptyString]` rides the same IDL attribute, so `null` means `''`.
+   */
+  set style(value) {
+    /** @type {{ cssText: string }} */ (styleView(this)).cssText = value === null ? '' : `${value}`;
+  }
   removeAttribute(name) {
     name = this._name(name);
     if (!this._attributes.has(name)) return;
@@ -2250,6 +2258,22 @@ export const pendingInstances = new Map();
 export const INSTANCE_ATTRIBUTE = `vera-ssr-${crypto.randomUUID()}`;
 
 let instanceCount = 0;
+
+/**
+ * Marks `node` as a prepared instance and returns its id, so the nested-component scan renders THIS
+ * instance rather than a fresh copy built from its markup. Two callers, one discipline:
+ * `appendChild` below, for an element a component built itself, and the template serializer, for a
+ * component tag whose property bindings it is delivering — both stamp the node (so `prepareInstance`
+ * can unregister it by the attribute) and both rely on the unguessable name above.
+ *
+ * @param {any} node @returns {string} the instance id, for the caller that writes markup itself
+ */
+export const markPending = (node) => {
+  const id = String(++instanceCount);
+  node.setAttribute(INSTANCE_ATTRIBUTE, id);
+  pendingInstances.set(id, node);
+  return id;
+};
 
 /** One `ElementInternals` per element, as `attachInternals` guarantees. */
 const internals = new WeakMap();

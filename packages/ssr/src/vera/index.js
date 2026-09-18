@@ -486,7 +486,23 @@ const buildInstance = (tag, attrString) => {
     }
   }
   const pending = pendingInstances.get(element.getAttribute(INSTANCE_ATTRIBUTE));
-  return pending && pending.localName === tag ? pending : element;
+  if (pending && pending.localName === tag) {
+    /**
+     * The markup's attributes land on the prepared instance too. A serializer-born instance — a
+     * component tag whose property bindings were delivered — has never seen them (it was built
+     * from the registry, not the markup), so without this a component reading its own
+     * `getAttribute` answered `null` against markup that plainly carries the attribute. For a
+     * node-born instance the attributes were serialized FROM the node, so re-applying them is
+     * idempotent. The marker itself comes along and `prepareInstance` removes it immediately.
+     */
+    if (attrString) {
+      for (const [, name, quoted, single, bare] of attrString.matchAll(ATTRIBUTE)) {
+        pending.setAttribute(name, decodeEntities(quoted ?? single ?? bare ?? ''));
+      }
+    }
+    return pending;
+  }
+  return element;
 };
 
 const renderComponent = (tag, attrString, depth, props, children) =>

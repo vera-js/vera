@@ -1,7 +1,8 @@
 import { inserts, InitInsert } from '@verajs/inserts';
 import { currentInstance } from '../store/store.js';
 import type { ComponentElement } from '../types.js';
-import { reportHookError } from './createHook.js';
+import { createStore } from './createStore.js';
+import { reportHookError, RENDER_PRIORITY } from './createHook.js';
 
 /** Dev-only, and once per page: a missing `@verajs/styles` is silent otherwise. */
 let warnedAboutStyles = false;
@@ -183,6 +184,121 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   element._cleanups = new Set();
   /** A fresh connection: cleanups registered from here are owed a later removal again. */
   element._removed = false;
+
+  /**
+   * **Adopt what the parent's property bindings delivered — no declaration required.**
+   *
+   * `_$props$` is the renderer's record of every `.name`/`props()` value nothing received: on a
+   * LAZY tag the raw write was clobbered by the class's field initializers at upgrade, and on an
+   * EAGER one it survived but is indistinguishable from the component's own fields by now — the
+   * record is what tells them apart, which is why adoption needs neither `static properties` nor
+   * a props argument here. Draining it seeds one store with the bound values and puts a
+   * store-backed accessor where each raw property was, so `this.date` read in a render is
+   * TRACKED and the parent's next commit lands in the setter: reactivity in both directions.
+   *
+   * Values are applied **unconditionally** — never "only if clobbered" — asserting that a bound
+   * value outranks a class default, which is what props mean; a component's own default belongs
+   * in the parent's ternary or in a key the parent didn't bind.
+   *
+   * The record only covers values that arrived BEFORE this ran. Two first-class flows deliver
+   * AFTER it: a hydrated child is defined, connected and drained before its parent's parts ever
+   * commit, and a spread bag can grow a new key on a live element — the conditional-keys idiom
+   * the renderer README teaches. So the drain is one call each into **`_$adopt$`**, the live
+   * receiver this leaves on the element (sigiled: the recorders live in other bundles), and a
+   * late delivery goes through the same door instead of into a record nobody will read again.
+   */
+  if (element._$adopt$ === undefined) {
+    /**
+     * One store per element, created on the first adopted key and shared by every later one —
+     * including keys that arrive across reconnects, which is why the receiver installs once and
+     * never again: a second closure would open a second store and split the accessors between
+     * generations.
+     */
+    let state: Record<string, unknown> | undefined;
+    element._$adopt$ = (key, value) => {
+      /**
+       * **A key something already receives is handed over, never adopted.** The recorders walk for
+       * accessors at COMMIT time, but a record can predate the upgrade that brought one — a lazy
+       * component declaring its own `get item()`/`set item()` pair would otherwise have the drain
+       * shadow that pair with a store accessor, and its setter logic would never run again. The
+       * own descriptor and the prototype chain are asked separately, because the lazy flow leaves
+       * an own DATA property (the raw pre-upgrade write, or the field that clobbered it) sitting
+       * in front of exactly that pair — it is deleted so the hand-off reaches their setter. Read
+       * through DESCRIPTORS only: touching `proto[key]` directly would invoke a getter with the
+       * prototype as `this`, which throws for any accessor built on private fields. The same walk
+       * carries the method-shadow warning, off the descriptor's `value` for the same reason, and
+       * a GET-ONLY property is refused by name — assigning it would throw out of `init()`, and a
+       * silent skip would be a refusal with no channel.
+       */
+      const el = element as unknown as Record<string, unknown>;
+      const own = Object.getOwnPropertyDescriptor(element, key);
+      if (own !== undefined && (own.get !== undefined || own.set !== undefined)) {
+        el[key] = value;
+        return;
+      }
+      let proto: object | null = Object.getPrototypeOf(element);
+      while (proto !== null) {
+        const desc = Object.getOwnPropertyDescriptor(proto, key);
+        if (desc !== undefined) {
+          if (desc.set !== undefined) {
+            if (own !== undefined) delete el[key];
+            el[key] = value;
+            return;
+          }
+          if (desc.get !== undefined) {
+            /** The raw pre-upgrade write is residue shadowing a read-only surface — cleared, so
+             *  the class's getter answers again, exactly as if the binding had never landed. */
+            if (own !== undefined) delete el[key];
+            if (__DEV__)
+              console.warn(
+                `[vera] <${element.localName}> received a bound property \`.${key}\`, but its class ` +
+                  `declares \`${key}\` as a getter with no setter — the value cannot be delivered ` +
+                  `and the binding is ignored. Add a setter, or stop binding it.`
+              );
+            return;
+          }
+          if (__DEV__ && typeof desc.value === 'function') {
+            console.warn(
+              `[vera] <${element.localName}> received a bound property \`.${key}\` that shadows its own ` +
+                `${key}() method — the accessor now answers for both, so \`this.${key}()\` will throw.\n` +
+                `Rename one of the two; a bound property always wins on the instance.`
+            );
+          }
+          break;
+        }
+        proto = Object.getPrototypeOf(proto);
+      }
+      state ??= createStore({}) as Record<string, unknown>;
+      delete el[key];
+      Object.defineProperty(element, key, {
+        get: () => state![key],
+        set: (next: unknown) => {
+          state![key] = next;
+        },
+        configurable: true,
+        enumerable: true,
+      });
+      state[key] = value;
+      /**
+       * A key arriving AFTER the drain reaches a render that never read it through the store — its
+       * first read was a plain `undefined`, untracked — so no write would ever repaint. Re-run the
+       * element's RENDER hooks (`RENDER_PRIORITY` — `useRender`'s slot) once: the pass reads the new
+       * accessor, and that read subscribes it for every later commit. Effects are deliberately not
+       * forced — a side effect must not re-fire because a prop arrived. During the drain this is
+       * naturally a no-op: `init()` has just reset `_hooks`, so there is nothing to run yet.
+       */
+      const slot = element._hookPriorities?.indexOf(RENDER_PRIORITY) ?? -1;
+      if (slot !== -1)
+        element._hooks?.[slot]?.forEach((hook) => {
+          if (hook) hook({}, true);
+        });
+    };
+  }
+  const record = element._$props$;
+  if (record !== undefined) {
+    delete element._$props$;
+    for (const key of Object.keys(record)) element._$adopt$(key, record[key]);
+  }
 
   const initInserts = inserts.get('init');
   initInserts?.forEach((callback) => (callback as InitInsert)(element));

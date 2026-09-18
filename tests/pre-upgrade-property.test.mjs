@@ -1,6 +1,10 @@
 /**
  * A `.prop=${…}` binding on a custom element that has not upgraded yet is destroyed when the
- * element upgrades, and the framework reports it rather than repairing it.
+ * element upgrades. For an element that never calls `init()` — everything this file constructs —
+ * the framework reports it rather than repairing it; a component that DOES call `init()` has the
+ * bound value re-applied from the renderer's `_$props$` record, which is
+ * `tests/component-props.test.mjs`'s half of the contract. This file pins the never-drained half:
+ * the clobber still happens, development still warns, production stays silent.
  *
  * The mechanism: the property lands as an own property on an un-upgraded instance. When the
  * definition arrives — lazily imported, code-split, or a module that simply had not run yet —
@@ -9,13 +13,12 @@
  * `item?: Thing` emits `item;`, i.e. `Object.defineProperty(this, 'item', { value: undefined })`.
  * The bound value is gone before the component reads it, and nothing throws.
  *
- * Repair was implemented and then removed deliberately, which is what most of this file pins down.
- * Re-applying the value when the slot came back `undefined` handled `item?: Thing` but not
- * `item = someDefault` — that overwrites with the default and never looks clobbered, so the repair
- * was silently partial and made one mistake behave two different ways depending on spelling. It
- * also cost 74 B in every app while leaving `declare` mandatory regardless, because a property
- * assigned imperatively cannot be recovered by anyone: the renderer never saw it, and by the time
- * `init()` runs in `connectedCallback` the value is already gone.
+ * An earlier repair — no record, re-apply when the slot came back `undefined` — was removed as
+ * silently partial: `item = someDefault` overwrites with the default and never looks clobbered, so
+ * one mistake behaved two different ways depending on spelling. The record answers that (the drain
+ * re-applies unconditionally, both spellings), but only where a drain runs; imperative assignments
+ * the renderer never saw remain unrecoverable for anyone, which is why `declare` stays the advice
+ * for elements outside `init()`.
  *
  * Detection covers both spellings and costs production nothing.
  *
@@ -42,6 +45,7 @@ for (const k of ['window', 'document', 'customElements', 'HTMLElement', 'Node', 
   globalThis[k] = dom.window[k];
 
 const { renderInto } = await load('renderer');
+const { spread } = await load('renderer/spread');
 /** The shape core's built-in `html` tag produces, as the other renderer suites do it. */
 const html = (strings, ...values) => ({ _$litType$: 1, strings, values });
 const frame = () => new Promise((r) => dom.window.requestAnimationFrame(() => setTimeout(r, 0)));
@@ -141,6 +145,30 @@ check('a defined field initializer runs BEFORE the commit, so the binding wins',
   host.querySelector('preup-fielded').count === 5,
   `got ${JSON.stringify(host.querySelector('preup-fielded').count)}`);
 check('with nothing to warn about', took().length === 0, took().join(' | '));
+
+/* ── several pre-upgrade commits are ONE observation, not one warning each ────────────────────── */
+host = mount();
+const redraw = (n) => renderInto(html`<preup-repeat .step=${n}></preup-repeat>`, host);
+redraw(1); redraw(2); redraw(3);
+await frame();
+took = since();
+customElements.define('preup-repeat', class extends HTMLElement { step; });
+await frame();
+check('the clobber of a re-committed binding warns exactly once, against the LAST value',
+  took().filter((w) => w.includes('step')).length === (isProduction ? 0 : 1),
+  `${took().filter((w) => w.includes('step')).length} warning(s) — a subscription per commit ` +
+    `false-warns for every superseded value`);
+
+/* ── the spread twin carries the same detector ────────────────────────────────────────────────── */
+host = mount();
+renderInto(html`<preup-spread ${spread({ '.item': store })}></preup-spread>`, host);
+await frame();
+took = since();
+customElements.define('preup-spread', class extends HTMLElement { item; });
+await frame();
+check(`a spread bag's clobbered key ${isProduction ? 'is silent in production' : 'warns in development'} too`,
+  took().filter((w) => w.includes('item')).length === (isProduction ? 0 : 1),
+  took().join(' | '));
 
 console.warn = realWarn;
 

@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->3.04 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->3.26 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -51,6 +51,60 @@ document.body.append(document.createElement('click-counter'));
 Nothing here declares a dependency. `render` and `useEffect` subscribe to whatever they read while
 they run, so a write to `state.count` schedules exactly the work that read it.
 
+## Props — what a parent passes in
+
+A parent binds **properties**; the component reads them off `this`. Nothing is declared on either
+side — no `static properties`, no props argument to `init()`:
+
+<!-- recipe -->
+```js
+import { init, render, wire, html } from '@verajs/core';
+import { renderer, renderInto } from '@verajs/renderer';
+import { props } from '@verajs/renderer/spread';
+
+wire([renderer]);
+
+customElements.define(
+  'order-summary',
+  class extends HTMLElement {
+    connectedCallback() {
+      init(this, { mode: 'open' });
+      render(() => html`<p>${this.customer} — ${this.items.length} items</p>`);
+    }
+  }
+);
+
+renderInto(
+  html`<order-summary ${props({ customer: 'Ada', items: [{ sku: 'a' }, { sku: 'b' }] })}></order-summary>`,
+  document.body
+);
+```
+
+`init()` **adopts** what the parent's property bindings delivered: each bound key becomes a
+store-backed accessor on the element, so a read in a render is tracked and the parent's next
+commit re-renders — reactivity in both directions, with values arriving **by identity** (an
+array, a `Date`, a store or a `ref()` passed down stays itself, and stays live). Three things
+worth knowing:
+
+- **Values come from property bindings** — `.date=${…}` in a template, `props({ date })` in
+  either surface, or a sigil-keyed `spread()` bag. An attribute (`date="…"`) is a string in
+  markup, not a prop; the renderer README draws the full property/attribute line.
+- **Lazy modules are safe.** A value bound before the component's module ran would be destroyed
+  by class-field initializers at upgrade; the renderer records it and `init()` re-applies —
+  a bound value outranks a class default, in both field spellings (`item;` and `item = default`).
+- **A prop's default belongs where the prop is born**: bind
+  `props({ date: date ?? defaultDate })` in the parent, or read `this.date ?? defaultDate` in the
+  component — a class field initializer is not a default for a bound key, because bound always
+  wins.
+- **A class that declares its own accessors keeps them.** A `get item()`/`set item()` pair
+  receives bound values through the setter — adoption never shadows it — which also means the
+  pair owns its reactivity: back it with your own store (`set item(v) { this.#state.item = v }`)
+  and later commits re-render exactly as adopted props do. A getter with no setter refuses the
+  binding by name in development instead of silently losing the value.
+- **SSR delivers them too.** Under `@verajs/ssr`, a property bound on a rendered component tag
+  reaches that child's server render by identity, so the server's output comes from the same data
+  the client render gets.
+
 ## State
 
 | | |
@@ -65,6 +119,27 @@ they run, so a write to `state.count` schedules exactly the work that read it.
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
 store, wire that, and mutating methods notify like any other write. Without it core says so the first
 time one is read.
+
+```js
+import { createStore, ref, shallowRef, untrack, deps } from '@verajs/core';
+
+const state = createStore({ filter: 'all', rows: [] });
+const focus = ref(null);                    // read and written as focus.value, deeply tracked
+const frame = shallowRef(new Float32Array(64)); // .value tracked; the contents deliberately not
+
+const total = () => untrack(() => state.rows.length);  // read without subscribing
+deps(state.filter);                          // subscribe explicitly, without using the value yet
+```
+
+One more, for servers: `setStaticStores(true)` makes every store created from then on a **plain
+object** — no proxy, no tracking, reads at raw property speed. It exists for `@verajs/ssr`, which
+turns it on around a render that declared itself static; in a browser it would give you a
+framework that never updates (development throws on any write to such a store to say so).
+
+```js
+import { setStaticStores } from '@verajs/core';
+setStaticStores(true);   // server-side, around a static render — never in a browser
+```
 
 ### What "deep" reaches, and what it does not
 
@@ -138,6 +213,11 @@ useEffect(() => {
   const id = setInterval(tick, 1000);
   return () => clearInterval(id);
 });
+
+useLayoutEffect(() => {
+  // runs before the render pass commits — measure here, and writes cannot cause a visible flash
+  height = list.getBoundingClientRect().height;
+});
 ```
 
 The difference between coalesced and sync is what they observe:
@@ -191,6 +271,26 @@ holding its value at the start and at the end.
 | `wire([renderer])` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
 | `setHtml` / `setCss` | swap the template tags |
+
+```js
+import { init, mount, useRender, useEffect, mathml, html,
+         setRenderScheduler, microtask, setHtml, setCss } from '@verajs/core';
+
+class TickerLogger extends HTMLElement {
+  connectedCallback() {
+    init(this);                          // light DOM: no second argument
+    useEffect(() => console.log(state.tick));
+    mount();                             // commits the setup — this component draws nothing
+  }
+}
+
+const formula = html`<math>${mathml`<mi>x</mi><mo>=</mo><mn>${x}</mn>`}</math>`;
+
+useRender(() => html`<p>${state.n}</p>`, element);  // re-declare a render OUTSIDE the setup window
+
+setRenderScheduler(microtask);           // Lit/Vue-style timing instead of requestAnimationFrame
+setHtml(myHtml); setCss(myCss);          // swap the template tags a whole app resolves through
+```
 
 **`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the
 first pass of every hook registered since `init()` and clears the instance. `render(template)` is
@@ -271,6 +371,19 @@ write — return `false` to hold the default propagation back), `'error'` (a hoo
 `'collection'` (a `Map`/`Set` method read in a store — how `@verajs/store/collections`
 attaches) and `'value'` (a child-position value the renderer has no built-in answer for).
 [`@verajs/inserts`](../inserts) documents each one, with signatures.
+
+```js
+import { wire, inserts, createHook } from '@verajs/core';
+
+wire({ on: 'error', fn: (error, element) => report(error, element.localName), priority: 50 });
+
+const errorChain = inserts.get('error');            // the registry itself: name -> ordered chain
+
+createHook({                                        // your own hook type, scheduled like the rest
+  callback: (change, first) => { if (!first) log(change); },
+  priority: 60,                                     // after render (50), before useEffect (75)
+});
+```
 
 **Take `wire` from `@verajs/core`, not from `@verajs/inserts`.** A production bundle inlines the
 registry, so registering through a separately imported copy writes to a map core never reads — it

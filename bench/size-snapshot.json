@@ -1,14 +1,14 @@
 {
-  "taken": "2026-09-15",
+  "taken": "2026-09-18",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 7091,
-      "gzip": 3115
+      "raw": 7813,
+      "gzip": 3339
     },
     "renderer": {
-      "raw": 11583,
-      "gzip": 4483
+      "raw": 12133,
+      "gzip": 4685
     },
     "router": {
       "raw": 10913,
@@ -23,24 +23,24 @@
       "gzip": 772
     },
     "spread": {
-      "raw": 2569,
-      "gzip": 1315
+      "raw": 3282,
+      "gzip": 1634
     },
     "tag": {
-      "raw": 3912,
-      "gzip": 1983
+      "raw": 4538,
+      "gzip": 2254
     },
     "store": {
       "raw": 1301,
       "gzip": 673
     },
     "jsx": {
-      "raw": 9352,
-      "gzip": 3701
+      "raw": 9952,
+      "gzip": 3917
     },
     "standalone": {
-      "raw": 9686,
-      "gzip": 3908
+      "raw": 10286,
+      "gzip": 4121
     },
     "computed": {
       "raw": 293,
@@ -59,8 +59,8 @@
       "gzip": 3426
     },
     "hydrate": {
-      "raw": 17003,
-      "gzip": 6243
+      "raw": 17611,
+      "gzip": 6442
     },
     "inserts": {
       "raw": 486,
@@ -139,8 +139,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 12659,
-      "gzip": 5468,
+      "raw": 13371,
+      "gzip": 5699,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -177,8 +177,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 16725,
-      "gzip": 6745,
+      "raw": 17974,
+      "gzip": 7145,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -263,16 +263,16 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 18679,
-      "gzip": 7501
+      "raw": 19928,
+      "gzip": 7879
     }
   ],
   "variants": [
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 16729,
-      "gzip": 6748
+      "raw": 17978,
+      "gzip": 7151
     }
   ]
 }

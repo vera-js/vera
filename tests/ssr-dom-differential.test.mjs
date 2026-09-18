@@ -38,6 +38,10 @@ const shim = globalThis.document;
 
 const OPS = [
   ['setAttribute/getAttribute', "el.setAttribute('data-a','1'); return el.getAttribute('data-a');"],
+  /** `[PutForwards=cssText]`: assignment writes through — found refusing a `.style` component-prop delivery. */
+  ['style assignment', "el.style = 'color: red'; return el.getAttribute('style');"],
+  /** `[LegacyNullToEmptyString]` rides the same IDL attribute. */
+  ['style null assignment', "el.style = 'color: red'; el.style = null; return JSON.stringify(el.getAttribute('style'));"],
   ['getAttribute missing', "return el.getAttribute('nope');"],
   ['hasAttribute', "el.setAttribute('x','');  return [el.hasAttribute('x'), el.hasAttribute('y')].join(',');"],
   ['removeAttribute', "el.setAttribute('x','1'); el.removeAttribute('x'); return String(el.getAttribute('x'));"],

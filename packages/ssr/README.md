@@ -256,8 +256,18 @@ describe.
   — references *are* decoded there — so those keep ordinary escaping, which is also what the client
   produces for them.
 - Templates flatten through a sigil-aware serializer with per-template-identity plan caching:
-  `?bool` resolved by truthiness, `.value`/`.checked`/`.selected` mirrored to attributes,
-  `@event`/`&ref` stripped without residue, every interpolated value escaped at the boundary.
+  `?bool` resolved by truthiness, `.value`/`.checked`/`.selected` mirrored to attributes on form
+  controls, `@event`/`&ref` stripped without residue, every interpolated value escaped at the
+  boundary.
+- **A property bound on a rendered component tag is DELIVERED, not dropped**: written
+  (`<props-row .item=${row}>`) or spread (`props({ item })`), the value reaches the instance the
+  nested-component scan renders — by identity, before its lifecycle, exactly where
+  `renderToString`'s own `props` option puts the entry component's. The markup never changes (a
+  property is not an attribute), so the child's server output comes from the same data its client
+  render will get, which is the hydration contract. An **unregistered** dashed tag passes through
+  untouched — its properties stay the client's to apply. Values that cannot exist server-side
+  (a DOM node, a callback into browser state) are the component's to guard, as in every SSR
+  framework.
 - Output is declarative shadow DOM with **zero framework comments**; light-DOM `@scope` styles are
   returned separately for the page shell.
 - Client-side, `@verajs/renderer/hydrate` adopts the server DOM markerlessly (swap one import).
@@ -379,6 +389,16 @@ are retired; strategy 4 is the only one shipped.
 (a custom scanner, a fixture builder) reaches for. Everything an ordinary server needs is
 `renderToString` / `renderToStringAsync`; these are listed so their presence is a decision rather
 than an accident.
+
+```js
+import { renderToString, renderToStringAsync, registry, serializeTemplate } from '@verajs/ssr';
+
+const { html: markup } = await renderToString(new URL('./components/app.js', import.meta.url));
+const page = await renderToStringAsync(entry);        // same signature, awaits async lifecycles
+
+registry.has('app-shell');                            // true once the component module has run
+const fragment = serializeTemplate(html`<p>${x}</p>`); // one template to markup, no component scan
+```
 
 ## For AI assistants — and anyone who wants the whole API on one page
 

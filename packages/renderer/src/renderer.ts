@@ -829,6 +829,150 @@ const LIVE = 3;
 const EVENT = 4; // @name
 /** A binding that must never write — see the `__proto__` refusal in the constructor. */
 const REFUSED = -1;
+/** `.name` on a custom element nothing receives yet — records into `_$props$`, then becomes
+ *  `PROPERTY`. A distinct kind keeps the steady-state property path free of any adoption check. */
+const PROP_ADOPT = 6;
+
+/**
+ * The `PROP_ADOPT` commit, kept OUT of `_commit` so that function's size — and the JIT layout of
+ * its hot `PROPERTY`/`ATTR` branches — is unchanged from before this feature. `_commit` carries one
+ * dispatch line; all of this lives here, off every part's steady state.
+ *
+ * One question decides everything: **after the write, does anything receive this property?** An
+ * accessor anywhere on the chain — the platform's own (`title`, `hidden`), a component's declared
+ * one, or the pair core's `init()` defines — means the write just landed in real hands: no record,
+ * and the part rejoins `PROPERTY` for good. The walk is one step when the write created an own data
+ * property (nobody consumed it) and stops at the first descriptor either way, and it is what keeps
+ * a platform property on a lazy tag out of the record — recording `.title` would end with the drain
+ * shadowing `HTMLElement.prototype.title` and breaking it.
+ *
+ * An unreceived write is recorded under the sigiled expando **`_$props$`**, because two arrival
+ * orders both need it: on a LAZY tag the value sits as a plain own property that the class's field
+ * initializers will overwrite at upgrade (the clobber the `PROPERTY` branch only *detects*), and on
+ * an EAGER one the value survives but is indistinguishable from the component's own fields by the
+ * time `init()` runs. The record answers both — core's `init()` drains it, re-applying values
+ * unconditionally, which repairs BOTH spellings of the clobber (`item;` and `item = default`): it
+ * never asks whether a clobber happened, it asserts a bound value outranks a class default, which
+ * is what props mean. Element-carried because `./spread.ts` writes the same properties from a
+ * separate bundle with no shared registry — the `_$`-sigiled member is the cross-bundle channel,
+ * and the recorder there is this one's deliberate twin.
+ *
+ * Returns the part's NEXT kind: `PROPERTY` once something receives the property or the element is
+ * upgraded (its record is final — `init()` drains it in the same tick) or has no realm; `REFUSED`
+ * for a getter with no setter, so the binding goes inert instead of the flipped plain write
+ * throwing on the next commit; `0` to stay adopting — a dash-named element that never upgrades and
+ * never receives keeps recording, so its record stays current rather than staling. The one
+ * retention this leaves: a defined non-vera element with a plain data property keeps its FIRST
+ * committed values in `_$props$` for its lifetime — bounded, one generation, and the part itself
+ * already retains the current generation in `_committed`.
+ */
+const commitAdopt = (element: Element, name: string, value: unknown): number => {
+  const el = element as unknown as Record<string, unknown>;
+  /**
+   * The walk comes BEFORE the write, because what the walk finds decides whether writing is even
+   * legal: a SETTER receives the value (and a setter that throws is the component's own error), a
+   * GETTER with no setter cannot — the old order assigned first, which in strict mode threw a raw
+   * TypeError out of the render for the eager spelling of exactly the case the drain refuses by
+   * name for the lazy one. Same contested state, one rule, both arrival orders — and the server's
+   * `deliverProperty` applies it too. The dev warning defers to `_$adopt$` where it exists: an
+   * initialized component's drain already speaks, and two voices for one binding is noise.
+   */
+  let carrier: object | null = el;
+  while (carrier !== null) {
+    const desc = Object.getOwnPropertyDescriptor(carrier, name);
+    if (desc !== undefined) {
+      if (desc.set !== undefined) {
+        el[name] = value;
+        return PROPERTY;
+      }
+      if (desc.get !== undefined) {
+        /** An initialized component's receiver owns the refusal (and its channel); for anything
+         *  else this is the only door, so it says so itself. Either way the binding goes INERT —
+         *  flipping to `PROPERTY` would make the next commit's plain write throw. */
+        if (el._$adopt$ !== undefined) (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+        else if (__DEV__)
+          console.warn(
+            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no ` +
+              `setter — the value bound by \`.${name}=\${…}\` cannot be delivered and the binding ` +
+              `is ignored. Add a setter, or stop binding it.`
+          );
+        return REFUSED;
+      }
+      break; // a data property — an own field, or an inherited default: nothing receives it
+    }
+    carrier = Object.getPrototypeOf(carrier);
+  }
+  el[name] = value;
+  /**
+   * An initialized component receives LIVE: `init()` left `_$adopt$` on the element, and a key it
+   * has not adopted yet goes through that door — a record here would never be read again, because
+   * the drain already ran. This is how a hydrated child gets the props its parent commits after
+   * the child settled, and how a spread bag's conditional key arrives reactive on a live element.
+   */
+  if (el._$adopt$ !== undefined) {
+    (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+    return PROPERTY;
+  }
+  const record = (el._$props$ ??= {}) as Record<string, unknown>;
+  const firstRecording = !Object.hasOwn(record, name);
+  record[name] = value;
+  /**
+   * Upgrade is read off the PROTOTYPE, never off `el.constructor`: a spread bag's keys are runtime
+   * data, so a bag carrying a key named `constructor` writes an own property that shadows the real
+   * one, and a check that reads it would then misjudge every later commit. No property write can
+   * move an element's prototype — the one assignment that could, `__proto__`, both twins refuse.
+   * The realm comes from the element, as always.
+   */
+  const win = element.ownerDocument.defaultView as unknown as {
+    HTMLElement: { prototype: object };
+    customElements: CustomElementRegistry;
+  } | null;
+  const upgraded = win === null || Object.getPrototypeOf(el) !== win.HTMLElement.prototype;
+  /**
+   * **The clobber detector, for the element the drain will never reach.** A component that calls
+   * `init()` has the record re-applied, so for it the pre-upgrade window is repaired; an element
+   * that never drains — a plain custom element with a class field — still loses the bound value to
+   * the field initializer at upgrade, exactly as before this feature, and still deserves the
+   * warning. Told apart by OWNERSHIP, not by value: after the definition arrives (and, for a
+   * connected element, `connectedCallback` and the drain have run synchronously inside `define()`),
+   * an own accessor means the drain took the property and there is nothing to report. Identity
+   * against the COMMITTED value would lie twice — a drained value reads back through the store's
+   * proxy, and a value superseded by a later pre-upgrade commit differs without anything being
+   * wrong — so the comparison is against the RECORD, which later recordings keep current, and the
+   * subscription is installed once per (element, property), on the first recording. The registry
+   * is the element's own realm's. Development only; production carries no check, no message, no
+   * `whenDefined` subscription.
+   */
+  if (__DEV__ && win !== null && !upgraded && firstRecording) {
+    const tag = element.localName;
+    win.customElements.whenDefined(tag).then(() => {
+      /** Ownership is asked of the whole CHAIN: the drain's own accessor, a class's prototype
+       *  pair the value was handed to, or a get-only surface the drain refused by name — every
+       *  one means the property has an owner and this closure has nothing left to report. */
+      let carrier: object | null = el;
+      let owned = false;
+      while (carrier !== null) {
+        const desc = Object.getOwnPropertyDescriptor(carrier, name);
+        if (desc !== undefined) {
+          owned = desc.get !== undefined || desc.set !== undefined;
+          break;
+        }
+        carrier = Object.getPrototypeOf(carrier);
+      }
+      if (!owned && el[name] !== record[name])
+        console.warn(
+          `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
+            `while the element upgraded. A class field is the usual cause: at ES2022 ` +
+            `\`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites ` +
+            `whatever was set beforehand — write it \`declare ${name}?: …\` instead, which ` +
+            `emits nothing. A component that calls init() adopts bound properties automatically ` +
+            `and never sees this; this element did not. Ignore this if the component replaced ` +
+            `the value on purpose.`
+        );
+    });
+  }
+  return upgraded ? PROPERTY : 0;
+};
 /**
  * Calls an element ref, and survives one that throws.
  *
@@ -922,6 +1066,18 @@ class AttrPart implements Part {
       kind = EVENT;
       realName = name.slice(2).toLowerCase();
     }
+    /**
+     * **A property write to a custom element starts as `PROP_ADOPT`**, a distinct kind so the
+     * steady-state `PROPERTY` commit path stays byte-for-byte unchanged — zero added instruction
+     * for every `.value=` on a built-in. Every dash-named element starts here, defined or not,
+     * because the record has to exist for BOTH arrival orders: an eager component's first commit
+     * lands after upgrade but before `init()` (one commit records, then the part flips), and a
+     * lazy one's land before upgrade (the part records until the definition arrives). `commitAdopt`
+     * decides which per commit and flips the part back to `PROPERTY` the moment something real
+     * receives the property, so the window is one commit for a defined element and the pre-upgrade
+     * stretch for a lazy one.
+     */
+    if (kind === PROPERTY && element.localName.includes('-')) kind = PROP_ADOPT;
     this._kind = kind;
     this._name = realName;
     this._element = element;
@@ -1032,13 +1188,27 @@ class AttrPart implements Part {
     if (kind === LIVE) {
       this._committed = value;
       /**
-       * **Except while adopting.** Hydration reaches a DOM a person may already have used, and the
-       * click that checked a radio happened before any handler existed to tell the store about it —
-       * so re-asserting the server's choice here would throw the interaction away and nothing would
-       * ever put it back. Recorded, not written, exactly as the other form properties are; the
-       * first state-driven render after that applies live semantics normally.
+       * **Except while adopting — on a form control.** Hydration reaches a DOM a person may
+       * already have used, and the click that checked a radio happened before any handler existed
+       * to tell the store about it — so re-asserting the server's choice here would throw the
+       * interaction away and nothing would ever put it back. Recorded, not written, exactly as
+       * the other form properties are; the first state-driven render after that applies live
+       * semantics normally.
+       *
+       * **A COMPONENT tag is the exception to the exception**: there is no user-editable carrier
+       * behind `!prop` on a component — it is a property delivery spelled with `!` — and the
+       * server DELIVERED it to the child's render, so yielding here dropped the one copy the
+       * client would ever get and hydration regressed the child's content to its prop-less state.
+       * Found by the hydration fixture on its first run. The write is unconditional and routes
+       * through the element like any component prop: an accessor receives it, an initialized
+       * component adopts it live.
        */
-      if (!(__HYDRATING__ && adopting)) {
+      if (__HYDRATING__ && adopting) {
+        /** Routed through `commitAdopt`, not written raw: the child hydrated BEFORE this commit,
+         *  so only the adoption door re-runs its render. The part stays `LIVE` — the return is
+         *  deliberately dropped — so live semantics resume on the next state-driven render. */
+        if (this._element.localName.includes('-')) commitAdopt(this._element, this._name, value);
+      } else {
         const liveTarget = this._element as unknown as Record<string, unknown>;
         if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
       }
@@ -1113,54 +1283,16 @@ class AttrPart implements Part {
           this._committed = value;
           return index + this._slots;
         }
-        target[name] = value;
         /**
-         * Detection only, and deliberately not repair.
-         *
-         * A property set on a custom element that has not upgraded yet lands as an own property on
-         * the instance. When the definition arrives — lazily imported, code-split, or a module that
-         * simply had not run — `customElements.define` upgrades synchronously and the class's field
-         * initializers execute. At target ES2022 a field declaration is a `[[Define]]`, so
-         * `item?: T` emits `item;` and overwrites the bound value with `undefined`. Nothing throws;
-         * it reads as broken reactivity.
-         *
-         * Repairing it was tried and removed. Re-applying when the slot came back `undefined`
-         * covered `item?: T` but not `item = someDefault`, which overwrites with the default and
-         * never looks clobbered — so the repair was silently partial, and made the bug intermittent
-         * across two spellings of the same mistake. It also cost 74 B in every app while leaving
-         * `declare` mandatory anyway, because a property assigned imperatively is unrecoverable:
-         * the renderer never saw it, and by the time `init()` runs the value is already gone.
-         *
-         * So this is `__DEV__`-only and production pays nothing — no check, no message, no
-         * `whenDefined` subscription. Lit reached the same place from the other direction and
-         * throws (`lit.dev/msg/class-field-shadowing`); a warning suffices here because Vera has no
-         * prototype accessors to shadow permanently — the damage is one lost value, not a property
-         * that never updates again.
+         * No un-upgraded custom element can be behind this write: a dash-named property part is
+         * born `PROP_ADOPT` and only flips here once something receives the property, so the
+         * pre-upgrade window — the clobber, its repair for components, and the `whenDefined`
+         * detector for elements that never drain — lives entirely in `commitAdopt` above. History
+         * worth keeping: an earlier repair was tried HERE and removed as silently partial (it
+         * re-applied on `undefined`, so `item = someDefault` never looked clobbered); the record
+         * the drain re-applies unconditionally is what answered that objection.
          */
-        if (__DEV__) {
-          const tag = this._element.localName;
-          if (tag.indexOf('-') > 0 && !customElements.get(tag)) {
-            customElements.whenDefined(tag).then(() => {
-              /**
-               * States what was observed rather than diagnosing it. A class field is the usual
-               * cause by a wide margin, but a component that assigns the property itself during
-               * upgrade produces the same observation, and that is a legitimate — if confusing —
-               * thing to do, since the renderer's dirty check will not re-apply the bound value on
-               * the next render either.
-               */
-              if (target[name] !== value)
-                console.warn(
-                  `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
-                    `while the element upgraded. A class field is the usual cause: at ES2022 ` +
-                    `\`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites ` +
-                    `whatever was set beforehand — write it \`declare ${name}?: …\` instead, which ` +
-                    `emits nothing. A plain field also wipes properties assigned imperatively, ` +
-                    `which cannot be detected at all. Ignore this if the component replaced the ` +
-                    `value on purpose.`
-                );
-            });
-          }
-        }
+        target[name] = value;
       } else if (kind === BOOLEAN) {
         /** Unconditional for the same reason: `<b hidden ?hidden=${false}>` must end up not hidden. */
         this._element.toggleAttribute(this._name, !!value);
@@ -1185,6 +1317,9 @@ class AttrPart implements Part {
           );
         if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
         this._handler = (value as EventListener) ?? null;
+      } else if (kind === PROP_ADOPT) {
+        const next = commitAdopt(this._element, this._name, value);
+        if (next !== 0) this._kind = next;
       } else if (value != null) {
         /**
          * Element ref: `<input ${myRef} />`. A function is called with the element; an object gets

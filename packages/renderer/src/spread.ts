@@ -24,6 +24,8 @@ const BOOLEAN = 2;
 const LIVE = 3;
 const EVENT = 4;
 const REF = 5;
+/** A binding gone inert — a get-only property refusal; `write` matches it against nothing. */
+const REFUSED = -1;
 
 /**
  * A key that cannot be written into a tag, and therefore cannot be used at all.
@@ -100,6 +102,92 @@ const refusedSink = (key: string): string | null => {
 const UNSET = Symbol();
 
 /**
+ * The deliberate twin of `commitAdopt` in `./renderer.ts` — independent bundles, neither imports
+ * the other, so the rule is copied IN FULL and a fix visits both. Full reasoning there; the short
+ * form: after the write, an accessor anywhere on the chain means something receives this property
+ * and the binding can latch onto the plain write for good. Unreceived, the value is recorded under
+ * the element-carried `_$props$` — the cross-bundle channel core's `init()` drains — and the latch
+ * closes once the element is upgraded (its record is final) or has no realm. The development
+ * clobber detector rides along, because a bag key and a written binding are the same mistake with
+ * the same author watching.
+ *
+ * Returns the binding's NEXT kind, exactly as the twin does: `PROPERTY` to latch onto the plain
+ * write, `REFUSED` to go inert (a get-only surface), `0` to keep adopting.
+ */
+const adopt = (element: Element, name: string, value: unknown): number => {
+  const el = element as unknown as Record<string, unknown>;
+  /** The walk comes BEFORE the write — see the twin: a setter receives (its throw is the
+   *  component's own error), a getter with no setter refuses instead of throwing a raw TypeError
+   *  out of the render, and the dev warning defers to `_$adopt$`'s own refusal where it exists. */
+  let carrier: object | null = el;
+  while (carrier !== null) {
+    const desc = Object.getOwnPropertyDescriptor(carrier, name);
+    if (desc !== undefined) {
+      if (desc.set !== undefined) {
+        el[name] = value;
+        return PROPERTY;
+      }
+      if (desc.get !== undefined) {
+        if (el._$adopt$ !== undefined) (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+        else if (__DEV__)
+          console.warn(
+            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no ` +
+              `setter — the value bound by \`.${name}\` cannot be delivered and the binding is ` +
+              `ignored. Add a setter, or stop binding it.`
+          );
+        return REFUSED;
+      }
+      break; // a data property — an own field, or an inherited default: nothing receives it
+    }
+    carrier = Object.getPrototypeOf(carrier);
+  }
+  el[name] = value;
+  /** An initialized component receives live through `_$adopt$` — a record after the drain would
+   *  never be read again. The door a spread bag's conditional key arrives through, reactive. */
+  if (el._$adopt$ !== undefined) {
+    (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
+    return PROPERTY;
+  }
+  const record = (el._$props$ ??= {}) as Record<string, unknown>;
+  const firstRecording = !Object.hasOwn(record, name);
+  record[name] = value;
+  /** Prototype, never `el.constructor` — a bag key named `constructor` shadows the real one with
+   *  an own property, and no property write can move a prototype (`__proto__` is refused above). */
+  const win = element.ownerDocument.defaultView as unknown as {
+    HTMLElement: { prototype: object };
+    customElements: CustomElementRegistry;
+  } | null;
+  const upgraded = win === null || Object.getPrototypeOf(el) !== win.HTMLElement.prototype;
+  if (__DEV__ && win !== null && !upgraded && firstRecording) {
+    const tag = element.localName;
+    win.customElements.whenDefined(tag).then(() => {
+      /** Ownership is asked of the whole CHAIN — see the twin: a drain accessor, a handed-to
+       *  prototype pair, or a refused get-only surface all mean nothing is left to report. */
+      let owner: object | null = el;
+      let owned = false;
+      while (owner !== null) {
+        const desc = Object.getOwnPropertyDescriptor(owner, name);
+        if (desc !== undefined) {
+          owned = desc.get !== undefined || desc.set !== undefined;
+          break;
+        }
+        owner = Object.getPrototypeOf(owner);
+      }
+      if (!owned && el[name] !== record[name])
+        console.warn(
+          `[vera] renderer: the value bound by \`.${name}\` on <${tag}> was replaced while the ` +
+            `element upgraded. A class field is the usual cause: at ES2022 \`${name}?: …\` emits ` +
+            `\`${name};\`, which runs during upgrade and overwrites whatever was set beforehand — ` +
+            `write it \`declare ${name}?: …\` instead, which emits nothing. A component that ` +
+            `calls init() adopts bound properties automatically and never sees this; this ` +
+            `element did not. Ignore this if the component replaced the value on purpose.`
+        );
+    });
+  }
+  return upgraded ? PROPERTY : 0;
+};
+
+/**
  * A class, not an object literal, so `handleEvent` exists once on the prototype. As a literal it was
  * a fresh closure per bound key — allocation proportional to the size of every props bag.
  */
@@ -111,6 +199,10 @@ class Binding {
   _initial: unknown;
   _committed: unknown = UNSET;
   _handler: EventListener | null = null;
+  /** Twin of AttrPart's `PROP_ADOPT`: a property binding on a dashed tag goes through `adopt`
+   *  until something receives the property, then latches onto the plain write. Bindings persist
+   *  per element in `owned`, so the latch is safe here too. */
+  _recording = false;
 
   constructor(element: Element, key: string) {
     const first = key[0];
@@ -136,6 +228,7 @@ class Binding {
     this._kind = kind;
     this._name = name;
     this._element = element;
+    this._recording = kind === PROPERTY && element.localName.includes('-');
     this._initial =
       kind === ATTR
         ? element.getAttribute(name)
@@ -214,7 +307,13 @@ const write = (binding: Binding, value: unknown) => {
       element.setAttribute(name, `${value}`);
     }
   } else if (kind === PROPERTY) {
-    (element as unknown as Record<string, unknown>)[name] = value;
+    if (binding._recording) {
+      const next = adopt(element, name, value);
+      if (next !== 0) {
+        binding._recording = false;
+        if (next === REFUSED) binding._kind = REFUSED; // inert: `write` matches it against nothing
+      }
+    } else (element as unknown as Record<string, unknown>)[name] = value;
   } else if (kind === BOOLEAN) {
     element.toggleAttribute(name, !!value);
   } else if (kind === REF) {
@@ -368,7 +467,24 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
  * Branded rather than duck-typed: the element position already means "element ref", and a props bag
  * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
  */
-export const spread = (props: Record<string, unknown>) => {
+/** The branded, self-applying result — what the renderer's element position recognises. */
+type SpreadResult = {
+  _props: Record<string, unknown>;
+  _$apply$: unknown;
+  _$attrs$: unknown;
+};
+export const spread = (props: Record<string, unknown>): SpreadResult => {
+  /**
+   * **Already branded → returned as-is.** `spread(spread(x))` arises legitimately: JSX compiles
+   * `{...props({ date })}` to `spread(props({ date }))`, and `props()` below already returns the
+   * branded result. Without this line the brand itself would be iterated as a bag and bind
+   * attributes named `_props`, `_$apply$` and `_$attrs$`. Detected by the brand's PRESENCE, never
+   * by identity with this bundle's `apply` — on a CDN page the renderer and a second copy of this
+   * module are separate bundles with separate `apply` functions, and a result from either must
+   * pass through both (the two-registry failure shape `tests/cdn-cross-bundle.test.mjs` guards).
+   */
+  if (props !== null && typeof props === 'object' && (props as SpreadResult)._$apply$ !== undefined)
+    return props as SpreadResult;
   /**
    * **A props bag that is not an object is iterated anyway, and a browser accepts the result.**
    *
@@ -414,4 +530,36 @@ export const spread = (props: Record<string, unknown>) => {
     _$apply$: apply,
     _$attrs$: attributes,
   };
+};
+
+/**
+ * A bag of PROPERTY bindings — the object form of `.name=${value}`, one call in both surfaces:
+ *
+ * ```js
+ * html`<calendar-day ${props({ date, events })}></calendar-day>`
+ * ```
+ * ```jsx
+ * <calendar-day {...props({ date, events })}></calendar-day>
+ * ```
+ *
+ * Exists because an attribute is always a string: an array, a `Date` or a store can only reach a
+ * custom element as a property — vera's JSX accepts the sigil spelling, TSX's type-checker refuses
+ * it (`TS1003`), and this bag is the typed path either way. Every key is a
+ * property NAME, never a sigil — `props({ date })` binds `.date`, so `props({ '.date': d })` would
+ * bind `..date` and is the caller's mistake to keep.
+ *
+ * Properties only, by definition: events and boolean attributes keep their own spellings
+ * (`@click`/`onClick`, `?disabled`). **Prefer keys spelled conditionally over bags that change
+ * shape** — `props({ date: loaded ? date : null })` over `props(loaded ? { date } : {})`. Both
+ * work: a key appearing later on a component goes through `_$adopt$` and arrives reactive, and a
+ * key that disappears restores what the element held — but a stable shape updates in place, the
+ * same reason templates prefer `?hidden` over swapped subtrees.
+ *
+ * With an explicit type argument the bag is checked against the element —
+ * `props<CalendarDay>({ dat })` is a compile error naming the misspelling.
+ */
+export const props = <T extends object = Record<string, unknown>>(values: Partial<T>): SpreadResult => {
+  const sigiled: Record<string, unknown> = {};
+  for (const key of Object.keys(values)) sigiled[`.${key}`] = (values as Record<string, unknown>)[key];
+  return spread(sigiled);
 };
