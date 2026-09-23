@@ -722,7 +722,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
 
   let foreignDepth = 0;
   const emitChild = (child: JsxChild, tpl: Template): void => {
-    if (foreignDepth > 0 && ('expr' in child || isComponentTag(child as JsxNode))) state.usedForeign = true;
+    if (foreignDepth > 0 && ('expr' in child || ('tag' in child && isComponentTag(child as JsxNode)))) state.usedForeign = true;
     if ('text' in child && child.text !== undefined) {
       const text = collapseText(child.text);
       if (text !== '') tpl.static(escapeStatic(text));
