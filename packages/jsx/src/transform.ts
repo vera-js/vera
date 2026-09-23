@@ -1,6 +1,6 @@
 import { VOID_ELEMENTS } from '@verajs/shared-utils';
-import { findRoots } from './parser.js';
-import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
+import { atExpressionPosition, findRoots } from './parser.js';
+import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, ParseState, VeraJsxOptions } from './types.js';
 
 /**
  * JSX/TSX -> Vera tagged templates. Compile-time only, ZERO dependencies: the scanner/parser in
@@ -482,8 +482,20 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const blankLiterals = (text: string): string => {
     let out = '';
     let i = 0;
-    /** Open template literals; `${` returns to code, `}` resumes the one it came from. */
+    /**
+     * Open template literals, and the BRACE DEPTH inside the innermost `${…}`. A bare `}` counter
+     * assumed every `}` closed an interpolation, so an object literal, a destructuring pattern or a
+     * block inside one ended it early — `` `${ n ? f({ n }) : `it's empty` }` `` then read the
+     * NESTED template's opening backtick as a closing one and spilled its text into code, where an
+     * apostrophe opened a fake string and ate the binding after it.
+     */
     let open = 0;
+    let depth = 0;
+    /** The expression-position heuristic is `parser.ts`'s, called rather than copied: `/` opens a
+     *  regex only where an expression may start, and a second copy of that rule would drift. */
+    let lastChar = '';
+    let lastWord = '';
+    const cursor = { code: '', i: 0, mismatch: null } as unknown as ParseState;
     const eatTemplate = () => {
       while (i < text.length) {
         if (text[i] === '\\') {
@@ -500,6 +512,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         if (text[i] === '$' && text[i + 1] === '{') {
           out += '${';
           i += 2;
+          depth = 0;
           return;
         }
         out += text[i] === '\n' ? '\n' : ' ';
@@ -547,11 +560,58 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         eatTemplate();
         continue;
       }
+      if (c === '{' && open > 0) {
+        depth++;
+        out += c;
+        i++;
+        continue;
+      }
       if (c === '}' && open > 0) {
         out += c;
         i++;
-        eatTemplate();
+        if (depth > 0) depth--;
+        else eatTemplate();
         continue;
+      }
+      /**
+       * A REGEX literal, which the walk used to copy as code — so `/^['"]/` opened a fake string on
+       * its quote and blanked the real source after it, hiding a binding and letting the injected
+       * import collide with it. `/^https?:\/\//` is an everyday URL matcher. `parser.ts` has always
+       * discriminated this; this walk is the same rule's second address and went without it.
+       */
+      if (c === '/' && ((cursor.lastChar = lastChar), (cursor.lastWord = lastWord), atExpressionPosition(cursor))) {
+        out += c;
+        i++;
+        let inClass = false;
+        while (i < text.length) {
+          const r = text[i];
+          if (r === '\\') {
+            out += '  ';
+            i += 2;
+            continue;
+          }
+          if (r === '\n') break;
+          if (r === '[') inClass = true;
+          else if (r === ']') inClass = false;
+          else if (r === '/' && !inClass) {
+            out += '/';
+            i++;
+            break;
+          }
+          out += ' ';
+          i++;
+        }
+        while (i < text.length && /[a-z]/.test(text[i]!)) {
+          out += text[i];
+          i++;
+        }
+        lastChar = '/';
+        lastWord = '';
+        continue;
+      }
+      if (/\S/.test(c!)) {
+        lastWord = /[\w$]/.test(c!) && /[\w$]/.test(lastChar) ? lastWord + c : c!;
+        lastChar = c!;
       }
       out += c;
       i++;
@@ -604,16 +664,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * `'text/html'` both merely contain the word. So where a tag use exists, only a DECLARATION
      * counts, which is narrow but wrong far less often than either substring answer.
      *
-     * That declaration test reads `stripped`, with the tag uses ALREADY removed, which is what keeps
-     * it honest across lines: `[^=;]*?` spans newlines, so over the raw text a
-     * `class Chart { row() { return html\`…\` } }` — the framework's own documented component shape —
-     * matched as though `class … html` were a binding, renamed the import, and left the author's
-     * hand-written tag undefined. With the uses gone there is nothing for it to reach.
-     *
-     * The residual limit, stated rather than papered over: a module that BOTH defines its own tag
-     * of this name in a form no declaration keyword introduces — `const { svg } = vera` — AND writes
-     * `` svg`…` `` by hand is not distinguishable here. That module wants `options.svg` or
-     * `inject: false`, and both are in the README.
+     * The residual limit is narrow and worth stating: over-renaming costs an uglier identifier,
+     * under-renaming costs the whole module, so every judgement here leans the first way.
      */
     /**
      * A whole-WORD match, not a substring: `options.html` may name `h`, and a bare `includes('h')`
@@ -634,7 +686,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * exclusion serves the object literal and the renaming pattern, while shorthand `{ html }`,
      * which does bind, has no colon and still counts.
      */
-    const bound = new RegExp(`(?<![.\\w$])${escaped}\\b(?!\\s*:)`).test(stripped);
+    /**
+     * ...but `.tsx` is a first-class input, and a TYPE ANNOTATION is spelled exactly like a key up to
+     * the colon — `let svg: SVGSVGElement` and `function draw(svg: Element)` are bindings that the
+     * key exclusion threw away, for a duplicate declaration and a `svg is not a function`. What
+     * distinguishes them is what comes BEFORE: a declaration keyword, or a parameter position. An
+     * object literal's `, html: 1` can still match that second form, which over-renames rather than
+     * under-renames and is the direction that costs an identifier instead of the module.
+     */
+    const annotated = new RegExp(`(?:(?:const|let|var|function|class)\\s+|[(,]\\s*)${escaped}\\s*:`);
+    const bound =
+      new RegExp(`(?<![.\\w$])${escaped}\\b(?!\\s*:)`).test(stripped) || annotated.test(stripped);
     if (!bound && !taken.has(exported)) {
       taken.add(exported);
       return exported;

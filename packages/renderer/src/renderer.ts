@@ -901,12 +901,13 @@ const warnedForeign = /* @__PURE__ */ new Set<string>();
 const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: readonly Node[]): void => {
   for (const node of nodes) {
     /**
-     * Not a correctness guard, and deliberately not dressed as one: `namespaceURI` is defined on
-     * `Element` alone, so the XHTML test below already rejects every text and comment node — in
-     * jsdom and in `@verajs/ssr`'s DOM alike, measured rather than assumed — and a `DocumentFragment`
-     * never arrives, since `_insert` spreads one into its children before calling. No test can tell
-     * this line from its absence. It earns its place by making the cast beneath it TRUE, and by
-     * skipping a property lookup on the text nodes every template is full of.
+     * **Load-bearing, and it was not always.** `namespaceURI` is defined on `Element` alone, so while
+     * the test below asked *"is this XHTML"* a text node fell out of it on its own and this line was
+     * only a fast path — which is what the comment here used to say. Making the rule a namespace
+     * MISMATCH inverted that in the same change: `undefined === hostNamespace` is false for every
+     * foreign host, so without this guard every text node in a CORRECTLY tagged template is reported
+     * as `<undefined> was built as HTML`. A guard whose justification was written against the
+     * previous line beneath it is worth more suspicion than one with no comment at all.
      */
     if (node.nodeType !== 1) continue;
     const element = node as Element;
@@ -929,10 +930,21 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
      * The NAMESPACE decides, never the name: SVG owns `mask`, `marker`, `mpath` and `metadata`, so
      * a "starts with m" shortcut would hand four SVG hosts the MathML advice.
      */
+    /**
+     * The island AND the constraint on where it may sit, chosen together by the host's namespace.
+     * Appending the container caveat to both branches from outside put SVG's answer on a MathML
+     * host — *"put `<mtext>` in a container such as `<g>` or `<svg>`"* — which is the round-1 defect
+     * (a `<mrow>` told to use `<foreignObject>`) arriving through the caveat instead of the island.
+     * The constraint is real in both namespaces and different in each: `<foreignObject>` is not a
+     * permitted child of `<text>`, `<tspan>`, `<clipPath>`, a gradient or a filter, and `<mtext>` is
+     * not one of a MathML token element.
+     */
     const island =
       hostNamespace === 'http://www.w3.org/1998/Math/MathML'
-        ? '<mtext>, or <annotation-xml encoding="text/html">'
-        : 'a <foreignObject>';
+        ? '<mtext>, or <annotation-xml encoding="text/html">, inside a MathML container such as ' +
+          '<mrow> or <math> rather than inside a token element'
+        : 'a <foreignObject>, which has to sit in an SVG container such as <g> or <svg> rather ' +
+          'than in a text or paint element'
     /**
      * Keyed by the host's NAMESPACE as well as its name, because `<a>` is a real element in both —
      * the parser leaves `<math><a>` in MathML, since `a` is not on the foreign-content breakout
@@ -990,12 +1002,10 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
         ? `If it is meant to be an SVG or MathML element, the template holding it needs the ` +
           `svg\`…\` or mathml\`…\` tag — the tag is chosen where a template is WRITTEN, not where ` +
           `it is used, so write it at the call site. If it is genuinely HTML (a <div>, a custom ` +
-          `element), it belongs in ${island} — which has to sit in a container such as <g> or <svg>, ` +
-          `not in a text or paint element: tagging it will not help, and a custom element only ` +
+          `element), it belongs in ${island}: tagging it will not help, and a custom element only ` +
           `upgrades in the HTML namespace.`
         : `The template's tag is already right — these two namespaces cannot nest directly. Put ` +
-          `the ${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}, which is where ` +
-          `<${host}> can hold content from another namespace.`;
+          `the ${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}.`;
     console.warn(
       `[vera] renderer: <${tag}> was built as ${built} and placed inside <${host}>, where it will ` +
         `not render. ${advice}`

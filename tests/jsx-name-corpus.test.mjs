@@ -67,6 +67,12 @@ const PRELUDES = [
   "const open = '/*';\nconst NAME = 1;\nconst close = '*/';",
   'class Zx {\n  m() { return NAME`<b>t</b>` }\n}',
   'class Zy extends HTMLElement {\n  render() { return NAME`<i>t</i>` }\n}',
+  'const RE = /^[\'"]/;\nconst { NAME } = lib;\nzf("x");',
+  'const TICK = /`/;\nconst { NAME } = lib;',
+  'const RE2 = /^https?:\\/\\//, NAME = 1;',
+  'const r = 6 / 2 / 1;\nconst NAME = 1;',
+  "const L = `${ zn ? zf({ zn }) : `it's empty` }`;\nconst NAME = 1;",
+  "const D = `U:\n${ [zf({ a: 1 }),\n`\nimport { NAME } from 'x';\n`].join('') }\n.`;",
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */
@@ -105,9 +111,9 @@ test('every module the transform can be handed still parses and runs', async () 
            * is the correct answer, so the throw is the snippet's own and the pair is not a legal
            * corpus entry.
            */
-          const binds = new RegExp(`(?:const|let|var|function|class)[\\s{[,]*[^=;\\n]*\\b${name}\\b`).test(
-            pre.replace(/^\s*import\b[^\n]*$/gm, '')
-          );
+          const binds = new RegExp(
+            `(?:const|let|var|function|class)[\\s{[,]*[^=;\\n]*\\b${name}\\b|[,(]\\s*${name}\\s*[=:,)]`
+          ).test(pre.replace(/^\s*import\b[^\n]*$/gm, ''));
           if (binds && source.includes(`${name}\``)) continue;
 
           let out;
@@ -119,7 +125,7 @@ test('every module the transform can be handed still parses and runs', async () 
           }
           const file = join(dir, `m${built++}.mjs`);
           /** Stubs for what the SNIPPETS reference — never for what the transform injects. */
-          writeFileSync(file, `const lib = {}, arr = [], a = {}, Frame = (zp) => zp, HTMLElement = class {};\n${out}`);
+          writeFileSync(file, `const lib = {}, arr = [], a = {}, Frame = (zp) => zp, HTMLElement = class {};\nconst zf = (zx) => String(zx), zn = 1;\n${out}`);
           try {
             const module = await import(pathToFileURL(file).href);
             if (typeof module.view === 'function') module.view([1, 2]);

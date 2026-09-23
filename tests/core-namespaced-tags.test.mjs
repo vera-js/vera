@@ -434,6 +434,25 @@ test('an html template committed into <svg> or <math> is named in development', 
       'a fresh offender behind a spent one in the same insert is still named'
     );
 
+    /**
+     * **A correctly tagged template must stay silent, whitespace included.** The `nodeType` guard
+     * became load-bearing the moment the rule changed from "is this XHTML" to "does this differ from
+     * the host": a text node has no `namespaceURI`, and `undefined` never equals a foreign host's,
+     * so without the guard every newline inside an `svg` template is reported as
+     * `<undefined> was built as HTML`. The comment there had been written against the previous rule
+     * and said the line could not be told from its absence.
+     *
+     * The host is `<symbol>` because the key is spent per host NAME: every earlier assertion here
+     * uses `<g>`, so the same probe under a `<g>` measures 0 whether the guard is there or not.
+     */
+    assert.equal(
+      named(html`<svg><symbol>${svg`
+        <path d="M0 0h24"></path>
+      `}</symbol></svg>`).length,
+      0,
+      'the text nodes around correct SVG content are not elements and are never reported'
+    );
+
     /** Every SVG integration point, not only <foreignObject> — dropping desc/title failed nothing. */
     assert.equal(named(html`<svg><desc>${html`<u3>x</u3>`}</desc></svg>`).length, 0, '<desc> is one too');
     assert.equal(named(html`<svg><title>${html`<v3>x</v3>`}</title></svg>`).length, 0, '<title> likewise');

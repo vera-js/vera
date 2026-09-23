@@ -117,11 +117,16 @@ and MathML's token elements are HTML integration points and stay silent, because
 correct, and `<style>`/`<script>` are silent because neither draws — an HTML `<style>` inside an
 `<svg>` applies its rules perfectly well, so "will not render" would be both wrong and exactly the
 guess the compiler refuses to make. It is raised from the template, list and keyed-list commit
-paths — including the batched one a growing icon list takes — and named once per host-and-tag pair
-rather than once per render. Two insertion paths are NOT covered and are worth knowing rather than
-discovering: hydration commits its nodes through its own cursor, and `@verajs/renderer/slots` moves
-assigned light children into place itself — that entry imports nothing by design, which is what
-makes it safe beside any renderer on a CDN page. The message gives both remedies, because which is right depends on what the
+paths — including the batched one a growing icon list takes — and named once per host namespace,
+host name, content namespace and tag, so the same real mistake is reported once while an HTML `<a>`
+and a MathML `<a>` in one `<svg>` stay two distinct mistakes.
+
+Two insertion paths are NOT covered, and that is worth knowing rather than discovering: hydration
+commits its nodes through its own cursor, and `@verajs/renderer/slots` moves assigned light children
+into place itself — that entry imports nothing by design, which is what makes it safe beside any
+renderer on a CDN page.
+
+HTML content in a foreign parent gets both remedies, because which is right depends on what the
 element was meant to be: `` svg`…` `` fixes an SVG element compiled as HTML, while genuinely HTML
 content needs an HTML island — `<foreignObject>` in SVG, `<mtext>` in MathML — tagging a custom element `` svg`…` `` would silence the warning and
 leave it permanently un-upgraded. **The limit of deciding this at compile time, stated plainly.** The tag is chosen from the root name;

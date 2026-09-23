@@ -180,7 +180,7 @@ Frame(svg`<path d="M0 0h24" />`);    // the fix — the tag is chosen where the 
 
 The tag is right where it was written and the call site cannot know the destination, which is why
 this is not something the renderer can correct — lit-html behaves the same way. **Development names
-it instead**, once per host-and-tag pair, with both remedies: `` svg`…` `` when the element was
+it instead**, once per host namespace, host name, content namespace and tag, with both remedies: `` svg`…` `` when the element was
 meant to be SVG, and an HTML island (`<foreignObject>` in SVG, `<mtext>` in MathML) when it is
 genuinely HTML. Tagging a custom element `` svg`…` `` would silence the message and leave the
 element permanently un-upgraded, since custom-element upgrade is spec-gated on the HTML namespace.
@@ -188,7 +188,8 @@ element permanently un-upgraded, since custom-element upgrade is spec-gated on t
 The rule is a namespace MISMATCH, so MathML committed into an `<svg>` and SVG committed into a
 `<math>` are named the same way. It is silent where the content is correct: inside
 `<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements, inside
-`<annotation-xml>` carrying an HTML `encoding`, and for `<style>`/`<script>`, which never draw — an
+`<annotation-xml>` carrying an HTML `encoding` — or `image/svg+xml`, MathML's own registered
+spelling for an SVG annotation — and for `<style>`/`<script>`, which never draw — an
 HTML `<style>` inside an `<svg>` applies its rules perfectly well.
 
 **In JSX this mostly cannot happen**: `@verajs/jsx` compiles a template whose root is an SVG-only

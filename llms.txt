@@ -296,7 +296,8 @@ even with a sibling, because their hazard is SSR casing rather than context.
 from its host, in development — HTML inside `<svg>` most often, but MathML inside `<svg>` and SVG
 inside `<math>` are the same mistake and are named the same way. It stays silent where the content
 is correct: inside `<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements
-(`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`), inside `<annotation-xml>` carrying an HTML `encoding`,
+(`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`), inside `<annotation-xml>` carrying an HTML
+`encoding` or `image/svg+xml` (MathML's own registered spelling for an SVG annotation),
 and for `<style>`/`<script>`, which never draw.
 
 A HAND-WRITTEN template is the same story without a compiler to help: ``Frame(html`<path/>`)`` is

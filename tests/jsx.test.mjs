@@ -497,6 +497,23 @@ assert.match(taken, /import \{ svg as \$veraSvg2 \}/, 'a taken alias is bumped r
  * and the reason this is not simply always-prefixed.
  */
 /**
+ * **A TypeScript ANNOTATION is a binding, and is spelled exactly like an object key up to the `:`.**
+ * `.tsx` is a first-class input, so excluding keys quietly excluded every annotated binding —
+ * `let svg: SVGSVGElement` collided with the injected import, and `function draw(svg: Element)`
+ * shadowed it for `svg is not a function`. What separates them is what comes BEFORE the name.
+ */
+for (const [shape, src] of [
+  ['an annotated let', 'let svg: SVGSVGElement;'],
+  ['an annotated const', 'const svg: Element = q();'],
+  ['an annotated parameter', 'function draw(svg: Element) { return 1; }'],
+]) {
+  const typed = transformJsx(`${src}\nexport const v = () => <path d="M0" />;`, 't.tsx', { inject: true });
+  assert.match(typed, /import \{ svg as \$veraSvg \}/, `${shape} is a binding, so the import is renamed`);
+}
+const keyed2 = transformJsx('const o = { svg: 1 };\nexport const v = () => <path d="M0" />;', 'k.tsx', { inject: true });
+assert.match(keyed2, /import \{ svg \} from/, 'CONTROL: an object KEY still binds nothing');
+
+/**
  * A name that appears only inside a STRING, a comment or a template literal is not a binding, and
  * renaming for it is noise. The scan blanks literal contents to see that — which it must do with a
  * character walk, since `` `A ${`B`} C` `` inverts any non-recursive pattern and leaks B.
