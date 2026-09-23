@@ -301,7 +301,9 @@ test('a TSX type-parameter list is not markup, and is never reported as broken m
   const rows = [
     ['a constraint with a default', 'export const make = <T extends object = {}>(x: T) => x;'],
     ['a props default, returning JSX', 'export const make = <P extends Props = {}>(p: P) => <i class="w" />;'],
-    ['a const type parameter', 'export const make = <const T extends readonly unknown[]>(x: T) => x;'],
+    /** With a default, so the `const` arm is what stands between it and an empty-attribute report —
+     *  without one the row passed with the whole guard removed. */
+    ['a const type parameter', 'export const make = <const T extends object = {}>(x: T) => x;'],
     ['a constraint, then a closing tag in a string', "export const make = <T extends object>(x: T) => x;\nconst s = '</script>';"],
   ];
   const problems = [];

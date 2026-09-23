@@ -66,6 +66,23 @@ it('shapes mapped inside <svg> are real SVGElements, in this engine', async () =
   host.remove();
 });
 
+it('a mapped <text> inside <svg> is SVG too — the name cannot upgrade alone, so mode decides', async () => {
+  /**
+   * `<circle>` is SVG-only, so the root upgrade tags it whether or not lexical mode tracking works —
+   * the test above passes with mode tracking disabled. `<text>` is also an HTML-shaped unknown name,
+   * never upgraded on its own, so this one is held up by `childMode` alone.
+   */
+  const mod = await compile(
+    'export const chart = (labels) => <svg viewBox="0 0 10 10">{labels.map((l) => <text x="1" y="5">{l}</text>)}</svg>;'
+  );
+  const host = mount();
+  renderInto(mod.chart(['a', 'b']), host);
+  const texts = [...host.querySelectorAll('text')];
+  expect(texts.length, 'the mapped labels rendered').to.equal(2);
+  for (const text of texts) expect(text instanceof SVGTextElement, 'a real SVGTextElement').to.equal(true);
+  host.remove();
+});
+
 it('<foreignObject> flips back to HTML inside the same tree', async () => {
   const mod = await compile(
     'export const v = (t) => <svg><foreignObject><div>{t && <em>in html</em>}</div></foreignObject></svg>;'

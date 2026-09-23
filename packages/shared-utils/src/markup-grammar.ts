@@ -62,3 +62,19 @@ export const VOID_ELEMENTS = new Set([
  * wrong list.
  */
 export const RAW_TEXT_ELEMENTS = new Set(['style', 'script', 'textarea', 'title', 'iframe', 'noscript']);
+
+/**
+ * The hyphenated names SVG and MathML already define, which the custom-elements spec reserves — so a
+ * dash in one of these does NOT make it a custom element.
+ *
+ * Measured, the one that matters: JSX treats a dash-named tag as a custom element and compiles its
+ * attributes to PROPERTIES, which turned `<annotation-xml encoding="text/html">` into
+ * `.encoding=${…}`. The HTML parser decides that element is an integration point from the
+ * ATTRIBUTE on its start tag, so HTML content inside was moved out of the `<math>` entirely, and a
+ * custom element there was built MathML-namespaced and never upgraded — silent on the server and
+ * the client alike. That is also the exact spelling the renderer's own warning recommends.
+ */
+export const RESERVED_ELEMENT_NAMES = new Set([
+  'annotation-xml', 'color-profile', 'font-face', 'font-face-src',
+  'font-face-uri', 'font-face-format', 'font-face-name', 'missing-glyph',
+]);

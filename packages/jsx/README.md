@@ -84,8 +84,10 @@ not camel-cased.
 | `className` / `htmlFor` | `class` / `for` | the only two renamed |
 | `onClick={f}` | `@click=${f}` | any `on` + capital: the rest is lower-cased |
 | `value` / `checked` | `.value=` / `.checked=` | properties, because the attribute is only the *default* |
-| `defaultValue` / `defaultChecked` | `value=` / `checked=` | the attribute, when you mean the default |
+| `defaultValue` / `defaultChecked` | `value=` / `?checked=${…}` | the attribute, when you mean the default (bare `defaultChecked` is a static `checked`) |
 | `hidden`, `disabled`, `open`, … | `?hidden=${…}` | the boolean-attribute table below |
+| `hidden=""`, `checked=""` | `${true}` | the empty string is how the platform writes a set boolean |
+| `hidden="false"`, `checked="false"` | `${false}` | **a deliberate divergence** — HTML calls any present value true; every author who writes `"false"` means false |
 | `<p hidden>` | `<p hidden>` | a bare boolean stays static |
 | `key={id}` | `keyed(id, html\`…\`)` | on the root of a list callback — element **or** component |
 | `ref={r}` | `<p ${r}>` | the element-position ref |
@@ -163,7 +165,7 @@ you, from the position the expression is written in:
 ```jsx
 <svg viewBox="0 0 24 24">
   {points.map((p) => <circle key={p.id} cx={p.x} cy={p.y} r="2" />)}   // compiles with svg``
-  <foreignObject><div>{label}</div></foreignObject>                    // …and this flips back to html``
+  <foreignObject><div>{label && <em>{label}</em>}</div></foreignObject> // …and this flips back to html``
 </svg>
 ```
 

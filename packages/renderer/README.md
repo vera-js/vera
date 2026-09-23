@@ -191,8 +191,10 @@ The rule is a namespace MISMATCH, so MathML committed into an `<svg>` and SVG co
 there and only the destination is wrong. It is silent where the content is correct: inside
 `<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements, inside
 `<annotation-xml>` carrying an HTML `encoding` — or `image/svg+xml`, MathML's own registered
-spelling for an SVG annotation — and for `<style>`/`<script>`, which never draw — an
-HTML `<style>` inside an `<svg>` applies its rules perfectly well.
+spelling for an SVG annotation — as an ATTRIBUTE, the only form the parser reads (an `.encoding`
+property is named), for an `<svg>` in any `<annotation-xml>`, where the parser itself puts one, and
+for `<style>`/`<script>`, which never draw — an HTML `<style>` inside an `<svg>` applies its rules
+perfectly well.
 
 **In JSX this mostly cannot happen**: `@verajs/jsx` compiles a template whose root is an SVG-only
 element with the `svg` tag wherever it was written, so `<Frame><path /></Frame>` works. The message

@@ -212,6 +212,31 @@ assert.ok(/a = \(\) => html`/.test(exprRefuses), 'an expression child is opaque,
 assert.ok(/b = \(\) => svg`/.test(exprRefuses), 'CONTROL: without one, the same fragment upgrades');
 
 /**
+ * **`<annotation-xml>` is not a custom element**, though its name has a dash — it is one of the
+ * eight names SVG and MathML own, which the spec reserves. Read as a custom element, its `encoding`
+ * compiled to a PROPERTY, the parser never saw it, and HTML content inside was moved out of the
+ * `<math>`. With a LITERAL HTML encoding its expression children are HTML too, as the parser makes
+ * its static children; a bound or non-HTML encoding keeps them MathML.
+ */
+const annotation = transformJsx(
+  `export const a = (l) => <math><annotation-xml encoding="text/html">{l && <my-card />}</annotation-xml></math>;
+   export const b = (l) => <math><annotation-xml encoding="Application/XHTML+XML">{l && <my-card />}</annotation-xml></math>;
+   export const c = (l, e) => <math><annotation-xml encoding={e}>{l && <my-card />}</annotation-xml></math>;
+   export const d = (l) => <math><annotation-xml encoding="image/svg+xml">{l && <mi>x</mi>}</annotation-xml></math>;
+   export const e = () => <my-el encoding="text/html" />;
+   export const f = () => <g><font-face /><path d="M0" /></g>;`,
+  'ax.jsx',
+  { inject: false }
+);
+assert.ok(/a = .*<annotation-xml encoding="text\/html">/.test(annotation), 'encoding stays an ATTRIBUTE on a reserved name');
+assert.ok(/a = .*l && html`<my-card>/.test(annotation), 'a literal HTML encoding makes its expression children HTML');
+assert.ok(/b = .*l && html`<my-card>/.test(annotation), 'matched case-insensitively, as the parser matches it');
+assert.ok(/c = .*l && mathml`<my-card>/.test(annotation), 'a BOUND encoding cannot be read, so the content stays MathML');
+assert.ok(/d = .*l && mathml`<mi>/.test(annotation), 'a non-HTML encoding keeps MathML content');
+assert.ok(/e = \(\) => html`<my-el \.encoding=\$\{"text\/html"\}>/.test(annotation), 'CONTROL: a real custom element still takes the prop');
+assert.ok(/f = \(\) => svg`<g><font-face/.test(annotation), 'a reserved SVG name does not refuse the upgrade as a custom element would');
+
+/**
  * **An empty fragment proves nothing, at ANY depth** — it must not disprove either. A
  * `children.length === 0` check handled `<><></><path/></>` and not `<><><></></><path/></>`, which
  * is the same tree one level further in. The rule needs three states: proves, disproves, and proves

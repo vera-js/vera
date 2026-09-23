@@ -159,3 +159,29 @@ it('a nested <math> inside an <svg> is SVG all the way down, in every engine', (
   expect(top.querySelector('mtext').namespaceURI, 'and its <mtext> too').to.equal(MATHML_NS);
   expect(top.querySelector('b').namespaceURI, '<mtext> is a text integration point').to.equal(HTML_NS);
 });
+
+it('<annotation-xml encoding="text/html"> is an HTML island only as an ATTRIBUTE, in every engine', () => {
+  /**
+   * JSX used to read the dash in `annotation-xml` as a custom element and compile `encoding` to a
+   * PROPERTY. The parser decides integration-point status from the attribute on the start tag, so
+   * this pins both halves on real engines: the attribute form (what the compiler emits now, static
+   * child and expression child alike) keeps HTML content inside and upgrades a custom element there,
+   * and the property form — the control — does not.
+   */
+  const attr = into();
+  renderInto(html`<math><annotation-xml encoding="text/html"><b>s</b>${html`<ns-badge></ns-badge>`}</annotation-xml></math>`, attr);
+  const island = attr.querySelector('annotation-xml');
+  expect(island.namespaceURI).to.equal(MATHML_NS);
+  expect(attr.querySelector('b').parentNode).to.equal(island, 'static HTML content stays inside the island');
+  expect(attr.querySelector('b').namespaceURI).to.equal(HTML_NS);
+  expect(attr.querySelector('ns-badge').namespaceURI).to.equal(HTML_NS);
+  expect(attr.querySelector('ns-badge')).to.be.instanceOf(Badge, 'a custom element in the island upgrades');
+
+  const prop = into();
+  renderInto(html`<math><annotation-xml .encoding=${'text/html'}><b>s</b></annotation-xml></math>`, prop);
+  const b = prop.querySelector('b');
+  expect(b === null || b.parentNode !== prop.querySelector('annotation-xml') || b.namespaceURI !== HTML_NS).to.equal(
+    true,
+    'CONTROL: as a property the parser never sees the encoding, so the content is not an HTML island'
+  );
+});

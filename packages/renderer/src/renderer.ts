@@ -858,15 +858,15 @@ const foreignHost = (parent: Node): string | null => {
    */
   if (name === 'annotation-xml') {
     /**
-     * Attribute OR property. `<annotation-xml>` is dash-named, so `@verajs/jsx` compiles
-     * `encoding="text/html"` to `.encoding=${…}` — a property, with no attribute to read — and the
-     * hand-written and JSX spellings of the same markup then disagreed about whether this is an
-     * integration point. The runtime can see both; only it can, which is why the compiler leaves
-     * `annotation-xml` alone entirely.
+     * The ATTRIBUTE, and only the attribute — it is what the parser reads. This used to accept an
+     * `encoding` PROPERTY too, because `@verajs/jsx` read the dash in `annotation-xml` as a custom
+     * element and compiled the attribute to one; but a property is invisible to the parser, so the
+     * content really was broken — static HTML moved out of the `<math>`, a custom element inside
+     * built MathML and never upgraded — and accepting the property is what kept this warning quiet
+     * about it. The compiler keeps `encoding` an attribute now (the name is reserved, not custom),
+     * so a property here is a hand-written mistake, and it gets named.
      */
-    const encoding = (element.getAttribute('encoding') ??
-      (element as { encoding?: unknown }).encoding) as string | undefined;
-    const normalised = typeof encoding === 'string' ? encoding.toLowerCase() : undefined;
+    const normalised = element.getAttribute('encoding')?.toLowerCase();
     /**
      * `image/svg+xml` leaves too. It is MathML's own registered encoding for an SVG annotation — the
      * one place SVG content inside a `<math>` subtree is the author's intended, spec-sanctioned
@@ -922,6 +922,13 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
     const tag = element.localName;
     /** Neither draws, so "will not render" is the wrong complaint — and `<style>` genuinely applies. */
     if (tag === 'style' || tag === 'script') continue;
+    /**
+     * An `<svg>` inside `<annotation-xml>` is where the parser itself puts one, WHATEVER the
+     * encoding: a start tag named `svg` there opens SVG content. The same markup written by hand
+     * builds the identical DOM and says nothing, so the insert must not claim the two namespaces
+     * "cannot nest directly" — here they do, by the parser's own rule.
+     */
+    if (host === 'annotation-xml' && tag === 'svg' && element.namespaceURI === 'http://www.w3.org/2000/svg') continue;
     /**
      * The remedy has to match the HOST's namespace. `<foreignObject>` does not exist in MathML, so
      * naming it for an `<mrow>` host sent people to build an SVG element inside `<math>`, which

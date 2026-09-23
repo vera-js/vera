@@ -302,8 +302,9 @@ content gets both remedies, while SVG-in-MathML and MathML-in-SVG are told only 
 root, because the template's tag is already right. It stays silent where the content
 is correct: inside `<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements
 (`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`), inside `<annotation-xml>` carrying an HTML
-`encoding` or `image/svg+xml` (MathML's own registered spelling for an SVG annotation),
-and for `<style>`/`<script>`, which never draw.
+`encoding` or `image/svg+xml` (MathML's own registered spelling for an SVG annotation) — as an
+ATTRIBUTE, the only form the parser reads, so `.encoding=${…}` is named — for an `<svg>` in any
+`<annotation-xml>`, where the parser itself puts one, and for `<style>`/`<script>`, which never draw.
 
 A HAND-WRITTEN template is the same story without a compiler to help: ``Frame(html`<path/>`)`` is
 HTML, ``Frame(svg`<path/>`)`` is right, and development says so when it happens.
@@ -760,7 +761,8 @@ configurable — `html: ['h', 'my-lib']`).
 
 **What it compiles to.** `onClick={f}` → `@click=${f}`; `className`/`htmlFor` → `class`/`for`;
 `value`/`checked` → `.value`/`.checked` and `defaultValue`/`defaultChecked` → the attributes;
-the boolean-attribute table → `?attr=${…}`; `key={id}` → `keyed(id, …)` on a list callback's root;
+the boolean-attribute table → `?attr=${…}` (a literal `""` is true and `"false"` is false — for
+`checked` too, deliberately unlike HTML, where any present value is true); `key={id}` → `keyed(id, …)` on a list callback's root;
 `ref={r}` → an element-position ref; `{...rest}` → `spread(rest)`;
 `dangerouslySetInnerHTML={{ __html: h }}` → `.innerHTML=${h}`; `<Comp a={1}>kids</Comp>` →
 `Comp({ a: 1, children: […] })`; `<>…</>` → the children; `<div />` and `<br></br>` are both

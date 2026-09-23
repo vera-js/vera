@@ -317,23 +317,38 @@ test('an html template committed into <svg> or <math> is named in development', 
     );
 
     /**
-     * **`<annotation-xml>` is read as attribute OR property, and for BOTH HTML encodings.** JSX
-     * compiles that dash-named tag's `encoding` to a property with no attribute behind it, so the
-     * hand-written and JSX spellings of identical markup disagreed about whether this is an
-     * integration point. The attribute half was covered; removing the property half, or the
-     * `application/xhtml+xml` arm, failed nothing.
+     * **`<annotation-xml>` is read from its ATTRIBUTE only — a PROPERTY is named.** The property read
+     * existed because `@verajs/jsx` once compiled this dash-named tag's `encoding` to one; but the
+     * parser reads only the attribute, so content under a property-only encoding really was broken,
+     * and accepting the property kept this warning quiet about it. The compiler keeps the attribute
+     * now, so a property is a hand-written mistake.
      */
     assert.equal(
       named(html`<math><annotation-xml .encoding=${'text/html'}>${html`<u34>x</u34>`}</annotation-xml></math>`)
         .length,
-      0,
-      'the PROPERTY spelling makes it an integration point, exactly as the attribute does'
+      1,
+      'the PROPERTY spelling is invisible to the parser, so the content is named'
     );
     assert.equal(
-      named(html`<math><annotation-xml .encoding=${'application/mathml+xml'}>${html`<u36>x</u36>`}</annotation-xml></math>`)
-        .length,
+      named(html`<math><annotation-xml encoding="text/html">${html`<u36>x</u36>`}</annotation-xml></math>`).length,
+      0,
+      'CONTROL: the ATTRIBUTE spelling is an integration point'
+    );
+    /**
+     * **An `<svg>` inside `<annotation-xml>` is the parser's own placement, whatever the encoding** —
+     * a start tag named `svg` there opens SVG content, so the same markup written by hand builds the
+     * identical DOM in silence. Only the `svg` element earns that: any other SVG element there is
+     * MathML to the parser, and is still named.
+     */
+    assert.equal(
+      named(html`<math><annotation-xml>${svg`<svg width="4"><rect width="1"></rect></svg>`}</annotation-xml></math>`).length,
+      0,
+      'an <svg> in an unencoded <annotation-xml> is where the parser puts one'
+    );
+    assert.equal(
+      named(html`<math><annotation-xml>${svg`<rect width="1"></rect>`}</annotation-xml></math>`).length,
       1,
-      'CONTROL: any other encoding keeps the content MathML, property spelling included'
+      'CONTROL: a bare SVG shape there is not, and is still named'
     );
     /**
      * `image/svg+xml` is MathML's own registered encoding for an SVG annotation — the one place SVG
@@ -477,10 +492,8 @@ test('an html template committed into <svg> or <math> is named in development', 
     assert.equal(named(html`<math><ms>${html`<u7>x</u7>`}</ms></math>`).length, 0, '<ms> likewise');
 
     /**
-     * `<annotation-xml>` is an integration point only for the two HTML encodings, and JSX compiles
-     * that dash-named tag's attribute to a PROPERTY — so the branch has to read both. This helper
-     * covers the ATTRIBUTE spelling; the PROPERTY one is asserted further down, because for a while
-     * only this half existed and dropping the property read failed nothing.
+     * `<annotation-xml>` is an integration point only for the two HTML encodings, read from the
+     * ATTRIBUTE — the one the parser reads. The property spelling is asserted further down.
      */
     const withEncoding = (value, node) => {
       seen.length = 0;

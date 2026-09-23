@@ -30,7 +30,12 @@ const pick = (r, xs) => xs[Math.floor(r() * xs.length)];
 
 const HTML_TAGS = ['div', 'span', 'p', 'b'];
 const COMP_TAGS = ['x-row', 'calendar-day', 'a-b-c'];
-const SVG_TAGS = ['circle', 'rect', 'path'];
+/**
+ * `text` and `tspan` are here because they CANNOT upgrade on their own name — so one reached through
+ * an expression inside `<svg>` is SVG only because of lexical mode tracking. With shapes alone the
+ * root upgrade covered every row, and disabling mode tracking entirely left this suite green.
+ */
+const SVG_TAGS = ['circle', 'rect', 'path', 'text', 'tspan'];
 const EXPRS = ['s.str', 's.num', 's.f', 's.t', 'cond && <i>x</i>', 'rows.map((r) => <b>{r}</b>)', 's.arr'];
 const PROPS = ['date={d}', 'count={3}', 'active', 'data-x="1"', 'aria-label="l"', 'className="c"', 'title={t}'];
 
@@ -66,7 +71,7 @@ const SEEDS = extendSeeds([1, 7, 13, 29, 101, 404]);
 const PER_SEED = 70;
 
 let checked = 0;
-const cover = { svg: 0, comp: 0, fo: 0, helper: 0 };
+const cover = { svg: 0, svgMode: 0, comp: 0, fo: 0, helper: 0 };
 const problems = [];
 for (const seed of SEEDS) {
   for (let i = 0; i < PER_SEED; i++) {
@@ -77,7 +82,8 @@ for (const seed of SEEDS) {
     try { out = transformJsx(source, `f${seed}-${i}.jsx`, { inject: false }); }
     catch (error) { problems.push(`seed ${seed}.${i}: THREW ${error.message.slice(0, 60)}\n    ${jsx}`); continue; }
     checked++;
-    if (/<svg>[^]*\{[^}]*<(?:circle|rect|path)/.test(jsx)) cover.svg++;
+    if (/<svg>[^]*\{[^}]*<(?:circle|rect|path|text|tspan)/.test(jsx)) cover.svg++;
+    if (/<svg>[^]*\{[^}]*<(?:text|tspan)[ >]/.test(jsx)) cover.svgMode++;
     if (/<(?:x-row|calendar-day|a-b-c)[ >]/.test(jsx)) cover.comp++;
     if (/foreignObject/.test(jsx)) cover.fo++;
     if (/\$veraChild\(/.test(out)) cover.helper++;
@@ -113,9 +119,10 @@ for (const seed of SEEDS) {
  */
 assert.ok(checked >= SEEDS.length * PER_SEED * 0.9, `only ${checked} trees compiled — the generator is broken, not the transform`);
 assert.ok(cover.svg >= 20, `only ${cover.svg} trees put a shape inside an <svg> EXPRESSION — the svg rule is untested`);
+assert.ok(cover.svgMode >= 10, `only ${cover.svgMode} trees put a name that cannot upgrade alone inside an <svg> EXPRESSION — lexical mode is untested, the root upgrade masks it`);
 assert.ok(cover.comp >= 20, `only ${cover.comp} trees carried a component tag — the prop rule is untested`);
 assert.ok(cover.fo >= 5, `only ${cover.fo} trees carried <foreignObject> — the mode flip is untested`);
 assert.ok(cover.helper >= 20, `only ${cover.helper} trees emitted the child helper — the boolean rule is untested`);
 
 assert.deepEqual(problems.slice(0, 5), [], `${problems.length} invariant violation(s):\n\n${problems.slice(0, 5).join('\n\n')}`);
-console.log(`jsx features fuzz: ${checked} trees — svg ${cover.svg}, components ${cover.comp}, foreignObject ${cover.fo}, helper ${cover.helper}`);
+console.log(`jsx features fuzz: ${checked} trees — svg ${cover.svg} (mode-only ${cover.svgMode}), components ${cover.comp}, foreignObject ${cover.fo}, helper ${cover.helper}`);

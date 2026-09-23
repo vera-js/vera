@@ -1,4 +1,4 @@
-import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from '@verajs/shared-utils';
+import { RAW_TEXT_ELEMENTS, RESERVED_ELEMENT_NAMES, VOID_ELEMENTS } from '@verajs/shared-utils';
 import { atExpressionPosition, createParseState, findRoots, isBlankExpression, mark } from './parser.js';
 import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
@@ -17,7 +17,7 @@ import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from '.
  *   className / htmlFor           -> class / for
  *   value / checked               -> .value / .checked   (controlled-input semantics)
  *   defaultValue / defaultChecked -> value="…" / ?checked=${…}
- *   disabled / hidden / …         -> ?bool=${…} when bound; bare shorthand stays an attribute
+ *   disabled / hidden / …         -> ?bool=${…}, a literal too ("" true, "false" false); bare stays static
  *   dangerouslySetInnerHTML={{__html: x}} -> .innerHTML=${x}
  *   ref={r}                       -> element-position ${r}
  *   key={k} (on a JSX root)       -> keyed(k, html`…`)
@@ -165,7 +165,21 @@ const isComponentName = (tag: string): boolean => tag.includes('.') || !/^[a-z]/
  * dash-named tag is an ELEMENT, and folding the dash into that predicate rewrote every custom
  * element as a function call and broke six suites.
  */
-const cannotSurviveSvg = (tag: string): boolean => isComponentName(tag) || tag.includes('-');
+const cannotSurviveSvg = (tag: string): boolean => isComponentName(tag) || isCustomElementName(tag);
+
+/**
+ * A dash makes a tag a custom element — except the eight names SVG and MathML already own, which the
+ * spec reserves. `<annotation-xml>` read as a custom element had its `encoding` compiled to a
+ * property, where the parser cannot see it.
+ */
+const isCustomElementName = (tag: string): boolean =>
+  tag.includes('-') && !RESERVED_ELEMENT_NAMES.has(tag.toLowerCase());
+
+/**
+ * `<annotation-xml>` is an HTML integration point for exactly these two `encoding` values, matched
+ * ASCII-case-insensitively — the parser's rule, and the renderer's `foreignHost` asks the same.
+ */
+const HTML_ENCODINGS = new Set(['text/html', 'application/xhtml+xml']);
 
 /**
  * SVG's HTML integration points — the spec's own term, and the runtime's own list: `foreignHost`
@@ -219,11 +233,12 @@ const titleWithElement = (node: JsxNode): boolean =>
   node.children.some((kid) => !('text' in kid) && !('expr' in kid));
 
 /**
- * MathML's TEXT integration points. `annotation-xml` is deliberately absent: it is an integration
- * point only for the two HTML `encoding` values, and a compiler cannot rely on seeing that
- * attribute as a literal — leaving it out keeps its content MathML, which is the spec's answer for
- * every other encoding. `@verajs/renderer`'s `foreignHost` reads the attribute at runtime, where it
- * is knowable, and that asymmetry is the point rather than a drift.
+ * MathML's TEXT integration points. `annotation-xml` is not in the list because its answer depends
+ * on its `encoding`: `childMode` asks for a LITERAL one of the two HTML encodings, which is what the
+ * parser does with the static children of the same element, and otherwise keeps the content MathML
+ * — the spec's answer for every other encoding, and the only safe one for a BOUND encoding the
+ * compiler cannot read. `@verajs/renderer`'s `foreignHost` reads it at runtime, where it is
+ * knowable either way.
  */
 const MATHML_ISLANDS = new Set(['mi', 'mo', 'mn', 'ms', 'mtext']);
 
@@ -865,7 +880,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * because the element genuinely IS SVG-namespaced. Half of it predates this feature. One list,
    * both uses.
    */
-  const childMode = (tag: string, mode: Mode): Mode =>
+  const childMode = (tag: string, mode: Mode, htmlEncoding = false): Mode =>
     /**
      * A nested `<svg>`/`<math>` switches namespace only from an HTML insertion mode. Inside foreign
      * content the parser puts EVERY start tag in the adjusted current node's namespace, so
@@ -879,7 +894,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         ? MATH_MODE
         : mode === SVG_MODE && SVG_INTEGRATION_POINTS.has(tag)
           ? HTML_MODE
-          : mode === MATH_MODE && MATHML_ISLANDS.has(tag)
+          : mode === MATH_MODE && (MATHML_ISLANDS.has(tag) || (tag === 'annotation-xml' && htmlEncoding))
             ? HTML_MODE
             : mode;
 
@@ -998,7 +1013,12 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       tpl.expr(emitComponent(node as ElementNode, false, mode));
       return;
     }
-    const inner = childMode(node.tag, mode);
+    const encoding = node.attrs.find((a) => a.spread !== true && a.name === 'encoding');
+    const inner = childMode(
+      node.tag,
+      mode,
+      encoding !== undefined && encoding.spread !== true && encoding.kind === 'str' && HTML_ENCODINGS.has(encoding.text.toLowerCase())
+    );
     tpl.static('<' + node.tag);
     for (const attribute of node.attrs) emitAttribute(node, attribute, tpl, isRoot, mode);
     /**
@@ -1149,7 +1169,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * guesses below (`value`/`checked`, the boolean table) are interpretations of HTML controls
      * and deliberately never reach a component — its `disabled={x}` is its own prop.
      */
-    if (_node.tag.includes('-') && IDENTIFIER.test(name) && !RENAMED_ATTRIBUTES.has(name)) {
+    if (isCustomElementName(_node.tag) && IDENTIFIER.test(name) && !RENAMED_ATTRIBUTES.has(name)) {
       tpl.static(` .${name}=`);
       tpl.expr(bound ? expression! : JSON.stringify(attribute.kind === 'none' ? true : literal));
       return;

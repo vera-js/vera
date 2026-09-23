@@ -66,6 +66,22 @@ test('the canonical home says exactly what the spec says', async () => {
   assert.deepEqual([...RAW_TEXT_ELEMENTS].sort(), [...RAW_TEXT].sort(), 'RAW_TEXT_ELEMENTS');
 });
 
+/** The eight hyphenated names SVG and MathML define, reserved by the custom-elements spec. */
+const RESERVED = [
+  'annotation-xml', 'color-profile', 'font-face', 'font-face-src',
+  'font-face-uri', 'font-face-format', 'font-face-name', 'missing-glyph',
+];
+
+test('the reserved element names are the spec\'s eight, in the home and in ssr\'s copy', async () => {
+  const { RESERVED_ELEMENT_NAMES } = await import('@verajs/shared-utils');
+  assert.deepEqual([...RESERVED_ELEMENT_NAMES].sort(), [...RESERVED].sort(), 'RESERVED_ELEMENT_NAMES');
+  const shim = read('packages/ssr/src/vera/shim.js');
+  const copy = /const RESERVED_NAMES = new Set\(\[([^\]]*)\]\)/.exec(shim);
+  assert.ok(copy, 'the ssr shim still spells its copy as a Set literal this suite can read');
+  const names = [...copy[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(names.sort(), [...RESERVED].sort(), 'a name ssr treats as a custom element is one the client does not');
+});
+
 test("@verajs/ssr's copies agree — it cannot import, so this is what keeps them together", async () => {
   const { VOID_ELEMENTS, RAW_TEXT_ELEMENTS } = await import('../packages/ssr/src/vera/escaping.js');
   assert.deepEqual([...VOID_ELEMENTS].sort(), [...VOID].sort(),
@@ -121,7 +137,7 @@ test('the consolidation held — no package that CAN import keeps a private copy
 function restatedLists(source) {
   const literals = [...source.matchAll(/\[([^\][]*)\]/g)];
   const restated = [];
-  for (const [name, shared] of [['VOID_ELEMENTS', VOID], ['RAW_TEXT_ELEMENTS', RAW_TEXT]])
+  for (const [name, shared] of [['VOID_ELEMENTS', VOID], ['RAW_TEXT_ELEMENTS', RAW_TEXT], ['RESERVED_ELEMENT_NAMES', RESERVED]])
     for (const [, body] of literals) {
       const named = new Set([...body.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]));
       if (shared.every((n) => named.has(n))) restated.push(name);
