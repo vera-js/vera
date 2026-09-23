@@ -61,6 +61,12 @@ const PRELUDES = [
   'const u = a.NAME;',
   "/*\nimport { NAME } from './stubs.mjs';\n*/",
   "const T = `\nimport { NAME } from 'x';\n`;",
+  "const doc = `Usage:\n${`\nimport { NAME } from 'x';\n`}\nDone.`;",
+  'const tick = "wrap in `";\nconst NAME = 1;\nconst t2 = `z`;',
+  "const API = 'https://api.example.com'; const NAME = 1;",
+  "const open = '/*';\nconst NAME = 1;\nconst close = '*/';",
+  'class Zx {\n  m() { return NAME`<b>t</b>` }\n}',
+  'class Zy extends HTMLElement {\n  render() { return NAME`<i>t</i>` }\n}',
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */
@@ -75,6 +81,8 @@ const BODIES = [
   'export const view = ({ NAME }) => <path d={NAME} />;',
   'export const view = <math><mtext><b>x</b></mtext></math>;',
   'export const view = <Frame><path d="M0" /><circle r="1" /></Frame>;',
+  'export function view() {\n  return html`<b>t</b>`;\n}\nexport const other = <div>hi</div>;',
+  'export const view = () => <Frame><title>T</title><path d="M0" /></Frame>;',
 ];
 
 const NAMES = ['html', 'svg', 'keyed', 'spread', 'mathml'];
@@ -97,7 +105,7 @@ test('every module the transform can be handed still parses and runs', async () 
            * is the correct answer, so the throw is the snippet's own and the pair is not a legal
            * corpus entry.
            */
-          const binds = new RegExp(`(?:const|let|var|function|class)\\b[^=;]*\\b${name}\\b`).test(
+          const binds = new RegExp(`(?:const|let|var|function|class)[\\s{[,]*[^=;\\n]*\\b${name}\\b`).test(
             pre.replace(/^\s*import\b[^\n]*$/gm, '')
           );
           if (binds && source.includes(`${name}\``)) continue;
@@ -111,7 +119,7 @@ test('every module the transform can be handed still parses and runs', async () 
           }
           const file = join(dir, `m${built++}.mjs`);
           /** Stubs for what the SNIPPETS reference — never for what the transform injects. */
-          writeFileSync(file, `const lib = {}, arr = [], a = {}, Frame = (zp) => zp;\n${out}`);
+          writeFileSync(file, `const lib = {}, arr = [], a = {}, Frame = (zp) => zp, HTMLElement = class {};\n${out}`);
           try {
             const module = await import(pathToFileURL(file).href);
             if (typeof module.view === 'function') module.view([1, 2]);

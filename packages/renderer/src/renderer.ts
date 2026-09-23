@@ -819,6 +819,12 @@ class Template {
  * `@verajs/renderer/keyed` does NOT cross it — it lands its rows through its own `$c` branches,
  * which is why there are three call sites rather than one.
  *
+ * Two insertion paths are deliberately NOT covered, and saying so is better than implying they are.
+ * Hydration commits through its own cursor. `@verajs/renderer/slots` moves assigned light children
+ * into place itself, so an HTML `<path>` distributed into an SVG `<g>` is silent — that entry
+ * imports nothing by design, which is exactly what lets it sit beside any renderer entry on a CDN
+ * page, so covering it means a second address for this rule rather than a call.
+ *
  * Each call site reads the host from the node that knows where the content LANDS, which is not
  * always the part's own parent: a batched fill is assembled in a `DocumentFragment`, which has no
  * namespace to read, so `_insert` prefers `_foreignHost` in exactly that case and `$c` reaches for
@@ -861,13 +867,27 @@ const foreignHost = (parent: Node): string | null => {
     const encoding = (element.getAttribute('encoding') ??
       (element as { encoding?: unknown }).encoding) as string | undefined;
     const normalised = typeof encoding === 'string' ? encoding.toLowerCase() : undefined;
-    return normalised === 'text/html' || normalised === 'application/xhtml+xml' ? null : name;
+    /**
+     * `image/svg+xml` leaves too. It is MathML's own registered encoding for an SVG annotation — the
+     * one place SVG content inside a `<math>` subtree is the author's intended, spec-sanctioned
+     * spelling — and the renderer builds it correctly there, since it inserts through the DOM API
+     * rather than the HTML parser. Treating it as foreign produced a warning whose every clause was
+     * false: that the namespaces "cannot nest directly" here, and that the fix is to change the
+     * encoding to `text/html`, which is the wrong encoding for SVG. Leaving the host unexamined
+     * gives up naming genuinely HTML content inside an SVG annotation, which is the rarer mistake by
+     * far and the one no one has ever reported.
+     */
+    return normalised === 'text/html' ||
+      normalised === 'application/xhtml+xml' ||
+      normalised === 'image/svg+xml'
+      ? null
+      : name;
   }
   return name;
 };
 
 /**
- * Named ONCE per host-namespace, host-name and offending-tag triple. A diagnostic that repeats is as useless as one that stays
+ * Named ONCE per host-namespace, host-name, content-namespace and offending-tag. A diagnostic that repeats is as useless as one that stays
  * silent, and this one sits on an insert, so a toggled or animated subtree produced one
  * `console.warn` per frame before the guard. `warnedSlotless` above is the precedent and the same
  * `Set<string>` shape. `warnBooleanChild` is the other precedent and a DIFFERENT rule: it re-warns
@@ -970,7 +990,8 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
         ? `If it is meant to be an SVG or MathML element, the template holding it needs the ` +
           `svg\`…\` or mathml\`…\` tag — the tag is chosen where a template is WRITTEN, not where ` +
           `it is used, so write it at the call site. If it is genuinely HTML (a <div>, a custom ` +
-          `element), it belongs in ${island}: tagging it will not help, and a custom element only ` +
+          `element), it belongs in ${island} — which has to sit in a container such as <g> or <svg>, ` +
+          `not in a text or paint element: tagging it will not help, and a custom element only ` +
           `upgrades in the HTML namespace.`
         : `The template's tag is already right — these two namespaces cannot nest directly. Put ` +
           `the ${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}, which is where ` +

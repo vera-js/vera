@@ -330,10 +330,21 @@ test('an html template committed into <svg> or <math> is named in development', 
       'the PROPERTY spelling makes it an integration point, exactly as the attribute does'
     );
     assert.equal(
-      named(html`<math><annotation-xml .encoding=${'image/svg+xml'}>${html`<u36>x</u36>`}</annotation-xml></math>`)
+      named(html`<math><annotation-xml .encoding=${'application/mathml+xml'}>${html`<u36>x</u36>`}</annotation-xml></math>`)
         .length,
       1,
       'CONTROL: any other encoding keeps the content MathML, property spelling included'
+    );
+    /**
+     * `image/svg+xml` is MathML's own registered encoding for an SVG annotation — the one place SVG
+     * inside a `<math>` subtree is the intended spelling. Treating it as foreign produced a warning
+     * whose every clause was false, including advice to change the encoding to `text/html`.
+     */
+    assert.equal(
+      named(html`<math><annotation-xml encoding="image/svg+xml">${svg`<u45>x</u45>`}</annotation-xml></math>`)
+        .length,
+      0,
+      'an SVG annotation is the author saying exactly what they mean, and is left alone'
     );
 
     /**
@@ -398,6 +409,29 @@ test('an html template committed into <svg> or <math> is named in development', 
       named(html`<svg><g>${svg`<u42>x</u42>`}</g></svg>`).length,
       0,
       'CONTROL: content in its host own namespace is correct and stays silent'
+    );
+
+    /**
+     * `<script>` as well as `<style>` — the message names both and only one was ever rendered, so
+     * dropping the `script` arm failed nothing. Neither draws, so "will not render" is the wrong
+     * complaint for either.
+     */
+    assert.equal(
+      named(html`<svg><g>${html`<script>var u46 = 1;</script>`}</g></svg>`).length,
+      0,
+      'an HTML <script> inside an <svg> is silent, exactly as <style> is'
+    );
+
+    /**
+     * A SPENT key must skip its own node and let a later, fresh one through IN THE SAME CALL. The
+     * multi-root case above cannot reach it — both of its tags are fresh, so the dedupe branch never
+     * runs — and every list assertion commits each row separately.
+     */
+    assert.equal(named(html`<svg><g>${html`<u47>a</u47>`}</g></svg>`).length, 1, 'seed: spends <u47>');
+    assert.equal(
+      named(html`<svg><g>${html`<u47>a</u47><u48>b</u48>`}</g></svg>`).length,
+      1,
+      'a fresh offender behind a spent one in the same insert is still named'
     );
 
     /** Every SVG integration point, not only <foreignObject> — dropping desc/title failed nothing. */

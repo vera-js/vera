@@ -118,7 +118,10 @@ correct, and `<style>`/`<script>` are silent because neither draws — an HTML `
 `<svg>` applies its rules perfectly well, so "will not render" would be both wrong and exactly the
 guess the compiler refuses to make. It is raised from the template, list and keyed-list commit
 paths — including the batched one a growing icon list takes — and named once per host-and-tag pair
-rather than once per render. Hydration commits its nodes through its own cursor and is not covered. The message gives both remedies, because which is right depends on what the
+rather than once per render. Two insertion paths are NOT covered and are worth knowing rather than
+discovering: hydration commits its nodes through its own cursor, and `@verajs/renderer/slots` moves
+assigned light children into place itself — that entry imports nothing by design, which is what
+makes it safe beside any renderer on a CDN page. The message gives both remedies, because which is right depends on what the
 element was meant to be: `` svg`…` `` fixes an SVG element compiled as HTML, while genuinely HTML
 content needs an HTML island — `<foreignObject>` in SVG, `<mtext>` in MathML — tagging a custom element `` svg`…` `` would silence the warning and
 leave it permanently un-upgraded. **The limit of deciding this at compile time, stated plainly.** The tag is chosen from the root name;

@@ -184,7 +184,13 @@ const cannotSurviveSvg = (tag: string): boolean => isComponentName(tag) || tag.i
 const SVG_INTEGRATION_POINTS = new Set(['foreignObject', 'desc', 'title']);
 
 /**
- * Whether this node is a `<title>` holding a static ELEMENT.
+ * The names `@verajs/renderer` scans as RAW TEXT which a sibling can also make an SVG root. All
+ * three are in `SVG_WITH_SIBLING`, and `title` is in `SVG_INTEGRATION_POINTS` besides.
+ */
+const RAW_TEXT_ROOTS = new Set(['title', 'style', 'script']);
+
+/**
+ * Whether this node is one of those holding a static ELEMENT.
  *
  * `@verajs/renderer` scans `<title>` as raw text in every template, by one rule deliberately shared
  * between the scan and the parsed-tree pass. So a STATIC ELEMENT inside a `<title>` in an `svg`
@@ -195,7 +201,7 @@ const SVG_INTEGRATION_POINTS = new Set(['foreignObject', 'desc', 'title']);
  */
 const titleWithElement = (node: JsxNode): boolean =>
   node.fragment === undefined &&
-  node.tag === 'title' &&
+  RAW_TEXT_ROOTS.has(node.tag) &&
   node.children.some((kid) => !('text' in kid) && !('expr' in kid));
 
 /**
@@ -457,21 +463,106 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * `//` inside a string, which costs nothing here, since all this text is ever asked is whether a
    * name is imported or bound.
    */
-  const source = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   /**
-   * The same again with every TEMPLATE LITERAL's contents blanked, for the two questions that must
-   * not read prose: a module holding its own source as a string —
-   * `` const T = `import { html } from 'x';` `` — otherwise registers that as a real import,
-   * suppresses the injection, and leaves `html is not defined`. Found by transforming a corpus of
-   * 1 041 modules and RUNNING each one, which is the only way this class shows up: it parses.
+   * **The JavaScript with every comment, string and template-literal CONTENT blanked**, delimiters
+   * and newlines kept, so the two questions below read code and never prose.
    *
-   * The delimiters stay, so a tag use (`` html` ``) is still visible to the test below that needs
-   * it — that one asks `source`, deliberately, because the backtick is the whole signal.
+   * A pair of regexes did this and was wrong in BOTH directions, each fatally. Blanking `` `…` ``
+   * non-recursively inverts on a NESTED literal — `` `A ${`B`} C` `` pairs the first backtick with
+   * the second, so A and C are blanked and B LEAKS — and a fake `import { html } from …` inside B
+   * then suppressed the injection for `html is not defined`. In the other direction a lone backtick
+   * inside a string (`` const hint = "wrap in `" ``) paired with the next real literal and ATE the
+   * binding between them, so a real `const { html } = vera` went unseen and the injected import
+   * collided with it. `//` inside `'https://…'` and `/*` as a string's contents do the same.
+   *
+   * Hence a scan rather than a pattern: whether a token is inside a literal is a question about
+   * characters, and nothing shorter answers it. Newlines survive so the line-anchored import match
+   * still works, and delimiters survive so a tag use (`` html` ``) stays visible.
    */
-  const outsideText = source.replace(/`(?:\\[\s\S]|[^`\\])*`/g, '``');
+  const blankLiterals = (text: string): string => {
+    let out = '';
+    let i = 0;
+    /** Open template literals; `${` returns to code, `}` resumes the one it came from. */
+    let open = 0;
+    const eatTemplate = () => {
+      while (i < text.length) {
+        if (text[i] === '\\') {
+          out += '  ';
+          i += 2;
+          continue;
+        }
+        if (text[i] === '`') {
+          out += '`';
+          i++;
+          open--;
+          return;
+        }
+        if (text[i] === '$' && text[i + 1] === '{') {
+          out += '${';
+          i += 2;
+          return;
+        }
+        out += text[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+    };
+    while (i < text.length) {
+      const c = text[i];
+      const next = text[i + 1];
+      if (c === '/' && next === '/') {
+        while (i < text.length && text[i] !== '\n') {
+          out += ' ';
+          i++;
+        }
+        continue;
+      }
+      if (c === '/' && next === '*') {
+        const close = text.indexOf('*/', i + 2);
+        const stop = close < 0 ? text.length : close + 2;
+        for (; i < stop; i++) out += text[i] === '\n' ? '\n' : ' ';
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        out += c;
+        i++;
+        while (i < text.length && text[i] !== c) {
+          if (text[i] === '\\') {
+            out += '  ';
+            i += 2;
+            continue;
+          }
+          out += text[i] === '\n' ? '\n' : ' ';
+          i++;
+        }
+        if (i < text.length) {
+          out += c;
+          i++;
+        }
+        continue;
+      }
+      if (c === '`') {
+        open++;
+        out += c;
+        i++;
+        eatTemplate();
+        continue;
+      }
+      if (c === '}' && open > 0) {
+        out += c;
+        i++;
+        eatTemplate();
+        continue;
+      }
+      out += c;
+      i++;
+    }
+    return out;
+  };
+  const source = blankLiterals(js);
+
   /** Names a real import statement already binds — those need no injecting and no renaming. */
   const imported = new Set<string>();
-  for (const [, clause] of outsideText.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]/g))
+  for (const [, clause] of source.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]/g))
     for (const part of clause!.replace(/[{}]/g, ' ').split(','))
       imported.add(part.trim().split(/\s+as\s+/).pop()!.trim());
   /** Every local name already handed out, so two of them can never be the same. */
@@ -497,7 +588,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * export name in `import { html as h }` binds nothing at all — leaving those lines in renamed a
      * tag for a collision that does not exist.
      */
-    const stripped = outsideText
+    const stripped = source
       .replace(/(?:^|\n)\s*import\s+[^'"]*?\s*from\s*['"][^'"]*['"];?/g, '')
       .split(`${exported}\``)
       .join('')
@@ -513,26 +604,37 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * `'text/html'` both merely contain the word. So where a tag use exists, only a DECLARATION
      * counts, which is narrow but wrong far less often than either substring answer.
      *
+     * That declaration test reads `stripped`, with the tag uses ALREADY removed, which is what keeps
+     * it honest across lines: `[^=;]*?` spans newlines, so over the raw text a
+     * `class Chart { row() { return html\`…\` } }` — the framework's own documented component shape —
+     * matched as though `class … html` were a binding, renamed the import, and left the author's
+     * hand-written tag undefined. With the uses gone there is nothing for it to reach.
+     *
      * The residual limit, stated rather than papered over: a module that BOTH defines its own tag
      * of this name in a form no declaration keyword introduces — `const { svg } = vera` — AND writes
      * `` svg`…` `` by hand is not distinguishable here. That module wants `options.svg` or
      * `inject: false`, and both are in the README.
      */
+    /**
+     * A whole-WORD match, not a substring: `options.html` may name `h`, and a bare `includes('h')`
+     * is true of almost any source — `export`, `the`, a hex colour.
+     *
+     * One test, over text the three misleading spellings have already left. A narrower DECLARATION
+     * pattern guarded this while string contents were still visible (`'text/html'` read as a
+     * binding), and it cost more than it saved: `[^=;]*?` spans lines, so a
+     * `class Chart { row() { return html\`…\` } }` matched as though `class … html` were a binding,
+     * and nothing shaped like a regex can see a PARAMETER, which `items.map((svg) => <path d={svg}/>)`
+     * binds inside an expression. Blanking literal contents removed the reason for it.
+     */
     const escaped = exported.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     /**
-     * A WHOLE-WORD match, not a substring: `options.html` may name `h`, and a bare `includes('h')`
-     * is true of almost any source — `export`, `the`, a hex colour — so every configured short name
-     * renamed itself for nothing.
+     * Two positions the name can occupy without binding anything, and both dangled a hand-written
+     * tag when they counted: a MEMBER access (`a.html`) and a KEY (`{ html: 1 }`). A key followed by
+     * `:` never binds ITS own name — `const { html: renamed } = lib` binds `renamed` — so the same
+     * exclusion serves the object literal and the renaming pattern, while shorthand `{ html }`,
+     * which does bind, has no colon and still counts.
      */
-    const bound = source.includes(`${exported}\``)
-      ? new RegExp(`(?:^|[^\\w$.])(?:const|let|var|function|class)[\\s{[,]+[^=;]*?\\b${escaped}\\b`).test(outsideText)
-      : new RegExp(`\\b${escaped}\\b`).test(stripped);
-    /**
-     * An existing IMPORT is consulted only after the binding test, never instead of it. A module can
-     * import a tag AND shadow it — `import { svg } from '@verajs/core'` beside
-     * `({ svg }) => <path d={svg}/>` — and short-circuiting on the import emitted `` svg`…` `` into
-     * the scope where the parameter wins, for `svg is not a function` at first render.
-     */
+    const bound = new RegExp(`(?<![.\\w$])${escaped}\\b(?!\\s*:)`).test(stripped);
     if (!bound && !taken.has(exported)) {
       taken.add(exported);
       return exported;
@@ -673,8 +775,16 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         node.fragment === undefined
           ? SVG_ELEMENTS.has(node.tag) || (vouched && SVG_WITH_SIBLING.has(node.tag))
           : allSvgChildren(node);
-      /** …but never over a component or custom element, which cannot survive the namespace. */
-      if (svgRoot && !hasComponent(node)) mode = SVG_MODE;
+      /**
+       * …but never over a component or custom element, which cannot survive the namespace — and
+       * never over a raw-text element holding a static one. `hasComponent` walks the subtree, so it
+       * never asks about the node ITSELF; before a sibling could vouch, `<title>` was unable to be a
+       * root at all and the gap was unreachable. Vouching made it reachable, and
+       * `<F><title><tspan onClick={f}/></title><path/></F>` went straight into the scan/parse
+       * disagreement `titleWithElement` exists to bound: a dead `@click="$v…$"`, a lost binding, a
+       * throwing spread, and a diagnostic blaming the parser for dropping an element that is there.
+       */
+      if (svgRoot && !titleWithElement(node) && !hasComponent(node)) mode = SVG_MODE;
     }
     const parts = [''];
     const exprs: string[] = [];
@@ -935,7 +1045,15 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       const vouched =
         mode === HTML_MODE &&
         node.children.some(
-          (kid) => !('text' in kid) && !('expr' in kid) && kid.fragment === undefined && SVG_ELEMENTS.has(kid.tag)
+          (kid) =>
+            !('text' in kid) &&
+            !('expr' in kid) &&
+            kid.fragment === undefined &&
+            SVG_ELEMENTS.has(kid.tag) &&
+            /** A sibling the compiler is about to REFUSE cannot vouch for the others, or one
+             *  authored group is emitted in two namespaces: `<F><text/><g><my-card/></g></F>` kept
+             *  the `<g>` HTML for its custom element and upgraded the `<text>` on its word. */
+            !refusesSvg(kid)
         );
       for (const child of node.children) {
         if ('text' in child && child.text !== undefined) {

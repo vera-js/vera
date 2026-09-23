@@ -392,6 +392,46 @@ assert.ok(/svg`<text>hi<\/text>`/.test(vouched), 'content-bearing names are vouc
 assert.ok(/html`<title>Close<\/title>`/.test(vouched), 'CONTROL: alone, <title> is left as HTML');
 assert.ok(/html`<text>hello<\/text>`/.test(vouched), 'CONTROL: and <text> stays readable text, not a 0x0 SVG element');
 
+/**
+ * **A vouch does not exempt a raw-text element holding a static ELEMENT.** `hasComponent` walks the
+ * subtree and so never asks about the ROOT itself; before a sibling could vouch, `<title>` could not
+ * be a root at all, so the gap was unreachable. Vouching made it reachable, and the shape went
+ * straight into the scan/parse disagreement: a dead `@click="$v…$"`, a lost binding, a throwing
+ * spread, and a diagnostic blaming the parser for dropping an element that is plainly there.
+ * `<style>` and `<script>` are the same names one step over.
+ */
+const rawRoots = transformJsx(
+  `export const a = ({ F, f }) => <F><title><tspan onClick={f}>S</tspan></title><path d="M0" /></F>;
+   export const b = ({ F, p }) => <F><title><tspan {...p} /></title><path d="M0" /></F>;
+   export const c = ({ F, f }) => <F><style><b onClick={f}>x</b></style><path d="M0" /></F>;
+   export const d = ({ F }) => <F><title>Close</title><path d="M0" /></F>;
+   export const e = ({ F, l }) => <F><title>{l}</title><path d="M0" /></F>;`,
+  'raw.jsx',
+  { inject: false }
+);
+for (const [name, tag] of [['a', 'title'], ['b', 'title'], ['c', 'style']])
+  assert.ok(
+    new RegExp(`${name} = .*children: \\[html\`<${tag}`).test(rawRoots),
+    `a static element inside <${tag}> refuses even when a sibling vouches (${name})`
+  );
+assert.ok(/d = .*children: \[svg`<title/.test(rawRoots), 'CONTROL: text-only <title> still upgrades');
+assert.ok(/e = .*children: \[svg`<title/.test(rawRoots), 'CONTROL: a bound <title> still upgrades');
+
+/**
+ * **A sibling the compiler REFUSES cannot vouch for the others**, or one authored group is emitted
+ * in two namespaces — the `<g>` kept as HTML for its custom element while the `<text>` beside it is
+ * upgraded on the word of that same `<g>`. `<text>` is the content-bearing name whose whole
+ * exclusion rationale then applies with no surviving SVG sibling to justify it.
+ */
+const vouchers = transformJsx(
+  `export const a = ({ F }) => <F><text>L</text><g><my-card /></g></F>;
+   export const b = ({ F }) => <F><text>L</text><g><circle r="1" /></g></F>;`,
+  'vo.jsx',
+  { inject: false }
+);
+assert.ok(/a = .*children: \[html`<text/.test(vouchers), 'a refused sibling does not vouch — the group agrees');
+assert.ok(/b = .*children: \[svg`<text/.test(vouchers), 'CONTROL: a sibling that survives does vouch');
+
 /** camelCase stays out even with a sibling: its hazard is SSR casing, which a sibling cannot speak to. */
 const camel = transformJsx(
   `const F = ({ children }) => <svg>{children}</svg>;
@@ -418,7 +458,6 @@ for (const [shape, src] of [
   ['an object pattern — the buildless CDN idiom', 'const { html, svg, render } = vera;'],
   ['an array pattern', 'const [svg, setSvg] = useState();'],
   ['a second declarator', 'let q, svg;'],
-  ['a name used only inside a string', 'const d = "svg";'],
 ]) {
   const out = transformJsx(`${src}\nexport const a = <path d="M0" />;`, 'cl.jsx', { inject: true });
   assert.match(out, /import \{ svg as \$veraSvg \}/, `the local binding is renamed, never the export: ${shape}`);
@@ -457,6 +496,23 @@ assert.match(taken, /import \{ svg as \$veraSvg2 \}/, 'a taken alias is bumped r
  * CONTROLS. A module that never mentions the name keeps the clean one — which is the common case
  * and the reason this is not simply always-prefixed.
  */
+/**
+ * A name that appears only inside a STRING, a comment or a template literal is not a binding, and
+ * renaming for it is noise. The scan blanks literal contents to see that — which it must do with a
+ * character walk, since `` `A ${`B`} C` `` inverts any non-recursive pattern and leaks B.
+ */
+for (const [shape, src] of [
+  ['a string', 'const d = "svg";'],
+  ['a line comment', '// svg goes here'],
+  ['a block comment', '/* svg goes here */'],
+  ['a template literal', 'const d = `a svg here`;'],
+  ['a NESTED template literal', 'const d = `a ${`svg`} here`;'],
+]) {
+  const quiet = transformJsx(`${src}\nexport const a = <path d="M0" />;`, 'q.jsx', { inject: true });
+  assert.match(quiet, /import \{ svg \} from/, `${shape} is not a binding, so the name is untouched`);
+  assert.ok(/a = svg`/.test(quiet), `${shape}: and so is the call site`);
+}
+
 const noClash = transformJsx(`export const a = <path d="M0" />;`, 'nc.jsx', { inject: true });
 assert.match(noClash, /import \{ svg \} from/, 'CONTROL: nothing to collide with, so the name is untouched');
 assert.ok(/a = svg`/.test(noClash), 'CONTROL: and so is the call site');
