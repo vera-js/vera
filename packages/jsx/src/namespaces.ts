@@ -38,6 +38,7 @@ type Template = {
  * A clone of the parent is given one unknown child through `innerHTML`, which runs the fragment
  * parser with that element as its context, so integration points answer as the platform answers.
  */
+const answers = new Map<string, string | null>();
 const childOf = (parent: Element): string | null => {
   if (parent.namespaceURI === XHTML) return null;
   /**
@@ -49,10 +50,21 @@ const childOf = (parent: Element): string | null => {
     const encoding = parent.getAttribute('encoding')?.toLowerCase();
     if (encoding === 'text/html' || encoding === 'application/xhtml+xml') return null;
   }
-  const probe = parent.cloneNode(false) as Element;
-  probe.innerHTML = '<x></x>';
-  const ns = (probe.firstChild as Element | null)?.namespaceURI ?? null;
-  return ns === XHTML ? null : ns;
+  /**
+   * **Cached by namespace and name**, because the parser's answer depends on nothing else here
+   * (`annotation-xml`, the one element it can depend on an attribute for, left above). Unasked, this
+   * probe ran once per instance CREATED in a foreign position — a clone and a parse per icon — and a
+   * resolver the renderer calls per instance must cost a lookup, not a parse.
+   */
+  const key = `${parent.namespaceURI} ${parent.localName}`;
+  let answer = answers.get(key);
+  if (answer === undefined) {
+    const probe = parent.cloneNode(false) as Element;
+    probe.innerHTML = '<x></x>';
+    const ns = (probe.firstChild as Element | null)?.namespaceURI ?? null;
+    answers.set(key, (answer = ns === XHTML ? null : ns));
+  }
+  return answer;
 };
 
 /**
