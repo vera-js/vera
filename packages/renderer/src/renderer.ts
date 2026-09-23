@@ -1036,16 +1036,31 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
  * create path the template branch, `hold` and list rows share. The `'template'` hook's resolver is
  * asked here and only here, and the scope is set around the first update and nowhere else.
  */
-const build = (result: TemplateResult, parent: Node): Instance => {
-  let template = getTemplate(result);
-  if (template._$at$ !== undefined) template = template._$at$(parent);
+const resolve = (result: TemplateResult, parent: Node): Template => {
+  const template = getTemplate(result);
+  return template._$at$ !== undefined ? template._$at$(parent) : template;
+};
+const instantiate = (template: Template, values: unknown[]): Instance => {
   const instance = new Instance(template);
   const outer = scope;
   scope = template;
-  instance._update(result.values);
+  instance._update(values);
   scope = outer;
   return instance;
 };
+const build = (result: TemplateResult, parent: Node): Instance => instantiate(resolve(result, parent), result.values);
+
+/**
+ * **The last list fill's resolution**, so a fill resolves once rather than once per row. Every row of
+ * a batched fill lands in the same fragment, so a row with the same strings as the one before it
+ * takes the same template — one identity compare instead of a cache lookup and a resolver call.
+ * Only a FRAGMENT is remembered: it is empty once inserted, so holding it keeps nothing alive, while
+ * remembering a live parent would pin a removed subtree. A nested list's fill overwrites it, and the
+ * outer fill's next row simply resolves again.
+ */
+let fillParent: Node | null = null;
+let fillStrings: TemplateStringsArray | null = null;
+let fillTemplate: Template | null = null;
 
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
@@ -2601,7 +2616,17 @@ class ChildPart implements Part {
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
-      const instance = build(result, this._start.parentNode!);
+      let template: Template;
+      if (parent === fillParent && result.strings === fillStrings) template = fillTemplate!;
+      else {
+        template = resolve(result, this._start.parentNode!);
+        if (parent.nodeType === 11) {
+          fillParent = parent;
+          fillStrings = result.strings;
+          fillTemplate = template;
+        }
+      }
+      const instance = instantiate(template, result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
         if (stamp !== null) stampOwn(rootNode, stamp);
