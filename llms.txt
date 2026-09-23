@@ -286,7 +286,8 @@ root is only ever upgraded to `svg`.
 A SIBLING vouches for a name a root tag alone cannot prove. In
 `<Frame><title>{label}</title><path d={d} /></Frame>` the children are separate roots, so `<title>`
 — a name SVG shares with HTML — would be built as HTML inside the `<svg>` and be the accessible name
-of nothing. One SVG-only name in the group settles it, and the names excluded only for want of
+of nothing. One SVG-only name in the group settles it — an expression vouches through its own roots too, so a
+mapped list of shapes counts, while one mixing namespaces does not — and the names excluded only for want of
 context come with it (`title`, `a`, `style`, `script`, `image`, `font`, `text`, `tspan`, `desc`,
 `metadata`, `switch`, `view`, `set`, `filter`, `mask`, `marker`, `pattern`, `symbol`). Alone they
 are untouched, so `<Box><text>hello</text></Box>` stays readable text. The camelCase names stay out

@@ -35,12 +35,12 @@
       "gzip": 673
     },
     "jsx": {
-      "raw": 14239,
-      "gzip": 5449
+      "raw": 14297,
+      "gzip": 5475
     },
     "standalone": {
-      "raw": 14573,
-      "gzip": 5654
+      "raw": 14631,
+      "gzip": 5672
     },
     "computed": {
       "raw": 293,

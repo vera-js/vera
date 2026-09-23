@@ -74,6 +74,24 @@ export const createParseState = (code: string, from = 0): ParseState => ({
 });
 
 export const atExpressionPosition = (state: ParseState): boolean => {
+  /**
+   * A `}` is where the two readings live, and a LINE BREAK tells them apart. A block-closing `}` is
+   * the end of its line and what follows starts a statement — `function f() {}` then a regex, or a
+   * JSX root. An object literal's `}` is mid-expression, with its operator on the same line:
+   * `const q = { a: 1 } / 2`. Reading that second one as a regex opener consumed to the next slash
+   * anywhere on the line and swallowed whatever lay between, and a slash inside an ordinary string
+   * (`"a/b"`) was enough to supply one.
+   *
+   * Asked here rather than by scanning ahead for a closing slash, which was tried and was worse: it
+   * cannot tell a terminator from a slash inside a later string (`"a/b"` supplied one), and skipping
+   * strings to fix THAT broke every regex carrying a quote or a backtick outside a character class.
+   * With the line break deciding, the look-ahead answered nothing the `}` test does not, and no
+   * test could tell it from its absence — so it is gone rather than kept as ornament.
+   */
+  if (state.lastChar === '}') {
+    for (let i = state.i - 1; i >= 0 && /\s/.test(state.code[i]!); i--) if (state.code[i] === '\n') return true;
+    return false;
+  }
   if (state.lastChar === '' || EXPRESSION_PREFIX.has(state.lastChar)) return true;
   return EXPRESSION_KEYWORDS.has(state.lastWord);
 };

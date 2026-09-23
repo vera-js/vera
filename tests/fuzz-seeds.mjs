@@ -13,9 +13,12 @@
  * - **Local, no env: nothing changes.** `extendSeeds(base)` returns `base` untouched, byte for
  *   byte. A doc edit cannot go red on a seed nobody chose; the standing arrays remain the
  *   regression net for every defect they ever caught.
- * - **Extras are ADDITIVE, never replacing.** Volume controls written against `SEEDS.length`
- *   scale with the array, and the walked ground stays certified on every run. (Replacing the
- *   base is how a run-3 probe tripped four volume controls at once.)
+ * - **Extras are ADDITIVE, never replacing** — for `extendSeeds` and for `rotateScalar` alike, which
+ *   returned a single rotated scalar until 2026-09-23 and so quietly exempted its two callers: in CI
+ *   their standing seed never ran, which is precisely where the regression net earns its keep and
+ *   where a failure most needs telling from a find. Volume controls written against the array's
+ *   length scale with it, and the walked ground stays certified on every run. (Replacing the base is
+ *   how a run-3 probe tripped four volume controls at once.)
  * - **`VERA_FUZZ_ROTATE=1` derives extras from a run key** — `VERA_FUZZ_KEY`, else
  *   `GITHUB_RUN_ID`, else today's UTC date — expanded through the same LCG the suites use. CI
  *   sets it; every run of the suites walks seeds no run has walked before.
@@ -72,5 +75,12 @@ if (extras.length > 0) {
  *  regression net runs before the fresh territory and a base failure is never misread as a find. */
 export const extendSeeds = (base) => [...base, ...extras.filter((seed) => !base.includes(seed))];
 
-/** The single-threaded-seed variant: the run's starting point, rotated only when rotation is on. */
-export const rotateScalar = (base) => (extras.length > 0 ? extras[0] : base);
+/**
+ * The single-threaded-seed variant, as an ARRAY: the standing seed first, then this run's extras.
+ *
+ * It returned one scalar — the rotated seed when rotation was on — which silently broke the
+ * contract two entries up for its two callers: in CI their standing seed never ran at all, so the
+ * regression net those suites carry was not running where it matters most, and a failure there
+ * could not be told from a find. Base first, for the same reason `extendSeeds` orders it so.
+ */
+export const rotateScalar = (base) => [base, ...extras.filter((seed) => seed !== base)];

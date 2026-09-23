@@ -59,7 +59,8 @@ built the `<title>` as HTML inside the `<svg>`, where it is the accessible name 
 so the names excluded only because *a root tag alone cannot prove context* — `title`, `a`, `style`,
 `script`, `image`, `font`, `text`, `tspan`, `desc`, `metadata`, `switch`, `view`, `set`, `filter`,
 `mask`, `marker`, `pattern`, `symbol` — come with it. Alone they are untouched, so
-`<Box><text>hello</text></Box>` is still readable text and not a 0×0 SVG element.
+`<Box><text>hello</text></Box>` is still readable text and not a 0×0 SVG element. An expression vouches through its own roots, so a mapped list of
+shapes counts; one that mixes namespaces or yields nothing knowable does not.
 
 The camelCase names stay out even here. Their hazard is not the root-tag one: `@verajs/ssr` emits the
 strings verbatim and a browser lowercases them outside an `<svg>`, so hydration would discard and

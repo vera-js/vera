@@ -348,7 +348,13 @@ const collapseText = (raw: string): string => {
  * unchanged when it contains no JSX.
  */
 export const transformJsx = (code: string, fileName = 'module.jsx', options: VeraJsxOptions = {}): string => {
-  if (!/<[A-Za-z>]/.test(code)) return code;
+  /**
+   * The cheap gate, and it has to admit every name `parser.ts` admits — `isNameStart` there is
+   * `[A-Za-z_$]`. Narrower here, a module whose JSX is all `<_Icon/>` or `<$Icon/>` was returned
+   * verbatim and failed later as `Unexpected token '<'`, which is the silent total loss this
+   * transform reports the mismatch case to avoid.
+   */
+  if (!/<[A-Za-z_$>]/.test(code)) return code;
 
   /**
    * The emitted call sites must use the SAME identifiers the injected imports bind. These were
@@ -480,23 +486,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * characters, and nothing shorter answers it. Newlines survive so the line-anchored import match
    * still works, and delimiters survive so a tag use (`` html` ``) stays visible.
    */
-  /** Whether a `/` at `from` has an unescaped closing `/` before the line ends — see its use below. */
-  const closesOnThisLine = (text: string, from: number): boolean => {
-    let inClass = false;
-    for (let j = from + 1; j < text.length; j++) {
-      const c = text[j];
-      if (c === '\\') {
-        j++;
-        continue;
-      }
-      if (c === '\n') return false;
-      if (c === '[') inClass = true;
-      else if (c === ']') inClass = false;
-      else if (c === '/' && !inClass) return true;
-    }
-    return false;
-  };
-
   const blankLiterals = (text: string): string => {
     let out = '';
     let i = 0;
@@ -512,7 +501,12 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      *  regex only where an expression may start, and a second copy of that rule would drift. */
     let lastChar = '';
     let lastWord = '';
-    const cursor = { code: '', i: 0, mismatch: null } as unknown as ParseState;
+    /**
+     * Carries the real text and position: `atExpressionPosition` looks BACKWARDS from `i` to tell a
+     * block's `}` from an object literal's, so a cursor holding `''` answered "not an expression"
+     * for every `}` and a statement-position regex was read as division again.
+     */
+    const cursor = { code: text, i: 0, mismatch: null } as unknown as ParseState;
     const eatTemplate = () => {
       while (i < text.length) {
         if (text[i] === '\\') {
@@ -617,8 +611,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        */
       if (
         c === '/' &&
-        ((cursor.lastChar = lastChar), (cursor.lastWord = lastWord), atExpressionPosition(cursor)) &&
-        closesOnThisLine(text, i)
+        ((cursor.lastChar = lastChar), (cursor.lastWord = lastWord), (cursor.i = i), atExpressionPosition(cursor))
       ) {
         out += c;
         i++;
@@ -871,7 +864,14 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       const svgRoot =
         node.fragment === undefined
           ? SVG_ELEMENTS.has(node.tag) || (vouched && SVG_WITH_SIBLING.has(node.tag))
-          : allSvgChildren(node);
+          : /**
+             * A fragment vouches FOR its siblings and must be vouchable BY them, or the same group
+             * answers differently depending on which side the fragment is written on:
+             * `<F><title/><><path/></></F>` upgraded while `<F><path/><><title/></></F>` did not.
+             * `'nothing'` is the state that needs the vouch — a fragment of only vouchable names
+             * proves nothing on its own, exactly as one name alone does.
+             */
+            allSvgChildren(node) || (vouched && fragmentProof(node) === 'nothing');
       /**
        * …but never over a component or custom element, which cannot survive the namespace — and
        * never over a raw-text element holding a static one. `hasComponent` walks the subtree, so it
@@ -880,8 +880,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * `<F><title><tspan onClick={f}/></title><path/></F>` went straight into the scan/parse
        * disagreement `titleWithElement` exists to bound: a dead `@click="$v…$"`, a lost binding, a
        * throwing spread, and a diagnostic blaming the parser for dropping an element that is there.
+       *
+       * It asks `refusesSvg` rather than restating it. Spelling the conditions out here lost the
+       * ISLAND branch — a component inside a vouched `<title>`'s expression was refused, though
+       * `childMode` had already made it `html` and it upgrades perfectly one level down. One rule,
+       * one address; the second address had already drifted once.
        */
-      if (svgRoot && !titleWithElement(node) && !hasComponent(node)) mode = SVG_MODE;
+      if (svgRoot && !refusesSvg(node)) mode = SVG_MODE;
     }
     const parts = [''];
     const exprs: string[] = [];
@@ -1144,7 +1149,23 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         node.children.some(
           (kid) =>
             !('text' in kid) &&
-            !('expr' in kid) &&
+            /**
+             * An EXPRESSION vouches through its own roots, and has to: `{items.map((i) => <path/>)}`
+             * beside a `<title>` is how an icon with repeated shapes is actually written, and
+             * without this the group split — an HTML `<title>` inside the `<svg>`, the accessible
+             * name of nothing. Safe because an expression's JSX is emitted with the component's own
+             * mode, so vouching cannot change how the expression itself compiles.
+             *
+             * Three states, as everywhere else here: a root that is not SVG-only DISPROVES
+             * (`{c ? <path/> : <div/>}` vouches for nothing), and no roots at all — `{items}` — proves
+             * nothing rather than proving SVG.
+             */
+            ('expr' in kid
+              ? kid.roots.length > 0 &&
+                kid.roots.every(
+                  (r) => r.node.fragment === undefined && SVG_ELEMENTS.has(r.node.tag) && !refusesSvg(r.node)
+                )
+              : true) &&
             /**
              * A nested FRAGMENT vouches through its own children, because `fragmentProof` already
              * answers that question and a fragment is not a namespace boundary. Asking only about
@@ -1153,13 +1174,15 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
              * `<Frame><text/><><path/></></Frame>` split, leaving an HTML `<text>` inside the
              * `<svg>` — the invisible-icon bug vouching exists to fix.
              */
-            (kid.fragment === true
-              ? fragmentProof(kid) === 'svg'
-              : SVG_ELEMENTS.has(kid.tag)) &&
+            ('expr' in kid
+              ? true
+              : kid.fragment === true
+                ? fragmentProof(kid) === 'svg'
+                : SVG_ELEMENTS.has(kid.tag)) &&
             /** A sibling the compiler is about to REFUSE cannot vouch for the others, or one
              *  authored group is emitted in two namespaces: `<F><text/><g><my-card/></g></F>` kept
              *  the `<g>` HTML for its custom element and upgraded the `<text>` on its word. */
-            !refusesSvg(kid)
+            ('expr' in kid || refusesSvg(kid) === false)
         );
       for (const child of node.children) {
         if ('text' in child && child.text !== undefined) {

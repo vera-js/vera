@@ -104,6 +104,14 @@ export const view = () => ${body};`;
   await check('custom element stays HTML', `<Frame><text>L</text><my-badge /><path d="M0" /></Frame>`, 'my-badge', 'Frame', 'HTML');
   await check('expression sibling only', `<Frame><text>L</text>{1 && 2}</Frame>`, 'text', 'Frame', 'HTML');
   /**
+   * An EXPRESSION vouches through its own roots — `{items.map((i) => <path/>)}` beside a `<title>` is
+   * how a repeated-shape icon is written. Three states, as everywhere: a root that is not SVG-only
+   * disproves, and no roots at all proves nothing. The row above uses `{1 && 2}`, which has no roots,
+   * so it passes whether expressions can vouch or not — it pins the third state, not the first.
+   */
+  await check('expression voucher', `<Frame><title>T</title>{[1].map((i) => <path key={i} d="M0" />)}</Frame>`, 'title', 'Frame', 'SVG');
+  await check('mixed expression does not vouch', `<Frame><title>T</title>{1 ? <path d="M0" /> : <div />}</Frame>`, 'title', 'Frame', 'HTML');
+  /**
    * A nested FRAGMENT vouches through its own children — `fragmentProof` answers that question and a
    * fragment is not a namespace boundary. This row asserted HTML while the component path asked only
    * about direct element children, which pinned the SPLIT: all-SVG as a fragment root, divided under
@@ -112,6 +120,20 @@ export const view = () => ${body};`;
   await check('nested fragment vouch', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'text', 'Frame', 'SVG');
   await check('nested fragment vouch: the shape', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'path', 'Frame', 'SVG');
   await check('fragment proving nothing', `<Frame><text>L</text><><b>x</b></></Frame>`, 'text', 'Frame', 'HTML');
+  /**
+   * A fragment must be vouchable BY a sibling as well as vouching FOR one, or the same group answers
+   * differently depending on which side the fragment is written on.
+   */
+  await check('fragment vouched by a sibling', `<Frame><path d="M0" /><><title>L</title></></Frame>`, 'title', 'Frame', 'SVG');
+  await check('fragment vouched at depth', `<Frame><path d="M0" /><><><title>L</title></></></Frame>`, 'title', 'Frame', 'SVG');
+  /**
+   * An ISLAND root keeps its exemption: a component inside a vouched `<title>`'s EXPRESSION is safe,
+   * because `childMode` has already compiled it `html`. Restating the refusal conditions at the root
+   * instead of asking `refusesSvg` lost this branch.
+   */
+  await check('island root, expr component', `<Frame><path d="M0" /><title>{<my-card />}</title></Frame>`, 'title', 'Frame', 'SVG');
+  await check('island root, the component', `<Frame><path d="M0" /><title>{<my-card />}</title></Frame>`, 'my-card', 'Frame', 'HTML');
+  await check('desc island root', `<Frame><path d="M0" /><desc>{<my-card />}</desc></Frame>`, 'desc', 'Frame', 'SVG');
   /**
    * The island rule needs an UPGRADEABLE root to be reached at all. Probed at the top level,
    * `<foreignObject>` is camelCase — in neither set — so the root is refused before

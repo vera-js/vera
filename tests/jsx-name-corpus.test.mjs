@@ -80,6 +80,10 @@ const PRELUDES = [
   "const qs = 'w' / 2; const NAME = 1;",
   'const N2 = `A${ zf({ k: `B${zn}C` }) }D`;\nconst NAME = 1;',
   'const q = { a: 1 } / 2, NAME = 1;',
+  'const q = { a: 1 } / 2, NAME = 1; const p = "a/b";',
+  'const q = { a: 1 } / 2, NAME = 1; // half of it',
+  'function zb() {}\n/^[\'"]/.test("a");\nconst NAME = 1;',
+  'const TICK = /`/;\nconst { NAME } = lib;',
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */

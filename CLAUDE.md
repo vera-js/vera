@@ -442,7 +442,10 @@ suites are the release gate.
 **The fuzzes walk fresh territory in CI, deterministically everywhere else.** Every seeded fuzz
 suite takes its seeds through `tests/fuzz-seeds.mjs`: locally the standing arrays run untouched;
 CI sets `VERA_FUZZ_ROTATE=1` with the run id as key, ADDING derived seeds on top (never replacing —
-the regression net always runs, and `SEEDS.length`-scaled volume controls keep working). The extras
+the regression net always runs, and `SEEDS.length`-scaled volume controls keep working). **That held
+for `extendSeeds` and not for `rotateScalar`, which returned one rotated scalar and so ran no
+standing seed at all in CI for its two suites** (`styles-host-rewrite-fuzz`, `cms-dom-fuzz`) until
+2026-09-23; both now loop base-first like everything else. The extras
 are printed at the top of each fuzz file's output; a red run replays anywhere with
 `VERA_FUZZ_SEEDS=<those seeds> npm test`. **A failure on a rotated seed is usually a FIND that
 predates the commit under test, not a regression** — the virgin-seed sweep caught the shim's

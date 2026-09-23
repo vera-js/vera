@@ -59,14 +59,21 @@ const JSX_FREE = [
   ['tight before a ternary', 'const m = count<max ? 1 : 2;'],
   ['what looks like a generic', 'const t = a<b>c;'],
   /**
-   * A `}` ends a BLOCK, so what follows it is at statement position — a regex, or a JSX root. These
-   * are the JSX-FREE half of that, and the `}` has to be the character IMMEDIATELY before the
-   * operator or the entry is never consulted: a first version divided `.a` and `a`, two tokens
-   * later, and passed identically with `}` in the set or out of it.
+   * A `}` ends a BLOCK, so what follows it is at statement position — a regex, or a JSX root; an
+   * object literal's `}` is mid-expression and its operator is on the same line.
+   *
+   * **None of these rows can pin that distinction, and saying so is the point.** A JSX-free source
+   * has no `<` for the reading to change the meaning of, so the identity property holds either way.
+   * Searching for one that does distinguish turns up only programs no engine accepts
+   * (`const q = {}<div>x</div>;`). The mutation is carried by `WITH_JSX`'s 'after a block and a
+   * regex', which is where a lost root actually shows. These stay as identity coverage for the
+   * shapes the `}` entry makes reachable — and every one is valid JavaScript, which an earlier
+   * `'function f() {}\n/ 2;'` was not: after a statement-position `}` a `/` opens a regex, so that
+   * row named a reading the language does not give it.
    */
   ['an object literal divided', 'const q = { a: 1 } / 2;'],
   ['an object literal compared', 'const q = { a: 1 } < 2;'],
-  ['a block then a division', 'function f() {}\n/ 2;'],
+  ['a block then a division', 'function f() {}\nconst q = a / b;'],
   ['a regex after a block', 'function f() {}\n/^a/.test(s);'],
   ['a regex after an arrow body', 'const f = () => {};\n/^a/.test(s);'],
 ];
@@ -93,6 +100,10 @@ const WITH_JSX = [
   ['after a block and a regex', 'function f() {}\n/^[\'"]/.test(s);\nconst v = <div>x</div>;'],
   ['after an arrow body and a regex', 'const f = () => {};\n/^a/.test(s);\nconst v = <path d="M0" />;'],
   ['at statement position after a block', 'function f() {}\nconst v = <div>x</div>;'],
+  ['an underscore-named component', 'export const v = <_Icon x={1} />;'],
+  ['a dollar-named component', 'export const v = <$Icon x={1} />;'],
+  ['a divided object then a slash-string', 'const q = { a: 1 } / 2; const p = "a/b";\nconst v = <div>x</div>;'],
+  ['a divided object then a comment', 'const q = { a: 1 } / 2; // half\nconst v = <div>x</div>;'],
   /**
    * A division *before* the JSX, which is the shape that pins the regex discriminator. Read as a
    * regex, the first `/` scans forward for a closing one and swallows the region on the way, so the

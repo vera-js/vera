@@ -46,7 +46,9 @@ const DECLARATIONS = ['color: red', 'content: ":host"', 'background: url(/x/:hos
 const VALUE_HOST = /content: ":host"|url\(\/x\/:host\.png\)/g;
 
 test('the :host rewrite never touches a value, an escaped identifier, or the rule count', async () => {
-  let seed = rotateScalar(424242);
+  /** Every seed this run walks: the standing one, then any the rotation added. */
+  const seeds = rotateScalar(424242);
+  let seed = 0;
   const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
   const pick = (list) => list[Math.floor(random() * list.length)];
 
@@ -59,13 +61,16 @@ test('the :host rewrite never touches a value, an escaped identifier, or the rul
   let withHostValue = 0;
   let withEscaped = 0;
   const RUNS = 300;
+  let made = 0;
   try {
+   for (const startSeed of seeds) {
+    seed = startSeed;
     for (let run = 0; run < RUNS; run++) {
       const source = Array.from({ length: 1 + Math.floor(random() * 3) }, () =>
         `${pick(SELECTORS)}${random() < 0.3 ? ` ${pick(['b', '.c', '> i'])}` : ''} { ${pick(DECLARATIONS)}; ${pick(DECLARATIONS)} }`
       ).join('\n');
 
-      const tag = `fuzz-host-${run}`;
+      const tag = `fuzz-host-${made++}`;
       customElements.define(
         tag,
         class extends dom.window.HTMLElement {
@@ -96,13 +101,15 @@ test('the :host rewrite never touches a value, an escaped identifier, or the rul
         problems.push('changed the rule count');
       if (problems.length > 0) violations.push({ run, problems, source, out });
     }
+   }
   } finally {
     console.warn = originalWarn;
   }
 
-  assert.ok(withHostSelector > RUNS / 5,
-    `CONTROL: only ${withHostSelector} of ${RUNS} sheets had a :host SELECTOR — the run proves little`);
-  assert.ok(withHostValue > RUNS / 5,
+  /** Scaled by the number of seeds walked, so a rotation cannot dilute the control. */
+  assert.ok(withHostSelector > (RUNS * seeds.length) / 5,
+    `CONTROL: only ${withHostSelector} of ${RUNS * seeds.length} sheets had a :host SELECTOR — the run proves little`);
+  assert.ok(withHostValue > (RUNS * seeds.length) / 5,
     `CONTROL: only ${withHostValue} sheets had :host in a VALUE, which is the case most at risk`);
   assert.ok(withEscaped > 10, `CONTROL: only ${withEscaped} sheets had an escaped identifier`);
   assert.deepEqual(violations, [], 'a rewrite of author CSS must not change anything but selectors');

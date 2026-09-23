@@ -21,7 +21,8 @@ for (const k of ['document', 'Node', 'Element', 'HTMLElement', 'DocumentFragment
 const { parseMarkdown, serializeHtml, buildDom } = await load('cms/content');
 const doc = dom.window.document;
 
-let seed = rotateScalar(60606);
+const seeds = rotateScalar(60606);
+let seed = seeds[0];
 const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 
@@ -52,19 +53,25 @@ const normalize = (node) => {
 const viaString = (root) => { const h = doc.createElement('div'); h.innerHTML = serializeHtml(root); normalize(h); return h; };
 const viaBuilder = (root) => { const h = doc.createElement('div'); h.append(buildDom(root, { document: doc })); normalize(h); return h; };
 
-test('the twins agree on 400 generated documents', () => {
+test('the twins agree on 400 generated documents per seed', () => {
   const mismatches = [];
   let nonEmpty = 0;
-  for (let run = 0; run < 400; run++) {
-    const source = Array.from({ length: Math.floor(random() * 4) + 1 }, () => pick(BLOCK)()).join('\n\n');
-    const root = parseMarkdown(source);
-    const built = viaBuilder(root);
-    const parsed = viaString(root);
-    if (built.innerHTML.length > 0) nonEmpty++;
-    if (built.innerHTML !== parsed.innerHTML)
-      mismatches.push({ source, built: built.innerHTML.slice(0, 160), string: parsed.innerHTML.slice(0, 160) });
+  const RUNS = 400;
+  /** The standing seed AND anything the rotation added: the regression net runs before the new ground. */
+  for (const startSeed of seeds) {
+    seed = startSeed;
+    for (let run = 0; run < RUNS; run++) {
+      const source = Array.from({ length: Math.floor(random() * 4) + 1 }, () => pick(BLOCK)()).join('\n\n');
+      const root = parseMarkdown(source);
+      const built = viaBuilder(root);
+      const parsed = viaString(root);
+      if (built.innerHTML.length > 0) nonEmpty++;
+      if (built.innerHTML !== parsed.innerHTML)
+        mismatches.push({ source, built: built.innerHTML.slice(0, 160), string: parsed.innerHTML.slice(0, 160) });
+    }
   }
-  assert.ok(nonEmpty > 350, `CONTROL: only ${nonEmpty} of 400 documents produced DOM`);
+  const total = RUNS * seeds.length;
+  assert.ok(nonEmpty > total * 0.875, `CONTROL: only ${nonEmpty} of ${total} documents produced DOM`);
   assert.deepEqual(mismatches.slice(0, 4), [], `${mismatches.length} generated document(s) split the twins`);
 });
 
