@@ -364,6 +364,21 @@ assert.ok(/c && svg`<my-card/.test(nested), 'inside an <svg>, a nested <math> st
 assert.ok(/c && html`<my-card/.test(nested), 'CONTROL: from HTML mode, <math> really does switch to MathML');
 
 /**
+ * **Both arms, not one.** The `math` arm was pinned by the rows above; the `svg` arm was pinned by
+ * nothing — reverting `mode === HTML_MODE && tag === 'svg'` to the unconditional form passed all
+ * four jsx suites, 3 684 modules and 557 groups included. Inside a `<math>` the parser puts an
+ * `<svg>` and everything under it in the MathML namespace, so the expression must compile `mathml`.
+ */
+const nestedSvg = transformJsx(
+  `export const a = () => <math><mrow><svg>{x.map((i) => <circle r={i} />)}</svg></mrow></math>;
+   export const b = () => <svg>{x.map((i) => <circle r={i} />)}</svg>;`,
+  'ns2.jsx',
+  { inject: false }
+);
+assert.ok(/a = .*mathml`<circle/.test(nestedSvg), 'an <svg> nested in a <math> stays MathML-moded');
+assert.ok(/b = .*svg`<circle/.test(nestedSvg), 'CONTROL: from HTML mode, <svg> really does switch to SVG');
+
+/**
  * **A SIBLING vouches for a name a root tag alone cannot prove.**
  *
  * This is the canonical accessible icon, and it was the hole left after the shapes drew: a

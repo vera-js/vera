@@ -292,7 +292,7 @@ context come with it (`title`, `a`, `style`, `script`, `image`, `font`, `text`, 
 `metadata`, `switch`, `view`, `set`, `filter`, `mask`, `marker`, `pattern`, `symbol`). Alone they
 are untouched, so `<Box><text>hello</text></Box>` stays readable text. The camelCase names stay out
 even with a sibling, because their hazard is SSR casing rather than context. The vouch travels both ways: a sibling also settles
-what an expression's own roots compile as, so `<Frame><path /><g>{labels.map((t) => <text>{t}</text>)}</g></Frame>`
+what an expression's own roots compile as, so `<Frame><path />{labels.map((t) => <text>{t}</text>)}</Frame>`
 gives every `<text>` the group's namespace.
 
 `@verajs/renderer` names an element committed into an `<svg>` or `<math>` in a DIFFERENT namespace

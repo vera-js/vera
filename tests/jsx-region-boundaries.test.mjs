@@ -117,6 +117,13 @@ const WITH_JSX = [
   ['a member named in, divided', 'const t = { in: 3 };\nconst r = t.in / 2, v = <p class="y" />;'],
   ['a member named delete, divided', 'const m = { delete: 2 };\nconst r = m.delete / 2, v = <b class="z" />;'],
   /**
+   * A postfix `++`/`--` ENDS an expression, but `lastChar` sees only the second sign and `+` is an
+   * expression prefix. `{n++ / total}` is an ordinary running percentage, and the whole module came
+   * back verbatim.
+   */
+  ['a postfix increment divided', 'let i = 1;\nconst r = i++ / 2, v = <div class="x" />;'],
+  ['a postfix decrement divided', 'let i = 9;\nconst r = i-- / 2, v = <p class="y" />;'],
+  /**
    * A division *before* the JSX, which is the shape that pins the regex discriminator. Read as a
    * regex, the first `/` scans forward for a closing one and swallows the region on the way, so the
    * JSX is silently never seen. With the division only *after* the JSX there is nothing left to miss,

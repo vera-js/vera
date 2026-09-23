@@ -54,6 +54,12 @@ const PRELUDES = [
   "import { NAME } from './stubs.mjs';",
   "import { NAME as zother } from './stubs.mjs';",
   "import zdef, { NAME } from './stubs.mjs';",
+  /**
+   * The tag's OWN module. Every other import prelude here points at `./stubs.mjs`, which is never a
+   * tag's own source, so all of them take the foreign-import branch — the own-import branch was
+   * exercised by nothing, and it was returning before the binding test ran.
+   */
+  'import { NAME } from OWN;',
   /** An import of the NAME from somewhere else is a collision, not the tag — the SVGR/Vite idiom. */
   "import NAME from './asset.mjs';",
   "import * as NAME from './asset.mjs';",
@@ -90,6 +96,7 @@ const PRELUDES = [
   'function zb() {}\n/^[\'"]/.test("a");\nconst NAME = 1;',
   'const zt = { in: 3 };\nconst zr = zt.in / 2, NAME = 1;',
   'const zs = { new: 4 };\nconst zq = zs.new / 2, NAME = 1;',
+  'let zi = 1;\nconst zr = zi++ / 2, NAME = 1;',
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */
@@ -123,7 +130,9 @@ test('every module the transform can be handed still parses and runs', async () 
     for (const name of NAMES)
       for (const prelude of PRELUDES)
         for (const body of BODIES) {
-          const pre = prelude.replaceAll('NAME', name);
+          /** `OWN` is the module the transform would inject this tag from. */
+          const own = name === 'keyed' ? "'@verajs/renderer/keyed'" : name === 'spread' ? "'@verajs/renderer/spread'" : "'@verajs/core'";
+          const pre = prelude.replaceAll('NAME', name).replace('OWN', own);
           const source = `${pre}\n${body.replaceAll('NAME', name)}`;
           /**
            * A source that BINDS the name to a non-function and then TAGS with it is broken as

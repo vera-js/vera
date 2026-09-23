@@ -18,17 +18,17 @@ import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState 
 /**
  * Characters after which a `<` (or `/`) can begin an expression.
  *
- * **`}` is NOT here** — it gets its own branch in `atExpressionPosition`, which returns on both
- * paths before this set is consulted, so a `}` in the string would be dead. The rule it needs is
- * positional rather than a membership test; see there. `)` is deliberately absent too, and the
- * asymmetry between the two is the whole rule. A `}`
- * immediately before one of these ends a BLOCK — `function f() {}` then a statement — and a regex or
- * a JSX root is exactly what may follow; the alternative reading needs an object literal divided or
- * compared (`{} / 2`, `{} < b`), which is not something anyone writes. Without it, a regex at
- * statement position made `scanCode` read `/` as division, the following quote opened a string that
- * never closed, and `findRoots` returned ZERO roots — so `transformJsx` handed the module back
- * untouched and every JSX root in the file was lost, surfacing as `Unexpected token '<'` from
- * whatever ran the output next.
+ * **`}` is NOT here, and neither is `)`** — and the two absences have different reasons.
+ *
+ * A `}` gets its own branch in `atExpressionPosition`, which returns on both paths before this set
+ * is consulted, so membership here would be dead. Its rule is POSITIONAL: a block-closing `}` ends
+ * its line and what follows starts a statement, while an object literal's sits mid-expression with
+ * its operator beside it. A flat "a `}` means an expression may start" was tried and is wrong in
+ * both directions — without it a regex at statement position made `scanCode` read `/` as division,
+ * the following quote opened a string that never closed, and `findRoots` returned ZERO roots, so the
+ * module came back untouched and surfaced as `Unexpected token '<'`; with it, an ordinary
+ * `const q = { a: 1 } / 2, html = 1;` opened a regex that ate the binding. Both corpora carry that
+ * divided-object line as a live row, so it is emphatically something people write.
  *
  * `)` stays out, and the reason is NOT that a comparison would become a JSX region — measured, it
  * would not: `foo(x) < 3` and `foo(x) <3` both fail the name-start lookahead below, so the `<` side
@@ -91,6 +91,18 @@ export const atExpressionPosition = (state: ParseState): boolean => {
    * With the line break deciding, the look-ahead answered nothing the `}` test does not, and no
    * test could tell it from its absence — so it is gone rather than kept as ornament.
    */
+  /**
+   * A postfix `++`/`--` ENDS an expression, so what follows is an operator — but `+` and `-` are in
+   * the set, and `lastChar` sees only the second sign. `{n++ / total}` is an ordinary running
+   * percentage, and reading its `/` as a regex opener handed the whole module back untouched
+   * (`Unexpected token '<'` from whatever ran it next) or, in the literal scan, ate the binding on
+   * the line so the injected import collided with it.
+   */
+  if (state.lastChar === '+' || state.lastChar === '-') {
+    let i = state.i - 1;
+    while (i >= 0 && /\s/.test(state.code[i]!)) i--;
+    if (state.code[i - 1] === state.lastChar) return false;
+  }
   if (state.lastChar === '}') {
     for (let i = state.i - 1; i >= 0 && /\s/.test(state.code[i]!); i--) if (state.code[i] === '\n') return true;
     return false;

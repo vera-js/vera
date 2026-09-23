@@ -84,6 +84,7 @@ export const view = () => ${body};`;
     'SVG_ELEMENTS drifted from the list this suite crosses — add the name here too'
   );
 
+
   const bad = [];
   const check = async (label, body, probe, wrapper, expected) => {
     let view;

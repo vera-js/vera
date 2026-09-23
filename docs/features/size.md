@@ -128,8 +128,8 @@ describing the bytes honestly.)*
 | `@verajs/renderer/spread` | 1 634 B | `${spread(props)}` — runtime-named bindings |
 | `@verajs/renderer/tag` | 2 254 B | `<${tag}>` — runtime tag names, in templates and JSX |
 | `@verajs/store` | 673 B | the standalone store — subscriptions without components |
-| `@verajs/jsx` | 5 605 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
-| `@verajs/jsx/standalone` | 5 804 B | JSX in the browser with no build — the CodePen path |
+| `@verajs/jsx` | 5 644 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
+| `@verajs/jsx/standalone` | 5 843 B | JSX in the browser with no build — the CodePen path |
 | `@verajs/store/computed` | 238 B | memoised derived values |
 | `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |

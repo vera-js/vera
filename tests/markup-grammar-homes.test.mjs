@@ -87,8 +87,24 @@ test("the renderer's regexes agree, read from its source", () => {
 
 test('the consolidation held — no package that CAN import keeps a private copy', () => {
   for (const path of ['packages/cms/src/dom.ts', 'packages/jsx/src/transform.ts']) {
-    assert.doesNotMatch(read(path), /new Set\(\[\s*'area'/,
+    const source = read(path);
+    assert.doesNotMatch(source, /new Set\(\[\s*'area'/,
       `${path} must read the shared list, not re-state it`);
+    /**
+     * **Matched by CONTENT, not by the first name.** The VOID check above anchors on `'area'`, so a
+     * private copy of a DIFFERENT shared list was invisible to it — `packages/jsx/src/transform.ts`
+     * grew one of the raw-text names under this very suite, and drifted on case within the hour.
+     * A re-statement is a `new Set` holding EVERY name of a shared list. Not "three or more": these
+     * lists overlap legitimately — `SVG_WITH_SIBLING` names `title`, `style` and `script` because a
+     * sibling can vouch for them, which has nothing to do with raw text — and a guard that cried
+     * wolf there would be turned off.
+     */
+    for (const [name, shared] of [['VOID_ELEMENTS', VOID], ['RAW_TEXT_ELEMENTS', RAW_TEXT]])
+      for (const [, body] of source.matchAll(/new Set\(\[([^\]]*)\]\)/g)) {
+        const named = new Set([...body.matchAll(/'([^']+)'/g)].map((m) => m[1]));
+        assert.ok(!shared.every((n) => named.has(n)),
+          `${path} re-states all of ${name} — import it instead`);
+      }
   }
 });
 

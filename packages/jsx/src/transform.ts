@@ -1,4 +1,4 @@
-import { VOID_ELEMENTS } from '@verajs/shared-utils';
+import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from '@verajs/shared-utils';
 import { atExpressionPosition, findRoots } from './parser.js';
 import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, ParseState, VeraJsxOptions } from './types.js';
 
@@ -183,17 +183,6 @@ const cannotSurviveSvg = (tag: string): boolean => isComponentName(tag) || tag.i
  */
 const SVG_INTEGRATION_POINTS = new Set(['foreignObject', 'desc', 'title']);
 
-/**
- * **Every name `@verajs/renderer` scans as RAW TEXT** — its `RAW_TEXT_TAGS`, kept in step by hand.
- *
- * The axis is what the RENDERER scans, not what a sibling can vouch for. Scoped to the vouchable
- * three, the guard missed `<textarea>`, `<iframe>` and `<noscript>` holding a static element inside
- * a self-proving root: `refusesSvg` runs at every depth, so `<g><textarea><b onClick={f}/></textarea></g>`
- * upgraded, and the renderer's namespace-blind raw-text scan then disagreed with the SVG parse — the
- * `<b>` relocated out of the `<textarea>`, its sigil stranded as a dead attribute, the binding never
- * committed. Pre-feature that group compiled `html`, where scan and parse agree.
- */
-const RAW_TEXT_ROOTS = new Set(['title', 'style', 'script', 'textarea', 'iframe', 'noscript']);
 
 /**
  * Whether this node is one of those holding a static ELEMENT.
@@ -207,7 +196,14 @@ const RAW_TEXT_ROOTS = new Set(['title', 'style', 'script', 'textarea', 'iframe'
  */
 const titleWithElement = (node: JsxNode): boolean =>
   node.fragment === undefined &&
-  RAW_TEXT_ROOTS.has(node.tag) &&
+  /**
+   * The SHARED list, lowercased like its `VOID_ELEMENTS` neighbour four lines down — a host tag keeps
+   * the author's case, so `<textArea>` slipped a case-sensitive `has` and upgraded straight into the
+   * scan/parse disagreement this guard exists to bound. It was a private fourth copy of a set
+   * `@verajs/shared-utils` already owns and this file already imports from, under a suite
+   * (`markup-grammar-homes`) written to forbid exactly that and matching only the VOID spelling.
+   */
+  RAW_TEXT_ELEMENTS.has(node.tag.toLowerCase()) &&
   node.children.some((kid) => !('text' in kid) && !('expr' in kid));
 
 /**
@@ -717,16 +713,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    */
   const localName = (exported: string, from: string): string => {
     if (!injecting) return exported;
-    /** Their own import of this tag, from the tag's own module — that binding IS the one to use. */
-    if (imported.get(exported) === from) {
-      taken.add(exported);
-      return exported;
-    }
     /**
-     * Any OTHER import of the name is a collision, not the tag. Stripping import statements below
-     * hides it from the binding test, so it is caught here instead.
+     * Their OWN import of this tag — the tag's own module — is the binding to use, and any other
+     * import of the name is a collision rather than the tag. Neither answer may skip the binding
+     * test below: a module can import a tag AND shadow it, and returning early here meant that
+     * adding `import { html } from '@verajs/core'` — a line the transform would otherwise have
+     * injected verbatim — turned a working module into a first-render `TypeError`, because the
+     * shadowing parameter won at the call site. A binding beats an import, whichever module it
+     * came from.
      */
-    const foreignImport = imported.has(exported);
+    const ownImport = imported.get(exported) === from;
+    const foreignImport = !ownImport && imported.has(exported);
     /**
      * Import STATEMENTS come out too: every binding one makes is already in `imported`, while the
      * export name in `import { html as h }` binds nothing at all — leaving those lines in renamed a
@@ -780,6 +777,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       taken.add(exported);
       return exported;
     }
+    /** Bound AND imported from the tag's own module: rename, and the injection below still happens
+     *  because `has` compares the local name, which is no longer the plain one. */
     const base = `$vera${exported[0]!.toUpperCase()}${exported.slice(1)}`;
     let name = base;
     for (let n = 2; code.includes(name) || taken.has(name); n++) name = `${base}${n}`;
