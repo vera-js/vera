@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.58 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.57 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -164,6 +164,38 @@ html`<p>${cond ? html`<em>yes</em>` : null}</p>`     // or: ${(cond && html`…`
 React's rule and where React expectations live. That is the **one** value semantic on which JSX and
 a hand-written template differ, and this warning is what meets JSX-shaped code pasted into a
 template. `0` still renders in both, exactly as in React: the rule is about booleans, not falsiness.
+
+### A template committed into the wrong namespace is named
+
+An `<svg>` draws SVG content and `<foreignObject>`, and nothing else. A template written `` html`…` ``
+and handed across a function boundary into one is still HTML — `<path>` parsed as HTML is an
+`HTMLUnknownElement` with the right tag name and no geometry, so a whole set of icons can vanish
+with nothing to search for:
+
+```js
+const Frame = (children) => html`<svg viewBox="0 0 24 24">${children}</svg>`;
+Frame(html`<path d="M0 0h24" />`);   // silent: nothing draws
+Frame(svg`<path d="M0 0h24" />`);    // the fix — the tag is chosen where the template is WRITTEN
+```
+
+The tag is right where it was written and the call site cannot know the destination, which is why
+this is not something the renderer can correct — lit-html behaves the same way. **Development names
+it instead**, once per host-and-tag pair, with both remedies: `` svg`…` `` when the element was
+meant to be SVG, and an HTML island (`<foreignObject>` in SVG, `<mtext>` in MathML) when it is
+genuinely HTML. Tagging a custom element `` svg`…` `` would silence the message and leave the
+element permanently un-upgraded, since custom-element upgrade is spec-gated on the HTML namespace.
+
+The rule is a namespace MISMATCH, so MathML committed into an `<svg>` and SVG committed into a
+`<math>` are named the same way. It is silent where the content is correct: inside
+`<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements, inside
+`<annotation-xml>` carrying an HTML `encoding`, and for `<style>`/`<script>`, which never draw — an
+HTML `<style>` inside an `<svg>` applies its rules perfectly well.
+
+**In JSX this mostly cannot happen**: `@verajs/jsx` compiles a template whose root is an SVG-only
+element with the `svg` tag wherever it was written, so `<Frame><path /></Frame>` works. The message
+is what meets a hand-written template, and an in-set root the compiler deliberately refused.
+
+The whole check folds away in production — no code and no strings.
 
 A DOM node renders as itself, which is how a template holds something another library owns:
 
@@ -558,7 +590,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.35 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->3.34 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
 also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
 on both sides.

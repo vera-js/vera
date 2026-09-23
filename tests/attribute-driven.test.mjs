@@ -22,10 +22,33 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { load } from './dist.mjs';
 
-const dom = new JSDOM('<!doctype html><body><div id="app"></div></body>', { url: 'https://x.test/', pretendToBeVisual: true });
+/**
+ * **A virtual console that keeps jsdom's `jsdomError` out of the suite's output.**
+ *
+ * One test here proves that a custom-element reaction which THROWS is reported rather than
+ * rethrown — the platform swallows it on the way out of `setAttribute`, which is exactly what makes
+ * the mistake quiet. jsdom implements "reported" by printing the error to the Node console, so the
+ * assertion passing wrote `Uncaught [TypeError: Cannot set properties of undefined]` into every run.
+ *
+ * That is a deliberate throw being demonstrated, not a failure, but nothing in the output says so —
+ * and an error message nobody can attribute is worse than no message, because the next person to
+ * read a green run has to prove it is harmless again. Forwarding everything EXCEPT `jsdomError`
+ * keeps `console.warn`/`console.error` assertions working while dropping the one line the suite
+ * creates on purpose.
+ */
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('error', (...args) => console.error(...args));
+virtualConsole.on('warn', (...args) => console.warn(...args));
+virtualConsole.on('log', (...args) => console.log(...args));
+
+const dom = new JSDOM('<!doctype html><body><div id="app"></div></body>', {
+  url: 'https://x.test/',
+  pretendToBeVisual: true,
+  virtualConsole,
+});
 for (const key of [
   'window', 'document', 'HTMLElement', 'customElements', 'CSSStyleSheet', 'Node', 'Element',
   'DocumentFragment', 'Text', 'Comment', 'requestAnimationFrame', 'cancelAnimationFrame',

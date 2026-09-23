@@ -95,6 +95,26 @@ export default {
    * suite measured under a second per engine.
    */
   concurrency: Number(process.env.VERA_WTR_CONCURRENCY ?? 3),
+  /**
+   * **2026-09-18: the same symptom appeared again and is NOT load, and not concurrency.** Measured,
+   * because the two paragraphs above would have sent the next person the wrong way:
+   *
+   * - it reproduces on an IDLE machine (load average 3, nothing else running);
+   * - `VERA_WTR_CONCURRENCY=1` does not help — the count is identical;
+   * - killing 22 leaked Playwright processes first does not help;
+   * - Playwright launches WebKit and renders a page in 1.4 s, so the browser is healthy;
+   * - it reproduces with the working tree's changes REVERTED and rebuilt, so it is not content;
+   * - and `413 passed` is now DETERMINISTIC across runs, where a load flake varied (420, 456).
+   *
+   * What it actually is: WebKit stops being able to open a page after roughly 59 of the 79 files in
+   * ONE browser instance. `tests/browser/shadow-modes.test.js` is where it lands, and that file
+   * passes in 2.3 s when run alone — so the boundary is cumulative pages opened, not any one file.
+   * Chromium and Firefox complete the same run.
+   *
+   * Left unfixed rather than papered over: raising the timeout again would only wait longer for a
+   * browser that has stopped answering. The fix is to make the runner recycle the WebKit instance
+   * partway through, or to move past the Playwright version that does this.
+   */
   testFramework: {
     config: { timeout: 5000 },
   },

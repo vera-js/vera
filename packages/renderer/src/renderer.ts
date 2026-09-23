@@ -130,8 +130,36 @@ const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
  *
  * Listing it here is safe in both parses. Where the marker became a comment the raw-text branch does
  * not trigger, because it looks for the marker in `textContent` and finds none.
+ *
+ * **The rule is deliberately ONE rule, and the scanner and the parse must share it.**
+ *
+ * Both sites read THIS regex and nothing else — namespace-blind and identical in both builds. The
+ * scan writes a TEXT marker inside a raw-text element, because a comment cannot be parsed there;
+ * the parsed-tree pass finds the same elements by the same test and turns that text back into real
+ * marker comments. Neither consults a namespace.
+ *
+ * It is wrong in foreign content — `<title>` holds MARKUP inside an `<svg>`, measured in all three
+ * engines — and making it namespace-aware was tried, measured, and reverted. The attempt taught the
+ * scan to skip raw text while inside an `<svg>`, keyed on the `foreign` depth counter — which is
+ * incremented only under `__DEV__`, because it exists to gate `warnTagShape` and nothing else,
+ * while the parsed-tree pass went on matching this regex in both builds. The two then disagreed by
+ * BUILD: an inline `` svg`<title>${x}` `` scanned one way in development and the other in
+ * production, and the shipped bundle rendered the raw marker sentinel into the DOM and shifted
+ * every later child binding by one — silently, in the canonical accessible-icon shape.
+ *
+ * Both halves being wrong together is self-consistent; half-fixing it is not. It is why a
+ * hand-written `` svg`<title>${x}` `` behaves exactly as it always has — the binding is text, so it
+ * is found and committed, the one shape this rule gets right by being wrong twice.
+ *
+ * What it cannot survive is an ELEMENT inside a `<title>`. The browser really does parse one there,
+ * so `<title>`'s `textContent` — which includes its descendants' — still holds the marker, and the
+ * pass clears that `textContent` to rebuild the parts, taking the element with it. Hence a dropped
+ * `<tspan>`, a binding's sigil stranded as a dead attribute, and a throwing spread. `@verajs/jsx`
+ * refuses to upgrade a root over that ONE shape for exactly this reason; everything else about
+ * `<title>` it treats as the integration point it is.
  */
 const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
+
 
 /**
  * The void elements, as a regex rather than the `Set` in `@verajs/shared-utils`, and NOT imported
@@ -475,7 +503,7 @@ type SlotRecord = number;
 let _slotRoot: Node | null = null;
 
 /** See the slotless branch in `Instance`. Once per host tag, so a list cannot flood a console. */
-const warnedSlotless = new Set<string>();
+const warnedSlotless = /* @__PURE__ */ new Set<string>();
 const warnSlotless = (root: Element) => {
   const tag = root.localName;
   if (warnedSlotless.has(tag)) return;
@@ -767,6 +795,192 @@ class Template {
     }
   }
 }
+
+/**
+ * **Development only: an HTML element committed into an SVG or MathML parent draws nothing.**
+ *
+ * `<path>` parsed as HTML is an `HTMLUnknownElement` — right tag name, no geometry, invisible — and
+ * the whole failure mode is that nothing complains. An app reported "every header icon vanished"
+ * and had to bisect a component tree to find it.
+ *
+ * `@verajs/jsx` compiles a template whose ROOT is an SVG-only element with the `svg` tag, so JSX
+ * reaches here for a name SVG shares with HTML (`<a>`, `<title>`), one deliberately left out of that
+ * set, and — the commonest of the three — any in-set root the compiler REFUSED to upgrade, which it
+ * does whenever a component or custom element lies in the subtree, JSX sits in an attribute, or a
+ * static element sits in a `<title>`. A refused `<g>` is emitted as HTML and arrives here like any
+ * other. What no compiler reaches is a HAND-WRITTEN `html` template handed across a function
+ * boundary into an `<svg>` — `` Frame(html`<path/>`) `` — where `` svg`…` `` was correct and the call
+ * site had no way to know, because the destination belongs to the callee. lit-html behaves
+ * identically, so the behaviour is not the thing to change; the silence is.
+ *
+ * **It lives in `_insert` because that is the seam the template and list paths share.** Wired to the
+ * template commit alone it could never fire for a component's children, which arrive as an ARRAY and
+ * reach the DOM through the list path — the single most likely spelling of the bug it exists for.
+ * `@verajs/renderer/keyed` does NOT cross it — it lands its rows through its own `$c` branches,
+ * which is why there are three call sites rather than one.
+ *
+ * Each call site reads the host from the node that knows where the content LANDS, which is not
+ * always the part's own parent: a batched fill is assembled in a `DocumentFragment`, which has no
+ * namespace to read, so `_insert` prefers `_foreignHost` in exactly that case and `$c` reaches for
+ * the list's parent. Resolving the namespace from the off-document fragment is the mistake that
+ * sank an earlier attempt at fixing this properly in the renderer, and all three sites capture the
+ * answer BEFORE `insertBefore`, because inserting a fragment empties it.
+ *
+ * Silent where HTML is CORRECT: `<foreignObject>`, `<desc>`, `<title>` and MathML's token elements
+ * are integration points, and `<style>`/`<script>` never draw by design — an HTML `<style>` inside
+ * an `<svg>` applies its rules perfectly well, so complaining that it "will not render" is both wrong
+ * and, since `style` is a name the compiler refuses to guess at, exactly the guess it refuses.
+ */
+const foreignHost = (parent: Node): string | null => {
+  /**
+   * Namespace FIRST: it settles the ordinary HTML parent every insert takes, and `localName` is
+   * only wanted inside the two foreign branches. Reading both up front cost 16.1 ns against 11.3 on
+   * that path, measured over 2M iterations — for a value nothing on it uses.
+   */
+  const element = parent as Element;
+  const namespace = element.namespaceURI;
+  const svg = namespace === 'http://www.w3.org/2000/svg';
+  if (!svg && namespace !== 'http://www.w3.org/1998/Math/MathML') return null;
+  const name = element.localName;
+  if (svg) return name === 'foreignObject' || name === 'desc' || name === 'title' ? null : name;
+  if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext')
+    return null;
+  /**
+   * `<annotation-xml>` is an HTML integration point ONLY for the two HTML encodings; with any
+   * other, its content is still MathML and an HTML element there is as inert as anywhere else.
+   * One attribute read buys the distinction the spec actually draws.
+   */
+  if (name === 'annotation-xml') {
+    /**
+     * Attribute OR property. `<annotation-xml>` is dash-named, so `@verajs/jsx` compiles
+     * `encoding="text/html"` to `.encoding=${…}` — a property, with no attribute to read — and the
+     * hand-written and JSX spellings of the same markup then disagreed about whether this is an
+     * integration point. The runtime can see both; only it can, which is why the compiler leaves
+     * `annotation-xml` alone entirely.
+     */
+    const encoding = (element.getAttribute('encoding') ??
+      (element as { encoding?: unknown }).encoding) as string | undefined;
+    const normalised = typeof encoding === 'string' ? encoding.toLowerCase() : undefined;
+    return normalised === 'text/html' || normalised === 'application/xhtml+xml' ? null : name;
+  }
+  return name;
+};
+
+/**
+ * Named ONCE per host-namespace, host-name and offending-tag triple. A diagnostic that repeats is as useless as one that stays
+ * silent, and this one sits on an insert, so a toggled or animated subtree produced one
+ * `console.warn` per frame before the guard. `warnedSlotless` above is the precedent and the same
+ * `Set<string>` shape. `warnBooleanChild` is the other precedent and a DIFFERENT rule: it re-warns
+ * whenever the value CHANGES, which is enough there because a boolean child that keeps being
+ * committed is the same mistake being re-reported. Measured: 20 renders of `${false}` warn once, and
+ * toggling `false` ↔ `'x'` ten times warns ten times. It would not serve here, where the offending
+ * element is committed unchanged on every frame of an animated subtree.
+ */
+const warnedForeign = /* @__PURE__ */ new Set<string>();
+
+const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: readonly Node[]): void => {
+  for (const node of nodes) {
+    /**
+     * Not a correctness guard, and deliberately not dressed as one: `namespaceURI` is defined on
+     * `Element` alone, so the XHTML test below already rejects every text and comment node — in
+     * jsdom and in `@verajs/ssr`'s DOM alike, measured rather than assumed — and a `DocumentFragment`
+     * never arrives, since `_insert` spreads one into its children before calling. No test can tell
+     * this line from its absence. It earns its place by making the cast beneath it TRUE, and by
+     * skipping a property lookup on the text nodes every template is full of.
+     */
+    if (node.nodeType !== 1) continue;
+    const element = node as Element;
+    /**
+     * **Content whose namespace DIFFERS from its host's does not render — one rule, both ways.**
+     * Testing for HTML specifically left the mirror case silent: a hand-written `` mathml`…` ``
+     * handed across a boundary into an `<svg>` — the same story as `` Frame(html`<path/>`) ``, one
+     * namespace over — drew nothing and said nothing. An element in its host's own namespace is
+     * correct and is the path every ordinary insert takes, so it leaves first.
+     */
+    if (element.namespaceURI === hostNamespace) continue;
+    const tag = element.localName;
+    /** Neither draws, so "will not render" is the wrong complaint — and `<style>` genuinely applies. */
+    if (tag === 'style' || tag === 'script') continue;
+    /**
+     * The remedy has to match the HOST's namespace. `<foreignObject>` does not exist in MathML, so
+     * naming it for an `<mrow>` host sent people to build an SVG element inside `<math>`, which
+     * draws nothing — and "no geometry" was SVG language applied to a MathML parent besides.
+     *
+     * The NAMESPACE decides, never the name: SVG owns `mask`, `marker`, `mpath` and `metadata`, so
+     * a "starts with m" shortcut would hand four SVG hosts the MathML advice.
+     */
+    const island =
+      hostNamespace === 'http://www.w3.org/1998/Math/MathML'
+        ? '<mtext>, or <annotation-xml encoding="text/html">'
+        : 'a <foreignObject>';
+    /**
+     * Keyed by the host's NAMESPACE as well as its name, because `<a>` is a real element in both —
+     * the parser leaves `<math><a>` in MathML, since `a` is not on the foreign-content breakout
+     * list. Keyed by name alone, an SVG `<a>` host spent the pair for a MathML one, which then went
+     * silent AND lost its namespace-correct remedy: exactly the misadvice the remedy is chosen by
+     * namespace to prevent, arriving through the dedupe instead. `<style>` and `<script>` are hosts
+     * in both namespaces too — and the CONTENT's namespace is in the key for the same reason, since
+     * `<a>` is a real element in all three: an HTML `<a>` in an `<svg>` and a MathML `<a>` in the
+     * same `<svg>` are two distinct mistakes, and one was silencing the other.
+     */
+    const seen = `${hostNamespace}${host}>${element.namespaceURI}${tag}`;
+    /** `continue`, not `return`: a spent key must skip THIS node, not abandon the whole insert. */
+    if (warnedForeign.has(seen)) continue;
+    warnedForeign.add(seen);
+    /**
+     * The namespace it WAS built in. `HTML` is also the answer for an element carrying no namespace
+     * at all — one adopted from an XML document — which is a label rather than a fact, but the
+     * sentence it appears in ("will not render") and both remedies are right either way.
+     */
+    const built =
+      element.namespaceURI === 'http://www.w3.org/1998/Math/MathML'
+        ? 'MathML'
+        : element.namespaceURI === 'http://www.w3.org/2000/svg'
+          ? 'SVG'
+          : 'HTML';
+    /**
+     * **Two different mistakes, and only one of them is about a tag.**
+     *
+     * HTML content in foreign parent is the common one, and it gets BOTH remedies, because which is
+     * right depends on what the element was meant to be. `` svg`…` `` fixes an SVG element compiled
+     * as HTML. It does NOT fix genuine HTML: a `<div>` stays HTML-namespaced whatever the template
+     * is tagged (the parser's foreign-content breakout), so the advice would change nothing and the
+     * warning would fire again — and for a CUSTOM ELEMENT it is actively harmful, silencing this
+     * while leaving the element permanently un-upgraded, since upgrade is spec-gated on the HTML
+     * namespace. `<foreignObject>` is the answer for anything really HTML.
+     *
+     * SVG inside MathML, or MathML inside SVG, is a DIFFERENT mistake and both of those remedies are
+     * wrong for it: the template already carries the right tag — this message says so one clause
+     * earlier — and the content is not HTML, so the island sentence excludes itself. Saying "add the
+     * svg tag" to a template that IS `` svg`…` `` is the round-1 defect wearing another hat. The two
+     * namespaces simply cannot nest directly; an island is the only place one can host the other.
+     *
+     * The loop then simply ends: every distinct offender in one insert is reported, because the
+     * only early exit above is the spent-pair `continue`, which skips ITS node rather than
+     * abandoning the scan. Reporting the first alone made the message order-dependent.
+     */
+    /**
+     * The ADVICE varies; the call does not. `tests/diagnostics-convention.test.mjs` reads the literal
+     * immediately after the `(` to prove every message a user sees carries the `[vera]` prefix, and
+     * a ternary between two whole messages makes the call invisible to it rather than failing —
+     * which is a defect that suite already caught once, and caught here again.
+     */
+    const advice =
+      built === 'HTML'
+        ? `If it is meant to be an SVG or MathML element, the template holding it needs the ` +
+          `svg\`…\` or mathml\`…\` tag — the tag is chosen where a template is WRITTEN, not where ` +
+          `it is used, so write it at the call site. If it is genuinely HTML (a <div>, a custom ` +
+          `element), it belongs in ${island}: tagging it will not help, and a custom element only ` +
+          `upgrades in the HTML namespace.`
+        : `The template's tag is already right — these two namespaces cannot nest directly. Put ` +
+          `the ${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}, which is where ` +
+          `<${host}> can hold content from another namespace.`;
+    console.warn(
+      `[vera] renderer: <${tag}> was built as ${built} and placed inside <${host}>, where it will ` +
+        `not render. ${advice}`
+    );
+  }
+};
 
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
@@ -1895,6 +2109,12 @@ class ChildPart implements Part {
   _keyedList = false;
   /** Held instances by template identity; survives clears so state outlives interim content. */
   _held: Map<TemplateStringsArray, Instance> | null = null;
+  /**
+   * `__DEV__` only: the real destination for a part built inside a batching fragment, so the
+   * diagnostic resolves against where the row LANDS rather than the fragment it was assembled in.
+   * `declare`, so nothing is emitted and no part carries it.
+   */
+  declare _foreignHost?: Node | null;
   /** Whatever the last `_$child$` at this part returned — its continuity across renders. */
   _applierState: unknown = undefined;
   /** Which applier that state belongs to, so two of them at one part cannot read each other's. */
@@ -1953,7 +2173,34 @@ class ChildPart implements Part {
     const parent = this._start.parentNode!;
     if (slotsWired && (parent as { _$hosted$?: boolean })._$hosted$ === true)
       stampOwn(node, this._end === null ? true : this);
-    parent.insertBefore(node, this._end);
+    /**
+     * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
+     * parent is foreign, so an ordinary insert allocates nothing even in development.
+     */
+    if (__DEV__) {
+      /**
+       * ONE node answers both questions. Reading the namespace from `parent` while the host came
+       * from `_foreignHost` handed a batched fill the SVG advice for a MathML host, because a
+       * `DocumentFragment` has no namespace at all — the very thing `_foreignHost` exists to skip.
+       *
+       * **`parent` WINS whenever it is a real element, and `_foreignHost` is only the fallback for
+       * a fragment.** Preferring the stored value unconditionally cached a wrong answer for the
+       * life of the page: a list part at the TOP LEVEL of its template — which is what `<>{items}</>`
+       * compiles to — has its markers in that template's own fragment when `$c` records the host,
+       * so it stored a detached `DocumentFragment`, `foreignHost` read no namespace off it, and
+       * every later commit through that row was silent even once the markers sat in a live `<g>`.
+       * That is precisely the cached-fragment failure the changeset records as measured and
+       * rejected for inferring namespace from the DOM parent, reproduced one layer in. By the time
+       * this runs `parent` is authoritative wherever it is an element, so it is consulted first.
+       */
+      const hostNode = parent.nodeType === 11 ? (this._foreignHost ?? parent) : parent;
+      const host = foreignHost(hostNode);
+      const inserted = host === null ? null : node.nodeType === 11 ? [...node.childNodes] : [node];
+      parent.insertBefore(node, this._end);
+      if (inserted !== null) warnForeignMismatch(host!, (hostNode as Element).namespaceURI, inserted);
+    } else {
+      parent.insertBefore(node, this._end);
+    }
   }
 
   /**
@@ -2276,6 +2523,26 @@ class ChildPart implements Part {
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
         if (stamp !== null) stampOwn(rootNode, stamp);
         parent.insertBefore(rootNode, ref);
+        /**
+         * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
+         * itself, into the live parent when it is appending one and into a batching
+         * `DocumentFragment` when it is filling two or more (the next comment is about exactly
+         * that). Wired to `_insert` alone the diagnostic could never see a GROWING icon list, which
+         * is the feature's own headline shape.
+         */
+        if (__DEV__) {
+          /**
+           * The PART's parent when `parent` is a fragment. `@verajs/renderer/keyed` batches a
+           * trailing fill of two or more rows into a `DocumentFragment` and lands it with one
+           * `insertBefore`, so the rows are created against something with no namespace at all —
+           * a growing icon list, which is the shape this diagnostic most exists for. A row's own
+           * namespace is fixed at parse time, so asking the real destination here is sound, and
+           * `keyed.ts` stays importing nothing, which is what keeps its template cache single.
+           */
+          const hostNode = parent.nodeType === 11 ? this._start.parentNode! : parent;
+          const host = foreignHost(hostNode);
+          if (host !== null) warnForeignMismatch(host, (hostNode as Element).namespaceURI, [rootNode]);
+        }
         return {
           $k: result.key,
           _element: rootNode as Element,
@@ -2291,10 +2558,28 @@ class ChildPart implements Part {
       part._mode = TEMPLATE;
       part._value = [...instance._fragment.childNodes];
       if (stamp !== null) stampOwn(instance._fragment, stamp);
-      part._start.parentNode!.insertBefore(instance._fragment, part._end);
+      /**
+       * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
+       * survived minification as a live reference and put the warning's strings in the production
+       * bundle (+436 B, caught by the size gate). Only a statement-level `if (__DEV__)` is removed
+       * outright.
+       */
+      if (__DEV__) {
+        const rowParent = part._start.parentNode!;
+        const rowHostNode = rowParent.nodeType === 11 ? this._start.parentNode! : rowParent;
+        const rowHost = foreignHost(rowHostNode);
+        const rowNodes = rowHost === null ? null : [...instance._fragment.childNodes];
+        rowParent.insertBefore(instance._fragment, part._end);
+        if (rowNodes !== null)
+          warnForeignMismatch(rowHost!, (rowHostNode as Element).namespaceURI, rowNodes);
+      } else {
+        part._start.parentNode!.insertBefore(instance._fragment, part._end);
+      }
       return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }
     const part = createMarkeredPart(parent, ref);
+    /** The row's own destination, so a batched fill resolves like the template branches above. */
+    if (__DEV__ && parent.nodeType === 11) part._foreignHost = this._start.parentNode;
     part._set(value);
     return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
   }

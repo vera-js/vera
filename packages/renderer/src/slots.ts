@@ -750,7 +750,9 @@ const warnInert = (slot: Element) => {
       `the slot instead. (\`name\`, \`@event\` bindings and \`&ref\` all work here.)`
   );
 };
-const warnedInert = new Set<string>();
+/** `@__PURE__`: `warnInert` is `__DEV__`-only, so without it production keeps a bare `new Set`
+ *  whose binding it just dropped — the orphan-allocation trap this file documents for slot state. */
+const warnedInert = /* @__PURE__ */ new Set<string>();
 
 /**
  * The user's mutations, batched. Additions join only with an explicit `slot` attribute (the

@@ -246,10 +246,61 @@ render(() => html`
 ```
 
 This is a TEMPLATE rule. In JSX the compiler picks the tag from the expression's lexical position —
-shapes mapped in a list or built conditionally inside `<svg>` compile with `svg``` automatically
-(`<foreignObject>` flips back to HTML, `<math>` uses `mathml```), so JSX authors never write the
-namespace tags by hand. One boundary: a function component compiles where it is DEFINED, so give an
-icon component its own `<svg>` wrapper or define the shape inline.
+shapes mapped in a list or built conditionally inside `<svg>` compile with `` svg`…` `` automatically.
+`<foreignObject>`, `<desc>` and `<title>` all flip their content back to HTML; a top-level `<math>`
+uses `` mathml`…` ``, but a `<math>` NESTED inside an `<svg>` stays SVG, exactly as the parser does.
+So JSX authors never write the namespace tags by hand.
+
+Shapes HANDED TO A COMPONENT work too, which lexical position alone cannot decide: in
+`<Frame><path d="M0 0h24" /></Frame>` the `<path>` sits outside any `<svg>`, and the call site cannot
+know what `Frame` renders. It does not need to — `<path>` is not an HTML element in any context, so a
+template whose ROOT is an SVG-only name compiles with `` svg`…` `` wherever it was written. That covers
+children passed directly, through a `<>…</>` fragment, and through a mapped list.
+
+Three kinds of name are excluded, all conservatively — they fall back to previous behaviour rather
+than mis-tagging. The ones SVG shares with HTML (`a`, `title`, `script`, `style`, `image`, `font`).
+The ones that carry visible content as unknown HTML (`text`, `desc`, `tspan`, `foreignObject`,
+`filter`, `mask`, ...), since the upgrade fires on the root tag alone and would otherwise turn
+`<Box><text>hi</text></Box>` into a 0x0 SVG element. And the camelCase ones (`clipPath`,
+`linearGradient`, `animateTransform`, ...), which a server emits verbatim and a browser parses
+lowercased outside an `<svg>` — hydration would discard the server's markup and rebuild.
+
+A root is never upgraded when a COMPONENT or CUSTOM ELEMENT lies in its children or an expression,
+and never when an ATTRIBUTE carries JSX at all — a handler's template goes wherever the handler puts
+it, which the shape around it cannot know. Upgrade is
+spec-gated on the HTML namespace, so an SVG-namespaced one is permanently inert with no
+`connectedCallback` and no diagnostic. `<foreignObject>`, `<desc>` and `<title>` are SVG's HTML
+integration points and all three are exempt: their content parses as HTML there, so an element or a
+component beneath one is safe and the shape around it still draws. The island's own ATTRIBUTES are
+still checked, since those are emitted in the outer namespace.
+
+The one shape an island cannot take is a STATIC element inside a `<title>`, which `@verajs/renderer`
+scans as raw text in every template. An EXPRESSION never reaches that, so
+`<g><title>{flag && <my-badge />}</title><path /></g>` upgrades and the badge still upgrades as a
+custom element; only `<g><title><tspan /></title></g>` keeps the behaviour it had.
+
+MathML's token elements (`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`) are the equivalent for CHILD
+MODE — an expression inside one compiles `html`. They never exempt a root from refusal, because a
+root is only ever upgraded to `svg`.
+
+A SIBLING vouches for a name a root tag alone cannot prove. In
+`<Frame><title>{label}</title><path d={d} /></Frame>` the children are separate roots, so `<title>`
+— a name SVG shares with HTML — would be built as HTML inside the `<svg>` and be the accessible name
+of nothing. One SVG-only name in the group settles it, and the names excluded only for want of
+context come with it (`title`, `a`, `style`, `script`, `image`, `font`, `text`, `tspan`, `desc`,
+`metadata`, `switch`, `view`, `set`, `filter`, `mask`, `marker`, `pattern`, `symbol`). Alone they
+are untouched, so `<Box><text>hello</text></Box>` stays readable text. The camelCase names stay out
+even with a sibling, because their hazard is SSR casing rather than context.
+
+`@verajs/renderer` names an element committed into an `<svg>` or `<math>` in a DIFFERENT namespace
+from its host, in development — HTML inside `<svg>` most often, but MathML inside `<svg>` and SVG
+inside `<math>` are the same mistake and are named the same way. It stays silent where the content
+is correct: inside `<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements
+(`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`), inside `<annotation-xml>` carrying an HTML `encoding`,
+and for `<style>`/`<script>`, which never draw.
+
+A HAND-WRITTEN template is the same story without a compiler to help: ``Frame(html`<path/>`)`` is
+HTML, ``Frame(svg`<path/>`)`` is right, and development says so when it happens.
 
 `html` alone would produce an `HTMLUnknownElement` named `circle`, which parses fine and never
 renders. Bindings, keyed lists and in-place updates all work the same inside these tags.
@@ -452,7 +503,7 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->3.35 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->3.34 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe (it imports nothing and touches no global document).
 
@@ -541,7 +592,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.58 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.57 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -1348,7 +1399,7 @@ For CodePen, a demo or a single-file app. Copy this shape; it works with no tool
 } }
 </script>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.3.1/dist/vera-jsx-standalone.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.3.2/dist/vera-jsx-standalone.min.js"></script>
 
 <my-app></my-app>
 

@@ -359,6 +359,12 @@ render(() => html`
 `);
 ```
 
+The tag is chosen where a template is WRITTEN, not where it lands, so a template handed across a
+function boundary into an `<svg>` keeps the tag it was written with — `` Frame(html`<path/>`) ``
+does not draw, and the call site has no way to know. **`@verajs/renderer` names that in
+development**, with both remedies; see its README. In JSX it mostly cannot happen, because
+`@verajs/jsx` tags an SVG-rooted template automatically.
+
 ## Extending it
 
 Core dispatches seven extension points and knows nothing about what is registered on them.

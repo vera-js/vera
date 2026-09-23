@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-18",
+  "taken": "2026-09-23",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -7,8 +7,8 @@
       "gzip": 3339
     },
     "renderer": {
-      "raw": 12133,
-      "gzip": 4685
+      "raw": 12125,
+      "gzip": 4679
     },
     "router": {
       "raw": 10913,
@@ -35,12 +35,12 @@
       "gzip": 673
     },
     "jsx": {
-      "raw": 10188,
-      "gzip": 4024
+      "raw": 12703,
+      "gzip": 4985
     },
     "standalone": {
-      "raw": 10522,
-      "gzip": 4226
+      "raw": 13037,
+      "gzip": 5188
     },
     "computed": {
       "raw": 293,
@@ -55,12 +55,12 @@
       "gzip": 923
     },
     "slots": {
-      "raw": 9195,
-      "gzip": 3426
+      "raw": 9185,
+      "gzip": 3424
     },
     "hydrate": {
-      "raw": 17611,
-      "gzip": 6442
+      "raw": 17603,
+      "gzip": 6436
     },
     "inserts": {
       "raw": 486,
@@ -178,7 +178,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
       "raw": 17974,
-      "gzip": 7145,
+      "gzip": 7142,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -264,7 +264,7 @@
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
       "raw": 19928,
-      "gzip": 7879
+      "gzip": 7877
     }
   ],
   "variants": [
@@ -272,7 +272,7 @@
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
       "raw": 17978,
-      "gzip": 7151
+      "gzip": 7150
     }
   ]
 }

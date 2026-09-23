@@ -168,10 +168,84 @@ you, from the position the expression is written in:
 ```
 
 Shapes mapped in a list, built conditionally, or written inline all parse in the SVG namespace —
-no workaround, nothing to import (the `svg` import is injected like `html` is). One boundary to
-know: a **function component** compiles where it is *defined*, so one that returns bare shapes
-(`const Dot = () => <circle r="2" />`) defined outside any `<svg>` compiles as HTML. Give an icon
-component its own `<svg>` wrapper — the React convention anyway — or define the shape inline.
+no workaround, nothing to import (the `svg` import is injected like `html` is).
+
+**Shapes handed to a component work too**, which lexical position alone cannot decide:
+
+```jsx
+const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
+<Frame><path d="M0 0h24" /></Frame>     // the <path> is written outside any <svg>
+```
+
+The call site cannot know what `Frame` renders — but it does not need to. `<path>` is not an HTML
+element in any context, so a template whose ROOT is an SVG-only name compiles with `svg` wherever it
+was written. That covers children passed directly, through a `<>…</>` fragment, and through a mapped
+list.
+
+**Three kinds of name are deliberately left out**, and every omission is conservative — they fall
+back to the previous behaviour rather than mis-tagging anything:
+
+- the ones SVG shares with HTML (`a`, `title`, `script`, `style`, `image`, `font`), because guessing there
+  would break real HTML;
+- the ones carrying visible content (`text`, `desc`, `foreignObject`, `tspan`, …), because the
+  upgrade fires on the root tag alone and so also applies to a template bound for an HTML parent —
+  `<Box><text>hi</text></Box>` would go from readable text to a 0×0 SVG element;
+- the camelCase ones (`clipPath`, `linearGradient`, `animateTransform`, …), which a server emits
+  verbatim and a browser parses lowercased outside an `<svg>`, so hydration would discard the
+  server's markup and rebuild.
+
+The last two are almost always written *inside* an `<svg>` anyway, where lexical position already
+answers.
+
+A root is never upgraded when a component or custom element lies anywhere the compiler would tag
+it — in the children, or inside an expression like `{rows.map((r) => <my-card key={r} />)}` — and
+never when an ATTRIBUTE carries JSX at all, of any kind. A handler's template goes wherever the
+handler puts it, which the shape around it cannot know, so `<circle onClick={() => open(<form/>)}/>`
+keeps its root HTML rather than building that form in the SVG namespace. Upgrade is spec-gated on the HTML namespace, so
+an SVG-namespaced custom element never runs its `connectedCallback` at all.
+
+`<foreignObject>`, `<desc>` and `<title>` are SVG's HTML integration points, and all three are
+exempt: their content parses as HTML there, so an element or a component beneath one is safe and
+the shape around it still draws. The island's own ATTRIBUTES are still checked, since those are
+emitted in the outer namespace.
+
+The one shape an island cannot take is a STATIC element inside a `<title>`. `@verajs/renderer` scans
+`<title>` as raw text in every template, by one rule deliberately shared with its parsed-tree pass,
+so an element written there is dropped, a binding's sigil is left behind as a dead attribute, and a
+spread throws. An EXPRESSION never reaches that — it becomes its own template, committed as a child,
+never scanned as `<title>`'s statics. So `<g><title>{label}</title><path /></g>` upgrades and draws,
+`<g><title>{flag && <my-badge />}</title><path /></g>` upgrades and the badge still upgrades as a
+custom element, and only `<g><title><tspan /></title></g>` keeps the behaviour it had.
+
+MathML's token elements (`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`) are the equivalent for CHILD
+MODE — an expression inside one compiles `html`. They never exempt a root from refusal, because a
+root is only ever upgraded to `svg`: inside an `svg` template a `<math>` does not switch namespace,
+so an `<mtext>` there really is SVG.
+
+**A SIBLING vouches for a name a root tag alone cannot prove.** `<title>` is the canonical case and
+the one that mattered: SVG shares the name with HTML, so it is never upgraded on its own — but a
+component's children are emitted as separate roots, so
+
+```jsx
+<Frame><title>{label}</title><path d={d} /></Frame>
+```
+
+built the `<title>` as HTML inside the `<svg>`, where it is the accessible name of nothing. The
+`<path>` beside it settles the question: one SVG-only name in a sibling group puts the group in SVG,
+so the names excluded only because *a root tag alone cannot prove context* — `title`, `a`, `style`,
+`script`, `image`, `font`, `text`, `tspan`, `desc`, `metadata`, `switch`, `view`, `set`, `filter`,
+`mask`, `marker`, `pattern`, `symbol` — come with it. Alone they are untouched, so
+`<Box><text>hello</text></Box>` is still readable text and not a 0×0 SVG element.
+
+The camelCase names stay out even here. Their hazard is not the root-tag one: `@verajs/ssr` emits the
+strings verbatim and a browser lowercases them outside an `<svg>`, so hydration would discard and
+rebuild. A sibling says what the group IS, not where it lands.
+
+So `<Frame><a>text</a></Frame>` with no SVG sibling still compiles the `<a>` as HTML. `@verajs/renderer` names that
+in development, on every path a component's children actually take — they arrive as an array and
+reach the DOM through the list path, not the single-child one — and the message names both remedies,
+since `` svg`…` `` is right for an SVG element compiled as HTML and `<foreignObject>` is right for
+something genuinely HTML.
 
 ### A boolean child renders nothing
 
@@ -194,6 +268,23 @@ const $veraChild = (v) => (typeof v === 'boolean' ? null : v);   // injected, ~6
 
 It is emitted only into modules that have JSX child expressions, and it steps aside — `$veraChild2`,
 `$veraChild3` — if your module already uses the name.
+
+**The injected TAG names step aside the same way.** If your module binds a name an import would
+claim — `const svg = …`, `const { html, svg } = vera`, `const [svg] = …`, or a parameter called
+`svg` — the import is renamed rather than duplicated, and the emitted templates use the new name:
+
+```js
+const svg = document.querySelector('svg');
+export const icon = <path d="M0 0h24" />;
+// →  import { svg as $veraSvg } from '@verajs/core';
+//    export const icon = $veraSvg`<path d="M0 0h24"></path>`;
+```
+
+Without it the module is a `SyntaxError` — *"Identifier 'svg' has already been declared"* — which a
+browser catches and logs, so the page simply does nothing. A module that does not mention the name
+keeps the plain one, and a module that hand-writes `` html`…` `` beside its JSX keeps it too, since
+that is a reference to the very import being added. With `inject: false` nothing is renamed: the
+bindings are yours.
 
 Two consequences worth knowing:
 
