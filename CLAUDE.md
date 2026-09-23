@@ -122,6 +122,16 @@ code, so they are not re-litigated.
   `packages/ssr/tsconfig.json` extends the shared base rather than the root and so inherits none of
   the `paths` that map `@verajs/*` to source. Every other package resolves to source and never needs a
   built `dist`; ssr is the one that does.
+- **A green `npm run build` and a green `npm test` do NOT mean the TypeScript parses.** The bundler
+  strips types without fully parsing them, so a `.ts` file TypeScript cannot read still builds and
+  still passes every suite — measured 2026-09-23, when a stray `*/` inside a doc comment left
+  `packages/jsx/src/types.ts` syntactically broken and all 1776 node tests passed against it. Only
+  `typecheck` and `eslint` see it. **So read the gate's STEP LIST, never a tail of its output**: each
+  failed step prints a 12-line tail plus notable lines, so `npm run gate | tail -30` shows the last
+  failure's output and hides the ✗ of every earlier one — three red steps were reported as "running"
+  twice for exactly that reason. `node scripts/gate.mjs > file 2>&1` then grep for `✓|✗`, and note
+  that every failed step also writes its whole output to `$TMPDIR/vera-gate-<step>-<pid>.log`, which
+  is the fastest way to see which steps failed after the fact.
 - **A package rename has SIX reference forms, and a grep for the package's own name reaches only
   three.** Each needs its own pass: (1) the scoped specifier `@verajs/<name>`; (2) the bundle
   filename `vera-<name>`; (3) the directory path `packages/<name>`; (4) **internal keys** —

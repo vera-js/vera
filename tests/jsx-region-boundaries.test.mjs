@@ -130,7 +130,28 @@ const WITH_JSX = [
    * which is why the first version of this corpus could not tell the guard was there.
    */
   ['preceded by a division', 'const q = a / b; const v = <p>x</p>;'],
-  ['between two divisions', 'const q = a / b; const v = <p>x</p>; const r = c / d;']
+  ['between two divisions', 'const q = a / b; const v = <p>x</p>; const r = c / d;'],
+  /**
+   * A COMMENT between the postfix operator and the division. The rule above used to be answered by
+   * scanning backwards over whitespace from the `/`, which landed on the closing slash of a block
+   * comment and read the comment itself as an operator — so a postfix increment, a block comment and
+   * a division lost every root in the module while its neighbour three rows up passed. It is
+   * answered forwards now, where comments are already invisible.
+   */
+  ['a postfix increment, comment, divided', 'let i = 1;\nconst r = i++ /* c */ / 2, v = <div class="x" />;'],
+  ['a postfix increment, line comment, divided', 'let i = 1;\nconst r = i++\n// c\n/ 2, v = <div class="x" />;'],
+  ['an object literal, comment, divided', 'const o = { a: 1 } /* c */ / 2, v = <p class="y" />;']
+];
+
+/**
+ * TypeScript rows, kept apart because `new Function` rejects a non-null assertion — the check below
+ * strips them before parsing. `.tsx` is a first-class input and had no row here at all.
+ */
+const WITH_TSX = [
+  ['a postfix non-null divided', 'let d = 1;\nconst r = d! / 2, v = <div class="x" />;'],
+  ['a non-null member divided', 'const o = { n: 1 };\nconst r = o.n! / 2, v = <p class="y" />;'],
+  ['a non-null call divided', 'const f = () => 1;\nconst r = f()! / 2, v = <b class="z" />;'],
+  ['a non-null, comment, divided', 'let d = 1;\nconst r = d! /* c */ / 2, v = <i class="w" />;']
 ];
 
 test('a source with no JSX comes out unchanged', () => {
@@ -159,4 +180,80 @@ test('and JSX beside the things that look like it still compiles', () => {
     catch (error) { problems.push(`${name}: output does not parse - ${error.message.slice(0, 50)} - ${output.slice(0, 80)}`); }
   }
   assert.deepEqual(problems, [], `region boundaries went wrong:\n  ${problems.join('\n  ')}`);
+});
+
+/**
+ * The SECOND half of the failure, which "was the region seen" cannot reach. When the `/` is misread
+ * the regex runs to the next slash and eats the rest of the line — including the `v = …` binding —
+ * so the injected `import { html }` collides with a `const` the scan no longer knows is there. Every
+ * row here declares `html` on the eaten line, so a correct scan MUST alias and a broken one will not.
+ */
+const COLLIDING = [
+  ['a postfix non-null', 'let d = 1;\nconst r = d! / 2, html = 1;\nexport const v = <div class="x" />;'],
+  ['a non-null member', 'const o = { n: 1 };\nconst r = o.n! / 2, html = 1;\nexport const v = <p class="y" />;'],
+  ['a postfix increment, comment', 'let i = 1;\nconst r = i++ /* c */ / 2, html = 1;\nexport const v = <b class="z" />;'],
+  ['a member named new', 'const s = { new: 4 };\nconst r = s.new / 2, html = 1;\nexport const v = <i class="w" />;'],
+  /**
+   * A CLOSED TEMPLATE is a value, so the `/` after it is division. Read as a regex it runs to the
+   * next slash and eats the binding, exactly as the member-name rows above do.
+   */
+  ['a closed template divided', 'const t = `x` / 2, html = 1;\nexport const v = <b class="z" />;'],
+  ['a closed string divided', "const q = 'w' / 2, html = 1;\nexport const v = <b class=\"z\" />;"],
+  /**
+   * An APOSTROPHE inside JSX TEXT, with the binding AFTER the region. The literal scan has to recurse
+   * into a child expression's own JSX or the apostrophe opens a fake string and blanks everything
+   * after it — and the binding has to sit after the JSX for the row to measure that, which is the
+   * defect in the three rows `jsx-name-corpus` already carries: it always appends the body LAST, so
+   * the blanked tail held no binding and all three passed with the recursion removed.
+   */
+  ['an apostrophe in JSX text, binding after', "export const v = ({ x }) => <div>{x && <p>Don't stop</p>}</div>;\nconst html = 1;"],
+  ['a backtick in JSX text, binding after', 'export const v = ({ x }) => <div>{x && <p>a ` b</p>}</div>;\nconst html = 1;'],
+  ['an apostrophe in an ATTRIBUTE, binding after', "export const v = ({ x }) => <div title={x && <p>it's</p>}>y</div>;\nconst html = 1;"]
+];
+
+test('a binding on the divided line is seen, so the injected import aliases around it', () => {
+  const problems = [];
+  for (const [name, source] of COLLIDING) {
+    const output = transformJsx(source, 'probe.tsx');
+    if (!/^import \{ html as \$veraHtml \}/m.test(output))
+      problems.push(`${name}: expected an aliased import, got ${JSON.stringify((output.match(/^import .*$/m) ?? ['(none)'])[0])}`);
+    if (!/\$veraHtml`/.test(output)) problems.push(`${name}: the call site does not use the alias`);
+  }
+  /** The control: with no colliding binding the SAME shapes must take the plain import, or the rows
+   *  above would pass against a compiler that aliased unconditionally. */
+  for (const [name, source] of COLLIDING) {
+    const output = transformJsx(source.replace(', html = 1', '').replace(/\nconst html = 1;/, ''), 'probe.tsx');
+    if (!/^import \{ html \}/m.test(output))
+      problems.push(`${name} (no collision): expected a plain import, got ${JSON.stringify((output.match(/^import .*$/m) ?? ['(none)'])[0])}`);
+  }
+  assert.deepEqual(problems, [], `the eaten-binding half went wrong:\n  ${problems.join('\n  ')}`);
+});
+
+test('a parameter that shadows the tag is seen inside an ATTRIBUTE too', () => {
+  /**
+   * The JS scan runs over an element's ATTRIBUTE expressions as well as its children, and that half
+   * has been missing once. `onClick={(html) => r(<b>x</b>)}` emits the template INSIDE an arrow whose
+   * own parameter shadows `html`, so the injected import is not the binding at the call site and the
+   * handler throws on click — at click time, not at load.
+   */
+  const shadowed = transformJsx('export const v = ({ r }) => <div onClick={(html) => r(<b>x</b>)}>y</div>;', 'p.jsx');
+  assert.match(shadowed, /^import \{ html as \$veraHtml \}/m, shadowed);
+  assert.match(shadowed, /\(html\) => r\(\$veraHtml`<b>x<\/b>`\)/, shadowed);
+  /** The control: the same shape with an unshadowing parameter name takes the plain import. */
+  const plain = transformJsx('export const v = ({ r }) => <div onClick={(q) => r(<b>x</b>)}>y</div>;', 'p.jsx');
+  assert.match(plain, /^import \{ html \}/m, plain);
+  assert.match(plain, /\(q\) => r\(html`<b>x<\/b>`\)/, plain);
+});
+
+test('and the TypeScript rows keep their regions too', () => {
+  const problems = [];
+  for (const [name, source] of WITH_TSX) {
+    let output;
+    try { output = transformJsx(source, 'probe.tsx'); }
+    catch (error) { problems.push(`${name}: threw ${error.message.slice(0, 70)}`); continue; }
+    if (output === source) { problems.push(`${name}: unchanged, so the JSX was not seen`); continue; }
+    try { new Function(output.replace(/^import .*$/gm, '').replace(/^export /gm, '').replace(/!/g, '')); }
+    catch (error) { problems.push(`${name}: output does not parse - ${error.message.slice(0, 50)}`); }
+  }
+  assert.deepEqual(problems, [], `TypeScript region boundaries went wrong:\n  ${problems.join('\n  ')}`);
 });

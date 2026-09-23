@@ -183,5 +183,8 @@ test('every module the transform can be handed still parses and runs', async () 
   assert.ok(built > 900, `the matrix built ${built} modules, which is too few to mean anything`);
   assert.equal(ran, built, `every module must evaluate\n  ${failures.slice(0, 8).join('\n  ')}`);
   assert.deepEqual(failures, [], `modules the transform broke:\n  ${failures.slice(0, 8).join('\n  ')}`);
-  console.log(`jsx name corpus: ${built} modules transformed, evaluated and rendered clean`);
+  /** Transformed and EVALUATED — nothing here reaches a DOM, and saying "rendered" made this read as
+ *  equivalent to `jsx-namespace-corpus`, which genuinely does render. Evaluation is what this corpus
+ *  is for: a colliding or shadowed binding is a load-time failure, and it catches those. */
+  console.log(`jsx name corpus: ${built} modules transformed and evaluated clean`);
 });

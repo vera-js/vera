@@ -84,21 +84,29 @@ export type ParseState = {
   i: number;
   /** The last significant character / word seen, for the expression-position heuristic. */
   lastChar: string;
+  /**
+   * The meaningful character BEFORE `lastChar`, and whether a line break falls between `lastChar`
+   * and the cursor. Both are maintained forwards, where comments are already invisible, because the
+   * backward scans they replace could not be: one landed on the closing slash of a block comment and
+   * read the comment itself as an operator, so a postfix increment followed by a comment and a
+   * division lost every root in the module.
+   */
+  lastPrev: string;
+  brokeLine: boolean;
   lastWord: string;
-  /** The one reportable parse failure — see `createParseState`'s doc in parser.ts. */
-  mismatch: JsxMismatch | null;
+  /** The reportable parse failure — see `createParseState`'s doc in parser.ts. */
+  mismatch: JsxFault | null;
 };
 
 /**
- * The one parse failure the walker reports, as a closing tag that did not match what was open.
+ * A parse failure the walker REPORTS rather than shrugging at, already worded.
  *
- * Only the FIRST is kept: after a mismatch the walker's idea of nesting is already wrong, so every
- * later complaint is a consequence of this one and naming them all buries the real cause. `at` is a
- * character offset into the original source, so the caller can turn it into a line and column.
+ * Only the FIRST is kept: after one the walker's idea of the source is already wrong, so every later
+ * complaint is a consequence of it and naming them all buries the real cause. `at` is a character
+ * offset into the original source, so the caller can turn it into a line and column.
  */
-export type JsxMismatch = {
-  expected: string;
-  found: string;
+export type JsxFault = {
+  message: string;
   at: number;
 };
 

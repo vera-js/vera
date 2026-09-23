@@ -59,6 +59,48 @@ test('a mismatched closing tag is reported where it is', () => {
   );
 });
 
+test('an empty attribute expression is reported, and an empty child is not', () => {
+  /**
+   * `<div x={}/>` compiled to a template hole containing nothing — a syntax error in code the author
+   * never wrote, with nothing naming the `{}` responsible. An empty CHILD container stays legal and
+   * vanishes, which is what JSX does, so this is a pair rather than a single rule.
+   */
+  assert.throws(() => transformJsx('const a = <div x={} />;', 'app.tsx'), /app\.tsx:1:18 — x=\{\} has no value/);
+  assert.throws(() => transformJsx('const a = <div x={ /* c */ } />;', 'app.tsx'), /x=\{\} has no value/);
+  assert.equal(compile('const a = <div>{}</div>;'), 'const a = html`<div></div>`;');
+  assert.equal(compile('const a = <div x={1} />;'), 'const a = html`<div x=${1}></div>`;');
+});
+
+test('a hashbang stays on line one', () => {
+  /** Only line 1 makes `#!` a hashbang, so an injected import above it is a syntax error at byte 0. */
+  const out = transformJsx('#!/usr/bin/env node\nconst a = <p>y</p>;', 'app.tsx');
+  assert.match(out, /^#!\/usr\/bin\/env node\nimport \{ html \}/, out.slice(0, 80));
+  /** The control: with nothing to inject the file is untouched, so the row above measures the move. */
+  assert.match(transformJsx('#!/usr/bin/env node\nconst a = <p>y</p>;', 'app.tsx', { inject: false }), /^#!/);
+});
+
+test('a boolean attribute set to the empty string is TRUE', () => {
+  /**
+   * `hidden=""` is what the PLATFORM serialises a set boolean to, so reading it as false inverted
+   * every attribute on markup round-tripped through the DOM. `tests/hydrate-parity.test.mjs` already
+   * recorded `<b hidden="">` as `?hidden=${true}` on the renderer side, so this half disagreed with
+   * the repo's own fixture. `hidden="false"` staying false is the one deliberate divergence.
+   */
+  assert.equal(compile('const a = <div hidden="" />;'), 'const a = html`<div ?hidden=${true}></div>`;');
+  assert.equal(compile('const a = <button disabled="" />;'), 'const a = html`<button ?disabled=${true}></button>`;');
+  assert.equal(compile('const a = <div hidden="false" />;'), 'const a = html`<div ?hidden=${false}></div>`;');
+  assert.equal(compile('const a = <div hidden="y" />;'), 'const a = html`<div ?hidden=${true}></div>`;');
+});
+
+test('a mixed-case void element still self-closes', () => {
+  /** Tag names are case-insensitive in HTML and the emitter keeps the author's spelling, so the void
+   *  list has to be asked in lowercase — otherwise `<bR/>` emits an end tag no void element may have. */
+  assert.equal(compile('const a = <div><bR /></div>;'), 'const a = html`<div><bR /></div>`;');
+  assert.equal(compile('const a = <div><iMg src="a" /></div>;'), 'const a = html`<div><iMg src="a" /></div>`;');
+  /** The control: a non-void element in the same position DOES get its end tag. */
+  assert.equal(compile('const a = <div><sPan /></div>;'), 'const a = html`<div><sPan></sPan></div>`;');
+});
+
 test('what is genuinely ambiguous is still left exactly as it was', () => {
   for (const source of [
     'const a = x < y;',

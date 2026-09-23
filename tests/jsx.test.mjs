@@ -467,6 +467,49 @@ assert.ok(/a = .*children: \[svg`<text/.test(fragVouch), 'a fragment holding a s
 assert.ok(/b = .*children: \[svg`<title/.test(fragVouch), 'including for the canonical accessible icon');
 assert.ok(/c = .*children: \[html`<text/.test(fragVouch), 'CONTROL: a fragment proving nothing vouches for nothing');
 
+/**
+ * **A refused voucher does not vouch when it is a FRAGMENT inside an EXPRESSION either.** The
+ * refusal hung off the element branch of the expression vouch alone, so the fragment branch asked
+ * only `fragmentProof` — which answers "all SVG names" and has no opinion on whether the compiler is
+ * about to refuse one of them. Measured: the `<text>` was upgraded on the word of a `<title>` that
+ * then stayed HTML, one authored group in two namespaces. This is `a refused sibling does not vouch`
+ * two shapes over, and it is the third time this rule has had to be written at a new address.
+ */
+const exprVouch = transformJsx(
+  `const F = ({ children }) => <svg>{children}</svg>;
+   export const a = ({ c }) => <F><text>L</text>{c ? <><title><b>x</b></title><path d="M0" /></> : null}</F>;
+   export const b = ({ c }) => <F><text>L</text>{c ? <><circle r="1" /><path d="M0" /></> : null}</F>;
+   export const d = ({ c }) => <F><text>L</text>{c ? <g><my-card /></g> : null}</F>;`,
+  'ev.jsx',
+  { inject: false }
+);
+assert.ok(/a = .*children: \[html`<text/.test(exprVouch), 'a refused FRAGMENT in an expression does not vouch');
+assert.ok(!/a = .*svg`/.test(exprVouch.split('const b =')[0]), 'and nothing in that group is upgraded alone');
+assert.ok(/b = .*children: \[svg`<text/.test(exprVouch), 'CONTROL: a clean fragment in an expression does vouch');
+assert.ok(/d = .*children: \[html`<text/.test(exprVouch), 'CONTROL: the element branch still refuses');
+
+/**
+ * **A mixed-case raw-text element refuses at any DEPTH.** The tag that has to be a lowercase SVG name
+ * is the one being upgraded; `refusesSvg` then walks the subtree through `hasComponent`, so
+ * `<textArea>` beneath a `<g>` reaches `titleWithElement` and the list must be asked in lowercase.
+ * Without it the group compiles `svg` and goes straight into the scan/parse disagreement: the `<b>`
+ * is relocated out of the `<g>`, its `@click` stranded as a dead attribute, the binding never
+ * committed. The upgraded tag being case-sensitive is what makes this the ONLY reachable shape, and
+ * a sweep without it reported the guard dead.
+ */
+const mixedRaw = transformJsx(
+  `export const a = ({ f }) => <g><textArea><b onClick={f}>hi</b></textArea></g>;
+   export const b = ({ f }) => <g><tiTle><b onClick={f}>hi</b></tiTle></g>;
+   export const c = ({ f }) => <g><circle onClick={f} /></g>;`,
+  'mr.jsx',
+  { inject: false }
+);
+assert.ok(/a = .*html`<g><textArea/.test(mixedRaw), '<textArea> with an element child refuses, whatever its case');
+assert.ok(/b = .*html`<g><tiTle/.test(mixedRaw), 'and so does <tiTle>');
+assert.ok(/c = .*svg`<g><circle/.test(mixedRaw), 'CONTROL: the same <g> with no raw-text child does upgrade');
+
+
+
 /** camelCase stays out even with a sibling: its hazard is SSR casing, which a sibling cannot speak to. */
 const camel = transformJsx(
   `const F = ({ children }) => <svg>{children}</svg>;
@@ -613,6 +656,32 @@ const innerTag = (name) =>
 assert.equal(innerTag('a'), 'html', "MathML's token elements flip to html`` — they are its integration points");
 assert.equal(innerTag('b'), 'mathml', '<desc> inside <math> does NOT flip — it is not one there');
 assert.equal(innerTag('c'), 'html', 'CONTROL: <desc> inside <svg> does flip');
+
+/**
+ * **Every token element in the list, not just the first.** `<mtext>` alone was covered, so emptying
+ * `MATHML_ISLANDS` down to it changed real output and failed nothing: `<math><mi>{c && <my-card/>}</mi></math>`
+ * compiled `mathml`, and a custom element in the MathML namespace never runs `connectedCallback` —
+ * the same permanent inertness this block's own comment describes, one token over. The whole-list
+ * shape is deliberate: these sets are exactly where a per-name gap hides.
+ */
+const tokens = transformJsx(
+  ['mi', 'mo', 'mn', 'ms', 'mtext']
+    .map((t, i) => `export const t${i} = () => <math><${t}>{c && <my-card />}</${t}></math>;`)
+    .join('\n') + '\nexport const no = () => <math><mrow>{c && <my-card />}</mrow></math>;',
+  'tok.jsx',
+  { inject: false }
+);
+for (const [i, t] of ['mi', 'mo', 'mn', 'ms', 'mtext'].entries())
+  assert.equal(
+    new RegExp(`t${i} = [^;]*?(svg|mathml|html)\`<my-card`, 's').exec(tokens)?.[1],
+    'html',
+    `<${t}> is a MathML text integration point and must flip to html\`\``
+  );
+assert.equal(
+  new RegExp('no = [^;]*?(svg|mathml|html)`<my-card', 's').exec(tokens)?.[1],
+  'mathml',
+  'CONTROL: <mrow> is not a token element and does not flip'
+);
 
 /**
  * A FRAGMENT root inside an expression was refused by accident: `cannotSurviveSvg('')` is `true`,

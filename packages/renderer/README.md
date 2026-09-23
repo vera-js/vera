@@ -167,7 +167,8 @@ template. `0` still renders in both, exactly as in React: the rule is about bool
 
 ### A template committed into the wrong namespace is named
 
-An `<svg>` draws SVG content and `<foreignObject>`, and nothing else. A template written `` html`…` ``
+An `<svg>` draws SVG content and its three HTML integration points — `<foreignObject>`, `<desc>`
+and `<title>` — and nothing else. A template written `` html`…` ``
 and handed across a function boundary into one is still HTML — `<path>` parsed as HTML is an
 `HTMLUnknownElement` with the right tag name and no geometry, so a whole set of icons can vanish
 with nothing to search for:

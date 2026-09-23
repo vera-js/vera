@@ -1,6 +1,6 @@
 import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from '@verajs/shared-utils';
-import { atExpressionPosition, findRoots } from './parser.js';
-import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, ParseState, VeraJsxOptions } from './types.js';
+import { atExpressionPosition, createParseState, findRoots, mark } from './parser.js';
+import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
 /**
  * JSX/TSX -> Vera tagged templates. Compile-time only, ZERO dependencies: the scanner/parser in
@@ -197,11 +197,23 @@ const SVG_INTEGRATION_POINTS = new Set(['foreignObject', 'desc', 'title']);
 const titleWithElement = (node: JsxNode): boolean =>
   node.fragment === undefined &&
   /**
-   * The SHARED list, lowercased like its `VOID_ELEMENTS` neighbour four lines down — a host tag keeps
-   * the author's case, so `<textArea>` slipped a case-sensitive `has` and upgraded straight into the
-   * scan/parse disagreement this guard exists to bound. It was a private fourth copy of a set
-   * `@verajs/shared-utils` already owns and this file already imports from, under a suite
-   * (`markup-grammar-homes`) written to forbid exactly that and matching only the VOID spelling.
+   * The SHARED list — it was a private fourth copy of a set `@verajs/shared-utils` already owns and
+   * this file already imports from, under a suite (`markup-grammar-homes`) written to forbid exactly
+   * that and matching only the VOID spelling.
+   *
+   * **The `.toLowerCase()` is a LIVE guard, and it is live on the DESCENDANT path.** The tag that
+   * must be a lowercase SVG name is the one being upgraded; `refusesSvg` then walks the whole subtree
+   * through `hasComponent`, so a mixed-case raw-text element ANYWHERE beneath it reaches this test.
+   * Measured: `<g><textArea><b onClick={f}>hi</b></textArea></g>` compiles `html` with the guard and
+   * `svg` without, and the `svg` form lands in the scan/parse disagreement — the `<b>` is relocated
+   * out of the `<g>`, its `@click` is stranded as a dead literal attribute, and the renderer reports
+   * a lost binding. Pinned by `a mixed-case raw-text element refuses at any depth` in `tests/jsx.test.mjs`.
+   *
+   * An earlier revision of this comment claimed the opposite — that no mixed-case tag can reach the
+   * guard because the upgrade sets are case-sensitive. That is true only of the tag being upgraded,
+   * and the mutation run behind it swept a corpus with no descendant shape in it, so a guard that
+   * changes real output looked dead. It is left recorded because the conclusion was wrong in the
+   * direction that deletes working code.
    */
   RAW_TEXT_ELEMENTS.has(node.tag.toLowerCase()) &&
   node.children.some((kid) => !('text' in kid) && !('expr' in kid));
@@ -370,25 +382,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [svgName, svgFrom] = options.svg ?? ['svg', '@verajs/core'];
   const [mathmlName, mathmlFrom] = options.mathml ?? ['mathml', '@verajs/core'];
 
-  /**
-   * **A tag name the module does not already DECLARE**, because injecting an import of a name the
-   * module binds itself makes the whole file a `SyntaxError` — *"Identifier 'svg' has already been
-   * declared"* — and in a browser that is caught and logged, so the page simply does nothing.
-   *
-   * `const svg = document.querySelector('svg')` beside a `<path/>` is the shape that found this,
-   * and it is not exotic: the root upgrade means ordinary icon JSX now injects `svg`, where before
-   * only a template already written inside an `<svg>` did. The hole was always there for `html`.
-   *
-   * The import keeps the EXPORT's real name and renames only the local binding, so the emitted
-   * call sites and the import stay in step whichever name is chosen. Three cases, in order: the
-   * module already IMPORTS the name, and that import is the binding — use it and inject nothing;
-   * nothing is injected at all (`inject: false`), so the caller owns the bindings and renaming one
-   * would emit a call to a name they never made; otherwise take the first free suffix.
-   *
-   * A text scan for declarations rather than a scope analysis, matching this transform's lexical
-   * design — and it is the same approach `childHelper` below already takes for its own name, which
-   * is where this was copied from. A hit inside a string or a comment only costs a different name.
-   */
   const { roots, mismatch } = findRoots(code);
   /**
    * **Reported, not shrugged at.** Everything else the parser cannot make sense of it hands back
@@ -398,21 +391,22 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * different element is the one failure that cannot be a comparison, so it gets the same treatment
    * as every other JSX mistake here: file, line, column, and what was wrong.
    */
-  if (mismatch !== null)
-    throw new JsxError(
-      `<${mismatch.expected}> is closed by </${mismatch.found}>`,
-      code,
-      fileName,
-      mismatch.at
-    );
+  if (mismatch !== null) throw new JsxError(mismatch.message, code, fileName, mismatch.at);
   if (roots.length === 0) return code;
 
   const injecting = options.inject !== false;
   /**
-   * **A tag name the module does not contain AT ALL** — the same rule, and the same substring test,
-   * that `childHelper` below uses for its own name. Injecting an import of a name the module also
-   * binds makes the whole file a `SyntaxError` — *"Identifier 'svg' has already been declared"* —
-   * and in a browser that is caught and logged, so the page simply does nothing.
+   * **A tag name the module does not already BIND** — computed by `localName` far below, which is
+   * where the rule actually lives and the only place to change it. Injecting an import of a name the
+   * module also binds makes the whole file a `SyntaxError` — *"Identifier 'svg' has already been
+   * declared"* — and in a browser that is caught and logged, so the page simply does nothing.
+   *
+   * It is a WHOLE-WORD match over BLANKED text, not the bare substring test `childHelper` uses for
+   * its own name — an earlier revision of this comment claimed they were the same rule and they have
+   * not been for some time. Comment and string CONTENTS are blanked first (`blankLiterals`), so a
+   * hit inside either costs nothing rather than merely costing a different name; and whole-word
+   * matching is what keeps a tag REFERENCE (`<svg>` in the markup, `svgPath` in a variable) from
+   * being read as a binding and forcing a pointless rename.
    *
    * **A scan for DECLARATIONS was tried here and was wrong**, which is worth recording because the
    * shape is so tempting. A regex for `const|let|var|function|class NAME` misses every other way a
@@ -499,16 +493,14 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * apostrophe opened a fake string and ate the binding after it.
      */
     const open: number[] = [];
-    /** The expression-position heuristic is `parser.ts`'s, called rather than copied: `/` opens a
-     *  regex only where an expression may start, and a second copy of that rule would drift. */
-    let lastChar = '';
-    let lastWord = '';
     /**
-     * Carries the real text and position: `atExpressionPosition` looks BACKWARDS from `i` to tell a
-     * block's `}` from an object literal's, so a cursor holding `''` answered "not an expression"
-     * for every `}` and a statement-position regex was read as division again.
+     * The expression-position heuristic is `parser.ts`'s, and so is the cursor it reads: this walk
+     * keeps the REAL `ParseState` and records into it with the same `mark`, rather than a private
+     * pair of `lastChar`/`lastWord` locals kept in step by hand. That copy is what "one rule, two
+     * addresses" cost here — it had drifted again by the time it was removed, marking a non-word
+     * character as a whole `lastWord` where `scanCode` clears it.
      */
-    const cursor = { code: text, i: 0, mismatch: null } as unknown as ParseState;
+    const cursor = createParseState(text);
     const eatTemplate = () => {
       while (i < text.length) {
         if (text[i] === '\\') {
@@ -521,8 +513,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           i++;
           open.pop();
           /** A finished template is a VALUE, so a `/` after it is division — `parser.ts` agrees. */
-          lastChar = '`';
-          lastWord = '';
+          mark(cursor, '`');
           return;
         }
         if (text[i] === '$' && text[i + 1] === '{') {
@@ -531,10 +522,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           open[open.length - 1] = 0;
           /** Inside `${` an expression STARTS, so a leading `/` opens a regex. Leaving the cursor at
            *  whatever preceded the literal read it as division and blanked the rest of the file. */
-          lastChar = '{';
-          lastWord = '';
+          mark(cursor, '{');
           return;
         }
+        if (text[i] === '\n') cursor.brokeLine = true;
         out += text[i] === '\n' ? '\n' : ' ';
         i++;
       }
@@ -552,7 +543,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       if (c === '/' && next === '*') {
         const close = text.indexOf('*/', i + 2);
         const stop = close < 0 ? text.length : close + 2;
-        for (; i < stop; i++) out += text[i] === '\n' ? '\n' : ' ';
+        for (; i < stop; i++) {
+          if (text[i] === '\n') cursor.brokeLine = true;
+          out += text[i] === '\n' ? '\n' : ' ';
+        }
         continue;
       }
       if (c === '"' || c === "'") {
@@ -573,8 +567,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         }
         /** A finished string is a VALUE too. Without this `const qs = 'w' / 2;` read the `/` as a
          *  regex opener and swallowed the binding on the same line. */
-        lastChar = "'";
-        lastWord = '';
+        mark(cursor, "'");
         continue;
       }
       if (c === '`') {
@@ -614,10 +607,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * ACROSS lines (`{ a: 1 }` newline `/ 2`), which reads as a regex and eats the line — rare
        * formatting, accepted, and stated here rather than left to be rediscovered.
        */
-      if (
-        c === '/' &&
-        ((cursor.lastChar = lastChar), (cursor.lastWord = lastWord), (cursor.i = i), atExpressionPosition(cursor))
-      ) {
+      if (c === '/' && ((cursor.i = i), atExpressionPosition(cursor))) {
         out += c;
         i++;
         let inClass = false;
@@ -643,22 +633,26 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           out += text[i];
           i++;
         }
-        lastChar = '/';
-        lastWord = '';
+        mark(cursor, '/');
         continue;
       }
       if (/\S/.test(c!)) {
         /** Member names are not keywords — `parser.ts`'s `scanCode` marks them the same way, and the
          *  two walks answering differently is what let `timings.in / 2, html = 1` eat its binding
          *  here while the parser read it correctly. */
-        lastWord = /[\w$]/.test(c!)
-          ? /[\w$]/.test(lastChar)
-            ? lastWord + c
-            : lastChar === '.'
-              ? `.${c}`
-              : c!
-          : c!;
-        lastChar = c!;
+        mark(
+          cursor,
+          c!,
+          /[\w$]/.test(c!)
+            ? /[\w$]/.test(cursor.lastChar)
+              ? cursor.lastWord + c
+              : cursor.lastChar === '.'
+                ? `.${c}`
+                : c!
+            : ''
+        );
+      } else if (c === '\n') {
+        cursor.brokeLine = true;
       }
       out += c;
       i++;
@@ -1138,7 +1132,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         return;
       }
       tpl.static(` ?${name}=`);
-      tpl.expr(bound ? expression! : JSON.stringify(literal !== 'false' && literal !== ''));
+      /**
+       * `hidden=""` is TRUE. The empty string is what the platform itself SERIALISES a set boolean
+       * to — `el.toggleAttribute('hidden', true)` then `outerHTML` gives exactly that — so reading it
+       * as false inverted every attribute on markup round-tripped through the DOM, silently.
+       * `tests/hydrate-parity.test.mjs` already recorded `<b hidden="">` as `?hidden=${true}` on the
+       * renderer side, so the compiler was contradicting this repo's own fixture.
+       *
+       * `hidden="false"` staying false is the one deliberate divergence: the platform says true, and
+       * every author who writes it means false.
+       */
+      tpl.expr(bound ? expression! : JSON.stringify(literal !== 'false'));
       return;
     }
     if (attribute.kind === 'none') {
@@ -1215,9 +1219,15 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
               ? kid.roots.length > 0 &&
                 kid.roots.every(
                   (r) =>
-                    r.node.fragment === true
-                      ? fragmentProof(r.node) === 'svg'
-                      : SVG_ELEMENTS.has(r.node.tag) && !refusesSvg(r.node)
+                    (r.node.fragment === true ? fragmentProof(r.node) === 'svg' : SVG_ELEMENTS.has(r.node.tag)) &&
+                    /**
+                     * The refusal is asked of BOTH shapes. It hung off the element branch alone, so a
+                     * fragment root inside an expression vouched for siblings the compiler was about to
+                     * refuse — `<Frame><text/>{c ? <><title><b/></title><path/></> : null}</Frame>` gave
+                     * the `<text>` SVG and the `<path>` HTML, one authored group in two namespaces.
+                     * `refusesSvg` reaches a fragment's children through `hasComponent`.
+                     */
+                    !refusesSvg(r.node)
                 )
               : true) &&
             /**
@@ -1311,5 +1321,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * have met the same ReferenceError.
    */
   if (state.usedChild) prefix += childHelperSource(childHelper);
+  /**
+   * A `#!` line is only a hashbang on line ONE, so the prefix goes under it rather than over it.
+   * Prepending above turned every executable JSX module into a syntax error at the first byte.
+   */
+  if (prefix !== '' && out.startsWith('#!')) {
+    const nl = out.indexOf('\n');
+    return nl < 0 ? `${out}\n${prefix}` : out.slice(0, nl + 1) + prefix + out.slice(nl + 1);
+  }
   return prefix + out;
 };

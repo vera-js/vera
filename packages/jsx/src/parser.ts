@@ -13,7 +13,7 @@
  * (`Array<number>`, `f<T>(x)`, which follow identifiers) never match.
  */
 
-import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState } from './types.js';
+import type { JsxAttribute, JsxChild, JsxFault, JsxNode, JsxRoot, ParseState } from './types.js';
 
 /**
  * Characters after which a `<` (or `/`) can begin an expression.
@@ -73,8 +73,21 @@ export const createParseState = (code: string, from = 0): ParseState => ({
   i: from,
   lastChar: '',
   lastWord: '',
+  lastPrev: '',
+  brokeLine: false,
   mismatch: null,
 });
+
+/**
+ * Records `ch` as the last meaningful character, carrying the one it displaces into `lastPrev`.
+ * Every write to `lastChar` goes through here so the two can never disagree.
+ */
+export const mark = (state: ParseState, ch: string, word = ''): void => {
+  state.lastPrev = state.lastChar;
+  state.lastChar = ch;
+  state.lastWord = word;
+  state.brokeLine = false;
+};
 
 export const atExpressionPosition = (state: ParseState): boolean => {
   /**
@@ -99,14 +112,19 @@ export const atExpressionPosition = (state: ParseState): boolean => {
    * the line so the injected import collided with it.
    */
   if (state.lastChar === '+' || state.lastChar === '-') {
-    let i = state.i - 1;
-    while (i >= 0 && /\s/.test(state.code[i]!)) i--;
-    if (state.code[i - 1] === state.lastChar) return false;
+    if (state.lastPrev === state.lastChar) return false;
   }
-  if (state.lastChar === '}') {
-    for (let i = state.i - 1; i >= 0 && /\s/.test(state.code[i]!); i--) if (state.code[i] === '\n') return true;
-    return false;
-  }
+  /**
+   * `!` is both a prefix operator — `!/^a/.test(s)`, where a regex really may follow — and
+   * TypeScript's postfix non-null assertion, where one may not. What precedes it decides: an
+   * identifier, a `)`, a `]` or a string end means the `!` ENDED an expression. `.tsx` is a
+   * first-class input, and `a! / b`, `o.n! / 2` and `f()! / 2` are ordinary TypeScript that
+   * otherwise opened a regex — losing every root in the module, or eating the binding on the line
+   * so the injected import collided with it.
+   */
+  if (state.lastChar === '!') return !/[\w$)\]'"`]/.test(state.lastPrev);
+  if (state.lastChar === '}') return state.brokeLine;
+
   if (state.lastChar === '' || EXPRESSION_PREFIX.has(state.lastChar)) return true;
   return EXPRESSION_KEYWORDS.has(state.lastWord);
 };
@@ -130,7 +148,10 @@ export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) |
       while (state.i < code.length && code[state.i] !== '\n') state.i++;
     } else if (ch === '/' && code[state.i + 1] === '*') {
       state.i += 2;
-      while (state.i < code.length && !(code[state.i] === '*' && code[state.i + 1] === '/')) state.i++;
+      while (state.i < code.length && !(code[state.i] === '*' && code[state.i + 1] === '/')) {
+        if (code[state.i] === '\n') state.brokeLine = true;
+        state.i++;
+      }
       state.i += 2;
     } else if (ch === '/' && atExpressionPosition(state)) {
       skipRegex(state);
@@ -139,8 +160,7 @@ export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) |
       const node = parseJsx(state);
       if (node !== null) {
         roots.push({ start, end: state.i, node });
-        state.lastChar = ')'; // a JSX root is an expression
-        state.lastWord = '';
+        mark(state, ')'); // a JSX root is an expression
         continue;
       }
       /**
@@ -153,8 +173,7 @@ export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) |
        * `tests/jsx-equivalence.test.mjs` is what closes that loop.
        */
       state.i = start + 1;
-      state.lastChar = '<';
-      state.lastWord = '';
+      mark(state, '<');
     } else {
       if (!/\s/.test(ch)) {
         if (/[\w$]/.test(ch)) {
@@ -165,15 +184,16 @@ export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) |
            * the next slash — losing every root in the module, or eating a binding on the line and
            * colliding with the injected import. The `.` prefix cannot match any keyword.
            */
-          state.lastWord = /[\w$]/.test(state.lastChar)
-            ? state.lastWord + ch
-            : state.lastChar === '.'
-              ? `.${ch}`
-              : ch;
+          mark(
+            state,
+            ch,
+            /[\w$]/.test(state.lastChar) ? state.lastWord + ch : state.lastChar === '.' ? `.${ch}` : ch
+          );
         } else {
-          state.lastWord = '';
+          mark(state, ch);
         }
-        state.lastChar = ch;
+      } else if (ch === '\n') {
+        state.brokeLine = true;
       }
       state.i++;
     }
@@ -188,8 +208,7 @@ const skipString = (state: ParseState, quote: string): void => {
     state.i++;
   }
   state.i++;
-  state.lastChar = quote;
-  state.lastWord = '';
+  mark(state, quote);
 };
 
 const skipTemplate = (state: ParseState, roots: JsxRoot[]): void => {
@@ -200,8 +219,7 @@ const skipTemplate = (state: ParseState, roots: JsxRoot[]): void => {
       state.i += 2;
     } else if (code[state.i] === '$' && code[state.i + 1] === '{') {
       state.i += 2;
-      state.lastChar = '{';
-      state.lastWord = '';
+      mark(state, '{');
       let depth = 1;
       scanCode(
         state,
@@ -222,8 +240,7 @@ const skipTemplate = (state: ParseState, roots: JsxRoot[]): void => {
     }
   }
   state.i++;
-  state.lastChar = '`';
-  state.lastWord = '';
+  mark(state, '`');
 };
 
 const skipRegex = (state: ParseState): void => {
@@ -241,8 +258,7 @@ const skipRegex = (state: ParseState): void => {
   }
   state.i++;
   while (state.i < code.length && /[a-z]/.test(code[state.i])) state.i++; // flags
-  state.lastChar = '/';
-  state.lastWord = '';
+  mark(state, '/');
 };
 
 /**
@@ -254,8 +270,7 @@ const parseExpressionContainer = (state: ParseState): { text: string; start: num
   const { code } = state;
   state.i++; // {
   const start = state.i;
-  state.lastChar = '{';
-  state.lastWord = '';
+  mark(state, '{');
   const roots: JsxRoot[] = [];
   let depth = 1;
   scanCode(
@@ -372,6 +387,18 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
     } else if (valueChar === '{') {
       const container = parseExpressionContainer(state);
       if (container === null) return null;
+      /**
+       * An EMPTY attribute expression is reported, not emitted. `<div x={}/>` compiled straight to
+       * `` html`<div x=${}>` `` — a template literal with a hole containing nothing, which is a
+       * syntax error in generated code the author never wrote, with no diagnostic naming the `{}`
+       * that caused it. Like a mismatched close it cannot be anything else, so it goes down the same
+       * channel. An empty CHILD container stays legal and vanishes, which is what JSX does.
+       */
+      if (container.text.replace(/\/\*[\s\S]*?\*\//g, '').trim() === '') {
+        if (state.mismatch === null)
+          state.mismatch = { message: `${name}={} has no value`, at: container.start - 1 };
+        return null;
+      }
       attrs.push({ name, kind: 'expr', text: container.text, roots: container.roots, start: nameStart, valueStart: container.start });
     } else {
       return null;
@@ -403,7 +430,10 @@ const parseChildren = (state: ParseState, closingTag: string | null): JsxChild[]
         skipWhitespace(state);
         if (name !== closingTag || code[state.i] !== '>') {
           if (name !== closingTag && state.mismatch === null)
-            state.mismatch = { expected: closingTag, found: name, at: state.i - name.length - 2 };
+            state.mismatch = {
+              message: `<${closingTag}> is closed by </${name}>`,
+              at: state.i - name.length - 2,
+            };
           return null;
         }
         state.i++;
@@ -429,7 +459,7 @@ const parseChildren = (state: ParseState, closingTag: string | null): JsxChild[]
 };
 
 /** All top-level JSX roots in a source file. */
-export const findRoots = (code: string): { roots: JsxRoot[]; mismatch: JsxMismatch | null } => {
+export const findRoots = (code: string): { roots: JsxRoot[]; mismatch: JsxFault | null } => {
   const roots: JsxRoot[] = [];
   const state = createParseState(code);
   scanCode(state, null, roots);

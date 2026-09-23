@@ -99,13 +99,51 @@ test('the consolidation held — no package that CAN import keeps a private copy
      * sibling can vouch for them, which has nothing to do with raw text — and a guard that cried
      * wolf there would be turned off.
      */
+    /**
+     * **Every bracketed literal, not `new Set([` alone.** The narrower pattern missed
+     * `new Set<string>([…])` — the TypeScript spelling `transform.ts` itself already uses twice — as
+     * well as a double-quoted copy and a plain array. A re-statement is a re-statement whatever
+     * syntax carries it, and the CONTENT test below is specific enough that widening the net costs
+     * nothing: it fires only on a literal holding EVERY name of a shared list.
+     */
+    const literals = [...source.matchAll(/\[([^\][]*)\]/g)];
+    /** A file whose literals this never read would pass by examining nothing. */
+    assert.ok(literals.length > 0, `${path} yielded no bracketed literals, so the content check read nothing`);
     for (const [name, shared] of [['VOID_ELEMENTS', VOID], ['RAW_TEXT_ELEMENTS', RAW_TEXT]])
-      for (const [, body] of source.matchAll(/new Set\(\[([^\]]*)\]\)/g)) {
-        const named = new Set([...body.matchAll(/'([^']+)'/g)].map((m) => m[1]));
+      for (const [, body] of literals) {
+        const named = new Set([...body.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]));
         assert.ok(!shared.every((n) => named.has(n)),
           `${path} re-states all of ${name} — import it instead`);
       }
   }
+});
+
+/**
+ * The floor for the check above: it reads real files, so if the spellings it recognises ever stop
+ * appearing there it would pass by matching nothing. These are synthetic sources, so the assertion is
+ * about the PATTERN rather than about today's tree.
+ */
+test('and that content check recognises every spelling a copy could use', () => {
+  const names = [...RAW_TEXT];
+  const detects = (src) => {
+    for (const [, body] of src.matchAll(/\[([^\][]*)\]/g)) {
+      const named = new Set([...body.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]));
+      if (names.every((n) => named.has(n))) return true;
+    }
+    return false;
+  };
+  const list = (q) => names.map((n) => `${q}${n}${q}`).join(', ');
+  for (const [label, src] of [
+    ['a plain Set', `const A = new Set([${list("'")}]);`],
+    ['a TYPED Set', `const A = new Set<string>([${list("'")}]);`],
+    ['a double-quoted Set', `const A = new Set([${list('"')}]);`],
+    ['a plain array', `const A = [${list("'")}];`],
+    ['a readonly array', `const A = [${list("'")}] as const;`]
+  ])
+    assert.ok(detects(src), `a private copy written as ${label} must be caught`);
+  /** And the negative control, or the pattern above would "detect" anything at all. */
+  assert.ok(!detects(`const A = new Set(['title', 'style', 'script']);`), 'an overlapping SUBSET is not a copy');
+  assert.ok(!detects('const A = [1, 2, 3];'), 'an unrelated literal is not a copy');
 });
 
 /**
