@@ -105,6 +105,18 @@ const WITH_JSX = [
   ['a divided object then a slash-string', 'const q = { a: 1 } / 2; const p = "a/b";\nconst v = <div>x</div>;'],
   ['a divided object then a comment', 'const q = { a: 1 } / 2; // half\nconst v = <div>x</div>;'],
   /**
+   * A property named with an expression KEYWORD. `lastWord` is the run of word characters before the
+   * `/`, so `stats.new` and `timings.in` left it holding `new`/`in`, the `/` opened a regex, and the
+   * rest of the line went with it — every root in the module, or a binding and then a collision.
+   *
+   * The root has to sit on the SAME LINE as the division. `skipRegex` bails at a newline "without
+   * harm", so a root on the next line survives and the row measures nothing — which is how the first
+   * version of these three passed with the fix reverted.
+   */
+  ['a member named new, divided', 'const s = { new: 4 };\nconst r = s.new / 2, v = <div class="x" />;'],
+  ['a member named in, divided', 'const t = { in: 3 };\nconst r = t.in / 2, v = <p class="y" />;'],
+  ['a member named delete, divided', 'const m = { delete: 2 };\nconst r = m.delete / 2, v = <b class="z" />;'],
+  /**
    * A division *before* the JSX, which is the shape that pins the regex discriminator. Read as a
    * regex, the first `/` scans forward for a closing one and swallows the region on the way, so the
    * JSX is silently never seen. With the division only *after* the JSX there is nothing left to miss,

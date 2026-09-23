@@ -31,10 +31,10 @@
  *   commit under test — it is a find, not a regression. Investigate it as run-3 pass 6 did;
  *   never re-run until green.
  *
- * `rotateScalar(base)` is the same contract for the two suites that thread one mutable seed
- * through the whole run instead of iterating an array: it returns `base` untouched unless
- * rotation or explicit seeds are active, in which case the run starts from the first extra —
- * printed the same way.
+ * `rotateScalar(base)` is the same contract for the two suites that thread one mutable seed through
+ * the whole run instead of iterating an array: it returns `[base, ...extras]` — base FIRST and
+ * always present, so those suites carry their regression net exactly as the array ones do. It used
+ * to return the first extra instead, which quietly meant neither suite ran its standing seed in CI.
  */
 
 const parsed = (process.env.VERA_FUZZ_SEEDS ?? '')

@@ -18,7 +18,10 @@ import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState 
 /**
  * Characters after which a `<` (or `/`) can begin an expression.
  *
- * **`}` is in the set and `)` is deliberately not**, and the asymmetry is the whole rule. A `}`
+ * **`}` is NOT here** — it gets its own branch in `atExpressionPosition`, which returns on both
+ * paths before this set is consulted, so a `}` in the string would be dead. The rule it needs is
+ * positional rather than a membership test; see there. `)` is deliberately absent too, and the
+ * asymmetry between the two is the whole rule. A `}`
  * immediately before one of these ends a BLOCK — `function f() {}` then a statement — and a regex or
  * a JSX root is exactly what may follow; the alternative reading needs an object literal divided or
  * compared (`{} / 2`, `{} < b`), which is not something anyone writes. Without it, a regex at
@@ -34,7 +37,7 @@ import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState 
  * regex makes `blankLiterals` swallow the rest of the line — taking any binding on it with it, so
  * the injected import collides and the module will not load.
  */
-const EXPRESSION_PREFIX = new Set([...'(,=?:;[{}!&|+-*/%^~<>', '']);
+const EXPRESSION_PREFIX = new Set([...'(,=?:;[{!&|+-*/%^~<>', '']);
 const EXPRESSION_KEYWORDS = new Set([
   'return', 'yield', 'await', 'case', 'typeof', 'void', 'delete', 'in', 'of',
   'instanceof', 'new', 'do', 'else', 'throw',
@@ -143,7 +146,18 @@ export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) |
     } else {
       if (!/\s/.test(ch)) {
         if (/[\w$]/.test(ch)) {
-          state.lastWord = /[\w$]/.test(state.lastChar) ? state.lastWord + ch : ch;
+          /**
+           * A word that begins right after a `.` is a MEMBER NAME, never a keyword, and marking it
+           * so is the whole fix: `stats.new / 2` and `timings.in / 2` otherwise left `lastWord` at
+           * `new`/`in`, which `EXPRESSION_KEYWORDS` accepts, so the `/` opened a regex that ran to
+           * the next slash — losing every root in the module, or eating a binding on the line and
+           * colliding with the injected import. The `.` prefix cannot match any keyword.
+           */
+          state.lastWord = /[\w$]/.test(state.lastChar)
+            ? state.lastWord + ch
+            : state.lastChar === '.'
+              ? `.${ch}`
+              : ch;
         } else {
           state.lastWord = '';
         }

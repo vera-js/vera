@@ -60,7 +60,9 @@ so the names excluded only because *a root tag alone cannot prove context* — `
 `script`, `image`, `font`, `text`, `tspan`, `desc`, `metadata`, `switch`, `view`, `set`, `filter`,
 `mask`, `marker`, `pattern`, `symbol` — come with it. Alone they are untouched, so
 `<Box><text>hello</text></Box>` is still readable text and not a 0×0 SVG element. An expression vouches through its own roots, so a mapped list of
-shapes counts; one that mixes namespaces or yields nothing knowable does not.
+shapes counts; one that mixes namespaces or yields nothing knowable does not. The vouch travels both ways: a sibling also settles what an
+expression's own roots compile as, so `<Frame><path />{labels.map((t) => <text>{t}</text>)}</Frame>`
+gives every `<text>` the group's namespace.
 
 The camelCase names stay out even here. Their hazard is not the root-tag one: `@verajs/ssr` emits the
 strings verbatim and a browser lowercases them outside an `<svg>`, so hydration would discard and

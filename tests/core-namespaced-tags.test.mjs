@@ -275,7 +275,7 @@ test('an html template committed into <svg> or <math> is named in development', 
     );
 
     /**
-     * **Two offenders in ONE insert**, which is what the `continue` after warning exists for. The
+     * **Two offenders in ONE insert**, which is what the loop running to its end exists for — reporting only the FIRST offender made the message order-dependent. The
      * list case above does not exercise it: a list commits each row separately, so each is its own
      * call. Found by mutation — swapping that `continue` back to `return` failed nothing.
      */

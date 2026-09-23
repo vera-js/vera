@@ -17,7 +17,7 @@
  */
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
@@ -51,16 +51,38 @@ export const view = () => ${body};`;
    * The COMPLETE lists from `packages/jsx/src/transform.ts` — `SVG_WITH_SIBLING`, `SVG_ELEMENTS`, and
    * the camelCase names excluded even under a vouch. Complete on purpose: a sample would have let a
    * name join the transform's set without ever being crossed against anything here, which is the
-   * gap this suite exists to close. Adding a name there means adding it here, and the counts below
-   * fail loudly if the two drift.
+   * gap this suite exists to close. Adding a name there means adding it here, and the guard below
+   * reads the transform's own sets so that drift fails loudly in BOTH directions.
    */
   const VOUCHABLE = ['title', 'a', 'style', 'script', 'image', 'font', 'text', 'tspan', 'desc',
     'metadata', 'switch', 'view', 'set', 'filter', 'mask', 'marker', 'pattern', 'symbol'];
   const SELF = ['path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'g', 'defs',
     'use', 'stop', 'animate', 'mpath'];
-  const CAMEL = ['clipPath', 'linearGradient', 'radialGradient', 'animateTransform', 'animateMotion'];
-  assert.equal(VOUCHABLE.length, 18, 'SVG_WITH_SIBLING has 18 names — update both lists together');
-  assert.equal(SELF.length, 13, 'SVG_ELEMENTS has 13 names — update both lists together');
+  const CAMEL = ['clipPath', 'linearGradient', 'radialGradient', 'animateTransform', 'animateMotion',
+    'foreignObject', 'textPath'];
+
+  /**
+   * **The guard reads the transform's own sets**, because asserting the length of the literals above
+   * checks the test against itself. Measured: adding a name to `SVG_WITH_SIBLING` left
+   * `VOUCHABLE.length` at 18, no row crossed the new name, and the suite stayed green — only REMOVAL
+   * was caught, which is the direction the header did not claim.
+   */
+  const source = readFileSync(new URL('../packages/jsx/src/transform.ts', import.meta.url), 'utf8');
+  const namesIn = (constant) => {
+    const at = source.indexOf(`const ${constant} = new Set([`);
+    assert.ok(at > 0, `${constant} is not a Set literal any more — this guard needs rewriting`);
+    return [...source.slice(at, source.indexOf(']);', at)).matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  };
+  assert.deepEqual(
+    [...VOUCHABLE].sort(),
+    namesIn('SVG_WITH_SIBLING').sort(),
+    'SVG_WITH_SIBLING drifted from the list this suite crosses — add the name here too'
+  );
+  assert.deepEqual(
+    [...SELF].sort(),
+    namesIn('SVG_ELEMENTS').sort(),
+    'SVG_ELEMENTS drifted from the list this suite crosses — add the name here too'
+  );
 
   const bad = [];
   const check = async (label, body, probe, wrapper, expected) => {
@@ -95,6 +117,16 @@ export const view = () => ${body};`;
     await check(`${raw} + static element`, `<Frame><${raw}><b>x</b></${raw}><path d="M0" /></Frame>`, raw, 'Frame', 'HTML');
     await check(`${raw} + text CONTROL`, `<Frame><${raw}>x</${raw}><path d="M0" /></Frame>`, raw, 'Frame', 'SVG');
   }
+  /**
+   * The other three names the RENDERER scans as raw text. They are not vouchable, so they only reach
+   * the guard NESTED under a self-proving root — where `refusesSvg` runs at every depth. Scoped to
+   * the vouchable three, the guard let these upgrade into the scan/parse disagreement: the `<b>`
+   * relocated out, its sigil stranded as a dead attribute, the binding never committed.
+   */
+  for (const raw of ['textarea', 'iframe', 'noscript']) {
+    await check(`${raw} nested + static element`, `<Frame><g><${raw}><b>x</b></${raw}></g><path d="M0" /></Frame>`, 'g', 'Frame', 'HTML');
+    await check(`${raw} nested + text CONTROL`, `<Frame><g><${raw}>x</${raw}></g><path d="M0" /></Frame>`, 'g', 'Frame', 'SVG');
+  }
   await check('refused voucher', `<Frame><text>L</text><g><my-card /></g></Frame>`, 'text', 'Frame', 'HTML');
   await check('surviving voucher', `<Frame><text>L</text><g><circle r="1" /></g></Frame>`, 'text', 'Frame', 'SVG');
   /** A component or custom element among the siblings is dispatched on its own and changes nothing
@@ -111,6 +143,14 @@ export const view = () => ${body};`;
    */
   await check('expression voucher', `<Frame><title>T</title>{[1].map((i) => <path key={i} d="M0" />)}</Frame>`, 'title', 'Frame', 'SVG');
   await check('mixed expression does not vouch', `<Frame><title>T</title>{1 ? <path d="M0" /> : <div />}</Frame>`, 'title', 'Frame', 'HTML');
+  /**
+   * ...and the MIRROR: a vouchable name INSIDE an expression is vouched by a sibling outside it.
+   * `{labels.map((t) => <text>{t}</text>)}` beside a static `<path>` is how a labelled icon is
+   * written, and without this every `<text>` was a 0x0 `HTMLUnknownElement` — silent in production.
+   */
+  await check('expression vouchee', `<Frame><path d="M0" />{[1].map((i) => <text key={i}>L</text>)}</Frame>`, 'text', 'Frame', 'SVG');
+  await check('fragment root inside an expression vouches', `<Frame><title>T</title>{1 ? <><path d="M0" /></> : null}</Frame>`, 'title', 'Frame', 'SVG');
+  await check('CONTROL expression alone', `<Frame>{[1].map((i) => <text key={i}>L</text>)}</Frame>`, 'text', 'Frame', 'HTML');
   /**
    * A nested FRAGMENT vouches through its own children — `fragmentProof` answers that question and a
    * fragment is not a namespace boundary. This row asserted HTML while the component path asked only

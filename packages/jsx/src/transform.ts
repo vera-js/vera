@@ -184,10 +184,16 @@ const cannotSurviveSvg = (tag: string): boolean => isComponentName(tag) || tag.i
 const SVG_INTEGRATION_POINTS = new Set(['foreignObject', 'desc', 'title']);
 
 /**
- * The names `@verajs/renderer` scans as RAW TEXT which a sibling can also make an SVG root. All
- * three are in `SVG_WITH_SIBLING`, and `title` is in `SVG_INTEGRATION_POINTS` besides.
+ * **Every name `@verajs/renderer` scans as RAW TEXT** — its `RAW_TEXT_TAGS`, kept in step by hand.
+ *
+ * The axis is what the RENDERER scans, not what a sibling can vouch for. Scoped to the vouchable
+ * three, the guard missed `<textarea>`, `<iframe>` and `<noscript>` holding a static element inside
+ * a self-proving root: `refusesSvg` runs at every depth, so `<g><textarea><b onClick={f}/></textarea></g>`
+ * upgraded, and the renderer's namespace-blind raw-text scan then disagreed with the SVG parse — the
+ * `<b>` relocated out of the `<textarea>`, its sigil stranded as a dead attribute, the binding never
+ * committed. Pre-feature that group compiled `html`, where scan and parse agree.
  */
-const RAW_TEXT_ROOTS = new Set(['title', 'style', 'script']);
+const RAW_TEXT_ROOTS = new Set(['title', 'style', 'script', 'textarea', 'iframe', 'noscript']);
 
 /**
  * Whether this node is one of those holding a static ELEMENT.
@@ -602,12 +608,15 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * discriminated this; this walk is the same rule's second address and went without it.
        */
       /**
-       * A regex only where one can START **and** actually closes on this line. The shared
-       * expression-position test admits `}`, which `findRoots` needs — a regex at statement position
-       * is a root-losing misparse there — but for THIS walk the same admission made
-       * `const q = { a: 1 } / 2, html = 1;` open a regex that ran to end-of-line and swallowed the
-       * binding, so the injected import collided with it. Requiring a closing `/` separates the two
-       * readings cheaply: `/^['"]/.test(s)` has one, a divided object literal does not.
+       * A regex exactly where `parser.ts` says one may start — the same call, not a second opinion,
+       * because the two walks disagreeing is what produced three separate defects in this audit.
+       *
+       * A closing-slash look-ahead used to guard this as well and is gone: it could not tell a
+       * terminator from a slash inside a later string, and skipping strings to fix that broke every
+       * regex carrying a quote or a backtick. The `}` line-break rule in `atExpressionPosition`
+       * answers the same question properly. One shape it does not catch is an object literal divided
+       * ACROSS lines (`{ a: 1 }` newline `/ 2`), which reads as a regex and eats the line — rare
+       * formatting, accepted, and stated here rather than left to be rediscovered.
        */
       if (
         c === '/' &&
@@ -643,7 +652,16 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         continue;
       }
       if (/\S/.test(c!)) {
-        lastWord = /[\w$]/.test(c!) && /[\w$]/.test(lastChar) ? lastWord + c : c!;
+        /** Member names are not keywords — `parser.ts`'s `scanCode` marks them the same way, and the
+         *  two walks answering differently is what let `timings.in / 2, html = 1` eat its binding
+         *  here while the parser read it correctly. */
+        lastWord = /[\w$]/.test(c!)
+          ? /[\w$]/.test(lastChar)
+            ? lastWord + c
+            : lastChar === '.'
+              ? `.${c}`
+              : c!
+          : c!;
         lastChar = c!;
       }
       out += c;
@@ -653,11 +671,34 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   };
   const source = blankLiterals(js);
 
-  /** Names a real import statement already binds — those need no injecting and no renaming. */
-  const imported = new Set<string>();
-  for (const [, clause] of source.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]/g))
-    for (const part of clause!.replace(/[{}]/g, ' ').split(','))
-      imported.add(part.trim().split(/\s+as\s+/).pop()!.trim());
+  /**
+   * Names a real import statement binds, **each with the module it came from**.
+   *
+   * The specifier is the whole point. Without it any import that merely shares a name with a tag was
+   * taken to BE that tag: `import svg from './icon.svg'` — the SVGR/Vite asset idiom, and reachable
+   * only since the root upgrade started injecting `svg` into ordinary icon modules — suppressed the
+   * injection, emitted `` svg`…` `` against the imported asset, and failed at first render with
+   * `svg is not a function`. An import is a BINDING like any other; it is only the tag when it comes
+   * from the tag's own module.
+   */
+  const imported = new Map<string, string>();
+  /**
+   * Statements found in the BLANKED text, specifiers read from the original at the same offsets.
+   *
+   * Both halves are needed and neither alone works. `source` is what can be trusted to say where a
+   * real import statement is — a module holding its own source in a template literal otherwise
+   * registers a fake one and the injection is suppressed — but it blanks the specifier along with
+   * every other string, so `import { svg } from '@verajs/core'` came back as coming from nowhere
+   * and stopped being recognised as the tag's own. `blankLiterals` replaces characters one for one,
+   * so the offsets line up and the specifier can simply be sliced out of `js`.
+   */
+  for (const match of source.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]([^'"]*)['"]/g)) {
+    const quote = match[0]!.search(/['"]/);
+    const at = match.index! + quote + 1;
+    const from = js.slice(at, at + match[2]!.length);
+    for (const part of match[1]!.replace(/[{}]/g, ' ').split(','))
+      imported.set(part.trim().split(/\s+as\s+/).pop()!.trim(), from);
+  }
   /** Every local name already handed out, so two of them can never be the same. */
   const taken = new Set<string>();
   /**
@@ -674,8 +715,18 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * and `let a, svg`, and can never see a parameter. Over-renaming costs an uglier identifier;
    * under-renaming costs the whole module.
    */
-  const localName = (exported: string): string => {
+  const localName = (exported: string, from: string): string => {
     if (!injecting) return exported;
+    /** Their own import of this tag, from the tag's own module — that binding IS the one to use. */
+    if (imported.get(exported) === from) {
+      taken.add(exported);
+      return exported;
+    }
+    /**
+     * Any OTHER import of the name is a collision, not the tag. Stripping import statements below
+     * hides it from the binding test, so it is caught here instead.
+     */
+    const foreignImport = imported.has(exported);
     /**
      * Import STATEMENTS come out too: every binding one makes is already in `imported`, while the
      * export name in `import { html as h }` binds nothing at all — leaving those lines in renamed a
@@ -725,7 +776,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     const bound =
       new RegExp(`(?<![\\w$])(?<!(?<!\\.\\.)\\.)${escaped}\\b(?!\\s*:)`).test(stripped) ||
       annotated.test(stripped);
-    if (!bound && !taken.has(exported)) {
+    if (!bound && !foreignImport && !taken.has(exported)) {
       taken.add(exported);
       return exported;
     }
@@ -735,11 +786,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     taken.add(name);
     return name;
   };
-  const htmlLocal = localName(htmlName);
-  const keyedLocal = localName(keyedName);
-  const spreadLocal = localName(spreadName);
-  const svgLocal = localName(svgName);
-  const mathmlLocal = localName(mathmlName);
+  const htmlLocal = localName(htmlName, htmlFrom);
+  const keyedLocal = localName(keyedName, keyedFrom);
+  const spreadLocal = localName(spreadName, spreadFrom);
+  const svgLocal = localName(svgName, svgFrom);
+  const mathmlLocal = localName(mathmlName, mathmlFrom);
   const clauseFor = (exported: string, local: string) =>
     exported === local ? exported : `${exported} as ${local}`;
 
@@ -808,10 +859,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
             : mode;
 
   /** An expression slice with any JSX roots inside it transformed (bottom-up, offsets stable). */
-  const emitExpression = (text: string, roots: JsxRoot[], base: number, mode: Mode): string => {
+  const emitExpression = (text: string, roots: JsxRoot[], base: number, mode: Mode, vouched = false): string => {
     let out = text;
     for (const root of [...roots].sort((a, b) => b.start - a.start)) {
-      out = out.slice(0, root.start - base) + emitRoot(root.node, mode) + out.slice(root.end - base);
+      out = out.slice(0, root.start - base) + emitRoot(root.node, mode, vouched) + out.slice(root.end - base);
     }
     return out;
   };
@@ -1153,8 +1204,9 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
              * An EXPRESSION vouches through its own roots, and has to: `{items.map((i) => <path/>)}`
              * beside a `<title>` is how an icon with repeated shapes is actually written, and
              * without this the group split — an HTML `<title>` inside the `<svg>`, the accessible
-             * name of nothing. Safe because an expression's JSX is emitted with the component's own
-             * mode, so vouching cannot change how the expression itself compiles.
+             * name of nothing. The vouch travels BOTH ways — the group's proof also reaches the
+             * expression's own roots, which `<Frame><path/>{items.map((i) => <text/>)}</Frame>`
+             * needs, and an earlier note here claimed it could not.
              *
              * Three states, as everywhere else here: a root that is not SVG-only DISPROVES
              * (`{c ? <path/> : <div/>}` vouches for nothing), and no roots at all — `{items}` — proves
@@ -1163,7 +1215,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
             ('expr' in kid
               ? kid.roots.length > 0 &&
                 kid.roots.every(
-                  (r) => r.node.fragment === undefined && SVG_ELEMENTS.has(r.node.tag) && !refusesSvg(r.node)
+                  (r) =>
+                    r.node.fragment === true
+                      ? fragmentProof(r.node) === 'svg'
+                      : SVG_ELEMENTS.has(r.node.tag) && !refusesSvg(r.node)
                 )
               : true) &&
             /**
@@ -1197,7 +1252,16 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
            * A nested JSX element below needs no filter: a template result is never a boolean.
            */
           state.usedChild = true;
-          children.push(`${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart, mode)})`);
+          /**
+           * The vouch reaches INTO an expression as well as out of it. Without this,
+           * `<Frame><path/>{items.map((i) => <text>{i}</text>)}</Frame>` — a labelled icon or chart —
+           * built every `<text>` as an `HTMLUnknownElement` inside the `<svg>`: 0x0, invisible, and
+           * silent in production. The same asymmetry was fixed for a nested fragment one round
+           * earlier; this is its mirror.
+           */
+          children.push(
+            `${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart, mode, vouched)})`
+          );
         } else {
           children.push(emitRoot(child as JsxNode, mode, vouched));
         }
@@ -1228,13 +1292,14 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * price of never parsing import statements to decide it.
      */
     /** Nothing to inject only when the module's OWN import is the binding the emitted code uses. */
-    const has = (name: string, local: string) => imported.has(name) && local === name;
+    /** Only the module's own import OF THIS TAG makes an injection unnecessary. */
+    const has = (name: string, from: string, local: string) => imported.get(name) === from && local === name;
     let inject = '';
-    if (state.usedHtml && !has(htmlName, htmlLocal)) inject += `import { ${clauseFor(htmlName, htmlLocal)} } from '${htmlFrom}';\n`;
-    if (state.usedKeyed && !has(keyedName, keyedLocal)) inject += `import { ${clauseFor(keyedName, keyedLocal)} } from '${keyedFrom}';\n`;
-    if (state.usedSpread && !has(spreadName, spreadLocal)) inject += `import { ${clauseFor(spreadName, spreadLocal)} } from '${spreadFrom}';\n`;
-    if (state.usedSvg && !has(svgName, svgLocal)) inject += `import { ${clauseFor(svgName, svgLocal)} } from '${svgFrom}';\n`;
-    if (state.usedMathml && !has(mathmlName, mathmlLocal)) inject += `import { ${clauseFor(mathmlName, mathmlLocal)} } from '${mathmlFrom}';\n`;
+    if (state.usedHtml && !has(htmlName, htmlFrom, htmlLocal)) inject += `import { ${clauseFor(htmlName, htmlLocal)} } from '${htmlFrom}';\n`;
+    if (state.usedKeyed && !has(keyedName, keyedFrom, keyedLocal)) inject += `import { ${clauseFor(keyedName, keyedLocal)} } from '${keyedFrom}';\n`;
+    if (state.usedSpread && !has(spreadName, spreadFrom, spreadLocal)) inject += `import { ${clauseFor(spreadName, spreadLocal)} } from '${spreadFrom}';\n`;
+    if (state.usedSvg && !has(svgName, svgFrom, svgLocal)) inject += `import { ${clauseFor(svgName, svgLocal)} } from '${svgFrom}';\n`;
+    if (state.usedMathml && !has(mathmlName, mathmlFrom, mathmlLocal)) inject += `import { ${clauseFor(mathmlName, mathmlLocal)} } from '${mathmlFrom}';\n`;
     prefix = inject;
   }
   /**

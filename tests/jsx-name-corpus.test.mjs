@@ -31,6 +31,7 @@ const { transformJsx } = await load('jsx');
 
 /** Inside the tree, or a bare `@verajs/core` in the emitted output cannot resolve. */
 const dir = mkdtempSync(join(process.cwd(), 'node_modules', '.jsx-corpus-'));
+writeFileSync(join(dir, 'asset.mjs'), "export const raw = '<svg/>';\nexport default raw;\n");
 writeFileSync(
   join(dir, 'stubs.mjs'),
   'const tag = (s, ...v) => ({ strings: s, values: v });\n' +
@@ -53,6 +54,10 @@ const PRELUDES = [
   "import { NAME } from './stubs.mjs';",
   "import { NAME as zother } from './stubs.mjs';",
   "import zdef, { NAME } from './stubs.mjs';",
+  /** An import of the NAME from somewhere else is a collision, not the tag — the SVGR/Vite idiom. */
+  "import NAME from './asset.mjs';",
+  "import * as NAME from './asset.mjs';",
+  "import { raw as NAME } from './asset.mjs';",
   "const s = 'text/NAME';",
   '// NAME is a comment',
   '/* NAME in a block */',
@@ -83,7 +88,8 @@ const PRELUDES = [
   'const q = { a: 1 } / 2, NAME = 1; const p = "a/b";',
   'const q = { a: 1 } / 2, NAME = 1; // half of it',
   'function zb() {}\n/^[\'"]/.test("a");\nconst NAME = 1;',
-  'const TICK = /`/;\nconst { NAME } = lib;',
+  'const zt = { in: 3 };\nconst zr = zt.in / 2, NAME = 1;',
+  'const zs = { new: 4 };\nconst zq = zs.new / 2, NAME = 1;',
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */
@@ -128,7 +134,12 @@ test('every module the transform can be handed still parses and runs', async () 
           const binds = new RegExp(
             `(?:const|let|var|function|class)[\\s{[,]*[^=;\\n]*\\b${name}\\b|[,(]\\s*${name}\\s*[=:,)]`
           ).test(pre.replace(/^\s*import\b[^\n]*$/gm, ''));
-          if (binds && source.includes(`${name}\``)) continue;
+          /**
+           * An import of the name from somewhere OTHER than the tag's module binds it too, so a body
+           * that also tags with it is the same self-inconsistent pair — the author's own conflict.
+           */
+          const foreign = pre.includes('./asset.mjs');
+          if ((binds || foreign) && source.includes(`${name}\``)) continue;
 
           let out;
           try {
