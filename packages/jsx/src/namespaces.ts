@@ -27,6 +27,9 @@ const XHTML = reference.namespaceURI;
 const SVG = (reference.firstChild as Element).namespaceURI;
 
 /** The renderer's template, as far as this module touches it: the sigil-named seam members only. */
+/** A parent element carrying the namespace its children parse in, once asked. */
+type Cached = Element & { _$vns$?: string | null };
+
 type Template = {
   _$at$?: (parent: Node) => Template;
   _$ns$?: string | null;
@@ -99,20 +102,22 @@ export const namespaces = {
         : ns === SVG
           ? (svg ??= new template.constructor({ _$litType$: 2, strings: result.strings }))
           : (mathml ??= new template.constructor({ _$litType$: 3, strings: result.strings }));
-    /**
-     * **The last parent element, and what it resolved to.** Every row of a list shares one parent, so
-     * after the first row the answer is an identity compare — and once this module is wired, EVERY
-     * `html` instance on the page asks, plain HTML lists included, so the common case has to cost
-     * about nothing. Held through a `WeakRef`: a strong reference would keep a removed subtree alive
-     * for as long as the template is cached, which is the life of the page.
-     */
-    let last: WeakRef<Node> | undefined;
-    let lastTemplate = template;
     template._$at$ = (parent) => {
       if (parent.nodeType !== 1) return pick(within(parent, read()));
-      if (last !== undefined && last.deref() === parent) return lastTemplate;
-      last = new WeakRef(parent);
-      return (lastTemplate = pick(childOf(parent as Element)));
+      /**
+       * **The answer is cached ON the parent element.** Every row of a list shares one parent, and once
+       * this module is wired EVERY `html` instance on the page asks — plain HTML lists included — so
+       * the common case has to be one property read. Two other homes were measured and rejected: a
+       * `WeakRef` to the last parent cost Firefox 8.7% on plain HTML creation (`deref()` per row), and
+       * a strong reference would keep a removed subtree alive for the life of the cached template.
+       * On the element, the answer lives and dies with the thing it describes.
+       */
+      const known = (parent as Cached)._$vns$;
+      if (known !== undefined) return pick(known);
+      const answer = childOf(parent as Element);
+      /** Not for `annotation-xml`: its answer follows an `encoding` a binding can change later. */
+      if ((parent as Element).localName !== 'annotation-xml') (parent as Cached)._$vns$ = answer;
+      return pick(answer);
     };
   },
 };
