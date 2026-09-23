@@ -454,8 +454,6 @@ type TemplatePart = {
   _statics?: string[];
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
   _present?: boolean;
-  /** CHILD only: the namespace a template committed at this position is parsed in — see `childNamespace`. */
-  _ns?: Namespace;
   _node?: Node; // only during construction, carrying identity between the two passes
 };
 
@@ -583,20 +581,7 @@ const warnDroppedBinding = (specs: Spec[], from: number, count: number) => {
   );
 };
 
-/**
- * **A template is prepared once per namespace it is parsed IN**, not once per strings. The namespace
- * belongs to the position a template is committed into — exactly as the platform's fragment parser
- * takes a context element — so `` html`<path/>` `` committed inside an `<svg>` parses as SVG, and the
- * same strings committed into a `<div>` parse as HTML. Indexed by namespace code (1 html, 2 svg, 3
- * mathml); `svg`/`mathml` results name their namespace explicitly and ignore the position's.
- */
-const templateCache = new WeakMap<TemplateStringsArray, Record<string | number, Template>>();
-
-/**
- * A child position's namespace: `null` for HTML — the position nearly every part has — or the URI
- * the parser gave a child there. Never written in this file: the parser is the one asked.
- */
-type Namespace = string | null;
+const templateCache = new WeakMap<TemplateStringsArray, Template>();
 
 class Template {
   _element: HTMLTemplateElement;
@@ -620,38 +605,20 @@ class Template {
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
   declare _slotless?: boolean;
+  /** Set by a `'template'` hook: which template to build at a position — see `TemplateHook`. */
+  declare _$at$?: (parent: Node) => Template;
 
-  /**
-   * `key` is `1` for HTML, `2`/`3` for an explicit `svg`/`mathml` template, or the namespace URI of
-   * the position an `html` template was committed into.
-   */
-  constructor(result: TemplateResult, key: number | string) {
-    const { markup, specs } = scan(result.strings, key === 1 ? 1 : 2);
+  constructor(result: TemplateResult) {
+    const type = result._$litType$ ?? 1;
+    const { markup, specs } = scan(result.strings, type);
     this._element = doc.createElement('template');
+    /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
+    this._element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
     const content = this._element.content;
-    /** The namespace the template's OWN root-level child positions take. */
-    let rootNs: Namespace = null;
-    if (typeof key === 'string') {
-      /**
-       * **Parsed as the children of an element in that namespace** — the platform's fragment parser
-       * given a context element, which is exactly how it decides what markup means. Every
-       * foreign-content rule comes from the parser rather than from a table here: camelCase names
-       * (`clipPath`), the breakout list, integration points. Built in the template's inert document,
-       * so nothing parsed here is upgraded or run.
-       */
-      const context = content.ownerDocument.createElementNS(key, 'x');
-      context.innerHTML = markup;
-      content.append(...context.childNodes);
-      rootNs = key;
-    } else {
-      /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
-      this._element.innerHTML = key === 2 ? `<svg>${markup}</svg>` : key === 3 ? `<math>${markup}</math>` : markup;
-      if (key !== 1) {
-        const wrapper = content.firstChild as Element;
-        rootNs = wrapper.namespaceURI;
-        while (wrapper.firstChild) content.insertBefore(wrapper.firstChild, wrapper);
-        content.removeChild(wrapper);
-      }
+    if (type !== 1) {
+      const wrapper = content.firstChild!;
+      while (wrapper.firstChild) content.insertBefore(wrapper.firstChild, wrapper);
+      content.removeChild(wrapper);
     }
 
     /**
@@ -745,14 +712,7 @@ class Template {
         markerWalker.currentNode = primedText;
         (node as Comment).remove();
         if (__DEV__) warnImplicitSection(primedText.parentNode as Element | null);
-        /**
-         * The namespace this child position parses a committed template in, fixed HERE from the
-         * template's own structure — never from where an instance happens to sit when it commits,
-         * which is an off-document fragment for every list row and every fresh instance. A
-         * position at the template's root takes the namespace the template itself was parsed in.
-         */
-        const host = primedText.parentNode!;
-        parts.push({ _type: CHILD, _index: -1, _node: primedText, _ns: host.nodeType === 1 ? childNamespace(host) : rootNs });
+        parts.push({ _type: CHILD, _index: -1, _node: primedText });
         consumeIgnored();
       }
     }
@@ -835,6 +795,8 @@ class Template {
         }
       }
     }
+    const hooks = registry?.get('template') as TemplateHook[] | undefined;
+    if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope);
   }
 }
 
@@ -1069,40 +1031,26 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
   }
 };
 
-const getTemplate = (result: TemplateResult, ns: Namespace = null) => {
-  /** `html` (1) takes the position's namespace; `svg` (2) and `mathml` (3) keep their own. */
-  const key = (result._$litType$ ?? 1) === 1 ? (ns ?? 1) : result._$litType$!;
-  let variants = templateCache.get(result.strings);
-  if (variants === undefined) templateCache.set(result.strings, (variants = {}));
-  return (variants[key] ??= new Template(result, key));
+/**
+ * An instance of `result` built and first-updated for a position whose parent is `parent` — the one
+ * create path the template branch, `hold` and list rows share. The `'template'` hook's resolver is
+ * asked here and only here, and the scope is set around the first update and nowhere else.
+ */
+const build = (result: TemplateResult, parent: Node): Instance => {
+  let template = getTemplate(result);
+  if (template._$at$ !== undefined) template = template._$at$(parent);
+  const instance = new Instance(template);
+  const outer = scope;
+  scope = template;
+  instance._update(result.values);
+  scope = outer;
+  return instance;
 };
 
-/**
- * The namespace a start tag takes as a CHILD of `parent`, **asked of the parser rather than listed**.
- * A clone of the parent is given one unknown child through `innerHTML`, which runs the platform's
- * fragment parser with that element as its context — so HTML integration points (`foreignObject`,
- * `desc`, `title`, the MathML token elements, `annotation-xml` by its `encoding`) answer exactly as
- * the platform answers them, and nothing here can drift from it. HTML parents never reach the parse.
- * Paid once per child position of a template, when it is prepared — never per render.
- */
-const childNamespace = (parent: Node): Namespace => {
-  const namespace = (parent as Element).namespaceURI;
-  if (namespace == null || namespace === doc.documentElement.namespaceURI) return null;
-  /**
-   * The ONE position the probe cannot answer: `<annotation-xml>` is an integration point by the
-   * `encoding` on its start tag, and the engines DISAGREE when it is a fragment parser's context —
-   * Chromium reads its attribute there, Firefox does not, so the probe said MathML in Firefox for a
-   * position every engine parses as HTML in full markup. The full-markup rule is the one they agree
-   * on, so it is read directly.
-   */
-  if ((parent as Element).localName === 'annotation-xml') {
-    const encoding = (parent as Element).getAttribute('encoding')?.toLowerCase();
-    if (encoding === 'text/html' || encoding === 'application/xhtml+xml') return null;
-  }
-  const probe = parent.cloneNode(false) as Element;
-  probe.innerHTML = '<x></x>';
-  const child = (probe.firstChild as Element | null)?.namespaceURI;
-  return child == null || child === doc.documentElement.namespaceURI ? null : child;
+const getTemplate = (result: TemplateResult) => {
+  let template = templateCache.get(result.strings);
+  if (template === undefined) templateCache.set(result.strings, (template = new Template(result)));
+  return template;
 };
 
 /** Anything bound to a live position: commits values[index..], returns the next value index. */
@@ -1113,12 +1061,12 @@ const UNSET = {};
 
 
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
-const createMarkeredPart = (parent: Node, ref: Node | null, ns: Namespace) => {
+const createMarkeredPart = (parent: Node, ref: Node | null) => {
   const start = comment();
   const end = comment();
   parent.insertBefore(start, ref);
   parent.insertBefore(end, ref);
-  return new ChildPart(start, end, ns);
+  return new ChildPart(start, end);
 };
 
 /**
@@ -1834,7 +1782,7 @@ class Instance {
       }
       this._parts.push(
         templatePart._type === CHILD
-          ? new TextPart(node as Text, templatePart._ns!)
+          ? new TextPart(node as Text)
           : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
     }
@@ -2009,11 +1957,9 @@ class TextPart implements Part {
   _text: Text;
   _value: unknown = '';
   _upgraded: ChildPart | null = null;
-  _ns: Namespace;
 
-  constructor(text: Text, ns: Namespace) {
+  constructor(text: Text) {
     this._text = text;
-    this._ns = ns;
   }
 
   _commit(values: unknown[], index: number): number {
@@ -2054,7 +2000,7 @@ class TextPart implements Part {
         parent.insertBefore(start, this._text);
         parent.insertBefore(end, this._text.nextSibling);
       }
-      const part = new ChildPart(start, end, this._ns);
+      const part = new ChildPart(start, end);
       part._mode = TEXT;
       part._text = this._text;
       part._value = this._value;
@@ -2112,7 +2058,27 @@ type ValueHandler = (part: object, value: unknown) => boolean | void;
  * registry and core another, and an app would register into whichever it happened to import — the
  * failure `connectInserts` used to repair.
  */
-let registry: { get(name: 'value' | 'slot'): unknown[] | undefined } | null = null;
+let registry: { get(name: 'value' | 'slot' | 'template'): unknown[] | undefined } | null = null;
+
+/**
+ * **The create-path scope** — what the fragment being built right now will land in, as far as a
+ * `'template'` hook needs to know. Set around an instance's FIRST update and a list row's creation,
+ * restored after; the update path never touches it, and no part carries it. A position whose parent
+ * is still a detached fragment cannot be asked where it is, and this is the answer it gets instead:
+ * the template whose instance that fragment is, or, for a non-template list row, `[its list's
+ * parent, the scope outside it]`. Opaque to the renderer, which only keeps it.
+ */
+let scope: unknown = null;
+const readScope = () => scope;
+
+/**
+ * **The `'template'` insert point: `(template, result, readScope) => void`, called once as each
+ * template is BUILT** — the cold path, cached for the life of the page, the same place the slot seam
+ * is resolved and for the same reason. A hook may set `_$at$` on the template: a resolver the
+ * renderer asks, once per instance CREATED, which template to build at a position, given that
+ * position's parent node. Nothing is asked on update.
+ */
+type TemplateHook = (template: Template, result: TemplateResult, read: () => unknown) => void;
 
 /**
  * The ONE lookup for the `'slot'` insert. Three callers want the same thing in the same shape —
@@ -2239,13 +2205,9 @@ class ChildPart implements Part {
   /** Which applier that state belongs to, so two of them at one part cannot read each other's. */
   _applier: unknown = undefined;
 
-  /** The namespace a template committed here parses in — fixed at creation, see `childNamespace`. */
-  _ns: Namespace;
-
-  constructor(start: Comment, end: Node | null, ns: Namespace = null) {
+  constructor(start: Comment, end: Node | null) {
     this._start = start;
     this._end = end;
-    this._ns = ns;
   }
 
   _commit(values: unknown[], index: number): number {
@@ -2491,10 +2453,8 @@ class ChildPart implements Part {
       if (__DEV__ && _profileHook) {
         _profileHook(this._mode === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, value.strings);
       }
-      const template = getTemplate(value, this._ns);
       if (this._mode !== EMPTY) this._clear();
-      const instance = new Instance(template);
-      instance._update(value.values);
+      const instance = build(value, this._start.parentNode!);
       /**
        * The instance's top-level nodes, recorded while they are still in the fragment. `_value`
        * is unused in TEMPLATE mode, and this is what lets `_clear` and `hold`'s parking find the
@@ -2614,8 +2574,9 @@ class ChildPart implements Part {
     } else if (this._mode !== EMPTY) {
       this._clear();
     }
-    const instance = held.get(result.strings) ?? new Instance(getTemplate(result, this._ns));
-    instance._update(result.values);
+    let instance = held.get(result.strings);
+    if (instance === undefined) instance = build(result, this._start.parentNode!);
+    else instance._update(result.values);
     this._value = [...instance._fragment.childNodes];
     this._insert(instance._fragment);
     this._instance = instance;
@@ -2639,9 +2600,8 @@ class ChildPart implements Part {
         : null;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
-      const template = getTemplate(result, this._ns);
-      const instance = new Instance(template);
-      instance._update(result.values);
+      /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
+      const instance = build(result, this._start.parentNode!);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
         if (stamp !== null) stampOwn(rootNode, stamp);
@@ -2675,7 +2635,7 @@ class ChildPart implements Part {
         };
       }
       /** Multi-root template: markered part, content already instantiated. */
-      const part = createMarkeredPart(parent, ref, this._ns);
+      const part = createMarkeredPart(parent, ref);
       part._instance = instance;
       part._shape = result.strings;
       part._mode = TEMPLATE;
@@ -2700,10 +2660,13 @@ class ChildPart implements Part {
       }
       return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }
-    const part = createMarkeredPart(parent, ref, this._ns);
+    const part = createMarkeredPart(parent, ref);
     /** The row's own destination, so a batched fill resolves like the template branches above. */
     if (__DEV__ && parent.nodeType === 11) part._foreignHost = this._start.parentNode;
+    const outer = scope;
+    scope = [this._start.parentNode, outer];
     part._set(value);
+    scope = outer;
     return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
   }
 
@@ -2715,7 +2678,7 @@ class ChildPart implements Part {
         return;
       }
       /** Shape changed: swap the bare element for a markered part in its place. */
-      const part = createMarkeredPart(item._element.parentNode!, item._element, this._ns);
+      const part = createMarkeredPart(item._element.parentNode!, item._element);
       item._element.remove();
       item._element = null;
       item._instance = null;
@@ -2906,7 +2869,7 @@ export const renderInto = (result: unknown, container: Node) => {
     const marker = comment();
     container.appendChild(marker);
     if (container.nodeType === 1) slotSeam()?._$capture$?.(container as Element, marker);
-    rootParts.set(container, (part = new ChildPart(marker, null, childNamespace(container))));
+    rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   /**
    * **The flush is in a `finally`, and that is not tidiness.** A render that throws after a
@@ -2937,7 +2900,6 @@ export const renderInto = (result: unknown, container: Node) => {
 export {
   flushSelects,
   getTemplate,
-  childNamespace,
   Template,
   Instance,
   TextPart,
