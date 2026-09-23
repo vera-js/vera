@@ -1,4 +1,4 @@
-import { RAW_TEXT_ELEMENTS, RESERVED_ELEMENT_NAMES, VOID_ELEMENTS } from '@verajs/shared-utils';
+import { RESERVED_ELEMENT_NAMES, VOID_ELEMENTS } from '@verajs/shared-utils';
 import { atExpressionPosition, createParseState, findRoots, isBlankExpression, mark } from './parser.js';
 import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
@@ -73,79 +73,6 @@ const childHelperSource = (name: string) => `const ${name} = (v) => (typeof v ==
 const SIGILS = new Set(['.', '?', '@', '&']);
 
 /**
- * **Element names SVG owns outright AND that carry no visible content as HTML.**
- *
- * A template whose ROOT is one of these compiles with `svg` instead of `html`, wherever it was
- * written. That closes the one shape JSX could not express: mode tracking is lexical and stops at a
- * function boundary, so children written at a call site and handed to a component were compiled
- * where they were written —
- *
- *     const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
- *     <Frame><path d="M0 0h24" /></Frame>
- *
- * built its `<path>` as HTML, an `HTMLUnknownElement` with the right tag and no geometry, and an
- * app's whole header of icons vanished with nothing to search for. The call site cannot know what
- * `Frame` renders; it does not need to, because `<path>` is not an HTML element in any context.
- *
- * **Two exclusions, and the second is the subtle one.**
- *
- * Names SVG SHARES with HTML — `a`, `title`, `script`, `style`, `image`, `font` — are absent because
- * guessing there would break real HTML.
- *
- * Names that would carry VISIBLE CONTENT as an unknown HTML element are absent too, which is the
- * less obvious hazard: this upgrade fires on the root tag alone, so it also applies to a template
- * bound for an HTML parent. `<Box><text>hello</text></Box>` WOULD go from readable text to a 0×0
- * SVG element — which is why `text` is not in the set; it is the hazard avoided, not the shipped
- * behaviour. Every name kept below is empty in practice
- * (`path`, `circle`, `use`, `stop`) or a structural container nobody writes in HTML (`g`, `defs`),
- * so the same mistake costs nothing. `text`, `desc`, `title`, `metadata`, `switch`, `view`, `set`,
- * `filter`, `mask`, `marker`, `pattern`, `symbol`, `tspan` and `textPath` are therefore left out:
- * each is either content-bearing or only ever written inside an `<svg>`, where lexical mode already
- * answers correctly.
- *
- * `foreignObject` is out for the same reason read one more time: carrying visible HTML is its whole
- * purpose, so outside an `<svg>` it loses exactly what `<text>` would.
- *
- * The camelCase names (`clipPath`, `linearGradient`, `radialGradient`, `animateTransform`,
- * `animateMotion`) are out for a different one. `@verajs/ssr` serialises a template's strings and the
- * BROWSER's parser assigns the namespace, so an upgraded template landing in an HTML parent is
- * emitted `clipPath` server-side and parsed `clippath` client-side — hydration then discards the
- * server's markup and rebuilds. Every name kept below is lowercase, where the two agree.
- *
- * Omitting a name is CONSERVATIVE — it falls back to the previous behaviour. INCLUDING a wrong one
- * is not, which is why this list is short rather than complete.
- *
- * `svg` itself is excluded: a template already rooted at `<svg>` needs no tag, which is why
- * `` html`<svg><path/></svg>` `` has always worked, in lit too.
- */
-const SVG_ELEMENTS = new Set([
-  'path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon',
-  'g', 'defs', 'use', 'stop', 'animate', 'mpath',
-]);
-
-/**
- * SVG names that a SIBLING can vouch for, though a root tag alone cannot.
- *
- * Every exclusion above rests on one sentence — *"this upgrade fires on the root tag alone, so it
- * also applies to a template bound for an HTML parent"* — and that sentence stops being true the
- * moment a sibling in the same group IS an SVG-only name. `<Frame><title>{label}</title><path/></Frame>`
- * is the canonical accessible icon: the `<path>` proves the group is SVG, so the `<title>` beside it
- * is the SVG one. Without this it was built as an HTML `<title>`, which is not the accessible name
- * of anything, and the renderer's warning could only recommend `` svg`…` `` — a spelling no JSX
- * author can write. The remedy has to exist for the advice to be worth printing.
- *
- * Still LOWERCASE only. The camelCase names (`foreignObject`, `textPath`, `clipPath`,
- * `linearGradient`, …) stay out even here, because their hazard is not the root-tag one: `@verajs/ssr`
- * emits the strings verbatim and the browser lowercases them outside an `<svg>`, so hydration
- * discards and rebuilds. A sibling says what the group is, not where it lands.
- */
-const SVG_WITH_SIBLING = new Set([
-  'title', 'a', 'style', 'script', 'image', 'font',
-  'text', 'tspan', 'desc', 'metadata', 'switch', 'view', 'set',
-  'filter', 'mask', 'marker', 'pattern', 'symbol',
-]);
-
-/**
  * Whether a tag names a COMPONENT — capitalised, or dotted like `motion.path`. `isComponentTag`
  * below asks the same question of a node.
  *
@@ -156,202 +83,12 @@ const SVG_WITH_SIBLING = new Set([
 const isComponentName = (tag: string): boolean => tag.includes('.') || !/^[a-z]/.test(tag);
 
 /**
- * Whether a tag cannot survive being built in the SVG namespace — a component (it would become a
- * call, not an element) or a CUSTOM ELEMENT (upgrade is spec-gated on the HTML namespace, so an
- * SVG-namespaced one is permanently inert with no `connectedCallback` and no diagnostic).
- *
- * Named once because open-coding it drifted twice: first missing the dotted form, then missing the
- * dash on the expression path. It is deliberately NOT the same question as `isComponentName` — a
- * dash-named tag is an ELEMENT, and folding the dash into that predicate rewrote every custom
- * element as a function call and broke six suites.
- */
-const cannotSurviveSvg = (tag: string): boolean => isComponentName(tag) || isCustomElementName(tag);
-
-/**
  * A dash makes a tag a custom element — except the eight names SVG and MathML already own, which the
  * spec reserves. `<annotation-xml>` read as a custom element had its `encoding` compiled to a
  * property, where the parser cannot see it.
  */
 const isCustomElementName = (tag: string): boolean =>
   tag.includes('-') && !RESERVED_ELEMENT_NAMES.has(tag.toLowerCase());
-
-/**
- * `<annotation-xml>` is an HTML integration point for exactly these two `encoding` values, matched
- * ASCII-case-insensitively — the parser's rule, and the renderer's `foreignHost` asks the same.
- */
-const HTML_ENCODINGS = new Set(['text/html', 'application/xhtml+xml']);
-
-/**
- * SVG's HTML integration points — the spec's own term, and the runtime's own list: `foreignHost`
- * in `@verajs/renderer` names exactly these three. Content inside one parses in the HTML namespace
- * even within an `svg` template, so BOTH rules read this ONE list: `childMode` flips an expression
- * inside one to `html`, and `refusesSvg` treats what is beneath one as safe rather than blocking
- * the upgrade — refusing there would cost the fix for exactly the remedy the renderer recommends.
- *
- * `<title>` is fully a member. Splitting it out into a second list was tried and measured WRONG: it
- * refused the upgrade over a component in a `<title>` EXPRESSION, which `childMode` has already
- * compiled `html` and which renders and upgrades perfectly — so the surrounding `<path>` lost its
- * namespace and the icon vanished, which is the bug this feature exists to fix. The one shape
- * `<title>` genuinely cannot take is a STATIC element, and `titleWithElement` below bounds exactly
- * that — one narrow guard instead of a whole second list.
- */
-const SVG_INTEGRATION_POINTS = new Set(['foreignObject', 'desc', 'title']);
-
-
-/**
- * Whether this node is one of those holding a static ELEMENT.
- *
- * `@verajs/renderer` scans `<title>` as raw text in every template, by one rule deliberately shared
- * between the scan and the parsed-tree pass. So a STATIC ELEMENT inside a `<title>` in an `svg`
- * template lands in a scan/parse disagreement: `<tspan>` is silently dropped, a binding's sigil is
- * left behind as a dead `@click="$v…$"` attribute, and a spread throws outright. An EXPRESSION never
- * reaches that — it becomes its own template, committed as a child, never scanned as `<title>`'s
- * statics — which is why this asks about static children only.
- */
-const titleWithElement = (node: JsxNode): boolean =>
-  node.fragment === undefined &&
-  /**
-   * The SHARED list — it was a private fourth copy of a set `@verajs/shared-utils` already owns and
-   * this file already imports from, under a suite (`markup-grammar-homes`) written to forbid exactly
-   * that and matching only the VOID spelling.
-   *
-   * **The `.toLowerCase()` is a LIVE guard, and it is live on the DESCENDANT path.** The tag that
-   * must be a lowercase SVG name is the one being upgraded; `refusesSvg` then walks the whole subtree
-   * through `hasComponent`, so a mixed-case raw-text element ANYWHERE beneath it reaches this test.
-   * Measured: `<g><textArea><b onClick={f}>hi</b></textArea></g>` compiles `html` with the guard and
-   * `svg` without, and the `svg` form lands in the scan/parse disagreement — the `<b>` is relocated
-   * out of the `<g>`, its `@click` is stranded as a dead literal attribute, and the renderer reports
-   * a lost binding. Pinned by `a mixed-case raw-text element refuses at any depth` in `tests/jsx.test.mjs`.
-   *
-   * An earlier revision of this comment claimed the opposite — that no mixed-case tag can reach the
-   * guard because the upgrade sets are case-sensitive. That is true only of the tag being upgraded,
-   * and the mutation run behind it swept a corpus with no descendant shape in it, so a guard that
-   * changes real output looked dead. It is left recorded because the conclusion was wrong in the
-   * direction that deletes working code.
-   */
-  RAW_TEXT_ELEMENTS.has(node.tag.toLowerCase()) &&
-  node.children.some((kid) => !('text' in kid) && !('expr' in kid));
-
-/**
- * MathML's TEXT integration points. `annotation-xml` is not in the list because its answer depends
- * on its `encoding`: `childMode` asks for a LITERAL one of the two HTML encodings, which is what the
- * parser does with the static children of the same element, and otherwise keeps the content MathML
- * — the spec's answer for every other encoding, and the only safe one for a BOUND encoding the
- * compiler cannot read. `@verajs/renderer`'s `foreignHost` reads it at runtime, where it is
- * knowable either way.
- */
-const MATHML_ISLANDS = new Set(['mi', 'mo', 'mn', 'ms', 'mtext']);
-
-/**
- * Whether a node cannot be built in the SVG namespace — itself, or anywhere statically beneath it.
- *
- * The hazard is narrow and worth stating exactly, because three rounds of this feature widened the
- * walk one place at a time. A component becomes a CALL rather than an element; a custom element is
- * spec-gated on the HTML namespace for upgrade, so an SVG-namespaced one is permanently inert with
- * no `connectedCallback` and no diagnostic. Either is silent, which is why the upgrade refuses
- * rather than guesses.
- *
- * It reaches wherever the COMPILER picks the inner tag: children, an expression child's `roots`,
- * and an element's ATTRIBUTES — `<g onClick={() => render(<my-card/>)}>` propagates the upgraded
- * mode into that handler, and the attribute path was the last one still unwalked. What it does not
- * need to reach is an OPAQUE runtime value: a `TemplateResult` arriving through an expression
- * carries whatever namespace its own tag gave it — `` svg`…` `` and `` mathml`…` `` results arrive
- * through the same position — and the renderer names it if it is wrong.
- */
-const refusesSvg = (node: JsxNode): boolean => {
-  if (node.fragment === undefined) {
-    if (cannotSurviveSvg(node.tag)) return true;
-    if (titleWithElement(node)) return true;
-    /**
-     * An island flips its CHILDREN back to HTML, so nothing below it can be harmed — but its own
-     * ATTRIBUTES are emitted in the outer, upgraded mode, and returning `false` here skipped the
-     * only walk that reaches them. `<g><desc onClick={() => hook(<icon-badge/>)}>` built the badge
-     * SVG-namespaced and permanently inert. The island exemption and the attribute walk were added
-     * one round apart, and the second undid part of the first.
-     */
-    if (SVG_INTEGRATION_POINTS.has(node.tag)) return jsxInAttrs(node);
-  }
-  return hasComponent(node);
-};
-
-/**
- * Whether any ATTRIBUTE in this element carries JSX at all — not merely a component.
- *
- * An attribute's expression is emitted in the element's own mode, so an upgraded root compiles the
- * JSX inside its handlers as SVG too — and that template goes wherever the handler puts it, which
- * the root knows nothing about. `<circle onClick={() => open(<form><input/></form>)}/>` built a real
- * form as SVG: not an `HTMLInputElement`, no form semantics, and silent — the renderer's diagnostic
- * inspects only hosts that are themselves SVG- or MathML-namespaced, so a handler's template landing
- * in an ordinary HTML parent is never examined at all.
- *
- * **Any JSX refuses, not just a component.** The narrower test shipped one round earlier and left
- * exactly this behind — the fifth time a guard was written for the instance rather than the class.
- * The compiler cannot know a handler's destination, so it must not assume one; refusing costs an
- * upgrade on a shape that has a handler, which is the conservative direction and the one the
- * renderer names at runtime anyway.
- */
-const jsxInAttrs = (node: JsxNode): boolean => {
-  if (node.fragment !== undefined) return false;
-  for (const attribute of node.attrs)
-    if (attribute.spread === true || attribute.kind === 'expr') {
-      if (attribute.roots.length > 0) return true;
-    }
-  return false;
-};
-
-/** Whether anything the compiler will tag lies beneath this node — see `refusesSvg`. */
-const hasComponent = (node: JsxNode): boolean => {
-  if (jsxInAttrs(node)) return true;
-
-  for (const kid of node.children) {
-    if ('text' in kid) continue;
-    if ('expr' in kid) {
-      for (const root of kid.roots) if (refusesSvg(root.node)) return true;
-      continue;
-    }
-    if (refusesSvg(kid)) return true;
-  }
-  return false;
-};
-
-/**
- * What a fragment's children PROVE about their namespace: `svg` (at least one SVG-only element and
- * nothing against it), `html` (something disproves it), or `nothing` (only namespace-free content).
- *
- * Three states rather than two, because "proves nothing" and "disproves" are different and
- * collapsing them was a defect twice. Text proves nothing; so does an EMPTY fragment, at any depth —
- * `<><><></></><path/></>` is the same tree as `<><path/></>` and has to reach the same answer,
- * which a `children.length === 0` check only managed one level down.
- */
-const fragmentProof = (node: JsxNode): 'svg' | 'html' | 'nothing' => {
-  let found = false;
-  for (const kid of node.children) {
-    /** Text carries no namespace, so it neither proves nor disproves. */
-    if ('text' in kid) continue;
-    /**
-     * An expression DISPROVES — the `'html'` state, not `'nothing'`, and the distinction is
-     * load-bearing at exactly this line. The compiler cannot see what an expression yields, and
-     * upgrading over one built its HTML children — custom elements included, which then never
-     * upgrade — in the SVG namespace. `'nothing'` here would make `<><path/>{x}</>` compile `svg`,
-     * which is the round-1 defect.
-     */
-    if ('expr' in kid) return 'html';
-    if (kid.fragment === true) {
-      const inner = fragmentProof(kid);
-      if (inner === 'html') return 'html';
-      if (inner === 'svg') found = true;
-      continue;
-    }
-    /** Vouchable but not self-proving: neutral here, exactly like text — see `SVG_WITH_SIBLING`. */
-    if (SVG_WITH_SIBLING.has(kid.tag)) continue;
-    if (!SVG_ELEMENTS.has(kid.tag)) return 'html';
-    found = true;
-  }
-  return found ? 'svg' : 'nothing';
-};
-
-/** Whether a fragment's children are ALL, provably, SVG-only — see `fragmentProof`. */
-const allSvgChildren = (node: JsxNode): boolean => fragmentProof(node) === 'svg';
 
 /** Platform idiom, named in the principles: an error class STAYS a class. */
 class JsxError extends Error {
@@ -394,8 +131,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
-  const [svgName, svgFrom] = options.svg ?? ['svg', '@verajs/core'];
-  const [mathmlName, mathmlFrom] = options.mathml ?? ['mathml', '@verajs/core'];
 
   const { roots, mismatch } = findRoots(code);
   /**
@@ -829,12 +564,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const htmlLocal = localName(htmlName, htmlFrom);
   const keyedLocal = localName(keyedName, keyedFrom);
   const spreadLocal = localName(spreadName, spreadFrom);
-  const svgLocal = localName(svgName, svgFrom);
-  const mathmlLocal = localName(mathmlName, mathmlFrom);
   const clauseFor = (exported: string, local: string) =>
     exported === local ? exported : `${exported} as ${local}`;
 
-  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedSvg: false, usedMathml: false, usedChild: false };
+  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedChild: false };
 
   /**
    * **A name the module does not already use**, because injecting a second `const $veraChild`
@@ -856,53 +589,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     childHelper = `${CHILD_HELPER}${n}`;
   taken.add(childHelper);
 
-  /**
-   * **The content mode a JSX expression sits in, tracked lexically** — the namespace fix React
-   * users never have to think about, done at compile time. A template's namespace is decided by
-   * the tag that parses it, so a map callback's shapes inside `<svg>` compiled as `html\`…\``
-   * yielded HTMLUnknownElements that never draw; there was NO JSX spelling that worked, because
-   * JSX has no `svg\`\`` of its own. Now the surrounding element decides: expressions inside
-   * `<svg>` compile their roots with the `svg` tag, inside `<math>` with `mathml`, and
-   * `<foreignObject>` flips back to HTML — exactly the tag an author writing templates by hand
-   * would have to pick, picked from the same lexical position. A component's children inherit the
-   * mode of the position they are WRITTEN in, which is the least-surprise reading of an
-   * unknowable runtime placement, and what a hand-written template would do too.
-   */
-  type Mode = 0 | 1 | 2; // html | svg | math
-  const HTML_MODE = 0;
-  const SVG_MODE = 1;
-  const MATH_MODE = 2;
-  /**
-   * `SVG_INTEGRATION_POINTS`, not `foreignObject` alone. The two rules disagreeing was a hole:
-   * `refusesSvg` let a subtree through on the grounds that an island flips the namespace back,
-   * while this only flipped for `foreignObject` — so a custom element inside `<desc>` or `<title>`
-   * was compiled `svg` and never upgraded, silently, and the renderer's warning cannot see it
-   * because the element genuinely IS SVG-namespaced. Half of it predates this feature. One list,
-   * both uses.
-   */
-  const childMode = (tag: string, mode: Mode, htmlEncoding = false): Mode =>
-    /**
-     * A nested `<svg>`/`<math>` switches namespace only from an HTML insertion mode. Inside foreign
-     * content the parser puts EVERY start tag in the adjusted current node's namespace, so
-     * `<svg><math><mi>` is all SVG — measured against the platform. Switching unconditionally made
-     * the compiler emit `html` for an `<mtext>` that is really SVG, and its own renderer then warned
-     * about the output. An integration point is the only way back, which `childMode` handles below.
-     */
-    mode === HTML_MODE && tag === 'svg'
-      ? SVG_MODE
-      : mode === HTML_MODE && tag === 'math'
-        ? MATH_MODE
-        : mode === SVG_MODE && SVG_INTEGRATION_POINTS.has(tag)
-          ? HTML_MODE
-          : mode === MATH_MODE && (MATHML_ISLANDS.has(tag) || (tag === 'annotation-xml' && htmlEncoding))
-            ? HTML_MODE
-            : mode;
-
   /** An expression slice with any JSX roots inside it transformed (bottom-up, offsets stable). */
-  const emitExpression = (text: string, roots: JsxRoot[], base: number, mode: Mode, vouched = false): string => {
+  const emitExpression = (text: string, roots: JsxRoot[], base: number): string => {
     let out = text;
     for (const root of [...roots].sort((a, b) => b.start - a.start)) {
-      out = out.slice(0, root.start - base) + emitRoot(root.node, mode, vouched) + out.slice(root.end - base);
+      out = out.slice(0, root.start - base) + emitRoot(root.node) + out.slice(root.end - base);
     }
     return out;
   };
@@ -935,50 +626,16 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * with the two sites four lines apart, the first draft of the component half turned a bare
    * `<Row key>` into `keyed(true, …)` while the element half makes it `keyed(null, …)`.
    */
-  const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean, mode: Mode): string => {
+  const keyExpression = (attribute: Extract<JsxAttribute, { spread?: undefined }>, isRoot: boolean): string => {
     if (!isRoot)
       throw new JsxError('key belongs on the JSX root returned from a list callback', code, fileName, attribute.start);
     return attribute.kind === 'expr'
-      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode)
+      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute))
       : JSON.stringify(attribute.kind === 'str' ? attribute.text : null);
   };
 
-  const emitRoot = (node: JsxNode, mode: Mode, vouched = false): string => {
-    /** A component dispatches on its own; only a real element's name decides a namespace. */
-    if (isComponentTag(node)) return emitComponent(node as ElementNode, true, mode);
-    /**
-     * A fragment has no tag of its own, so it takes the answer from its children — `<><path/></>`
-     * handed to a component is the same shape as `<path/>` handed to one, and was the one form of
-     * it that stayed broken.
-     */
-    if (mode === HTML_MODE) {
-      const svgRoot =
-        node.fragment === undefined
-          ? SVG_ELEMENTS.has(node.tag) || (vouched && SVG_WITH_SIBLING.has(node.tag))
-          : /**
-             * A fragment vouches FOR its siblings and must be vouchable BY them, or the same group
-             * answers differently depending on which side the fragment is written on:
-             * `<F><title/><><path/></></F>` upgraded while `<F><path/><><title/></></F>` did not.
-             * `'nothing'` is the state that needs the vouch — a fragment of only vouchable names
-             * proves nothing on its own, exactly as one name alone does.
-             */
-            allSvgChildren(node) || (vouched && fragmentProof(node) === 'nothing');
-      /**
-       * …but never over a component or custom element, which cannot survive the namespace — and
-       * never over a raw-text element holding a static one. `hasComponent` walks the subtree, so it
-       * never asks about the node ITSELF; before a sibling could vouch, `<title>` was unable to be a
-       * root at all and the gap was unreachable. Vouching made it reachable, and
-       * `<F><title><tspan onClick={f}/></title><path/></F>` went straight into the scan/parse
-       * disagreement `titleWithElement` exists to bound: a dead `@click="$v…$"`, a lost binding, a
-       * throwing spread, and a diagnostic blaming the parser for dropping an element that is there.
-       *
-       * It asks `refusesSvg` rather than restating it. Spelling the conditions out here lost the
-       * ISLAND branch — a component inside a vouched `<title>`'s expression was refused, though
-       * `childMode` had already made it `html` and it upgrades perfectly one level down. One rule,
-       * one address; the second address had already drifted once.
-       */
-      if (svgRoot && !refusesSvg(node)) mode = SVG_MODE;
-    }
+  const emitRoot = (node: JsxNode): string => {
+    if (isComponentTag(node)) return emitComponent(node as ElementNode, true);
     const parts = [''];
     const exprs: string[] = [];
     let key: string | null = null;
@@ -990,12 +647,9 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       },
       setKey: (k) => (key = k),
     };
-    emitInto(node, tpl, true, mode);
-    const tagName = mode === SVG_MODE ? svgLocal : mode === MATH_MODE ? mathmlLocal : htmlLocal;
-    if (mode === SVG_MODE) state.usedSvg = true;
-    else if (mode === MATH_MODE) state.usedMathml = true;
-    else state.usedHtml = true;
-    let out = tagName + '`' + parts.reduce((acc, p, i) => acc + (i ? '${' + exprs[i - 1] + '}' : '') + p, '') + '`';
+    emitInto(node, tpl, true);
+    state.usedHtml = true;
+    let out = htmlLocal + '`' + parts.reduce((acc, p, i) => acc + (i ? '${' + exprs[i - 1] + '}' : '') + p, '') + '`';
     if (key !== null) {
       state.usedKeyed = true;
       out = `${keyedLocal}(${key}, ${out})`;
@@ -1004,23 +658,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   };
 
   /** Emits an element/fragment INLINE into the current template context. */
-  const emitInto = (node: JsxNode, tpl: Template, isRoot: boolean, mode: Mode): void => {
+  const emitInto = (node: JsxNode, tpl: Template, isRoot: boolean): void => {
     if (node.fragment) {
-      for (const child of node.children) emitChild(child, tpl, mode);
+      for (const child of node.children) emitChild(child, tpl);
       return;
     }
     if (isComponentTag(node)) {
-      tpl.expr(emitComponent(node as ElementNode, false, mode));
+      tpl.expr(emitComponent(node as ElementNode, false));
       return;
     }
-    const encoding = node.attrs.find((a) => a.spread !== true && a.name === 'encoding');
-    const inner = childMode(
-      node.tag,
-      mode,
-      encoding !== undefined && encoding.spread !== true && encoding.kind === 'str' && HTML_ENCODINGS.has(encoding.text.toLowerCase())
-    );
     tpl.static('<' + node.tag);
-    for (const attribute of node.attrs) emitAttribute(node, attribute, tpl, isRoot, mode);
+    for (const attribute of node.attrs) emitAttribute(node, attribute, tpl, isRoot);
     /**
      * **The ELEMENT decides how the tag closes, never how the author spelled it** — which is
      * HTML's own rule, and why `node.selfClosing` is deliberately not read here.
@@ -1059,11 +707,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     tpl.static('>');
-    for (const child of node.children) emitChild(child, tpl, inner);
+    for (const child of node.children) emitChild(child, tpl);
     tpl.static(`</${node.tag}>`);
   };
 
-  const emitChild = (child: JsxChild, tpl: Template, mode: Mode): void => {
+  const emitChild = (child: JsxChild, tpl: Template): void => {
     if ('text' in child && child.text !== undefined) {
       const text = collapseText(child.text);
       if (text !== '') tpl.static(escapeStatic(text));
@@ -1087,13 +735,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * about falsiness, which is why it cannot be a truthiness test.
        */
       state.usedChild = true;
-      tpl.expr(`${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart, mode)})`);
+      tpl.expr(`${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart)})`);
     } else {
-      emitInto(child as JsxNode, tpl, false, mode);
+      emitInto(child as JsxNode, tpl, false);
     }
   };
 
-  const emitAttribute = (_node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean, mode: Mode): void => {
+  const emitAttribute = (_node: ElementNode, attribute: JsxAttribute, tpl: Template, isRoot: boolean): void => {
     if (attribute.spread) {
       /**
        * `<div {...props} />` -> `<div ${spread(props)}>`. Emitted exactly like `ref`, because it is
@@ -1102,17 +750,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        */
       state.usedSpread = true;
       tpl.static(' ');
-      tpl.expr(`${spreadLocal}(${emitExpression(attribute.text, attribute.roots, attribute.valueStart, mode)})`);
+      tpl.expr(`${spreadLocal}(${emitExpression(attribute.text, attribute.roots, attribute.valueStart)})`);
       return;
     }
     let name = attribute.name;
     const bound = attribute.kind === 'expr';
     const expression = attribute.kind === 'expr'
-      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode) : null;
+      ? emitExpression(attribute.text, attribute.roots, valueBase(attribute)) : null;
     const literal = attribute.kind === 'str' ? attribute.text : null;
 
     if (name === 'key') {
-      tpl.setKey(keyExpression(attribute, isRoot, mode));
+      tpl.setKey(keyExpression(attribute, isRoot));
       return;
     }
     if (name === 'ref') {
@@ -1130,7 +778,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       const bearer = attribute as Extract<JsxAttribute, { kind: 'expr' }>;
       const innerStart = valueBase(bearer) + bearer.text.indexOf(inner);
       tpl.static(' .innerHTML=');
-      tpl.expr(emitExpression(inner, bearer.roots, innerStart, mode));
+      tpl.expr(emitExpression(inner, bearer.roots, innerStart));
       return;
     }
     if (name === 'style' && attribute.kind === 'expr' && /^\s*\{/.test(attribute.text)) {
@@ -1235,80 +883,24 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * from every component author. Where the component is `tag`'s — which does forward to an element
    * — the mapping belongs at that runtime boundary, and `jsxName` is where it lives.
    */
-  const emitComponent = (node: ElementNode, isRoot: boolean, mode: Mode): string => {
+  const emitComponent = (node: ElementNode, isRoot: boolean): string => {
     const props: string[] = [];
     let key: string | null = null;
     for (const attribute of node.attrs) {
       if (attribute.spread) {
-        props.push(`...${emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode)}`);
+        props.push(`...${emitExpression(attribute.text, attribute.roots, valueBase(attribute))}`);
         continue;
       }
       if (attribute.name === 'key') {
-        key = keyExpression(attribute, isRoot, mode);
+        key = keyExpression(attribute, isRoot);
         continue;
       }
       if (attribute.kind === 'none') props.push(`${JSON.stringify(attribute.name)}: true`);
       else if (attribute.kind === 'str') props.push(`${JSON.stringify(attribute.name)}: ${JSON.stringify(attribute.text)}`);
-      else props.push(`${JSON.stringify(attribute.name)}: ${emitExpression(attribute.text, attribute.roots, valueBase(attribute), mode)}`);
+      else props.push(`${JSON.stringify(attribute.name)}: ${emitExpression(attribute.text, attribute.roots, valueBase(attribute))}`);
     }
     if (node.children && node.children.length > 0) {
       const children = [];
-      /**
-       * **A component's children are ONE sibling group, and they decide together.** They are emitted
-       * as separate roots — `children: [html`<title>…`, svg`<path…`]` — so each was deciding alone,
-       * and a name only a sibling can vouch for lost every time. One `<path>` among them settles the
-       * group's namespace for all of them; see `SVG_WITH_SIBLING`.
-       */
-      const vouched =
-        mode === HTML_MODE &&
-        node.children.some(
-          (kid) =>
-            !('text' in kid) &&
-            /**
-             * An EXPRESSION vouches through its own roots, and has to: `{items.map((i) => <path/>)}`
-             * beside a `<title>` is how an icon with repeated shapes is actually written, and
-             * without this the group split — an HTML `<title>` inside the `<svg>`, the accessible
-             * name of nothing. The vouch travels BOTH ways — the group's proof also reaches the
-             * expression's own roots, which `<Frame><path/>{items.map((i) => <text/>)}</Frame>`
-             * needs, and an earlier note here claimed it could not.
-             *
-             * Three states, as everywhere else here: a root that is not SVG-only DISPROVES
-             * (`{c ? <path/> : <div/>}` vouches for nothing), and no roots at all — `{items}` — proves
-             * nothing rather than proving SVG.
-             */
-            ('expr' in kid
-              ? kid.roots.length > 0 &&
-                kid.roots.every(
-                  (r) =>
-                    (r.node.fragment === true ? fragmentProof(r.node) === 'svg' : SVG_ELEMENTS.has(r.node.tag)) &&
-                    /**
-                     * The refusal is asked of BOTH shapes. It hung off the element branch alone, so a
-                     * fragment root inside an expression vouched for siblings the compiler was about to
-                     * refuse — `<Frame><text/>{c ? <><title><b/></title><path/></> : null}</Frame>` gave
-                     * the `<text>` SVG and the `<path>` HTML, one authored group in two namespaces.
-                     * `refusesSvg` reaches a fragment's children through `hasComponent`.
-                     */
-                    !refusesSvg(r.node)
-                )
-              : true) &&
-            /**
-             * A nested FRAGMENT vouches through its own children, because `fragmentProof` already
-             * answers that question and a fragment is not a namespace boundary. Asking only about
-             * direct element children gave one authored group two answers depending on its wrapper:
-             * `<><text/><><path/></></>` compiled all-SVG as a fragment root while
-             * `<Frame><text/><><path/></></Frame>` split, leaving an HTML `<text>` inside the
-             * `<svg>` — the invisible-icon bug vouching exists to fix.
-             */
-            ('expr' in kid
-              ? true
-              : kid.fragment === true
-                ? fragmentProof(kid) === 'svg'
-                : SVG_ELEMENTS.has(kid.tag)) &&
-            /** A sibling the compiler is about to REFUSE cannot vouch for the others, or one
-             *  authored group is emitted in two namespaces: `<F><text/><g><my-card/></g></F>` kept
-             *  the `<g>` HTML for its custom element and upgraded the `<text>` on its word. */
-            ('expr' in kid || refusesSvg(kid) === false)
-        );
       for (const child of node.children) {
         if ('text' in child && child.text !== undefined) {
           const text = collapseText(child.text);
@@ -1322,18 +914,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
            * A nested JSX element below needs no filter: a template result is never a boolean.
            */
           state.usedChild = true;
-          /**
-           * The vouch reaches INTO an expression as well as out of it. Without this,
-           * `<Frame><path/>{items.map((i) => <text>{i}</text>)}</Frame>` — a labelled icon or chart —
-           * built every `<text>` as an `HTMLUnknownElement` inside the `<svg>`: 0x0, invisible, and
-           * silent in production. The same asymmetry was fixed for a nested fragment one round
-           * earlier; this is its mirror.
-           */
           children.push(
-            `${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart, mode, vouched)})`
+            `${childHelper}(${emitExpression(child.expr, child.roots, child.exprStart)})`
           );
         } else {
-          children.push(emitRoot(child as JsxNode, mode, vouched));
+          children.push(emitRoot(child as JsxNode));
         }
       }
       if (children.length) props.push(`children: [${children.join(', ')}]`);
@@ -1346,7 +931,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
 
   let out = code;
   for (const root of roots.sort((a, b) => b.start - a.start)) {
-    out = out.slice(0, root.start) + emitRoot(root.node, HTML_MODE) + out.slice(root.end);
+    out = out.slice(0, root.start) + emitRoot(root.node) + out.slice(root.end);
   }
 
   /** Auto-inject imports for what the emitted code uses (opt out with options.inject: false). */
@@ -1366,8 +951,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (state.usedHtml && !has(htmlName, htmlFrom, htmlLocal)) inject += `import { ${clauseFor(htmlName, htmlLocal)} } from '${htmlFrom}';\n`;
     if (state.usedKeyed && !has(keyedName, keyedFrom, keyedLocal)) inject += `import { ${clauseFor(keyedName, keyedLocal)} } from '${keyedFrom}';\n`;
     if (state.usedSpread && !has(spreadName, spreadFrom, spreadLocal)) inject += `import { ${clauseFor(spreadName, spreadLocal)} } from '${spreadFrom}';\n`;
-    if (state.usedSvg && !has(svgName, svgFrom, svgLocal)) inject += `import { ${clauseFor(svgName, svgLocal)} } from '${svgFrom}';\n`;
-    if (state.usedMathml && !has(mathmlName, mathmlFrom, mathmlLocal)) inject += `import { ${clauseFor(mathmlName, mathmlLocal)} } from '${mathmlFrom}';\n`;
     prefix = inject;
   }
   /**

@@ -71,11 +71,6 @@ export type VeraJsxOptions = {
   keyed?: [string, string];
   /** [importedName, moduleSpecifier] for spread(). Default ['spread', '@verajs/renderer/spread']. */
   spread?: [string, string];
-  /** [importedName, moduleSpecifier] for the SVG template tag — expressions inside `<svg>` compile
-   *  their roots with it, so mapped shapes parse in the SVG namespace. Default ['svg', '@verajs/core']. */
-  svg?: [string, string];
-  /** The same, for content inside `<math>`. Default ['mathml', '@verajs/core']. */
-  mathml?: [string, string];
 };
 
 /** The lexical walker's cursor — a plain record; `createParseState` builds one. */
