@@ -103,6 +103,9 @@ export const namespaces = {
           ? (svg ??= new template.constructor({ _$litType$: 2, strings: result.strings }))
           : (mathml ??= new template.constructor({ _$litType$: 3, strings: result.strings }));
     template._$at$ = (parent) => {
+      /** The cache first: it is only ever written on an element, so a hit skips the `nodeType` read. */
+      const cached = (parent as Cached)._$vns$;
+      if (cached !== undefined) return pick(cached);
       if (parent.nodeType !== 1) return pick(within(parent, read()));
       /**
        * **The answer is cached ON the parent element.** Every row of a list shares one parent, and once
@@ -112,8 +115,6 @@ export const namespaces = {
        * a strong reference would keep a removed subtree alive for the life of the cached template.
        * On the element, the answer lives and dies with the thing it describes.
        */
-      const known = (parent as Cached)._$vns$;
-      if (known !== undefined) return pick(known);
       const answer = childOf(parent as Element);
       /** Not for `annotation-xml`: its answer follows an `encoding` a binding can change later. */
       if ((parent as Element).localName !== 'annotation-xml') (parent as Cached)._$vns$ = answer;
