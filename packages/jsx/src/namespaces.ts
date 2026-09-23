@@ -38,7 +38,7 @@ type Template = {
  * A clone of the parent is given one unknown child through `innerHTML`, which runs the fragment
  * parser with that element as its context, so integration points answer as the platform answers.
  */
-const answers = new Map<string, string | null>();
+const answers: Record<string, Record<string, string | null>> = {};
 const childOf = (parent: Element): string | null => {
   if (parent.namespaceURI === XHTML) return null;
   /**
@@ -52,17 +52,18 @@ const childOf = (parent: Element): string | null => {
   }
   /**
    * **Cached by namespace and name**, because the parser's answer depends on nothing else here
-   * (`annotation-xml`, the one element it can depend on an attribute for, left above). Unasked, this
-   * probe ran once per instance CREATED in a foreign position — a clone and a parse per icon — and a
-   * resolver the renderer calls per instance must cost a lookup, not a parse.
+   * (`annotation-xml`, the one element it can depend on an attribute for, is left above). Unasked,
+   * this probe ran once per instance CREATED in a foreign position — a clone and a parse per icon.
+   * Nested plain objects rather than a joined string key: building the key cost more than the
+   * lookup it served, on a path the renderer walks once per instance.
    */
-  const key = `${parent.namespaceURI} ${parent.localName}`;
-  let answer = answers.get(key);
+  const byName = (answers[parent.namespaceURI!] ??= {});
+  let answer = byName[parent.localName];
   if (answer === undefined) {
     const probe = parent.cloneNode(false) as Element;
     probe.innerHTML = '<x></x>';
     const ns = (probe.firstChild as Element | null)?.namespaceURI ?? null;
-    answers.set(key, (answer = ns === XHTML ? null : ns));
+    byName[parent.localName] = answer = ns === XHTML ? null : ns;
   }
   return answer;
 };
@@ -79,8 +80,6 @@ const within = (node: Node, scope: unknown): string | null =>
       ? within(scope[0], scope[1])
       : ((scope as Template | null)?._$ns$ ?? null);
 
-/** Variants by strings identity: the `svg` and `mathml` builds of an `html` template's markup. */
-const variants = new WeakMap<TemplateStringsArray, Record<string, Template>>();
 
 export const namespaces = {
   on: 'template' as const,
@@ -91,12 +90,29 @@ export const namespaces = {
       template._$ns$ = (reference.childNodes[type - 2] as Element).namespaceURI!;
       return;
     }
+    /** The `svg` and `mathml` builds of this template's markup, made the first time one is needed. */
+    let svg: Template | undefined;
+    let mathml: Template | undefined;
+    const pick = (ns: string | null): Template =>
+      ns === null
+        ? template
+        : ns === SVG
+          ? (svg ??= new template.constructor({ _$litType$: 2, strings: result.strings }))
+          : (mathml ??= new template.constructor({ _$litType$: 3, strings: result.strings }));
+    /**
+     * **The last parent element, and what it resolved to.** Every row of a list shares one parent, so
+     * after the first row the answer is an identity compare — and once this module is wired, EVERY
+     * `html` instance on the page asks, plain HTML lists included, so the common case has to cost
+     * about nothing. Held through a `WeakRef`: a strong reference would keep a removed subtree alive
+     * for as long as the template is cached, which is the life of the page.
+     */
+    let last: WeakRef<Node> | undefined;
+    let lastTemplate = template;
     template._$at$ = (parent) => {
-      const ns = within(parent, read());
-      if (ns === null) return template;
-      let built = variants.get(result.strings);
-      if (built === undefined) variants.set(result.strings, (built = {}));
-      return (built[ns] ??= new template.constructor({ _$litType$: ns === SVG ? 2 : 3, strings: result.strings }));
+      if (parent.nodeType !== 1) return pick(within(parent, read()));
+      if (last !== undefined && last.deref() === parent) return lastTemplate;
+      last = new WeakRef(parent);
+      return (lastTemplate = pick(childOf(parent as Element)));
     };
   },
 };
