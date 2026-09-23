@@ -106,17 +106,28 @@ test('the consolidation held — no package that CAN import keeps a private copy
      * syntax carries it, and the CONTENT test below is specific enough that widening the net costs
      * nothing: it fires only on a literal holding EVERY name of a shared list.
      */
-    const literals = [...source.matchAll(/\[([^\][]*)\]/g)];
+    const { literals, restated } = restatedLists(source);
     /** A file whose literals this never read would pass by examining nothing. */
-    assert.ok(literals.length > 0, `${path} yielded no bracketed literals, so the content check read nothing`);
-    for (const [name, shared] of [['VOID_ELEMENTS', VOID], ['RAW_TEXT_ELEMENTS', RAW_TEXT]])
-      for (const [, body] of literals) {
-        const named = new Set([...body.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]));
-        assert.ok(!shared.every((n) => named.has(n)),
-          `${path} re-states all of ${name} — import it instead`);
-      }
+    assert.ok(literals > 0, `${path} yielded no bracketed literals, so the content check read nothing`);
+    assert.deepEqual(restated, [], `${path} re-states ${restated.join(', ')} — import it instead`);
   }
 });
+
+/**
+ * The content check, as ONE function both tests call. The floor below used to carry its own copy of
+ * this loop, so it proved the copy recognised every spelling while the real check could be narrowed
+ * back to `new Set([` — the exact defect it was written against — and stay green.
+ */
+function restatedLists(source) {
+  const literals = [...source.matchAll(/\[([^\][]*)\]/g)];
+  const restated = [];
+  for (const [name, shared] of [['VOID_ELEMENTS', VOID], ['RAW_TEXT_ELEMENTS', RAW_TEXT]])
+    for (const [, body] of literals) {
+      const named = new Set([...body.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]));
+      if (shared.every((n) => named.has(n))) restated.push(name);
+    }
+  return { literals: literals.length, restated };
+}
 
 /**
  * The floor for the check above: it reads real files, so if the spellings it recognises ever stop
@@ -125,13 +136,7 @@ test('the consolidation held — no package that CAN import keeps a private copy
  */
 test('and that content check recognises every spelling a copy could use', () => {
   const names = [...RAW_TEXT];
-  const detects = (src) => {
-    for (const [, body] of src.matchAll(/\[([^\][]*)\]/g)) {
-      const named = new Set([...body.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]));
-      if (names.every((n) => named.has(n))) return true;
-    }
-    return false;
-  };
+  const detects = (src) => restatedLists(src).restated.includes('RAW_TEXT_ELEMENTS');
   const list = (q) => names.map((n) => `${q}${n}${q}`).join(', ');
   for (const [label, src] of [
     ['a plain Set', `const A = new Set([${list("'")}]);`],

@@ -140,7 +140,23 @@ const WITH_JSX = [
    */
   ['a postfix increment, comment, divided', 'let i = 1;\nconst r = i++ /* c */ / 2, v = <div class="x" />;'],
   ['a postfix increment, line comment, divided', 'let i = 1;\nconst r = i++\n// c\n/ 2, v = <div class="x" />;'],
-  ['an object literal, comment, divided', 'const o = { a: 1 } /* c */ / 2, v = <p class="y" />;']
+  ['an object literal, comment, divided', 'const o = { a: 1 } /* c */ / 2, v = <p class="y" />;'],
+  /**
+   * A KEYWORD before a `!` makes it the PREFIX operator, so a regex follows. The postfix-`!` rule
+   * reads a word character before the `!` as an identifier, and `return`'s last letter is one — so
+   * `return !/^['"]/.test(s)`, an ordinary guard, read the `/` as division, the quote opened a string
+   * that never closed, and the module came back verbatim.
+   */
+  /** A SLASH inside a character class does not close the regex, so the quote after it stays inside. */
+  ['a slash in a regex class', 'const ok = /[/\'"]/.test(s);\nconst v = <div class="x" />;'],
+  /** A finished string or template is a VALUE, so the `/` after it divides — and the root on the line survives. */
+  ['a string divided', "const q = 'w' / 2, v = <div class=\"x\" />;"],
+  ['a template divided', 'const q = `w` / 2, v = <div class="x" />;'],
+  /** A block comment that spans a line break counts as the line break the `}` rule asks about. */
+  ['a block, a multi-line comment, a regex', 'function f() {} /* a\n b */ /^[\'"]/.test(s);\nconst v = <div class="x" />;'],
+  ['return, a prefix not, a regex', 'function q(s) { return !/^[\'"]/.test(s); }\nconst v = <div class="x" />;'],
+  ['typeof, a prefix not, a regex', 'const t = typeof !/^[\'"]/.test(s);\nconst v = <p class="y" />;'],
+  ['throw, a prefix not, a regex', 'function q(s) { throw !/^[\'"]/.test(s); }\nconst v = <b class="z" />;']
 ];
 
 /**
@@ -151,7 +167,8 @@ const WITH_TSX = [
   ['a postfix non-null divided', 'let d = 1;\nconst r = d! / 2, v = <div class="x" />;'],
   ['a non-null member divided', 'const o = { n: 1 };\nconst r = o.n! / 2, v = <p class="y" />;'],
   ['a non-null call divided', 'const f = () => 1;\nconst r = f()! / 2, v = <b class="z" />;'],
-  ['a non-null, comment, divided', 'let d = 1;\nconst r = d! /* c */ / 2, v = <i class="w" />;']
+  ['a non-null, comment, divided', 'let d = 1;\nconst r = d! /* c */ / 2, v = <i class="w" />;'],
+  ['a non-null element divided', 'const c = [1];\nconst r = c[0]! / 2, v = <u class="v" />;']
 ];
 
 test('a source with no JSX comes out unchanged', () => {
@@ -191,6 +208,7 @@ test('and JSX beside the things that look like it still compiles', () => {
 const COLLIDING = [
   ['a postfix non-null', 'let d = 1;\nconst r = d! / 2, html = 1;\nexport const v = <div class="x" />;'],
   ['a non-null member', 'const o = { n: 1 };\nconst r = o.n! / 2, html = 1;\nexport const v = <p class="y" />;'],
+  ['a keyword before a prefix not', "export const v = <p class=\"y\" />;\nfunction q(s) { return !/^['\"]/.test(s); }\nconst html = 1;"],
   ['a postfix increment, comment', 'let i = 1;\nconst r = i++ /* c */ / 2, html = 1;\nexport const v = <b class="z" />;'],
   ['a member named new', 'const s = { new: 4 };\nconst r = s.new / 2, html = 1;\nexport const v = <i class="w" />;'],
   /**
@@ -207,6 +225,21 @@ const COLLIDING = [
    * the blanked tail held no binding and all three passed with the recursion removed.
    */
   ['an apostrophe in JSX text, binding after', "export const v = ({ x }) => <div>{x && <p>Don't stop</p>}</div>;\nconst html = 1;"],
+  /**
+   * A SECOND expression that opens with a regex. The scan reads every expression as one text, and
+   * joined by a bare newline the first expression's last value still stood before the second's `/`,
+   * so the regex read as division and its quote blanked the binding after the JSX.
+   */
+  ['a regex opening a second child expression', "export const v = ({ n, s }) => <p>{n} is {/^['\"]/.test(s) ? 'q' : 'b'}</p>;\nconst html = 1;"],
+  ['a regex opening a second attribute', "export const v = ({ n, s }) => <p title={n} hidden={/^['\"]/.test(s)}>x</p>;\nconst html = 1;"],
+  /** A BLOCK inside a template interpolation, holding a regex — the braces there are code. */
+  ['a regex in a block inside an interpolation', "const s = `${(function () { /'/.test(x); return 1; })()}`;\nexport const v = <i class=\"w\" />;\nconst html = 1;"],
+  ['an object literal closing inside an interpolation, divided', "const o = `${ { a: 1, } / 2 }`, html = 1, u = o / 2;\nexport const v = <i class=\"w\" />;"],
+  ['a slash in a regex class', "const ok = /[/'\"]/.test(s), html = 1;\nexport const v = <b class=\"z\" />;"],
+  ['a block, a multi-line comment, a regex', "function f() {} /* a\n b */ /^['\"]/.test(s);\nexport const v = <i class=\"w\" />;\nconst html = 1;"],
+  /** An object literal divided on the NEXT line: the `/` may start a regex, but none closes on its
+   *  line, so it is division — reading on past the line break ate the binding under it. */
+  ['an object literal divided on the next line', 'const q = { a: 1 }\n/ 2, html = 1;\nconst r = q / 2;\nexport const v = <i class="w" />;'],
   ['a backtick in JSX text, binding after', 'export const v = ({ x }) => <div>{x && <p>a ` b</p>}</div>;\nconst html = 1;'],
   ['an apostrophe in an ATTRIBUTE, binding after', "export const v = ({ x }) => <div title={x && <p>it's</p>}>y</div>;\nconst html = 1;"]
 ];
@@ -256,4 +289,36 @@ test('and the TypeScript rows keep their regions too', () => {
     catch (error) { problems.push(`${name}: output does not parse - ${error.message.slice(0, 50)}`); }
   }
   assert.deepEqual(problems, [], `TypeScript region boundaries went wrong:\n  ${problems.join('\n  ')}`);
+});
+
+test('a TSX type-parameter list is not markup, and is never reported as broken markup', () => {
+  /**
+   * `<T extends X` is TypeScript's own spelling of a type-parameter list in a `.tsx` file, unless
+   * `extends` is followed by `=`, `>` or `/`. Read as markup, the parse REPORTED on the way — a
+   * default `= {}` became an empty attribute, and a `</script>` anywhere later closed `<T>` — so
+   * valid TSX threw. The generic has to come through untouched and the real root still compile.
+   */
+  const rows = [
+    ['a constraint with a default', 'export const make = <T extends object = {}>(x: T) => x;'],
+    ['a props default, returning JSX', 'export const make = <P extends Props = {}>(p: P) => <i class="w" />;'],
+    ['a const type parameter', 'export const make = <const T extends readonly unknown[]>(x: T) => x;'],
+    ['a constraint, then a closing tag in a string', "export const make = <T extends object>(x: T) => x;\nconst s = '</script>';"],
+  ];
+  const problems = [];
+  for (const [name, head] of rows) {
+    const source = `${head}\nexport const v = <div class="x" />;`;
+    let output;
+    try { output = transformJsx(source, 'probe.tsx'); }
+    catch (error) { problems.push(`${name}: threw ${error.message.slice(0, 70)}`); continue; }
+    const generic = head.match(/<[^>]*>\(/)[0];
+    if (!output.includes(generic)) problems.push(`${name}: the type parameters did not survive - ${output.slice(0, 90)}`);
+    if (!output.includes('html`<div class="x"></div>`')) problems.push(`${name}: the real root did not compile`);
+  }
+  assert.deepEqual(problems, [], `type parameters were read as markup:\n  ${problems.join('\n  ')}`);
+
+  /** The controls: `extends` followed by `=`, `>` or `/` is an ATTRIBUTE, and a genuinely empty
+   *  attribute expression is still reported — so the rule above is not simply "never report". */
+  assert.match(transformJsx('export const v = <div extends="x">ok</div>;', 'p.tsx'), /html`<div extends="x">ok<\/div>`/);
+  assert.match(transformJsx('export const v = <div extends>ok</div>;', 'p.tsx'), /html`<div extends>ok<\/div>`/);
+  assert.throws(() => transformJsx('export const v = <div x={}/>;', 'p.tsx'), /x=\{\} has no value/);
 });

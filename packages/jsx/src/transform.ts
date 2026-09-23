@@ -1,5 +1,5 @@
 import { RAW_TEXT_ELEMENTS, VOID_ELEMENTS } from '@verajs/shared-utils';
-import { atExpressionPosition, createParseState, findRoots, mark } from './parser.js';
+import { atExpressionPosition, createParseState, findRoots, isBlankExpression, mark } from './parser.js';
 import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
 /**
@@ -387,9 +387,10 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * **Reported, not shrugged at.** Everything else the parser cannot make sense of it hands back
    * untouched, because `<` is ambiguous and `a < b` has to survive — but the cost of that is that a
    * genuine typo is emitted verbatim and surfaces as `Unexpected token '<'` from whatever runs the
-   * output next, pointing at JSX the reader believes was compiled. A closing tag that names a
-   * different element is the one failure that cannot be a comparison, so it gets the same treatment
-   * as every other JSX mistake here: file, line, column, and what was wrong.
+   * output next, pointing at JSX the reader believes was compiled. A FAULT — a closing tag that names
+   * a different element, or an attribute or spread expression holding nothing — cannot be a
+   * comparison or a type, so it gets the same treatment as every other JSX mistake here: file, line,
+   * column, and what was wrong. `createParseState`'s doc in `parser.ts` is the list.
    */
   if (mismatch !== null) throw new JsxError(mismatch.message, code, fileName, mismatch.at);
   if (roots.length === 0) return code;
@@ -463,7 +464,15 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       at = root.end;
     }
     parts.push(code.slice(at));
-    return parts.join('\n');
+    /**
+     * Joined with `;`, not a bare newline, because every seam is a place an EXPRESSION may start —
+     * the head of an attribute or child expression, or the code after a root, which itself began at
+     * an expression position. A newline alone left the walk holding the previous part's last
+     * character, so in `<p>{n} is {/^['"]/.test(s) ? 'q' : 'b'}</p>` the second expression's regex
+     * read as `n` divided, its quote opened a string, and the binding after the JSX was blanked —
+     * the injected import then collided with it.
+     */
+    return parts.join('\n;');
   })();
 
   /**
@@ -525,7 +534,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           mark(cursor, '{');
           return;
         }
-        if (text[i] === '\n') cursor.brokeLine = true;
         out += text[i] === '\n' ? '\n' : ' ';
         i++;
       }
@@ -577,17 +585,26 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         eatTemplate();
         continue;
       }
+      /**
+       * Braces inside an interpolation are code, so they are MARKED like any other character — as
+       * `scanCode` marks them. Counting them without marking left the walk holding whatever preceded
+       * the `{`, so in `` `${(function () { /'/.test(x); })()}` `` the `)` before the block made the
+       * regex read as division, its quote blanked the rest of the module, and a binding went with it.
+       */
       if (c === '{' && open.length > 0) {
         open[open.length - 1]! += 1;
         out += c;
         i++;
+        mark(cursor, c);
         continue;
       }
       if (c === '}' && open.length > 0) {
         out += c;
         i++;
-        if (open[open.length - 1]! > 0) open[open.length - 1]! -= 1;
-        else eatTemplate();
+        if (open[open.length - 1]! > 0) {
+          open[open.length - 1]! -= 1;
+          mark(cursor, c);
+        } else eatTemplate();
         continue;
       }
       /**
@@ -603,13 +620,22 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * A closing-slash look-ahead used to guard this as well and is gone: it could not tell a
        * terminator from a slash inside a later string, and skipping strings to fix that broke every
        * regex carrying a quote or a backtick. The `}` line-break rule in `atExpressionPosition`
-       * answers the same question properly. One shape it does not catch is an object literal divided
-       * ACROSS lines (`{ a: 1 }` newline `/ 2`), which reads as a regex and eats the line — rare
-       * formatting, accepted, and stated here rather than left to be rediscovered.
+       * answers the same question properly.
+       *
+       * **A regex never contains a line break, so reaching one UNDOES the reading** — the blanking is
+       * rolled back and the `/` is division. `scanCode` can bail at a newline "without harm" because it
+       * only moves a cursor; this walk writes as it goes, so bailing without the rollback blanked the
+       * rest of the line — an object literal divided ACROSS lines (`{ a: 1 }` newline `/ 2, html = 1`)
+       * lost its binding and the injected import collided with it. What remains is an object literal
+       * divided on its own line with a SECOND slash later on that line, which a line-bounded walk
+       * cannot tell from a regex — the same residual as a `}` sharing its line with one.
        */
       if (c === '/' && ((cursor.i = i), atExpressionPosition(cursor))) {
         out += c;
         i++;
+        const body = i;
+        const kept = out.length;
+        let closed = false;
         let inClass = false;
         while (i < text.length) {
           const r = text[i];
@@ -624,10 +650,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           else if (r === '/' && !inClass) {
             out += '/';
             i++;
+            closed = true;
             break;
           }
           out += ' ';
           i++;
+        }
+        if (!closed) {
+          out = out.slice(0, kept);
+          i = body;
+          mark(cursor, '/');
+          continue;
         }
         while (i < text.length && /[a-z]/.test(text[i]!)) {
           out += text[i];
@@ -698,7 +731,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * Three spellings are subtracted before asking, and each is a measured defect if left in. A TAG
    * USE — `` html`…` `` — is a REFERENCE to the very import being added, not a collision; renaming
    * over it leaves `html is not defined`, and `tests/jsx-twin-parity.test.mjs` is built of such
-   * pairs. A TAG POSITION — `<svg`, `</svg` — is markup, never a binding.
+   * pairs. A NAME AFTER `<` binds nothing either — not markup, which is cut out before this text is
+   * built, but a type argument or a comparison (`Set<svg>`, `a <svg`), which over-renamed.
    *
    * What remains is asked as a whole WORD, not parsed. A DECLARATION scan was tried and abandoned:
    * a regex for `const|let|var|function|class NAME` misses `const { svg } = vera`, `const [svg] = …`
@@ -728,8 +762,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       .split(`${exported}\``)
       .join('')
       .split(`<${exported}`)
-      .join('')
-      .split(`</${exported}`)
       .join('');
     /**
      * A whole-WORD match, not a substring: `options.html` may name `h`, and a bare `includes('h')`
@@ -1072,6 +1104,9 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       const match = attribute.kind === 'expr' ? /^\s*\{\s*__html\s*:([\s\S]*)\}\s*$/.exec(attribute.text) : null;
       if (!match) throw new JsxError('dangerouslySetInnerHTML expects {{ __html: expr }}', code, fileName, attribute.start);
       const inner = match[1]!.trim().replace(/,\s*$/, '');
+      /** `{{ __html: }}` names the key and gives it nothing, which emitted an empty template hole. */
+      if (isBlankExpression(inner))
+        throw new JsxError('dangerouslySetInnerHTML={{ __html: }} has no value', code, fileName, attribute.start);
       const bearer = attribute as Extract<JsxAttribute, { kind: 'expr' }>;
       const innerStart = valueBase(bearer) + bearer.text.indexOf(inner);
       tpl.static(' .innerHTML=');
@@ -1121,7 +1156,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     }
     if (name === 'value' || name === 'checked') {
       tpl.static(` .${name}=`);
-      tpl.expr(bound ? expression! : JSON.stringify(literal ?? true));
+      /**
+       * A LITERAL `checked` is a boolean by the same rule as `hidden` below — `""` is true, `"false"`
+       * is false. Passed through as the string it was, the property coerced it the other way round:
+       * `checked=""` rendered unchecked and `checked="false"` rendered checked, while
+       * `defaultChecked=""` (the `?checked` path) got it right.
+       */
+      tpl.expr(bound ? expression! : JSON.stringify(name === 'checked' ? literal !== 'false' : (literal ?? true)));
       return;
     }
     if (name === 'defaultValue') name = 'value';
@@ -1293,15 +1334,13 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   let prefix = '';
   if (options.inject !== false) {
     /**
-     * No check for what the module already imports. `localName` has guaranteed every local binding
-     * is free, so a duplicate declaration is impossible — and the scan that used to decide this read
-     * `import … from` with no idea of comments or strings, so an import inside a BLOCK COMMENT or a
-     * template literal suppressed the injection and left `html is not defined`. A module that
-     * imports a tag itself now gets a second, aliased import: correct, and one line of noise is the
-     * price of never parsing import statements to decide it.
+     * **Nothing is injected only when the module's OWN import of the tag is the binding the emitted
+     * code uses** — its specifier is the tag's own module and `localName` kept the plain name. Any
+     * other import of the name is a collision that `localName` has already renamed around, so a
+     * duplicate declaration is impossible. `imported` is read from the BLANKED text, so an import
+     * inside a comment or a template literal is not one — the scan this replaced read raw
+     * `import … from`, and a commented-out import suppressed the injection.
      */
-    /** Nothing to inject only when the module's OWN import is the binding the emitted code uses. */
-    /** Only the module's own import OF THIS TAG makes an injection unnecessary. */
     const has = (name: string, from: string, local: string) => imported.get(name) === from && local === name;
     let inject = '';
     if (state.usedHtml && !has(htmlName, htmlFrom, htmlLocal)) inject += `import { ${clauseFor(htmlName, htmlLocal)} } from '${htmlFrom}';\n`;

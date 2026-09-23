@@ -36,14 +36,42 @@ import type { JsxAttribute, JsxChild, JsxFault, JsxNode, JsxRoot, ParseState } f
  * it is a regex (`f(x) / 2` against a braceless `if (x) /re/.test(y)`), and reading division as a
  * regex makes `blankLiterals` swallow the rest of the line — taking any binding on it with it, so
  * the injected import collides and the module will not load.
+ *
+ * **`!` is absent for the same reason as `}`**: its branch in `atExpressionPosition` answers on both
+ * paths — prefix or postfix — before this set is read, so membership here would be dead.
  */
-const EXPRESSION_PREFIX = new Set([...'(,=?:;[{!&|+-*/%^~<>', '']);
+const EXPRESSION_PREFIX = new Set([...'(,=?:;[{&|+-*/%^~<>', '']);
 const EXPRESSION_KEYWORDS = new Set([
   'return', 'yield', 'await', 'case', 'typeof', 'void', 'delete', 'in', 'of',
   'instanceof', 'new', 'do', 'else', 'throw',
 ]);
 
 const isNameStart = (ch: string) => /[A-Za-z_$]/.test(ch);
+
+/**
+ * An expression holding nothing but whitespace and comments — of EITHER kind. One test for every
+ * place that asks, because each copy of it stripped only block comments: `x={// note⏎}` passed as
+ * non-empty and emitted a template hole holding nothing but a comment, which is a syntax error in
+ * code the author never wrote.
+ */
+export const isBlankExpression = (text: string): boolean =>
+  text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '').trim() === '';
+
+/**
+ * **TypeScript's own rule for a type-parameter list in a `.tsx` file**, asked before the `<` is
+ * parsed as markup: `<T extends X` (or `<const T extends X`) is a type-parameter list unless the
+ * token after `extends` is `=`, `>` or `/`, which make `extends` an attribute. Leaving this to the
+ * parse's ordinary failure was not enough, because the parse can REPORT on the way: `<T extends
+ * object = {}>(x: T) => x` read `object={}` as an empty attribute and threw, and `<T extends object>`
+ * with a `</script>` anywhere later in the module read it as the close of `<T>`. Both are valid TSX,
+ * so neither report may be reachable from one. Asked at a ROOT only — inside JSX children
+ * TypeScript reads every `<` as markup, and so does this parser.
+ */
+const TYPE_PARAMETERS = /<(?:const\s+)?[A-Za-z_$][\w$]*\s+extends(?![\w$:-])\s*[^\s=>/]/y;
+const startsTypeParameters = (code: string, at: number): boolean => {
+  TYPE_PARAMETERS.lastIndex = at;
+  return TYPE_PARAMETERS.test(code);
+};
 
 /** The renderer's binding sigils, which may open an attribute name — see `parseJsx`. */
 const SIGILS = new Set(['.', '?', '@', '&']);
@@ -61,12 +89,13 @@ const isAttrNameChar = (ch: string) => /[\w$:-]/.test(ch);
  * The cursor over the source — a plain record, not a class (the conventions pass's ruling:
  * authoring-time code, no perf concern, and the shape rule prefers data + functions).
  *
- * `mismatch`: a closing tag that names a different element than the one it closes, if one was
- * seen. Every other parse failure returns `null` and leaves the source alone, and it has to:
- * `<` is ambiguous, and `a < b` must fall through untouched rather than be called broken JSX.
- * **A `</name>` that does not match the tag it closes is the one failure that cannot be
- * anything else** — reaching it means a whole open tag and its children were already consumed —
- * so it is the one that can be reported instead of shrugged at.
+ * `mismatch`: the first REPORTABLE fault, if one was seen. Every other parse failure returns `null`
+ * and leaves the source alone, and it has to: `<` is ambiguous, and `a < b` must fall through
+ * untouched rather than be called broken JSX. A fault is a failure that cannot be anything but broken
+ * JSX — a `</name>` that does not match the tag it closes (a whole open tag and its children were
+ * already consumed), and an attribute or spread expression holding nothing. That is true only once a
+ * TSX type-parameter list has been ruled out, which `startsTypeParameters` does before the parse
+ * begins: `<T extends object = {}>` read as markup is an empty attribute, and valid.
  */
 export const createParseState = (code: string, from = 0): ParseState => ({
   code,
@@ -74,6 +103,7 @@ export const createParseState = (code: string, from = 0): ParseState => ({
   lastChar: '',
   lastWord: '',
   lastPrev: '',
+  lastPrevWord: '',
   brokeLine: false,
   mismatch: null,
 });
@@ -84,6 +114,7 @@ export const createParseState = (code: string, from = 0): ParseState => ({
  */
 export const mark = (state: ParseState, ch: string, word = ''): void => {
   state.lastPrev = state.lastChar;
+  state.lastPrevWord = state.lastWord;
   state.lastChar = ch;
   state.lastWord = word;
   state.brokeLine = false;
@@ -121,8 +152,14 @@ export const atExpressionPosition = (state: ParseState): boolean => {
    * first-class input, and `a! / b`, `o.n! / 2` and `f()! / 2` are ordinary TypeScript that
    * otherwise opened a regex — losing every root in the module, or eating the binding on the line
    * so the injected import collided with it.
+   *
+   * A KEYWORD is the exception among the word characters: `return !/^a/.test(s)` is the prefix
+   * operator, and reading `return`'s last letter as an identifier handed the whole module back
+   * untouched. The same list that lets a keyword start an expression decides it here.
    */
-  if (state.lastChar === '!') return !/[\w$)\]'"`]/.test(state.lastPrev);
+  if (state.lastChar === '!') {
+    return !/[\w$)\]'"`]/.test(state.lastPrev) || EXPRESSION_KEYWORDS.has(state.lastPrevWord);
+  }
   if (state.lastChar === '}') return state.brokeLine;
 
   if (state.lastChar === '' || EXPRESSION_PREFIX.has(state.lastChar)) return true;
@@ -157,7 +194,7 @@ export const scanCode = (state: ParseState, stop: ((s: ParseState) => boolean) |
       skipRegex(state);
     } else if (ch === '<' && /[A-Za-z_$>]/.test(code[state.i + 1] ?? '') && atExpressionPosition(state)) {
       const start = state.i;
-      const node = parseJsx(state);
+      const node = startsTypeParameters(code, start) ? null : parseJsx(state);
       if (node !== null) {
         roots.push({ start, end: state.i, node });
         mark(state, ')'); // a JSX root is an expression
@@ -341,6 +378,12 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
       const container = parseExpressionContainer(state);
       if (container === null || !/^\s*\.\.\./.test(container.text)) return null;
       const dots = container.text.match(/^\s*\.\.\./)![0].length;
+      /** A spread of NOTHING is reported like an empty attribute — `<Card {...} />` emitted
+       *  `Card({ ... })`, which does not parse. */
+      if (isBlankExpression(container.text.slice(dots))) {
+        if (state.mismatch === null) state.mismatch = { message: '{...} has no value', at: spreadStart };
+        return null;
+      }
       attrs.push({
         spread: true,
         text: container.text.slice(dots),
@@ -394,7 +437,7 @@ export const parseJsx = (state: ParseState): JsxNode | null => {
        * that caused it. Like a mismatched close it cannot be anything else, so it goes down the same
        * channel. An empty CHILD container stays legal and vanishes, which is what JSX does.
        */
-      if (container.text.replace(/\/\*[\s\S]*?\*\//g, '').trim() === '') {
+      if (isBlankExpression(container.text)) {
         if (state.mismatch === null)
           state.mismatch = { message: `${name}={} has no value`, at: container.start - 1 };
         return null;
@@ -448,8 +491,7 @@ const parseChildren = (state: ParseState, closingTag: string | null): JsxChild[]
       const container = parseExpressionContainer(state);
       if (container === null) return null;
       /** `{/* comment *​/}` and empty containers vanish. */
-      const bare = container.text.replace(/\/\*[\s\S]*?\*\//g, '').trim();
-      if (bare !== '') children.push({ expr: container.text, roots: container.roots, exprStart: container.start });
+      if (!isBlankExpression(container.text)) children.push({ expr: container.text, roots: container.roots, exprStart: container.start });
     } else {
       text += ch;
       state.i++;

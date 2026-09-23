@@ -92,6 +92,11 @@ export type ParseState = {
    * division lost every root in the module.
    */
   lastPrev: string;
+  /**
+   * The word `lastPrev` completed, if it completed one. `lastPrev` alone cannot tell `a!` from
+   * `return !`: both put a word character before the `!`, and only the word says which it is.
+   */
+  lastPrevWord: string;
   brokeLine: boolean;
   lastWord: string;
   /** The reportable parse failure — see `createParseState`'s doc in parser.ts. */

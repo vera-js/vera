@@ -69,6 +69,23 @@ test('an empty attribute expression is reported, and an empty child is not', () 
   assert.throws(() => transformJsx('const a = <div x={ /* c */ } />;', 'app.tsx'), /x=\{\} has no value/);
   assert.equal(compile('const a = <div>{}</div>;'), 'const a = html`<div></div>`;');
   assert.equal(compile('const a = <div x={1} />;'), 'const a = html`<div x=${1}></div>`;');
+  /**
+   * The same emptiness, spelled three more ways, each of which emitted code that does not parse: a
+   * LINE comment (every copy of the test stripped only block comments), a spread of nothing, and an
+   * `__html` key with no value. A line comment in a CHILD vanishes like a block one.
+   */
+  assert.throws(() => transformJsx('const a = <div x={// note\n} />;', 'app.tsx'), /app\.tsx:1:18 — x=\{\} has no value/);
+  assert.throws(() => transformJsx('const a = <Card {...} />;', 'app.tsx'), /app\.tsx:1:17 — \{\.\.\.\} has no value/);
+  assert.throws(() => transformJsx('const a = <Card {.../* c */} />;', 'app.tsx'), /\{\.\.\.\} has no value/);
+  assert.throws(
+    () => transformJsx('const a = <div dangerouslySetInnerHTML={{ __html: }} />;', 'app.tsx'),
+    /__html: \}\} has no value/
+  );
+  assert.equal(compile('const a = <div>{// note\n}</div>;'), 'const a = html`<div></div>`;');
+  /** The controls: a comment BESIDE a value, and a real spread and `__html`, are all still values. */
+  assert.equal(compile('const a = <div x={1 // note\n} />;'), 'const a = html`<div x=${1 // note\n}></div>`;');
+  assert.match(compile('const a = <Card {...p} />;'), /Card\(\{ \.\.\.p \}\)/);
+  assert.match(compile('const a = <div dangerouslySetInnerHTML={{ __html: s }} />;'), /\.innerHTML=\$\{s\}/);
 });
 
 test('a hashbang stays on line one', () => {
@@ -77,6 +94,14 @@ test('a hashbang stays on line one', () => {
   assert.match(out, /^#!\/usr\/bin\/env node\nimport \{ html \}/, out.slice(0, 80));
   /** The control: with nothing to inject the file is untouched, so the row above measures the move. */
   assert.match(transformJsx('#!/usr/bin/env node\nconst a = <p>y</p>;', 'app.tsx', { inject: false }), /^#!/);
+});
+
+test('only the FIRST fault is reported, whichever kind comes first', () => {
+  /** After one fault the walker's idea of the source is already wrong, so a later complaint is a
+   *  consequence of it — and naming it buries the cause. Both orders, since each channel has its own
+   *  "only if nothing yet" guard. */
+  assert.throws(() => transformJsx('const a = <div x={} />;\nconst b = <p>x</span>;', 'app.tsx'), /app\.tsx:1:18 — x=\{\} has no value/);
+  assert.throws(() => transformJsx('const b = <p>x</span>;\nconst a = <div x={} />;', 'app.tsx'), /<p> is closed by <\/span>/);
 });
 
 test('a boolean attribute set to the empty string is TRUE', () => {
@@ -90,6 +115,14 @@ test('a boolean attribute set to the empty string is TRUE', () => {
   assert.equal(compile('const a = <button disabled="" />;'), 'const a = html`<button ?disabled=${true}></button>`;');
   assert.equal(compile('const a = <div hidden="false" />;'), 'const a = html`<div ?hidden=${false}></div>`;');
   assert.equal(compile('const a = <div hidden="y" />;'), 'const a = html`<div ?hidden=${true}></div>`;');
+  /**
+   * The rule's second home: a literal `checked` is a PROPERTY binding, and passed through as a string
+   * the property coerced it backwards — `""` unchecked, `"false"` checked. `value` is the control: a
+   * literal there is a string and must stay one.
+   */
+  assert.equal(compile('const a = <input checked="" />;'), 'const a = html`<input .checked=${true} />`;');
+  assert.equal(compile('const a = <input checked="false" />;'), 'const a = html`<input .checked=${false} />`;');
+  assert.equal(compile('const a = <input value="" />;'), 'const a = html`<input .value=${""} />`;');
 });
 
 test('a mixed-case void element still self-closes', () => {

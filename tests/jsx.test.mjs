@@ -229,6 +229,10 @@ assert.ok(/a = \(\) => svg`/.test(emptyFragments), 'an empty fragment beside a s
 assert.ok(/b = \(\) => svg`/.test(emptyFragments), 'nor does one nested inside another empty one');
 assert.ok(/c = \(\) => html`/.test(emptyFragments), 'CONTROL: emptiness alone proves nothing, so no upgrade');
 assert.ok(/d = \(\) => html`/.test(emptyFragments), 'CONTROL: a real HTML child still disproves');
+/** And a real HTML child DISPROVES from inside a nested fragment too — asking the nested fragment and
+ *  ignoring its "html" answer upgraded `<div>label</div>` into the SVG namespace beside a shape. */
+const nestedDisproof = transformJsx(`export const a = () => <><path d="M0" /><><div>label</div></></>;`, 'nd.jsx', { inject: false });
+assert.ok(/a = \(\) => html`/.test(nestedDisproof), 'an HTML element inside a nested fragment disproves the group');
 
 /**
  * **ATTRIBUTES carry JSX too**, and the upgraded mode propagates into them — `<g onClick={() =>
@@ -240,7 +244,8 @@ const inAttributes = transformJsx(
   `export const a = () => <g onClick={() => r(<my-card />)}><path d="M0" /></g>;
    export const b = () => <g label={<Icon />}><path d="M0" /></g>;
    export const c = () => <g onClick={() => r(<path d="M1" />)}><path d="M0" /></g>;
-   export const d = () => <Box><rect width="1" /></Box>;`,
+   export const d = () => <Box><rect width="1" /></Box>;
+   export const e = () => <g {...{ onClick: () => r(<my-card />) }}><path d="M0" /></g>;`,
   'attrs.jsx',
   { inject: false }
 );
@@ -253,6 +258,7 @@ assert.ok(
     'form as SVG, not an HTMLInputElement and silent. A handler\'s template goes wherever the ' +
     'handler puts it, which the root cannot know, so it must not assume'
 );
+assert.ok(/e = \(\) => html`<g /.test(inAttributes), 'and inside a SPREAD, which is an attribute expression too');
 assert.ok(/svg`<rect/.test(inAttributes), 'CONTROL: a shape with no attribute JSX still upgrades');
 
 /**
