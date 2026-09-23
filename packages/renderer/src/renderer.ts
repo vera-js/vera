@@ -455,7 +455,7 @@ type TemplatePart = {
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
   _present?: boolean;
   /** CHILD only: the namespace a template committed at this position is parsed in — see `childNamespace`. */
-  _ns?: number;
+  _ns?: Namespace;
   _node?: Node; // only during construction, carrying identity between the two passes
 };
 
@@ -590,7 +590,13 @@ const warnDroppedBinding = (specs: Spec[], from: number, count: number) => {
  * same strings committed into a `<div>` parse as HTML. Indexed by namespace code (1 html, 2 svg, 3
  * mathml); `svg`/`mathml` results name their namespace explicitly and ignore the position's.
  */
-const templateCache = new WeakMap<TemplateStringsArray, Template[]>();
+const templateCache = new WeakMap<TemplateStringsArray, Record<string | number, Template>>();
+
+/**
+ * A child position's namespace: `null` for HTML — the position nearly every part has — or the URI
+ * the parser gave a child there. Never written in this file: the parser is the one asked.
+ */
+type Namespace = string | null;
 
 class Template {
   _element: HTMLTemplateElement;
@@ -615,16 +621,37 @@ class Template {
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
   declare _slotless?: boolean;
 
-  constructor(result: TemplateResult, type: number) {
-    const { markup, specs } = scan(result.strings, type);
+  /**
+   * `key` is `1` for HTML, `2`/`3` for an explicit `svg`/`mathml` template, or the namespace URI of
+   * the position an `html` template was committed into.
+   */
+  constructor(result: TemplateResult, key: number | string) {
+    const { markup, specs } = scan(result.strings, key === 1 ? 1 : 2);
     this._element = doc.createElement('template');
-    /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
-    this._element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
     const content = this._element.content;
-    if (type !== 1) {
-      const wrapper = content.firstChild!;
-      while (wrapper.firstChild) content.insertBefore(wrapper.firstChild, wrapper);
-      content.removeChild(wrapper);
+    /** The namespace the template's OWN root-level child positions take. */
+    let rootNs: Namespace = null;
+    if (typeof key === 'string') {
+      /**
+       * **Parsed as the children of an element in that namespace** — the platform's fragment parser
+       * given a context element, which is exactly how it decides what markup means. Every
+       * foreign-content rule comes from the parser rather than from a table here: camelCase names
+       * (`clipPath`), the breakout list, integration points. Built in the template's inert document,
+       * so nothing parsed here is upgraded or run.
+       */
+      const context = content.ownerDocument.createElementNS(key, 'x');
+      context.innerHTML = markup;
+      content.append(...context.childNodes);
+      rootNs = key;
+    } else {
+      /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
+      this._element.innerHTML = key === 2 ? `<svg>${markup}</svg>` : key === 3 ? `<math>${markup}</math>` : markup;
+      if (key !== 1) {
+        const wrapper = content.firstChild as Element;
+        rootNs = wrapper.namespaceURI;
+        while (wrapper.firstChild) content.insertBefore(wrapper.firstChild, wrapper);
+        content.removeChild(wrapper);
+      }
     }
 
     /**
@@ -725,7 +752,7 @@ class Template {
          * position at the template's root takes the namespace the template itself was parsed in.
          */
         const host = primedText.parentNode!;
-        parts.push({ _type: CHILD, _index: -1, _node: primedText, _ns: host.nodeType === 1 ? childNamespace(host) : type });
+        parts.push({ _type: CHILD, _index: -1, _node: primedText, _ns: host.nodeType === 1 ? childNamespace(host) : rootNs });
         consumeIgnored();
       }
     }
@@ -1042,35 +1069,29 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
   }
 };
 
-const getTemplate = (result: TemplateResult, ns = 1) => {
+const getTemplate = (result: TemplateResult, ns: Namespace = null) => {
   /** `html` (1) takes the position's namespace; `svg` (2) and `mathml` (3) keep their own. */
-  const type = (result._$litType$ ?? 1) === 1 ? ns : result._$litType$!;
+  const key = (result._$litType$ ?? 1) === 1 ? (ns ?? 1) : result._$litType$!;
   let variants = templateCache.get(result.strings);
-  if (variants === undefined) templateCache.set(result.strings, (variants = []));
-  return (variants[type] ??= new Template(result, type));
+  if (variants === undefined) templateCache.set(result.strings, (variants = {}));
+  return (variants[key] ??= new Template(result, key));
 };
 
 /**
- * The namespace a start tag takes as a CHILD of `parent` — the HTML parser's own rule: an element's
- * namespace, except at an HTML integration point (`foreignObject`/`desc`/`title` in SVG, the MathML
- * token elements, `annotation-xml` with an HTML `encoding`), where content is HTML again. A
- * document fragment or shadow root has no namespace and holds HTML.
+ * The namespace a start tag takes as a CHILD of `parent`, **asked of the parser rather than listed**.
+ * A clone of the parent is given one unknown child through `innerHTML`, which runs the platform's
+ * fragment parser with that element as its context — so HTML integration points (`foreignObject`,
+ * `desc`, `title`, the MathML token elements, `annotation-xml` by its `encoding`) answer exactly as
+ * the platform answers them, and nothing here can drift from it. HTML parents never reach the parse.
+ * Paid once per child position of a template, when it is prepared — never per render.
  */
-const childNamespace = (parent: Node): number => {
-  const element = parent as Element;
-  const namespace = element.namespaceURI;
-  if (namespace === 'http://www.w3.org/2000/svg') {
-    const name = element.localName;
-    return name === 'foreignObject' || name === 'desc' || name === 'title' ? 1 : 2;
-  }
-  if (namespace !== 'http://www.w3.org/1998/Math/MathML') return 1;
-  const name = element.localName;
-  if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext') return 1;
-  if (name === 'annotation-xml') {
-    const encoding = element.getAttribute('encoding')?.toLowerCase();
-    return encoding === 'text/html' || encoding === 'application/xhtml+xml' ? 1 : 3;
-  }
-  return 3;
+const childNamespace = (parent: Node): Namespace => {
+  const namespace = (parent as Element).namespaceURI;
+  if (namespace == null || namespace === doc.documentElement.namespaceURI) return null;
+  const probe = parent.cloneNode(false) as Element;
+  probe.innerHTML = '<x></x>';
+  const child = (probe.firstChild as Element | null)?.namespaceURI;
+  return child == null || child === doc.documentElement.namespaceURI ? null : child;
 };
 
 /** Anything bound to a live position: commits values[index..], returns the next value index. */
@@ -1081,7 +1102,7 @@ const UNSET = {};
 
 
 /** A fresh markered part: two comments inserted before `ref` in `parent`. */
-const createMarkeredPart = (parent: Node, ref: Node | null, ns: number) => {
+const createMarkeredPart = (parent: Node, ref: Node | null, ns: Namespace) => {
   const start = comment();
   const end = comment();
   parent.insertBefore(start, ref);
@@ -1977,9 +1998,9 @@ class TextPart implements Part {
   _text: Text;
   _value: unknown = '';
   _upgraded: ChildPart | null = null;
-  _ns: number;
+  _ns: Namespace;
 
-  constructor(text: Text, ns: number) {
+  constructor(text: Text, ns: Namespace) {
     this._text = text;
     this._ns = ns;
   }
@@ -2208,9 +2229,9 @@ class ChildPart implements Part {
   _applier: unknown = undefined;
 
   /** The namespace a template committed here parses in — fixed at creation, see `childNamespace`. */
-  _ns: number;
+  _ns: Namespace;
 
-  constructor(start: Comment, end: Node | null, ns = 1) {
+  constructor(start: Comment, end: Node | null, ns: Namespace = null) {
     this._start = start;
     this._end = end;
     this._ns = ns;

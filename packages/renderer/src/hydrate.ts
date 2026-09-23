@@ -459,7 +459,7 @@ const drainIgnored = (state: AdoptState) => {
 };
 
 /** Adopts one child slot's rendered content, producing the part that will own it. */
-const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[], ns: number) => {
+const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[], ns: string | null) => {
   const heldResult = (rawValue as { $h?: TemplateResult } | null)?.$h;
   const value = heldResult !== undefined ? heldResult : rawValue;
 
@@ -531,7 +531,7 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[], ns: number) =
 };
 
 /** Adopts one list item — element mode for single-root templates, markered otherwise. */
-const adoptItem = (cursor: Cursor, value: unknown, ns: number): Item => {
+const adoptItem = (cursor: Cursor, value: unknown, ns: string | null): Item => {
   if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
     const result = value as TemplateResult;
     const template = getTemplate(result, ns);
