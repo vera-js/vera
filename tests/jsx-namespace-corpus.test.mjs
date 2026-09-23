@@ -1,23 +1,21 @@
 /**
- * Every sibling group the namespace rule can be handed, compiled AND RENDERED, with the namespace of
- * the element under test asserted in both wrappers.
+ * Every sibling group a component can be handed, compiled, RENDERED, and compared with what the
+ * platform's own parser builds from the same markup written inline.
  *
- * **Sibling inference is where the defects clustered once the name rule had a corpus under it.** A
- * root tag alone cannot prove SVG context, so a sibling vouches — and each round found another shape
- * where that vouch reached somewhere it should not: a raw-text element holding a static child, a
- * voucher the compiler was itself refusing, a camelCase name whose hazard is SSR casing rather than
- * context. Enumerating the groups ends that the way `jsx-name-corpus` ended the name class.
+ * **The oracle is the parser, not a list.** The namespace of content handed to a component is decided
+ * by the position it is committed into — the renderer parses a template in the namespace of its
+ * part, exactly as the fragment parser takes a context element. So the only correct answer for
+ * `<Frame><text>L</text></Frame>` is whatever `<svg><text>L</text></svg>` parses to, and the test
+ * asks exactly that: for every group and every wrapper, the rendered element tree (local name and
+ * namespace, in document order) must equal the parsed one. Nothing here restates a rule the code
+ * also states, so there is nothing to drift.
  *
- * **The wrapper deliberately does NOT change the answer, and the rows say so.** `Frame` renders an
- * `<svg>` and `Box` a `<div>`, and a vouched `<title>` compiles `` svg`…` `` in both — the tag comes
- * from the group, and where the group LANDS is unknowable at compile time. That is the accepted
- * limit, not an oversight, so `Box` appears here as a second alone-control rather than as a
- * contrast. Those alone rows are what keep the exclusions meaningful: without them
- * `<text>hello</text>` quietly becoming a 0x0 SVG element would pass.
+ * jsdom's parser is parse5, which implements foreign content to the letter; the three-engine half of
+ * the claim is `tests/browser/svg-namespace.test.js`.
  */
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
-import { writeFileSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
@@ -31,167 +29,86 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 const { transformJsx } = await load('jsx');
 const { renderInto } = await load('renderer');
 
-test('every sibling group renders in the namespace the rule promises', async () => {
-  const SVG = 'http://www.w3.org/2000/svg';
+/** SVG names — self-proving, shared with HTML, camelCase — plus HTML and a custom element. */
+const NAMES = ['path', 'circle', 'g', 'use', 'text', 'tspan', 'title', 'desc', 'a', 'style', 'image',
+  'filter', 'symbol', 'clipPath', 'linearGradient', 'foreignObject', 'textPath', 'b', 'div', 'my-badge'];
+/** Where a component puts its children, and the inline markup that is the same thing written directly. */
+const WRAPPERS = {
+  Frame: ['const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;', (m) => `<svg viewBox="0 0 24 24">${m}</svg>`],
+  Box: ['const Box = ({ children }) => <div class="box">{children}</div>;', (m) => `<div class="box">${m}</div>`],
+  MathBox: ['const MathBox = ({ children }) => <math>{children}</math>;', (m) => `<math>${m}</math>`],
+  Island: ['const Island = ({ children }) => <svg><foreignObject>{children}</foreignObject></svg>;', (m) => `<svg><foreignObject>${m}</foreignObject></svg>`],
+  Label: ['const Label = ({ children }) => <svg><title>{children}</title></svg>;', (m) => `<svg><title>${m}</title></svg>`],
+};
+const PRELUDE = Object.values(WRAPPERS).map(([source]) => source).join('\n');
 
+/**
+ * Whether the parser BREAKS OUT of foreign content at this name — `<svg><b>` closes the `<svg>` and
+ * everything after it lands outside as HTML. Asked of the parser, like everything else here. Such a
+ * group is broken markup in both spellings (HTML inside SVG draws nothing either way), so the two
+ * cannot be expected to agree: the separate templates of a component's children do not cascade the
+ * breakout onto the siblings after it. What IS owed there is the development warning naming it.
+ */
+const breaksOut = (name) => {
+  const probe = dom.window.document.createElement('div');
+  probe.innerHTML = `<svg><${name}></${name}><g></g></svg>`;
+  return probe.querySelector('svg > g') === null;
+};
+
+/** An element's tree as `name:namespace`, in document order — the thing both sides must agree on. */
+const shape = (root) => [...root.querySelectorAll('*')].map((e) => `${e.localName}:${e.namespaceURI.split('/').pop()}`).join(' ');
+
+test('every group renders exactly what the parser builds from the same markup written inline', async () => {
   const silence = console.warn;
-  console.warn = () => {};
+  /** The whole run's warnings: the diagnostic is deduplicated for the life of the module, so a name
+   *  an earlier group already spent is silent in every later one — ask the run, never one render. */
+  const warnings = [];
+  console.warn = (message) => warnings.push(String(message));
   const dir = mkdtempSync(join(process.cwd(), 'node_modules', '.ns-corpus-'));
   let n = 0;
-  const compile = async (body) => {
-    const src = `const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
-const Box = ({ children }) => <div class="box">{children}</div>;
-export const view = () => ${body};`;
-    const f = join(dir, `m${n++}.mjs`);
-    writeFileSync(f, transformJsx(src, 'ns.jsx', { inject: true }));
-    return (await import(pathToFileURL(f).href)).view;
-  };
-
-  /**
-   * The COMPLETE lists from `packages/jsx/src/transform.ts` — `SVG_WITH_SIBLING`, `SVG_ELEMENTS`, and
-   * the camelCase names excluded even under a vouch. Complete on purpose: a sample would have let a
-   * name join the transform's set without ever being crossed against anything here, which is the
-   * gap this suite exists to close. Adding a name there means adding it here, and the guard below
-   * reads the transform's own sets so that drift fails loudly in BOTH directions.
-   */
-  const VOUCHABLE = ['title', 'a', 'style', 'script', 'image', 'font', 'text', 'tspan', 'desc',
-    'metadata', 'switch', 'view', 'set', 'filter', 'mask', 'marker', 'pattern', 'symbol'];
-  const SELF = ['path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'g', 'defs',
-    'use', 'stop', 'animate', 'mpath'];
-  const CAMEL = ['clipPath', 'linearGradient', 'radialGradient', 'animateTransform', 'animateMotion',
-    'foreignObject', 'textPath'];
-
-  /**
-   * **The guard reads the transform's own sets**, because asserting the length of the literals above
-   * checks the test against itself. Measured: adding a name to `SVG_WITH_SIBLING` left
-   * `VOUCHABLE.length` at 18, no row crossed the new name, and the suite stayed green — only REMOVAL
-   * was caught, which is the direction the header did not claim.
-   */
-  const source = readFileSync(new URL('../packages/jsx/src/transform.ts', import.meta.url), 'utf8');
-  const namesIn = (constant) => {
-    const at = source.indexOf(`const ${constant} = new Set([`);
-    assert.ok(at > 0, `${constant} is not a Set literal any more — this guard needs rewriting`);
-    return [...source.slice(at, source.indexOf(']);', at)).matchAll(/'([^']+)'/g)].map((m) => m[1]);
-  };
-  assert.deepEqual(
-    [...VOUCHABLE].sort(),
-    namesIn('SVG_WITH_SIBLING').sort(),
-    'SVG_WITH_SIBLING drifted from the list this suite crosses — add the name here too'
-  );
-  assert.deepEqual(
-    [...SELF].sort(),
-    namesIn('SVG_ELEMENTS').sort(),
-    'SVG_ELEMENTS drifted from the list this suite crosses — add the name here too'
-  );
-
-
+  let compared = 0;
   const bad = [];
-  const check = async (label, body, probe, wrapper, expected) => {
-    let view;
-    try { view = await compile(body); } catch (e) { bad.push(`${label}: transform/import threw ${e.message.slice(0,50)}`); return; }
-    const host = dom.window.document.createElement('div');
-    dom.window.document.body.appendChild(host);
-    try { renderInto(view(), host); } catch (e) { bad.push(`${label}: render threw ${e.message.slice(0,50)}`); return; }
-    /**
-     * `<image>` is the one name the HTML parser RENAMES: parsed as HTML it becomes `<img>`, while in
-     * the SVG namespace it stays `<image>`. So the lookup accepts either spelling and the namespace
-     * assertion still does the work — which is the point, since the rename is itself evidence the
-     * element was built as HTML.
-     */
-    const names = probe === 'image' ? ['image', 'img'] : [probe.toLowerCase()];
-    const el = [...host.querySelectorAll('*')].find((e) => names.includes(e.localName.toLowerCase()));
-    if (el === undefined) { bad.push(`${label}: <${probe}> missing from the DOM`); return; }
-    const got = el.namespaceURI === SVG ? 'SVG' : 'HTML';
-    if (got !== expected) bad.push(`${label}: <${probe}> in ${wrapper} is ${got}, expected ${expected}`);
-  };
-
-  for (const v of VOUCHABLE) {
-    for (const s of SELF) {
-      await check(`${v}+${s} in Frame`, `<Frame><${v}>x</${v}><${s} /></Frame>`, v, 'Frame', 'SVG');
-      await check(`frag ${v}+${s}`, `<Frame><><${v}>x</${v}><${s} /></></Frame>`, v, 'Frame', 'SVG');
+  let brokeOut = 0;
+  const check = async (label, wrapper, jsx, markup, breakout = null) => {
+    const [, inline] = WRAPPERS[wrapper];
+    const f = join(dir, `m${n++}.mjs`);
+    writeFileSync(f, transformJsx(`${PRELUDE}\nexport const view = () => <${wrapper}>${jsx}</${wrapper}>;`, 'ns.jsx', { inject: true }));
+    const { view } = await import(pathToFileURL(f).href);
+    const rendered = dom.window.document.createElement('div');
+    renderInto(view(), rendered);
+    if (breakout !== null) {
+      brokeOut++;
+      const host = wrapper === 'Frame' ? '<svg>' : '<math>';
+      if (!warnings.some((w) => w.includes(`<${breakout}>`) && w.includes(host)))
+        bad.push(`${label} in ${wrapper}: the parser breaks out at <${breakout}>, and nothing named it`);
+      return;
     }
-    await check(`${v} alone in Frame`, `<Frame><${v}>x</${v}></Frame>`, v, 'Frame', 'HTML');
-    await check(`${v} alone in Box`, `<Box><${v}>x</${v}></Box>`, v, 'Box', 'HTML');
+    const parsed = dom.window.document.createElement('div');
+    parsed.innerHTML = inline(markup);
+    compared++;
+    if (shape(rendered) !== shape(parsed)) bad.push(`${label} in ${wrapper}\n      rendered ${shape(rendered)}\n      parsed   ${shape(parsed)}`);
+  };
+  /** Closing tags written out, because `<path/>` self-closes only in foreign content — the inline
+   *  markup must mean the same thing in every wrapper, or the oracle is comparing two sources. */
+  const el = (name, inner = 'x') => [`<${name}>${inner}</${name}>`, `<${name}>${inner}</${name}>`];
+  for (const wrapper of Object.keys(WRAPPERS)) {
+    for (const a of NAMES) {
+      const [ja, ma] = el(a);
+      await check(`<${a}> alone`, wrapper, ja, ma);
+      await check(`<${a}> in a fragment`, wrapper, `<>${ja}</>`, ma);
+      await check(`<${a}> mapped`, wrapper, `{[1, 2].map(() => ${ja})}`, ma + ma);
+      const foreign = wrapper === 'Frame' || wrapper === 'MathBox';
+      for (const b of ['path', 'text', 'div', 'clipPath']) {
+        const [jb, mb] = el(b);
+        await check(`<${a}> + <${b}>`, wrapper, ja + jb, ma + mb, foreign && breaksOut(a) ? a : null);
+        await check(`<${a}> holding <${b}>`, wrapper, `<${a}>${jb}</${a}>`, `<${a}>${mb}</${a}>`);
+      }
+    }
   }
-  /** The shapes round 10 broke: a raw-text root with a static element, and a voucher that is refused. */
-  for (const raw of ['title', 'style', 'script']) {
-    await check(`${raw} + static element`, `<Frame><${raw}><b>x</b></${raw}><path d="M0" /></Frame>`, raw, 'Frame', 'HTML');
-    await check(`${raw} + text CONTROL`, `<Frame><${raw}>x</${raw}><path d="M0" /></Frame>`, raw, 'Frame', 'SVG');
-  }
-  /**
-   * The other three names the RENDERER scans as raw text. They are not vouchable, so they only reach
-   * the guard NESTED under a self-proving root — where `refusesSvg` runs at every depth. Scoped to
-   * the vouchable three, the guard let these upgrade into the scan/parse disagreement: the `<b>`
-   * relocated out, its sigil stranded as a dead attribute, the binding never committed.
-   */
-  for (const raw of ['textarea', 'iframe', 'noscript']) {
-    await check(`${raw} nested + static element`, `<Frame><g><${raw}><b>x</b></${raw}></g><path d="M0" /></Frame>`, 'g', 'Frame', 'HTML');
-    await check(`${raw} nested + text CONTROL`, `<Frame><g><${raw}>x</${raw}></g><path d="M0" /></Frame>`, 'g', 'Frame', 'SVG');
-  }
-  await check('refused voucher', `<Frame><text>L</text><g><my-card /></g></Frame>`, 'text', 'Frame', 'HTML');
-  await check('surviving voucher', `<Frame><text>L</text><g><circle r="1" /></g></Frame>`, 'text', 'Frame', 'SVG');
-  /** A component or custom element among the siblings is dispatched on its own and changes nothing
-   *  about what the <path> proves; only a refused VOUCHER withdraws the vouch. */
-  await check('component sibling', `<Frame><text>L</text><Box>x</Box><path d="M0" /></Frame>`, 'text', 'Frame', 'SVG');
-  await check('custom element sibling', `<Frame><text>L</text><my-badge /><path d="M0" /></Frame>`, 'text', 'Frame', 'SVG');
-  await check('custom element stays HTML', `<Frame><text>L</text><my-badge /><path d="M0" /></Frame>`, 'my-badge', 'Frame', 'HTML');
-  await check('expression sibling only', `<Frame><text>L</text>{1 && 2}</Frame>`, 'text', 'Frame', 'HTML');
-  /**
-   * An EXPRESSION vouches through its own roots — `{items.map((i) => <path/>)}` beside a `<title>` is
-   * how a repeated-shape icon is written. Three states, as everywhere: a root that is not SVG-only
-   * disproves, and no roots at all proves nothing. The row above uses `{1 && 2}`, which has no roots,
-   * so it passes whether expressions can vouch or not — it pins the third state, not the first.
-   */
-  await check('expression voucher', `<Frame><title>T</title>{[1].map((i) => <path key={i} d="M0" />)}</Frame>`, 'title', 'Frame', 'SVG');
-  await check('mixed expression does not vouch', `<Frame><title>T</title>{1 ? <path d="M0" /> : <div />}</Frame>`, 'title', 'Frame', 'HTML');
-  /**
-   * ...and the MIRROR: a vouchable name INSIDE an expression is vouched by a sibling outside it.
-   * `{labels.map((t) => <text>{t}</text>)}` beside a static `<path>` is how a labelled icon is
-   * written, and without this every `<text>` was a 0x0 `HTMLUnknownElement` — silent in production.
-   */
-  await check('expression vouchee', `<Frame><path d="M0" />{[1].map((i) => <text key={i}>L</text>)}</Frame>`, 'text', 'Frame', 'SVG');
-  await check('fragment root inside an expression vouches', `<Frame><title>T</title>{1 ? <><path d="M0" /></> : null}</Frame>`, 'title', 'Frame', 'SVG');
-  await check('CONTROL expression alone', `<Frame>{[1].map((i) => <text key={i}>L</text>)}</Frame>`, 'text', 'Frame', 'HTML');
-  /**
-   * A nested FRAGMENT vouches through its own children — `fragmentProof` answers that question and a
-   * fragment is not a namespace boundary. This row asserted HTML while the component path asked only
-   * about direct element children, which pinned the SPLIT: all-SVG as a fragment root, divided under
-   * a component. Both halves are asserted now, because pinning one of them is what hid it.
-   */
-  await check('nested fragment vouch', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'text', 'Frame', 'SVG');
-  await check('nested fragment vouch: the shape', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'path', 'Frame', 'SVG');
-  await check('fragment proving nothing', `<Frame><text>L</text><><b>x</b></></Frame>`, 'text', 'Frame', 'HTML');
-  /**
-   * A fragment must be vouchable BY a sibling as well as vouching FOR one, or the same group answers
-   * differently depending on which side the fragment is written on.
-   */
-  await check('fragment vouched by a sibling', `<Frame><path d="M0" /><><title>L</title></></Frame>`, 'title', 'Frame', 'SVG');
-  await check('fragment vouched at depth', `<Frame><path d="M0" /><><><title>L</title></></></Frame>`, 'title', 'Frame', 'SVG');
-  /**
-   * An ISLAND root keeps its exemption: a component inside a vouched `<title>`'s EXPRESSION is safe,
-   * because `childMode` has already compiled it `html`. Restating the refusal conditions at the root
-   * instead of asking `refusesSvg` lost this branch.
-   */
-  await check('island root, expr component', `<Frame><path d="M0" /><title>{<my-card />}</title></Frame>`, 'title', 'Frame', 'SVG');
-  await check('island root, the component', `<Frame><path d="M0" /><title>{<my-card />}</title></Frame>`, 'my-card', 'Frame', 'HTML');
-  await check('desc island root', `<Frame><path d="M0" /><desc>{<my-card />}</desc></Frame>`, 'desc', 'Frame', 'SVG');
-  /**
-   * The island rule needs an UPGRADEABLE root to be reached at all. Probed at the top level,
-   * `<foreignObject>` is camelCase — in neither set — so the root is refused before
-   * `SVG_INTEGRATION_POINTS` is ever consulted, and the row passed with that set emptied. Nesting it
-   * under a `<g>` is what puts the island on the path: the `<g>` upgrades, and its island keeps the
-   * `<b>` HTML.
-   */
-  await check('island keeps HTML', `<Frame><g><foreignObject><b>x</b></foreignObject></g><path d="M0" /></Frame>`, 'b', 'Frame', 'HTML');
-  await check('island CONTROL: the g', `<Frame><g><foreignObject><b>x</b></foreignObject></g><path d="M0" /></Frame>`, 'g', 'Frame', 'SVG');
-
-  for (const c of CAMEL)
-    await check(`camel ${c}+path`, `<Frame><${c} id="c" /><path d="M0" /></Frame>`, c, 'Frame', 'HTML');
-  for (const s of SELF) await check(`${s} alone`, `<Frame><${s} /></Frame>`, s, 'Frame', 'SVG');
-
   console.warn = silence;
-    rmSync(dir, { recursive: true, force: true });
-    assert.ok(n > 120, `the matrix built ${n} modules, which is too few to mean anything`);
-    assert.deepEqual(bad, [], `groups that rendered in the wrong namespace:\n  ${bad.slice(0, 10).join('\n  ')}`);
-    console.log(`jsx namespace corpus: ${n} sibling groups compiled, rendered and checked`);
-  });
+  /** The controls: the corpus measured something in every wrapper, and reached the breakout case. */
+  assert.ok(brokeOut > 0, 'no group reached a breakout name, so the warning half measured nothing');
+  assert.ok(compared + brokeOut >= Object.keys(WRAPPERS).length * NAMES.length * 11, `only ${compared + brokeOut} groups reached`);
+  assert.deepEqual(bad, [], `${bad.length} of ${compared} groups diverged from the parser:\n  ${bad.slice(0, 25).join('\n  ')}`);
+  console.log(`namespace corpus: ${compared} groups identical to the parser's own build, ${brokeOut} breakouts named`);
+});

@@ -64,20 +64,25 @@ it('an SVG-namespaced custom element never upgrades, and an HTML-namespaced one 
   expect(upgraded, 'and connectedCallback runs, in the HTML namespace').to.deep.equal([HTML_NS]);
 });
 
-it('an SVG shape built as HTML has no geometry, and built as SVG has', () => {
-  const wrong = into();
-  renderInto(html`<svg viewBox="0 0 24 24"><g>${html`<path d="M0 0h24"></path>`}</g></svg>`, wrong);
-  const asHtml = wrong.querySelector('path');
-  expect(asHtml.namespaceURI, 'an html`` template stays HTML wherever it lands').to.equal(HTML_NS);
-  expect(typeof asHtml.getTotalLength, 'so it is an HTMLUnknownElement — no geometry at all').to.equal(
-    'undefined'
-  );
+it('an html`` shape parses in the namespace of where it lands, and has geometry there', () => {
+  /**
+   * The namespace belongs to the position a template is committed into: the renderer parses it with
+   * that position as its context, exactly as the platform's fragment parser takes a context element.
+   * So `` html`<path/>` `` handed into an `<svg>` is a real `SVGPathElement` — the case that used to
+   * need `` svg`…` `` and vanished without it — and the same strings in a `<div>` are HTML, as they
+   * would be written inline there.
+   */
+  const inSvg = into();
+  renderInto(html`<svg viewBox="0 0 24 24"><g>${html`<path d="M0 0h24"></path>`}</g></svg>`, inSvg);
+  const drawn = inSvg.querySelector('path');
+  expect(drawn.namespaceURI, 'parsed in the <g> it lands in').to.equal(SVG_NS);
+  expect(drawn.getTotalLength(), 'a real SVGPathElement that measures').to.be.greaterThan(0);
 
-  const right = into();
-  renderInto(html`<svg viewBox="0 0 24 24"><g>${svg`<path d="M0 0h24"></path>`}</g></svg>`, right);
-  const asSvg = right.querySelector('path');
-  expect(asSvg.namespaceURI, 'CONTROL: the svg`` spelling is the fix').to.equal(SVG_NS);
-  expect(asSvg.getTotalLength(), 'and it is a real SVGPathElement that measures').to.be.greaterThan(0);
+  const inDiv = into();
+  renderInto(html`<div>${html`<path d="M0 0h24"></path>`}</div>`, inDiv);
+  const unknown = inDiv.querySelector('path');
+  expect(unknown.namespaceURI, 'CONTROL: the same strings in a <div> are HTML').to.equal(HTML_NS);
+  expect(typeof unknown.getTotalLength, 'and have no geometry, as written inline there').to.equal('undefined');
 });
 
 /**

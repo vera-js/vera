@@ -1088,6 +1088,17 @@ const getTemplate = (result: TemplateResult, ns: Namespace = null) => {
 const childNamespace = (parent: Node): Namespace => {
   const namespace = (parent as Element).namespaceURI;
   if (namespace == null || namespace === doc.documentElement.namespaceURI) return null;
+  /**
+   * The ONE position the probe cannot answer: `<annotation-xml>` is an integration point by the
+   * `encoding` on its start tag, and the engines DISAGREE when it is a fragment parser's context —
+   * Chromium reads its attribute there, Firefox does not, so the probe said MathML in Firefox for a
+   * position every engine parses as HTML in full markup. The full-markup rule is the one they agree
+   * on, so it is read directly.
+   */
+  if ((parent as Element).localName === 'annotation-xml') {
+    const encoding = (parent as Element).getAttribute('encoding')?.toLowerCase();
+    if (encoding === 'text/html' || encoding === 'application/xhtml+xml') return null;
+  }
   const probe = parent.cloneNode(false) as Element;
   probe.innerHTML = '<x></x>';
   const child = (probe.firstChild as Element | null)?.namespaceURI;
