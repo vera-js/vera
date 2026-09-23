@@ -19,6 +19,7 @@
  */
 import {
   getTemplate,
+  childNamespace,
   Instance,
   TextPart,
   ChildPart,
@@ -350,7 +351,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
       isSlot = true;
       state._partIndex++;
-      adoptSlot(cursor, state._values[state._valueIndex++], state._out);
+      adoptSlot(cursor, state._values[state._valueIndex++], state._out, parts[state._partIndex - 1]._ns!);
       drainIgnored(state);
     }
     if (!isSlot) expectText(cursor, (canonical as Text).data);
@@ -458,7 +459,7 @@ const drainIgnored = (state: AdoptState) => {
 };
 
 /** Adopts one child slot's rendered content, producing the part that will own it. */
-const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
+const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[], ns: number) => {
   const heldResult = (rawValue as { $h?: TemplateResult } | null)?.$h;
   const value = heldResult !== undefined ? heldResult : rawValue;
 
@@ -481,7 +482,7 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
 
   if (isText) {
     /** Claim its text and bind the fast TextPart, committed state included. */
-    const textPart = new TextPart(claimValueText(cursor, toText(value)));
+    const textPart = new TextPart(claimValueText(cursor, toText(value)), ns);
     textPart._value = value;
     out.push(textPart);
     return;
@@ -490,12 +491,12 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
   /** Structured content gets a markered ChildPart wrapped around whatever it rendered. */
   const start = comment();
   cursor.parent.insertBefore(start, cursorSplit(cursor));
-  const part = new ChildPart(start, null);
+  const part = new ChildPart(start, null, ns);
 
   if (value == null) {
     /** Nothing rendered server-side; the part starts EMPTY. */
   } else if (isTemplateResult(value)) {
-    part._instance = adoptInstance(getTemplate(value), value.values, cursor);
+    part._instance = adoptInstance(getTemplate(value, ns), value.values, cursor);
     part._shape = value.strings;
     part._mode = TEMPLATE;
   } else if ((value as Node).nodeType !== undefined) {
@@ -512,7 +513,7 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
     /** Everything left is an array or another iterable — text and nodes were handled above. */
     const list: unknown[] = Array.isArray(value) ? value : [...(value as Iterable<unknown>)];
     const items: Item[] = [];
-    for (const entry of list) items.push(adoptItem(cursor, entry));
+    for (const entry of list) items.push(adoptItem(cursor, entry, ns));
     part._items = items;
     /**
      * The same predicate `_commitList` uses — the presence of a strategy, not of a `key`. Two
@@ -530,10 +531,10 @@ const adoptSlot = (cursor: Cursor, rawValue: unknown, out: Part[]) => {
 };
 
 /** Adopts one list item — element mode for single-root templates, markered otherwise. */
-const adoptItem = (cursor: Cursor, value: unknown): Item => {
+const adoptItem = (cursor: Cursor, value: unknown, ns: number): Item => {
   if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
     const result = value as TemplateResult;
-    const template = getTemplate(result);
+    const template = getTemplate(result, ns);
     const content = template._element.content;
     const root = content.firstChild;
     if (root !== null && root.nodeType === 1 && root.nextSibling === null) {
@@ -552,7 +553,7 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
     const instance = adoptInstance(template, result.values, cursor);
     const end = comment();
     cursor.parent.insertBefore(end, cursorSplit(cursor));
-    const part = new ChildPart(start, end);
+    const part = new ChildPart(start, end, ns);
     part._instance = instance;
     part._shape = result.strings;
     part._mode = TEMPLATE;
@@ -560,7 +561,7 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
   }
   /** Non-template item: markered part adopting its content like a nested slot. */
   const out: Part[] = [];
-  adoptSlot(cursor, value, out);
+  adoptSlot(cursor, value, out, ns);
   return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: out[0] as ChildPart };
 };
 
@@ -617,13 +618,14 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
   _adoptedSlots = [];
   try {
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
-    const instance = adoptInstance(getTemplate(result), result.values, cursor);
+    const ns = childNamespace(container);
+    const instance = adoptInstance(getTemplate(result, ns), result.values, cursor);
     passComments(cursor);
     if (cursor.node !== null) {
       if (__DEV__) why = `${describe(cursor.node)} follows everything the template describes`;
       throw MISMATCH;
     }
-    const part = new ChildPart(start, null);
+    const part = new ChildPart(start, null, ns);
     part._instance = instance;
     part._shape = result.strings;
     part._mode = TEMPLATE;
