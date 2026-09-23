@@ -931,20 +931,38 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
      * a "starts with m" shortcut would hand four SVG hosts the MathML advice.
      */
     /**
+     * The namespace it WAS built in. `HTML` is also the answer for an element carrying no namespace
+     * at all — one adopted from an XML document — which is a label rather than a fact, but the
+     * sentence it appears in ("will not render") and both remedies are right either way.
+     */
+    const built =
+      element.namespaceURI === 'http://www.w3.org/1998/Math/MathML'
+        ? 'MathML'
+        : element.namespaceURI === 'http://www.w3.org/2000/svg'
+          ? 'SVG'
+          : 'HTML';
+
+    /**
      * The island AND the constraint on where it may sit, chosen together by the host's namespace.
      * Appending the container caveat to both branches from outside put SVG's answer on a MathML
      * host — *"put `<mtext>` in a container such as `<g>` or `<svg>`"* — which is the round-1 defect
      * (a `<mrow>` told to use `<foreignObject>`) arriving through the caveat instead of the island.
      * The constraint is real in both namespaces and different in each: `<foreignObject>` is not a
-     * permitted child of `<text>`, `<tspan>`, `<clipPath>`, a gradient or a filter, and `<mtext>` is
-     * not one of a MathML token element.
+     * permitted child of `<text>`, `<tspan>`, `<clipPath>`, a gradient or a filter — those accept
+     * only their own content models and ignore anything else — while `<pattern>` takes `<g>`'s and
+     * does admit one. `<mtext>` is likewise not a child of a MathML token element.
+     *
+     * And the ENCODING follows the content, not the host: `text/html` is the HTML annotation, so
+     * naming it for SVG content sends the author to the one spelling that cannot carry it. That is
+     * the same false advice `foreignHost` above refuses to print for an `image/svg+xml` host,
+     * arriving here through a string shared between two branches.
      */
     const island =
       hostNamespace === 'http://www.w3.org/1998/Math/MathML'
-        ? '<mtext>, or <annotation-xml encoding="text/html">, inside a MathML container such as ' +
-          '<mrow> or <math> rather than inside a token element'
-        : 'a <foreignObject>, which has to sit in an SVG container such as <g> or <svg> rather ' +
-          'than in a text or paint element'
+        ? `<mtext>, or <annotation-xml encoding="${built === 'SVG' ? 'image/svg+xml' : 'text/html'}">, ` +
+          'inside a MathML container such as <mrow> or <math> rather than inside a token element'
+        : 'a <foreignObject>, which has to sit in an element whose content model accepts one — a ' +
+          'container such as <g> or <svg>, not a text, clipping, gradient or filter element'
     /**
      * Keyed by the host's NAMESPACE as well as its name, because `<a>` is a real element in both —
      * the parser leaves `<math><a>` in MathML, since `a` is not on the foreign-content breakout
@@ -959,17 +977,6 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
     /** `continue`, not `return`: a spent key must skip THIS node, not abandon the whole insert. */
     if (warnedForeign.has(seen)) continue;
     warnedForeign.add(seen);
-    /**
-     * The namespace it WAS built in. `HTML` is also the answer for an element carrying no namespace
-     * at all — one adopted from an XML document — which is a label rather than a fact, but the
-     * sentence it appears in ("will not render") and both remedies are right either way.
-     */
-    const built =
-      element.namespaceURI === 'http://www.w3.org/1998/Math/MathML'
-        ? 'MathML'
-        : element.namespaceURI === 'http://www.w3.org/2000/svg'
-          ? 'SVG'
-          : 'HTML';
     /**
      * **Two different mistakes, and only one of them is about a tag.**
      *

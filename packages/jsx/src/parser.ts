@@ -15,8 +15,24 @@
 
 import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState } from './types.js';
 
-/** Characters after which a `<` (or `/`) can begin an expression. */
-const EXPRESSION_PREFIX = new Set([...'(,=?:;[{!&|+-*/%^~<>', '']);
+/**
+ * Characters after which a `<` (or `/`) can begin an expression.
+ *
+ * **`}` is in the set and `)` is deliberately not**, and the asymmetry is the whole rule. A `}`
+ * immediately before one of these ends a BLOCK — `function f() {}` then a statement — and a regex or
+ * a JSX root is exactly what may follow; the alternative reading needs an object literal divided or
+ * compared (`{} / 2`, `{} < b`), which is not something anyone writes. Without it, a regex at
+ * statement position made `scanCode` read `/` as division, the following quote opened a string that
+ * never closed, and `findRoots` returned ZERO roots — so `transformJsx` handed the module back
+ * untouched and every JSX root in the file was lost, surfacing as `Unexpected token '<'` from
+ * whatever ran the output next.
+ *
+ * `)` is the mirror image and must stay out: `foo(x) < 3` and `f(x) / 2` are ordinary, while the
+ * readings that would need it — `if (x) /re/.test(y)` — are a braceless control-flow head, which is
+ * rare and which no reading of this set can tell from a call without tracking what opened each
+ * paren. Adding it would turn a common comparison into the start of a JSX region.
+ */
+const EXPRESSION_PREFIX = new Set([...'(,=?:;[{}!&|+-*/%^~<>', '']);
 const EXPRESSION_KEYWORDS = new Set([
   'return', 'yield', 'await', 'case', 'typeof', 'void', 'delete', 'in', 'of',
   'instanceof', 'new', 'do', 'else', 'throw',

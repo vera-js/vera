@@ -414,15 +414,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * *"svg is not a function"* at the first render. Chasing binding forms with regexes is scope
    * analysis by other means, and this transform is deliberately lexical.
    *
-   * So the question asked is not "does the module bind this name" but "does the module contain it",
-   * which needs no parsing and cannot be wrong in the dangerous direction. Over-renaming costs an
-   * uglier identifier in the output; under-renaming costs the whole module.
-   *
-   * Because the chosen name is then free BY CONSTRUCTION, the injection needs no separate check for
-   * what the module already imports — which is what removed the second import scan that used to
-   * live here, and with it a defect of its own: it ran over the untransformed source, so JSX TEXT
-   * reading `import html from "./x.js"` inside a `&lt;pre&gt;` registered as a real import and suppressed
-   * the injection, leaving `html is not defined`.
    */
   /**
    * **All the JavaScript in the module**: what lies outside every JSX root, PLUS every expression
@@ -457,13 +448,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   })();
 
   /**
-   * The same JavaScript with COMMENTS removed, which is the only form safe to look for import
-   * statements in: a commented-out `import { html } from '@verajs/core';` otherwise reads as a real
-   * one, suppresses the injection, and leaves `html is not defined`. Crude on purpose — it may eat a
-   * `//` inside a string, which costs nothing here, since all this text is ever asked is whether a
-   * name is imported or bound.
-   */
-  /**
    * **The JavaScript with every comment, string and template-literal CONTENT blanked**, delimiters
    * and newlines kept, so the two questions below read code and never prose.
    *
@@ -489,8 +473,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * NESTED template's opening backtick as a closing one and spilled its text into code, where an
      * apostrophe opened a fake string and ate the binding after it.
      */
-    let open = 0;
-    let depth = 0;
+    const open: number[] = [];
     /** The expression-position heuristic is `parser.ts`'s, called rather than copied: `/` opens a
      *  regex only where an expression may start, and a second copy of that rule would drift. */
     let lastChar = '';
@@ -506,13 +489,20 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
         if (text[i] === '`') {
           out += '`';
           i++;
-          open--;
+          open.pop();
+          /** A finished template is a VALUE, so a `/` after it is division — `parser.ts` agrees. */
+          lastChar = '`';
+          lastWord = '';
           return;
         }
         if (text[i] === '$' && text[i + 1] === '{') {
           out += '${';
           i += 2;
-          depth = 0;
+          open[open.length - 1] = 0;
+          /** Inside `${` an expression STARTS, so a leading `/` opens a regex. Leaving the cursor at
+           *  whatever preceded the literal read it as division and blanked the rest of the file. */
+          lastChar = '{';
+          lastWord = '';
           return;
         }
         out += text[i] === '\n' ? '\n' : ' ';
@@ -551,25 +541,29 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           out += c;
           i++;
         }
+        /** A finished string is a VALUE too. Without this `const qs = 'w' / 2;` read the `/` as a
+         *  regex opener and swallowed the binding on the same line. */
+        lastChar = "'";
+        lastWord = '';
         continue;
       }
       if (c === '`') {
-        open++;
+        open.push(0);
         out += c;
         i++;
         eatTemplate();
         continue;
       }
-      if (c === '{' && open > 0) {
-        depth++;
+      if (c === '{' && open.length > 0) {
+        open[open.length - 1]! += 1;
         out += c;
         i++;
         continue;
       }
-      if (c === '}' && open > 0) {
+      if (c === '}' && open.length > 0) {
         out += c;
         i++;
-        if (depth > 0) depth--;
+        if (open[open.length - 1]! > 0) open[open.length - 1]! -= 1;
         else eatTemplate();
         continue;
       }
@@ -657,17 +651,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       .split(`</${exported}`)
       .join('');
     /**
-     * **When the module TAGS with the name, the substring test is not enough and the question gets
-     * narrower.** A tag use is a reference to the import being added, so renaming over it dangles —
-     * but a module may equally define its OWN tag of that name, where renaming is exactly right.
-     * The two are indistinguishable by substring: `const svg = (s, …v) => …` and the string
-     * `'text/html'` both merely contain the word. So where a tag use exists, only a DECLARATION
-     * counts, which is narrow but wrong far less often than either substring answer.
-     *
-     * The residual limit is narrow and worth stating: over-renaming costs an uglier identifier,
-     * under-renaming costs the whole module, so every judgement here leans the first way.
-     */
-    /**
      * A whole-WORD match, not a substring: `options.html` may name `h`, and a bare `includes('h')`
      * is true of almost any source — `export`, `the`, a hex colour.
      *
@@ -695,8 +678,14 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * under-renames and is the direction that costs an identifier instead of the module.
      */
     const annotated = new RegExp(`(?:(?:const|let|var|function|class)\\s+|[(,]\\s*)${escaped}\\s*:`);
+    /**
+     * `...html` is a REST binding, not a member access, and the dot guard rejected it on the dot —
+     * so `const { zq, ...html } = lib` was invisible and the injected import collided with it. The
+     * inner lookbehind is what tells one dot from three.
+     */
     const bound =
-      new RegExp(`(?<![.\\w$])${escaped}\\b(?!\\s*:)`).test(stripped) || annotated.test(stripped);
+      new RegExp(`(?<![\\w$])(?<!(?<!\\.\\.)\\.)${escaped}\\b(?!\\s*:)`).test(stripped) ||
+      annotated.test(stripped);
     if (!bound && !taken.has(exported)) {
       taken.add(exported);
       return exported;

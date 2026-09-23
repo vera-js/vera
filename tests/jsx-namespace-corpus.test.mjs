@@ -8,10 +8,12 @@
  * voucher the compiler was itself refusing, a camelCase name whose hazard is SSR casing rather than
  * context. Enumerating the groups ends that the way `jsx-name-corpus` ended the name class.
  *
- * The wrappers matter as much as the names: `Frame` renders an `<svg>` and `Box` a `<div>`, so the
- * same child must come out SVG in one and HTML in the other. The alone-in-a-Box rows are the
- * controls that keep the exclusions meaningful — without them `<text>hello</text>` becoming a 0x0
- * SVG element would pass.
+ * **The wrapper deliberately does NOT change the answer, and the rows say so.** `Frame` renders an
+ * `<svg>` and `Box` a `<div>`, and a vouched `<title>` compiles `` svg`…` `` in both — the tag comes
+ * from the group, and where the group LANDS is unknowable at compile time. That is the accepted
+ * limit, not an oversight, so `Box` appears here as a second alone-control rather than as a
+ * contrast. Those alone rows are what keep the exclusions meaningful: without them
+ * `<text>hello</text>` quietly becoming a 0x0 SVG element would pass.
  */
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
@@ -45,10 +47,20 @@ test('every sibling group renders in the namespace the rule promises', async () 
     return (await import(pathToFileURL(f).href)).view;
   };
 
-  /** Every element that can appear in a sibling group, and what it must become in each wrapper. */
-  const VOUCHABLE = ['title', 'text', 'desc', 'tspan', 'a', 'style', 'marker', 'pattern', 'symbol'];
-  const SELF = ['path', 'circle', 'rect', 'g', 'use', 'polyline'];
-  const CAMEL = ['clipPath', 'linearGradient'];
+  /**
+   * The COMPLETE lists from `packages/jsx/src/transform.ts` — `SVG_WITH_SIBLING`, `SVG_ELEMENTS`, and
+   * the camelCase names excluded even under a vouch. Complete on purpose: a sample would have let a
+   * name join the transform's set without ever being crossed against anything here, which is the
+   * gap this suite exists to close. Adding a name there means adding it here, and the counts below
+   * fail loudly if the two drift.
+   */
+  const VOUCHABLE = ['title', 'a', 'style', 'script', 'image', 'font', 'text', 'tspan', 'desc',
+    'metadata', 'switch', 'view', 'set', 'filter', 'mask', 'marker', 'pattern', 'symbol'];
+  const SELF = ['path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon', 'g', 'defs',
+    'use', 'stop', 'animate', 'mpath'];
+  const CAMEL = ['clipPath', 'linearGradient', 'radialGradient', 'animateTransform', 'animateMotion'];
+  assert.equal(VOUCHABLE.length, 18, 'SVG_WITH_SIBLING has 18 names — update both lists together');
+  assert.equal(SELF.length, 13, 'SVG_ELEMENTS has 13 names — update both lists together');
 
   const bad = [];
   const check = async (label, body, probe, wrapper, expected) => {
@@ -57,7 +69,14 @@ test('every sibling group renders in the namespace the rule promises', async () 
     const host = dom.window.document.createElement('div');
     dom.window.document.body.appendChild(host);
     try { renderInto(view(), host); } catch (e) { bad.push(`${label}: render threw ${e.message.slice(0,50)}`); return; }
-    const el = [...host.querySelectorAll('*')].find((e) => e.localName.toLowerCase() === probe.toLowerCase());
+    /**
+     * `<image>` is the one name the HTML parser RENAMES: parsed as HTML it becomes `<img>`, while in
+     * the SVG namespace it stays `<image>`. So the lookup accepts either spelling and the namespace
+     * assertion still does the work — which is the point, since the rename is itself evidence the
+     * element was built as HTML.
+     */
+    const names = probe === 'image' ? ['image', 'img'] : [probe.toLowerCase()];
+    const el = [...host.querySelectorAll('*')].find((e) => names.includes(e.localName.toLowerCase()));
     if (el === undefined) { bad.push(`${label}: <${probe}> missing from the DOM`); return; }
     const got = el.namespaceURI === SVG ? 'SVG' : 'HTML';
     if (got !== expected) bad.push(`${label}: <${probe}> in ${wrapper} is ${got}, expected ${expected}`);
@@ -85,7 +104,15 @@ test('every sibling group renders in the namespace the rule promises', async () 
   await check('custom element stays HTML', `<Frame><text>L</text><my-badge /><path d="M0" /></Frame>`, 'my-badge', 'Frame', 'HTML');
   await check('expression sibling only', `<Frame><text>L</text>{1 && 2}</Frame>`, 'text', 'Frame', 'HTML');
   await check('nested fragment vouch', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'text', 'Frame', 'HTML');
-  await check('island keeps HTML', `<Frame><foreignObject><b>x</b></foreignObject><path d="M0" /></Frame>`, 'b', 'Frame', 'HTML');
+  /**
+   * The island rule needs an UPGRADEABLE root to be reached at all. Probed at the top level,
+   * `<foreignObject>` is camelCase — in neither set — so the root is refused before
+   * `SVG_INTEGRATION_POINTS` is ever consulted, and the row passed with that set emptied. Nesting it
+   * under a `<g>` is what puts the island on the path: the `<g>` upgrades, and its island keeps the
+   * `<b>` HTML.
+   */
+  await check('island keeps HTML', `<Frame><g><foreignObject><b>x</b></foreignObject></g><path d="M0" /></Frame>`, 'b', 'Frame', 'HTML');
+  await check('island CONTROL: the g', `<Frame><g><foreignObject><b>x</b></foreignObject></g><path d="M0" /></Frame>`, 'g', 'Frame', 'SVG');
 
   for (const c of CAMEL)
     await check(`camel ${c}+path`, `<Frame><${c} id="c" /><path d="M0" /></Frame>`, c, 'Frame', 'HTML');

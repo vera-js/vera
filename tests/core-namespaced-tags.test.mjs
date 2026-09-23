@@ -369,6 +369,19 @@ test('an html template committed into <svg> or <math> is named in development', 
     const mathInSvg = named(html`<svg><g>${mathml`<u40>x</u40>`}</g></svg>`);
     assert.equal(mathInSvg.length, 1, 'MathML committed into an <svg> is named');
     assert.ok(mathInSvg[0].includes('built as MathML'), 'and named for what it IS, not assumed HTML');
+
+    /**
+     * **The annotation ENCODING follows the content, not the host.** `text/html` cannot carry SVG,
+     * so naming it for SVG content sends the author to the one spelling that will not work — the
+     * same false advice `foreignHost` refuses to print for an `image/svg+xml` host, arriving through
+     * an island string shared between the two message branches.
+     */
+    const svgAdvice2 = named(html`<math><mrow>${svg`<u60>x</u60>`}</mrow></math>`);
+    assert.ok(svgAdvice2[0].includes('image/svg+xml'), 'SVG content is annotated image/svg+xml');
+    assert.ok(!svgAdvice2[0].includes('text/html'), 'and never text/html, which cannot carry it');
+    const htmlAdvice2 = named(html`<math><mrow>${html`<u61>x</u61>`}</mrow></math>`);
+    assert.ok(htmlAdvice2[0].includes('text/html'), 'CONTROL: HTML content is annotated text/html');
+    assert.ok(!htmlAdvice2[0].includes('image/svg+xml'), 'CONTROL: and never the SVG encoding');
     const svgInMath = named(html`<math><mrow>${svg`<u41>x</u41>`}</mrow></math>`);
     assert.equal(svgInMath.length, 1, 'and SVG committed into a <math> likewise');
     assert.ok(svgInMath[0].includes('built as SVG'), 'named as SVG');

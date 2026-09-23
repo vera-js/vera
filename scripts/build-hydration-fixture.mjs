@@ -48,6 +48,14 @@ const contents =
   `export const BINDINGS_HTML = ${JSON.stringify(await fixture('bindings-ssr.js'))};\n` +
   `export const SHADOW_OPTIONS_HTML = ${JSON.stringify(await fixture('shadow-options-ssr.js'))};\n` +
   /**
+   * An SVG-only ROOT handed across a component boundary — what `@verajs/jsx` emits for an icon in a
+   * wrapper. The server writes strings and the BROWSER's parser assigns the namespace, so this is
+   * the one seam where the two can disagree silently: an `HTMLUnknownElement` named `path` has the
+   * right tag and no geometry. Nothing else in the gate hydrates it; the kitchen fixture's `<svg>`
+   * is a template already rooted there, which is the case that always worked.
+   */
+  `export const SVG_ICON_HTML = ${JSON.stringify(await fixture('svg-icon-ssr.js'))};\n` +
+  /**
    * LIGHT-DOM SLOTS, distributed by the server. The one path the jsdom suites cannot settle: real
    * markup, adopted by a real parser, in an engine that has `@scope` and real custom element upgrade
    * timing. It carries a named slot, default content, and content for a slot the template does not

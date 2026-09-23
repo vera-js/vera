@@ -73,6 +73,12 @@ const PRELUDES = [
   'const r = 6 / 2 / 1;\nconst NAME = 1;',
   "const L = `${ zn ? zf({ zn }) : `it's empty` }`;\nconst NAME = 1;",
   "const D = `U:\n${ [zf({ a: 1 }),\n`\nimport { NAME } from 'x';\n`].join('') }\n.`;",
+  'const { zq, ...NAME } = lib;',
+  'const [zq2, ...NAME] = arr;',
+  'function zr(...NAME) { return NAME; }',
+  "const S2 = `${zn} ${ /^['\"]/.test('x') }`;\nconst NAME = 1;",
+  "const qs = 'w' / 2; const NAME = 1;",
+  'const N2 = `A${ zf({ k: `B${zn}C` }) }D`;\nconst NAME = 1;',
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */

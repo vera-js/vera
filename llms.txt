@@ -294,7 +294,9 @@ even with a sibling, because their hazard is SSR casing rather than context.
 
 `@verajs/renderer` names an element committed into an `<svg>` or `<math>` in a DIFFERENT namespace
 from its host, in development — HTML inside `<svg>` most often, but MathML inside `<svg>` and SVG
-inside `<math>` are the same mistake and are named the same way. It stays silent where the content
+inside `<math>` are the same mistake, named by the same rule — but with different advice: HTML
+content gets both remedies, while SVG-in-MathML and MathML-in-SVG are told only where to put the
+root, because the template's tag is already right. It stays silent where the content
 is correct: inside `<foreignObject>`, `<desc>` and `<title>`, inside MathML's token elements
 (`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`), inside `<annotation-xml>` carrying an HTML
 `encoding` or `image/svg+xml` (MathML's own registered spelling for an SVG annotation),

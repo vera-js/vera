@@ -57,7 +57,17 @@ const JSX_FREE = [
   ['tight, both directions', 'const ok = a<b && c>d;'],
   ['tight inside an arrow', 'const s = arr.filter((x) => x<limit);'],
   ['tight before a ternary', 'const m = count<max ? 1 : 2;'],
-  ['what looks like a generic', 'const t = a<b>c;']
+  ['what looks like a generic', 'const t = a<b>c;'],
+  /**
+   * A `}` ends a BLOCK, so what follows it is at statement position — a regex, or a JSX root. These
+   * are the JSX-FREE half of that: an object literal that really is divided or compared. Both are
+   * odd code, which is exactly why `}` can be read as ending a block, and they are here so the
+   * reading is a decision rather than an assumption.
+   */
+  ['an object literal divided', 'const q = ({ a: 1 }).a / 2;'],
+  ['a block then a division', 'function f() {}\nconst q = a / b;'],
+  ['a regex after a block', 'function f() {}\n/^a/.test(s);'],
+  ['a regex after an arrow body', 'const f = () => {};\n/^a/.test(s);'],
 ];
 
 const WITH_JSX = [
@@ -73,6 +83,15 @@ const WITH_JSX = [
   ['an attribute holding a less-than', "const v = <div title='a<b'>x</div>;"],
   ['a map returning elements', 'const v = <ul>{items.map((i) => <li>{i}</li>)}</ul>;'],
   ['followed by a division', 'const v = <p>x</p>; const q = a / b;'],
+  /**
+   * **A regex at statement position used to lose every root in the file.** `}` was not an expression
+   * prefix, so the `/` read as division, the quote inside the regex opened a string that never
+   * closed, and `findRoots` returned zero — `transformJsx` then handed the module back untouched and
+   * the JSX surfaced as `Unexpected token '<'` wherever the output ran. Silent, and total.
+   */
+  ['after a block and a regex', 'function f() {}\n/^[\'"]/.test(s);\nconst v = <div>x</div>;'],
+  ['after an arrow body and a regex', 'const f = () => {};\n/^a/.test(s);\nconst v = <path d="M0" />;'],
+  ['at statement position after a block', 'function f() {}\nconst v = <div>x</div>;'],
   /**
    * A division *before* the JSX, which is the shape that pins the regex discriminator. Read as a
    * regex, the first `/` scans forward for a closing one and swallows the region on the way, so the
