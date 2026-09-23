@@ -29,6 +29,11 @@
       "types": "./dist/development/vera-jsx-standalone.d.ts",
       "development": "./dist/development/vera-jsx-standalone.js",
       "default": "./dist/vera-jsx-standalone.min.js"
+    },
+    "./namespaces": {
+      "types": "./dist/development/vera-jsx-namespaces.d.ts",
+      "development": "./dist/development/vera-jsx-namespaces.js",
+      "default": "./dist/vera-jsx-namespaces.min.js"
     }
   },
   "files": [
