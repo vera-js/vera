@@ -11,5 +11,5 @@ import pkg from './package.json' with { type: 'json' };
 export default [
   defaultRollupConfig(pkg.filename, [], /^_[a-z]/),
   defaultRollupConfig(`${pkg.filename}-standalone`, [], /^_[a-z]/, { input: 'src/standalone.ts' }),
-  defaultRollupConfig(`${pkg.filename}-namespaces`, [], /^_[a-z]/, { input: 'src/namespaces.ts', alwaysExternal: ['@verajs/core'] }),
+  defaultRollupConfig(`${pkg.filename}-namespaces`, ['@verajs/core'], /^_[a-z]/, { input: 'src/namespaces.ts', alwaysExternal: ['@verajs/core'] }),
 ];

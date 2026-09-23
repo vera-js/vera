@@ -27,7 +27,11 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
   'CustomEvent', 'SVGElement'])
   globalThis[key] = dom.window[key];
 const { transformJsx } = await load('jsx');
-const { renderInto } = await load('renderer');
+const { renderInto, renderer } = await load('renderer');
+const { wire } = await load('core');
+/** Wired as an app wires it: the namespace module plugs in through core's registry, which the
+ *  renderer only reads once it has been handed it. */
+wire([renderer]);
 
 /** SVG names — self-proving, shared with HTML, camelCase — plus HTML and a custom element. */
 const NAMES = ['path', 'circle', 'g', 'use', 'text', 'tspan', 'title', 'desc', 'a', 'style', 'image',

@@ -567,7 +567,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const clauseFor = (exported: string, local: string) =>
     exported === local ? exported : `${exported} as ${local}`;
 
-  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedChild: false };
+  const state = { usedHtml: false, usedKeyed: false, usedSpread: false, usedChild: false, usedForeign: false };
 
   /**
    * **A name the module does not already use**, because injecting a second `const $veraChild`
@@ -707,11 +707,22 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       return;
     }
     tpl.static('>');
+    /**
+     * Inside `<svg>`/`<math>`, anything the COMPILER does not build inline — an expression, a
+     * component — lands in a foreign position at runtime as its own template, and only the renderer
+     * can parse it there. That is the one case `@verajs/jsx/namespaces` exists for, so it is imported
+     * exactly when a module has it.
+     */
+    const foreign = node.tag === 'svg' || node.tag === 'math';
+    if (foreign) foreignDepth++;
     for (const child of node.children) emitChild(child, tpl);
+    if (foreign) foreignDepth--;
     tpl.static(`</${node.tag}>`);
   };
 
+  let foreignDepth = 0;
   const emitChild = (child: JsxChild, tpl: Template): void => {
+    if (foreignDepth > 0 && ('expr' in child || isComponentTag(child as JsxNode))) state.usedForeign = true;
     if ('text' in child && child.text !== undefined) {
       const text = collapseText(child.text);
       if (text !== '') tpl.static(escapeStatic(text));
@@ -951,6 +962,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (state.usedHtml && !has(htmlName, htmlFrom, htmlLocal)) inject += `import { ${clauseFor(htmlName, htmlLocal)} } from '${htmlFrom}';\n`;
     if (state.usedKeyed && !has(keyedName, keyedFrom, keyedLocal)) inject += `import { ${clauseFor(keyedName, keyedLocal)} } from '${keyedFrom}';\n`;
     if (state.usedSpread && !has(spreadName, spreadFrom, spreadLocal)) inject += `import { ${clauseFor(spreadName, spreadLocal)} } from '${spreadFrom}';\n`;
+    if (state.usedForeign) inject += `import '@verajs/jsx/namespaces';\n`;
     prefix = inject;
   }
   /**

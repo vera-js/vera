@@ -17,14 +17,19 @@
 import { wire } from '@verajs/core';
 import type { TemplateResult } from '@verajs/renderer';
 
-const XHTML = 'http://www.w3.org/1999/xhtml';
-const SVG = 'http://www.w3.org/2000/svg';
-const MATHML = 'http://www.w3.org/1998/Math/MathML';
+/**
+ * The three namespaces, **read off the parser rather than written here**: `<svg>` and `<math>` parse
+ * into theirs, and the wrapper is HTML. Nothing in this file names a namespace URI.
+ */
+const reference = document.createElement('div');
+reference.innerHTML = '<svg></svg><math></math>';
+const XHTML = reference.namespaceURI;
+const SVG = (reference.firstChild as Element).namespaceURI;
 
 /** The renderer's template, as far as this module touches it: the sigil-named seam members only. */
 type Template = {
   _$at$?: (parent: Node) => Template;
-  _$ns$?: string;
+  _$ns$?: string | null;
   constructor: new (result: { _$litType$: number; strings: TemplateStringsArray }) => Template;
 };
 
@@ -67,10 +72,11 @@ const variants = new WeakMap<TemplateStringsArray, Record<string, Template>>();
 
 export const namespaces = {
   on: 'template' as const,
+  priority: 50,
   fn: (template: Template, result: TemplateResult, read: () => unknown): void => {
     const type = result._$litType$ ?? 1;
     if (type !== 1) {
-      template._$ns$ = type === 2 ? SVG : MATHML;
+      template._$ns$ = (reference.childNodes[type - 2] as Element).namespaceURI!;
       return;
     }
     template._$at$ = (parent) => {
