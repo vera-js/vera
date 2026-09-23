@@ -47,7 +47,7 @@ const { keyed } = await load('renderer/keyed');
 const { spread } = await load('renderer/spread');
 
 const D = dom.window.document;
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 /** Chosen to cross type boundaries, which is where a reused part has to change strategy. */
 const VALUES = ['text', '', 0, 1, null, undefined, false, true, 42, 'other', ['a', 'b'], [], ['only']];

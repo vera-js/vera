@@ -44,7 +44,7 @@ const { serializeTemplate } = await import('@verajs/ssr');
 const D = dom.window.document;
 
 /** A deterministic LCG, so a failing case replays from its seed alone. */
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 const VALUES = ['v', '', 0, 1, null, undefined, false, true, 'multi word', '<i>', 42];
 

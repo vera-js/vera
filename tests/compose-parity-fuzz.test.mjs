@@ -38,7 +38,7 @@ import { JSDOM } from 'jsdom';
 import { canonical } from './canonical.mjs';
 import { extendSeeds } from './fuzz-seeds.mjs';
 
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 /**
  * One generated tree. The root always has children — a single-component "tree" tests composition of

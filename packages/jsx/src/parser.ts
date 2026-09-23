@@ -7,10 +7,10 @@
  * (shorthand / "string" / {expression}), spreads, children, and nested expression containers,
  * which recurse back into the lexical walk (so `{x && <a>don't</a>}` cannot desync on the quote).
  *
- * `<` starts JSX only where an expression may start (after `( , = ? : ; [ { ! & | + - * / % ^ ~ <
- * >` or `return`/`yield`/`await`/`case`/`typeof`/`void`/`delete`/`in`/`of`/`new`/`do`/`else`, or
- * at the start) AND the attempt parses; a failed attempt falls back to a literal `<` — so
- * comparisons and TS generics (`Array<number>`, `f<T>(x)`, which follow identifiers) never match.
+ * `<` starts JSX only where an expression may start — see `EXPRESSION_PREFIX` and
+ * `EXPRESSION_KEYWORDS` below, which are the list rather than a copy of it that can drift — AND the
+ * attempt parses; a failed attempt falls back to a literal `<`, so comparisons and TS generics
+ * (`Array<number>`, `f<T>(x)`, which follow identifiers) never match.
  */
 
 import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState } from './types.js';
@@ -27,10 +27,12 @@ import type { JsxAttribute, JsxChild, JsxMismatch, JsxNode, JsxRoot, ParseState 
  * untouched and every JSX root in the file was lost, surfacing as `Unexpected token '<'` from
  * whatever ran the output next.
  *
- * `)` is the mirror image and must stay out: `foo(x) < 3` and `f(x) / 2` are ordinary, while the
- * readings that would need it — `if (x) /re/.test(y)` — are a braceless control-flow head, which is
- * rare and which no reading of this set can tell from a call without tracking what opened each
- * paren. Adding it would turn a common comparison into the start of a JSX region.
+ * `)` stays out, and the reason is NOT that a comparison would become a JSX region — measured, it
+ * would not: `foo(x) < 3` and `foo(x) <3` both fail the name-start lookahead below, so the `<` side
+ * is indifferent. It is the `/` side that decides. A `/` after `)` is division far more often than
+ * it is a regex (`f(x) / 2` against a braceless `if (x) /re/.test(y)`), and reading division as a
+ * regex makes `blankLiterals` swallow the rest of the line — taking any binding on it with it, so
+ * the injected import collides and the module will not load.
  */
 const EXPRESSION_PREFIX = new Set([...'(,=?:;[{}!&|+-*/%^~<>', '']);
 const EXPRESSION_KEYWORDS = new Set([

@@ -45,7 +45,7 @@ const realDocument = dom.window.document;
 await import('@verajs/ssr');
 const shimDocument = globalThis.document;
 
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 /** Tag names, attributes and text, depth-first — enough to see a node in the wrong place or gone. */
 const shape = (node) => {

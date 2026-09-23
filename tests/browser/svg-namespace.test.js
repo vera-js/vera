@@ -20,6 +20,7 @@ import { SVG_ICON_HTML } from './fixtures/hello-ssr.html.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const HTML_NS = 'http://www.w3.org/1999/xhtml';
+const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
 
 const upgraded = [];
 class Badge extends HTMLElement {
@@ -134,4 +135,27 @@ it('an icon survives the server, a real parser and declarative shadow DOM', () =
   expect(title.textContent, 'and carries the accessible name').to.equal('Close');
   expect(root.querySelector('circle').namespaceURI, 'every shape in the group').to.equal(SVG_NS);
   host.remove();
+});
+
+/**
+ * **In foreign content the parser puts every start tag in the ADJUSTED CURRENT NODE's namespace.**
+ *
+ * So a `<math>` written inside an `<svg>` is itself an SVG element, and so is everything under it —
+ * which is why `@verajs/jsx` switches mode on `<svg>`/`<math>` only from HTML mode. That guard was
+ * justified in a comment claiming three engines and held by nothing that ran; this is the claim.
+ * It is a statement about the platform, not about the framework, so a jsdom probe is the wrong
+ * instrument for it.
+ */
+it('a nested <math> inside an <svg> is SVG all the way down, in every engine', () => {
+  const container = into();
+  container.innerHTML = '<svg><math><mtext><b>x</b></mtext></math></svg>';
+  expect(container.querySelector('math').namespaceURI, 'the nested <math> is SVG').to.equal(SVG_NS);
+  expect(container.querySelector('mtext').namespaceURI, 'and so is its <mtext>').to.equal(SVG_NS);
+
+  /** CONTROL: from HTML mode a `<math>` really does switch, or the assertion above proves nothing. */
+  const top = into();
+  top.innerHTML = '<math><mtext><b>x</b></mtext></math>';
+  expect(top.querySelector('math').namespaceURI, 'a top-level <math> is MathML').to.equal(MATHML_NS);
+  expect(top.querySelector('mtext').namespaceURI, 'and its <mtext> too').to.equal(MATHML_NS);
+  expect(top.querySelector('b').namespaceURI, '<mtext> is a text integration point').to.equal(HTML_NS);
 });

@@ -39,7 +39,7 @@ for (const k of ['window','document','HTMLElement','customElements','CSSStyleShe
 const core = await load('core');
 const { wire, inserts } = core;
 
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 /** Points that take a plain callback and can be inspected without driving a render. */
 const PRIORITIES = [-10, 0, 1, 5, 10, 25, 50, 51, 99, 100];

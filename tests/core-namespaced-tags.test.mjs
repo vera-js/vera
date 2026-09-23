@@ -149,7 +149,7 @@ test('an html template committed into <svg> or <math> is named in development', 
      * draft could never see.
      *
      * **`<rect>`, not `<path>`, and that is load-bearing.** The diagnostic is deduped per
-     * host-and-tag pair for the life of the module, so a tag any assertion above already used is
+     * host-namespace, host-name, content-namespace and tag pair for the life of the module, so a tag any assertion above already used is
      * spent: reusing `<path>` here asserts `1` and measures `0`. A test for a deduped channel has
      * to bring its own key.
      */
@@ -162,7 +162,7 @@ test('an html template committed into <svg> or <math> is named in development', 
     assert.equal(
       named(html`<svg>${[html`<rect width="2"></rect>`, html`<line x1="2"></line>`]}</svg>`).length,
       0,
-      'and a second list of the SAME tags says nothing: the dedupe is per host-and-tag, for the ' +
+      'and a second list of the SAME tags says nothing: the dedupe is per host namespace, host name, content namespace and tag, for the ' +
         'life of the module, not per insert'
     );
 

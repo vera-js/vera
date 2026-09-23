@@ -427,13 +427,30 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    */
   const js = (() => {
     const parts: string[] = [];
+    /**
+     * An expression's own JSX is cut out of it exactly as the module's is, and this recursion is the
+     * whole point. Pushing the raw slice instead put the markup of a NESTED root — its TEXT children
+     * included — into the scan, so `` {x && <p>Don't stop</p>} `` fed an apostrophe to it, which
+     * opened a string that never closed and blanked every binding after it. That is the same hazard
+     * the outer loop removes for top-level roots, surviving one level in.
+     */
+    const pushExpression = (text: string, base: number, inner: readonly JsxRoot[]): void => {
+      let at = base;
+      for (const root of [...inner].sort((a, b) => a.start - b.start)) {
+        parts.push(code.slice(at, root.start));
+        walk(root.node);
+        at = root.end;
+      }
+      parts.push(code.slice(at, base + text.length));
+    };
     const walk = (node: JsxNode): void => {
       if (node.fragment === undefined)
         for (const attribute of node.attrs)
-          if (attribute.spread === true || attribute.kind === 'expr') parts.push(attribute.text);
+          if (attribute.spread === true || attribute.kind === 'expr')
+            pushExpression(attribute.text, attribute.valueStart, attribute.roots);
       for (const kid of node.children) {
         if ('text' in kid) continue;
-        if ('expr' in kid) parts.push(kid.expr);
+        if ('expr' in kid) pushExpression(kid.expr, kid.exprStart, kid.roots);
         else walk(kid);
       }
     };
@@ -463,6 +480,23 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * characters, and nothing shorter answers it. Newlines survive so the line-anchored import match
    * still works, and delimiters survive so a tag use (`` html` ``) stays visible.
    */
+  /** Whether a `/` at `from` has an unescaped closing `/` before the line ends — see its use below. */
+  const closesOnThisLine = (text: string, from: number): boolean => {
+    let inClass = false;
+    for (let j = from + 1; j < text.length; j++) {
+      const c = text[j];
+      if (c === '\\') {
+        j++;
+        continue;
+      }
+      if (c === '\n') return false;
+      if (c === '[') inClass = true;
+      else if (c === ']') inClass = false;
+      else if (c === '/' && !inClass) return true;
+    }
+    return false;
+  };
+
   const blankLiterals = (text: string): string => {
     let out = '';
     let i = 0;
@@ -573,7 +607,19 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
        * import collide with it. `/^https?:\/\//` is an everyday URL matcher. `parser.ts` has always
        * discriminated this; this walk is the same rule's second address and went without it.
        */
-      if (c === '/' && ((cursor.lastChar = lastChar), (cursor.lastWord = lastWord), atExpressionPosition(cursor))) {
+      /**
+       * A regex only where one can START **and** actually closes on this line. The shared
+       * expression-position test admits `}`, which `findRoots` needs — a regex at statement position
+       * is a root-losing misparse there — but for THIS walk the same admission made
+       * `const q = { a: 1 } / 2, html = 1;` open a regex that ran to end-of-line and swallowed the
+       * binding, so the injected import collided with it. Requiring a closing `/` separates the two
+       * readings cheaply: `/^['"]/.test(s)` has one, a divided object literal does not.
+       */
+      if (
+        c === '/' &&
+        ((cursor.lastChar = lastChar), (cursor.lastWord = lastWord), atExpressionPosition(cursor)) &&
+        closesOnThisLine(text, i)
+      ) {
         out += c;
         i++;
         let inClass = false;
@@ -630,7 +676,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * over it leaves `html is not defined`, and `tests/jsx-twin-parity.test.mjs` is built of such
    * pairs. A TAG POSITION — `<svg`, `</svg` — is markup, never a binding.
    *
-   * What remains is asked as a substring, not parsed. A DECLARATION scan was tried and abandoned:
+   * What remains is asked as a whole WORD, not parsed. A DECLARATION scan was tried and abandoned:
    * a regex for `const|let|var|function|class NAME` misses `const { svg } = vera`, `const [svg] = …`
    * and `let a, svg`, and can never see a parameter. Over-renaming costs an uglier identifier;
    * under-renaming costs the whole module.
@@ -1099,8 +1145,17 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
           (kid) =>
             !('text' in kid) &&
             !('expr' in kid) &&
-            kid.fragment === undefined &&
-            SVG_ELEMENTS.has(kid.tag) &&
+            /**
+             * A nested FRAGMENT vouches through its own children, because `fragmentProof` already
+             * answers that question and a fragment is not a namespace boundary. Asking only about
+             * direct element children gave one authored group two answers depending on its wrapper:
+             * `<><text/><><path/></></>` compiled all-SVG as a fragment root while
+             * `<Frame><text/><><path/></></Frame>` split, leaving an HTML `<text>` inside the
+             * `<svg>` — the invisible-icon bug vouching exists to fix.
+             */
+            (kid.fragment === true
+              ? fragmentProof(kid) === 'svg'
+              : SVG_ELEMENTS.has(kid.tag)) &&
             /** A sibling the compiler is about to REFUSE cannot vouch for the others, or one
              *  authored group is emitted in two namespaces: `<F><text/><g><my-card/></g></F>` kept
              *  the `<g>` HTML for its custom element and upgraded the `<text>` on its word. */

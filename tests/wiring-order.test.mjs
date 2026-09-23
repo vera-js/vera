@@ -41,7 +41,7 @@ const shuffled = (items, seed) => {
   const copy = [...items];
   let state = seed;
   for (let i = copy.length - 1; i > 0; i--) {
-    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    state = (Math.imul(state, 1103515245) + 12345) & 0x7fffffff;
     const j = state % (i + 1);
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }

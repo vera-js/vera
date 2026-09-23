@@ -55,7 +55,7 @@ const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(re
 
 const SEEDS = extendSeeds([20260904, 77, 6161]);
 let seed = 0;
-const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 
 const FALLBACKS = ['F', '<em>E</em>', 'F<!--c-->', '<slot name="i">D</slot>', '<em>E</em><slot name="i">D</slot>', ''];

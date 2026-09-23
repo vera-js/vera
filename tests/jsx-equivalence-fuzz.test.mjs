@@ -33,7 +33,7 @@ const { transformJsx } = await load('jsx');
 import { extendSeeds } from './fuzz-seeds.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 const TAGS = ['div', 'span', 'p', 'b', 'em', 'section'];
 const EXPRESSIONS = ['s.str', 's.num', 's.t', 's.f', 's.arr'];

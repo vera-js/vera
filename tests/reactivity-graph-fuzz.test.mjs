@@ -45,7 +45,7 @@ for (const key of [
 const { createStore } = await load('core');
 const { computed } = await load('store');
 
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 const KEYS = ['a', 'b', 'c'];
 const NUMBERS = [0, 1, 2, 3, -1, 42];

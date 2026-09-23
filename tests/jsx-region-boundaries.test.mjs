@@ -60,12 +60,13 @@ const JSX_FREE = [
   ['what looks like a generic', 'const t = a<b>c;'],
   /**
    * A `}` ends a BLOCK, so what follows it is at statement position — a regex, or a JSX root. These
-   * are the JSX-FREE half of that: an object literal that really is divided or compared. Both are
-   * odd code, which is exactly why `}` can be read as ending a block, and they are here so the
-   * reading is a decision rather than an assumption.
+   * are the JSX-FREE half of that, and the `}` has to be the character IMMEDIATELY before the
+   * operator or the entry is never consulted: a first version divided `.a` and `a`, two tokens
+   * later, and passed identically with `}` in the set or out of it.
    */
-  ['an object literal divided', 'const q = ({ a: 1 }).a / 2;'],
-  ['a block then a division', 'function f() {}\nconst q = a / b;'],
+  ['an object literal divided', 'const q = { a: 1 } / 2;'],
+  ['an object literal compared', 'const q = { a: 1 } < 2;'],
+  ['a block then a division', 'function f() {}\n/ 2;'],
   ['a regex after a block', 'function f() {}\n/^a/.test(s);'],
   ['a regex after an arrow body', 'const f = () => {};\n/^a/.test(s);'],
 ];

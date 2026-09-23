@@ -65,7 +65,7 @@ const one = D.getElementById('one');
 const two = D.getElementById('two');
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 const SEEDS = extendSeeds([4, 17, 31, 66, 123, 9001]);
 const ROUNDS = 12;

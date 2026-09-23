@@ -349,9 +349,10 @@ assert.ok(/c = \(\) => html`<g><title/.test(titleExpr), 'CONTROL: a STATIC eleme
 /**
  * **`<svg>`/`<math>` switch mode only FROM HTML mode**, because in foreign content the parser puts
  * every start tag in the ADJUSTED CURRENT NODE's namespace: inside an `<svg>`, a `<math>` element
- * is itself SVG and so is everything under it. Verified in three engines. Nothing in the tree
- * compiled a nested `<svg><math>` before this, so reverting the guard to the unconditional form
- * passed the ENTIRE fast suite — 1770 tests — without a murmur.
+ * is itself SVG and so is everything under it. That is the PLATFORM's rule, so it is pinned where a
+ * platform rule can be — `tests/browser/svg-namespace.test.js`, on Chromium, Firefox and WebKit —
+ * rather than asserted in a comment here. Nothing in the tree compiled a nested `<svg><math>` before
+ * this, so reverting the guard to the unconditional form passed the entire fast suite unnoticed.
  */
 const nested = transformJsx(
   `export const a = () => <svg><math><mtext>{c && <my-card />}</mtext></math></svg>;
@@ -431,6 +432,25 @@ const vouchers = transformJsx(
 );
 assert.ok(/a = .*children: \[html`<text/.test(vouchers), 'a refused sibling does not vouch — the group agrees');
 assert.ok(/b = .*children: \[svg`<text/.test(vouchers), 'CONTROL: a sibling that survives does vouch');
+
+/**
+ * **A nested FRAGMENT vouches through its own children**, because `fragmentProof` already answers
+ * that question and a fragment is not a namespace boundary. Asking only about direct element
+ * children gave one authored tree two answers depending on its wrapper: all-SVG as a fragment root,
+ * split under a component — leaving an HTML `<title>` inside `Frame`'s `<svg>`, which is the
+ * invisible-icon bug vouching exists to fix.
+ */
+const fragVouch = transformJsx(
+  `const F = ({ children }) => <svg>{children}</svg>;
+   export const a = () => <F><text>L</text><><path d="M0" /></></F>;
+   export const b = () => <F><title>T</title><><circle r="1" /></></F>;
+   export const c = () => <F><text>L</text><><b>x</b></></F>;`,
+  'fv.jsx',
+  { inject: false }
+);
+assert.ok(/a = .*children: \[svg`<text/.test(fragVouch), 'a fragment holding a shape vouches for its sibling');
+assert.ok(/b = .*children: \[svg`<title/.test(fragVouch), 'including for the canonical accessible icon');
+assert.ok(/c = .*children: \[html`<text/.test(fragVouch), 'CONTROL: a fragment proving nothing vouches for nothing');
 
 /** camelCase stays out even with a sibling: its hazard is SSR casing, which a sibling cannot speak to. */
 const camel = transformJsx(

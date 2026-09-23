@@ -37,7 +37,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 
 const SEEDS = extendSeeds([171717, 292929, 434343, 565656, 787878, 909090]);
 let seed = 0;
-const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 
 test('same-frame storms end where native slotting ends', async () => {

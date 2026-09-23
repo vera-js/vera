@@ -46,7 +46,7 @@ const derive = (key, count) => {
   const out = [];
   let s = (h & 0x7fffffff) || 1;
   while (out.length < count) {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    s = (Math.imul(s, 1103515245) + 12345) & 0x7fffffff;
     if (s > 0) out.push(s);
   }
   return out;

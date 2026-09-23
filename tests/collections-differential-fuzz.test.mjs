@@ -42,7 +42,7 @@ const { collections } = await load('store/collections');
 core.wire([collections]);
 const { createStore } = core;
 
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 const KEYS = ['a', 'b', 'c', 1, 2, true, null];
 const VALUES = ['x', 'y', 0, null, undefined, { tag: 'obj' }];

@@ -35,13 +35,13 @@ test('every sibling group renders in the namespace the rule promises', async () 
   const SVG = 'http://www.w3.org/2000/svg';
 
   const silence = console.warn;
-    console.warn = () => {};
-    const dir = mkdtempSync(join(process.cwd(), 'node_modules', '.ns-corpus-'));
+  console.warn = () => {};
+  const dir = mkdtempSync(join(process.cwd(), 'node_modules', '.ns-corpus-'));
   let n = 0;
   const compile = async (body) => {
     const src = `const Frame = ({ children }) => <svg viewBox="0 0 24 24">{children}</svg>;
-  const Box = ({ children }) => <div class="box">{children}</div>;
-  export const view = () => ${body};`;
+const Box = ({ children }) => <div class="box">{children}</div>;
+export const view = () => ${body};`;
     const f = join(dir, `m${n++}.mjs`);
     writeFileSync(f, transformJsx(src, 'ns.jsx', { inject: true }));
     return (await import(pathToFileURL(f).href)).view;
@@ -103,7 +103,15 @@ test('every sibling group renders in the namespace the rule promises', async () 
   await check('custom element sibling', `<Frame><text>L</text><my-badge /><path d="M0" /></Frame>`, 'text', 'Frame', 'SVG');
   await check('custom element stays HTML', `<Frame><text>L</text><my-badge /><path d="M0" /></Frame>`, 'my-badge', 'Frame', 'HTML');
   await check('expression sibling only', `<Frame><text>L</text>{1 && 2}</Frame>`, 'text', 'Frame', 'HTML');
-  await check('nested fragment vouch', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'text', 'Frame', 'HTML');
+  /**
+   * A nested FRAGMENT vouches through its own children — `fragmentProof` answers that question and a
+   * fragment is not a namespace boundary. This row asserted HTML while the component path asked only
+   * about direct element children, which pinned the SPLIT: all-SVG as a fragment root, divided under
+   * a component. Both halves are asserted now, because pinning one of them is what hid it.
+   */
+  await check('nested fragment vouch', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'text', 'Frame', 'SVG');
+  await check('nested fragment vouch: the shape', `<Frame><text>L</text><><path d="M0" /></></Frame>`, 'path', 'Frame', 'SVG');
+  await check('fragment proving nothing', `<Frame><text>L</text><><b>x</b></></Frame>`, 'text', 'Frame', 'HTML');
   /**
    * The island rule needs an UPGRADEABLE root to be reached at all. Probed at the top level,
    * `<foreignObject>` is camelCase — in neither set — so the root is refused before

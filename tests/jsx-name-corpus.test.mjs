@@ -79,6 +79,7 @@ const PRELUDES = [
   "const S2 = `${zn} ${ /^['\"]/.test('x') }`;\nconst NAME = 1;",
   "const qs = 'w' / 2; const NAME = 1;",
   'const N2 = `A${ zf({ k: `B${zn}C` }) }D`;\nconst NAME = 1;',
+  'const q = { a: 1 } / 2, NAME = 1;',
 ];
 
 /** Each makes the transform inject at least one name; two also TAG by hand, beside their JSX. */
@@ -95,6 +96,9 @@ const BODIES = [
   'export const view = <Frame><path d="M0" /><circle r="1" /></Frame>;',
   'export function view() {\n  return html`<b>t</b>`;\n}\nexport const other = <div>hi</div>;',
   'export const view = () => <Frame><title>T</title><path d="M0" /></Frame>;',
+  "export const view = (x) => <div>{x && <p>Don't stop</p>}</div>;",
+  'export const view = (x) => <div>{x && <p>a ` b</p>}</div>;',
+  'export const view = (x) => <div title={x && <p>it\'s</p>}>y</div>;',
 ];
 
 const NAMES = ['html', 'svg', 'keyed', 'spread', 'mathml'];

@@ -52,7 +52,7 @@ const doc = dom.window.document;
 
 const SEEDS = extendSeeds([20260904, 5, 313, 88888]);
 let seed = 0;
-const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 
 /** The shapes where the fallback region is not simply the fallback: comments, nesting, emptiness. */

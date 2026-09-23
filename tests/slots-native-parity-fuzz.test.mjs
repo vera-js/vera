@@ -41,7 +41,7 @@ const template = (markup) => ({ strings: Object.assign([markup], { raw: [markup]
  */
 const SEEDS = extendSeeds([20260903, 11, 4242, 99991, 7777777]);
 let seed = 0;
-const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 const NAMES = ['a', 'b', '', null];
 

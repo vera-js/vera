@@ -47,7 +47,7 @@ const VALUE_HOST = /content: ":host"|url\(\/x\/:host\.png\)/g;
 
 test('the :host rewrite never touches a value, an escaped identifier, or the rule count', async () => {
   let seed = rotateScalar(424242);
-  const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
   const pick = (list) => list[Math.floor(random() * list.length)];
 
   /** The package warns once about the missing `@scope` under jsdom; it is expected, not the subject. */

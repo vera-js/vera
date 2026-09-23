@@ -48,7 +48,7 @@ const { html } = await load('core');
 const { renderInto } = await load('renderer');
 
 const D = dom.window.document;
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 const click = (element) => element.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
 const SEEDS = extendSeeds([6, 15, 28, 73, 190, 5150]);

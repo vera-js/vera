@@ -82,7 +82,7 @@ const rows = (element) => [...element.querySelectorAll('li')].map((node) => node
 
   /** Seeded, because a reconciliation bug that only some orderings hit must be reproducible. */
   let seed = 42;
-  const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const random = () => (seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff;
   const shuffled = [...keys].sort(() => random() - 0.5);
   draw(shuffled);
 

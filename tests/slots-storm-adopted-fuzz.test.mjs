@@ -45,7 +45,7 @@ const away = () => html`<p>away</p>`;
 
 const SEEDS = extendSeeds([181818, 242424, 363636, 484848, 606060, 727272]);
 let seed = 0;
-const random = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const random = () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
 const pick = (list) => list[Math.floor(random() * list.length)];
 
 test('adopted-seam storms end where native slotting ends', async () => {

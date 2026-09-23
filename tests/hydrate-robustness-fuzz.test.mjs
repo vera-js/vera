@@ -45,7 +45,7 @@ const { renderInto: hydrateInto } = await load('renderer/hydrate');
 const { serializeTemplate } = await import('@verajs/ssr');
 
 const D = dom.window.document;
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 /** One function per shape, so the server and client renders share a call site. */
 const SHAPES = [

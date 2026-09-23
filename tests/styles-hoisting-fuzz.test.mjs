@@ -49,7 +49,7 @@ const { init, render, html, css } = core;
 const D = dom.window.document;
 const host = D.getElementById('host');
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(() => setTimeout(resolve, 0)));
-const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff), seed / 0x7fffffff);
+const rng = (seed) => () => ((seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff), seed / 0x7fffffff);
 
 /** Everything this page has hoisted, as text. */
 const hoisted = () => [...D.querySelectorAll('style')].map((node) => node.textContent ?? '').join('\n');
