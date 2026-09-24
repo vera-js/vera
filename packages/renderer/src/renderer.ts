@@ -1018,8 +1018,9 @@ const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: 
     const advice =
       built === 'HTML'
         ? `If it is meant to be an SVG or MathML element, the template holding it needs the ` +
-          `svg\`…\` or mathml\`…\` tag — the tag is chosen where a template is WRITTEN, not where ` +
-          `it is used, so write it at the call site. If it is genuinely HTML (a <div>, a custom ` +
+          `svg\`…\` or mathml\`…\` tag at the call site — or, with @verajs/jsx, import ` +
+          `'@verajs/jsx/namespaces' in the app's entry: a template built before that module loaded ` +
+          `keeps the namespace it was first built in. If it is genuinely HTML (a <div>, a custom ` +
           `element), it belongs in ${island}: tagging it will not help, and a custom element only ` +
           `upgrades in the HTML namespace.`
         : `The template's tag is already right — these two namespaces cannot nest directly. Put ` +
