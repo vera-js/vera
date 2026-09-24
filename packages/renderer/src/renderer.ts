@@ -796,7 +796,10 @@ class Template {
       }
     }
     const hooks = registry?.get('template') as TemplateHook[] | undefined;
-    if (hooks !== undefined) for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope);
+    if (hooks !== undefined) {
+      create.hooked = true;
+      for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope);
+    }
   }
 }
 
@@ -1043,10 +1046,13 @@ const resolve = (result: TemplateResult, parent: Node): Template => {
 };
 const instantiate = (template: Template, values: unknown[]): Instance => {
   const instance = new Instance(template);
-  const outer = create.scope;
-  create.scope = template;
-  instance._update(values);
-  create.scope = outer;
+  /** Kept only once a `'template'` hook exists: an app that wires none pays one boolean, never the scope. */
+  if (create.hooked) {
+    const outer = create.scope;
+    create.scope = template;
+    instance._update(values);
+    create.scope = outer;
+  } else instance._update(values);
   return instance;
 };
 const build = (result: TemplateResult, parent: Node): Instance => instantiate(resolve(result, parent), result.values);
@@ -2086,7 +2092,7 @@ let registry: { get(name: 'value' | 'slot' | 'template'): unknown[] | undefined 
  * the template whose instance that fragment is, or, for a non-template list row, `[its list's
  * parent, the scope outside it]`. Opaque to the renderer, which only keeps it.
  */
-const create = { scope: null as unknown };
+const create = { scope: null as unknown, hooked: false };
 const readScope = () => create.scope;
 
 /**
@@ -2691,10 +2697,12 @@ class ChildPart implements Part {
     const part = createMarkeredPart(parent, ref);
     /** The row's own destination, so a batched fill resolves like the template branches above. */
     if (__DEV__ && parent.nodeType === 11) part._foreignHost = this._start.parentNode;
-    const outer = create.scope;
-    create.scope = [this._start.parentNode, outer];
-    part._set(value);
-    create.scope = outer;
+    if (create.hooked) {
+      const outer = create.scope;
+      create.scope = [this._start.parentNode, outer];
+      part._set(value);
+      create.scope = outer;
+    } else part._set(value);
     return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
   }
 
