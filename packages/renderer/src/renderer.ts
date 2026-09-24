@@ -1042,10 +1042,10 @@ const resolve = (result: TemplateResult, parent: Node): Template => {
 };
 const instantiate = (template: Template, values: unknown[]): Instance => {
   const instance = new Instance(template);
-  const outer = scope;
-  scope = template;
+  const outer = create.scope;
+  create.scope = template;
   instance._update(values);
-  scope = outer;
+  create.scope = outer;
   return instance;
 };
 const build = (result: TemplateResult, parent: Node): Instance => instantiate(resolve(result, parent), result.values);
@@ -2076,15 +2076,17 @@ type ValueHandler = (part: object, value: unknown) => boolean | void;
 let registry: { get(name: 'value' | 'slot' | 'template'): unknown[] | undefined } | null = null;
 
 /**
- * **The create-path scope** — what the fragment being built right now will land in, as far as a
+ * **The create-path scope** (held on an object, not in a module-level `let`: WebKit checks a `let`
+ * for its temporal dead zone on every access, and on this path that measured ~1% of creating a small
+ * SVG row) — what the fragment being built right now will land in, as far as a
  * `'template'` hook needs to know. Set around an instance's FIRST update and a list row's creation,
  * restored after; the update path never touches it, and no part carries it. A position whose parent
  * is still a detached fragment cannot be asked where it is, and this is the answer it gets instead:
  * the template whose instance that fragment is, or, for a non-template list row, `[its list's
  * parent, the scope outside it]`. Opaque to the renderer, which only keeps it.
  */
-let scope: unknown = null;
-const readScope = () => scope;
+const create = { scope: null as unknown };
+const readScope = () => create.scope;
 
 /**
  * **The `'template'` insert point: `(template, result, readScope) => void`, called once as each
@@ -2688,10 +2690,10 @@ class ChildPart implements Part {
     const part = createMarkeredPart(parent, ref);
     /** The row's own destination, so a batched fill resolves like the template branches above. */
     if (__DEV__ && parent.nodeType === 11) part._foreignHost = this._start.parentNode;
-    const outer = scope;
-    scope = [this._start.parentNode, outer];
+    const outer = create.scope;
+    create.scope = [this._start.parentNode, outer];
     part._set(value);
-    scope = outer;
+    create.scope = outer;
     return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
   }
 
