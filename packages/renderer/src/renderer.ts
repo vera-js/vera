@@ -1050,17 +1050,6 @@ const instantiate = (template: Template, values: unknown[]): Instance => {
 };
 const build = (result: TemplateResult, parent: Node): Instance => instantiate(resolve(result, parent), result.values);
 
-/**
- * **The last list fill's resolution**, so a fill resolves once rather than once per row. Every row of
- * a batched fill lands in the same fragment, so a row with the same strings as the one before it
- * takes the same template — one identity compare instead of a cache lookup and a resolver call.
- * Only a FRAGMENT is remembered: it is empty once inserted, so holding it keeps nothing alive, while
- * remembering a live parent would pin a removed subtree. A nested list's fill overwrites it, and the
- * outer fill's next row simply resolves again.
- */
-let fillParent: Node | null = null;
-let fillStrings: TemplateStringsArray | null = null;
-let fillTemplate: Template | null = null;
 
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
@@ -2618,16 +2607,7 @@ class ChildPart implements Part {
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
-      let template: Template;
-      if (parent === fillParent && result.strings === fillStrings) template = fillTemplate!;
-      else {
-        template = resolve(result, this._start.parentNode!);
-        if (parent.nodeType === 11) {
-          fillParent = parent;
-          fillStrings = result.strings;
-          fillTemplate = template;
-        }
-      }
+      const template = resolve(result, this._start.parentNode!);
       const instance = instantiate(template, result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
