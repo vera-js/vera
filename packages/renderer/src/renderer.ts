@@ -2478,7 +2478,15 @@ class ChildPart implements Part {
         _profileHook(this._mode === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, value.strings);
       }
       if (this._mode !== EMPTY) this._clear();
-      const instance = build(value, this._start.parentNode!);
+      let template = getTemplate(value);
+      if (template._$at$ !== undefined) template = template._$at$(this._start.parentNode!);
+      const instance = new Instance(template);
+      if (create.hooked) {
+        const outer = create.scope;
+        create.scope = template;
+        instance._update(value.values);
+        create.scope = outer;
+      } else instance._update(value.values);
       /**
        * The instance's top-level nodes, recorded while they are still in the fragment. `_value`
        * is unused in TEMPLATE mode, and this is what lets `_clear` and `hold`'s parking find the
@@ -2635,7 +2643,13 @@ class ChildPart implements Part {
           fillTemplate = template;
         }
       }
-      const instance = instantiate(template, result.values);
+      const instance = new Instance(template);
+      if (create.hooked) {
+        const outer = create.scope;
+        create.scope = template;
+        instance._update(result.values);
+        create.scope = outer;
+      } else instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
         if (stamp !== null) stampOwn(rootNode, stamp);
