@@ -12,10 +12,10 @@
  * Options: { inject: false } to skip auto-imports, { html: ['html', 'my-module'] } and
  * { keyed: ['keyed', 'my-module'] } to retarget them.
  */
-import { transformJsx } from './transform.js';
+import { importSites, transformJsx } from './transform.js';
 import type { VeraJsxOptions } from './types.js';
 
-export { transformJsx };
+export { importSites, transformJsx };
 export type { VeraJsxOptions } from './types.js';
 
 export const veraJsx = (options: VeraJsxOptions = {}) => ({

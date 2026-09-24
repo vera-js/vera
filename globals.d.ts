@@ -13,3 +13,9 @@ declare const __DEV__: boolean;
  * folds the adoption branches out of it — see `defineDev` in `defaultRollupConfig.js`.
  */
 declare const __HYDRATING__: boolean;
+
+/**
+ * `@verajs/jsx`'s own version, replaced by its rollup config. The standalone loader keys its cache of
+ * compiled files by it, so upgrading the compiler can never serve output an older one produced.
+ */
+declare const __JSX_VERSION__: string;

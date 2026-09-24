@@ -157,3 +157,10 @@ export type JsxRoot = {
   end: number;
   node: JsxNode;
 };
+
+/**
+ * One import in a module's text, located by `importSites`: a static or dynamic specifier (its quotes
+ * excluded), or an `import.meta.url` (`specifier` empty). `from` is where a dynamic `import(` begins,
+ * so the loader can replace the call and not only its argument.
+ */
+export type ImportSite = { start: number; end: number; specifier: string; kind: 'static' | 'dynamic' | 'meta'; from?: number };

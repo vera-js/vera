@@ -1,6 +1,6 @@
 import { RESERVED_ELEMENT_NAMES, VOID_ELEMENTS } from '@verajs/shared-utils';
 import { atExpressionPosition, createParseState, findRoots, isBlankExpression, mark } from './parser.js';
-import type { JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
+import type { ImportSite, JsxAttribute, JsxChild, JsxNode, JsxRoot, VeraJsxOptions } from './types.js';
 
 /**
  * JSX/TSX -> Vera tagged templates. Compile-time only, ZERO dependencies: the scanner/parser in
@@ -113,6 +113,256 @@ const collapseText = (raw: string): string => {
  * Transforms JSX/TSX source to plain JS/TS using Vera tagged templates. Returns the code
  * unchanged when it contains no JSX.
  */
+/**
+ * **The JavaScript with every comment, string and template-literal CONTENT blanked**, delimiters
+ * and newlines kept, so the two questions below read code and never prose.
+ *
+ * A pair of regexes did this and was wrong in BOTH directions, each fatally. Blanking `` `…` ``
+ * non-recursively inverts on a NESTED literal — `` `A ${`B`} C` `` pairs the first backtick with
+ * the second, so A and C are blanked and B LEAKS — and a fake `import { html } from …` inside B
+ * then suppressed the injection for `html is not defined`. In the other direction a lone backtick
+ * inside a string (`` const hint = "wrap in `" ``) paired with the next real literal and ATE the
+ * binding between them, so a real `const { html } = vera` went unseen and the injected import
+ * collided with it. `//` inside `'https://…'` and `/*` as a string's contents do the same.
+ *
+ * Hence a scan rather than a pattern: whether a token is inside a literal is a question about
+ * characters, and nothing shorter answers it. Newlines survive so the line-anchored import match
+ * still works, and delimiters survive so a tag use (`` html` ``) stays visible.
+ */
+const blankLiterals = (text: string): string => {
+  let out = '';
+  let i = 0;
+  /**
+   * Open template literals, and the BRACE DEPTH inside the innermost `${…}`. A bare `}` counter
+   * assumed every `}` closed an interpolation, so an object literal, a destructuring pattern or a
+   * block inside one ended it early — `` `${ n ? f({ n }) : `it's empty` }` `` then read the
+   * NESTED template's opening backtick as a closing one and spilled its text into code, where an
+   * apostrophe opened a fake string and ate the binding after it.
+   */
+  const open: number[] = [];
+  /**
+   * The expression-position heuristic is `parser.ts`'s, and so is the cursor it reads: this walk
+   * keeps the REAL `ParseState` and records into it with the same `mark`, rather than a private
+   * pair of `lastChar`/`lastWord` locals kept in step by hand. That copy is what "one rule, two
+   * addresses" cost here — it had drifted again by the time it was removed, marking a non-word
+   * character as a whole `lastWord` where `scanCode` clears it.
+   */
+  const cursor = createParseState(text);
+  const eatTemplate = () => {
+    while (i < text.length) {
+      if (text[i] === '\\') {
+        out += '  ';
+        i += 2;
+        continue;
+      }
+      if (text[i] === '`') {
+        out += '`';
+        i++;
+        open.pop();
+        /** A finished template is a VALUE, so a `/` after it is division — `parser.ts` agrees. */
+        mark(cursor, '`');
+        return;
+      }
+      if (text[i] === '$' && text[i + 1] === '{') {
+        out += '${';
+        i += 2;
+        open[open.length - 1] = 0;
+        /** Inside `${` an expression STARTS, so a leading `/` opens a regex. Leaving the cursor at
+         *  whatever preceded the literal read it as division and blanked the rest of the file. */
+        mark(cursor, '{');
+        return;
+      }
+      out += text[i] === '\n' ? '\n' : ' ';
+      i++;
+    }
+  };
+  while (i < text.length) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (c === '/' && next === '/') {
+      while (i < text.length && text[i] !== '\n') {
+        out += ' ';
+        i++;
+      }
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      const close = text.indexOf('*/', i + 2);
+      const stop = close < 0 ? text.length : close + 2;
+      for (; i < stop; i++) {
+        if (text[i] === '\n') cursor.brokeLine = true;
+        out += text[i] === '\n' ? '\n' : ' ';
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      out += c;
+      i++;
+      while (i < text.length && text[i] !== c) {
+        if (text[i] === '\\') {
+          out += '  ';
+          i += 2;
+          continue;
+        }
+        out += text[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+      if (i < text.length) {
+        out += c;
+        i++;
+      }
+      /** A finished string is a VALUE too. Without this `const qs = 'w' / 2;` read the `/` as a
+       *  regex opener and swallowed the binding on the same line. */
+      mark(cursor, "'");
+      continue;
+    }
+    if (c === '`') {
+      open.push(0);
+      out += c;
+      i++;
+      eatTemplate();
+      continue;
+    }
+    /**
+     * Braces inside an interpolation are code, so they are MARKED like any other character — as
+     * `scanCode` marks them. Counting them without marking left the walk holding whatever preceded
+     * the `{`, so in `` `${(function () { /'/.test(x); })()}` `` the `)` before the block made the
+     * regex read as division, its quote blanked the rest of the module, and a binding went with it.
+     */
+    if (c === '{' && open.length > 0) {
+      open[open.length - 1]! += 1;
+      out += c;
+      i++;
+      mark(cursor, c);
+      continue;
+    }
+    if (c === '}' && open.length > 0) {
+      out += c;
+      i++;
+      if (open[open.length - 1]! > 0) {
+        open[open.length - 1]! -= 1;
+        mark(cursor, c);
+      } else eatTemplate();
+      continue;
+    }
+    /**
+     * A REGEX literal, which the walk used to copy as code — so `/^['"]/` opened a fake string on
+     * its quote and blanked the real source after it, hiding a binding and letting the injected
+     * import collide with it. `/^https?:\/\//` is an everyday URL matcher. `parser.ts` has always
+     * discriminated this; this walk is the same rule's second address and went without it.
+     */
+    /**
+     * A regex exactly where `parser.ts` says one may start — the same call, not a second opinion,
+     * because the two walks disagreeing is what produced three separate defects in this audit.
+     *
+     * A closing-slash look-ahead used to guard this as well and is gone: it could not tell a
+     * terminator from a slash inside a later string, and skipping strings to fix that broke every
+     * regex carrying a quote or a backtick. The `}` line-break rule in `atExpressionPosition`
+     * answers the same question properly.
+     *
+     * **A regex never contains a line break, so reaching one UNDOES the reading** — the blanking is
+     * rolled back and the `/` is division. `scanCode` can bail at a newline "without harm" because it
+     * only moves a cursor; this walk writes as it goes, so bailing without the rollback blanked the
+     * rest of the line — an object literal divided ACROSS lines (`{ a: 1 }` newline `/ 2, html = 1`)
+     * lost its binding and the injected import collided with it. What remains is an object literal
+     * divided on its own line with a SECOND slash later on that line, which a line-bounded walk
+     * cannot tell from a regex — the same residual as a `}` sharing its line with one.
+     */
+    if (c === '/' && ((cursor.i = i), atExpressionPosition(cursor))) {
+      out += c;
+      i++;
+      const body = i;
+      const kept = out.length;
+      let closed = false;
+      let inClass = false;
+      while (i < text.length) {
+        const r = text[i];
+        if (r === '\\') {
+          out += '  ';
+          i += 2;
+          continue;
+        }
+        if (r === '\n') break;
+        if (r === '[') inClass = true;
+        else if (r === ']') inClass = false;
+        else if (r === '/' && !inClass) {
+          out += '/';
+          i++;
+          closed = true;
+          break;
+        }
+        out += ' ';
+        i++;
+      }
+      if (!closed) {
+        out = out.slice(0, kept);
+        i = body;
+        mark(cursor, '/');
+        continue;
+      }
+      while (i < text.length && /[a-z]/.test(text[i]!)) {
+        out += text[i];
+        i++;
+      }
+      mark(cursor, '/');
+      continue;
+    }
+    if (/\S/.test(c!)) {
+      /** Member names are not keywords — `parser.ts`'s `scanCode` marks them the same way, and the
+       *  two walks answering differently is what let `timings.in / 2, html = 1` eat its binding
+       *  here while the parser read it correctly. */
+      mark(
+        cursor,
+        c!,
+        /[\w$]/.test(c!)
+          ? /[\w$]/.test(cursor.lastChar)
+            ? cursor.lastWord + c
+            : cursor.lastChar === '.'
+              ? `.${c}`
+              : c!
+          : ''
+      );
+    } else if (c === '\n') {
+      cursor.brokeLine = true;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+};
+
+/**
+ * **Where a module's imports are**, for `@verajs/jsx/standalone`'s loader: every static
+ * `import … from`/`export … from`/bare `import '…'` specifier, every string-literal `import('…')`,
+ * and every `import.meta.url` — as offsets into `code`, found in `blankLiterals`' copy so an `import`
+ * written inside a string, a comment or a template's text is never mistaken for one. The copy keeps
+ * every offset, so each specifier is sliced from the ORIGINAL at the positions the blanked text gave.
+ */
+export const importSites = (code: string): ImportSite[] => {
+  const blank = blankLiterals(code);
+  const sites: ImportSite[] = [];
+  const quoted = (open: number): ImportSite | null => {
+    const quote = blank[open];
+    const close = blank.indexOf(quote!, open + 1);
+    return close < 0 ? null : { start: open + 1, end: close, specifier: code.slice(open + 1, close), kind: 'static' };
+  };
+  for (const m of blank.matchAll(/(?:^|[;\n}])\s*(?:import|export)\b[^;'"`]*?\bfrom\s*(['"])/g)) {
+    const site = quoted(m.index! + m[0].length - 1);
+    if (site) sites.push(site);
+  }
+  for (const m of blank.matchAll(/(?:^|[;\n}])\s*import\s*(['"])/g)) {
+    const site = quoted(m.index! + m[0].length - 1);
+    if (site) sites.push(site);
+  }
+  for (const m of blank.matchAll(/(?<![\w$.])import\s*\(\s*(['"])/g)) {
+    const site = quoted(m.index! + m[0].length - 1);
+    if (site) sites.push({ ...site, kind: 'dynamic', from: m.index! });
+  }
+  for (const m of blank.matchAll(/(?<![\w$.])import\s*\.\s*meta\s*\.\s*url\b/g))
+    sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'meta' });
+  return sites.sort((a, b) => a.start - b.start);
+};
+
 export const transformJsx = (code: string, fileName = 'module.jsx', options: VeraJsxOptions = {}): string => {
   /**
    * The cheap gate, and it has to admit every name `parser.ts` admits — `isNameStart` there is
@@ -227,223 +477,6 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     return parts.join('\n;');
   })();
 
-  /**
-   * **The JavaScript with every comment, string and template-literal CONTENT blanked**, delimiters
-   * and newlines kept, so the two questions below read code and never prose.
-   *
-   * A pair of regexes did this and was wrong in BOTH directions, each fatally. Blanking `` `…` ``
-   * non-recursively inverts on a NESTED literal — `` `A ${`B`} C` `` pairs the first backtick with
-   * the second, so A and C are blanked and B LEAKS — and a fake `import { html } from …` inside B
-   * then suppressed the injection for `html is not defined`. In the other direction a lone backtick
-   * inside a string (`` const hint = "wrap in `" ``) paired with the next real literal and ATE the
-   * binding between them, so a real `const { html } = vera` went unseen and the injected import
-   * collided with it. `//` inside `'https://…'` and `/*` as a string's contents do the same.
-   *
-   * Hence a scan rather than a pattern: whether a token is inside a literal is a question about
-   * characters, and nothing shorter answers it. Newlines survive so the line-anchored import match
-   * still works, and delimiters survive so a tag use (`` html` ``) stays visible.
-   */
-  const blankLiterals = (text: string): string => {
-    let out = '';
-    let i = 0;
-    /**
-     * Open template literals, and the BRACE DEPTH inside the innermost `${…}`. A bare `}` counter
-     * assumed every `}` closed an interpolation, so an object literal, a destructuring pattern or a
-     * block inside one ended it early — `` `${ n ? f({ n }) : `it's empty` }` `` then read the
-     * NESTED template's opening backtick as a closing one and spilled its text into code, where an
-     * apostrophe opened a fake string and ate the binding after it.
-     */
-    const open: number[] = [];
-    /**
-     * The expression-position heuristic is `parser.ts`'s, and so is the cursor it reads: this walk
-     * keeps the REAL `ParseState` and records into it with the same `mark`, rather than a private
-     * pair of `lastChar`/`lastWord` locals kept in step by hand. That copy is what "one rule, two
-     * addresses" cost here — it had drifted again by the time it was removed, marking a non-word
-     * character as a whole `lastWord` where `scanCode` clears it.
-     */
-    const cursor = createParseState(text);
-    const eatTemplate = () => {
-      while (i < text.length) {
-        if (text[i] === '\\') {
-          out += '  ';
-          i += 2;
-          continue;
-        }
-        if (text[i] === '`') {
-          out += '`';
-          i++;
-          open.pop();
-          /** A finished template is a VALUE, so a `/` after it is division — `parser.ts` agrees. */
-          mark(cursor, '`');
-          return;
-        }
-        if (text[i] === '$' && text[i + 1] === '{') {
-          out += '${';
-          i += 2;
-          open[open.length - 1] = 0;
-          /** Inside `${` an expression STARTS, so a leading `/` opens a regex. Leaving the cursor at
-           *  whatever preceded the literal read it as division and blanked the rest of the file. */
-          mark(cursor, '{');
-          return;
-        }
-        out += text[i] === '\n' ? '\n' : ' ';
-        i++;
-      }
-    };
-    while (i < text.length) {
-      const c = text[i];
-      const next = text[i + 1];
-      if (c === '/' && next === '/') {
-        while (i < text.length && text[i] !== '\n') {
-          out += ' ';
-          i++;
-        }
-        continue;
-      }
-      if (c === '/' && next === '*') {
-        const close = text.indexOf('*/', i + 2);
-        const stop = close < 0 ? text.length : close + 2;
-        for (; i < stop; i++) {
-          if (text[i] === '\n') cursor.brokeLine = true;
-          out += text[i] === '\n' ? '\n' : ' ';
-        }
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        out += c;
-        i++;
-        while (i < text.length && text[i] !== c) {
-          if (text[i] === '\\') {
-            out += '  ';
-            i += 2;
-            continue;
-          }
-          out += text[i] === '\n' ? '\n' : ' ';
-          i++;
-        }
-        if (i < text.length) {
-          out += c;
-          i++;
-        }
-        /** A finished string is a VALUE too. Without this `const qs = 'w' / 2;` read the `/` as a
-         *  regex opener and swallowed the binding on the same line. */
-        mark(cursor, "'");
-        continue;
-      }
-      if (c === '`') {
-        open.push(0);
-        out += c;
-        i++;
-        eatTemplate();
-        continue;
-      }
-      /**
-       * Braces inside an interpolation are code, so they are MARKED like any other character — as
-       * `scanCode` marks them. Counting them without marking left the walk holding whatever preceded
-       * the `{`, so in `` `${(function () { /'/.test(x); })()}` `` the `)` before the block made the
-       * regex read as division, its quote blanked the rest of the module, and a binding went with it.
-       */
-      if (c === '{' && open.length > 0) {
-        open[open.length - 1]! += 1;
-        out += c;
-        i++;
-        mark(cursor, c);
-        continue;
-      }
-      if (c === '}' && open.length > 0) {
-        out += c;
-        i++;
-        if (open[open.length - 1]! > 0) {
-          open[open.length - 1]! -= 1;
-          mark(cursor, c);
-        } else eatTemplate();
-        continue;
-      }
-      /**
-       * A REGEX literal, which the walk used to copy as code — so `/^['"]/` opened a fake string on
-       * its quote and blanked the real source after it, hiding a binding and letting the injected
-       * import collide with it. `/^https?:\/\//` is an everyday URL matcher. `parser.ts` has always
-       * discriminated this; this walk is the same rule's second address and went without it.
-       */
-      /**
-       * A regex exactly where `parser.ts` says one may start — the same call, not a second opinion,
-       * because the two walks disagreeing is what produced three separate defects in this audit.
-       *
-       * A closing-slash look-ahead used to guard this as well and is gone: it could not tell a
-       * terminator from a slash inside a later string, and skipping strings to fix that broke every
-       * regex carrying a quote or a backtick. The `}` line-break rule in `atExpressionPosition`
-       * answers the same question properly.
-       *
-       * **A regex never contains a line break, so reaching one UNDOES the reading** — the blanking is
-       * rolled back and the `/` is division. `scanCode` can bail at a newline "without harm" because it
-       * only moves a cursor; this walk writes as it goes, so bailing without the rollback blanked the
-       * rest of the line — an object literal divided ACROSS lines (`{ a: 1 }` newline `/ 2, html = 1`)
-       * lost its binding and the injected import collided with it. What remains is an object literal
-       * divided on its own line with a SECOND slash later on that line, which a line-bounded walk
-       * cannot tell from a regex — the same residual as a `}` sharing its line with one.
-       */
-      if (c === '/' && ((cursor.i = i), atExpressionPosition(cursor))) {
-        out += c;
-        i++;
-        const body = i;
-        const kept = out.length;
-        let closed = false;
-        let inClass = false;
-        while (i < text.length) {
-          const r = text[i];
-          if (r === '\\') {
-            out += '  ';
-            i += 2;
-            continue;
-          }
-          if (r === '\n') break;
-          if (r === '[') inClass = true;
-          else if (r === ']') inClass = false;
-          else if (r === '/' && !inClass) {
-            out += '/';
-            i++;
-            closed = true;
-            break;
-          }
-          out += ' ';
-          i++;
-        }
-        if (!closed) {
-          out = out.slice(0, kept);
-          i = body;
-          mark(cursor, '/');
-          continue;
-        }
-        while (i < text.length && /[a-z]/.test(text[i]!)) {
-          out += text[i];
-          i++;
-        }
-        mark(cursor, '/');
-        continue;
-      }
-      if (/\S/.test(c!)) {
-        /** Member names are not keywords — `parser.ts`'s `scanCode` marks them the same way, and the
-         *  two walks answering differently is what let `timings.in / 2, html = 1` eat its binding
-         *  here while the parser read it correctly. */
-        mark(
-          cursor,
-          c!,
-          /[\w$]/.test(c!)
-            ? /[\w$]/.test(cursor.lastChar)
-              ? cursor.lastWord + c
-              : cursor.lastChar === '.'
-                ? `.${c}`
-                : c!
-            : ''
-        );
-      } else if (c === '\n') {
-        cursor.brokeLine = true;
-      }
-      out += c;
-      i++;
-    }
-    return out;
-  };
   const source = blankLiterals(js);
 
   /**
