@@ -102,15 +102,20 @@ const comment = (data = '') => doc.createComment(data);
  * One walker for every template construction, re-aimed by assigning `currentNode`. Traversal of a
  * detached fragment cannot escape it — ascent stops at a null parent — and no walk is ever
  * re-entered mid-flight: an inner instantiation only begins after the outer walk has finished
- * collecting its parts.
+ * collecting its parts. COMMENT finds the child markers; ELEMENT and TEXT are what it numbers.
  */
-const markerWalker = doc.createTreeWalker(doc, 129 /* ELEMENT | COMMENT */);
+const markerWalker = doc.createTreeWalker(doc, 133 /* ELEMENT | TEXT | COMMENT */);
 /**
  * Second shared walker for indexing and instantiation. Templates ship with NO marker comments —
  * every child slot's anchor is its primed text node — so instances index over elements and texts.
  * Marker comments exist only transiently during template construction, and are created lazily at
  * runtime only if a slot upgrades from text to template/array content. Sharing the walker saves a
  * TreeWalker allocation per instance, which is 10 000 allocations in a 10 000-row create.
+ */
+/*
+ * **Its mask IS the part numbering.** Every `_index` counts elements and texts in this walker's
+ * order; the construction walk counts the same nodes by hand (never comments), and hydration's
+ * `canonicalNodes` pairs server DOM by the same order. Change one and all three move together.
  */
 const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
 
@@ -154,9 +159,10 @@ const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
  * What it cannot survive is an ELEMENT inside a `<title>`. The browser really does parse one there,
  * so `<title>`'s `textContent` — which includes its descendants' — still holds the marker, and the
  * pass clears that `textContent` to rebuild the parts, taking the element with it. Hence a dropped
- * `<tspan>`, a binding's sigil stranded as a dead attribute, and a throwing spread. `@verajs/jsx`
- * refuses to upgrade a root over that ONE shape for exactly this reason; everything else about
- * `<title>` it treats as the integration point it is.
+ * `<tspan>`, a binding's sigil stranded as a dead attribute, and a throwing spread — the same in
+ * JSX as in a hand-written template. An EXPRESSION there is safe: it becomes its own template,
+ * committed as a child and never scanned as `<title>`'s statics, so `<title>{label}</title>` and
+ * `<title>{flag && <b />}</title>` both work.
  */
 const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
 
@@ -270,7 +276,7 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
       if (state === IN_BOUND_VALUE) {
         if (
           ch === quote ||
-          (quote === '' && (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '>' || ch === '/'))
+          (quote === '' && /[ \t\n\r>/]/.test(ch))
         ) {
           /**
            * The bound attribute closes. Emit a marker attribute whose VALUE carries the statics
@@ -454,7 +460,6 @@ type TemplatePart = {
   _statics?: string[];
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
   _present?: boolean;
-  _node?: Node; // only during construction, carrying identity between the two passes
 };
 
 /**
@@ -622,13 +627,30 @@ class Template {
     }
 
     /**
-     * Pass 1 — DISCOVER over ELEMENT | COMMENT: pair scan specs with parsed nodes in document
-     * order (which is expression order), and swap every marker comment for a primed empty text
-     * node. The shipped template then contains no comments at all: each clone is three nodes
-     * lighter per typical row, and the primed text doubles as both anchor and first-commit target.
+     * **One walk, three jobs.** It pairs scan specs with parsed nodes in document order (which is
+     * expression order) and swaps every marker comment for a primed empty text node — so the
+     * shipped template contains no comments at all: each clone is three nodes lighter per typical
+     * row, and the primed text doubles as both anchor and first-commit target. It NUMBERS each part
+     * as it goes, counting elements and texts exactly as `instanceWalker` will (see there). And when
+     * a 'slot' insert is wired, it finds the `<slot>` elements in the same numbering.
+     *
+     * These were three walks until 2026-09-24; merging them saved 59 B gzipped. Both versions
+     * number the PARSED tree, after the parser has moved or dropped anything, so the numbers are
+     * the same: a differential fuzz of 1 500 templates built from the shapes the parser reshapes
+     * (foster-parenting, `<select>` dropping a `<div>`, implicit `</p>`, raw text, comments, SVG)
+     * rendered, updated and hydrated identically through both — and a planted miscount showed 256
+     * differences, so the silence was measured.
+     *
+     * **Slot support is resolved per TEMPLATE, and templates are cached per call site for the life
+     * of the page** — so a shape first constructed before `wire([slots])` ran never gains it,
+     * silently. That is the ordinary insert contract (wire at the app entry, beside the renderer,
+     * before anything renders); resolving per INSTANCE would put a registry lookup on the hot path
+     * for every app. An app without slots pays one comparison per element here, at construction.
      */
+    const seam = slotSeam();
     markerWalker.currentNode = content;
     let specIndex = 0;
+    let nodeIndex = -1;
     let node: Node | null;
     const parts = this._parts;
     const consumeIgnored = () => {
@@ -638,9 +660,14 @@ class Template {
       }
     };
     consumeIgnored();
-    while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
+    while ((specIndex < specs.length || seam !== undefined) && (node = markerWalker.nextNode()) !== null) {
       if (node.nodeType === 1) {
+        nodeIndex++;
         const element = node as Element;
+        if (seam !== undefined && element.localName === 'slot') {
+          this._seam = seam;
+          (this._slots ??= []).push(nodeIndex);
+        }
         if (element.hasAttributes()) {
           for (const attributeName of element.getAttributeNames()) {
             if (attributeName.endsWith(MARKER)) {
@@ -671,7 +698,7 @@ class Template {
               const spec = specs[specIndex++] as { _type: 1; _name: string };
               parts.push({
                 _type: ATTRIBUTE,
-                _index: -1,
+                _index: nodeIndex,
                 _name: spec._name,
                 _statics: element.getAttribute(attributeName)!.split(MARKER),
                 /**
@@ -683,7 +710,6 @@ class Template {
                  * keeps the first duplicate — is exactly what this reads.
                  */
                 _present: element.hasAttribute(spec._name),
-                _node: element,
               });
               element.removeAttribute(attributeName);
               consumeIgnored();
@@ -704,7 +730,8 @@ class Template {
           }
           if (pieces[pieces.length - 1]) element.append(pieces[pieces.length - 1]);
         }
-      } else if ((node as Comment).data === MARKER_COMMENT_DATA) {
+      } else if (node.nodeType === 3) nodeIndex++;
+      else if ((node as Comment).data === MARKER_COMMENT_DATA) {
         specIndex++;
         const primedText = doc.createTextNode('');
         node.parentNode!.insertBefore(primedText, node);
@@ -712,7 +739,7 @@ class Template {
         markerWalker.currentNode = primedText;
         (node as Comment).remove();
         if (__DEV__) warnImplicitSection(primedText.parentNode as Element | null);
-        parts.push({ _type: CHILD, _index: -1, _node: primedText });
+        parts.push({ _type: CHILD, _index: ++nodeIndex });
         consumeIgnored();
       }
     }
@@ -747,54 +774,12 @@ class Template {
       warnDroppedBinding(specs, specIndex, specs.length - specIndex);
     }
 
-    /** Pass 2 — INDEX over ELEMENT | TEXT, the mask instances walk with. */
-    instanceWalker.currentNode = content;
-    let nodeIndex = -1;
-    let partIndex = 0;
-    while (partIndex < parts.length && parts[partIndex]._type === IGNORED) partIndex++;
-    while (partIndex < parts.length && (node = instanceWalker.nextNode()) !== null) {
-      nodeIndex++;
-      while (partIndex < parts.length && parts[partIndex]._node === node) {
-        parts[partIndex]._index = nodeIndex;
-        partIndex++;
-        while (partIndex < parts.length && parts[partIndex]._type === IGNORED) partIndex++;
-      }
-    }
-    for (const part of parts) part._node = undefined;
-
-    /**
-     * THE SLOT WALK — the whole template-side seam, and it runs only when a 'slot' insert is
-     * wired at construction. One dedicated pass discovers `<slot>` elements AND indexes them in
-     * the same ELEMENT|TEXT numbering the instance walk uses (Text has no localName, so no
-     * nodeType check is needed). Passes 1 and 2 above are byte-identical to their pre-seam
-     * selves: an unwired app's construction path is untouched, and its only cost is this one
-     * registry lookup per template construction.
-     *
-     * **Resolved per TEMPLATE, and templates are cached per call site for the life of the page** —
-     * so a shape first constructed before `wire([slots])` ran never gains slot support, silently.
-     * That is the ordinary insert contract (wire at the app entry, beside the renderer, before
-     * anything renders) and it is stated in the slots module's own docs; resolving per INSTANCE
-     * instead would move a registry lookup onto the hot path for every app, which is the trade
-     * this design refuses.
-     */
-    const seam = slotSeam();
     /**
      * **Dev-only: remember that this markup HAS slots even when nothing can distribute them.**
      * Without it the two ways of getting the wiring wrong are indistinguishable from a component
      * that simply has no slots — see the warning at the instance's slot mount.
      */
     if (__DEV__ && seam === undefined && markup.includes('<slot')) this._slotless = true;
-    if (seam !== undefined) {
-      instanceWalker.currentNode = content;
-      let index = -1;
-      while ((node = instanceWalker.nextNode()) !== null) {
-        index++;
-        if ((node as Element).localName === 'slot') {
-          this._seam = seam;
-          (this._slots ??= []).push(index);
-        }
-      }
-    }
     const hooks = registry?.get('template') as TemplateHook[] | undefined;
     if (hooks !== undefined) {
       create.hooked = true;
@@ -810,15 +795,14 @@ class Template {
  * the whole failure mode is that nothing complains. An app reported "every header icon vanished"
  * and had to bisect a component tree to find it.
  *
- * `@verajs/jsx` compiles a template whose ROOT is an SVG-only element with the `svg` tag, so JSX
- * reaches here for a name SVG shares with HTML (`<a>`, `<title>`), one deliberately left out of that
- * set, and — the commonest of the three — any in-set root the compiler REFUSED to upgrade, which it
- * does whenever a component or custom element lies in the subtree, JSX sits in an attribute, or a
- * static element sits in a `<title>`. A refused `<g>` is emitted as HTML and arrives here like any
- * other. What no compiler reaches is a HAND-WRITTEN `html` template handed across a function
- * boundary into an `<svg>` — `` Frame(html`<path/>`) `` — where `` svg`…` `` was correct and the call
- * site had no way to know, because the destination belongs to the callee. lit-html behaves
- * identically, so the behaviour is not the thing to change; the silence is.
+ * With `@verajs/renderer/namespaces` wired — which compiled JSX always does — an `html` template is
+ * parsed where it lands, so this fires only for what that cannot reach: a template first built
+ * before the module was wired (templates are cached per call site), a hand-written `` svg`…` `` or
+ * `` mathml`…` `` committed into the other foreign namespace, and, with the module NOT wired, a
+ * hand-written `html` template handed across a function boundary into an `<svg>` —
+ * `` Frame(html`<path/>`) `` — where the call site had no way to know, because the destination
+ * belongs to the callee. lit-html behaves identically there, so the behaviour is not the thing to
+ * change; the silence is.
  *
  * **It lives in `_insert` because that is the seam the template and list paths share.** Wired to the
  * template commit alone it could never fire for a component's children, which arrive as an ARRAY and
@@ -841,8 +825,7 @@ class Template {
  *
  * Silent where HTML is CORRECT: `<foreignObject>`, `<desc>`, `<title>` and MathML's token elements
  * are integration points, and `<style>`/`<script>` never draw by design — an HTML `<style>` inside
- * an `<svg>` applies its rules perfectly well, so complaining that it "will not render" is both wrong
- * and, since `style` is a name the compiler refuses to guess at, exactly the guess it refuses.
+ * an `<svg>` applies its rules perfectly well, so complaining that it "will not render" would be wrong.
  */
 const foreignHost = (parent: Node): string | null => {
   /**
@@ -1203,7 +1186,7 @@ const commitAdopt = (element: Element, name: string, value: unknown): number => 
     return PROPERTY;
   }
   const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const firstRecording = !Object.hasOwn(record, name);
+  const firstRecording = __DEV__ && !Object.hasOwn(record, name);
   record[name] = value;
   /**
    * Upgrade is read off the PROTOTYPE, never off `el.constructor`: a spread bag's keys are runtime
@@ -2127,15 +2110,7 @@ const slotSeam = (): SlotSeam | undefined => {
   return seam;
 };
 const noHandlers: ValueHandler[] = [];
-const valueHandlers = () => (registry ? ((registry.get('value') as ValueHandler[] | undefined) ?? noHandlers) : noHandlers);
-
-/**
- * Kinds this package still ships. They read from a local list rather than the registry because the
- * renderer cannot register into one it was merely handed — that needs `wire`, which it does not
- * import. The list empties when they move to packages; until then a wired handler is checked first,
- * so a module can pre-empt a built-in exactly as the priority order promises.
- */
-const builtIns: ValueHandler[] = [];
+const valueHandlers = () => (registry?.get('value') as ValueHandler[] | undefined) ?? noHandlers;
 
 /**
  * Whether anything in this process has asked to be told when a subtree is removed — an element ref
@@ -2504,7 +2479,9 @@ class ChildPart implements Part {
     }
     const handlers = valueHandlers();
     for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
-    for (let i = 0; i < builtIns.length; i++) if (builtIns[i](this, value)) return;
+    /** Lists — an array, or any other iterable, spread once into one. */
+    if (Array.isArray(value)) return this._commitList(value);
+    if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') return this._commitList([...(value as Iterable<unknown>)]);
 
     /**
      * **A child-position value that applies itself.** The same idea as `_$apply$` at element
@@ -2977,23 +2954,6 @@ export {
 /** @internal */
 export type { Item, TemplatePart };
 
-
-/**
- * Lists, as a registered kind rather than a branch — the built-in going through the same door a
- * package will. Moving it to `@verajs/renderer/lists` is step 5; nothing else has to change when
- * it does, which is what this shape is for.
- */
-builtIns.push((part, value) => {
-  if (Array.isArray(value)) {
-    (part as ChildPart)._commitList(value);
-    return true;
-  }
-  if (value !== null && typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') {
-    (part as ChildPart)._commitList([...(value as Iterable<unknown>)]);
-    return true;
-  }
-  return false;
-});
 
 /**
  * Everything this renderer needs, in one entry: `wire([renderer])`.

@@ -165,7 +165,8 @@ const claimValueText = (cursor: Cursor, text: string): Text => {
 };
 
 /** Per-template canonical node list (ELEMENT | TEXT order), cached — adoption of a 100-row list
- * hits the same template 100 times. */
+ * hits the same template 100 times. The order is `instanceWalker`'s, which is also the order the
+ * template's construction walk numbers parts by — see `instanceWalker` in `renderer.ts`. */
 const canonicalCache = new WeakMap<Template, Node[]>();
 
 const canonicalNodes = (template: Template): Node[] => {

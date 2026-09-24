@@ -149,7 +149,7 @@ const adopt = (element: Element, name: string, value: unknown): number => {
     return PROPERTY;
   }
   const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const firstRecording = !Object.hasOwn(record, name);
+  const firstRecording = __DEV__ && !Object.hasOwn(record, name);
   record[name] = value;
   /** Prototype, never `el.constructor` — a bag key named `constructor` shadows the real one with
    *  an own property, and no property write can move a prototype (`__proto__` is refused above). */
