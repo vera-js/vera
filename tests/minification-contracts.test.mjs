@@ -28,6 +28,7 @@ const PROD = {
   collections: 'packages/store/dist/vera-store-collections.min.js',
   keyed: 'packages/renderer/dist/vera-renderer-keyed.min.js',
   slots: 'packages/renderer/dist/vera-renderer-slots.min.js',
+  namespaces: 'packages/renderer/dist/vera-renderer-namespaces.min.js',
   spread: 'packages/renderer/dist/vera-renderer-spread.min.js',
   tag: 'packages/renderer/dist/vera-renderer-tag.min.js',
 };

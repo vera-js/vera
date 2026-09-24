@@ -43,6 +43,7 @@ const PACKAGES = {
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/slots': 'renderer/slots',
+  '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/renderer/hydrate': 'renderer/hydrate',
   '@verajs/renderer/tag': 'renderer/tag',
   '@verajs/styles': 'styles',
@@ -243,7 +244,7 @@ const EXPECTED_RECIPES = {
   'packages/inserts/README.md': 2,
   'packages/jsx/README.md': 1,
   'packages/store/README.md': 1,
-  'packages/renderer/README.md': 6,
+  'packages/renderer/README.md': 7,
   'packages/router/README.md': 2,
   'packages/styles/README.md': 2,
   /** The AI-facing spec, now executed like every other recipe surface — see `recipeSources`. */

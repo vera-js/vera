@@ -91,7 +91,13 @@ export const namespaces = {
   name: '@verajs/renderer/namespaces',
   on: 'template' as const,
   priority: 50,
-  fn: (template: Template, result: TemplateResult, read: () => unknown): void => {
+  /**
+   * Typed as the `'template'` insert point declares it — the renderer hands its own template as an
+   * `object` — so `wire([renderer, namespaces])` type-checks for a consumer; the sigil-named members
+   * this module uses are its own view of that object.
+   */
+  fn: (built: object, result: Pick<TemplateResult, '_$litType$' | 'strings'>, read: () => unknown): void => {
+    const template = built as Template;
     const type = result._$litType$ ?? 1;
     if (type !== 1) {
       template._$ns$ = namespaceOf((type - 2) as 0 | 1);

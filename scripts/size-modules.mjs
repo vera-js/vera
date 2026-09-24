@@ -25,6 +25,7 @@ export const MODULES = [
   { pkg: 'collections', dir: 'store', dist: 'packages/store/dist/vera-store-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
   { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },
+  { pkg: 'namespaces', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-namespaces.min.js', what: 'an `html` template parsed in the namespace of the position it lands in — SVG children of components' },
   { pkg: 'hydrate', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-hydrate.min.js', what: 'INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
   /**

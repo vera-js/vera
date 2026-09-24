@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->7.0 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->7.2 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -132,7 +132,7 @@ the right tool.
 | --- | --- | --- |
 | `render` | `(template, ...args) => void` | Call inside `connectedCallback` after `init`. `template` is a function returning a template. **Required** — it is exactly `useRender(template)` followed by `mount()`. |
 | `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
-| `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders. |
+| `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders — unless `@verajs/renderer/namespaces` is wired, which parses an `html` template where it lands. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
 | `html` | tagged template | What you use. `setHtml` replaces it if you need a different tag. |
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
@@ -245,55 +245,18 @@ render(() => html`
 `);
 ```
 
-This is a TEMPLATE rule. In JSX the compiler picks the tag from the expression's lexical position —
-shapes mapped in a list or built conditionally inside `<svg>` compile with `` svg`…` `` automatically.
-`<foreignObject>`, `<desc>` and `<title>` all flip their content back to HTML; a top-level `<math>`
-uses `` mathml`…` ``, but a `<math>` NESTED inside an `<svg>` stays SVG, exactly as the parser does.
-So JSX authors never write the namespace tags by hand.
+This is a TEMPLATE rule, and it has a switch. **Wire `@verajs/renderer/namespaces`**
+(`wire([renderer, namespaces])`) and the renderer parses an `` html`…` `` template in the namespace
+of the position it is COMMITTED into — the way the browser parses markup written inside an `<svg>`:
+``Frame(html`<path/>`)`` then draws, `<title>` and camelCase names like `clipPath` included,
+`<foreignObject>`/`<desc>`/`<title>` hold HTML again, and the same strings in a `<div>` stay HTML.
+The answer comes from the parser, not a list; `svg`/`mathml` tags keep deciding their own namespace.
 
-Shapes HANDED TO A COMPONENT work too, which lexical position alone cannot decide: in
-`<Frame><path d="M0 0h24" /></Frame>` the `<path>` sits outside any `<svg>`, and the call site cannot
-know what `Frame` renders. It does not need to — `<path>` is not an HTML element in any context, so a
-template whose ROOT is an SVG-only name compiles with `` svg`…` `` wherever it was written. That covers
-children passed directly, through a `<>…</>` fragment, and through a mapped list.
-
-Three kinds of name are excluded, all conservatively — they fall back to previous behaviour rather
-than mis-tagging. The ones SVG shares with HTML (`a`, `title`, `script`, `style`, `image`, `font`).
-The ones that carry visible content as unknown HTML (`text`, `desc`, `tspan`, `foreignObject`,
-`filter`, `mask`, ...), since the upgrade fires on the root tag alone and would otherwise turn
-`<Box><text>hi</text></Box>` into a 0x0 SVG element. And the camelCase ones (`clipPath`,
-`linearGradient`, `animateTransform`, ...), which a server emits verbatim and a browser parses
-lowercased outside an `<svg>` — hydration would discard the server's markup and rebuild.
-
-A root is never upgraded when a COMPONENT or CUSTOM ELEMENT lies in its children or an expression,
-and never when an ATTRIBUTE carries JSX at all — a handler's template goes wherever the handler puts
-it, which the shape around it cannot know. Upgrade is
-spec-gated on the HTML namespace, so an SVG-namespaced one is permanently inert with no
-`connectedCallback` and no diagnostic. `<foreignObject>`, `<desc>` and `<title>` are SVG's HTML
-integration points and all three are exempt: their content parses as HTML there, so an element or a
-component beneath one is safe and the shape around it still draws. The island's own ATTRIBUTES are
-still checked, since those are emitted in the outer namespace.
-
-The one shape an island cannot take is a STATIC element inside a `<title>`, which `@verajs/renderer`
-scans as raw text in every template. An EXPRESSION never reaches that, so
-`<g><title>{flag && <my-badge />}</title><path /></g>` upgrades and the badge still upgrades as a
-custom element; only `<g><title><tspan /></title></g>` keeps the behaviour it had.
-
-MathML's token elements (`<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>`) are the equivalent for CHILD
-MODE — an expression inside one compiles `html`. They never exempt a root from refusal, because a
-root is only ever upgraded to `svg`.
-
-A SIBLING vouches for a name a root tag alone cannot prove. In
-`<Frame><title>{label}</title><path d={d} /></Frame>` the children are separate roots, so `<title>`
-— a name SVG shares with HTML — would be built as HTML inside the `<svg>` and be the accessible name
-of nothing. One SVG-only name in the group settles it — an expression vouches through its own roots too, so a
-mapped list of shapes counts, while one mixing namespaces does not — and the names excluded only for want of
-context come with it (`title`, `a`, `style`, `script`, `image`, `font`, `text`, `tspan`, `desc`,
-`metadata`, `switch`, `view`, `set`, `filter`, `mask`, `marker`, `pattern`, `symbol`). Alone they
-are untouched, so `<Box><text>hello</text></Box>` stays readable text. The camelCase names stay out
-even with a sibling, because their hazard is SSR casing rather than context. The vouch travels both ways: a sibling also settles
-what an expression's own roots compile as, so `<Frame><path />{labels.map((t) => <text>{t}</text>)}</Frame>`
-gives every `<text>` the group's namespace.
+**JSX wires it in every file it compiles**, because JSX cannot write `` svg`…` ``: so in JSX,
+`<Frame><path d="M0 0h24" /></Frame>` just works — the children land inside `Frame`'s `<svg>` and are
+parsed there, though written outside it, whether passed directly, mapped, conditional, or through a
+fragment. Nothing is guessed from a tag's name: `<Box><text>hi</text></Box>` stays readable text in a
+`<div>`. A template is resolved when it is first BUILT, so wire the module before anything renders.
 
 `@verajs/renderer` names an element committed into an `<svg>` or `<math>` in a DIFFERENT namespace
 from its host, in development — HTML inside `<svg>` most often, but MathML inside `<svg>` and SVG
@@ -306,8 +269,8 @@ is correct: inside `<foreignObject>`, `<desc>` and `<title>`, inside MathML's to
 ATTRIBUTE, the only form the parser reads, so `.encoding=${…}` is named — for an `<svg>` in any
 `<annotation-xml>`, where the parser itself puts one, and for `<style>`/`<script>`, which never draw.
 
-A HAND-WRITTEN template is the same story without a compiler to help: ``Frame(html`<path/>`)`` is
-HTML, ``Frame(svg`<path/>`)`` is right, and development says so when it happens.
+A HAND-WRITTEN template without the module wired is the same story: ``Frame(html`<path/>`)`` is HTML,
+``Frame(svg`<path/>`)`` is right, and development says so when it happens — naming the module too.
 
 `html` alone would produce an `HTMLUnknownElement` named `circle`, which parses fine and never
 renders. Bindings, keyed lists and in-place updates all work the same inside these tags.
@@ -599,7 +562,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.57 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.79 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -755,9 +718,10 @@ a TSX app imports `@verajs/core` and configures the plugin in `vite.config.js` �
 every prop), so `key`, `onClick` and bare props all type-check; a fully typed per-element surface is
 the known long tail, and the checked path for a component's props is `props<CalendarDay>({ … })`.
 
-`.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed`, `spread`, `svg` and
-`mathml` are injected as needed (`inject: false` to provide them yourself; each is also individually
-configurable — `html: ['h', 'my-lib']`).
+`.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed` and `spread` are
+injected as needed (`inject: false` to provide them yourself; each is also individually configurable
+— `html: ['h', 'my-lib']`), and every compiled file wires `@verajs/renderer/namespaces`
+(`namespaces: false` to leave it out).
 
 **What it compiles to.** `onClick={f}` → `@click=${f}`; `className`/`htmlFor` → `class`/`for`;
 `value`/`checked` → `.value`/`.checked` and `defaultValue`/`defaultChecked` → the attributes;
@@ -784,9 +748,10 @@ normalised to what the ELEMENT requires. The four renderer sigils pass through u
   which JSX and a template differ**. Only booleans: `{0 && <x/>}` still renders `0`, as in React. A
   boolean INSIDE an array still renders — `{rows.map((r) => r.ok && <li/>)}` — because the filter
   sees the array, not its items; use `rows.filter(…)`.
-- **Inside `<svg>`/`<math>`, expressions compile in that namespace** — a mapped or conditional shape
-  becomes `svg\`…\`` (or `mathml\`…\``) automatically, `<foreignObject>` flips back to HTML. A
-  function component compiles where it is DEFINED, so give an icon component its own `<svg>` wrapper.
+- **Inside `<svg>`/`<math>`, content is parsed where it LANDS** — every JSX root compiles to
+  `html\`…\`` and `@verajs/renderer/namespaces` parses it in the namespace of its position, so a
+  component's children, mapped shapes and conditionals all draw, and `<foreignObject>` flips back to
+  HTML.
 
 **Refused with file/line/column** rather than passed to the next tool: a mismatched closing tag,
 `key` anywhere but a list callback's root, children inside a void element, `dangerouslySetInnerHTML`
@@ -794,7 +759,8 @@ in any other shape, an object `style`, a sigil with no value. Anything that does
 exactly as written, because `a < b` has to survive.
 
 **Exports.** `veraJsx(options?)` is the bundler plugin; `transformJsx(source, fileName, options?)`
-is the transform itself, for another bundler or a test; and `@verajs/jsx/standalone` exports
+is the transform itself, for another bundler or a test; `importSites(code)` locates a module's
+import specifiers (what the buildless loader links with); and `@verajs/jsx/standalone` exports
 `runBlock(scriptElement)` for a `script[type="text/vera-jsx"]` block that arrives **after**
 `DOMContentLoaded` — CMS content, a demo injected later — since blocks present at load run
 automatically in document order. For no build at all, see **Buildless JSX — the whole recipe** below.
@@ -1388,26 +1354,23 @@ the price of the modules being genuinely independent of core.
 
 ## Buildless JSX — the whole recipe
 
-For CodePen, a demo or a single-file app. Copy this shape; it works with no toolchain at all.
+For CodePen, a demo, or a self-hosted multi-file app. Copy this shape; it works with no toolchain.
 
 ```html
-<!-- Every entry is required, for two different reasons. The transform AUTO-INJECTS what a block
-     uses: `html` always, plus `keyed` for `key={…}`, `spread` for `{...rest}`, and `svg`/`mathml`
-     for expressions inside `<svg>`/`<math>`. The last two come from `@verajs/core`, already mapped;
-     the other two are SUBPATHS, and mapping `@verajs/renderer` alone does not cover them — the page
-     fails at import time with "Failed to resolve module specifier". The plain `@verajs/renderer`
-     entry is for the `import { renderer }` below, which you write yourself; an explicit `keyed(…)`
-     call is not auto-injected either — import it, as this block does. -->
+<!-- Three entries, and that is all. The compiled blocks import `html` from core; the helpers the
+     compiler also imports — `keyed` for `key={…}`, `spread` for `{...rest}`, and
+     `@verajs/renderer/namespaces` — are loaded by @verajs/jsx from BESIDE the mapped
+     @verajs/renderer, so self-hosting means copying the renderer's whole dist folder. A block's own
+     relative imports (`./frame.jsx`, `./util.js`) load too, compiled as needed. -->
 <script type="importmap">
 { "imports": {
     "@verajs/core":     "https://cdn.jsdelivr.net/npm/@verajs/core@0.3.1/dist/vera.min.js",
     "@verajs/renderer": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.2/dist/vera-renderer.min.js",
-    "@verajs/renderer/keyed": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.2/dist/vera-renderer-keyed.min.js",
-    "@verajs/renderer/spread": "https://cdn.jsdelivr.net/npm/@verajs/renderer@0.2.2/dist/vera-renderer-spread.min.js"
+    "@verajs/jsx":      "https://cdn.jsdelivr.net/npm/@verajs/jsx@0.3.2/dist/vera-jsx-standalone.min.js"
 } }
 </script>
 
-<script type="module" src="https://cdn.jsdelivr.net/npm/@verajs/jsx@0.3.2/dist/vera-jsx-standalone.min.js"></script>
+<script type="module">import '@verajs/jsx';</script>
 
 <my-app></my-app>
 

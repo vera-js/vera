@@ -21,6 +21,7 @@ import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
 import { spread } from '@verajs/renderer/spread';
 import { slots, slotted } from '@verajs/renderer/slots';
+import { namespaces } from '@verajs/renderer/namespaces';
 import { tag, html as tagHtml, jsxName, BOOLEAN_ATTRIBUTES } from '@verajs/renderer/tag';
 import { router, initRouter, navigate, resolve, setRouterRenderer, setMatchFunction, back, forward, go } from '@verajs/router';
 import { autoloader } from '@verajs/autoloader';
@@ -148,6 +149,13 @@ stopProfiling();
  * never imported the entry.
  */
 wire([renderer, slots]);
+
+/**
+ * **`@verajs/renderer/namespaces`, wired the documented way.** Its descriptor is `on: 'template'`,
+ * and that point had to be added to `InsertFunctionMap` for this line to compile — `slots` was the
+ * precedent: the insert existed at runtime while every TypeScript consumer failed to wire it.
+ */
+wire([renderer, namespaces]);
 
 const slotHost: Element = document.createElement('div');
 const everything: Node[] = slotted(slotHost);

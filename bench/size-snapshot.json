@@ -1,5 +1,5 @@
 {
-  "taken": "2026-09-23",
+  "taken": "2026-09-24",
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
@@ -7,8 +7,8 @@
       "gzip": 3339
     },
     "renderer": {
-      "raw": 12125,
-      "gzip": 4679
+      "raw": 12865,
+      "gzip": 4909
     },
     "router": {
       "raw": 10913,
@@ -35,12 +35,12 @@
       "gzip": 673
     },
     "jsx": {
-      "raw": 15690,
-      "gzip": 6055
+      "raw": 14381,
+      "gzip": 5515
     },
     "standalone": {
-      "raw": 16024,
-      "gzip": 6255
+      "raw": 3395,
+      "gzip": 1621
     },
     "computed": {
       "raw": 293,
@@ -58,9 +58,13 @@
       "raw": 9185,
       "gzip": 3424
     },
+    "namespaces": {
+      "raw": 1160,
+      "gzip": 642
+    },
     "hydrate": {
-      "raw": 17603,
-      "gzip": 6436
+      "raw": 18423,
+      "gzip": 6679
     },
     "inserts": {
       "raw": 486,
@@ -175,21 +179,21 @@
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 17974,
-      "gzip": 7142,
-      "deps": 1,
-      "depsThirdParty": 0,
-      "depsThirdPartyNames": [],
-      "depsUnresolved": 0
-    },
-    {
       "name": "petite-vue",
       "note": "petite-vue — buildless Vue subset",
       "raw": 16665,
       "gzip": 7258,
       "deps": 0,
+      "depsThirdParty": 0,
+      "depsThirdPartyNames": [],
+      "depsUnresolved": 0
+    },
+    {
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 18699,
+      "gzip": 7388,
+      "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0
@@ -263,16 +267,16 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 19928,
-      "gzip": 7877
+      "raw": 20652,
+      "gzip": 8123
     }
   ],
   "variants": [
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 17978,
-      "gzip": 7150
+      "raw": 18702,
+      "gzip": 7386
     }
   ]
 }

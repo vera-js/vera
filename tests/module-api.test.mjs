@@ -187,8 +187,10 @@ test('veraJsx can retarget where html and keyed come from', () => {
 // its node shapes are internal now, so the same four intents are pinned by what they EMIT.)
 
 test('an element parses: tag, quoted attribute, text child — visible in the emitted template', () => {
+  /** The DEFAULT output, whole — including the namespaces wiring every compiled module carries. */
   assert.equal(jsx.transformJsx('const a = <p class="a">hi</p>;'),
-    "import { html } from '@verajs/core';\nconst a = html`<p class=\"a\">hi</p>`;");
+    "import { html } from '@verajs/core';\nimport { namespaces } from '@verajs/renderer/namespaces';\n" +
+      "import { wire } from '@verajs/core';\nwire([namespaces]);\nconst a = html`<p class=\"a\">hi</p>`;");
 });
 
 test('a fragment parses into inline statics of one template', () => {

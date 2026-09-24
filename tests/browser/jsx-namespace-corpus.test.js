@@ -4,19 +4,19 @@
  * from the same markup written inline. `tests/jsx-namespace-corpus.test.mjs` is the same claim under
  * jsdom, whose parser is parse5; this is the half where the engines are the oracle — and they are
  * not interchangeable here: Firefox and Chromium already disagree about `annotation-xml` as a
- * fragment parser's context, which is why `@verajs/jsx/namespaces` reads its `encoding` instead.
+ * fragment parser's context, which is why `@verajs/renderer/namespaces` reads its `encoding` instead.
  *
- * Everything is imported by PACKAGE NAME. The namespace module wires itself through
- * `@verajs/core`, so the test must hold the same core it does — a relative import of a dist file
- * resolves to a second copy, and the module's hook lands in a registry this renderer never reads.
+ * Everything is imported by PACKAGE NAME. The namespace module is wired through `@verajs/core`, as
+ * compiled JSX wires it, so the test must hold the same core the renderer reads — a relative import
+ * of a dist file resolves to a second copy, and the hook lands in a registry this renderer never reads.
  */
 import { expect } from '@esm-bundle/chai';
 import { html, wire } from '@verajs/core';
 import { renderer, renderInto } from '@verajs/renderer';
 import { transformJsx } from '@verajs/jsx';
-import '@verajs/jsx/namespaces';
+import { namespaces } from '@verajs/renderer/namespaces';
 
-wire([renderer]);
+wire([renderer, namespaces]);
 
 const NAMES = ['path', 'circle', 'g', 'use', 'text', 'tspan', 'title', 'desc', 'a', 'style', 'image',
   'filter', 'symbol', 'clipPath', 'linearGradient', 'foreignObject', 'textPath', 'b', 'div', 'my-badge'];

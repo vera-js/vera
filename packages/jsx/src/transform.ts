@@ -381,8 +381,11 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
-  /** `@verajs/renderer/namespaces`, wired through core's `wire` — see the injection below. */
+  /** `@verajs/renderer/namespaces`, wired through core's `wire` — see the injection below. Held in
+   *  variables like the three above, so the built compiler carries no text shaped like an import. */
   const wiresNamespaces = options.namespaces !== false;
+  const [namespacesName, namespacesFrom] = ['namespaces', '@verajs/renderer/namespaces'];
+  const [wireName, wireFrom] = ['wire', '@verajs/core'];
 
   const { roots, mismatch } = findRoots(code);
   /**
@@ -599,8 +602,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const htmlLocal = localName(htmlName, htmlFrom);
   const keyedLocal = localName(keyedName, keyedFrom);
   const spreadLocal = localName(spreadName, spreadFrom);
-  const namespacesLocal = wiresNamespaces ? localName('namespaces', '@verajs/renderer/namespaces') : '';
-  const wireLocal = wiresNamespaces ? localName('wire', '@verajs/core') : '';
+  const namespacesLocal = wiresNamespaces ? localName(namespacesName, namespacesFrom) : '';
+  const wireLocal = wiresNamespaces ? localName(wireName, wireFrom) : '';
   const clauseFor = (exported: string, local: string) =>
     exported === local ? exported : `${exported} as ${local}`;
 
@@ -999,9 +1002,9 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * want its bytes.
      */
     if (wiresNamespaces) {
-      if (!has('namespaces', '@verajs/renderer/namespaces', namespacesLocal))
-        inject += `import { ${clauseFor('namespaces', namespacesLocal)} } from '@verajs/renderer/namespaces';\n`;
-      if (!has('wire', '@verajs/core', wireLocal)) inject += `import { ${clauseFor('wire', wireLocal)} } from '@verajs/core';\n`;
+      if (!has(namespacesName, namespacesFrom, namespacesLocal))
+        inject += `import { ${clauseFor(namespacesName, namespacesLocal)} } from '${namespacesFrom}';\n`;
+      if (!has(wireName, wireFrom, wireLocal)) inject += `import { ${clauseFor(wireName, wireLocal)} } from '${wireFrom}';\n`;
       inject += `${wireLocal}([${namespacesLocal}]);\n`;
     }
     prefix = inject;

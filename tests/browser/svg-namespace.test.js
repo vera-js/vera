@@ -14,9 +14,13 @@
  * that cannot pass by accident.
  */
 import { expect } from '@esm-bundle/chai';
-import { renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
-import { html, svg } from '../../packages/core/dist/development/vera.js';
+import { renderer, renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { namespaces } from '../../packages/renderer/dist/development/vera-renderer-namespaces.js';
+import { html, svg, wire } from '../../packages/core/dist/development/vera.js';
 import { SVG_ICON_HTML } from './fixtures/hello-ssr.html.js';
+
+/** The contextual parse is the namespace module's, wired as an app — or compiled JSX — wires it. */
+wire([renderer, namespaces]);
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const HTML_NS = 'http://www.w3.org/1999/xhtml';

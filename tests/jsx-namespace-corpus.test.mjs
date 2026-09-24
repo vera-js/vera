@@ -13,7 +13,7 @@
  * jsdom's parser is parse5, which implements foreign content to the letter; the three-engine half of
  * the claim is `tests/browser/svg-namespace.test.js`.
  */
-import { load } from './dist.mjs';
+import { isProduction, load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
@@ -83,7 +83,8 @@ test('every group renders exactly what the parser builds from the same markup wr
     if (breakout !== null) {
       brokeOut++;
       const host = wrapper === 'Frame' ? '<svg>' : '<math>';
-      if (!warnings.some((w) => w.includes(`<${breakout}>`) && w.includes(host)))
+      /** The warning is a development diagnostic; production folds it away with every other. */
+      if (!isProduction && !warnings.some((w) => w.includes(`<${breakout}>`) && w.includes(host)))
         bad.push(`${label} in ${wrapper}: the parser breaks out at <${breakout}>, and nothing named it`);
       return;
     }

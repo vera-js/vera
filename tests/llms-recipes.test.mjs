@@ -30,6 +30,7 @@ const PACKAGES = {
   '@verajs/renderer': 'renderer',
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/spread': 'renderer/spread',
+  '@verajs/renderer/namespaces': 'renderer/namespaces',
   '@verajs/store': 'store',
 };
 const resolveImports = (code) =>
@@ -146,7 +147,20 @@ test('every specifier the JSX transform injects is in the buildless import map',
   assert.ok(injected.has('@verajs/core'), 'the transform no longer injects html from core');
   assert.ok(injected.has('@verajs/renderer/keyed'), 'the transform no longer injects keyed from the subpath entry');
 
-  const missing = [...injected].filter((specifier) => !(specifier in imports));
+  /**
+   * **Or the loader finds it.** `@verajs/jsx/standalone` resolves the renderer helpers the compiler
+   * injects — `keyed`, `spread`, `namespaces` — beside wherever the map puts `@verajs/renderer`, so
+   * the recipe's map is three lines. The list is read from the LOADER's source, so the compiler and
+   * the loader cannot drift apart: a helper the compiler starts injecting that the loader does not
+   * know is missing here.
+   */
+  const loader = readFileSync(new URL('../packages/jsx/src/standalone.ts', import.meta.url), 'utf8');
+  const helpers = new Set([...(/const HELPERS[^{]*\{([^}]*)\}/.exec(loader)?.[1] ?? '').matchAll(/'(@verajs\/[^']+)'/g)].map((m) => m[1]));
+  assert.ok(helpers.size >= 3, 'the loader no longer lists its renderer helpers where this reads them');
+  assert.ok(injected.has('@verajs/renderer/namespaces'), 'the transform no longer wires @verajs/renderer/namespaces');
+  const missing = [...injected].filter(
+    (specifier) => !(specifier in imports) && !(helpers.has(specifier) && '@verajs/renderer' in imports)
+  );
   assert.deepEqual(
     missing,
     [],

@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.57 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.79 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -179,9 +179,11 @@ Frame(html`<path d="M0 0h24" />`);   // silent: nothing draws
 Frame(svg`<path d="M0 0h24" />`);    // the fix — the tag is chosen where the template is WRITTEN
 ```
 
-The tag is right where it was written and the call site cannot know the destination, which is why
-this is not something the renderer can correct — lit-html behaves the same way. **Development names
-it instead**, once per host namespace, host name, content namespace and tag. HTML content gets both remedies: `` svg`…` `` when the element was
+The tag is right where it was written and the call site cannot know the destination — lit-html
+behaves the same way. **Wire `@verajs/renderer/namespaces`** and the renderer corrects it: an
+`` html`…` `` template is then parsed in the namespace of the position it lands in, so the first line
+above draws too (see [below](#verajsrenderernamespaces--a-template-parsed-where-it-lands)).
+Without it, **development names it**, once per host namespace, host name, content namespace and tag. HTML content gets both remedies: `` svg`…` `` when the element was
 meant to be SVG, and an HTML island (`<foreignObject>` in SVG, `<mtext>` in MathML) when it is
 genuinely HTML. Tagging a custom element `` svg`…` `` would silence the message and leave the
 element permanently un-upgraded, since custom-element upgrade is spec-gated on the HTML namespace.
@@ -196,9 +198,9 @@ property is named), for an `<svg>` in any `<annotation-xml>`, where the parser i
 for `<style>`/`<script>`, which never draw — an HTML `<style>` inside an `<svg>` applies its rules
 perfectly well.
 
-**In JSX this mostly cannot happen**: `@verajs/jsx` compiles a template whose root is an SVG-only
-element with the `svg` tag wherever it was written, so `<Frame><path /></Frame>` works. The message
-is what meets a hand-written template, and an in-set root the compiler deliberately refused.
+**In JSX this cannot happen**: `@verajs/jsx` wires `@verajs/renderer/namespaces` from every file it
+compiles, so `<Frame><path /></Frame>` works. The message is what meets a hand-written template when
+the module is not wired, or a template built before it was — the message names that too.
 
 The whole check folds away in production — no code and no strings.
 
@@ -319,6 +321,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/spread` | `spread(props)` — binding names resolved at runtime | yes |
 | `@verajs/renderer/tag` | `` tag`h1` `` — an element whose tag name is decided at runtime | yes |
 | `@verajs/renderer/slots` | `slots` (wire it) + `slotted(host, name?)` — light-DOM `<slot>` distribution | yes |
+| `@verajs/renderer/namespaces` | `namespaces` (wire it) — an `html` template parsed in the namespace of where it lands | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
 `/hydrate` and `/profiler` each re-export the whole public API, so they are drop-in replacements for
@@ -330,6 +333,42 @@ each bundle their own renderer with its own instrumentation hook, so profiling w
 through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
 frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
 zero report is otherwise indistinguishable from an app with nothing to optimise.
+
+## `@verajs/renderer/namespaces` — a template parsed where it lands
+
+A template's namespace is normally fixed by its tag: `` html`…` `` is HTML wherever it goes, which is
+why a shape handed into an `<svg>` needs `` svg`…` ``. Wire this module and the renderer instead
+parses an `html` template **in the namespace of the position it is committed into** — the way the
+browser's own parser treats markup written inside an `<svg>`:
+
+<!-- recipe -->
+```js
+import { html, wire } from '@verajs/core';
+import { renderer, renderInto } from '@verajs/renderer';
+import { namespaces } from '@verajs/renderer/namespaces';
+
+wire([renderer, namespaces]);
+
+const Frame = (children) => html`<svg viewBox="0 0 24 24">${children}</svg>`;
+const host = document.createElement('div');
+renderInto(Frame([html`<title>Close</title>`, html`<path d="M0 0h24"></path>`]), host);
+
+if (host.querySelector('path').namespaceURI !== 'http://www.w3.org/2000/svg') throw new Error('not SVG');
+if (host.querySelector('title').namespaceURI !== 'http://www.w3.org/2000/svg') throw new Error('not SVG');
+```
+
+The answer comes from the parser, not from a list: SVG's camelCase names keep their case,
+`<foreignObject>`, `<desc>` and `<title>` hold HTML again, MathML's token elements likewise, and the
+same strings committed into a `<div>` stay HTML. Nothing is guessed from a tag's name.
+
+- **`@verajs/jsx` wires it for you**, from every file it compiles — JSX cannot write `` svg`…` ``.
+- **Wire it before anything renders.** It applies to a template when the template is first built, so
+  one built earlier keeps the namespace it was built in; development names that case.
+- **`svg`/`mathml` tags still work** and still decide their own namespace — wiring this changes only
+  `html` templates.
+- **What it costs**: its own bundle, only when wired. The renderer's update path is untouched; a
+  template is resolved once per instance it creates, measured at parity with explicit tags on
+  Chromium, Firefox and WebKit.
 
 ## `@verajs/renderer/slots` — light-DOM slots
 

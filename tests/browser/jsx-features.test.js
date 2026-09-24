@@ -15,15 +15,17 @@ import { expect } from '@esm-bundle/chai';
 import { transformJsx } from '../../packages/jsx/dist/development/vera-jsx.js';
 import { html, wire, init, render } from '../../packages/core/dist/development/vera.js';
 import { renderer, renderInto } from '../../packages/renderer/dist/development/vera-renderer.js';
+import { namespaces } from '../../packages/renderer/dist/development/vera-renderer-namespaces.js';
 
-wire([renderer]);
+/** Wired here because `inject: false` below leaves every import to the page — the wiring included. */
+wire([renderer, namespaces]);
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** Compile a JSX expression in the browser and import the result, exactly as standalone does. */
 const compile = async (source) => {
   const js = transformJsx(source, 'feature.jsx', { inject: false });
-  const blob = new Blob([`const { html, svg, mathml } = globalThis.__jsxScope;\n${js}`], {
+  const blob = new Blob([`const { html } = globalThis.__jsxScope;\n${js}`], {
     type: 'text/javascript',
   });
   const url = URL.createObjectURL(blob);
@@ -42,7 +44,7 @@ const mount = () => {
 
 before(async () => {
   const core = await import('../../packages/core/dist/development/vera.js');
-  globalThis.__jsxScope = { html: core.html, svg: core.svg, mathml: core.mathml };
+  globalThis.__jsxScope = { html: core.html };
 });
 
 it('shapes mapped inside <svg> are real SVGElements, in this engine', async () => {
@@ -57,8 +59,8 @@ it('shapes mapped inside <svg> are real SVGElements, in this engine', async () =
   for (const circle of circles) {
     expect(circle.namespaceURI, 'parsed in the SVG namespace').to.equal('http://www.w3.org/2000/svg');
     /**
-     * The namespace is what the whole fix is for, and `instanceof SVGElement` is the property that
-     * actually decides whether it draws — an `HTMLUnknownElement` has the right tag name and no
+     * Compiled as html`` — the compiler no longer tags — and parsed as SVG because that is where
+     * it lands. `instanceof SVGElement` is the property that actually decides whether it draws — an `HTMLUnknownElement` has the right tag name and no
      * geometry at all, which is why the original report said the shapes "don't draw".
      */
     expect(circle instanceof SVGElement, 'and is a real SVG element, not HTMLUnknown').to.equal(true);
@@ -66,11 +68,10 @@ it('shapes mapped inside <svg> are real SVGElements, in this engine', async () =
   host.remove();
 });
 
-it('a mapped <text> inside <svg> is SVG too — the name cannot upgrade alone, so mode decides', async () => {
+it('a mapped <text> inside <svg> is SVG too — its position decides, not its name', async () => {
   /**
-   * `<circle>` is SVG-only, so the root upgrade tags it whether or not lexical mode tracking works —
-   * the test above passes with mode tracking disabled. `<text>` is also an HTML-shaped unknown name,
-   * never upgraded on its own, so this one is held up by `childMode` alone.
+   * `<text>` is a name the old compile-time rules could never tag on its own, since outside an
+   * `<svg>` it is readable HTML text. Parsed where it lands, it needs no rule at all.
    */
   const mod = await compile(
     'export const chart = (labels) => <svg viewBox="0 0 10 10">{labels.map((l) => <text x="1" y="5">{l}</text>)}</svg>;'
