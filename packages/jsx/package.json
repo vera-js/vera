@@ -41,7 +41,9 @@
   ],
   "sideEffects": [
     "./dist/development/vera-jsx-standalone.js",
-    "./dist/vera-jsx-standalone.min.js"
+    "./dist/vera-jsx-standalone.min.js",
+    "./dist/development/vera-jsx-namespaces.js",
+    "./dist/vera-jsx-namespaces.min.js"
   ],
   "keywords": [
     "verajs",
