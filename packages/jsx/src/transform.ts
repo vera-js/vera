@@ -131,6 +131,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const [htmlName, htmlFrom] = options.html ?? ['html', '@verajs/core'];
   const [keyedName, keyedFrom] = options.keyed ?? ['keyed', '@verajs/renderer/keyed'];
   const [spreadName, spreadFrom] = options.spread ?? ['spread', '@verajs/renderer/spread'];
+  /** `@verajs/renderer/namespaces`, wired through core's `wire` — see the injection below. */
+  const wiresNamespaces = options.namespaces !== false;
 
   const { roots, mismatch } = findRoots(code);
   /**
@@ -564,6 +566,8 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
   const htmlLocal = localName(htmlName, htmlFrom);
   const keyedLocal = localName(keyedName, keyedFrom);
   const spreadLocal = localName(spreadName, spreadFrom);
+  const namespacesLocal = wiresNamespaces ? localName('namespaces', '@verajs/renderer/namespaces') : '';
+  const wireLocal = wiresNamespaces ? localName('wire', '@verajs/core') : '';
   const clauseFor = (exported: string, local: string) =>
     exported === local ? exported : `${exported} as ${local}`;
 
@@ -952,13 +956,21 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
     if (state.usedKeyed && !has(keyedName, keyedFrom, keyedLocal)) inject += `import { ${clauseFor(keyedName, keyedLocal)} } from '${keyedFrom}';\n`;
     if (state.usedSpread && !has(spreadName, spreadFrom, spreadLocal)) inject += `import { ${clauseFor(spreadName, spreadLocal)} } from '${spreadFrom}';\n`;
     /**
-     * **Every compiled module imports `@verajs/jsx/namespaces`**, which wires itself. A JSX author
-     * writes no import for it, and because a module's imports run before its body, no template a JSX
-     * module builds can be built before the resolver is wired — the ordering hazard a per-module
-     * "only where an expression sits inside `<svg>`" rule left open for lazily loaded chunks. JSX
-     * users take its bytes whether or not they draw SVG; that was the decision.
+     * **Every compiled module wires `@verajs/renderer/namespaces`**, so a template is parsed in the
+     * namespace of the position it lands in — the only way a component's JSX children can be SVG,
+     * since JSX cannot write `svg\`…\``. Wired here rather than left to the author: a module's
+     * imports and top-level statements run before any template it builds, so no JSX template can be
+     * built before the resolver exists — the ordering hazard a hand-placed import at the app's entry
+     * leaves open for lazily loaded chunks. Wiring the same descriptor again is recognised by core
+     * and costs nothing. `namespaces: false` opts out, for an app that wires it itself or does not
+     * want its bytes.
      */
-    inject += `import '@verajs/jsx/namespaces';\n`;
+    if (wiresNamespaces) {
+      if (!has('namespaces', '@verajs/renderer/namespaces', namespacesLocal))
+        inject += `import { ${clauseFor('namespaces', namespacesLocal)} } from '@verajs/renderer/namespaces';\n`;
+      if (!has('wire', '@verajs/core', wireLocal)) inject += `import { ${clauseFor('wire', wireLocal)} } from '@verajs/core';\n`;
+      inject += `${wireLocal}([${namespacesLocal}]);\n`;
+    }
     prefix = inject;
   }
   /**

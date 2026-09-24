@@ -21,7 +21,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { transformJsx } from '@verajs/jsx';
 
-const compile = (source) => transformJsx(source, 'app.tsx').replace(/^import .*\n/gm, '').trim();
+/** These pin how markup COMPILES; the namespaces wiring every module also gets is not their subject. */
+const compile = (source) => transformJsx(source, 'app.tsx', { namespaces: false }).replace(/^import .*\n/gm, '').trim();
 
 test('the renderer sigils mean the same thing in JSX', () => {
   assert.equal(compile('const a = <x-el .rows={d} />;'), 'const a = html`<x-el .rows=${d}></x-el>`;');

@@ -1,32 +1,35 @@
 /**
- * **`@verajs/jsx/namespaces` — a template is parsed in the namespace of the position it lands in.**
+ * **`@verajs/renderer/namespaces` — a template is parsed in the namespace of the position it lands in.**
  *
- * JSX compiles every root to `html`, and a component's children cross a function boundary the
- * compiler cannot see through: `<Frame><path/></Frame>` has no way to know `Frame` renders
- * `<svg>{children}</svg>`. The renderer does know, at the moment it builds the children at that
- * position — so this module answers there, exactly as the platform's fragment parser takes a
- * context element: `` html`<path/>` `` built inside an `<svg>` is built as `` svg`<path/>` ``.
+ * Wired like `slots`: `wire([renderer, namespaces])`. From then on `` html`<path/>` `` committed inside
+ * an `<svg>` is built as SVG, exactly as the platform's fragment parser takes a context element — so
+ * a component's children cross a function boundary without anyone choosing `svg\`…\`` for them.
+ * `@verajs/jsx` wires it in every module it compiles, because JSX cannot write `svg\`…\``; a template
+ * author may wire it or keep choosing tags, and pays nothing unless it is wired.
  *
- * It plugs into `@verajs/renderer`'s `'template'` insert point and nothing else, and **wires itself on
- * import** — so the compiler adds only `import '@verajs/jsx/namespaces';`, binding no name that could
- * collide with the module's own, and only to a module that puts an expression inside `<svg>` or
- * `<math>`. An app without one never loads it; the renderer's update path is untouched either way.
- * `wire` comes from `@verajs/core`, kept external in every build: a registration through an inlined
- * copy lands in a registry the renderer never reads.
+ * Additive, like `slots`: it imports nothing, and the renderer reaches it only through the wired
+ * `'template'` insert point and the sigil-named `_$at$`/`_$ns$` members, which mangling exempts.
+ *
+ * Namespaces are ASKED OF THE PARSER, not listed: a probe element's `innerHTML` answers which
+ * namespace a child takes, so integration points and camelCase names come from the platform. The one
+ * exception is `annotation-xml`, where the engines disagree about it as a parsing context.
  */
-import { wire } from '@verajs/core';
-import type { TemplateResult } from '@verajs/renderer';
+import type { TemplateResult } from './types.js';
 
 /**
  * The three namespaces, **read off the parser rather than written here**: `<svg>` and `<math>` parse
- * into theirs, and the wrapper is HTML. Nothing in this file names a namespace URI.
+ * into theirs, and the wrapper is HTML. Built on first use, never at import — this module can be
+ * imported where there is no DOM (a server bundle) as long as nothing renders with it there.
  */
-const reference = document.createElement('div');
-reference.innerHTML = '<svg></svg><math></math>';
-const XHTML = reference.namespaceURI;
-const SVG = (reference.firstChild as Element).namespaceURI;
+let reference: Element | undefined;
+const namespaceOf = (index: -1 | 0 | 1): string | null => {
+  if (reference === undefined) {
+    reference = document.createElement('div');
+    reference.innerHTML = '<svg></svg><math></math>';
+  }
+  return index === -1 ? reference.namespaceURI : (reference.childNodes[index] as Element).namespaceURI;
+};
 
-/** The renderer's template, as far as this module touches it: the sigil-named seam members only. */
 /** A parent element carrying the namespace its children parse in, once asked. */
 type Cached = Element & { _$vns$?: string | null };
 
@@ -43,7 +46,7 @@ type Template = {
  */
 const answers: Record<string, Record<string, string | null>> = {};
 const childOf = (parent: Element): string | null => {
-  if (parent.namespaceURI === XHTML) return null;
+  if (parent.namespaceURI === namespaceOf(-1)) return null;
   /**
    * The one position the probe cannot answer: the engines DISAGREE about `<annotation-xml>` as a
    * fragment parser's context — Chromium reads its `encoding`, Firefox does not — while all three
@@ -66,7 +69,7 @@ const childOf = (parent: Element): string | null => {
     const probe = parent.cloneNode(false) as Element;
     probe.innerHTML = '<x></x>';
     const ns = (probe.firstChild as Element | null)?.namespaceURI ?? null;
-    byName[parent.localName] = answer = ns === XHTML ? null : ns;
+    byName[parent.localName] = answer = ns === namespaceOf(-1) ? null : ns;
   }
   return answer;
 };
@@ -85,12 +88,13 @@ const within = (node: Node, scope: unknown): string | null =>
 
 
 export const namespaces = {
+  name: '@verajs/renderer/namespaces',
   on: 'template' as const,
   priority: 50,
   fn: (template: Template, result: TemplateResult, read: () => unknown): void => {
     const type = result._$litType$ ?? 1;
     if (type !== 1) {
-      template._$ns$ = (reference.childNodes[type - 2] as Element).namespaceURI!;
+      template._$ns$ = namespaceOf((type - 2) as 0 | 1);
       return;
     }
     /** The `svg` and `mathml` builds of this template's markup, made the first time one is needed. */
@@ -99,7 +103,7 @@ export const namespaces = {
     const pick = (ns: string | null): Template =>
       ns === null
         ? template
-        : ns === SVG
+        : ns === namespaceOf(0)
           ? (svg ??= new template.constructor({ _$litType$: 2, strings: result.strings }))
           : (mathml ??= new template.constructor({ _$litType$: 3, strings: result.strings }));
     template._$at$ = (parent) => {
@@ -123,4 +127,3 @@ export const namespaces = {
   },
 };
 
-wire([namespaces]);

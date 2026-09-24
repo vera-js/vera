@@ -69,6 +69,11 @@ export default [
    * by the same `$` rule as the others.
    */
   defaultRollupConfig(`${pkg.filename}-slots`, [], /^_[a-z]/, { input: 'src/slots.ts' }),
+  /**
+   * Additive for the same reason as `slots`: imports nothing, and the renderer reaches it only
+   * through the wired `'template'` insert and the sigiled `_$at$`/`_$ns$` members.
+   */
+  defaultRollupConfig(`${pkg.filename}-namespaces`, [], /^_[a-z]/, { input: 'src/namespaces.ts' }),
   ...(isProduction
     ? []
     : [defaultRollupConfig(`${pkg.filename}-profiler`, [], /^_[a-z]/, { input: 'src/profiler.ts' })]),

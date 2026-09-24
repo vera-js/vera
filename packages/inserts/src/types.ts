@@ -155,6 +155,22 @@ export type LoaderInsert = (name: string, element: Element) => boolean | Promise
 export type SettleInsert = (element: HTMLElement) => void;
 
 /**
+ * Called once as the renderer BUILDS each template — the cold path, cached for the life of the page.
+ * A hook may set `_$at$` on the template: a resolver the renderer asks, once per instance created,
+ * which template to build at a position given that position's parent node — `null`/an element, or
+ * a detached fragment answered through `readScope`. `@verajs/renderer/namespaces` is the first
+ * consumer: it parses an `html` template in the namespace of the position it lands in.
+ *
+ * `template` is the renderer's own object, exposed only through `_$…$` members (mangling exempts
+ * them, which is what lets a separately built module reach it).
+ */
+export type TemplateInsert = (
+  template: object,
+  result: { _$litType$?: number; strings: TemplateStringsArray },
+  readScope: () => unknown
+) => void;
+
+/**
  * Every extension point in the framework, and the signature each one's chain must satisfy. This map
  * is the whole contract: adding a point means adding a line here, and `wire` will then accept it.
  */
@@ -167,6 +183,7 @@ export type InsertFunctionMap = {
   'collection': CollectionInsert;
   'value': ValueInsert;
   'slot': SlotInsert;
+  'template': TemplateInsert;
   'loader': LoaderInsert;
   'settle': SettleInsert;
 };
@@ -191,6 +208,7 @@ export type Inserts = Map<
     | CollectionInsert
     | ValueInsert
     | SlotInsert
+    | TemplateInsert
     | LoaderInsert
     | SettleInsert
   )[]

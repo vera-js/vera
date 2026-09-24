@@ -65,6 +65,12 @@ declare global {
 export type VeraJsxOptions = {
   /** Skip auto-injecting `html`/`keyed`/`spread` imports. */
   inject?: boolean;
+  /**
+   * Wire `@verajs/renderer/namespaces` from every compiled module (default `true`), so a template is
+   * parsed in the namespace of the position it lands in — `<Frame><path/></Frame>` draws when `Frame`
+   * renders an `<svg>`. `false` omits it: wire it yourself, or keep SVG out of components' children.
+   */
+  namespaces?: boolean;
   /** [importedName, moduleSpecifier] for the template tag. Default ['html', '@verajs/core']. */
   html?: [string, string];
   /** [importedName, moduleSpecifier] for keyed(). Default ['keyed', '@verajs/renderer/keyed']. */
