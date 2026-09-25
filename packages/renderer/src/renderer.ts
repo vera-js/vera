@@ -2166,7 +2166,7 @@ class ChildPart implements Part {
    */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (own !== null) own(parent, node, this._end === null || this);
+    if (own !== null && (parent as { _$hosted$?: boolean })._$hosted$ === true) own(parent, node, this._end === null || this);
     /**
      * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
      * parent is foreign, so an ordinary insert allocates nothing even in development.
@@ -2511,7 +2511,7 @@ class ChildPart implements Part {
     /** Rows reach the DOM here rather than through `_insert`; same one-read gate, same
      *  structural value — a root list's rows are the render's own output, any other part's rows
      *  are content it places into the host, stamped with the part as the ordering group. */
-    const owner = own;
+    const owner = (parent as { _$hosted$?: boolean })._$hosted$ === true ? own : null;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
