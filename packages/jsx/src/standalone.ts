@@ -15,9 +15,10 @@
  *
  * **What it does per file**: fetch it, compile it (JSX files) or take it as is (JS files), rewrite its
  * relative imports to the compiled files they name, and run the result from a blob URL. Package names
- * are left to the page's import map — except the renderer helpers the compiler itself imports
- * (`keyed`, `spread`, `namespaces`), which are loaded from beside wherever the map puts
- * `@verajs/renderer`, so the map stays three lines. Copy the renderer's whole `dist` folder.
+ * are left to the page's import map — except `@verajs/renderer`'s own entries (`keyed`, `spread`
+ * and `namespaces`, which compiled JSX imports, and `slots`, `tag` or `hydrate`, which an app
+ * imports), which are loaded from beside wherever the map puts `@verajs/renderer`, so the map stays
+ * three lines. Copy the renderer's whole `dist` folder.
  *
  * **What it costs**, measured on a 40-module app: within ~7–12 ms of the same app precompiled, in
  * Chromium, Firefox and WebKit. A Service Worker was measured too and rejected: Firefox charges every
@@ -77,18 +78,17 @@ const forgetOtherVersions = (): void => {
 };
 
 /**
- * The renderer helpers compiled JSX imports, resolved beside the page's `@verajs/renderer` — unless
- * the import map names them itself, in which case the name is left for it. Returns `null` for
- * anything else, which stays a bare specifier.
+ * **Any `@verajs/renderer/<entry>`, resolved beside the page's `@verajs/renderer`** — every entry is
+ * `vera-renderer-<entry>(.min).js` in the same folder — unless the import map names it itself, in
+ * which case the name is left for it. Returns `null` for anything else, which stays a bare
+ * specifier. Only files this loader loads are rewritten: a plain `<script type="module">` importing
+ * `@verajs/renderer/slots` is resolved by the browser, from the map. The profiler has no
+ * production build, so a page on the `.min.js` files maps it explicitly.
  */
-const HELPERS: Record<string, string> = {
-  '@verajs/renderer/keyed': 'keyed',
-  '@verajs/renderer/spread': 'spread',
-  '@verajs/renderer/namespaces': 'namespaces',
-};
+const RENDERER_ENTRY = /^@verajs\/renderer\/([a-z]+)$/;
 let mapped: Record<string, string> | undefined;
 const helperUrl = (specifier: string): string | null => {
-  const helper = HELPERS[specifier];
+  const helper = RENDERER_ENTRY.exec(specifier)?.[1];
   if (helper === undefined) return null;
   if (mapped === undefined) {
     try {

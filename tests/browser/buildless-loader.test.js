@@ -2,7 +2,7 @@
  * The buildless loader on real engines, set up exactly as a self-hosted page is: an import map of
  * three entries — core, renderer, jsx — pointing at the built files, `import '@verajs/jsx'`, and an
  * app of ordinary `.jsx`/`.js` files. Nothing else is mapped: `keyed` and `namespaces`, which the
- * compiled code imports, must be found beside the renderer.
+ * compiled code imports, and `slots`, which the app imports, must be found beside the renderer.
  *
  * Each case runs in its own iframe, because a blob module resolves package names only through ITS
  * page's import map, and this page — the test runner's — has none and cannot gain one once modules
@@ -49,6 +49,7 @@ it('a multi-file app loads: JSX importing JSX, a relative .js, import(), import.
   expect(result.svg, "a component's <path> child parsed where it landed").to.equal('http://www.w3.org/2000/svg');
   expect(result.meta, 'import.meta.url is the file, not a blob').to.match(/\/fixtures\/buildless\/app\/main\.jsx$/);
   expect(result.late).to.equal('dynamic import compiled');
+  expect(result.slotted, '@verajs/renderer/slots, not in the map, was found beside the renderer and distributed').to.equal('T');
   result.frame.remove();
 });
 

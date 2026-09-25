@@ -1357,9 +1357,9 @@ the price of the modules being genuinely independent of core.
 For CodePen, a demo, or a self-hosted multi-file app. Copy this shape; it works with no toolchain.
 
 ```html
-<!-- Three entries, and that is all. The compiled blocks import `html` from core; the helpers the
-     compiler also imports — `keyed` for `key={…}`, `spread` for `{...rest}`, and
-     `@verajs/renderer/namespaces` — are loaded by @verajs/jsx from BESIDE the mapped
+<!-- Three entries, and that is all. The compiled blocks import `html` from core; every
+     `@verajs/renderer/<entry>` — the `keyed`, `spread` and `namespaces` the compiler imports, and
+     `slots` or `tag` if your code imports them — is loaded by @verajs/jsx from BESIDE the mapped
      @verajs/renderer, so self-hosting means copying the renderer's whole dist folder. A block's own
      relative imports (`./frame.jsx`, `./util.js`) load too, compiled as needed. -->
 <script type="importmap">

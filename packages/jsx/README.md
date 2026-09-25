@@ -50,7 +50,8 @@ because no interface 'JSX.IntrinsicElements' exists"*). One line fixes it — se
 
 **No build at all** — self-hosted, or from a CDN — is three entries in an import map and an app of
 ordinary `.jsx` and `.js` files. Copy the three packages' `dist` folders beside your page (the
-renderer's WHOLE folder: the compiled code loads its helpers from beside it):
+renderer's WHOLE folder: any `@verajs/renderer/<entry>` — the helpers compiled code imports, and
+`slots` or `tag` if yours does — is loaded from beside it, so the map stays three lines):
 
 ```html
 <script type="importmap">{ "imports": {

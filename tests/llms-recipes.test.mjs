@@ -148,18 +148,19 @@ test('every specifier the JSX transform injects is in the buildless import map',
   assert.ok(injected.has('@verajs/renderer/keyed'), 'the transform no longer injects keyed from the subpath entry');
 
   /**
-   * **Or the loader finds it.** `@verajs/jsx/standalone` resolves the renderer helpers the compiler
-   * injects — `keyed`, `spread`, `namespaces` — beside wherever the map puts `@verajs/renderer`, so
-   * the recipe's map is three lines. The list is read from the LOADER's source, so the compiler and
-   * the loader cannot drift apart: a helper the compiler starts injecting that the loader does not
-   * know is missing here.
+   * **Or the loader finds it.** `@verajs/jsx/standalone` resolves every `@verajs/renderer/<entry>` —
+   * the `keyed`, `spread` and `namespaces` the compiler injects among them — beside wherever the map
+   * puts `@verajs/renderer`, so the recipe's map is three lines. The pattern is read from the
+   * LOADER's source, so the compiler and the loader cannot drift apart: a helper the compiler
+   * starts injecting that the loader does not resolve is missing here.
    */
   const loader = readFileSync(new URL('../packages/jsx/src/standalone.ts', import.meta.url), 'utf8');
-  const helpers = new Set([...(/const HELPERS[^{]*\{([^}]*)\}/.exec(loader)?.[1] ?? '').matchAll(/'(@verajs\/[^']+)'/g)].map((m) => m[1]));
-  assert.ok(helpers.size >= 3, 'the loader no longer lists its renderer helpers where this reads them');
+  const entrySource = /const RENDERER_ENTRY = \/(.+)\/;/.exec(loader)?.[1];
+  assert.ok(entrySource, 'the loader no longer declares RENDERER_ENTRY where this reads it');
+  const besideRenderer = new RegExp(entrySource);
   assert.ok(injected.has('@verajs/renderer/namespaces'), 'the transform no longer wires @verajs/renderer/namespaces');
   const missing = [...injected].filter(
-    (specifier) => !(specifier in imports) && !(helpers.has(specifier) && '@verajs/renderer' in imports)
+    (specifier) => !(specifier in imports) && !(besideRenderer.test(specifier) && '@verajs/renderer' in imports)
   );
   assert.deepEqual(
     missing,
