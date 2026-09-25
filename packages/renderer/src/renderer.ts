@@ -60,7 +60,7 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-import type { Part, SlotSeamState, TemplateResult } from './types.js';
+import type { InstanceHook, OwnHook, Part, SlotMount, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -486,18 +486,9 @@ type SlotSeam = SlotSeamFn & {
   _$rescue$?: (host: Element) => Node[] | null;
   /** A captured node's host-side anchor (the light-region sentinel) — see the upgrade below. */
   _$home$?: (node: Node) => Comment | null;
+  /** Told about every insert, so slots can mark the render's own output — see `own`. */
+  $o?: OwnHook;
 };
-/**
- * A recorded `<slot>` position — just its node index in the instance walk. Slot records live
- * BESIDE the parts array, not in it, so `_update` never iterates them and non-slot apps pay
- * nothing per render.
- *
- * The NAME is deliberately not recorded. It used to be, read off the template's static markup,
- * which made `<slot name=${…}>` a slot with no name at all: it registered as a second DEFAULT
- * slot and stole the default content while the real default slot showed its fallback. The name is
- * read from the element at mount instead, which is after its own bindings have committed.
- */
-type SlotRecord = number;
 
 /**
  * The container of the renderInto call currently committing — how a slot part learns its root
@@ -604,8 +595,9 @@ class Template {
    * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
-  declare _slots?: SlotRecord[];
-  declare _seam?: SlotSeamFn;
+  /** Set by `@verajs/renderer/slots`' `'template'` hook on a template holding `<slot>` — see
+   *  `InstanceHook`. */
+  declare _$inst$?: InstanceHook;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
@@ -627,14 +619,14 @@ class Template {
     }
 
     /**
-     * **One walk, three jobs.** It pairs scan specs with parsed nodes in document order (which is
+     * **One walk, two jobs.** It pairs scan specs with parsed nodes in document order (which is
      * expression order) and swaps every marker comment for a primed empty text node — so the
      * shipped template contains no comments at all: each clone is three nodes lighter per typical
-     * row, and the primed text doubles as both anchor and first-commit target. It NUMBERS each part
-     * as it goes, counting elements and texts exactly as `instanceWalker` will (see there). And when
-     * a 'slot' insert is wired, it finds the `<slot>` elements in the same numbering.
+     * row, and the primed text doubles as both anchor and first-commit target. And it NUMBERS each
+     * part as it goes, counting elements and texts exactly as `instanceWalker` will (see there).
      *
-     * These were three walks until 2026-09-24; merging them saved 59 B gzipped. Both versions
+     * These were three walks until 2026-09-24 (the third found `<slot>`s; slots now marks its own
+     * templates through the `'template'` hook); merging them saved 59 B gzipped. Both versions
      * number the PARSED tree, after the parser has moved or dropped anything, so the numbers are
      * the same: a differential fuzz of 1 500 templates built from the shapes the parser reshapes
      * (foster-parenting, `<select>` dropping a `<div>`, implicit `</p>`, raw text, comments, SVG)
@@ -645,9 +637,8 @@ class Template {
      * of the page** — so a shape first constructed before `wire([slots])` ran never gains it,
      * silently. That is the ordinary insert contract (wire at the app entry, beside the renderer,
      * before anything renders); resolving per INSTANCE would put a registry lookup on the hot path
-     * for every app. An app without slots pays one comparison per element here, at construction.
+     * for every app.
      */
-    const seam = slotSeam();
     markerWalker.currentNode = content;
     let specIndex = 0;
     let nodeIndex = -1;
@@ -660,14 +651,10 @@ class Template {
       }
     };
     consumeIgnored();
-    while ((specIndex < specs.length || seam !== undefined) && (node = markerWalker.nextNode()) !== null) {
+    while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
       if (node.nodeType === 1) {
         nodeIndex++;
         const element = node as Element;
-        if (seam !== undefined && element.localName === 'slot') {
-          this._seam = seam;
-          (this._slots ??= []).push(nodeIndex);
-        }
         if (element.hasAttributes()) {
           for (const attributeName of element.getAttributeNames()) {
             if (attributeName.endsWith(MARKER)) {
@@ -779,7 +766,7 @@ class Template {
      * Without it the two ways of getting the wiring wrong are indistinguishable from a component
      * that simply has no slots — see the warning at the instance's slot mount.
      */
-    if (__DEV__ && seam === undefined && markup.includes('<slot')) this._slotless = true;
+    if (__DEV__ && slotSeam() === undefined && markup.includes('<slot')) this._slotless = true;
     const hooks = registry?.get('template') as TemplateHook[] | undefined;
     if (hooks !== undefined) {
       create.hooked = true;
@@ -1640,44 +1627,6 @@ const flushSelects = () => {
 
 const SCRATCH = doc.createDocumentFragment();
 
-/**
- * Marks a node as the render root's OWN output — see `ChildPart._insert`. Sigil-named so property
- * mangling cannot rename it: this is read by `@verajs/renderer/slots`, across a bundle boundary,
- * and a module-scoped Symbol would be minted twice on a CDN page (the `@verajs/styles` lesson).
- *
- * A fragment is stamped through to its children, because inserting one moves the children and the
- * fragment itself never enters the document — the observer reports the children.
- *
- * **Defined rather than assigned, so it is NON-ENUMERABLE.** A plain `node._$own$ = true` is an own
- * enumerable property: measured, it then shows up in `Object.keys(element)` — which is `[]` for
- * every other DOM element — and in `for…in`. Invisibility to everything outside the framework is
- * the whole reason this is a property and not a marker or an attribute, and an enumerable one is
- * not invisible. The descriptor is shared, so this allocates nothing per node, and the path is
- * gated on slots being wired, so no app that does not use them ever reaches it.
- */
-const OWN_DESCRIPTOR: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
-/**
- * The stamp is VALUED, and the value is the discriminator (`docs` in the slots module read it):
- *
- *   `true`        — the render root's own output: never slot content.
- *   a ChildPart   — light content PLACED by that part from an outer template. The part identity
- *                   is the ordering group: a grown row belongs after ITS part's other rows, and
- *                   `<host>${a}${b}</host>` must not interleave a's refill into b's content —
- *                   which is exactly what happens if the group is the render root, shared by both.
- *   absent        — an imperative user mutation; the light region orders it by document position.
- *
- * One shared, mutated descriptor: `defineProperty` reads it synchronously, so this allocates
- * nothing per node while keeping the property non-enumerable (see the invisibility note above).
- */
-const stampOwn = (node: Node, value: true | object = true) => {
-  OWN_DESCRIPTOR.value = value;
-  if (node.nodeType === 11) {
-    for (let child = node.firstChild; child !== null; child = child.nextSibling)
-      Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
-    return;
-  }
-  Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
-};
 
 /** A row is either an element-mode instance or a markered part; both can hold appliers. */
 const detachItem = (item: Item) => {
@@ -1747,11 +1696,12 @@ class Instance {
    * what they did before this feature existed, and the ones with slots take a shape transition
    * once.
    *
-   * `_slotStates` — taken-over slot states, parked at teardown.
-   * `_pendingSlots` — resolved `<slot>` clones awaiting mount; cleared by the first `_update`.
+   * `$s` — the slots module's mount, awaiting this instance's first `_update` (see `InstanceHook`).
+   * `$q` — what it returned: parks the user's slotted nodes at teardown.
+   * `$`-named because the hook that sets and reads them lives in another bundle.
    */
-  declare _slotStates?: SlotSeamState[];
-  declare _pendingSlots?: Element[];
+  declare $s?: SlotMount;
+  declare $q?: () => void;
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1792,32 +1742,14 @@ class Instance {
       );
     }
     /**
-     * Slot records mount OUTSIDE the parts array — one extra walk from the top, paid only by
-     * templates that HAVE slots, only inside a renderInto commit (null root — hydration's
-     * adoption path — stays inert), and only when the 'slot' insert answers. Taking over sets
-     * `notifyOnRemoval`: `_$park$` must rescue the USER'S nodes before a bulk `_clear` discards
-     * the DOM holding them on a branch-away. `_update` never sees any of this.
+     * **Slots, handed to the module that owns them.** Only a template the slots module marked (it
+     * holds a `<slot>`) carries `_$inst$`, and only inside a `renderInto` commit — a null root, which
+     * is hydration's adoption path, stays inert. Everything else pays one property read. The hook
+     * finds the `<slot>` clones now, before the first update mutates the fragment, and mounts them
+     * after it — see `_update`.
      */
-    if (template._seam !== undefined && _slotRoot !== null) {
-      const slotRecords = template._slots!;
-      /**
-       * RESOLVE every slot element to its clone in ONE walk, and mount them AFTER the first
-       * `_update` — see `_mountSlots`. Collect-then-act, because the seam MUTATES the fragment
-       * (it lifts each `<slot>` out and drops in anchors) and a walk that interleaved resolution
-       * with those mutations would read shifted indices and miss later slots.
-       */
-      instanceWalker.currentNode = this._fragment;
-      nodeIndex = -1;
-      const slotNodes: Element[] = [];
-      for (let i = 0; i < slotRecords.length; i++) {
-        while (nodeIndex < slotRecords[i]) {
-          node = instanceWalker.nextNode();
-          nodeIndex++;
-        }
-        slotNodes.push(node as Element);
-      }
-      this._pendingSlots = slotNodes;
-    }
+    const inst = template._$inst$;
+    if (inst !== undefined && _slotRoot !== null) this.$s = inst(this._fragment, _slotRoot);
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
      *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
     if (__DEV__ && template._slotless === true && _slotRoot !== null && _slotRoot.nodeType === 1) {
@@ -1873,46 +1805,31 @@ class Instance {
       (part as TextPart)._upgraded?._detach();
     }
     /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
-    this._slotStates?.forEach((state) => state._$park$?.());
+    this.$q?.();
   }
 
   _update(values: unknown[]) {
     let valueIndex = 0;
     const parts = this._parts;
     for (let i = 0; i < parts.length; i++) valueIndex = parts[i]._commit(values, valueIndex);
-    if (this._pendingSlots !== undefined) this._mountSlots();
-  }
-
-  /**
-   * **Slots mount after the first `_update`, not during construction, because a `<slot>`'s own
-   * bindings are part of its meaning.** `<slot name=${section}>` has no name at all until its
-   * `AttrPart` has committed, and mounting first read the static markup and got `''` — the slot
-   * registered as a second DEFAULT slot, took the default content, and left the real default slot
-   * showing fallback. Committing first also means `@slotchange` and `&ref` are already attached to
-   * the element by the time anything is dispatched on it.
-   *
-   * Once per instance: the fields are cleared here and every later `_update` costs one compare.
-   */
-  _mountSlots() {
-    const slotNodes = this._pendingSlots!;
-    this._pendingSlots = undefined;
     /**
-     * `_slotRoot` still holds the container: it is set for the whole of one `renderInto` and every
-     * instance under it — nested templates included — is constructed and first-updated inside that
-     * same synchronous span, so this is the root the constructor saw.
+     * **Slots mount after the first `_update`, not during construction, because a `<slot>`'s own
+     * bindings are part of its meaning.** `<slot name=${section}>` has no name at all until its
+     * `AttrPart` has committed, and mounting first read the static markup and got `''` — the slot
+     * registered as a second DEFAULT slot, took the default content, and left the real default slot
+     * showing fallback. Committing first also means `@slotchange` and `&ref` are already attached.
+     *
+     * Once per instance; every later `_update` costs one compare. A mount that took anything over
+     * sets `notifyOnRemoval`: its park must rescue the USER'S nodes before a bulk `_clear` discards
+     * the DOM holding them.
      */
-    const root = _slotRoot;
-    const seam = slotSeam();
-    if (seam === undefined || root === null) return;
-    for (let i = 0; i < slotNodes.length; i++) {
-      const slot = slotNodes[i];
-      const state = seam(slot, root, slot.getAttribute('name') ?? '');
-      if (state != null) {
-        (this._slotStates ??= []).push(state);
-        notifyOnRemoval = true;
-      }
+    const mount = this.$s;
+    if (mount !== undefined) {
+      this.$s = undefined;
+      if ((this.$q = mount()) !== undefined) notifyOnRemoval = true;
     }
   }
+
 }
 
 /** A single property read — this runs once per list item per render, so it must be minimal. */
@@ -2095,18 +2012,32 @@ type TemplateHook = (template: Template, result: TemplateResult, read: () => unk
  * out again. One accessor, spelled once.
  */
 /**
- * **Whether ANY app on this page wired light slots**, latched the first time the seam answers.
+ * **The slots module's insert hook, latched the first time the seam answers** — `null` for the
+ * life of a page that never wires slots, so every insert everywhere else pays one comparison.
  *
- * The ownership stamp in `_insert`/`$c` exists only for `@verajs/renderer/slots` to read, and its
- * guard has to be free for everyone else — `_slotRoot` is set for every `renderInto`, so without
- * this an app with no slots at all would stamp every top-level node it renders, which for a list
- * at the root is a property write per ROW. One boolean instead, false for the life of a page that
- * never wires them.
+ * Every node the renderer inserts is reported to it with its owner, so slots can tell the render's
+ * own output in a light host from the user's children; the marking itself lives in slots. It is
+ * latched before any insert can reach a light host, because a host only becomes one when its
+ * first render calls `_$capture$` — through this accessor.
+ *
+ * A seam without `$o` is a slots module OLDER than this renderer: it neither marks templates nor
+ * takes inserts, so nothing would distribute. Development names it; production treats it as unwired
+ * rather than calling `undefined` on every insert.
  */
-let slotsWired = false;
+let own: OwnHook | null = null;
+let skewNamed = false;
 const slotSeam = (): SlotSeam | undefined => {
   const seam = (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
-  if (seam !== undefined) slotsWired = true;
+  if (seam !== undefined) {
+    own = seam.$o ?? null;
+    if (__DEV__ && own === null && !skewNamed) {
+      skewNamed = true;
+      console.warn(
+        '[vera] @verajs/renderer/slots is older than @verajs/renderer, and light-DOM slots will not ' +
+          'distribute. Load both from the same version of the package.'
+      );
+    }
+  }
   return seam;
 };
 const noHandlers: ValueHandler[] = [];
@@ -2255,8 +2186,7 @@ class ChildPart implements Part {
    */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (slotsWired && (parent as { _$hosted$?: boolean })._$hosted$ === true)
-      stampOwn(node, this._end === null ? true : this);
+    if (own !== null) own(parent, node, this._end === null || this);
     /**
      * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
      * parent is foreign, so an ordinary insert allocates nothing even in development.
@@ -2470,7 +2400,7 @@ class ChildPart implements Part {
        * on a path that just built an Instance and cloned a template; same-shape updates never
        * reach here.
        */
-      this._value = [...instance._fragment.childNodes];
+      if (own !== null) this._value = [...instance._fragment.childNodes];
       this._insert(instance._fragment);
       this._instance = instance;
       this._shape = value.strings;
@@ -2586,7 +2516,7 @@ class ChildPart implements Part {
     let instance = held.get(result.strings);
     if (instance === undefined) instance = build(result, this._start.parentNode!);
     else instance._update(result.values);
-    this._value = [...instance._fragment.childNodes];
+    if (own !== null) this._value = [...instance._fragment.childNodes];
     this._insert(instance._fragment);
     this._instance = instance;
     this._shape = result.strings;
@@ -2601,12 +2531,7 @@ class ChildPart implements Part {
     /** Rows reach the DOM here rather than through `_insert`; same one-read gate, same
      *  structural value — a root list's rows are the render's own output, any other part's rows
      *  are content it places into the host, stamped with the part as the ordering group. */
-    const stamp =
-      slotsWired && (parent as { _$hosted$?: boolean })._$hosted$ === true
-        ? this._end === null
-          ? true
-          : this
-        : null;
+    const owner = own;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
@@ -2629,7 +2554,7 @@ class ChildPart implements Part {
       } else instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        if (stamp !== null) stampOwn(rootNode, stamp);
+        if (owner !== null) owner(parent, rootNode, this._end === null || this);
         parent.insertBefore(rootNode, ref);
         /**
          * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
@@ -2664,8 +2589,10 @@ class ChildPart implements Part {
       part._instance = instance;
       part._shape = result.strings;
       part._mode = TEMPLATE;
-      part._value = [...instance._fragment.childNodes];
-      if (stamp !== null) stampOwn(instance._fragment, stamp);
+      if (owner !== null) {
+        part._value = [...instance._fragment.childNodes];
+        owner(parent, instance._fragment, this._end === null || this);
+      }
       /**
        * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
        * survived minification as a live reference and put the warning's strings in the production
@@ -2895,7 +2822,15 @@ export const renderInto = (result: unknown, container: Node) => {
      */
     const marker = comment();
     container.appendChild(marker);
-    if (container.nodeType === 1) slotSeam()?._$capture$?.(container as Element, marker);
+    /**
+     * **Asked for EVERY container's first render, shadow roots included** — only an element is
+     * captured, but the lookup is also what latches `own`, and a part inside a shadow root can
+     * place a template into a light host before that host's own first render. That commit's node
+     * array has to be recorded, or the slots module relocating its content leaves `_clear` nothing
+     * to find, and a template swap in the host shows the old one forever.
+     */
+    const seam = slotSeam();
+    if (container.nodeType === 1) seam?._$capture$?.(container as Element, marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   /**

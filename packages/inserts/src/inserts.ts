@@ -116,7 +116,7 @@ const apply = (item: Registerable) => {
     item(inserts);
   } else {
     item = item as InsertDescriptor;
-    item.connect?.(inserts);
+    item.connect?.(inserts, wire);
     replacing = item.name ?? '';
     register(item.on, item.fn, item.priority);
     replacing = '';

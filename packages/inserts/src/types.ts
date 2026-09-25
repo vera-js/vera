@@ -229,8 +229,14 @@ export type InsertDescriptor = {
    * Called with the registry as the descriptor is wired, for a package that also needs to *read* a
    * chain. `@verajs/renderer` uses it: the same entry that registers it as the renderer hands it
    * the registry it reads `'value'` handlers from, so an app writes one thing, not two.
+   *
+   * The second argument is `wire` itself — core's, the one that writes to the map core reads — for
+   * a module that registers on more than one insert point: `@verajs/renderer/slots` is wired as its
+   * `'slot'` seam and wires its `'template'` hook from here, so an app still writes `wire([slots])`.
+   * Handing it over is what keeps such a module from registering through its own copy of the
+   * registry, which works in development and silently does nothing in production.
    */
-  connect?: (registry: Inserts) => void;
+  connect?: (registry: Inserts, wire: (item: Registerable | Registerable[]) => void) => void;
 };
 /**
  * A function handed the registry instead of a chain entry — how a package that registers nothing

@@ -57,6 +57,27 @@ export type Part = {
  */
 export type SlotSeamState = { _$park$?: () => void };
 
+/**
+ * **What `@verajs/renderer/slots` hangs on a template that holds a `<slot>`** — set through the
+ * `'template'` insert point as the template is built, and read by the renderer for each instance of
+ * it built inside a `renderInto`. Called with the instance's fresh fragment, before its first
+ * update; it returns the MOUNT, which the renderer calls once that first update has committed (so a
+ * `<slot name=${…}>` has its name), and the mount returns the PARK the renderer calls at teardown.
+ *
+ * One property, so one consumer: a second module that needs an instance hook chains the existing
+ * one rather than replacing it. `$`-sigiled throughout, so the contract survives property mangling
+ * across the bundle boundary.
+ */
+export type InstanceHook = (fragment: DocumentFragment, root: Node) => SlotMount | undefined;
+export type SlotMount = () => (() => void) | undefined;
+
+/**
+ * **Told about every node the renderer inserts, once slots is wired**, so the slots module can mark
+ * the render's own output in a light host apart from the user's children. `owner` is `true` for the
+ * render root's own output and the placing part otherwise — the ordering group.
+ */
+export type OwnHook = (parent: Node, node: Node, owner: true | object) => void;
+
 /** One template identity replacing another at the same position, and how often. */
 export type Churn = {
   /** The template that was torn down, rendered readably. */
