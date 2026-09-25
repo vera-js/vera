@@ -210,7 +210,12 @@ test('a third party can implement the slot insert against the documented contrac
    * module-scope wiring above registers only `{ on: 'render', fn: renderInto }`, which is enough
    * for rendering and silently not enough for extending, which is worth knowing on its own.
    */
-  core.wire([renderer]);
+  /**
+   * A strategy finds nothing on its own: `slotDiscovery` is what hands it the `<slot>`s, and since
+   * 2026-09-24 it is a module the strategy wires rather than work every app's renderer does.
+   */
+  const { slotDiscovery } = await load('renderer/slots');
+  core.wire([renderer, slotDiscovery]);
   core.wire({
     name: 'test/foreign-slots',
     on: 'slot',

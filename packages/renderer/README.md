@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.69 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.52 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -558,6 +558,7 @@ This one is complete enough to run — and it runs, in CI, as written:
 ```js
 import { init, render, wire, html } from '@verajs/core';
 import { renderer } from '@verajs/renderer';
+import { slotDiscovery } from '@verajs/renderer/slots';
 
 /** Distribution that KEEPS the <slot>: content moves INSIDE it, fallback shows when it is empty. */
 const slotsInTree = {
@@ -589,7 +590,7 @@ const slotsInTree = {
   },
 };
 
-wire([renderer, slotsInTree]);
+wire([renderer, slotDiscovery, slotsInTree]); // discovery finds the <slot>s and hands them over
 document.head.insertAdjacentHTML('beforeend', '<style>slot{display:contents}</style>');
 
 customElements.define('tree-card', class extends HTMLElement {
@@ -618,7 +619,8 @@ if (heard !== 1) throw new Error('slotchange bubbled to the host');
 The trade is the one the platform itself makes: this is the shadow tree's structure, so the
 `<slot>` now appears in your host's serialized markup (as it appears in a `shadowRoot`'s), your
 component CSS can select it — and structural selectors written against the template see it as the
-child it is, because selectors follow the tree, not layout. Wire it *instead of* `slots` — the
+child it is, because selectors follow the tree, not layout. Wire it *instead of* `slots` — beside
+`slotDiscovery`, which is what finds each `<slot>` and hands it to whichever strategy is wired — the
 seam is single-registrant, and wiring both says so in development, by name.
 
 What this recipe deliberately does not do is the audited module's territory: light-tree ordering
@@ -634,7 +636,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.34 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->3.58 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
 also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
 on both sides.

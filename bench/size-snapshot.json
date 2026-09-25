@@ -3,12 +3,12 @@
   "method": "esbuild bundle, minified, NODE_ENV=production, tree-shaken, zlib.gzipSync",
   "modules": {
     "core": {
-      "raw": 7813,
-      "gzip": 3339
+      "raw": 7818,
+      "gzip": 3348
     },
     "renderer": {
-      "raw": 12489,
-      "gzip": 4803
+      "raw": 12057,
+      "gzip": 4628
     },
     "router": {
       "raw": 10913,
@@ -55,16 +55,16 @@
       "gzip": 923
     },
     "slots": {
-      "raw": 9185,
-      "gzip": 3424
+      "raw": 9930,
+      "gzip": 3671
     },
     "namespaces": {
       "raw": 1160,
       "gzip": 642
     },
     "hydrate": {
-      "raw": 18044,
-      "gzip": 6567
+      "raw": 17657,
+      "gzip": 6432
     },
     "inserts": {
       "raw": 486,
@@ -143,8 +143,8 @@
     {
       "name": "VeraJS + lit-html",
       "note": "core + lit-html",
-      "raw": 13371,
-      "gzip": 5699,
+      "raw": 13375,
+      "gzip": 5700,
       "deps": 2,
       "depsThirdParty": 1,
       "depsThirdPartyNames": [
@@ -179,21 +179,21 @@
       "depsUnresolved": 0
     },
     {
-      "name": "petite-vue",
-      "note": "petite-vue — buildless Vue subset",
-      "raw": 16665,
-      "gzip": 7258,
-      "deps": 0,
+      "name": "VeraJS + own renderer",
+      "note": "core + @verajs/renderer",
+      "raw": 17882,
+      "gzip": 7115,
+      "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0
     },
     {
-      "name": "VeraJS + own renderer",
-      "note": "core + @verajs/renderer",
-      "raw": 18322,
-      "gzip": 7267,
-      "deps": 1,
+      "name": "petite-vue",
+      "note": "petite-vue — buildless Vue subset",
+      "raw": 16665,
+      "gzip": 7258,
+      "deps": 0,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
       "depsUnresolved": 0
@@ -267,16 +267,16 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 20275,
-      "gzip": 8009
+      "raw": 19836,
+      "gzip": 7851
     }
   ],
   "variants": [
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 18326,
-      "gzip": 7273
+      "raw": 17886,
+      "gzip": 7116
     }
   ]
 }

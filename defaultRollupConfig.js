@@ -1,7 +1,7 @@
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import { dts } from 'rollup-plugin-dts';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
 /**
@@ -43,6 +43,16 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
    * conditional in the AST until terser folds it, which it does, but the statement form is the one
    * to reach for so the intent reads.
    */
+  /**
+   * `__VERSION__` → the building package's own version, as a string literal — read from the
+   * `package.json` in the directory the build runs in, which is always the package's. Padded like
+   * the flags above; a version longer than the placeholder shifts its line, which is rare and only
+   * costs a source-map column. Uses: `@verajs/jsx`'s loader keys its compiled cache by it, and
+   * `@verajs/renderer`'s development build compares it with the slots module's.
+   */
+  const version = JSON.stringify(
+    JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')).version
+  ).padEnd('__VERSION__'.length);
   const defineDev = () => {
     return {
       name: 'define-dev',
@@ -65,7 +75,10 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
          */
         const hydrating = (options.hydrating ? 'true' : 'false').padEnd('__HYDRATING__'.length);
         return {
-          code: code.replace(/\b__DEV__\b/g, replacement).replace(/\b__HYDRATING__\b/g, hydrating),
+          code: code
+            .replace(/\b__DEV__\b/g, replacement)
+            .replace(/\b__HYDRATING__\b/g, hydrating)
+            .replace(/\b__VERSION__\b/g, version),
           map: null,
         };
       },

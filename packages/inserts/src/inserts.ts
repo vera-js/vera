@@ -12,9 +12,9 @@ export const inserts = new Map<keyof InsertFunctionMap, InsertFunctionMap[keyof 
  * `_p` is a cross-bundle contract read by every inlined copy of this module. Never rename it and
  * never let a minifier mangle it.
  */
-import type { InsertDescriptor, Registerable } from './types.js';
+import type { InsertDescriptor, Registerable, Wireable } from './types.js';
 
-export type { Connector, InsertDescriptor, Registerable } from './types.js';
+export type { Connector, InsertDescriptor, Registerable, Wireable } from './types.js';
 
 type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
 
@@ -32,7 +32,9 @@ type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
  * - a **descriptor** — `{ on, fn, priority }` — naming the insert point it belongs to
  * - a **connector** — a function handed the registry, which is how a package that imports nothing
  *   gets wired to it
- * - an **array** of either
+ * - an **array** of any of these, nested arrays included — which is also how a module that
+ *   registers on more than one insert point ships: `@verajs/renderer/slots` is its `'slot'` seam
+ *   plus its `'template'` hook, and an app still writes `wire([renderer, slots])`
  *
  * The name is the act: you are wiring modules together. `insert` stays as the noun — these are
  * still insert points, and a descriptor still says which one it is `on` — but the verb was never
@@ -41,12 +43,12 @@ type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
  * There is no positional form. `wire('error', fn, 40)` could be got wrong in three ways and read
  * as none of them; an object cannot be misordered and documents its own keys.
  */
-export const wire = (item: Registerable | Registerable[]) => {
+export const wire = (item: Wireable) => {
   if (Array.isArray(item)) {
-    for (let i = 0; i < item.length; i++) apply(item[i]);
+    for (let i = 0; i < item.length; i++) wire(item[i]);
     return;
   }
-  apply(item);
+  apply(item as Registerable);
 };
 
 /**

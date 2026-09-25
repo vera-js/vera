@@ -57,6 +57,31 @@ export type Part = {
  */
 export type SlotSeamState = { _$park$?: () => void };
 
+/**
+ * **An instance hook: per-template behaviour for every instance, with nothing on the hot path.**
+ *
+ * A `'template'` hook pushes one onto the template's `_$inst$` list as the template is built — only
+ * templates that need it carry any, so every other instance pays one property read. The renderer
+ * calls each for every instance of that template, with the instance's fresh fragment and the render
+ * root (`null` outside a `renderInto`: hydration's adoption path), BEFORE its first update. A hook
+ * may return a MOUNT, called once that first update has committed — so bindings are live, and a
+ * `<slot name=${…}>` has its name — and a mount may return a CLEANUP, called at teardown. The
+ * effect-and-cleanup shape, per instance.
+ *
+ * `@verajs/renderer/slots` is the first user: it finds the `<slot>`s, mounts them, and parks the
+ * user's nodes at teardown. `$`-sigiled throughout, so it survives property mangling across the
+ * bundle boundary.
+ */
+export type InstanceHook = (fragment: DocumentFragment, root: Node | null) => InstanceMount | void;
+export type InstanceMount = () => (() => void) | void;
+
+/**
+ * **Told about every node the renderer inserts, once slots is wired**, so the slots module can mark
+ * the render's own output in a light host apart from the user's children. `owner` is `true` for the
+ * render root's own output and the placing part otherwise — the ordering group.
+ */
+export type OwnHook = (parent: Node, node: Node, owner: true | object) => void;
+
 /** One template identity replacing another at the same position, and how often. */
 export type Churn = {
   /** The template that was torn down, rendered readably. */

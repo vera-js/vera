@@ -55,6 +55,20 @@ test('wire treats a function carrying `on` as a descriptor, not a connector', as
   assert.deepEqual(seen, [host], 'the handler received the container');
 });
 
+test('wire takes nested arrays, so a module made of several descriptors is itself an array', async () => {
+  /** `@verajs/renderer/slots` is `[slotDiscovery, seam]`, and `slotDiscovery` is itself an array. */
+  const inserts = await load('inserts');
+  const seen = [];
+  const one = { on: 'error', fn: () => seen.push('one'), priority: 41 };
+  const two = { on: 'error', fn: () => seen.push('two'), priority: 42 };
+  const connected = [];
+  const connector = (registry) => connected.push(registry);
+  inserts.wire([one, [two, [connector]]]);
+  for (const fn of inserts.inserts.get('error')) fn(new Error('x'));
+  assert.ok(seen.includes('one') && seen.includes('two'), `every nested descriptor registered: ${seen}`);
+  assert.equal(connected.length, 1, 'and a connector nested two deep was handed the registry');
+});
+
 test('the autoloader registers at 75, so it runs after the renderer', async () => {
   const inserts = await load('inserts');
   const chain = () => inserts.inserts.get('render') ?? [];

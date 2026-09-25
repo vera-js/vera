@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->7.1 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->6.9 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -295,7 +295,7 @@ and **end** of the batch.
 
 | Export | Signature |
 | --- | --- |
-| `wire` | `(descriptor \| connector \| array) => void` — a descriptor is `{ on, fn, priority, name? }`, **priority is required** |
+| `wire` | `(descriptor \| connector \| array) => void` — arrays nest, so a module made of several descriptors is itself an array; a descriptor is `{ on, fn, priority, name? }`, **priority is required** |
 | `inserts` | the registry `Map` |
 | `connect` | optional on a descriptor — handed the registry before `fn` is registered, so a module that keeps none can be given core's |
 | `createHook` | `({ callback, priority, element? }) => run` — build your own hook type. Returns the wrapped callback so a standalone value can drive its own first pass (`run(undefined, true)`), or `undefined` if registration was refused |
@@ -438,7 +438,7 @@ silence. `node.assignedSlot` likewise answers `null` — the reverse lookup belo
 trees; read forward through the slot handle or `slotted(host, name)`. Every one of these
 boundaries has one cause — the shipped strategy removes the `<slot>` element — and the renderer
 README carries a runnable ~50-line strategy that KEEPS it instead (`display: contents`, bubbling
-`slotchange`, selectable slot), wired through the same public `'slot'` seam in place of `slots`; **`assignedNodes()`/`assignedElements()`** answer from the live
+`slotchange`, selectable slot), wired through the same public `'slot'` seam in place of `slots` — beside `slotDiscovery` from `@verajs/renderer/slots`, which finds each `<slot>` for whichever strategy is wired; **`assignedNodes()`/`assignedElements()`** answer from the live
 assignment through `event.target` or a `&ref`, with `{ flatten: true }` giving the SLOTTABLES of
 the fallback currently on screen (a comment in fallback content is not one; a nested slot flattens
 through to what it is showing); and **`name` may be a binding** — `<slot name=${section}>` routes by
@@ -473,7 +473,7 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->3.34 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->3.58 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe (it imports nothing and touches no global document).
 
@@ -562,7 +562,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.69 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.52 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 

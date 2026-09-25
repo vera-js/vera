@@ -47,7 +47,7 @@ const COMPILER = new URL(__DEV__ ? './vera-jsx.js' : './vera-jsx.min.js', import
 let compiler: Promise<Compiler> | undefined;
 const loadCompiler = (): Promise<Compiler> => (compiler ??= import(/* @vite-ignore */ COMPILER) as Promise<Compiler>);
 
-const CACHE = `vera-jsx@${__JSX_VERSION__}:`;
+const CACHE = `vera-jsx@${__VERSION__}:`;
 const recall = (url: string, etag: string | null): Compiled | null => {
   if (etag === null) return null;
   try {

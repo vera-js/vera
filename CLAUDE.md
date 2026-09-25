@@ -197,7 +197,9 @@ rest of this file.
   a factory there would be ceremony); **required options → a factory that must be called**
   (`autoloader(import.meta.url, …)`, `directiveLoader(…)` — `rootDir` has no sensible default);
   **optional options → a DUAL**, usable bare or called (`motion`, `sequence`, `remote` in
-  directives). `wire`'s branch is what allows it: a function whose `on` is `undefined` is a
+  directives). **Several insert points → an ARRAY** of descriptors and connectors, since `wire`
+  takes nested arrays (decided 2026-09-24): `slots` is `[slotDiscovery, strategy]` and an app still
+  writes `wire([renderer, slots])`. `wire`'s branch is what allows it: a function whose `on` is `undefined` is a
   CONNECTOR and is handed the registry, so a returned function carrying `on` reads as a descriptor.
   **The discriminator differs per registry** — the directives packs test the sigiled `_$seams$`
   mark because `wireDirectives` passes seams, while a core-level dual would have to recognise the

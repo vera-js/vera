@@ -15,7 +15,8 @@ declare const __DEV__: boolean;
 declare const __HYDRATING__: boolean;
 
 /**
- * `@verajs/jsx`'s own version, replaced by its rollup config. The standalone loader keys its cache of
- * compiled files by it, so upgrading the compiler can never serve output an older one produced.
+ * The building package's own version, folded to a string literal by `defaultRollupConfig.js`.
+ * `@verajs/jsx`'s loader keys its compiled cache by it; `@verajs/renderer`'s development build
+ * compares it with the slots module's.
  */
-declare const __JSX_VERSION__: string;
+declare const __VERSION__: string;

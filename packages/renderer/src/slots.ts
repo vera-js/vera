@@ -16,9 +16,9 @@
  * **Additive entry** (the `keyed`/`spread` family): imports nothing, reaches the renderer only
  * through the wired seam, safe alongside any renderer entry on a CDN page.
  *
- * **Wire it at the app entry, before anything renders.** The renderer resolves this seam once per
- * TEMPLATE, and templates are cached per call site for the life of the page — so a component that
- * rendered before the wiring keeps a slotless template forever. That is the same contract every
+ * **Wire it at the app entry, before anything renders.** This module marks a template as the
+ * renderer builds it, once per TEMPLATE, and templates are cached per call site for the life of the
+ * page — so a component that rendered before the wiring keeps a slotless template forever. That is the same contract every
  * insert carries; the alternative (re-checking the registry per instance) would put a lookup on
  * the hot path of every app, slots or not.
  *
@@ -32,8 +32,8 @@
  * **Post-render additions are NATIVE, and the mechanism is ownership, not position.** The host's
  * childList holds both the user's content and the component's output, and the old rules told them
  * apart by where a node sat — which made bare text unreachable at the tail and a late insertion
- * join its slot out of order. Now the renderer stamps everything it emits at a captured host's
- * top level (a non-enumerable `_$own$` property: `true` for a root part's own output — the
+ * join its slot out of order. Now everything the renderer emits at a captured host's top level is
+ * stamped — the renderer reports every insert to `$o` below, which stamps (a non-enumerable `_$own$` property: `true` for a root part's own output — the
  * structural `_end === null` test, so async commits are covered — and the placing part for
  * content from an outer template). An unstamped top-level addition is therefore knowably the
  * user's: captured with full native semantics, text included, no `slot` attribute required
@@ -76,6 +76,8 @@
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the
  *  instance's DOM is bulk-discarded on a branch-away, and un-registers the binding. */
+import type { InstanceHook, OwnHook } from './types.js';
+
 type SeamState = { _$park$: () => void };
 
 type Binding = {
@@ -1499,16 +1501,128 @@ const rescue = (host: Element): Node[] | null => {
 (takeOverSlot as { _$rescue$?: typeof rescue })._$rescue$ = rescue;
 
 /**
- * The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist.
+ * Marks a node as the render root's OWN output, for the ownership rules above. The renderer reports
+ * every node it inserts, with its owner, once this strategy is wired (see `_insert` there); this
+ * stamps only at a captured host's top level. Sigil-named so property mangling cannot rename it
+ * across the bundle boundary, and a module-scoped Symbol would be minted twice on a CDN page (the
+ * `@verajs/styles` lesson).
  *
- * `fn` no longer needs a cast: `'slot'` is a declared insert point now, so this is checked against
- * `SlotInsert` rather than asserted past the type system. It used to be `as never`, which is what a
- * missing insert type looks like from the inside — and from the OUTSIDE it looked like
+ * The stamp is VALUED, and the value is the discriminator the ordering rules read:
+ *
+ *   `true`        — the render root's own output: never slot content.
+ *   a ChildPart   — light content PLACED by that part from an outer template. The part identity
+ *                   is the ordering group: a grown row belongs after ITS part's other rows, and
+ *                   `<host>${a}${b}</host>` must not interleave a's refill into b's content —
+ *                   which is exactly what happens if the group is the render root, shared by both.
+ *   absent        — an imperative user mutation; the light region orders it by document position.
+ *
+ * **Why the root's own output needs a mark at all:** capture takes a top-level element carrying a
+ * `slot` attribute as the host's content — and a component's own rendered root may legitimately
+ * carry one, when it renders something destined for ITS parent's slot. Measured: unmarked,
+ * `renderInto(html\`<div slot="x">…</div>\`, element)` distributed the component's output into its
+ * own holding fragment and the component rendered NOTHING, with nothing thrown.
+ *
+ * **One property read decides it.** `_$hosted$` is set on the host itself at capture, so "does
+ * anything care about ownership here" is a single own-property read, and every container that is
+ * not a captured host writes nothing. The mark cannot go stale in the direction that matters: a
+ * part's first commit runs in a detached fragment before its host is captured, reads `undefined`
+ * and stamps nothing — and that content is exactly what the initial capture walk lifts anyway.
+ *
+ * A fragment is stamped through to its children, because inserting one moves the children and the
+ * fragment itself never enters the document — the observer reports the children.
+ *
+ * **Defined rather than assigned, so it is NON-ENUMERABLE.** A plain `node._$own$ = true` is an own
+ * enumerable property: measured, it then shows up in `Object.keys(element)` — which is `[]` for
+ * every other DOM element — and in `for…in`. Invisibility to everything outside the framework is
+ * the whole reason this is a property and not a marker or an attribute. One shared, mutated
+ * descriptor: `defineProperty` reads it synchronously, so this allocates nothing per node.
+ *
+ * Lived in the renderer until 2026-09-24; only this strategy reads the stamp, so an app without
+ * slots no longer ships it.
+ */
+const OWN_DESCRIPTOR: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
+const own: OwnHook = (parent, node, owner) => {
+  if ((parent as { _$hosted$?: boolean })._$hosted$ !== true) return;
+  OWN_DESCRIPTOR.value = owner;
+  if (node.nodeType === 11) {
+    for (let child = node.firstChild; child !== null; child = child.nextSibling)
+      Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
+    return;
+  }
+  Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
+};
+(takeOverSlot as { $o?: OwnHook }).$o = own;
+/** Development only: the renderer checks that it and this module come from one version. */
+if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
+
+/**
+ * **Slot discovery — finding the `<slot>`s for whatever slot strategy is wired.** Two pieces: a
+ * `'template'` hook that marks a template holding a `<slot>` with an instance hook (see
+ * `InstanceHook` in the renderer), and a connector that keeps the registry, so the instance hook
+ * hands each `<slot>` to the strategy registered on `'slot'` — this module's, or anyone's.
+ *
+ * Its own export so a custom strategy is one line from working: `wire([renderer, slotDiscovery,
+ * myStrategy])`. `slots` includes it. Before 2026-09-24 the renderer did this itself, for every
+ * app, slots or not.
+ */
+let registered: Map<string, unknown[]> | null = null;
+type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
+
+/**
+ * Each instance of a marked template: find its `<slot>`s now, hand them over after its first
+ * update, park them at teardown. Found BEFORE the update because the update and the takeovers both
+ * mutate the fragment (a takeover lifts its `<slot>` out and drops in anchors); a static
+ * `querySelectorAll` list is the collect-then-act that needs, and like a render it does not reach
+ * into a nested `<template>`'s content. Handed over AFTER, because a `<slot>`'s own bindings are
+ * part of its meaning: `<slot name=${…}>` has no name until its binding commits.
+ *
+ * A null root is hydration's adoption path, which adopts slots itself.
+ */
+const discover: InstanceHook = (fragment, root) => {
+  if (root === null) return;
+  const found = fragment.querySelectorAll('slot');
+  if (found.length === 0) return;
+  return () => {
+    const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
+    if (strategy === undefined) return;
+    let taken: SeamState[] | undefined;
+    for (const slot of found) {
+      const state = strategy(slot, root, slot.getAttribute('name') ?? '');
+      if (state != null) (taken ??= []).push(state);
+    }
+    return taken === undefined ? undefined : () => taken!.forEach((state) => state._$park$?.());
+  };
+};
+
+/**
+ * The `'template'` hook: mark a template that holds a `<slot>`. Read off the template's strings,
+ * case-insensitively because the parser lowercases tag names. A `<slot` inside an attribute value
+ * or a comment marks a template with no slot, which costs its instances one empty query; a real
+ * `<slot>` element always has the text, so none is missed. A template `@verajs/renderer/namespaces`
+ * builds for another namespace goes through the same hook and is marked too.
+ */
+const SLOT_TAG = /<slot[\s/>]/i;
+const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
+  if (SLOT_TAG.test(result.strings.join(''))) ((built as { _$inst$?: InstanceHook[] })._$inst$ ??= []).push(discover);
+};
+
+export const slotDiscovery = [
+  (registry: Map<string, unknown[]>) => {
+    registered = registry;
+  },
+  { name: '@verajs/renderer/slot-discovery', on: 'template' as const, fn: markTemplate, priority: 60 },
+];
+
+/**
+ * The module — `wire([renderer, slots])` and light-DOM slots exist: discovery, plus this strategy
+ * on the `'slot'` insert point.
+ *
+ * `fn` needs no cast: `'slot'` is a declared insert point, so this is checked against `SlotInsert`
+ * rather than asserted past the type system. It used to be `as never`, which is what a missing
+ * insert type looks like from the inside — and from the OUTSIDE it looked like
  * `wire([renderer, slots])` failing to compile for every TypeScript consumer.
  */
-export const slots = {
-  name: '@verajs/renderer/slots',
-  on: 'slot' as const,
-  fn: takeOverSlot,
-  priority: 50,
-};
+export const slots = [
+  slotDiscovery,
+  { name: '@verajs/renderer/slots', on: 'slot' as const, fn: takeOverSlot, priority: 50 },
+];

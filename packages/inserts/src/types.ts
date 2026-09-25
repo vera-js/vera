@@ -241,3 +241,8 @@ export type Connector = (registry: Inserts) => void;
 
 /** Either form {@link wire} accepts, so a module can ship as whichever one suits it. */
 export type Registerable = InsertDescriptor | Connector;
+/**
+ * Everything {@link wire} takes: one registerable, or an array of them — nested, so a module made
+ * of several descriptors is itself an array and sits in an app's list like any other module.
+ */
+export type Wireable = Registerable | readonly Wireable[];

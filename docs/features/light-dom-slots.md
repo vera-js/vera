@@ -64,9 +64,11 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->3.34 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
-renderer carries a small seam that records where a template's slots are; an app that never wires
-this pays that and nothing else.
+<!--size:slots.gzip-->3.58 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+module carries everything slots needs — finding each `<slot>`, marking the render's own output, the
+takeover itself — and the renderer carries only generic hooks it plugs into (an instance hook on
+the template, an insert hook, the capture and relocation calls). An app that never wires slots pays
+a comparison or a property read at those points and nothing else.
 
 ## The honest caveats
 

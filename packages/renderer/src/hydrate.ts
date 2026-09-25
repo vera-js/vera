@@ -237,10 +237,10 @@ const accountSubtree = (node: Node, state: AdoptState) => {
  * cursor nodes carrying `slot="name"`; the default slot takes the host-count nodes
  * (`data-vm-slotted="N"`). Found nodes are wrapped in place as a live binding (identity/state preserved);
  * an unassigned slot adopts its server-rendered fallback children normally. The slots module's
- * `_$adopt$` (off the template's own seam fn) does the registration.
+ * `_$adopt$` (off the registered seam) does the registration.
  */
 const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptState) => {
-  const seamAdopt = (state._template._seam as unknown as {
+  const seamAdopt = (slotSeam() as unknown as {
     _$adopt$: (
       h: Element, n: string, a: Node[] | null, f: Node[], p: Node, b: Node | null, s?: Element
     ) => Part;
@@ -362,8 +362,8 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
   }
 
   /** A `<slot>` in the canonical template maps to distributed content (or fallback) in the server
-   *  DOM — reconciled specially — but only when a slot handler was wired at construction. */
-  if (state._template._seam !== undefined && (canonical as Element).localName === 'slot') {
+   *  DOM — reconciled specially — but only when a slot strategy is wired. */
+  if ((canonical as Element).localName === 'slot' && slotSeam() !== undefined) {
     adoptSlotElement(canonical as Element, cursor, state);
     return;
   }
@@ -595,7 +595,9 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     if (__DEV__) why = 'the markup ran out before the template did';
     throw MISMATCH;
   }
-  if (state._slotStates !== undefined) instance._slotStates = state._slotStates;
+  /** Adopted slots park at teardown exactly as mounted ones do — the instance's `$q`. */
+  const adopted = state._slotStates;
+  if (adopted !== undefined) (instance.$q ??= []).push(() => adopted.forEach((slot) => slot._$park$?.()));
   return instance;
 };
 
@@ -672,6 +674,8 @@ export const renderInto = (result: unknown, container: Node) => {
     typeof result === 'object' &&
     isTemplateResult(result as object)
   ) {
+    /** Latches the slots module's insert hook before anything commits — see `own` in renderer.ts. */
+    slotSeam();
     const part = tryAdopt(result as TemplateResult, container);
     if (part !== null) {
       rootParts.set(container, part);

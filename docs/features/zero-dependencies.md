@@ -15,8 +15,8 @@ measured in [size.md](size.md):
 | --- | ---: | --- |
 | Van.js | 0 | — |
 | Preact + signals | 0 | — |
-| petite-vue | 0 | — |
 | **VeraJS + own renderer** | **0** | — |
+| petite-vue | 0 | — |
 | **VeraJS + lit-html** | **1** | `@types/trusted-types` |
 | React | 1 | `scheduler` |
 | Alpine.js | 2 | `@vue/reactivity`, `@vue/shared` |
