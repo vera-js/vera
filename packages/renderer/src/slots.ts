@@ -1566,7 +1566,6 @@ if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
  * app, slots or not.
  */
 let registered: Map<string, unknown[]> | null = null;
-let cachedStrategy: Strategy | undefined;
 type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
 
 /**
@@ -1579,26 +1578,52 @@ type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | 
  *
  * A null root is hydration's adoption path, which adopts slots itself.
  */
-const discover: InstanceHook = {
-  $c: (fragment, root) => {
-    if (root === null) return undefined;
-    const found = fragment.querySelectorAll('slot');
-    return found.length === 0 ? undefined : found;
-  },
-  $m: (found, root) => {
-    const strategy = (cachedStrategy ??= registered?.get('slot')?.[0] as Strategy | undefined);
-    if (strategy === undefined) return undefined;
-    const slots = found as NodeListOf<Element>;
-    let taken: SeamState[] | undefined;
-    for (let i = 0; i < slots.length; i++) {
-      const state = strategy(slots[i], root!, slots[i].getAttribute('name') ?? '');
-      if (state != null) (taken ??= []).push(state);
-    }
-    return taken;
-  },
-  $q: (taken) => {
-    for (const state of taken as SeamState[]) state._$park$?.();
-  },
+/** Positions of `<slot>`s in ELEMENT|TEXT order, learnt from a template's first instance. */
+const slotWalker = document.createTreeWalker(document, 5);
+const discoverFor = (): InstanceHook => {
+  let positions: number[] | undefined;
+  return {
+    $c: (fragment, root) => {
+      if (root === null) return undefined;
+      if (positions === undefined) {
+        positions = [];
+        slotWalker.currentNode = fragment;
+        let at = -1;
+        let node: Node | null;
+        while ((node = slotWalker.nextNode()) !== null) {
+          at++;
+          if ((node as Element).localName === 'slot') positions.push(at);
+        }
+      }
+      if (positions.length === 0) return undefined;
+      const found = new Array<Element>(positions.length);
+      slotWalker.currentNode = fragment;
+      let at = -1;
+      let node: Node | null = null;
+      for (let k = 0; k < positions.length; k++) {
+        while (at < positions[k]) {
+          node = slotWalker.nextNode();
+          at++;
+        }
+        found[k] = node as Element;
+      }
+      return found;
+    },
+    $m: (found, root) => {
+      const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
+      if (strategy === undefined) return undefined;
+      const slots = found as Element[];
+      let taken: SeamState[] | undefined;
+      for (let i = 0; i < slots.length; i++) {
+        const state = strategy(slots[i], root!, slots[i].getAttribute('name') ?? '');
+        if (state != null) (taken ??= []).push(state);
+      }
+      return taken;
+    },
+    $q: (taken) => {
+      for (const state of taken as SeamState[]) state._$park$?.();
+    },
+  };
 };
 
 /**
@@ -1610,7 +1635,7 @@ const discover: InstanceHook = {
  */
 const SLOT_TAG = /<slot[\s/>]/i;
 const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
-  if (SLOT_TAG.test(result.strings.join(''))) (built as { _$inst$?: InstanceHook })._$inst$ = discover;
+  if (SLOT_TAG.test(result.strings.join(''))) (built as { _$inst$?: InstanceHook })._$inst$ = discoverFor();
 };
 
 export const slotDiscovery = [
