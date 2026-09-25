@@ -672,6 +672,8 @@ export const renderInto = (result: unknown, container: Node) => {
     typeof result === 'object' &&
     isTemplateResult(result as object)
   ) {
+    /** Latches the slot strategy before anything commits — see `slotted` in renderer.ts. */
+    slotSeam();
     const part = tryAdopt(result as TemplateResult, container);
     if (part !== null) {
       rootParts.set(container, part);

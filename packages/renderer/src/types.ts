@@ -57,6 +57,14 @@ export type Part = {
  */
 export type SlotSeamState = { _$park$?: () => void };
 
+/**
+ * **Told about every node the renderer inserts, once a slot strategy offering it is wired** — the
+ * seam's optional `$o`. `@verajs/renderer/slots` uses it to mark the render's own output in a light
+ * host apart from the user's children. `owner` is `true` for the render root's own output and the
+ * placing part otherwise — the ordering group.
+ */
+export type OwnHook = (parent: Node, node: Node, owner: true | object) => void;
+
 /** One template identity replacing another at the same position, and how often. */
 export type Churn = {
   /** The template that was torn down, rendered readably. */

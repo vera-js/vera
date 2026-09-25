@@ -32,8 +32,8 @@
  * **Post-render additions are NATIVE, and the mechanism is ownership, not position.** The host's
  * childList holds both the user's content and the component's output, and the old rules told them
  * apart by where a node sat — which made bare text unreachable at the tail and a late insertion
- * join its slot out of order. Now the renderer stamps everything it emits at a captured host's
- * top level (a non-enumerable `_$own$` property: `true` for a root part's own output — the
+ * join its slot out of order. Now everything the renderer emits at a captured host's top level is
+ * stamped — the renderer reports every insert to `$o` below, which stamps (a non-enumerable `_$own$` property: `true` for a root part's own output — the
  * structural `_end === null` test, so async commits are covered — and the placing part for
  * content from an outer template). An unstamped top-level addition is therefore knowably the
  * user's: captured with full native semantics, text included, no `slot` attribute required
@@ -76,6 +76,8 @@
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the
  *  instance's DOM is bulk-discarded on a branch-away, and un-registers the binding. */
+import type { OwnHook } from './types.js';
+
 type SeamState = { _$park$: () => void };
 
 type Binding = {
@@ -1497,6 +1499,47 @@ const rescue = (host: Element): Node[] | null => {
   return rescued.length > 0 ? rescued : null;
 };
 (takeOverSlot as { _$rescue$?: typeof rescue })._$rescue$ = rescue;
+
+/**
+ * Marks a node as the render root's OWN output, for the ownership rules above. The renderer calls
+ * it for every node it inserts once this strategy is wired, and it stamps only at a captured host's
+ * top level — everything else returns at the first comparison. Sigil-named so property mangling
+ * cannot rename it across the bundle boundary, and a module-scoped Symbol would be minted twice on
+ * a CDN page (the `@verajs/styles` lesson).
+ *
+ * The stamp is VALUED, and the value is the discriminator the ordering rules read:
+ *
+ *   `true`        — the render root's own output: never slot content.
+ *   a ChildPart   — light content PLACED by that part from an outer template. The part identity
+ *                   is the ordering group: a grown row belongs after ITS part's other rows, and
+ *                   `<host>${a}${b}</host>` must not interleave a's refill into b's content —
+ *                   which is exactly what happens if the group is the render root, shared by both.
+ *   absent        — an imperative user mutation; the light region orders it by document position.
+ *
+ * A fragment is stamped through to its children, because inserting one moves the children and the
+ * fragment itself never enters the document — the observer reports the children.
+ *
+ * **Defined rather than assigned, so it is NON-ENUMERABLE.** A plain `node._$own$ = true` is an own
+ * enumerable property: measured, it then shows up in `Object.keys(element)` — which is `[]` for
+ * every other DOM element — and in `for…in`. Invisibility to everything outside the framework is
+ * the whole reason this is a property and not a marker or an attribute. One shared, mutated
+ * descriptor: `defineProperty` reads it synchronously, so this allocates nothing per node.
+ *
+ * Lived in the renderer until 2026-09-24; only this strategy reads the stamp, so an app without
+ * slots no longer ships it.
+ */
+const OWN_DESCRIPTOR: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
+const own: OwnHook = (parent, node, owner) => {
+  if ((parent as { _$hosted$?: boolean })._$hosted$ !== true) return;
+  OWN_DESCRIPTOR.value = owner;
+  if (node.nodeType === 11) {
+    for (let child = node.firstChild; child !== null; child = child.nextSibling)
+      Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
+    return;
+  }
+  Object.defineProperty(node, '_$own$', OWN_DESCRIPTOR);
+};
+(takeOverSlot as { $o?: OwnHook }).$o = own;
 
 /**
  * The insert descriptor — `wire([renderer, slots])` and light-DOM slots exist.
