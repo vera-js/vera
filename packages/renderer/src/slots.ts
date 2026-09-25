@@ -1566,6 +1566,7 @@ if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
  * app, slots or not.
  */
 let registered: Map<string, unknown[]> | null = null;
+let cachedStrategy: Strategy | undefined;
 type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
 
 /**
@@ -1585,7 +1586,7 @@ const discover: InstanceHook = {
     return found.length === 0 ? undefined : found;
   },
   $m: (found, root) => {
-    const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
+    const strategy = (cachedStrategy ??= registered?.get('slot')?.[0] as Strategy | undefined);
     if (strategy === undefined) return undefined;
     const slots = found as NodeListOf<Element>;
     let taken: SeamState[] | undefined;

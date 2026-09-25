@@ -1631,16 +1631,6 @@ const flushSelects = () => {
 const SCRATCH = doc.createDocumentFragment();
 
 
-const STAMP: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
-const stampInline = (node: Node, owner: true | object) => {
-  STAMP.value = owner;
-  if (node.nodeType === 11) {
-    for (let child = node.firstChild; child !== null; child = child.nextSibling) Object.defineProperty(child, '_$own$', STAMP);
-    return;
-  }
-  Object.defineProperty(node, '_$own$', STAMP);
-};
-
 /** A row is either an element-mode instance or a markered part; both can hold appliers. */
 const detachItem = (item: Item) => {
   item._instance?._teardown();
@@ -2176,7 +2166,7 @@ class ChildPart implements Part {
    */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (own !== null && (parent as { _$hosted$?: boolean })._$hosted$ === true) stampInline(node, this._end === null || this);
+    if (own !== null) own(parent, node, this._end === null || this);
     /**
      * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
      * parent is foreign, so an ordinary insert allocates nothing even in development.
@@ -2521,7 +2511,7 @@ class ChildPart implements Part {
     /** Rows reach the DOM here rather than through `_insert`; same one-read gate, same
      *  structural value — a root list's rows are the render's own output, any other part's rows
      *  are content it places into the host, stamped with the part as the ordering group. */
-    const owner = own !== null && (parent as { _$hosted$?: boolean })._$hosted$ === true ? stampInline : null;
+    const owner = own;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
@@ -2544,7 +2534,7 @@ class ChildPart implements Part {
       } else instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        if (owner !== null) owner(rootNode, this._end === null || this);
+        if (owner !== null) owner(parent, rootNode, this._end === null || this);
         parent.insertBefore(rootNode, ref);
         /**
          * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
@@ -2581,7 +2571,7 @@ class ChildPart implements Part {
       part._mode = TEMPLATE;
       if (owner !== null) {
         part._value = [...instance._fragment.childNodes];
-        owner(instance._fragment, this._end === null || this);
+        owner(parent, instance._fragment, this._end === null || this);
       }
       /**
        * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
