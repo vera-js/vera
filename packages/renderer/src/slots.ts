@@ -1578,20 +1578,26 @@ type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | 
  *
  * A null root is hydration's adoption path, which adopts slots itself.
  */
-const discover: InstanceHook = (fragment, root) => {
-  if (root === null) return;
-  const found = fragment.querySelectorAll('slot');
-  if (found.length === 0) return;
-  return () => {
+const discover: InstanceHook = {
+  $c: (fragment, root) => {
+    if (root === null) return undefined;
+    const found = fragment.querySelectorAll('slot');
+    return found.length === 0 ? undefined : found;
+  },
+  $m: (found, root) => {
     const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
-    if (strategy === undefined) return;
+    if (strategy === undefined) return undefined;
+    const slots = found as NodeListOf<Element>;
     let taken: SeamState[] | undefined;
-    for (const slot of found) {
-      const state = strategy(slot, root, slot.getAttribute('name') ?? '');
+    for (let i = 0; i < slots.length; i++) {
+      const state = strategy(slots[i], root!, slots[i].getAttribute('name') ?? '');
       if (state != null) (taken ??= []).push(state);
     }
-    return taken === undefined ? undefined : () => taken!.forEach((state) => state._$park$?.());
-  };
+    return taken;
+  },
+  $q: (taken) => {
+    for (const state of taken as SeamState[]) state._$park$?.();
+  },
 };
 
 /**

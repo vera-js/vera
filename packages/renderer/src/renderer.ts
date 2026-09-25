@@ -60,7 +60,7 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-import type { InstanceHook, InstanceMount, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
+import type { InstanceHook, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -1703,8 +1703,9 @@ class Instance {
    * `$q` — the cleanups those mounts returned, run at teardown.
    * `$`-named because the hooks that return them live in other bundles.
    */
-  declare $s?: InstanceMount[];
-  declare $q?: (() => void)[];
+  declare $h?: InstanceHook[];
+  declare $s?: unknown[];
+  declare $k?: unknown[];
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1746,11 +1747,17 @@ class Instance {
     }
     /** The template's instance hooks, if any — see `InstanceHook`. Everything else pays one read. */
     const hooks = template._$inst$;
-    if (hooks !== undefined)
+    if (hooks !== undefined) {
+      let states: unknown[] | undefined;
       for (let i = 0; i < hooks.length; i++) {
-        const mount = hooks[i](this._fragment, renderRoot);
-        if (mount) (this.$s ??= []).push(mount);
+        const state = hooks[i].$c(this._fragment, renderRoot);
+        if (state !== undefined) (states ??= new Array(hooks.length))[i] = state;
       }
+      if (states !== undefined) {
+        this.$h = hooks;
+        this.$s = states;
+      }
+    }
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
      *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
     if (__DEV__ && template._slotless === true && renderRoot !== null && renderRoot.nodeType === 1) {
@@ -1807,7 +1814,9 @@ class Instance {
       (part as TextPart)._upgraded?._detach();
     }
     /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
-    this.$q?.forEach((cleanup) => cleanup());
+    const kept = this.$k;
+    if (kept !== undefined)
+      for (let i = 0; i < kept.length; i++) if (kept[i] !== undefined) this.$h![i].$q(kept[i]);
   }
 
   _update(values: unknown[]) {
@@ -1825,14 +1834,17 @@ class Instance {
      * sets `notifyOnRemoval`: for slots it must rescue the USER'S nodes before a bulk `_clear`
      * discards the DOM holding them.
      */
-    const mounts = this.$s;
-    if (mounts !== undefined) {
+    const states = this.$s;
+    if (states !== undefined) {
       this.$s = undefined;
-      for (let i = 0; i < mounts.length; i++) {
-        const cleanup = mounts[i]();
-        if (cleanup) (this.$q ??= []).push(cleanup);
+      const hooks = this.$h!;
+      let keeps = false;
+      for (let i = 0; i < states.length; i++)
+        if (states[i] !== undefined && (states[i] = hooks[i].$m(states[i], renderRoot)) !== undefined) keeps = true;
+      if (keeps) {
+        this.$k = states;
+        notifyOnRemoval = true;
       }
-      if (this.$q !== undefined) notifyOnRemoval = true;
     }
   }
 

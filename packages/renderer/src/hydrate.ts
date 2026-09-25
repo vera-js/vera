@@ -43,7 +43,7 @@ import type { Template, Item, KeyedResult } from './renderer.js';
 
 /** Hydration adopts IN PLACE, so a position's parent is always live — no scope needed. */
 const at = (template: Template, parent: Node): Template => template._$at$?.(parent) ?? template;
-import type { Part, TemplateResult } from './types.js';
+import type { InstanceHook, Part, TemplateResult } from './types.js';
 
 export { hold } from './renderer.js';
 export type { TemplateResult } from './types.js';
@@ -239,6 +239,13 @@ const accountSubtree = (node: Node, state: AdoptState) => {
  * an unassigned slot adopts its server-rendered fallback children normally. The slots module's
  * `_$adopt$` (off the registered seam) does the registration.
  */
+/** Adopted slots park at teardown through the same instance-hook slot a mounted one uses. */
+const PARK_ADOPTED: InstanceHook = {
+  $c: () => undefined,
+  $m: () => undefined,
+  $q: (kept) => (kept as { _$park$?: () => void }[]).forEach((slot) => slot._$park$?.()),
+};
+
 const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptState) => {
   const seamAdopt = (slotSeam() as unknown as {
     _$adopt$: (
@@ -597,7 +604,10 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
   }
   /** Adopted slots park at teardown exactly as mounted ones do — the instance's `$q`. */
   const adopted = state._slotStates;
-  if (adopted !== undefined) (instance.$q ??= []).push(() => adopted.forEach((slot) => slot._$park$?.()));
+  if (adopted !== undefined) {
+    instance.$h = [PARK_ADOPTED];
+    instance.$k = [adopted];
+  }
   return instance;
 };
 

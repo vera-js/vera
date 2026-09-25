@@ -72,8 +72,14 @@ export type SlotSeamState = { _$park$?: () => void };
  * user's nodes at teardown. `$`-sigiled throughout, so it survives property mangling across the
  * bundle boundary.
  */
-export type InstanceHook = (fragment: DocumentFragment, root: Node | null) => InstanceMount | void;
-export type InstanceMount = () => (() => void) | void;
+export type InstanceHook = {
+  /** Before the first update: this instance's state, or `undefined` to take no part. */
+  $c(fragment: DocumentFragment, root: Node | null): unknown;
+  /** After the first update, with that state: what to keep for teardown, or `undefined`. */
+  $m(state: unknown, root: Node | null): unknown;
+  /** At teardown, with what `$m` kept. */
+  $q(kept: unknown): void;
+};
 
 /**
  * **Told about every node the renderer inserts, once slots is wired**, so the slots module can mark
