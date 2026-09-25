@@ -605,8 +605,8 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
   /** Adopted slots park at teardown exactly as mounted ones do — the instance's `$q`. */
   const adopted = state._slotStates;
   if (adopted !== undefined) {
-    instance.$h = PARK_ADOPTED;
-    instance.$k = adopted;
+    instance.$h = [PARK_ADOPTED];
+    instance.$k = [adopted];
   }
   return instance;
 };

@@ -1635,7 +1635,7 @@ const discoverFor = (): InstanceHook => {
  */
 const SLOT_TAG = /<slot[\s/>]/i;
 const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
-  if (SLOT_TAG.test(result.strings.join(''))) (built as { _$inst$?: InstanceHook })._$inst$ = discoverFor();
+  if (SLOT_TAG.test(result.strings.join(''))) ((built as { _$inst$?: InstanceHook[] })._$inst$ ??= []).push(discoverFor());
 };
 
 export const slotDiscovery = [
