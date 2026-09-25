@@ -599,7 +599,7 @@ class Template {
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
   /** Pushed onto by `'template'` hooks — the instance hooks for this template; see `InstanceHook`. */
-  declare _$inst$?: InstanceHook[];
+  declare _$inst$?: InstanceHook;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
@@ -1703,9 +1703,9 @@ class Instance {
    * `$q` — the cleanups those mounts returned, run at teardown.
    * `$`-named because the hooks that return them live in other bundles.
    */
-  declare $h?: InstanceHook[];
-  declare $s?: unknown[];
-  declare $k?: unknown[];
+  declare $h?: InstanceHook;
+  declare $s?: unknown;
+  declare $k?: unknown;
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1746,16 +1746,12 @@ class Instance {
       );
     }
     /** The template's instance hooks, if any — see `InstanceHook`. Everything else pays one read. */
-    const hooks = template._$inst$;
-    if (hooks !== undefined) {
-      let states: unknown[] | undefined;
-      for (let i = 0; i < hooks.length; i++) {
-        const state = hooks[i].$c(this._fragment, renderRoot);
-        if (state !== undefined) (states ??= new Array(hooks.length))[i] = state;
-      }
-      if (states !== undefined) {
-        this.$h = hooks;
-        this.$s = states;
+    const hook = template._$inst$;
+    if (hook !== undefined) {
+      const state = hook.$c(this._fragment, renderRoot);
+      if (state !== undefined) {
+        this.$h = hook;
+        this.$s = state;
       }
     }
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
@@ -1814,9 +1810,7 @@ class Instance {
       (part as TextPart)._upgraded?._detach();
     }
     /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
-    const kept = this.$k;
-    if (kept !== undefined)
-      for (let i = 0; i < kept.length; i++) if (kept[i] !== undefined) this.$h![i].$q(kept[i]);
+    if (this.$k !== undefined) this.$h!.$q(this.$k);
   }
 
   _update(values: unknown[]) {
@@ -1834,17 +1828,10 @@ class Instance {
      * sets `notifyOnRemoval`: for slots it must rescue the USER'S nodes before a bulk `_clear`
      * discards the DOM holding them.
      */
-    const states = this.$s;
-    if (states !== undefined) {
+    const state = this.$s;
+    if (state !== undefined) {
       this.$s = undefined;
-      const hooks = this.$h!;
-      let keeps = false;
-      for (let i = 0; i < states.length; i++)
-        if (states[i] !== undefined && (states[i] = hooks[i].$m(states[i], renderRoot)) !== undefined) keeps = true;
-      if (keeps) {
-        this.$k = states;
-        notifyOnRemoval = true;
-      }
+      if ((this.$k = this.$h!.$m(state, renderRoot)) !== undefined) notifyOnRemoval = true;
     }
   }
 
