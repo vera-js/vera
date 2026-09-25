@@ -1,11 +1,10 @@
 /**
  * The light-slots SEAM in the renderer — the renderer's half of the contract, driven by a FAKE slots
  * module so a regression here is the renderer's and not the real module's. Since 2026-09-24 the
- * slots module owns discovery: it pushes an INSTANCE HOOK onto a template holding `<slot>` through
- * the `'template'` hook (`_$inst$`, a list), and the renderer's whole job is to call each hook for
- * each instance — with the fresh fragment and the render root, before the first update — run the
- * mounts they return AFTER that update (so a bound `name` has committed), keep the cleanups the
- * mounts return, and run them before a branch-away discards the instance's DOM. Every insert is
+ * slots module owns discovery: an `'element'` insert claims each `<slot>` as the template is built,
+ * and the renderer's whole job is to find the claimed element in each instance's walk, call the
+ * behavior's `mount` AFTER the first update (so a bound `name` has committed) with the render root,
+ * keep what it returns, and hand that to `unmount` before a branch-away discards the instance's DOM. Every insert is
  * reported to the seam's `$o` with its owner. Slot bindings still consume expression values in order.
  */
 import assert from 'node:assert/strict';
@@ -40,22 +39,15 @@ const fakeSeam = (slot, root, name) => {
 };
 /** The insert hook: records what the renderer reports. A seam without it reads as an old module. */
 fakeSeam.$o = (parent, node, owner) => inserts.push({ parent, node, owner });
-/** The instance hook, as the real module's: find now, mount after the first update, park later. */
-const instanceHook = (fragment, root) => {
-  if (root === null) return undefined;
-  const found = [...fragment.querySelectorAll('slot')];
-  return () => {
-    const taken = found.map((slot) => fakeSeam(slot, root, slot.getAttribute('name') ?? '')).filter(Boolean);
-    return taken.length === 0 ? undefined : () => taken.forEach((state) => state._$park$());
-  };
-};
-const mark = (built, result) => {
-  if (/<slot[\s/>]/i.test(result.strings.join(''))) (built._$inst$ ??= []).push(instanceHook);
+/** The element claim, as the real module's: every `<slot>`, mounted into the seam after the first update. */
+const slotBehavior = {
+  mount: (slot, root) => (root === null ? undefined : fakeSeam(slot, root, slot.getAttribute('name') ?? '') ?? undefined),
+  unmount: (state) => state._$park$(),
 };
 wire([
   renderer,
   { name: 'fake-slots', on: 'slot', fn: fakeSeam, priority: 50 },
-  { name: 'fake-slots', on: 'template', fn: mark, priority: 60 },
+  { name: 'fake-slots', on: 'element', fn: (el) => (el.localName === 'slot' ? slotBehavior : undefined), priority: 60 },
 ]);
 
 test('the seam is resolved per TEMPLATE and cached — one consultation per shape, per instance', () => {

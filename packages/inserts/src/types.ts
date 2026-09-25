@@ -171,6 +171,22 @@ export type TemplateInsert = (
 ) => void;
 
 /**
+ * `'element'` — asked about each element of a template ONCE, as the renderer builds the template.
+ * Return a behavior to claim the element for every instance of that template, or `undefined` to
+ * leave it. `mount` runs per instance after its first update (the element's own bindings have
+ * committed); what it returns is kept and handed to `unmount` at teardown. Behaviors are shared
+ * objects, so claiming costs no allocation, and an element nobody claims costs nothing per
+ * instance. Every registrant is asked; several may claim one element.
+ *
+ * Asked about MARKUP: an element's attributes as the template writes them, not values bound later.
+ */
+export type ElementBehavior = {
+  mount?: (element: Element, root: Node | null) => unknown;
+  unmount?: (kept: unknown, element: Element) => void;
+};
+export type ElementInsert = (element: Element) => ElementBehavior | undefined;
+
+/**
  * Every extension point in the framework, and the signature each one's chain must satisfy. This map
  * is the whole contract: adding a point means adding a line here, and `wire` will then accept it.
  */
@@ -184,6 +200,7 @@ export type InsertFunctionMap = {
   'value': ValueInsert;
   'slot': SlotInsert;
   'template': TemplateInsert;
+  'element': ElementInsert;
   'loader': LoaderInsert;
   'settle': SettleInsert;
 };
@@ -209,6 +226,7 @@ export type Inserts = Map<
     | ValueInsert
     | SlotInsert
     | TemplateInsert
+    | ElementInsert
     | LoaderInsert
     | SettleInsert
   )[]

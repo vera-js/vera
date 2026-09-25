@@ -60,7 +60,7 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-import type { InstanceHook, InstanceMount, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
+import type { ElementBehavior, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -186,6 +186,7 @@ const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
+const HOOK = 3; // an 'element' insert claimed this element — no value; see `HookPart`
 
 /**
  * `_tag` is `__DEV__` only and exists for one diagnostic: when the HTML parser DROPS the element a
@@ -454,8 +455,10 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
 
 /** A part's position and shape inside a Template, resolved to a node index for instantiation. */
 type TemplatePart = {
-  _type: 0 | 1 | 2;
+  _type: 0 | 1 | 2 | 3;
   _index: number;
+  /** HOOK only: what the `'element'` insert returned for this element. */
+  _hook?: ElementBehavior;
   _name?: string;
   _statics?: string[];
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
@@ -598,8 +601,8 @@ class Template {
    * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
-  /** Pushed onto by `'template'` hooks — the instance hooks for this template; see `InstanceHook`. */
-  declare _$inst$?: InstanceHook[];
+  /** Whether any element in this template was claimed by an `'element'` insert — see `HookPart`. */
+  declare _hooked?: boolean;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
@@ -641,6 +644,13 @@ class Template {
      * before anything renders); resolving per INSTANCE would put a registry lookup on the hot path
      * for every app.
      */
+    /**
+     * **`'element'` inserts are asked about every element, here, once per template** — the walk then
+     * runs to the end rather than stopping at the last binding. An element one claims becomes a
+     * HOOK part at its position, so every instance finds it in the walk it already does to place
+     * its bindings: no second walk, no query, per instance. Apps that wire none skip all of it.
+     */
+    const claims = registry?.get('element') as ((element: Element) => ElementBehavior | undefined)[] | undefined;
     markerWalker.currentNode = content;
     let specIndex = 0;
     let nodeIndex = -1;
@@ -653,10 +663,18 @@ class Template {
       }
     };
     consumeIgnored();
-    while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
+    while ((specIndex < specs.length || claims !== undefined) && (node = markerWalker.nextNode()) !== null) {
       if (node.nodeType === 1) {
         nodeIndex++;
         const element = node as Element;
+        if (claims !== undefined)
+          for (let i = 0; i < claims.length; i++) {
+            const behavior = claims[i](element);
+            if (behavior !== undefined) {
+              parts.push({ _type: HOOK, _index: nodeIndex, _hook: behavior });
+              this._hooked = true;
+            }
+          }
         if (element.hasAttributes()) {
           for (const attributeName of element.getAttributeNames()) {
             if (attributeName.endsWith(MARKER)) {
@@ -774,7 +792,7 @@ class Template {
      * are indistinguishable from a component that simply has no slots — see the warning at the
      * instance.
      */
-    if (__DEV__ && this._$inst$ === undefined && markup.includes('<slot')) this._slotless = true;
+    if (__DEV__ && this._hooked !== true && markup.includes('<slot')) this._slotless = true;
   }
 }
 
@@ -1688,6 +1706,36 @@ type Item = {
   _part: ChildPart | null;
 };
 
+/**
+ * **An element an `'element'` insert claimed** — it takes no value; it carries the behavior's per-
+ * instance state. `mount` runs once, after the instance's first update (so the element's own
+ * bindings have committed); whatever it returns is kept, and handed to `unmount` at teardown.
+ * Behaviors are shared objects and their methods are plain names — only `_`-prefixed properties
+ * are mangled, so the contract survives the bundle boundary.
+ */
+class HookPart implements Part {
+  _element: Element;
+  _behavior: ElementBehavior;
+  _pending = true;
+  _kept: unknown = undefined;
+  constructor(element: Element, behavior: ElementBehavior) {
+    this._element = element;
+    this._behavior = behavior;
+  }
+  _commit(_values: unknown[], index: number) {
+    return index;
+  }
+  _mountHook(root: Node | null) {
+    this._pending = false;
+    return (this._kept = this._behavior.mount?.(this._element, root));
+  }
+  _unmount() {
+    const kept = this._kept;
+    this._kept = undefined;
+    this._behavior.unmount?.(kept, this._element);
+  }
+}
+
 class Instance {
   _parts: Part[] = [];
   _fragment: DocumentFragment;
@@ -1699,12 +1747,9 @@ class Instance {
    * what they did before this feature existed, and the ones with slots take a shape transition
    * once.
    *
-   * `$s` — the instance hooks' mounts, awaiting this instance's first `_update` (see `InstanceHook`).
-   * `$q` — the cleanups those mounts returned, run at teardown.
-   * `$`-named because the hooks that return them live in other bundles.
+   * `_mounting` — this instance has HOOK parts awaiting their `mount`, run by the first `_update`.
    */
-  declare $s?: InstanceMount[];
-  declare $q?: (() => void)[];
+  declare _mounting?: boolean;
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1741,16 +1786,12 @@ class Instance {
       this._parts.push(
         templatePart._type === CHILD
           ? new TextPart(node as Text)
-          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
+          : templatePart._type === HOOK
+            ? new HookPart(node as Element, templatePart._hook!)
+            : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
     }
-    /** The template's instance hooks, if any — see `InstanceHook`. Everything else pays one read. */
-    const hooks = template._$inst$;
-    if (hooks !== undefined)
-      for (let i = 0; i < hooks.length; i++) {
-        const mount = hooks[i](this._fragment, renderRoot);
-        if (mount) (this.$s ??= []).push(mount);
-      }
+    if (template._hooked === true) this._mounting = true;
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
      *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
     if (__DEV__ && template._slotless === true && renderRoot !== null && renderRoot.nodeType === 1) {
@@ -1805,9 +1846,9 @@ class Instance {
       const part = parts[i];
       if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
       (part as TextPart)._upgraded?._detach();
+      /** An element behavior's `unmount` — taken-over slots park the USER'S nodes here. */
+      if ((part as HookPart)._kept !== undefined) (part as HookPart)._unmount();
     }
-    /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
-    this.$q?.forEach((cleanup) => cleanup());
   }
 
   _update(values: unknown[]) {
@@ -1825,14 +1866,16 @@ class Instance {
      * sets `notifyOnRemoval`: for slots it must rescue the USER'S nodes before a bulk `_clear`
      * discards the DOM holding them.
      */
-    const mounts = this.$s;
-    if (mounts !== undefined) {
-      this.$s = undefined;
-      for (let i = 0; i < mounts.length; i++) {
-        const cleanup = mounts[i]();
-        if (cleanup) (this.$q ??= []).push(cleanup);
-      }
-      if (this.$q !== undefined) notifyOnRemoval = true;
+    if (this._mounting === true) this._mount();
+  }
+
+  /** Runs each element behavior's `mount` once — after the first update, or after adoption. */
+  _mount() {
+    this._mounting = false;
+    const parts = this._parts;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i] as HookPart;
+      if (part._pending === true && part._mountHook(renderRoot) !== undefined) notifyOnRemoval = true;
     }
   }
 
@@ -1986,7 +2029,7 @@ type ValueHandler = (part: object, value: unknown) => boolean | void;
  * registry and core another, and an app would register into whichever it happened to import — the
  * failure `connectInserts` used to repair.
  */
-let registry: { get(name: 'value' | 'slot' | 'template'): unknown[] | undefined } | null = null;
+let registry: { get(name: 'value' | 'slot' | 'template' | 'element'): unknown[] | undefined } | null = null;
 
 /**
  * **The create-path scope** (held on an object, not in a module-level `let`: WebKit checks a `let`
@@ -2858,6 +2901,7 @@ export {
   toText,
   isTemplateResult,
   instanceWalker,
+  HookPart,
   rootParts,
   slotSeam,
   _setProfileHook,

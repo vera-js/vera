@@ -76,7 +76,7 @@
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the
  *  instance's DOM is bulk-discarded on a branch-away, and un-registers the binding. */
-import type { InstanceHook, OwnHook } from './types.js';
+import type { ElementBehavior, OwnHook } from './types.js';
 
 type SeamState = { _$park$: () => void };
 
@@ -1556,10 +1556,11 @@ const own: OwnHook = (parent, node, owner) => {
 if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
 
 /**
- * **Slot discovery — finding the `<slot>`s for whatever slot strategy is wired.** Two pieces: a
- * `'template'` hook that marks a template holding a `<slot>` with an instance hook (see
- * `InstanceHook` in the renderer), and a connector that keeps the registry, so the instance hook
- * hands each `<slot>` to the strategy registered on `'slot'` — this module's, or anyone's.
+ * **Slot discovery — handing each `<slot>` to whatever slot strategy is wired.** An `'element'`
+ * insert that claims every `<slot>` (the renderer asks it about each element once per template, so
+ * each instance finds its slots in the walk it already does), and a connector that keeps the
+ * registry, so a claimed slot goes to the strategy registered on `'slot'` — this module's, or
+ * anyone's.
  *
  * Its own export so a custom strategy is one line from working: `wire([renderer, slotDiscovery,
  * myStrategy])`. `slots` includes it. Before 2026-09-24 the renderer did this itself, for every
@@ -1569,48 +1570,26 @@ let registered: Map<string, unknown[]> | null = null;
 type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
 
 /**
- * Each instance of a marked template: find its `<slot>`s now, hand them over after its first
- * update, park them at teardown. Found BEFORE the update because the update and the takeovers both
- * mutate the fragment (a takeover lifts its `<slot>` out and drops in anchors); a static
- * `querySelectorAll` list is the collect-then-act that needs, and like a render it does not reach
- * into a nested `<template>`'s content. Handed over AFTER, because a `<slot>`'s own bindings are
- * part of its meaning: `<slot name=${…}>` has no name until its binding commits.
- *
- * A null root is hydration's adoption path, which adopts slots itself.
+ * Per instance, after its first update — so a `<slot>`'s own bindings have committed, and
+ * `<slot name=${…}>` has the name it will be routed by. The name is read from the element for that
+ * reason. A null root is hydration's adoption path, which adopts slots itself; what is kept is the
+ * seam state, parked on unmount.
  */
-const discover: InstanceHook = (fragment, root) => {
-  if (root === null) return;
-  const found = fragment.querySelectorAll('slot');
-  if (found.length === 0) return;
-  return () => {
+const slotBehavior: ElementBehavior = {
+  mount: (slot, root) => {
+    if (root === null) return undefined;
     const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
-    if (strategy === undefined) return;
-    let taken: SeamState[] | undefined;
-    for (const slot of found) {
-      const state = strategy(slot, root, slot.getAttribute('name') ?? '');
-      if (state != null) (taken ??= []).push(state);
-    }
-    return taken === undefined ? undefined : () => taken!.forEach((state) => state._$park$?.());
-  };
+    return strategy?.(slot, root, slot.getAttribute('name') ?? '') ?? undefined;
+  },
+  unmount: (state) => (state as SeamState)._$park$?.(),
 };
-
-/**
- * The `'template'` hook: mark a template that holds a `<slot>`. Read off the template's strings,
- * case-insensitively because the parser lowercases tag names. A `<slot` inside an attribute value
- * or a comment marks a template with no slot, which costs its instances one empty query; a real
- * `<slot>` element always has the text, so none is missed. A template `@verajs/renderer/namespaces`
- * builds for another namespace goes through the same hook and is marked too.
- */
-const SLOT_TAG = /<slot[\s/>]/i;
-const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
-  if (SLOT_TAG.test(result.strings.join(''))) ((built as { _$inst$?: InstanceHook[] })._$inst$ ??= []).push(discover);
-};
+const claimSlot = (element: Element) => (element.localName === 'slot' ? slotBehavior : undefined);
 
 export const slotDiscovery = [
   (registry: Map<string, unknown[]>) => {
     registered = registry;
   },
-  { name: '@verajs/renderer/slot-discovery', on: 'template' as const, fn: markTemplate, priority: 60 },
+  { name: '@verajs/renderer/slot-discovery', on: 'element' as const, fn: claimSlot, priority: 60 },
 ];
 
 /**

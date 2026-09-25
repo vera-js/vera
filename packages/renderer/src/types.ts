@@ -58,22 +58,23 @@ export type Part = {
 export type SlotSeamState = { _$park$?: () => void };
 
 /**
- * **An instance hook: per-template behaviour for every instance, with nothing on the hot path.**
+ * **What to do with an element an `'element'` insert claimed** — per instance, with nothing on the hot
+ * path. The insert is asked about each element of a template once, as the template is built, and
+ * returns one of these (a shared object) or `undefined`. Every instance then finds the claimed
+ * element in the walk it already does to place its bindings, and runs `mount` after its first
+ * update; what `mount` returns is kept and handed to `unmount` at teardown.
  *
- * A `'template'` hook pushes one onto the template's `_$inst$` list as the template is built — only
- * templates that need it carry any, so every other instance pays one property read. The renderer
- * calls each for every instance of that template, with the instance's fresh fragment and the render
- * root (`null` outside a `renderInto`: hydration's adoption path), BEFORE its first update. A hook
- * may return a MOUNT, called once that first update has committed — so bindings are live, and a
- * `<slot name=${…}>` has its name — and a mount may return a CLEANUP, called at teardown. The
- * effect-and-cleanup shape, per instance.
- *
- * `@verajs/renderer/slots` is the first user: it finds the `<slot>`s, mounts them, and parks the
- * user's nodes at teardown. `$`-sigiled throughout, so it survives property mangling across the
- * bundle boundary.
+ * `@verajs/renderer/slots` is the first user: it claims each `<slot>`, mounts it into the wired
+ * strategy, and parks the user's nodes on unmount. Several inserts may claim one element; each gets
+ * its own part. Plain method names — only `_`-prefixed properties are mangled — so the contract
+ * survives the bundle boundary.
  */
-export type InstanceHook = (fragment: DocumentFragment, root: Node | null) => InstanceMount | void;
-export type InstanceMount = () => (() => void) | void;
+export type ElementBehavior = {
+  /** Once per instance, after its first update; whatever it returns is kept for `unmount`. */
+  mount?: (element: Element, root: Node | null) => unknown;
+  /** At teardown, with what `mount` returned — called only when that was not `undefined`. */
+  unmount?: (kept: unknown, element: Element) => void;
+};
 
 /**
  * **Told about every node the renderer inserts, once slots is wired**, so the slots module can mark

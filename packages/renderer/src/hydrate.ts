@@ -23,6 +23,7 @@ import {
   TextPart,
   ChildPart,
   AttrPart,
+  HookPart,
   IGNORED_PART,
   IGNORED,
   TEMPLATE,
@@ -189,8 +190,6 @@ type AdoptState = {
   _partIndex: number;
   _nodeIndex: number;
   _out: Part[];
-  /** Taken-over slot states — parked at teardown, never committed (kept OUT of `_parts`). */
-  _slotStates?: import('./types.js').SlotSeamState[];
 };
 
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in
@@ -211,7 +210,7 @@ let _adoptedSlots: { _$park$: () => void }[] = [];
 /** How many values a template part consumes — for skipping the unrendered parts inside an
  *  assigned slot's fallback subtree. */
 const partValueCount = (part: { _type: number; _statics?: string[] }): number =>
-  part._type === 1 ? (part._statics!.length - 1) : 1;
+  part._type === 1 ? (part._statics!.length - 1) : part._type === 3 ? 0 : 1;
 
 /**
  * Account for (skip) the parts inside a canonical subtree whose DOM the server did NOT render —
@@ -260,8 +259,17 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
    */
   const ghost = canonicalSlot.cloneNode(false) as Element;
   const parts = state._template._parts;
+  /** The slot strategy's own claim on this `<slot>`: it records the adopted seam below, so teardown
+   *  parks it through `unmount` exactly as a mounted one. */
+  let claim: HookPart | undefined;
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
+    if (templatePart._type === 3) {
+      const hookPart = new HookPart(ghost, templatePart._hook!);
+      state._out.push(hookPart);
+      claim ??= hookPart;
+      continue;
+    }
     const attrPart = new AttrPart(ghost, templatePart._name!, templatePart._statics!, templatePart._present);
     state._out.push(attrPart);
     state._valueIndex = attrPart._commit(state._values, state._valueIndex, true);
@@ -321,7 +329,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     accountSubtree(canonicalSlot, state);
     const seam = seamAdopt(_adoptHost!, name, assigned, fallback, parent, before, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
-    (state._slotStates ??= []).push(seam as never);
+    adopted(claim, seam);
     /** An adopted seam is removal work exactly as a mounted one is — without this, a page whose
      *  only seams were adopted never ran `_teardown`, and branch-away destroyed the user's
      *  server-adopted content instead of parking it. See `declareRemovalWork`. */
@@ -337,10 +345,22 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
     const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
-    (state._slotStates ??= []).push(seam as never);
+    adopted(claim, seam);
     /** Same as the assigned branch: an unassigned seam still unregisters and re-routes at park. */
     declareRemovalWork();
   }
+};
+
+/**
+ * An adopted `<slot>`'s seam, recorded on the slot strategy's claim so teardown parks it through
+ * `unmount`. Marked as already mounted, so the post-adoption mount pass leaves it alone. With no
+ * claim (a template built before the strategy was wired) there is nothing to park it through.
+ */
+const adopted = (claim: HookPart | undefined, seam: unknown) => {
+  if (claim === undefined) return;
+  claim._pending = false;
+  claim._kept = seam;
+  declareRemovalWork();
 };
 
 /** Adopts one canonical node (and, for elements, its subtree) against the live cursor. */
@@ -383,6 +403,11 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
 
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
+    /** An `'element'` claim: its `mount` runs after the whole instance is adopted. */
+    if (templatePart._type === 3) {
+      state._out.push(new HookPart(live as Element, templatePart._hook!));
+      continue;
+    }
     const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!, templatePart._present);
     state._out.push(attrPart);
     /** Attributes re-set (idempotent), listeners attached, refs fired — the server could only
@@ -595,9 +620,8 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     if (__DEV__) why = 'the markup ran out before the template did';
     throw MISMATCH;
   }
-  /** Adopted slots park at teardown exactly as mounted ones do — the instance's `$q`. */
-  const adopted = state._slotStates;
-  if (adopted !== undefined) (instance.$q ??= []).push(() => adopted.forEach((slot) => slot._$park$?.()));
+  /** Element behaviors mount once the instance is adopted, as after a client's first update. */
+  if (template._hooked === true) instance._mount();
   return instance;
 };
 
