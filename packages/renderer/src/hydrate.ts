@@ -190,6 +190,9 @@ type AdoptState = {
   _partIndex: number;
   _nodeIndex: number;
   _out: Part[];
+  /** Element-hook parts adopted in this instance — kept out of `_out`, as the client keeps them out
+   *  of `_parts`. */
+  _hooks?: HookPart[];
 };
 
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in
@@ -266,7 +269,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     const templatePart = parts[state._partIndex++];
     if (templatePart._type === 3) {
       const hookPart = new HookPart(ghost, templatePart._hook!);
-      state._out.push(hookPart);
+      (state._hooks ??= []).push(hookPart);
       claim ??= hookPart;
       continue;
     }
@@ -405,7 +408,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     const templatePart = parts[state._partIndex++];
     /** An `'element'` claim: its `mount` runs after the whole instance is adopted. */
     if (templatePart._type === 3) {
-      state._out.push(new HookPart(live as Element, templatePart._hook!));
+      (state._hooks ??= []).push(new HookPart(live as Element, templatePart._hook!));
       continue;
     }
     const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!, templatePart._present);
@@ -621,10 +624,9 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     throw MISMATCH;
   }
   /** Element behaviors mount once the instance is adopted, as after a client's first update. */
-  if (template._hooked === true) {
-    instance._hooks = instance._parts.filter((part): part is HookPart => part instanceof HookPart);
-    if (instance._hooks.length > 0) instance._mount();
-    else instance._hooks = undefined;
+  if (state._hooks !== undefined) {
+    instance._hooks = state._hooks;
+    instance._mount();
   }
   return instance;
 };

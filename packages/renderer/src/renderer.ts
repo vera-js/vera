@@ -1713,7 +1713,7 @@ type Item = {
  * Behaviors are shared objects and their methods are plain names — only `_`-prefixed properties
  * are mangled, so the contract survives the bundle boundary.
  */
-class HookPart implements Part {
+class HookPart {
   _element: Element;
   _behavior: ElementBehavior;
   _pending = true;
@@ -1721,9 +1721,6 @@ class HookPart implements Part {
   constructor(element: Element, behavior: ElementBehavior) {
     this._element = element;
     this._behavior = behavior;
-  }
-  _commit(_values: unknown[], index: number) {
-    return index;
   }
   _mountHook(root: Node | null) {
     this._pending = false;
@@ -1783,10 +1780,10 @@ class Instance {
         node = instanceWalker.nextNode();
         nodeIndex++;
       }
+      /** Kept OUT of `_parts`: it takes no value, and `_update`'s `_commit` loop — the hottest call
+       *  site in the renderer, shared by every instance — never sees a fourth part class. */
       if (templatePart._type === HOOK) {
-        const hookPart = new HookPart(node as Element, templatePart._hook!);
-        (this._hooks ??= []).push(hookPart);
-        this._parts.push(hookPart);
+        (this._hooks ??= []).push(new HookPart(node as Element, templatePart._hook!));
       } else
         this._parts.push(
           templatePart._type === CHILD
