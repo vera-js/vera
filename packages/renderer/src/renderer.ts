@@ -1747,9 +1747,9 @@ class Instance {
    * what they did before this feature existed, and the ones with slots take a shape transition
    * once.
    *
-   * `_mounting` — this instance has HOOK parts awaiting their `mount`, run by the first `_update`.
+   * `_hooks` — this instance's HookParts, so mounting and teardown touch no other part.
    */
-  declare _mounting?: boolean;
+  declare _hooks?: HookPart[];
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1783,15 +1783,17 @@ class Instance {
         node = instanceWalker.nextNode();
         nodeIndex++;
       }
-      this._parts.push(
-        templatePart._type === CHILD
-          ? new TextPart(node as Text)
-          : templatePart._type === HOOK
-            ? new HookPart(node as Element, templatePart._hook!)
+      if (templatePart._type === HOOK) {
+        const hookPart = new HookPart(node as Element, templatePart._hook!);
+        (this._hooks ??= []).push(hookPart);
+        this._parts.push(hookPart);
+      } else
+        this._parts.push(
+          templatePart._type === CHILD
+            ? new TextPart(node as Text)
             : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
-      );
+        );
     }
-    if (template._hooked === true) this._mounting = true;
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
      *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
     if (__DEV__ && template._slotless === true && renderRoot !== null && renderRoot.nodeType === 1) {
@@ -1846,9 +1848,12 @@ class Instance {
       const part = parts[i];
       if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
       (part as TextPart)._upgraded?._detach();
-      /** An element behavior's `unmount` — taken-over slots park the USER'S nodes here. */
-      if ((part as HookPart)._kept !== undefined) (part as HookPart)._unmount();
     }
+    /** Element behaviors' `unmount` — taken-over slots park the USER'S nodes here. Only this
+     *  instance's own HookParts are visited: no property read on any other part. */
+    const hooks = this._hooks;
+    if (hooks !== undefined)
+      for (let i = 0; i < hooks.length; i++) if (hooks[i]._kept !== undefined) hooks[i]._unmount();
   }
 
   _update(values: unknown[]) {
@@ -1866,17 +1871,14 @@ class Instance {
      * sets `notifyOnRemoval`: for slots it must rescue the USER'S nodes before a bulk `_clear`
      * discards the DOM holding them.
      */
-    if (this._mounting === true) this._mount();
+    if (this._hooks !== undefined && this._hooks[0]._pending === true) this._mount();
   }
 
   /** Runs each element behavior's `mount` once — after the first update, or after adoption. */
   _mount() {
-    this._mounting = false;
-    const parts = this._parts;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i] as HookPart;
-      if (part._pending === true && part._mountHook(renderRoot) !== undefined) notifyOnRemoval = true;
-    }
+    const hooks = this._hooks!;
+    for (let i = 0; i < hooks.length; i++)
+      if (hooks[i]._pending === true && hooks[i]._mountHook(renderRoot) !== undefined) notifyOnRemoval = true;
   }
 
 }

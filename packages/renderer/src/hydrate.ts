@@ -621,7 +621,11 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     throw MISMATCH;
   }
   /** Element behaviors mount once the instance is adopted, as after a client's first update. */
-  if (template._hooked === true) instance._mount();
+  if (template._hooked === true) {
+    instance._hooks = instance._parts.filter((part): part is HookPart => part instanceof HookPart);
+    if (instance._hooks.length > 0) instance._mount();
+    else instance._hooks = undefined;
+  }
   return instance;
 };
 
