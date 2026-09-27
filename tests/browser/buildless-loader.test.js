@@ -99,6 +99,8 @@ it('every import form resolves as written: a template-literal import(), options,
   const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/forms/main.jsx"></script>`);
   expect(result.kind, result.text).to.equal('app');
   expect(result.templated, 'import(`./${name}.jsx`) went through the loader').to.equal('template-literal import');
+  expect(result.sameModule, 'a full URL and a call before a block reach the SAME module').to.equal(true);
+  expect(result.blockRan).to.equal(true);
   expect(result.json, "a static JSON import with { type: 'json' } is the browser's").to.equal('json module');
   expect(result.dynamicJson, 'and a dynamic one, options and all').to.equal('json module');
   expect(result.resolved, 'import.meta.resolve answers against the file').to.match(/\/fixtures\/buildless\/forms\/late\.jsx$/);
@@ -159,4 +161,24 @@ it('a renderer mapped in a SECOND import map still resolves its helpers', async 
   expect(result.kind, result.text).to.equal('app');
   expect(result.items, 'keyed, found beside a renderer the second map names').to.equal(3);
   result.frame.remove();
+});
+
+it('inline blocks are cached too, and each has its own import.meta', async () => {
+  localStorage.clear();
+  const block = `<script type="text/vera-jsx">
+    import.meta.mark = (import.meta.mark ?? 0) + 1;
+    window.__metas = [...(window.__metas ?? []), import.meta];
+    const view = <b>inline</b>;
+    if (window.__metas.length === 2) parent.postMessage({ kind: 'app', distinct: window.__metas[0] !== window.__metas[1], marks: window.__metas.map((m) => m.mark).join(), inline: view.strings.length }, '*');
+  </script>`;
+  const first = await page(block + block);
+  expect(first.kind, first.text).to.equal('app');
+  expect(first.distinct, 'two blocks, two import.meta objects').to.equal(true);
+  expect(first.marks).to.equal('1,1');
+  expect(compilerFetched(first.frame), 'CONTROL: a cold visit compiles').to.equal(true);
+  first.frame.remove();
+  const again = await page(block + block);
+  expect(again.kind, again.text).to.equal('app');
+  expect(compilerFetched(again.frame), 'a repeat visit reuses the inline blocks\' compiled output').to.equal(false);
+  again.frame.remove();
 });

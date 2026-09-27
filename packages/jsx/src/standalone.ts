@@ -25,8 +25,10 @@
  * imports), which are loaded from beside wherever the map puts `@verajs/renderer`, so the map stays
  * three lines. Copy the renderer's whole `dist` folder.
  *
- * **What it costs**, measured on a 40-module app: within ~7–12 ms of the same app precompiled, in
- * Chromium, Firefox and WebKit. A Service Worker was measured too and rejected: Firefox charges every
+ * **What it costs**, measured on a 40-module app's warm visit (2026-09-27, median of 9–15 fresh
+ * browsers): ~10 ms behind the same app precompiled in Chromium, ~13 ms in WebKit, ~20 ms in Firefox —
+ * the text fingerprint included, which measured level with the header-validated loader before it.
+ * A Service Worker was measured too and rejected: Firefox charges every
  * request routed through one ~0.7 ms, with no static routing to avoid it.
  *
  * **Repeat visits compile nothing.** Each JSX file's compiled output — and an inline block's — is kept
@@ -159,7 +161,8 @@ const RELATIVE = /^(?:\.{1,2})?\//;
  */
 const addressOf = (specifier: string, base: string): string | null => {
   if (RELATIVE.test(specifier)) return new URL(specifier, base).href;
-  return /^https?:/i.test(specifier) && new URL(specifier).origin === location.origin ? specifier : null;
+  /** The base URI's origin, not `location.origin`: in a `srcdoc` frame that one is the string "null". */
+  return /^https?:/i.test(specifier) && new URL(specifier).origin === new URL(document.baseURI).origin ? specifier : null;
 };
 const isJsx = (url: string): boolean => /\.[jt]sx$/.test(new URL(url).pathname);
 /**

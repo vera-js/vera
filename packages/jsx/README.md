@@ -76,7 +76,8 @@ always seen — and the compiler itself (`vera-jsx.min.js`, beside the standalon
 when something must be compiled. A plain `.js` file keeps only where its imports are, so a vendored
 library cannot fill the storage. If the renderer's helper files are missing from beside it, the
 error names the file, wherever the import that needed it was.
-Measured on a 40-module app, a warm visit is within ~7–12 ms of the same app built ahead of time.
+Measured on a 40-module app, a warm visit is ~10–13 ms behind the same app built ahead of time in
+Chromium and WebKit, and ~20 ms in Firefox.
 **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vite plugin
 handles those. Blocks present at `DOMContentLoaded` run in document order; one that arrives later —
 CMS content, a demo injected after load — is run by hand with `runBlock`:
