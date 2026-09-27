@@ -3,7 +3,6 @@ import { createHook, deferInHookContext, RENDER_PRIORITY } from '../modules/crea
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
 import { inserts } from '@verajs/inserts';
 import { renderScheduler, schedulerGeneration } from '../modules/setRenderScheduler.js';
-import { untrack } from '../modules/untrack.js';
 import type { Renderer } from '@verajs/shared-types';
 
 /** One warning per page, not per render. */
@@ -62,19 +61,9 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
         const target =
           (element as HTMLElement & { _root?: ShadowRoot })._root ?? element.shadowRoot ?? element;
 
-        /**
-         * **The template function subscribes; committing it does not.** Only what the template READS
-         * decides when it renders again. The commit runs other components' code — a property set on a
-         * child element runs its accessors, and the renderer reads a property before setting it — and
-         * tracked, every store read in there subscribed THIS component to the CHILD's state. A child
-         * whose setter writes what its getter reads (`<vera-select .options=${…}>`) then scheduled its
-         * parent again on every pass: a template re-running every frame, forever, on an idle page.
-         */
-        untrack(() =>
-          renderers?.forEach((callback) => {
-            (callback as Renderer)?.(_template, target, ...args);
-          })
-        );
+        renderers?.forEach((callback) => {
+          (callback as Renderer)?.(_template, target, ...args);
+        });
       };
 
       /**
