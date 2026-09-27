@@ -60,20 +60,35 @@ export type SlotSeamState = { _$park$?: () => void };
 /**
  * **An instance hook: per-template behaviour for every instance, with nothing on the hot path.**
  *
- * A `'template'` hook pushes one onto the template's `_$inst$` list as the template is built — only
- * templates that need it carry any, so every other instance pays one property read. The renderer
- * calls each for every instance of that template, with the instance's fresh fragment and the render
- * root (`null` outside a `renderInto`: hydration's adoption path), BEFORE its first update. A hook
- * may return a MOUNT, called once that first update has committed — so bindings are live, and a
- * `<slot name=${…}>` has its name — and a mount may return a CLEANUP, called at teardown. The
- * effect-and-cleanup shape, per instance.
+ * A `'template'` hook sets one as the template's `_$inst$` while the template is built — only
+ * templates that need it carry one, so every other instance pays one property read. For every
+ * instance of that template the renderer calls `$c` BEFORE the first update, with the instance's
+ * fresh fragment and the render root (`null` outside a `renderInto`: hydration's adoption path); `$m`
+ * once that first update has committed — so bindings are live, and a `<slot name=${…}>` has its name
+ * — with whatever `$c` returned; and `$q` at teardown with whatever `$m` returned. An `undefined` at
+ * either step ends the instance's part in it.
  *
- * `@verajs/renderer/slots` is the first user: it finds the `<slot>`s, mounts them, and parks the
- * user's nodes at teardown. `$`-sigiled throughout, so it survives property mangling across the
+ * **Its shape is measured, not chosen for tidiness** (2026-09-26, three engines):
+ * - **One object with methods, not closures returned per instance.** The effect shape — a function
+ *   returning a mount returning a cleanup — allocated two closures for every slotted instance, and
+ *   Chromium showed it: slotted creation +3–4% against the renderer before slots moved out. Here the
+ *   instance keeps plain state and the methods live once per template.
+ * - **One hook, not a list.** A list costs every hooked instance a loop and Firefox about 3%, plus
+ *   79 B. A second consumer composes — its `'template'` hook wraps the `_$inst$` it finds — so the
+ *   list's only advantage is paid for by nobody today.
+ *
+ * `@verajs/renderer/slots` is the user: it finds the `<slot>`s, hands them to the strategy, and parks
+ * the user's nodes at teardown. `$`-sigiled throughout, so it survives property mangling across the
  * bundle boundary.
  */
-export type InstanceHook = (fragment: DocumentFragment, root: Node | null) => InstanceMount | void;
-export type InstanceMount = () => (() => void) | void;
+export type InstanceHook = {
+  /** Before the first update: this instance's state, or `undefined` to take no part. */
+  $c(fragment: DocumentFragment, root: Node | null): unknown;
+  /** After the first update, with that state: what to keep for teardown, or `undefined`. */
+  $m(state: unknown, root: Node | null): unknown;
+  /** At teardown, with what `$m` kept. */
+  $q(kept: unknown): void;
+};
 
 /**
  * **Told about every node the renderer inserts, once slots is wired**, so the slots module can mark

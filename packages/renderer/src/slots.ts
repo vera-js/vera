@@ -1569,41 +1569,85 @@ let registered: Map<string, unknown[]> | null = null;
 type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
 
 /**
- * Each instance of a marked template: find its `<slot>`s now, hand them over after its first
- * update, park them at teardown. Found BEFORE the update because the update and the takeovers both
- * mutate the fragment (a takeover lifts its `<slot>` out and drops in anchors); a static
- * `querySelectorAll` list is the collect-then-act that needs, and like a render it does not reach
- * into a nested `<template>`'s content. Handed over AFTER, because a `<slot>`'s own bindings are
- * part of its meaning: `<slot name=${…}>` has no name until its binding commits.
+ * Each instance of a marked template: find its `<slot>`s now (`$c`), hand them over after its first
+ * update (`$m`), park them at teardown (`$q`). Found BEFORE the update because the update and the
+ * takeovers both mutate the fragment (a takeover lifts its `<slot>` out and drops in anchors), so
+ * they are collected first and acted on after; and like a render, the walk does not reach into a
+ * nested `<template>`'s content. Handed over AFTER, because a `<slot>`'s own bindings are part of
+ * its meaning: `<slot name=${…}>` has no name until its binding commits.
+ *
+ * **Positions, not a query per instance.** Every instance of a template starts as a clone of the
+ * same markup, so the first instance's walk records where the `<slot>`s are and every later one
+ * steps straight to them. A `querySelectorAll` per instance cost WebKit 3–4% on slotted creation
+ * (2026-09-26); the walk to known positions measured level on all three engines.
  *
  * A null root is hydration's adoption path, which adopts slots itself.
  */
-const discover: InstanceHook = (fragment, root) => {
-  if (root === null) return;
-  const found = fragment.querySelectorAll('slot');
-  if (found.length === 0) return;
-  return () => {
-    const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
-    if (strategy === undefined) return;
-    let taken: SeamState[] | undefined;
-    for (const slot of found) {
-      const state = strategy(slot, root, slot.getAttribute('name') ?? '');
-      if (state != null) (taken ??= []).push(state);
-    }
-    return taken === undefined ? undefined : () => taken!.forEach((state) => state._$park$?.());
+/**
+ * One walker for every template — ELEMENT|TEXT, the order the positions are counted in. Made at the
+ * first template's first instance, never at import: `@verajs/ssr` imports this module in Node, where
+ * there is no `document` (`tests/node-import-safety.test.mjs`). Every later walk follows a learn, so
+ * the walker exists by then and instances pay no check for it.
+ */
+let slotWalker: TreeWalker | undefined;
+const discoverFor = (): InstanceHook => {
+  let positions: number[] | undefined;
+  return {
+    $c: (fragment, root) => {
+      if (root === null) return undefined;
+      if (positions === undefined) {
+        positions = [];
+        slotWalker ??= document.createTreeWalker(document, 5);
+        slotWalker.currentNode = fragment;
+        let at = -1;
+        let node: Node | null;
+        while ((node = slotWalker.nextNode()) !== null) {
+          at++;
+          if ((node as Element).localName === 'slot') positions.push(at);
+        }
+      }
+      if (positions.length === 0) return undefined;
+      const found = new Array<Element>(positions.length);
+      const walker = slotWalker!;
+      walker.currentNode = fragment;
+      let at = -1;
+      let node: Node | null = null;
+      for (let k = 0; k < positions.length; k++) {
+        while (at < positions[k]) {
+          node = walker.nextNode();
+          at++;
+        }
+        found[k] = node as Element;
+      }
+      return found;
+    },
+    $m: (found, root) => {
+      const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
+      if (strategy === undefined) return undefined;
+      const slots = found as Element[];
+      let taken: SeamState[] | undefined;
+      for (let i = 0; i < slots.length; i++) {
+        const state = strategy(slots[i], root!, slots[i].getAttribute('name') ?? '');
+        if (state != null) (taken ??= []).push(state);
+      }
+      return taken;
+    },
+    $q: (taken) => {
+      for (const state of taken as SeamState[]) state._$park$?.();
+    },
   };
 };
 
 /**
  * The `'template'` hook: mark a template that holds a `<slot>`. Read off the template's strings,
  * case-insensitively because the parser lowercases tag names. A `<slot` inside an attribute value
- * or a comment marks a template with no slot, which costs its instances one empty query; a real
+ * or a comment marks a template with no slot, which costs its first instance one walk that finds nothing; a real
  * `<slot>` element always has the text, so none is missed. A template `@verajs/renderer/namespaces`
  * builds for another namespace goes through the same hook and is marked too.
  */
 const SLOT_TAG = /<slot[\s/>]/i;
 const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
-  if (SLOT_TAG.test(result.strings.join(''))) ((built as { _$inst$?: InstanceHook[] })._$inst$ ??= []).push(discover);
+  if (SLOT_TAG.test(result.strings.join(''))) (built as { _$inst$?: InstanceHook })._$inst$ = discoverFor();
 };
 
 export const slotDiscovery = [

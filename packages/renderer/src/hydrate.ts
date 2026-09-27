@@ -43,7 +43,7 @@ import type { Template, Item, KeyedResult } from './renderer.js';
 
 /** Hydration adopts IN PLACE, so a position's parent is always live — no scope needed. */
 const at = (template: Template, parent: Node): Template => template._$at$?.(parent) ?? template;
-import type { Part, TemplateResult } from './types.js';
+import type { InstanceHook, Part, TemplateResult } from './types.js';
 
 export { hold } from './renderer.js';
 export type { TemplateResult } from './types.js';
@@ -230,6 +230,14 @@ const accountSubtree = (node: Node, state: AdoptState) => {
     }
     if (child.nodeType === 1) accountSubtree(child, state);
   }
+};
+
+/** Adopted slots park at teardown through the instance's hook fields, as a mounted one does: only `$q`
+ *  is ever called, with the adopted slots' states as what was kept. */
+const PARK_ADOPTED: InstanceHook = {
+  $c: () => undefined,
+  $m: () => undefined,
+  $q: (kept) => (kept as { _$park$?: () => void }[]).forEach((slot) => slot._$park$?.()),
 };
 
 /**
@@ -595,9 +603,12 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     if (__DEV__) why = 'the markup ran out before the template did';
     throw MISMATCH;
   }
-  /** Adopted slots park at teardown exactly as mounted ones do — the instance's `$q`. */
+  /** Adopted slots park at teardown exactly as mounted ones do — through `$q`. */
   const adopted = state._slotStates;
-  if (adopted !== undefined) (instance.$q ??= []).push(() => adopted.forEach((slot) => slot._$park$?.()));
+  if (adopted !== undefined) {
+    instance.$h = PARK_ADOPTED;
+    instance.$k = adopted;
+  }
   return instance;
 };
 

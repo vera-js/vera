@@ -40,17 +40,17 @@ const fakeSeam = (slot, root, name) => {
 };
 /** The insert hook: records what the renderer reports. A seam without it reads as an old module. */
 fakeSeam.$o = (parent, node, owner) => inserts.push({ parent, node, owner });
-/** The instance hook, as the real module's: find now, mount after the first update, park later. */
-const instanceHook = (fragment, root) => {
-  if (root === null) return undefined;
-  const found = [...fragment.querySelectorAll('slot')];
-  return () => {
+/** The instance hook, in the real module's shape: find now, hand over after the first update, park later. */
+const instanceHook = {
+  $c: (fragment, root) => (root === null ? undefined : [...fragment.querySelectorAll('slot')]),
+  $m: (found, root) => {
     const taken = found.map((slot) => fakeSeam(slot, root, slot.getAttribute('name') ?? '')).filter(Boolean);
-    return taken.length === 0 ? undefined : () => taken.forEach((state) => state._$park$());
-  };
+    return taken.length === 0 ? undefined : taken;
+  },
+  $q: (taken) => taken.forEach((state) => state._$park$()),
 };
 const mark = (built, result) => {
-  if (/<slot[\s/>]/i.test(result.strings.join(''))) (built._$inst$ ??= []).push(instanceHook);
+  if (/<slot[\s/>]/i.test(result.strings.join(''))) built._$inst$ = instanceHook;
 };
 wire([
   renderer,

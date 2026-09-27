@@ -60,7 +60,7 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-import type { InstanceHook, InstanceMount, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
+import type { InstanceHook, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -598,8 +598,8 @@ class Template {
    * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
-  /** Pushed onto by `'template'` hooks — the instance hooks for this template; see `InstanceHook`. */
-  declare _$inst$?: InstanceHook[];
+  /** Set by a `'template'` hook — this template's instance hook; see `InstanceHook`. */
+  declare _$inst$?: InstanceHook;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
@@ -770,7 +770,7 @@ class Template {
     }
     /**
      * **Dev-only: remember that this markup HAS slots even when nothing can distribute them** — no
-     * template hook attached an instance hook to it. Without it the ways of getting the wiring wrong
+     * template hook set an instance hook on it. Without it the ways of getting the wiring wrong
      * are indistinguishable from a component that simply has no slots — see the warning at the
      * instance.
      */
@@ -1699,12 +1699,14 @@ class Instance {
    * what they did before this feature existed, and the ones with slots take a shape transition
    * once.
    *
-   * `$s` — the instance hooks' mounts, awaiting this instance's first `_update` (see `InstanceHook`).
-   * `$q` — the cleanups those mounts returned, run at teardown.
-   * `$`-named because the hooks that return them live in other bundles.
+   * `$h` — the template's instance hook, kept only when this instance takes part (see `InstanceHook`).
+   * `$s` — what its `$c` returned, awaiting this instance's first `_update`.
+   * `$k` — what its `$m` returned, handed to `$q` at teardown.
+   * `$`-named because the hook that reads them lives in another bundle.
    */
-  declare $s?: InstanceMount[];
-  declare $q?: (() => void)[];
+  declare $h?: InstanceHook;
+  declare $s?: unknown;
+  declare $k?: unknown;
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1744,13 +1746,15 @@ class Instance {
           : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
     }
-    /** The template's instance hooks, if any — see `InstanceHook`. Everything else pays one read. */
-    const hooks = template._$inst$;
-    if (hooks !== undefined)
-      for (let i = 0; i < hooks.length; i++) {
-        const mount = hooks[i](this._fragment, renderRoot);
-        if (mount) (this.$s ??= []).push(mount);
+    /** The template's instance hook, if any — see `InstanceHook`. Everything else pays one read. */
+    const hook = template._$inst$;
+    if (hook !== undefined) {
+      const state = hook.$c(this._fragment, renderRoot);
+      if (state !== undefined) {
+        this.$h = hook;
+        this.$s = state;
       }
+    }
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
      *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
     if (__DEV__ && template._slotless === true && renderRoot !== null && renderRoot.nodeType === 1) {
@@ -1807,7 +1811,7 @@ class Instance {
       (part as TextPart)._upgraded?._detach();
     }
     /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
-    this.$q?.forEach((cleanup) => cleanup());
+    if (this.$k !== undefined) this.$h!.$q(this.$k);
   }
 
   _update(values: unknown[]) {
@@ -1821,18 +1825,14 @@ class Instance {
      * registered as a second DEFAULT slot, took the default content, and left the real default slot
      * showing fallback. Committing first also means `@slotchange` and `&ref` are already attached.
      *
-     * Once per instance; every later `_update` costs one compare. A mount that returns a cleanup
-     * sets `notifyOnRemoval`: for slots it must rescue the USER'S nodes before a bulk `_clear`
+     * Once per instance; every later `_update` costs one compare. A `$m` that keeps something sets
+     * `notifyOnRemoval`: for slots, `$q` must rescue the USER'S nodes before a bulk `_clear`
      * discards the DOM holding them.
      */
-    const mounts = this.$s;
-    if (mounts !== undefined) {
+    const state = this.$s;
+    if (state !== undefined) {
       this.$s = undefined;
-      for (let i = 0; i < mounts.length; i++) {
-        const cleanup = mounts[i]();
-        if (cleanup) (this.$q ??= []).push(cleanup);
-      }
-      if (this.$q !== undefined) notifyOnRemoval = true;
+      if ((this.$k = this.$h!.$m(state, renderRoot)) !== undefined) notifyOnRemoval = true;
     }
   }
 
