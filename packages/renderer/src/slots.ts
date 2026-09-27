@@ -1552,7 +1552,8 @@ const own: OwnHook = (parent, node, owner) => {
    * emptied on update, and a top-level list showed one row of three. Nested parts inherit it, since
    * their markers arrive in a fragment their parent part stamped.
    */
-  OWN_DESCRIPTOR.value = owner !== true && (owner as { _$own$?: unknown })._$own$ === true ? true : owner;
+  /** `true._$own$` is `undefined`, so a root part's `true` falls through to itself. */
+  OWN_DESCRIPTOR.value = (owner as { _$own$?: unknown })._$own$ === true || owner;
   if (node.nodeType === 11) {
     for (let child = node.firstChild; child !== null; child = child.nextSibling)
       Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
@@ -1594,9 +1595,8 @@ type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | 
  */
 /**
  * One walker for every template — ELEMENT|TEXT, the order the positions are counted in. Made at the
- * first template's first instance, never at import: `@verajs/ssr` imports this module in Node, where
- * there is no `document` (`tests/node-import-safety.test.mjs`). Every later walk follows a learn, so
- * the walker exists by then and instances pay no check for it.
+ * first slotted instance, never at import: `@verajs/ssr` imports this module in Node, where
+ * there is no `document` (`tests/node-import-safety.test.mjs`); each slotted instance pays one check.
  */
 let slotWalker: TreeWalker | undefined;
 /** Development only: the discovery-without-a-strategy warning, once. */
@@ -1606,31 +1606,28 @@ const discoverFor = (): InstanceHook => {
   return {
     $c: (fragment, root) => {
       if (root === null) return undefined;
+      const walker = (slotWalker ??= document.createTreeWalker(document, 5));
+      walker.currentNode = fragment;
+      const found: Element[] = [];
+      let at = -1;
+      let node: Node | null;
+      /** The first instance walks it all and learns; every later one stops at the last `<slot>`. */
       if (positions === undefined) {
         positions = [];
-        slotWalker ??= document.createTreeWalker(document, 5);
-        slotWalker.currentNode = fragment;
-        let at = -1;
-        let node: Node | null;
-        while ((node = slotWalker.nextNode()) !== null) {
+        while ((node = walker.nextNode()) !== null) {
           at++;
-          if ((node as Element).localName === 'slot') positions.push(at);
+          if ((node as Element).localName === 'slot') {
+            positions.push(at);
+            found.push(node as Element);
+          }
         }
-      }
-      if (positions.length === 0) return undefined;
-      const found = new Array<Element>(positions.length);
-      const walker = slotWalker!;
-      walker.currentNode = fragment;
-      let at = -1;
-      let node: Node | null = null;
-      for (let k = 0; k < positions.length; k++) {
-        while (at < positions[k]) {
+      } else {
+        for (let k = 0; k < positions.length; ) {
           node = walker.nextNode();
-          at++;
+          if (++at === positions[k]) found[k++] = node as Element;
         }
-        found[k] = node as Element;
       }
-      return found;
+      return found.length === 0 ? undefined : found;
     },
     $m: (found, root) => {
       const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
