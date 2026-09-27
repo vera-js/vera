@@ -1557,8 +1557,8 @@ if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
 
 /**
  * **Slot discovery — handing each `<slot>` to whatever slot strategy is wired.** An `'element'`
- * insert that claims every `<slot>` (the renderer asks it about each element once per template, so
- * each instance finds its slots in the walk it already does), and a connector that keeps the
+ * insert that claims every `<slot>` (the renderer asks it about each element once per template, and
+ * each instance finds its slots with one short walk), and a connector that keeps the
  * registry, so a claimed slot goes to the strategy registered on `'slot'` — this module's, or
  * anyone's.
  *

@@ -193,6 +193,8 @@ type AdoptState = {
   /** Element-hook parts adopted in this instance — kept out of `_out`, as the client keeps them out
    *  of `_parts`. */
   _hooks?: unknown[];
+  /** How far through the template's `_claimAt` this adoption has walked — beside `_partIndex`. */
+  _claimIndex: number;
 };
 
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in
@@ -213,7 +215,7 @@ let _adoptedSlots: { _$park$: () => void }[] = [];
 /** How many values a template part consumes — for skipping the unrendered parts inside an
  *  assigned slot's fallback subtree. */
 const partValueCount = (part: { _type: number; _statics?: string[] }): number =>
-  part._type === 1 ? (part._statics!.length - 1) : part._type === 3 ? 0 : 1;
+  part._type === 1 ? (part._statics!.length - 1) : 1;
 
 /**
  * Account for (skip) the parts inside a canonical subtree whose DOM the server did NOT render —
@@ -223,6 +225,7 @@ const partValueCount = (part: { _type: number; _statics?: string[] }): number =>
  */
 const accountSubtree = (node: Node, state: AdoptState) => {
   const parts = state._template._parts;
+  const claimAt = state._template._claimAt;
   for (let child = node.firstChild; child !== null; child = child.nextSibling) {
     if (child.nodeType !== 1 && child.nodeType !== 3) continue;
     state._nodeIndex++;
@@ -230,6 +233,9 @@ const accountSubtree = (node: Node, state: AdoptState) => {
       state._valueIndex += partValueCount(parts[state._partIndex]);
       state._partIndex++;
     }
+    /** Claims on the unrendered fallback are skipped exactly as its parts are — nothing to adopt. */
+    if (claimAt !== undefined)
+      while (state._claimIndex < claimAt.length && claimAt[state._claimIndex] === state._nodeIndex) state._claimIndex++;
     if (child.nodeType === 1) accountSubtree(child, state);
   }
 };
@@ -262,18 +268,12 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
    */
   const ghost = canonicalSlot.cloneNode(false) as Element;
   const parts = state._template._parts;
-  /** The slot strategy's own claim on this `<slot>`: it records the adopted seam below, so teardown
-   *  parks it through `unmount` exactly as a mounted one. */
-  /** Where the slot strategy's claim on this `<slot>` sits in `state._hooks` (a triple's first index). */
-  let claim: number | undefined;
+  /** The slot strategy's own claim on this `<slot>` — where it sits in `state._hooks` (a triple's first
+   *  index). It records the adopted seam below, so teardown parks it through `unmount` exactly as a
+   *  mounted one. */
+  const claim = adoptClaims(ghost, state);
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
-    if (templatePart._type === 3) {
-      const hooks = (state._hooks ??= []);
-      claim ??= hooks.length;
-      hooks.push(ghost, templatePart._hook, CLAIM_PENDING);
-      continue;
-    }
     const attrPart = new AttrPart(ghost, templatePart._name!, templatePart._statics!, templatePart._present);
     state._out.push(attrPart);
     state._valueIndex = attrPart._commit(state._values, state._valueIndex, true);
@@ -356,6 +356,23 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
 };
 
 /**
+ * The `'element'` claims on the node the walk stands on, as `[element, behavior, CLAIM_PENDING]`
+ * triples — the claims pointer moves beside the parts pointer, in the same node numbering. Returns
+ * where the first of them sits in `state._hooks` (the slot strategy's claim, for an adopted `<slot>`).
+ */
+const adoptClaims = (element: Element, state: AdoptState): number | undefined => {
+  const claimAt = state._template._claimAt;
+  if (claimAt === undefined) return undefined;
+  let first: number | undefined;
+  while (state._claimIndex < claimAt.length && claimAt[state._claimIndex] === state._nodeIndex) {
+    const hooks = (state._hooks ??= []);
+    first ??= hooks.length;
+    hooks.push(element, state._template._claimBy![state._claimIndex++], CLAIM_PENDING);
+  }
+  return first;
+};
+
+/**
  * An adopted `<slot>`'s seam, recorded in the slot strategy's claim triple so teardown parks it
  * through `unmount`. No longer `CLAIM_PENDING`, so the post-adoption mount pass leaves it alone. With no
  * claim (a template built before the strategy was wired) there is nothing to park it through.
@@ -404,13 +421,10 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     throw MISMATCH;
   }
 
+  /** `'element'` claims on this element — their `mount` runs after the whole instance is adopted. */
+  adoptClaims(live as Element, state);
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
-    /** An `'element'` claim: its `mount` runs after the whole instance is adopted. */
-    if (templatePart._type === 3) {
-      (state._hooks ??= []).push(live, templatePart._hook, CLAIM_PENDING);
-      continue;
-    }
     const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!, templatePart._present);
     state._out.push(attrPart);
     /** Attributes re-set (idempotent), listeners attached, refs fired — the server could only
@@ -606,6 +620,7 @@ const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): I
     _values: values,
     _valueIndex: 0,
     _partIndex: 0,
+    _claimIndex: 0,
     _nodeIndex: -1,
     _out: instance._parts,
   };

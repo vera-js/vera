@@ -186,7 +186,6 @@ const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
-const HOOK = 3; // an 'element' insert claimed this element — no value; see `CLAIM_PENDING`
 
 /**
  * `_tag` is `__DEV__` only and exists for one diagnostic: when the HTML parser DROPS the element a
@@ -455,10 +454,8 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
 
 /** A part's position and shape inside a Template, resolved to a node index for instantiation. */
 type TemplatePart = {
-  _type: 0 | 1 | 2 | 3;
+  _type: 0 | 1 | 2;
   _index: number;
-  /** HOOK only: what the `'element'` insert returned for this element. */
-  _hook?: ElementBehavior;
   _name?: string;
   _statics?: string[];
   /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
@@ -601,9 +598,14 @@ class Template {
    * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
-  /** Whether any element in this template was claimed by an `'element'` insert — see `CLAIM_PENDING`. */
-  declare _hooked?: boolean;
-  /** PROTOTYPE: claims kept OFF the parts list — positions and behaviors, in document order. */
+  /**
+   * **The elements `'element'` inserts claimed: their positions and behaviors, in document order —
+   * kept OFF `_parts` on purpose.** A claim as a template part was a new object shape in the instance
+   * constructor's loop over `_parts`, the hottest creation path, shared by every instance: measured
+   * on Firefox it was most of element hooks' cost there (slotted creation +1.21% → +0.71% over the
+   * A/A control once removed; 2026-09-27, `internal` audit RENDERER-BYTES). Only templates with
+   * claims carry these, and only their instances run the short walk that finds them.
+   */
   declare _claimAt?: number[];
   declare _claimBy?: ElementBehavior[];
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
@@ -649,9 +651,9 @@ class Template {
      */
     /**
      * **`'element'` inserts are asked about every element, here, once per template** — the walk then
-     * runs to the end rather than stopping at the last binding. An element one claims becomes a
-     * HOOK part at its position, so every instance finds it in the walk it already does to place
-     * its bindings: no second walk, no query, per instance. Apps that wire none skip all of it.
+     * runs to the end rather than stopping at the last binding. An element one claims is recorded
+     * by position in `_claimAt` (off the parts list — see there), and each instance of the template
+     * finds it with one short walk: no query. Apps that wire none skip all of it.
      */
     const claims = registry?.get('element') as ((element: Element) => ElementBehavior | undefined)[] | undefined;
     markerWalker.currentNode = content;
@@ -676,7 +678,6 @@ class Template {
             if (behavior !== undefined) {
               (this._claimAt ??= []).push(nodeIndex);
               (this._claimBy ??= []).push(behavior);
-              this._hooked = true;
             }
           }
         if (element.hasAttributes()) {
@@ -796,7 +797,7 @@ class Template {
      * are indistinguishable from a component that simply has no slots — see the warning at the
      * instance.
      */
-    if (__DEV__ && this._hooked !== true && markup.includes('<slot')) this._slotless = true;
+    if (__DEV__ && this._claimAt === undefined && markup.includes('<slot')) this._slotless = true;
   }
 }
 
@@ -1782,7 +1783,8 @@ class Instance {
           : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
       );
     }
-    /** PROTOTYPE: claimed elements found in their own short walk, so the loop above is unchanged. */
+    /** Claimed elements, found in their own short walk — so the loop above sees only the part shapes it
+     *  always has (see `Template._claimAt`). */
     const claimAt = template._claimAt;
     if (claimAt !== undefined) {
       const claimBy = template._claimBy!;

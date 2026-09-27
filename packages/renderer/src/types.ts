@@ -60,13 +60,12 @@ export type SlotSeamState = { _$park$?: () => void };
 /**
  * **What to do with an element an `'element'` insert claimed** — per instance, with nothing on the hot
  * path. The insert is asked about each element of a template once, as the template is built, and
- * returns one of these (a shared object) or `undefined`. Every instance then finds the claimed
- * element in the walk it already does to place its bindings, and runs `mount` after its first
- * update; what `mount` returns is kept and handed to `unmount` at teardown.
+ * returns one of these (a shared object) or `undefined`. Every instance then finds its claimed
+ * elements with one short walk, and runs `mount` after its first update; what `mount` returns is kept and handed to `unmount` at teardown.
  *
  * `@verajs/renderer/slots` is the first user: it claims each `<slot>`, mounts it into the wired
  * strategy, and parks the user's nodes on unmount. Several inserts may claim one element; each gets
- * its own part. Plain method names — only `_`-prefixed properties are mangled — so the contract
+ * its own entry. Plain method names — only `_`-prefixed properties are mangled — so the contract
  * survives the bundle boundary.
  */
 export type ElementBehavior = {
