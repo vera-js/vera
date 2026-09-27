@@ -49,6 +49,14 @@ indistinguishable in style from the code around it.
   machinery** where prototype sharing is a *measured* win — today that means `@verajs/renderer`'s
   internal parts (`spread.ts` records the measurement: as an object literal, `handleEvent` was a
   fresh closure per bound key). Neither exception may leak a class into a public API surface.
+- **American English, everywhere.** Code, comments, docs, commit messages, changesets, diagnostics
+  and test names spell the US way: `behavior`, `color`, `normalize`, `serialize`, `initialize`,
+  `recognize`, `neighbor`, `canceled`, `labeled`, `modeled`, `center`, `gray`, `judgment`,
+  `artifact`, `analyze`. The platform already does — `normalize()`, `color`, `center`,
+  `serialize` — so a British spelling beside it reads as two vocabularies for one thing, and a
+  search for the API's own spelling misses the prose that explains it. The exceptions are text that
+  is not ours to spell: a quotation, a third-party name, a CSS keyword (`grey` is a valid color and
+  stays wherever it is the keyword), and released CHANGELOG entries, which record what was published.
 - **TypeScript is the source of truth.** Packages are `.ts` and stay `.ts`. A component must never
   exist as both `.ts` and `.js` — twins drift silently, in *both* directions.
 - **Artifacts are never committed.** `dist/` is gitignored and produced only by `npm run build`. An
