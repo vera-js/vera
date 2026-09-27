@@ -73,6 +73,14 @@ export type ElementBehavior = {
   mount?: (element: Element, root: Node | null) => unknown;
   /** At teardown, with what `mount` returned — called only when that was not `undefined`. */
   unmount?: (kept: unknown, element: Element) => void;
+  /**
+   * **Batch form, optional: all of this behavior's elements in an instance, in one call** — preferred
+   * over `mount` when present. For a behavior that claims many elements per instance, one call per
+   * instance instead of one per element; measured, the per-element dispatch was element hooks'
+   * remaining Firefox cost on slotted components. What it returns goes to `unmountAll`.
+   */
+  mountAll?: (elements: Element[], root: Node | null) => unknown;
+  unmountAll?: (kept: unknown, elements: Element[]) => void;
 };
 
 /**

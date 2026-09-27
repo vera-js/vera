@@ -490,6 +490,9 @@ type SlotSeam = SlotSeamFn & {
   $o?: OwnHook;
   /** Development only: the slots module's package version — see `slotSeam`. */
   $v?: string;
+  /** The slots module's own element behavior, so hydration records an adopted slot into ITS claim
+   *  even when another claimant also claims `<slot>`. */
+  $b?: ElementBehavior;
 };
 
 /**
@@ -1797,7 +1800,19 @@ class Instance {
           claimed = instanceWalker.nextNode();
           at++;
         }
-        hooks.push(claimed, claimBy[k], CLAIM_PENDING);
+        const behavior = claimBy[k];
+        /** A BATCH behavior (`mountAll`) gets one entry per instance holding all its elements, so it
+         *  is called once per instance — the per-element dispatch was the Firefox residual. */
+        if (behavior.mountAll !== undefined) {
+          let group = -1;
+          for (let i = 0; i < hooks.length; i += 3)
+            if (hooks[i + 1] === behavior) {
+              group = i;
+              break;
+            }
+          if (group === -1) hooks.push([claimed], behavior, CLAIM_PENDING);
+          else (hooks[group] as Node[]).push(claimed!);
+        } else hooks.push(claimed, behavior, CLAIM_PENDING);
       }
     }
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
@@ -1864,7 +1879,8 @@ class Instance {
         if (kept === undefined || kept === CLAIM_PENDING) continue;
         hooks[i + 2] = undefined;
         const behavior = hooks[i + 1] as ElementBehavior;
-        if (behavior.unmount !== undefined) behavior.unmount(kept, hooks[i] as Element);
+        if (behavior.unmountAll !== undefined) behavior.unmountAll(kept, hooks[i] as Element[]);
+        else if (behavior.unmount !== undefined) behavior.unmount(kept, hooks[i] as Element);
       }
   }
 
@@ -1892,7 +1908,12 @@ class Instance {
     for (let i = 0; i < hooks.length; i += 3) {
       if (hooks[i + 2] !== CLAIM_PENDING) continue;
       const behavior = hooks[i + 1] as ElementBehavior;
-      const kept = behavior.mount === undefined ? undefined : behavior.mount(hooks[i] as Element, renderRoot);
+      const kept =
+        behavior.mountAll !== undefined
+          ? behavior.mountAll(hooks[i] as Element[], renderRoot)
+          : behavior.mount !== undefined
+            ? behavior.mount(hooks[i] as Element, renderRoot)
+            : undefined;
       hooks[i + 2] = kept;
       if (kept !== undefined) notifyOnRemoval = true;
     }

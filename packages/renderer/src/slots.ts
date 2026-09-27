@@ -1579,15 +1579,24 @@ type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | 
  * seam state, parked on unmount.
  */
 const slotBehavior: ElementBehavior = {
-  mount: (slot, root) => {
+  /** Batch form: every `<slot>` of an instance in one call, looping here — S2w's call shape. */
+  mountAll: (slots, root) => {
     if (root === null) return undefined;
     const strategy = (strategyOf ??= registered?.get('slot')?.[0] as Strategy | undefined);
     if (strategy === undefined) return undefined;
-    const state = strategy(slot, root, slot.getAttribute('name') ?? '');
-    return state === null ? undefined : state;
+    let taken: SeamState[] | undefined;
+    for (let i = 0; i < slots.length; i++) {
+      const state = strategy(slots[i], root, slots[i].getAttribute('name') ?? '');
+      if (state != null) (taken ??= []).push(state);
+    }
+    return taken;
   },
-  unmount: (state) => (state as SeamState)._$park$?.(),
+  unmountAll: (taken) => {
+    for (const state of taken as SeamState[]) state._$park$?.();
+  },
 };
+/** Hydration finds THIS behavior's claim on an adopted `<slot>` by identity — see the renderer's `$b`. */
+(takeOverSlot as { $b?: ElementBehavior }).$b = slotBehavior;
 const claimSlot = (element: Element) => (element.localName === 'slot' ? slotBehavior : undefined);
 
 export const slotDiscovery = [

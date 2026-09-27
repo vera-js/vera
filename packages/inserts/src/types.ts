@@ -183,6 +183,10 @@ export type TemplateInsert = (
 export type ElementBehavior = {
   mount?: (element: Element, root: Node | null) => unknown;
   unmount?: (kept: unknown, element: Element) => void;
+  /** Optional batch form: all of this behavior's elements in an instance, in one call; preferred over
+   *  `mount` when present, and paired with `unmountAll`. */
+  mountAll?: (elements: Element[], root: Node | null) => unknown;
+  unmountAll?: (kept: unknown, elements: Element[]) => void;
 };
 export type ElementInsert = (element: Element) => ElementBehavior | undefined;
 

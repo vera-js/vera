@@ -271,7 +271,8 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
   /** The slot strategy's own claim on this `<slot>` — where it sits in `state._hooks` (a triple's first
    *  index). It records the adopted seam below, so teardown parks it through `unmount` exactly as a
    *  mounted one. */
-  const claim = adoptClaims(ghost, state);
+  adoptClaims(ghost, state);
+  const claim = slotClaim(state);
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
     const attrPart = new AttrPart(ghost, templatePart._name!, templatePart._statics!, templatePart._present);
@@ -360,16 +361,33 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
  * triples — the claims pointer moves beside the parts pointer, in the same node numbering. Returns
  * where the first of them sits in `state._hooks` (the slot strategy's claim, for an adopted `<slot>`).
  */
-const adoptClaims = (element: Element, state: AdoptState): number | undefined => {
+const adoptClaims = (element: Element, state: AdoptState) => {
   const claimAt = state._template._claimAt;
-  if (claimAt === undefined) return undefined;
-  let first: number | undefined;
+  if (claimAt === undefined) return;
   while (state._claimIndex < claimAt.length && claimAt[state._claimIndex] === state._nodeIndex) {
     const hooks = (state._hooks ??= []);
-    first ??= hooks.length;
-    hooks.push(element, state._template._claimBy![state._claimIndex++], CLAIM_PENDING);
+    const behavior = state._template._claimBy![state._claimIndex++];
+    /** Grouped per batch behavior, exactly as a client instance groups them. */
+    if (behavior.mountAll !== undefined) {
+      let group = -1;
+      for (let i = 0; i < hooks.length; i += 3)
+        if (hooks[i + 1] === behavior) {
+          group = i;
+          break;
+        }
+      if (group === -1) hooks.push([element], behavior, CLAIM_PENDING);
+      else (hooks[group] as Element[]).push(element);
+    } else hooks.push(element, behavior, CLAIM_PENDING);
   }
-  return first;
+};
+
+/** Where the slots module's own claim sits in `state._hooks` — found by its behavior's identity. */
+const slotClaim = (state: AdoptState): number | undefined => {
+  const own = (slotSeam() as { $b?: unknown } | undefined)?.$b;
+  const hooks = state._hooks;
+  if (own === undefined || hooks === undefined) return undefined;
+  for (let i = 0; i < hooks.length; i += 3) if (hooks[i + 1] === own) return i;
+  return undefined;
 };
 
 /**
@@ -379,7 +397,10 @@ const adoptClaims = (element: Element, state: AdoptState): number | undefined =>
  */
 const adopted = (state: AdoptState, claim: number | undefined, seam: unknown) => {
   if (claim === undefined) return;
-  state._hooks![claim + 2] = seam;
+  const hooks = state._hooks!;
+  /** The slots behavior is a batch behavior: its kept value is the list of taken slots. */
+  if (hooks[claim + 2] === CLAIM_PENDING) hooks[claim + 2] = [seam];
+  else (hooks[claim + 2] as unknown[]).push(seam);
   declareRemovalWork();
 };
 
