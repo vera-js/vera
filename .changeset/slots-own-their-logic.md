@@ -15,11 +15,11 @@ with nothing on the hot path for templates that have none), and an optional `$o`
 the slot strategy. Slotted creation measures level with the renderer before this change on Chromium, Firefox
 and WebKit.
 
-**What it weighs, against 0.2.2, gzipped.** The renderer is 4 653 B, down from 4 679 even with the
-`'template'` hook that `@verajs/renderer/namespaces` plugs into; an app that does not use slots is
-7 135 B, down from 7 141. The slots module is 3 774 B, up from 3 424, and a slotted light component
-bundled with both is **10 396 B, up from 10 028 — about 370 B more** for the apps that use slots:
-the contract now crosses a bundle boundary, and those apps carry it.
+**What it weighs, against 0.2.2, gzipped.** The renderer is 4 700 B (0.2.2: 4 679), now carrying the
+`'template'` hook `@verajs/renderer/namespaces` plugs into and the fixes below; an app that does not
+use slots is 7 173 B (7 141). The slots module is 3 788 B (3 424), and a slotted light component
+bundled with both is **10 447 B, up from 10 028 — about 420 B more** for the apps that use slots: the
+contract now crosses a bundle boundary, and those apps carry it.
 
 - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
   later, whose `wire` accepts the nested array `slots` now is. An older core wires nothing from it,

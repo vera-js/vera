@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.56 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.59 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -639,7 +639,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.69 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->3.70 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.
