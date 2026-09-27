@@ -168,7 +168,7 @@ const tagEnd = (markup, start) => {
 /**
  * `name`, `name="v"`, `name='v'` and `name=v` — every form an author may have written.
  *
- * Only the double-quoted form used to be recognised. `<x-y a='one' b=two>` gave the child three
+ * Only the double-quoted form used to be recognized. `<x-y a='one' b=two>` gave the child three
  * empty attributes *and invented two more*, because the value text fell through to the next
  * iteration and matched as a name.
  *
@@ -374,7 +374,7 @@ const renderComponentTags = (markup, depth, emit) => {
        * the top-level one. They used to trail it in the stream instead: the scanner emitted the
        * component's rendered markup and then walked its children as ordinary markup after it.
        *
-       * For a shadow component that happens to serialise the same way, which is why it went
+       * For a shadow component that happens to serialize the same way, which is why it went
        * unnoticed. For a LIGHT component with slots it is wrong — the component never sees the
        * content it is supposed to distribute, so every slot renders its fallback and the user's
        * markup sits after the template. The CLIENT distributes it correctly, which made this a
@@ -393,7 +393,7 @@ const renderComponentTags = (markup, depth, emit) => {
         out += rendered.open + rendered.inner;
       }
       if (span !== null) {
-        /** The close tag is consumed with the children, so it is written back here — normalised,
+        /** The close tag is consumed with the children, so it is written back here — normalized,
          *  like the open tag the component just rewrote. */
         out += `</${name}>`;
         at = span[1];
@@ -582,7 +582,7 @@ const prepareInstance = (element, tag, props, children) => {
      * Take the user's children OUT now — held by reference — so the template renders into an empty
      * host and `serverDistribute` places them at the `<slot>` positions afterward. Removing them
      * here (while their parent is live) rather than snapshotting-in-place avoids the shim's
-     * re-parse orphaning the references (a stale ref serialises a duplicate at the top level).
+     * re-parse orphaning the references (a stale ref serializes a duplicate at the top level).
      *
      * **The ELEMENT's children, never the `children` string.** A NESTED component does not arrive
      * as markup: it was already built when its parent's children were parsed, and it is carried

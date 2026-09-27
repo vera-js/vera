@@ -12,7 +12,7 @@
  *    That is true of `:hover` and false of `:first-child`, which is pure structure and refused
  *    anyway — so a reader following the stated rule would predict it works.
  *
- * Refusing is the right behaviour either way: it is loud, and a wrong answer would not be.
+ * Refusing is the right behavior either way: it is loud, and a wrong answer would not be.
  * Implementing the structural set is a **feature** and is deliberately not done here. What this file
  * fixes is that the boundary is now written down as what it is — a list — so a selector crossing it is
  * a decision rather than a surprise.

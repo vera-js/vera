@@ -77,7 +77,7 @@ it('focus does NOT survive a keyed move — and that is the platform, not the fr
    *
    * Pinned as a test because without it this reads like a framework bug the first time someone
    * reorders a list while a field is focused. If we ever decide to save and restore focus around a
-   * move, this test is what will tell us we changed the behaviour deliberately.
+   * move, this test is what will tell us we changed the behavior deliberately.
    */
   const bare = document.createElement('div');
   document.body.appendChild(bare);
@@ -98,7 +98,7 @@ it('focus does NOT survive a keyed move — and that is the platform, not the fr
 
   app.state.rows = [3, 2, 1];
   await frame();
-  expect(root.activeElement === second, 'same behaviour through the renderer').to.be.false;
+  expect(root.activeElement === second, 'same behavior through the renderer').to.be.false;
   app.el.remove();
 });
 

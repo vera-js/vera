@@ -102,7 +102,7 @@ Longer patterns outrank shorter ones. React Router ranks the same way, and for t
 where a route went in the list should not decide whether it is reachable.
 
 **A path that matches nothing does nothing, and development says so.** `navigate` returns `false`,
-and a `route` link has already had its click cancelled by the time anyone finds out — so the page
+and a `route` link has already had its click canceled by the time anyone finds out — so the page
 sits there looking like the listener is broken, when the path is what is wrong. The warning names
 the path. A guard returning `false` reaches the same place and stays quiet: that is a deliberate
 cancellation, not a missing route.
@@ -158,7 +158,7 @@ There are two ways to send someone elsewhere, and **they settle differently**:
 
 `redirect` is handled inside that navigation, so the promise `navigate()` returns covers it. A guard
 calling `navigate()` starts a **separate** navigation the promise knows nothing about; awaiting it
-tells you only that the guarded route was cancelled. Prefer `redirect` when the caller awaits.
+tells you only that the guarded route was canceled. Prefer `redirect` when the caller awaits.
 
 ## Navigating
 
@@ -169,7 +169,7 @@ navigate('/users/5');                          // pushes a history entry
 navigate('/login', 'replace');                 // swaps the current entry — for guards and redirects
 navigate({ name: 'user', params: { id: 5 } }); // by name
 
-navigate('https://this-site/users/5');         // same origin, normalised to the path
+navigate('https://this-site/users/5');         // same origin, normalized to the path
 navigate('//elsewhere.test/x');                // refused — returns false, warns in development
 
 navigate('edit');                              // relative to the current page, like an href
@@ -190,7 +190,7 @@ document is the oldest rule on the web.
 
 **A path that names an origin is checked against this one**, exactly as a routed link is: the router
 moves within one site, and anything else belongs to the browser. That matters because
-`navigate(params.get('next'))` is the ordinary way to honour a `?next=` redirect — an unchecked
+`navigate(params.get('next'))` is the ordinary way to honor a `?next=` redirect — an unchecked
 protocol-relative path reached `pushState`, which the browser refuses with a `SecurityError` nothing
 catches, so the payload took the page down instead of being declined. Use `location.assign()` to
 leave the site deliberately.
@@ -430,7 +430,7 @@ deployment tool that serves from a subdirectory can emit. But a `<base>` re-poin
 URL on the page — assets, form actions, **and relative navigation**: with one installed,
 `navigate('settings')` and `href="settings"` alike mean `/app/settings` from anywhere, not the
 sibling of where you are (measured; `tests/router-gestures.test.mjs` pins it). That is the correct
-platform behaviour and occasionally even what you want; `setBasePath` is mounting with none of it.
+platform behavior and occasionally even what you want; `setBasePath` is mounting with none of it.
 
 Either way, `navigate('/users')` means the route `/users` and puts `/app/users` in the address bar,
 and a link written `href="/app/users"` is marked active on that route. `navigate` accepts the mounted

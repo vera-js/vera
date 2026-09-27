@@ -64,7 +64,7 @@ Things that are **modules, not core**, and need no changes to core to build:
 `setHtml`, and wiring a different function on `'render'`, mean the template function and the renderer are both swappable. Use
 lit-html, use `@verajs/renderer`, or write your own.
 
-That is a real strategic hedge rather than a checkbox: core survives lit-html falling out of favour,
+That is a real strategic hedge rather than a checkbox: core survives lit-html falling out of favor,
 and if TC39 Signals land natively the reactivity layer can be swapped to them and get *smaller*.
 
 ## Caveat

@@ -388,7 +388,7 @@ export type CheckResult = {
  * `branch` carry exactly the standing the token does: code that lets an outsider choose any of them
  * has handed over where the token gets sent. All four are caller configuration, never request input.
  *
- * How a token is *minted* — a device flow, a paste, a CI secret — is deliberately not modelled here;
+ * How a token is *minted* — a device flow, a paste, a CI secret — is deliberately not modeled here;
  * that is the host application's concern. The writer is handed a token, or a function producing a
  * fresh one per request, which is what lets a caller keep it out of storage entirely.
  */

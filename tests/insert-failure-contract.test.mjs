@@ -61,7 +61,7 @@ test('an `init` insert that throws surfaces at init() — and the chain STOPS th
    * surfaces there". True, and it is only half of what a person needs: the chain is not isolated
    * either, so every insert AFTER the failing one is skipped. `'init'` is where `@verajs/styles`,
    * `@verajs/autoloader` and anything else with per-element setup hooks in, so one throwing module
-   * silently prevents the rest from initialising at all. Pinned so the consequence is a decision
+   * silently prevents the rest from initializing at all. Pinned so the consequence is a decision
    * rather than a discovery (arc-2 run 4).
    */
   const ran = [];

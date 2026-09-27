@@ -3,7 +3,7 @@
  *
  * Hydration **repairs** a mismatch rather than clearing wholesale — it adopts and corrects where it
  * can — and either way the repair is silent by design: the page looks perfect and the server's work
- * is quietly redone. That is the right behaviour, since a wrong page is worse than a slow one, but
+ * is quietly redone. That is the right behavior, since a wrong page is worse than a slow one, but
  * it means the failure mode has to be tested deliberately or nothing distinguishes "adopted" from
  * "rebuilt behind your back".
  *

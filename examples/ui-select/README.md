@@ -17,7 +17,7 @@ What to look at, in order:
 1. **Default** and **HTML-authored** — the same select with and without any JavaScript. The second
    is built entirely from `<option>` children, `selected` included, which seeds both the value and
    the reset default.
-2. **Multi + search**, **Creatable**, **Remote** — the behaviours that are opt-in. A plain select
+2. **Multi + search**, **Creatable**, **Remote** — the behaviors that are opt-in. A plain select
    has no search line; nothing here costs anything to a page that does not ask for it.
 3. **Themed by token** and **Styled by `::part()`** — the two supported styling routes for a shadow
    component, in that order of preference.
@@ -36,7 +36,7 @@ filling it. That is a real supported configuration — light mode without light 
 what this page demonstrates. (The import map does carry a `@verajs/renderer/slots` entry, because
 `@verajs/ui`'s bundle keeps it external and the module graph must RESOLVE either way — mapping a
 specifier and wiring a module are different acts, and this page is the demonstration that only the
-second one changes behaviour.)
+second one changes behavior.)
 
 The other half is [`../light-slots/`](../light-slots/), which wires the module and shows the same
 select in light mode *with* a slotted trigger. Wiring is page-global, which is why it is a separate

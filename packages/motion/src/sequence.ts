@@ -148,17 +148,17 @@ export type SequenceOptions = {
 };
 
 /**
- * Normalised, and complained about when it cannot be. `parseUrl` compares
+ * Normalized, and complained about when it cannot be. `parseUrl` compares
  * against `URL.origin` — scheme + host + port, never a trailing slash —
  * so three of the four ways a site owner plausibly writes an origin
  * matched nothing, each failing CLOSED (right) and silently (wrong).
  * `new URL(entry).origin` accepts those spellings and rejects a bare
- * host, which cannot be resolved without guessing a scheme — not a favour
+ * host, which cannot be resolved without guessing a scheme — not a favor
  * to do silently on a security boundary. A lone string is refused rather
  * than wrapped: two ways to write one thing is how a list of one and a
  * list of many stop agreeing.
  *
- * Its own function so the ROWS and the TICK normalise ONCE from one options
+ * Its own function so the ROWS and the TICK normalize ONCE from one options
  * object — two passes would double every complaint and could drift.
  */
 const normalizeOrigins = (options: SequenceOptions): readonly string[] => {
@@ -211,7 +211,7 @@ const rowsFor = (allowedOrigins: readonly string[]): WirableTree => {
 export const sequenceRows = (options: SequenceOptions = {}): WirableTree =>
   rowsFor(normalizeOrigins(options));
 
-/** Rows and tick from ONE normalisation — what the wirable `sequence` installs. */
+/** Rows and tick from ONE normalization — what the wirable `sequence` installs. */
 export const sequenceModule = (
   options: SequenceOptions = {}
 ): { rows: WirableTree; tick: MotionFunctionModule } => {

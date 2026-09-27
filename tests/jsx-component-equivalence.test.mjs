@@ -4,7 +4,7 @@
  * `@verajs/renderer/tag` says it in its own source: *"React's names, mapped the way `@verajs/jsx`
  * maps them on a written element — so `<H1 className="t" disabled={d}>` and `<h1 className="t"
  * disabled={d}>` mean the same thing."* A tag used in JSX arrives as a COMPONENT CALL, so the
- * compiler passes its props through raw and the runtime is the only thing that can honour that.
+ * compiler passes its props through raw and the runtime is the only thing that can honor that.
  *
  * **Why this suite exists beside `./jsx-name-mapping.test.mjs`.** That one drives `jsxName` against
  * a table of NAMES. It passed for the entire life of three defects, because the divergences that
@@ -149,7 +149,7 @@ test('a key marks BOTH spellings for reconciliation, and reaches neither DOM', a
   }
 });
 
-test('what a tag component cannot honour, it says out loud', { skip: isProduction && 'diagnostics are folded away' }, async () => {
+test('what a tag component cannot honor, it says out loud', { skip: isProduction && 'diagnostics are folded away' }, async () => {
   const real = console.warn;
   const warned = [];
   console.warn = (message) => warned.push(String(message));

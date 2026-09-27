@@ -13,7 +13,7 @@
  * writing this file, not of reading the code.
  *
  * **No pack is exempt.** `motion/*` was, briefly and deliberately: it arrived from the retired
- * `@verajs/motion` funnelling every refusal through one `motion-refused` code carrying a composed
+ * `@verajs/motion` funneling every refusal through one `motion-refused` code carrying a composed
  * sentence, which is why its prose shipped to production when no other pack's did and why not one
  * of its refusals could be addressed by a docs page or an inspector row. It now names 73 of its
  * own, and the test that pinned the exemption has been replaced by one asserting there is none —

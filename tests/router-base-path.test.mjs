@@ -190,7 +190,7 @@ test('a RELATIVE href is marked active — it is resolved, not compared as writt
  * (matches `base[href]`, resolves to the document). Each spot fix closed one door and left the
  * others open, and a test pinning one spelling did not protect against the next.
  *
- * So this is a table rather than three tests. It is the guard that actually generalises: any future
+ * So this is a table rather than three tests. It is the guard that actually generalizes: any future
  * change to how the base is read has to answer for every shape at once, and a new door added to the
  * platform is one row here rather than a rediscovery.
  *

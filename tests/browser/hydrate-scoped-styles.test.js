@@ -4,7 +4,7 @@
  * A component with no shadow root has its CSS **hoisted to the document once per class**, wrapped in
  * `@scope (tag) { … }`. Server-side that CSS comes back on `styles` rather than in the markup,
  * because it belongs to the page shell — so a server-rendered page has it in `<head>` before any
- * script runs, and the client then hoists it again when the component initialises.
+ * script runs, and the client then hoists it again when the component initializes.
  *
  * That is exactly the shape that had the shadow-DOM path applying its CSS twice: the server must
  * emit something a browser can use without JavaScript, and the client must not then add a second

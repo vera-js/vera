@@ -55,8 +55,8 @@
       "gzip": 923
     },
     "slots": {
-      "raw": 10583,
-      "gzip": 3909
+      "raw": 10198,
+      "gzip": 3774
     },
     "namespaces": {
       "raw": 1277,
@@ -92,7 +92,7 @@
     },
     "directives-sensors": {
       "raw": 7952,
-      "gzip": 3167
+      "gzip": 3165
     },
     "directives-remote": {
       "raw": 9534,

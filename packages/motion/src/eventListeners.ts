@@ -13,7 +13,7 @@
  * and all run — redundant work for an identical result.
  *
  * rAF self-throttles on slow devices (the browser simply delivers fewer
- * frames), which is the behaviour a fixed timer can only approximate badly.
+ * frames), which is the behavior a fixed timer can only approximate badly.
  *
  * @param element the element to listen on, or window
  * @param callback runs once per frame while scrolling; read scroll position
@@ -49,7 +49,7 @@ export const scrollListener = (
     target.removeEventListener('scroll', onScroll);
 
     /**
-     * A frame may already be queued when teardown runs. Cancelling it is what
+     * A frame may already be queued when teardown runs. Canceling it is what
      * stops the callback firing against state that destroy() has since torn
      * down — the old implementation needed a setTimeout in destroy() to wait
      * that out.
@@ -69,7 +69,7 @@ export const scrollListener = (
  * A window drag fires `resize` at frame rate. The previous version scheduled a
  * fresh `setTimeout(callback, 100)` for every one of them, so a two-second drag
  * queued ~120 timers that each ran the callback — and none of them were
- * cancelled on teardown, so a timer could still fire against state `destroy()`
+ * canceled on teardown, so a timer could still fire against state `destroy()`
  * had already torn down. `scrollListener` guards both of those; this did not,
  * and the two sit ten lines apart (principle #5).
  *

@@ -9,16 +9,16 @@
  *   and threw *"priority must be a finite number, and `undefined` is not"*. True, and about the
  *   wrong thing: it sends the reader looking for a priority they never wrote.
  * - `initRouter(el, { view, routes })` ignored `routes` in silence. That is how Vue Router is
- *   initialised and so the first thing anyone tries; the router then came up with no routes, every
+ *   initialized and so the first thing anyone tries; the router then came up with no routes, every
  *   navigation matched nothing, and the empty outlet looked like a broken router. TypeScript tells
  *   the typed caller. Nothing told the buildless one, and buildless is a first-class mode here.
  *
  * The same sweep covered the framework's other option bags. A route object and an autoloader's
  * config are both closed sets, and both ignored an unknown key in silence — the route case matters
- * most, because the keys people reach for are the neighbouring routers' spellings (`components` from
+ * most, because the keys people reach for are the neighboring routers' spellings (`components` from
  * Vue Router, `element` and `loader` from React Router), each of which registers a route that
  * matches its path and then renders nothing. `ShadowRootInit` is deliberately *not* guarded: it is
- * the platform's dictionary, and the platform's own behaviour is to ignore what it does not know.
+ * the platform's dictionary, and the platform's own behavior is to ignore what it does not know.
  *
  * All of these checks are `__DEV__`-only — a production bundle carries neither the text nor the branch —
  * so this whole file is a development-condition test.

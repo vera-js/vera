@@ -35,7 +35,7 @@ test('SSR inline: rules travel with the element, the head stays empty, re-render
   const style = child(el);
   assert.ok(style, 'the element carries its own style child');
   assert.match(style.textContent, /@keyframes vm-/, 'keyframes ride inside');
-  assert.match(style.textContent, /prefers-reduced-motion/, 'the neutraliser tail rides too');
+  assert.match(style.textContent, /prefers-reduced-motion/, 'the neutralizer tail rides too');
   assert.equal(style.getAttribute('data-vm-for'), el.getAttribute('data-vm-motion'));
   assert.equal(doc.head.querySelector('style'), null, 'NO document sheet — the fragment is complete');
   assert.doesNotMatch(style.textContent, /@property/, '@property never rides inline (document-global)');

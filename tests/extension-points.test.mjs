@@ -4,7 +4,7 @@
  * Pass 93's lens was mechanical: for every export of every published entry point, how many test
  * files name it? Everything was named at least once, which is a weaker bar than it looks — pass 92's
  * defect survived because `setRenderScheduler` was named in a misuse test while its actual scheduling
- * behaviour was never exercised. Narrowing to "named by at most one file" surfaced these.
+ * behavior was never exercised. Narrowing to "named by at most one file" surfaced these.
  *
  * Both are extension APIs, which is the worst place for a coverage gap: breakage is invisible to us
  * and fatal to whoever is extending the framework, and they are the shapes we are least likely to
@@ -106,7 +106,7 @@ test('the veraJsx bundler plugin transforms exactly the files it should', async 
   assert.ok(run('/app/x.jsx?v=abc123')?.code.includes('html`'), 'a Vite query suffix must not stop the transform');
 });
 
-test('and honours the documented options', async () => {
+test('and honors the documented options', async () => {
   const { veraJsx } = await load('jsx');
   const injected = veraJsx().transform.call({}, 'const a = <p>{1}</p>;', '/app/x.jsx').code;
   assert.match(injected, /import \{ html \} from '@verajs\/core'/, 'the default is to inject the import');
@@ -192,7 +192,7 @@ test('and a real profiling session still reports normally', { skip: isProduction
  * So this is a foreign implementation, deliberately naive: it takes the host's children whose
  * `slot` attribute names it, drops them where the `<slot>` stood, and returns the documented state
  * object. If the renderer ever stopped resolving the seam, passing those three arguments, or
- * honouring the takeover, this fails while every light-slots suite stays green — because those
+ * honoring the takeover, this fails while every light-slots suite stays green — because those
  * exercise the shipped module through its own seam rather than the published contract.
  */
 test('a third party can implement the slot insert against the documented contract', async () => {
@@ -201,7 +201,7 @@ test('a third party can implement the slot insert against the documented contrac
    * There is no unwire, and `'slot'` is single-registrant — so a strategy left armed here would
    * silently own every light render in any test added after this one. The flag is the deregister
    * this registry does not have: declining is already a documented outcome, so switching it off
-   * restores exactly the pre-test behaviour rather than approximating it.
+   * restores exactly the pre-test behavior rather than approximating it.
    */
   let armed = true;
   /**

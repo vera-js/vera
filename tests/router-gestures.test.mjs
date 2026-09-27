@@ -18,7 +18,7 @@
  * - The one URL rule that reads as a router bug — a relative word REPLACING a `:param` segment —
  *   gets a development warning naming both correct spellings, rather than a semantics change.
  *
- * The `<base>` element's effect on relative navigation is pinned here too, as behaviour rather than
+ * The `<base>` element's effect on relative navigation is pinned here too, as behavior rather than
  * accident: a `<base>` re-points EVERY relative URL on the page, `navigate()` included, which is
  * the platform's rule and the reason the docs lead with `setBasePath` (mounting with no change to
  * what relative paths mean).
@@ -88,7 +88,7 @@ test('SIBLING: a bare relative word, from a leaf, mount-agnostic', async () => {
 });
 
 /**
- * The platform's `<base>` rule, pinned as intended behaviour: a `<base>` element re-points every
+ * The platform's `<base>` rule, pinned as intended behavior: a `<base>` element re-points every
  * relative URL on the page — a relative href AND a relative navigate, in lockstep. This is why the
  * docs lead with `setBasePath`, which mounts the app without touching relative meaning.
  */

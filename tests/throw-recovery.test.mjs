@@ -17,7 +17,7 @@
  * "nothing ran".
  *
  * **Teardown needs a real custom element.** The second draft removed plain `<div>`s and no cleanup ran
- * at all, so the cleanup case reported perfect behaviour while measuring nothing. Each case below
+ * at all, so the cleanup case reported perfect behavior while measuring nothing. Each case below
  * asserts its control produced a non-zero count *before* anything is made to throw.
  */
 import { test } from 'node:test';

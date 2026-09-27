@@ -26,7 +26,7 @@
 import type { ListChange } from './types.js';
 
 /** kind → policy. `wave`: rides the stagger — a property of items that TRAVEL (the reversal's
- *  synchronised centre-crossing is what the wave exists to break); fades happen together,
+ *  synchronized center-crossing is what the wave exists to break); fades happen together,
  *  because a filter is ONE coherent change and waved fades read as a laggy queue (found live);
  *  a swap is one region morphing old-to-new — the platform's crossfade IS its leave animation. */
 const TREATMENT: Record<ListChange['kind'], { readonly wave: boolean }> = {
@@ -134,8 +134,8 @@ export const commitFlip = (ctx: FlipContext, commit: () => void): string | null 
   activeTransition.get(doc)?.skipTransition?.();
   /**
    * THE STAGGER — the reversal cure, applied by TREATMENT kind: on a full reversal every
-   * mover's mirror path crosses the grid centre at t=50% under one shared clock, so all groups
-   * pile into one band and fan back out (the measured "shrink and grow"; synchronised FLIP
+   * mover's mirror path crosses the grid center at t=50% under one shared clock, so all groups
+   * pile into one band and fan back out (the measured "shrink and grow"; synchronized FLIP
    * always does this on opposing states). A few ms of per-group delay turns the crossing into a
    * wave. Only kinds whose treatment says `wave` ride it. Per `::view-transition-group`, which
    * only a stylesheet can reach, so the rules ride the transient names' exact lifecycle.

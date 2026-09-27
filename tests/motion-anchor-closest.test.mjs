@@ -68,7 +68,7 @@ test('a malformed selector is still refused inside the wrapper', () => {
 
 test('closest() resolves UP the tree — every copy finds its OWN ancestor', async () => {
   /**
-   * The behaviour the feature exists for, and the one a settings assertion cannot show. Two
+   * The behavior the feature exists for, and the one a settings assertion cannot show. Two
    * identical cards: with `querySelector` BOTH would resolve to the first card's section, which is
    * exactly the bug `closest()` removes.
    */
@@ -110,7 +110,7 @@ test('closest() stops at a shadow boundary — a component cannot anchor into th
    * `pointerSourceValue` resolved through `ownerDocument`, so the SAME attribute scoped one way for
    * scroll and reached into the whole page for pointer. Both go through `anchorElement` now, which
    * takes the node's root — so a pointer anchor inside a shadow tree that used to find a page-level
-   * element no longer does. **That is a change to shipped behaviour**, in the direction
+   * element no longer does. **That is a change to shipped behavior**, in the direction
    * CODE-PRINCIPLES §2 requires (the scope comes from the node), and it is pinned here.
    */
   const page = new JSDOM('<!doctype html><body><section class="card" id="page-level"><div id="host"></div></section></body>');

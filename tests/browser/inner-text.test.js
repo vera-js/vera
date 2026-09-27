@@ -31,7 +31,7 @@ it('turns every line break into a <br> when innerText is assigned', () => {
 
 /**
  * The getter is layout-dependent, so it is only pinned here for a **detached** element — which is
- * the case the shim is an analogue of, since nothing it renders is ever in a laid-out document.
+ * the case the shim is an analog of, since nothing it renders is ever in a laid-out document.
  * Detached, every engine falls back to `textContent`, script text included.
  */
 it('falls back to textContent for a detached element', () => {

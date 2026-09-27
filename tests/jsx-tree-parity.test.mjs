@@ -7,7 +7,7 @@
  * parser — it is the tree, literally — so it is the oracle for what the author described.
  *
  * **Nothing here is a hand-written expectation, and that is the entire point.** The suite this one
- * generalises, `./jsx-equivalence.test.mjs`, wrote `<my-comp />` on BOTH sides of five of its own
+ * generalizes, `./jsx-equivalence.test.mjs`, wrote `<my-comp />` on BOTH sides of five of its own
  * pairs: it compared a defect with itself and passed for as long as the defect lived. An
  * expectation typed by someone holding a misconception encodes the misconception. Here both sides
  * are generated from one source, so no misconception has anywhere to hide.
@@ -74,7 +74,7 @@ const CASES = {
 
   /*
    * The family HTML reshapes. Each is valid-looking JSX, each parses correctly per spec, and each
-   * produces a tree the author did not write. None can be normalised the way `<div/>` can: there is
+   * produces a tree the author did not write. None can be normalized the way `<div/>` can: there is
    * no markup that means the nesting, because the nesting is not expressible in HTML at all.
    */
   'a block inside a paragraph': [el('p', el('div', 'x'))],

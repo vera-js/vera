@@ -43,7 +43,7 @@ because the reasoning looks right and is wrong. A CSS identifier accepts all 64 
 that is true. But it costs a 64-character alphabet literal that gzip cannot compress plus a
 hand-rolled packing loop, measured at **105 B gzipped per bundle**, to save three characters in a
 marker that repeats on every element and in every selector — i.e. in exactly the position gzip
-erases. `toString(36)` is free and built in. The lesson generalises: a denser ENCODING pays per
+erases. `toString(36)` is free and built in. The lesson generalizes: a denser ENCODING pays per
 occurrence, its TABLE pays once per bundle, and repeated occurrences are nearly free after
 compression.
 

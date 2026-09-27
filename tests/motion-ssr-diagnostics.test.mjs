@@ -101,7 +101,7 @@ test('a value that tries to close the script cannot', () => {
    * Scoped to the SCRIPT, not to the document. The hostile text also appears in the element's own
    * `data-vd-motion` ATTRIBUTE, where it is inert — quoted attribute values do not end elements —
    * and a document-wide search therefore fails on a page that is perfectly safe. The first draft
-   * asserted exactly that and went red against correct behaviour.
+   * asserted exactly that and went red against correct behavior.
    */
   const text = reparsed.window.document.querySelector('script[data-vm-diagnostics]').textContent;
   assert.ok(!/<\/script/i.test(text),

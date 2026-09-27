@@ -15,7 +15,7 @@ export default class HeadStyleSsr extends HTMLElement {
     /**
      * **The CSS differs per request**, which is what makes a leak of the hoisting state visible at
      * all: `hoist` de-duplicates by text, so a component emitting the *same* stylesheet every time
-     * cannot show the defect. A request whose colour is its own is the only shape where "request
+     * cannot show the defect. A request whose color is its own is the only shape where "request
      * two carried request one's CSS" is a statement you can check.
      */
     const tone = this.getAttribute('tone') ?? 'teal';

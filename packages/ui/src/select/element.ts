@@ -737,7 +737,7 @@ export class VeraSelect extends HTMLElement {
       const loading = attrs()['loading'] != null;
       const overflow = attrs()['overflow-message'] ?? null;
       /**
-       * Consecutive options sharing a `group` render inside one labelled role="group" — a real
+       * Consecutive options sharing a `group` render inside one labeled role="group" — a real
        * group (never a heading faked as an option), invisible to the keyboard model because rows
        * keep their flat data-index and ids. The visible heading is aria-hidden; the group's
        * aria-label is what announces.

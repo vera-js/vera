@@ -86,7 +86,7 @@ const SURFACE = [
   ['style custom property', (el) => (el.style.setProperty('--v', '1'), el.getAttribute('style') === '--v: 1;' && el.style.getPropertyValue('--v') === '1')],
   ['style.removeProperty returns the old value', (el) => ((el.style.color = 'red'), el.style.removeProperty('color') === 'red')],
   ['style emptied leaves style=""', (el) => ((el.style.color = 'red'), el.style.removeProperty('color'), el.getAttribute('style') === '')],
-  ['style.cssText normalises on write', (el) => ((el.style.cssText = 'color: red'), el.getAttribute('style') === 'color: red;')],
+  ['style.cssText normalizes on write', (el) => ((el.style.cssText = 'color: red'), el.getAttribute('style') === 'color: red;')],
   /**
    * **A semicolon inside a value does not end the declaration**, and the common case is not exotic:
    * `url("data:image/svg+xml;base64,…")` is how an inline SVG is written. Splitting the attribute on
@@ -284,7 +284,7 @@ const DOCUMENT_SURFACE = [
   /**
    * **A real node now**, not an object literal with an `innerHTML` string. It has a `nodeType`, its
    * data is what was passed rather than the escaped form, and the escaping happens when it is
-   * serialised — which is what let `childNodes` start reporting text at all.
+   * serialized — which is what let `childNodes` start reporting text at all.
    */
   ['createTextNode', () => {
     const node = globalThis.document.createTextNode('<b>');

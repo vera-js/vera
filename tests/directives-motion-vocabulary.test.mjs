@@ -120,7 +120,7 @@ test('path wired: a selector matching nothing is refused with which way it faile
   await settled();
 });
 
-test('path without path-selector says so instead of travelling along nothing', async () => {
+test('path without path-selector says so instead of traveling along nothing', async () => {
   const host = await mount(`<div data-vd-motion="{ keyframes: { path: '0% 0, 100% 100' } }">x</div>`);
   const reasons = rejections(host.querySelector('div'));
   assert.ok(reasons.some((r) => r.code === 'motion-path-no-selector'));
@@ -170,7 +170,7 @@ test('split by words: pieces inherit the motion minus stagger, the sentence surv
   assert.equal(pieces.length, 3, 'three words, three pieces');
   for (const piece of pieces) {
     assert.equal(piece.getAttribute('aria-hidden'), 'true');
-    assert.match(piece.getAttribute('data-vd-motion'), /opacity/, 'the animation travelled');
+    assert.match(piece.getAttribute('data-vd-motion'), /opacity/, 'the animation traveled');
     assert.doesNotMatch(piece.getAttribute('data-vd-motion'), /stagger/, 'the stagger stayed on the host');
     /** Pieces inherit the host's STAGGER offset, and stagger gates to the old path until
      *  stage 5 — so the old inline surface is the correct instrument here, on purpose. */

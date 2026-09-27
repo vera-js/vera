@@ -112,7 +112,7 @@ test('an empty style element does not make the rest of the template raw', async 
  * never returns to zero and the skip swallows **the entire rest of the document** — every component
  * after it silently not rendered, with no error anywhere.
  *
- * Found generalising this search so component tags could use it too.
+ * Found generalizing this search so component tags could use it too.
  */
 test('a tag whose name merely starts with "template" does not extend the skip', async () => {
   const file = join(dir, 'template-boundary.js');

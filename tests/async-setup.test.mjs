@@ -9,12 +9,12 @@
  * `currentInstance` is a single slot, not a stack: `init()` sets it and the `render()`/`mount()` that
  * closes setup clears it. So a second component calling `init()` overwrites the first's slot — and it
  * does that immediately, not at commit. An `await` between `init()` and `render()` therefore loses the
- * component whenever anything else initialises while it is suspended, which on a page of async cards
+ * component whenever anything else initializes while it is suspended, which on a page of async cards
  * is every time.
  *
  * That is deliberate and the framework says so in the diagnostic itself: *"it runs once,
  * synchronously, inside connectedCallback. Calling it twice, after an `await`, or from a handler finds
- * nothing to close."* This suite pins the behaviour and both diagnostics, since the rule was stated
+ * nothing to close."* This suite pins the behavior and both diagnostics, since the rule was stated
  * only in a runtime warning and only where someone had already hit it.
  *
  * ## The rule

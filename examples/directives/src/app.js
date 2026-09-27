@@ -212,7 +212,7 @@ const page = (title, lede, body) => html`
 
 const HOME = `
   <h2>What this page is</h2>
-  <p>Every directive this system ships, live, organised by purpose — and every demo carries
+  <p>Every directive this system ships, live, organized by purpose — and every demo carries
   <em>the markup that built it</em>, rendered from the same nodes so it cannot lie. No build step:
   the import map points at the production bundles, exactly as a CDN page would.</p>
   <demo-block caption="The entire wiring of this page — nothing else is set up anywhere.">
@@ -501,11 +501,11 @@ const MOTION = `
   top edge reaches the bottom of the viewport and <code>100%</code> the moment it has completely
   left the top — so an animation written <code>0% → 100%</code> is still moving as it exits, and
   only finishes where nobody can see it. That is right for a scrubbed effect and wrong for an
-  entrance. Land the last keyframe around <code>55%</code> and it is finished while centred; the
+  entrance. Land the last keyframe around <code>55%</code> and it is finished while centered; the
   demos below do exactly that, and the scrubbed ones deliberately do not.</p>
 
   <h2>A dot that chases the pointer</h2>
-  <demo-block caption="pointer writes { x, y, inside } normalised 0→1 over the element — a READING, not an event, so it re-runs whatever depends on it. The directive only ever writes a target; the lag is a CSS transition, so the compositor carries it and nothing animates frame by frame. Two dots, two durations.">
+  <demo-block caption="pointer writes { x, y, inside } normalized 0→1 over the element — a READING, not an event, so it re-runs whatever depends on it. The directive only ever writes a target; the lag is a CSS transition, so the compositor carries it and nothing animates frame by frame. Two dots, two durations.">
     <div class="pad" data-vd-state="{ p: { x: 0.5, y: 0.5, inside: false } }" data-vd-pointer="p">
       <span class="hint" data-vd-show="!p.inside">move your pointer in here</span>
       <div class="dot trailer" data-vd-style="{ --x: p.x, --y: p.y, opacity: p.inside ? 0.28 : 0 }"></div>
@@ -518,12 +518,12 @@ const MOTION = `
   <demo-block caption="Both boxes read the same scroll position. inertia: 0 tracks it exactly; a high inertia writes the TARGET each frame and lets a compositor-driven CSS transition carry the value there — so when you stop, it keeps going and settles. Scroll in a short burst and watch the right one catch up.">
     <div class="lag-row">
       <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 70px, 100% -70px' }, inertia: 0 }">inertia: 0 — locked to scroll</div>
-      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 70px, 100% -70px' }, inertia: 0.85, inertia-ease: 'cubic-bezier(0.22, 1, 0.36, 1)' }">inertia: 0.85 — keeps travelling</div>
+      <div class="hero-box" data-vd-motion="{ keyframes: { translate-y: '0% 70px, 100% -70px' }, inertia: 0.85, inertia-ease: 'cubic-bezier(0.22, 1, 0.36, 1)' }">inertia: 0.85 — keeps traveling</div>
     </div>
   </demo-block>
 
   <h2>A gradient that never stops moving</h2>
-  <demo-block caption="The colour is a plain CSS conic-gradient on a layer larger than its frame; scroll rotates and slides it. paint's colour table is DISCRETE on purpose — it indexes exact values so it can never paint a colour you did not write — so a continuous wash is a transform on a gradient rather than an interpolation between colours.">
+  <demo-block caption="The color is a plain CSS conic-gradient on a layer larger than its frame; scroll rotates and slides it. paint's color table is DISCRETE on purpose — it indexes exact values so it can never paint a color you did not write — so a continuous wash is a transform on a gradient rather than an interpolation between colors.">
     <div class="sky">
       <div class="sky-layer"
            data-vd-motion="{ keyframes: { rotate: '0% 0deg, 100% 140deg', scale: '0% 1, 50% 1.25, 100% 1' }, inertia: 0.5 }"></div>
@@ -537,7 +537,7 @@ const MOTION = `
   going down, out coming back up past it. <strong>Two lines</strong> are an entrance and an exit.
   <code>run-once</code> latches after the first play and never reverses. Those three shapes cover
   everything below except the third box, which is here precisely because they do not.</p>
-  <demo-block caption="Scroll down past the halfway line, then keep going, then come back up. Each box differs only in which exit it honours — and only the third still needs an expression.">
+  <demo-block caption="Scroll down past the halfway line, then keep going, then come back up. Each box differs only in which exit it honors — and only the third still needs an expression.">
     <div class="reveal-row">
       <div class="hero-box"
            data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40, 100% 0' }, scroll: '50%', play: 0.55, run-once: true }">
@@ -600,7 +600,7 @@ const MOTION = `
       <div class="hero-box" data-vd-motion="{ keyframes: { rotate: '0% -20deg, 100% 20deg', opacity: '0% 0.3, 50% 1, 100% 0.3' } }">F</div>
     </div>
   </demo-block>
-  <demo-block caption="The authoring escape hatch: explicit enable/disable wins over the reduced-motion preference (a page that never calls these honours the visitor's setting).">
+  <demo-block caption="The authoring escape hatch: explicit enable/disable wins over the reduced-motion preference (a page that never calls these honors the visitor's setting).">
     <div data-vd-state="{ _controls: 1 }">
       <button id="motion-off">disableMotion()</button>
       <button id="motion-on">enableMotion()</button>
@@ -610,7 +610,7 @@ const MOTION = `
 `;
 
 const VOCAB = `
-  <h2>paint — colour, gradients, shadows</h2>
+  <h2>paint — color, gradients, shadows</h2>
   <p class="lede">Nothing here is interpolated by hand: each authored value takes a slot, the
   curve steps between slots, and the CSS transition (inertia) carries the change. The engine is
   the parser — <code>CSS.supports</code> — and the image-sourcing family is refused wholesale.</p>

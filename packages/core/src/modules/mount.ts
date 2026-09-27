@@ -19,7 +19,7 @@ import type { ComponentElement } from '../types.js';
  * the template subscribes it, and a write re-renders — calling `render()` again is neither
  * necessary nor sufficient.
  *
- * Parameterised by caller so the message names the function the author actually wrote. It is the
+ * Parameterized by caller so the message names the function the author actually wrote. It is the
  * same shape as `init()`'s "registered hooks but never closed the setup" warning, at the other end.
  *
  * `__DEV__`-only, so production carries neither the check nor the message.

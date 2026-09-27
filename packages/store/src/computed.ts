@@ -1,7 +1,7 @@
 import { createHook, createStore } from '@verajs/core';
 
 /**
- * A memoised derived value.
+ * A memoized derived value.
  *
  * ```js
  * const total = computed(() => cart.items.reduce((n, i) => n + i.price, 0));

@@ -105,7 +105,7 @@
               "type": {
                 "text": "SelectOption[]"
               },
-              "description": "The choosable rows. `value` is identity; `description` renders under the label (and is announced); consecutive `group`s render as one labelled role=\"group\"; `iconBefore`/`iconAfter` take a Vera template or a plain string, rendered aria-hidden — decorative by contract."
+              "description": "The choosable rows. `value` is identity; `description` renders under the label (and is announced); consecutive `group`s render as one labeled role=\"group\"; `iconBefore`/`iconAfter` take a Vera template or a plain string, rendered aria-hidden — decorative by contract."
             },
             {
               "kind": "field",
@@ -338,7 +338,7 @@
             },
             {
               "name": "group",
-              "description": "One labelled cluster of consecutive same-group options (role=\"group\")."
+              "description": "One labeled cluster of consecutive same-group options (role=\"group\")."
             },
             {
               "name": "group-label",

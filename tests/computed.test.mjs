@@ -1,5 +1,5 @@
 /**
- * `@verajs/store/computed` — memoised derived values.
+ * `@verajs/store/computed` — memoized derived values.
  *
  * The distinction being tested is against a plain function, not against nothing. `() => a + b` runs
  * on every read; a computed runs once per *change*, and only when something it actually read moves.
@@ -26,7 +26,7 @@ const mount = () => {
   return host;
 };
 
-/* ── memoisation ────────────────────────────────────────────────────────────────────────────── */
+/* ── memoization ────────────────────────────────────────────────────────────────────────────── */
 {
   const state = core.createStore({ a: 1, b: 2, unrelated: 0 });
   let evaluations = 0;
@@ -130,7 +130,7 @@ const mount = () => {
   for (let i = 2; i <= 6; i++) state.n = i;
   check('and on every dependency write with no reader — if this drops, it went lazy', runs === 6, String(runs));
   check('reading returns the current value', derived.value === 6, String(derived.value));
-  check('and reading does not re-evaluate, which is the memoisation', runs === 6, String(runs));
+  check('and reading does not re-evaluate, which is the memoization', runs === 6, String(runs));
 }
 
 {

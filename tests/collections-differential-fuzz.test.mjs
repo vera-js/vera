@@ -9,7 +9,7 @@
  *
  * ## Two oracles, because either alone passes for the wrong reason
  *
- * 1. **Behaviour** — a plain collection driven through the same sequence. Independent of the subject,
+ * 1. **Behavior** — a plain collection driven through the same sequence. Independent of the subject,
  *    in the way pass 59's direct evaluation was and pass 58's fresh render was not. Contents, size,
  *    iteration order and every return value are compared after each step.
  * 2. **Notification** — a reader that must wake when the collection changes and stay quiet when it
@@ -62,7 +62,7 @@ let steps = 0;
 let notifications = 0;
 
 /**
- * **The second oracle.** Comparing against a plain collection only tests behavioural equivalence — an
+ * **The second oracle.** Comparing against a plain collection only tests behavioral equivalence — an
  * implementation that notified nobody would behave exactly like a plain `Map` and pass every check
  * above. So each mutating operation is also asked whether it woke a reader, and each non-mutating one
  * whether it stayed quiet.

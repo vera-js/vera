@@ -44,7 +44,7 @@ export type RendererInsert = (template: any, container: HTMLElement, ...args: an
  *
  * Returning `false` suppresses that default propagation, which is what lets a module hold changes
  * back and flush them itself — batching, transactions, undo/redo, persistence, time-travel devtools.
- * Any other return value leaves the default behaviour alone.
+ * Any other return value leaves the default behavior alone.
  */
 export type SetHandlerInsert = <T extends object>(
   obj: T,

@@ -11,7 +11,7 @@ export const supports = (): boolean =>
    * points ask "is there a browser here" — and it threw `document is not
    * defined` answering it, out of `init()` on a server. Every caller treats
    * `false` as "do nothing and leave the content alone", which is exactly the
-   * right server-side behaviour; the throw turned an inert instance into a
+   * right server-side behavior; the throw turned an inert instance into a
    * failed render.
    */
   typeof document !== 'undefined' &&

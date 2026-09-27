@@ -187,7 +187,7 @@ const fmt = (ms) => (ms * 1000).toFixed(1).padStart(8);
  * number with no spread beside it cannot be argued with, which is exactly the problem.
  *
  * Spread alone turned out to be a poor alarm, and two attempts at thresholding it both cried wolf:
- * a sub-microsecond row spreads 3x from timer quantisation, React's JIT warmup skews its small row
+ * a sub-microsecond row spreads 3x from timer quantization, React's JIT warmup skews its small row
  * past 4x on a completely idle machine, and Astro's container spreads 2x on its own. Those are
  * properties of the contender, not of the machine, and an alarm that fires every run gets ignored.
  *

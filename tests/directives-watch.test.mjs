@@ -6,7 +6,7 @@
  * clamps `page` to the page count, so narrowing a search until the results shrink past your page
  * moves you back on its own. What no clamp can catch is a new query whose results are still long —
  * type a fresh search on page 4 of 8 and you land on page 4 of the NEW results, which no reader
- * expects and no existing behaviour prevents.
+ * expects and no existing behavior prevents.
  *
  * The two claims that make it correct rather than merely working are the ones a naive version gets
  * wrong: it must NOT fire on the first pass (or a shared link's `page` is destroyed at load, by the

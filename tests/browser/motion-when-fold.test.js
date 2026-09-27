@@ -4,7 +4,7 @@
  * 1. THE POSTER CHILD: a server-rendered page's gate BEHAVES with no motion JavaScript wired at
  *    all — renderMotion emits, the class toggles, the transition runs. The first emission that
  *    behaves rather than merely showing an end state.
- * 2. THE SPECIFICITY ROW (omni's corpus ask): :where() neutralises a wild author selector —
+ * 2. THE SPECIFICITY ROW (omni's corpus ask): :where() neutralizes a wild author selector —
  *    #id.class[attr] inside the gate still lands 0-2-0, proven by an ordinary 0-3-0 author rule
  *    BEATING the folded active rule (if the selector leaked, 1-1-1 inside would win instead).
  */

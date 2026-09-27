@@ -3,7 +3,7 @@
  *
  * `createProxy.ts` skips subscriptions for a disconnected element — `if (element?.isConnected ===
  * false) continue` — so a store write while a component is out of the tree renders nothing. That is a
- * deliberate optimisation: without it every write walks elements no one can see.
+ * deliberate optimization: without it every write walks elements no one can see.
  *
  * It is only half a contract. The other half is that reconnecting **catches up**, and nothing asserted
  * it. `lifecycle-balance-fuzz` generates connect, disconnect, move and reconnect sequences, but its
@@ -87,7 +87,7 @@ test('and after a move between parents with a write in between', async () => {
 });
 
 /**
- * The optimisation itself, pinned as the other half. A manually-initialised container never enters the
+ * The optimization itself, pinned as the other half. A manually-initialized container never enters the
  * tree, so no `connectedCallback` ever runs for it and nothing can catch it up — which is exactly why
  * the skip is only safe for components, and why this asserts the boundary rather than the absence
  * alone.

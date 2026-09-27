@@ -121,7 +121,7 @@ test('CSS text cannot break out of the <style> element it is written into', () =
  * client never had it: there, `textContent` sets real text and a raw-text element serializes it
  * verbatim.
  *
- * What a stylesheet *does* need is `</style` neutralised, which is a different escape and is
+ * What a stylesheet *does* need is `</style` neutralized, which is a different escape and is
  * asserted above.
  */
 test('a stylesheet keeps the characters CSS needs', async () => {

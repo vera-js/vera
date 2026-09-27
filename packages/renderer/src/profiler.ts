@@ -31,7 +31,7 @@
  * be inferred: `/hydrate` is a drop-in replacement for the same public API, so an app can have this
  * one or that one and not both. Measured — a hydrating app driven through three renders reports zero
  * frames while rendering correctly. `formatReport` says so when it observed nothing, because a zero
- * report is otherwise indistinguishable from an app with nothing to optimise.
+ * report is otherwise indistinguishable from an app with nothing to optimize.
  */
 import {
   _setProfileHook,

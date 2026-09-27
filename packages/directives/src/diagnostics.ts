@@ -178,7 +178,7 @@ export const PROSE: Record<string, Prose> = {
   /* ── the motion pack ────────────────────────────────────────────────────────────────────── */
   /**
    * Motion arrived from the retired motion package with a different convention: every refusal
-   * funnelled through one `motion-refused` code carrying a composed sentence, with a shortened
+   * funneled through one `motion-refused` code carrying a composed sentence, with a shortened
    * production variant beside it that still shipped. So its words could not fold and none of them
    * could be addressed — one docs page and one inspector row for the whole pack. `where` is the key
    * path a nested refusal accumulates (`opacity`, then `opacity: [0 50%]`), rendered here so no

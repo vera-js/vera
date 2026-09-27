@@ -35,7 +35,7 @@ export default class SinkStyled extends HTMLElement {
       () => html`<div id="styled" style="--sink-accent: ${state.accent}">
         <h2>Styles, in a shadow root</h2>
         <h3>A constructed stylesheet adopted once per element and shared by every instance of the class</h3>
-        <h4>Press re-tint: the colour changes through a custom property, and the sheet is never re-adopted.</h4>
+        <h4>Press re-tint: the color changes through a custom property, and the sheet is never re-adopted.</h4>
         <button id="tint" @click=${() => (state.accent = ACCENTS[++tint % ACCENTS.length])}>re-tint (${state.accent})</button>
         <span class="badge"><span class="inner" data-kind="pill">styled</span></span>
       </div>`

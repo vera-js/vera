@@ -92,7 +92,7 @@ it('an html`` shape parses in the namespace of where it lands, and has geometry 
 /**
  * The integration points, from the runtime's side — `foreignHost` treats exactly these three as
  * HTML, and the compiler's one list matches it. A `<title>` holding markup inside an `<svg>` is the
- * platform behaviour the shared raw-text rule is knowingly wrong about, so it is worth pinning on
+ * platform behavior the shared raw-text rule is knowingly wrong about, so it is worth pinning on
  * real parsers rather than trusting the note about it.
  */
 it('svg <title>, <desc> and <foreignObject> hold HTML content, in every engine', () => {
@@ -116,7 +116,7 @@ it('svg <title>, <desc> and <foreignObject> hold HTML content, in every engine',
  * worth saying out loud rather than letting a future reader assume it covers the upgrade. Measured:
  * `serializeTemplate` emits BYTE-IDENTICAL markup for both, because `@verajs/ssr` writes a
  * template's STRINGS and the browser's own parser assigns namespaces from the markup's structure —
- * everything inside a serialised `<svg>` is SVG however it was built. **The compile-time tag has no
+ * everything inside a serialized `<svg>` is SVG however it was built. **The compile-time tag has no
  * effect on the SSR path at all**; it decides what `createElementNS` does on the CLIENT.
  *
  * So this pins the handoff, not the rule: the shape an app actually ships survives the server, a

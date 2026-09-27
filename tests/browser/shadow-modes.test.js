@@ -97,7 +97,7 @@ it('light DOM (no shadow props) still renders into the element', async () => {
  * **Generalized:** every option declarative shadow DOM can express has to reach the markup, because
  * the client cannot repair it. `attachShadow` reuses a declarative root and **ignores the options it
  * is handed** — measured — so a component asking for `delegatesFocus: true` over markup that omitted
- * it keeps `false` for the life of the page. Focus delegation is accessibility behaviour: it does
+ * it keeps `false` for the life of the page. Focus delegation is accessibility behavior: it does
  * not break, it just works worse, silently.
  *
  * A row per option, so a new one is covered by adding to the list rather than by remembering.

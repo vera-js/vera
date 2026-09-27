@@ -1,7 +1,7 @@
 import type { CSSResultGroup, StyledElement } from './types.js';
 
 /**
- * Neutralise a `</style>` sequence inside CSS text before it reaches a `<style>` element.
+ * Neutralize a `</style>` sequence inside CSS text before it reaches a `<style>` element.
  *
  * No engine executes it from `innerHTML` here — `<style>` is a raw-text element, so the fragment
  * parser creates no nodes; verified in Chromium, Firefox and WebKit. What it does produce is a DOM
@@ -49,7 +49,7 @@ let warnedAboutScope = false;
  * prelude ends with `{`; a `:host` inside a VALUE sits in a declaration block, where the next
  * structural character is `;` or `}`. So rewriting only when the next one of `{ ; }` is `{` leaves
  * `content: ":host"`, `url(/x/:host.png)` and `@import url(…:host.css);` alone without needing to
- * tokenise strings, comments or url()s. A quote-and-comment tokeniser was written first and cost
+ * tokenize strings, comments or url()s. A quote-and-comment tokenizer was written first and cost
  * 240 B against this one's 83 — and got the url cases WRONG.
  *
  * `(^|[^\\])` because `.md\:host` is an escaped identifier, not a selector: Tailwind emits those

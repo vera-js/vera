@@ -16,7 +16,7 @@
  * mismatch surfaces somewhere else entirely.
  *
  * **jsdom is not the oracle for this and gets it wrong**, which is why the check lives here. Asked
- * in jsdom, `tabindex="1e3"` reads 1000 and `tabindex="0x10"` reads 16 — `Number()` behaviour, not
+ * in jsdom, `tabindex="1e3"` reads 1000 and `tabindex="0x10"` reads 16 — `Number()` behavior, not
  * the integer rules. A node-side pin would therefore have certified the opposite of the truth.
  */
 import { expect } from '@esm-bundle/chai';

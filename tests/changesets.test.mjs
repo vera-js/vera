@@ -9,7 +9,7 @@
  * range to opt in by hand.
  *
  * What is checked here is the part that has a right answer. **Whether a change is breaking is a
- * judgement**, and a test that guessed would either be wrong or be deleted — so the rule lives in
+ * judgment**, and a test that guessed would either be wrong or be deleted — so the rule lives in
  * `.changeset/README.md`, where the person writing one will read it, and this asserts only what a
  * machine can know.
  */

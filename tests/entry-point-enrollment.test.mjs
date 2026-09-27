@@ -15,7 +15,7 @@
  * **Which direction this test can fail in matters.** The lists are read by pulling quoted strings
  * out of the files that declare them, which is not a parser — but the failure mode is the safe one:
  * if the extraction breaks it finds FEWER entries, and fewer entries means this test reports a gap
- * that is not there, which is loud and gets fixed. It cannot invent an enrolment that does not
+ * that is not there, which is loud and gets fixed. It cannot invent an enrollment that does not
  * exist. Each extraction also asserts it found a plausible number first, because a scan that
  * matched nothing would otherwise report every entry as missing and bury the real answer.
  */

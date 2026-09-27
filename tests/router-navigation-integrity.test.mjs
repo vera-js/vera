@@ -79,7 +79,7 @@ const app = (routes, options = {}) => {
  * arrival used to answer "already there" without superseding, so the abandoned navigation landed
  * later — view AND URL — on a page the user had chosen to stay on. The fix bumps the ticket only
  * when the newest navigation has NOT committed, which is what keeps `applyHash`'s synchronous
- * popstate re-entry (a same-path arrival by design) from cancelling its own navigation's scroll
+ * popstate re-entry (a same-path arrival by design) from canceling its own navigation's scroll
  * and focus work — router-hash and router-scroll hold that side of the line.
  */
 {
@@ -246,14 +246,14 @@ const app = (routes, options = {}) => {
  * **`navigate()` and `<a route href>` have to resolve a path the same way.**
  *
  * `methods.ts` puts a clicked `href` through `new URL(href, location.href)` and takes `.pathname`, so
- * a click has always been fully normalised. `navigate()` only did that for paths that *looked*
+ * a click has always been fully normalized. `navigate()` only did that for paths that *looked*
  * absolute — `//host` or a scheme — so every other shape a URL can take reached the matcher raw and
  * silently matched nothing. Measured from `/shop/items`, seven of eight inputs dead-ended where the
  * equivalent link worked, and the README's own example for the feature —
- * `navigate(params.get('next'))` honouring a `?next=` redirect — is a direct route to it.
+ * `navigate(params.get('next'))` honoring a `?next=` redirect — is a direct route to it.
  *
  * Each case is asserted against the **route reached**, not the resulting URL, because a path that
- * normalises to the wrong thing still produces a plausible-looking URL.
+ * normalizes to the wrong thing still produces a plausible-looking URL.
  */
 {
   const hits = [];
@@ -287,7 +287,7 @@ const app = (routes, options = {}) => {
   const refused = await navigate('//elsewhere.test/a/b');
   check('a cross-origin path is still refused', refused === false, String(refused));
 
-  /** A same-origin absolute URL still normalises to its path, as the README shows. */
+  /** A same-origin absolute URL still normalizes to its path, as the README shows. */
   const same = await from(`${window.location.origin}/a/b`);
   check('a same-origin absolute URL still resolves', same === 'a/b', String(same));
 }

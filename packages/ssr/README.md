@@ -120,7 +120,7 @@ describe.
   output, so they are mirrored exactly as `serializer.js` already mirrors the same three for template
   bindings.
 - **A parsed `<template>`'s content is opaque, and `template.content` is `undefined` here.** The
-  element itself is modelled — found by `querySelector`, styled, serialised back byte for byte — and
+  element itself is modeled — found by `querySelector`, styled, serialized back byte for byte — and
   a query on the host correctly does not descend into it, which is what a real DOM does too. What is
   missing is reaching INTO one: `template.content.querySelector(…)` answers nothing on the server
   and a fragment in the browser.
@@ -136,7 +136,7 @@ describe.
   either implemented or listed as out of scope with a reason — and every member that *is* implemented
   is then compared against a real DOM, member by member, so one that exists and answers differently
   fails too. That second check is the one that earns its keep: enumerating presence found a single
-  gap, while comparing behaviour found `tabIndex` defaulting to 0, `draggable` defaulting to true,
+  gap, while comparing behavior found `tabIndex` defaulting to 0, `draggable` defaulting to true,
   `role` answering `''` where the platform answers `null`, `textContent = null` writing the word
   "null", and a closed shadow root handed straight back. **That comparison checks a member's *shape*
   — the type it answers with — not its answer to every input**, so it is a net rather than a proof:
@@ -185,7 +185,7 @@ describe.
   still matches an `observedAttributes` entry spelled `user-id`; an element created through
   `createElementNS` outside the HTML namespace keeps its case, so an SVG `viewBox` survives.
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
-  registered class, so its field initialisers have run and `instanceof` answers, and appending it
+  registered class, so its field initializers have run and `instanceof` answers, and appending it
   renders **that instance** — everything the parent assigned to it, `kid.rows = data` included,
   survives. The nested-component scan used to re-create the child from its markup, where an
   attribute is the only thing that can carry a value.
@@ -226,7 +226,7 @@ describe.
   reference inside `<style>` or `<script>` — that is what makes them RAWTEXT — so `&#13;` there is
   the literal six characters, while the preprocessor still collapses the raw CR. There is no spelling
   of a carriage return that survives in those two elements. `<title>` and `<textarea>` are RCDATA,
-  which *does* decode references, which is why they round-trip correctly. All three behaviours are
+  which *does* decode references, which is why they round-trip correctly. All three behaviors are
   asserted against Chromium, Firefox and WebKit in `tests/browser/rawtext-carriage-return.test.js`.
 
   In practice this reaches an interpolated stylesheet or inline script whose source has Windows line
@@ -248,7 +248,7 @@ describe.
   bidi controls, noncharacters and 20 other cases that *do* round-trip exactly.
 - **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
   an `aria-*`, a class, a reflected property.
-- **`<style>` and `<script>` content is written raw**, and their own end tags are neutralised
+- **`<style>` and `<script>` content is written raw**, and their own end tags are neutralized
   (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer). A browser does
   not decode a character reference inside either, so escaping there protects nothing and corrupts
   the content: an interpolated `.a > .b` used to serve `.a &#62; .b`, a selector matching nothing,

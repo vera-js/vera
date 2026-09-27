@@ -153,7 +153,7 @@ test('and the mistakes it documents are refused by name', () => {
     'an object style should be named'
   );
   /**
-   * A void element with children is the one markup shape the transform cannot normalise: there is
+   * A void element with children is the one markup shape the transform cannot normalize: there is
    * no HTML that means what was written, so it refuses instead of guessing. Before this it emitted
    * `<input>${label}</input>`, which the parser reads as an input followed by a loose text
    * node — the BINDING silently left the element it was written inside.

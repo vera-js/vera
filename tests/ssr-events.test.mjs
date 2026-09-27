@@ -161,7 +161,7 @@ test('the listener contract is unchanged', () => {
 
 /**
  * A shadow boundary is crossed only by a `composed` event, which is what keeps a component's
- * internals private — and is the rule a server has to honour for the same markup to behave the same.
+ * internals private — and is the rule a server has to honor for the same markup to behave the same.
  */
 test('composed decides whether a shadow boundary is crossed', () => {
   both('a composed event reaches the host', (d, event) => {
@@ -264,7 +264,7 @@ test('the phase constants are on the event, not only on the interface', () => {
 /**
  * The guard here checked `typeof event.type === 'string'`, which `{ type: 'click' }` satisfies. So
  * the server accepted a dispatch every engine refuses with a `TypeError`, and the mistake that
- * produced it travelled to the client before failing. Where the platform throws, this throws.
+ * produced it traveled to the client before failing. Where the platform throws, this throws.
  */
 test('dispatchEvent takes an Event, not something shaped like one', () => {
   const [, , target] = tree(globalThis.document);

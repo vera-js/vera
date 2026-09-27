@@ -188,7 +188,7 @@ test('the same kind is reported once per binding — but a different kind still 
  *
  * `${cond && html`…`}` with a false `cond` puts the word "false" on the page. The value is
  * legitimate, nothing throws, and `@verajs/renderer` renders it deliberately — lit does the same,
- * and templates are lit-shaped on purpose. So the behaviour stays and the MISTAKE is named, which
+ * and templates are lit-shaped on purpose. So the behavior stays and the MISTAKE is named, which
  * is the only channel left when the author's intent and the language's answer disagree.
  *
  * It carries a second job: `@verajs/jsx` compiles a boolean child away (React's rule, where React
@@ -211,7 +211,7 @@ const childComplaint = (value) => {
 test('a boolean child still renders, and development says so',
   { skip: isProduction && 'diagnostics are folded away' }, () => {
     const off = childComplaint(false);
-    assert.equal(off.text, 'false', 'the behaviour is unchanged — lit parity is the point');
+    assert.equal(off.text, 'false', 'the behavior is unchanged — lit parity is the point');
     assert.match(off.message, /cond && /, 'and the message names the idiom that produced it');
     assert.match(off.message, /cond \? … : null/, 'and the fix');
 
@@ -259,6 +259,6 @@ test('the same boolean is reported once, and a different one still speaks',
 test('production carries neither the check nor the message',
   { skip: !isProduction && 'this is the production half' }, () => {
     const off = childComplaint(false);
-    assert.equal(off.text, 'false', 'behaviour is identical in both builds');
+    assert.equal(off.text, 'false', 'behavior is identical in both builds');
     assert.equal(off.message, null, 'and the diagnostic is folded away');
   });

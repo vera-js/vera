@@ -11,7 +11,7 @@ import { expect } from '@esm-bundle/chai';
  * and a mount point derived from it grows the address bar by a segment per navigation while every
  * route still matches.
  *
- * `tests/router-base-path.test.mjs` holds the behavioural table under jsdom. This file is its
+ * `tests/router-base-path.test.mjs` holds the behavioral table under jsdom. This file is its
  * oracle: the rows there assume the platform answers these questions the way jsdom does, and
  * `CLAUDE.md` is explicit that jsdom is never the oracle for a rule the platform owns. Measured
  * 2026-09-04 in Chromium, Firefox and WebKit before the jsdom table was written; this keeps that

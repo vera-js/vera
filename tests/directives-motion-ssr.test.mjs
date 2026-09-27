@@ -3,7 +3,7 @@
  *
  * `renderMotion(document, { wire })` runs the same parser and generator the client runs and emits
  * what the client would have delivered: markers on in-scope elements, one `data-vm-sheet` style
- * per tree, `@property` declarations document-level, the `(scripting: none)` neutraliser LAST.
+ * per tree, `@property` declarations document-level, the `(scripting: none)` neutralizer LAST.
  * The claims here are about the EMITTED TEXT and the marks — value-level "frame 0 actually
  * paints" claims are browser-truth and live in the hydration suite.
  */
@@ -47,13 +47,13 @@ test('an in-scope element is marked, and its sheet carries the whole delivery in
   assert.match(css, /@keyframes vm-[0-9a-z]{14}/, 'the generated rule');
   assert.match(css, new RegExp(`\\[data-vm-motion="${el.getAttribute('data-vm-motion')}"\\]`), 'the element rule');
   assert.ok(css.trimEnd().endsWith('@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }'),
-    'the neutraliser is LAST — its position is its function');
+    'the neutralizer is LAST — its position is its function');
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \[data-vm-motion\]\[data-vm-motion\]/,
-    'reduced motion neutralises with it — the designed page, journey skipped');
+    'reduced motion neutralizes with it — the designed page, journey skipped');
   /** DOUBLED, structurally pinned: a single-attribute tail loses 0-1-0 vs 0-2-0 to every
    *  element rule regardless of order — and no harness can disable scripting to catch it, so
    *  the selector arithmetic is the only possible witness. */
-  assert.ok(!/\{ \[data-vm-motion\] \{/.test(css), 'no single-attribute neutraliser survives');
+  assert.ok(!/\{ \[data-vm-motion\] \{/.test(css), 'no single-attribute neutralizer survives');
   assert.ok(css.indexOf('@property') < css.indexOf('@keyframes'), 'declarations before rules');
 });
 
@@ -115,7 +115,7 @@ test('a shadow tree gets its OWN sheet — keyframes are tree-scoped — and @pr
   assert.ok(inner, 'the sheet lives INSIDE the tree that uses it');
   assert.match(inner.textContent, /@keyframes vm-/);
   assert.ok(inner.textContent.trimEnd().endsWith('@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }'),
-    'each tree carries its own neutralisers — document rules do not cross the boundary');
+    'each tree carries its own neutralizers — document rules do not cross the boundary');
   assert.ok(!inner.textContent.includes('@property'), 'registration is document-global, not repeated');
   const head = doc.head.querySelector('style[data-vm-sheet="motion"]');
   assert.ok(head && head.textContent.includes('@property --vm-p'), 'the declaration has a home in head');

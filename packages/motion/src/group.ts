@@ -11,7 +11,7 @@
  * What survives is the animation lifecycle, ported with its measured lore:
  * the read-then-write batching (adopt synchronously, paint on a microtask —
  * 400 `offsetParent` walks cost 0.2ms clean and 277ms with a write between
- * each), the deferred-transition dance and its cancellers, the visibility
+ * each), the deferred-transition dance and its cancelers, the visibility
  * tracker with margins derived from how far keyframes reach, the resize
  * triptych (window resize + document ResizeObserver + per-element boxes),
  * the balanced active/idle announcements, and the reduced-motion contract:
@@ -139,7 +139,7 @@ const watchPreferences = (): void => {
    * ALWAYS respected — the opt-out knob died in the audit: emission carries always-on reduced
    * blocks (the pre-JS/no-JS truth), so a JS-side opt-out was structurally half-broken, and an
    * ignore-accessibility-preferences option is not a knob this library wants to own. THE
-   * LAYERING, stated once: emission neutralises paint (works with JS off); THIS disable stops
+   * LAYERING, stated once: emission neutralizes paint (works with JS off); THIS disable stops
    * the JS work — the drive loop, tick consumers a stylesheet cannot reach, the scroll writes.
    */
   reducedMotion = prefersReducedMotion();

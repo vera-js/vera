@@ -23,7 +23,7 @@ const names = (...prototypes) => {
   return [...members].sort();
 };
 
-/** A capitalised function with a prototype: an interface, covered by rule rather than by list. */
+/** A capitalized function with a prototype: an interface, covered by rule rather than by list. */
 const isConstructor = (name) =>
   /^[A-Z]/.test(name) && typeof window[name] === 'function' && window[name].prototype !== undefined;
 
@@ -51,7 +51,7 @@ const ACTUAL = {
    * `replace` came to be missing: the surface check passed on the *property* while the object it
    * returned was three methods short. `CSSStyleDeclaration` is deliberately not here — the shim's
    * `style` is a proxy that answers any name, so enumerating its seven hundred CSS properties would
-   * assert nothing. That one is covered behaviourally instead.
+   * assert nothing. That one is covered behaviorally instead.
    */
   tokenList: () => names(DOMTokenList.prototype),
   /**

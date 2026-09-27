@@ -455,7 +455,7 @@ test('AUDIT — a HELD (unassigned) node re-slots too, exactly as native reassig
 /**
  * **The shadow half of the same invariant the server pass had to be corrected for.** Rendering
  * into a shadow root must be untouched by this module: the platform's own slot assignment is the
- * behaviour, and taking it over would be strictly worse. The seam declines any root that is not
+ * behavior, and taking it over would be strictly worse. The seam declines any root that is not
  * an element (`nodeType !== 1`), so a shadow root keeps its literal `<slot>`.
  */
 test('a SHADOW root is left entirely to native slotting', () => {
@@ -722,7 +722,7 @@ test('a node re-slotted out of a displaced nested slot moves to its new slot', a
  * Both halves are here because they failed for different reasons. A node that has been present
  * since capture is ranked by the capture walk. One inserted at the FRONT after render is ranked by
  * the rule the module already states — content in the light region precedes everything distributed
- * away — and ranking it from its bucket's neighbours instead put it last whenever that bucket was
+ * away — and ranking it from its bucket's neighbors instead put it last whenever that bucket was
  * empty, where the position means nothing.
  */
 test('re-slotting places a node by light-tree order, not arrival order', async () => {
@@ -1009,7 +1009,7 @@ test('a binding that cannot work on a light-DOM slot is diagnosed', { skip: isPr
 /**
  * **Children that arrive after the element upgrades** — the timing an HTML parser creates whenever
  * the component's definition is already registered. This test used to pin the "must name its slot"
- * rule as documented behaviour, with a comment explaining why a diagnostic could not tell the
+ * rule as documented behavior, with a comment explaining why a diagnostic could not tell the
  * user's bare text from the component's own rendered output.
  *
  * The ownership stamp is what the diagnostic could not be: the component's output arrives through
@@ -1090,7 +1090,7 @@ test('slotted() reads a CLOSED shadow root, not just an open one', async () => {
  * Nothing can tell those children apart from user content (the same ambiguity as the late-children
  * rule), and the original source was consumed at the first render, so there is nothing to recover.
  *
- * Asserted as behaviour so the docs stay true, and because anything that duplicates components as
+ * Asserted as behavior so the docs stay true, and because anything that duplicates components as
  * an operation — an editor canvas, a repeater — has to clone the SOURCE markup instead.
  */
 test('cloning a RENDERED host captures its own output — clone the source markup instead', async () => {

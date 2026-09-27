@@ -7,10 +7,10 @@
  * **The suites already run twice; this is a different question.** Each of them asserts its own
  * expectations in each build, and none has ever asked whether the two builds agree *with each
  * other*. Production is a different program: properties mangled, `__DEV__` folded to `false` and its
- * branches deleted, workspace dependencies inlined. A behaviour that differs between them is
+ * branches deleted, workspace dependencies inlined. A behavior that differs between them is
  * invisible until it is in someone's hands.
  *
- * **Adding to it is cheap and worth doing** — every line is a behaviour pinned across both builds.
+ * **Adding to it is cheap and worth doing** — every line is a behavior pinned across both builds.
  * Keep each item deterministic (no clocks, no randomness, no iteration order that depends on a
  * hash) and keep the framework's own `<!---->` part markers in the output: where they are placed is
  * part of what has to match.

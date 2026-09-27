@@ -2,7 +2,7 @@
  * Generated JSX trees against the templates they claim to compile to.
  *
  * `jsx-equivalence` states the invariant with a hand-written table: one JSX call site is one `html`
- * call site, and the two spellings must serialise identically. Its own header notes that "the
+ * call site, and the two spellings must serialize identically. Its own header notes that "the
  * transform's table has twenty entries and its tests had nine" — a table is exactly the shape that
  * gets extended without its cases being extended.
  *
@@ -150,12 +150,12 @@ const build = (random, depth) => {
    * different code path. The rule is stricter than "collapse to a space": a whitespace run that
    * *contains a newline and nothing else* disappears completely, so children each on their own line
    * concatenate with **nothing** between them. Joining them with a space instead put 17 of 72 trees
-   * wrong, all in the same direction, which is what a mis-modelled rule looks like from outside.
+   * wrong, all in the same direction, which is what a mis-modeled rule looks like from outside.
    *
    * One exception the first correction missed: **two text children on consecutive lines are one text
    * node**, not two, and its interior newline collapses to a single space rather than vanishing. So
    * the join is a space between text and text, and nothing anywhere else. That left 2 of 72 wrong
-   * until it was modelled.
+   * until it was modeled.
    *
    * The template spelling therefore carries the collapsed result directly, and the two agree only if
    * the transform applies the same rule. Removing that rule survived this suite while every tree was

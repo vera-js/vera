@@ -8,10 +8,10 @@
  * Three rules shape everything here:
  *
  * 1. **Never change what the page renders.** Each element keeps the exact source text of its own
- *    tags, so re-serialising a parsed tree reproduces the input byte for byte — quoting style,
+ *    tags, so re-serializing a parsed tree reproduces the input byte for byte — quoting style,
  *    entity spelling, attribute order and interior whitespace included. Only an element somebody
  *    *mutates* falls back to canonical output, which is the same rule the rest of this DOM follows.
- *    The caller re-serialises and compares anyway (`nodes.js`), so a defect here costs a declined
+ *    The caller re-serializes and compares anyway (`nodes.js`), so a defect here costs a declined
  *    parse rather than a corrupted page.
  * 2. **Decline rather than guess.** Anything needing the HTML spec's error recovery — misnested
  *    formatting, foster parenting, foreign content — returns `null` and the markup stays a string.
@@ -91,7 +91,7 @@ const REFUSED = new Set();
  * attributes are adjusted (`viewBox`, not `viewbox`). Guessing at the interior would produce a tree
  * a real parser disagrees with.
  *
- * So the element itself is modelled and its **content is kept as one opaque chunk**: the surrounding
+ * So the element itself is modeled and its **content is kept as one opaque chunk**: the surrounding
  * markup parses normally, the icon is an element you can find and style, and nothing inside it is
  * claimed. Refusing the whole fragment instead — which is what this used to do — meant a card with
  * an icon in it got no node view at all, which is a great deal to give up for one `<svg>`.
@@ -108,7 +108,7 @@ const FOREIGN = new Set(['svg', 'math']);
  * against a real DOM, one empty `<template>` was enough to turn `querySelectorAll('*')` from three
  * elements into none — silently.
  *
- * That cost real behaviour. `@verajs/renderer/slots` finds a component's `<slot>` positions with a
+ * That cost real behavior. `@verajs/renderer/slots` finds a component's `<slot>` positions with a
  * query, so a light-DOM component whose markup held a `<template>` distributed on the client and
  * not on the server: a server/client divergence, from markup nobody would suspect.
  *
@@ -156,7 +156,7 @@ export const parseFragment = (markup, create) => {
 
   /**
    * A text run becomes a node carrying **both** its decoded value and the bytes it came from — the
-   * value is what `textContent` should answer, and the bytes are what re-serialising has to write
+   * value is what `textContent` should answer, and the bytes are what re-serializing has to write
    * back. Keeping only the bytes made `textContent` return `a &amp; b`; keeping only the value
    * would have rewritten the page as `a &#38; b`.
    */
@@ -365,14 +365,14 @@ export const parseFragment = (markup, create) => {
         /**
          * Pushed rather than appended: `appendChild` marks an unrendered registered component so
          * the scan can find that instance, which would write a marker attribute into markup this
-         * parse must reproduce exactly — and would enrol a node nobody is going to render.
+         * parse must reproduce exactly — and would enroll a node nobody is going to render.
          */
         node.element._entries.push(child.element);
         child.element._parent = node.element;
       }
     }
     node.element._sourceCloseTag = node.closeTag;
-    /** Marked so anything comparing this tree knows the interior is not modelled. */
+    /** Marked so anything comparing this tree knows the interior is not modeled. */
     return node.element;
   };
   return root.children.map((child) =>

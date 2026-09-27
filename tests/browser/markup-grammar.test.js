@@ -84,7 +84,7 @@ it('a void element written with an end tag renders twice, in this engine', () =>
  * Foreign content is the exception both rules turn on, and it is why the renderer's diagnostic
  * tracks `<svg>`/`<math>` depth rather than scanning tag shapes alone.
  */
-it('inside <svg>, self-closing IS honoured — the exception the diagnostic depends on', () => {
+it('inside <svg>, self-closing IS honored — the exception the diagnostic depends on', () => {
   const host = document.createElement('div');
   host.innerHTML = '<svg><circle/><rect/></svg>';
   const svg = host.querySelector('svg');

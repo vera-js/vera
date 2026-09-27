@@ -94,7 +94,7 @@ it('the menu fades and slides rather than jumping, and the arrow flips — polle
    * Polled to SETTLEMENT for the same reason the loop above is polled, which this assertion used
    * to ignore: it slept a fixed 250 ms into a 140 ms transition and demanded exactly `1`. That is
    * the fixed-instant sample the comment above warns against, just at the other end — and a loaded
-   * CI runner does not honour it. Linux WebKit reported 0.998519 and failed the run while Chromium,
+   * CI runner does not honor it. Linux WebKit reported 0.998519 and failed the run while Chromium,
    * Firefox and macOS WebKit all passed, which is what a machine-dependent assertion looks like.
    */
   let opacity = 0;

@@ -333,7 +333,7 @@ caches.
 each bundle their own renderer with its own instrumentation hook, so profiling while rendering
 through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
 frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
-zero report is otherwise indistinguishable from an app with nothing to optimise.
+zero report is otherwise indistinguishable from an app with nothing to optimize.
 
 ## `@verajs/renderer/namespaces` — a template parsed where it lands
 
@@ -639,7 +639,7 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.82 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+**<!--size:slots.gzip-->3.69 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
 `@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
 it imports nothing and touches no DOM until something renders — so a universal app can wire it on
 both sides.
@@ -770,7 +770,7 @@ html`<calendar-day ${props({ date, events })}></calendar-day>`
 <calendar-day date={date} events={events} />   // JSX only: bare props ARE props on a component tag
 ```
 
-One function, both surfaces — JSX compiles `{...x}` to `spread(x)`, and `spread()` recognises an
+One function, both surfaces — JSX compiles `{...x}` to `spread(x)`, and `spread()` recognizes an
 already-branded result, so the two spellings are literally the same call. In JSX the bag is
 optional altogether: on a dash-named tag a bare prop compiles to the `.name` binding directly
 (`@verajs/jsx`'s README has the two attribute carve-outs), so `props()` is the template's
@@ -869,7 +869,7 @@ small and fast, and it is why neither this renderer nor lit-html has spread buil
 
 The renderer itself holds only a protocol: a value at element position carrying `_$apply$` applies
 itself. Everything else lives in this entry, which imports nothing — not even from the renderer — so
-it loads alongside any renderer that honours the protocol, including your own.
+it loads alongside any renderer that honors the protocol, including your own.
 
 ## `@verajs/renderer/profiler`
 
@@ -983,7 +983,7 @@ component: `@verajs/jsx` consumes it into `keyed(…)` for both spellings, and a
 `H({ key })` drops it and says so in development, because a key marks a template for reconciliation
 and this call *returns* one rather than being one.
 
-**`dangerouslySetInnerHTML` is the one React name a tag cannot honour, and that is a security
+**`dangerouslySetInnerHTML` is the one React name a tag cannot honor, and that is a security
 property rather than a gap.** A tag reaches its element through `/spread`, whose names are only
 known at runtime — which is exactly what makes that sink unreviewable — so `/spread` refuses
 `.innerHTML` outright. Write the element directly, with the value sanitized first:
@@ -1061,7 +1061,7 @@ renderInto(html`<p>${until(fetchUser(), html`<em>loading…</em>`)}</p>`, host);
 Three rules, each of which is a real trap:
 
 - **Hoist the applier.** Written as an object-literal method it is a new function per call, so the
-  part can never recognise it and `previous` is always `undefined`. Its identity is what keeps two
+  part can never recognize it and `previous` is always `undefined`. Its identity is what keeps two
   appliers at one part from reading each other's state.
 - **Continuity lives in the return value**, not in an applier instance. That is what makes this a
   protocol rather than a framework — no base class, no `directive()` factory, no lifecycle.

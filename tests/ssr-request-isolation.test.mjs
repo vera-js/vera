@@ -38,7 +38,7 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 }
 
 /**
- * The entry tag is memoised per URL so a repeat render skips the import — awaiting an
+ * The entry tag is memoized per URL so a repeat render skips the import — awaiting an
  * already-cached module still costs a promise and a yield, 2.4 µs of a 9.5 µs render.
  *
  * The memo must not be reachable by naming a tag, though: the import is what *registers* the
@@ -49,7 +49,7 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
   const cold = await renderToString(fixture('shadow-ssr.js'), { tag: 'shadow-ssr' });
   assert.ok(cold.html.startsWith('<shadow-ssr>'), 'an explicit tag still imports the module');
   const warm = await renderToString(fixture('shadow-ssr.js'), { tag: 'shadow-ssr' });
-  assert.equal(warm.html, cold.html, 'and the memoised path renders the same thing');
+  assert.equal(warm.html, cold.html, 'and the memoized path renders the same thing');
 }
 
 /* ── styles belong to the page that rendered them ─────────────────────────────────────────────
@@ -195,7 +195,7 @@ const fixture = (name) => new URL(`./fixtures/ssr/${name}`, import.meta.url);
 
 /* ── the light-DOM path ───────────────────────────────────────────────────────────────────────
  * Far less exercised than the shadow one: no `<template>`, content becomes the element's children,
- * and styles are hoisted to the page shell as `@scope` rules instead of travelling with the markup.
+ * and styles are hoisted to the page shell as `@scope` rules instead of traveling with the markup.
  */
 {
   const { html: markup, styles } = await renderToString(fixture('light-dom-ssr.js'));

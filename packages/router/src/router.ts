@@ -25,7 +25,7 @@ export const initRouter = (
   /**
    * **An option this router does not have is a mistake, and silence about it is the bug.**
    *
-   * `routes` is the one that matters: `createRouter({ routes })` is how Vue Router is initialised
+   * `routes` is the one that matters: `createRouter({ routes })` is how Vue Router is initialized
    * and it is the first thing anyone tries here. Ignored quietly, the router comes up with no routes
    * at all, every navigation matches nothing, and the page renders an empty outlet with no
    * diagnostic anywhere — the failure looks like a broken router rather than a misplaced option.

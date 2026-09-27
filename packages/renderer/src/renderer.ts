@@ -204,7 +204,7 @@ const IN_BOUND_VALUE = 5; // collecting a bound attribute's statics
 
 /**
  * One pass over the template strings, producing parseable HTML with markers plus an ordered spec
- * list. Runs once per template shape, so clarity beats micro-optimisation here.
+ * list. Runs once per template shape, so clarity beats micro-optimization here.
  *
  * A small state machine rather than tail regexes, because `>` inside quoted attribute values and
  * inside comments must not terminate a tag, and raw-text elements swallow markup.
@@ -212,7 +212,7 @@ const IN_BOUND_VALUE = 5; // collecting a bound attribute's statics
 /**
  * `__DEV__` only: the two ways a hand-written template describes a tree the parser will not build.
  *
- * `@verajs/jsx` normalises both at compile time, so this is the channel for the BUILDLESS path —
+ * `@verajs/jsx` normalizes both at compile time, so this is the channel for the BUILDLESS path —
  * which is this framework's baseline, not its fallback, and was the surface left broken when the
  * compiler fix landed. It reaches the browser console on the client and during hydration; a
  * server-only render never runs this scanner, so an SSR page that is never hydrated is not covered.
@@ -263,7 +263,7 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
   let isClosing = false;
   /**
    * `__DEV__` only. Depth of `<svg>`/`<math>` nesting, because foreign content is the one place the
-   * parser DOES honour XML self-closing, so neither warning applies inside it. An `svg`/`mathml`
+   * parser DOES honor XML self-closing, so neither warning applies inside it. An `svg`/`mathml`
    * template is already inside one, hence the seed from `type`.
    *
    * `<foreignObject>` re-enters HTML content and is deliberately not tracked: suppressing a warning
@@ -820,7 +820,7 @@ class Template {
  * `` mathml`…` `` committed into the other foreign namespace, and, with the module NOT wired, a
  * hand-written `html` template handed across a function boundary into an `<svg>` —
  * `` Frame(html`<path/>`) `` — where the call site had no way to know, because the destination
- * belongs to the callee. lit-html behaves identically there, so the behaviour is not the thing to
+ * belongs to the callee. lit-html behaves identically there, so the behavior is not the thing to
  * change; the silence is.
  *
  * **It lives in `_insert` because that is the seam the template and list paths share.** Wired to the
@@ -875,7 +875,7 @@ const foreignHost = (parent: Node): string | null => {
      * about it. The compiler keeps `encoding` an attribute now (the name is reserved, not custom),
      * so a property here is a hand-written mistake, and it gets named.
      */
-    const normalised = element.getAttribute('encoding')?.toLowerCase();
+    const normalized = element.getAttribute('encoding')?.toLowerCase();
     /**
      * `image/svg+xml` leaves too. It is MathML's own registered encoding for an SVG annotation — the
      * one place SVG content inside a `<math>` subtree is the author's intended, spec-sanctioned
@@ -886,9 +886,9 @@ const foreignHost = (parent: Node): string | null => {
      * gives up naming genuinely HTML content inside an SVG annotation, which is the rarer mistake by
      * far and the one no one has ever reported.
      */
-    return normalised === 'text/html' ||
-      normalised === 'application/xhtml+xml' ||
-      normalised === 'image/svg+xml'
+    return normalized === 'text/html' ||
+      normalized === 'application/xhtml+xml' ||
+      normalized === 'image/svg+xml'
       ? null
       : name;
   }
@@ -1064,7 +1064,7 @@ const build = (result: TemplateResult, parent: Node): Instance => instantiate(re
  * a batched fill lands in the same fragment, so a row with the same strings as the one before it
  * takes the same template — one identity compare instead of a cache lookup and a resolver call.
  * Only a BATCHING fragment is remembered: it is empty once inserted, so holding it keeps nothing
- * alive. It is recognised by being EMPTY when its first row arrives — a list's live parent always
+ * alive. It is recognized by being EMPTY when its first row arrives — a list's live parent always
  * holds the list's own start marker, so it never is. `nodeType === 11` was the test before, and a
  * SHADOW ROOT passes it: a single-row keyed insert at a shadow root's top level kept the root, its
  * host and the whole detached component alive. A nested list's fill overwrites it, and the outer
@@ -1275,7 +1275,7 @@ const commitAdopt = (element: Element, name: string, value: unknown): number => 
  * **empty and stayed that way**, and every later update threw at the same line. The error was
  * reported, so the only symptom was a component that had silently stopped existing.
  *
- * The same judgement `handleEvent` makes a few lines up: a mistake in code the template was handed
+ * The same judgment `handleEvent` makes a few lines up: a mistake in code the template was handed
  * is named, not raised from inside the framework at a point where the value's origin is long gone.
  * The prefix goes on our own sentence and the error is passed alongside, so it stays filterable
  * without misattributing someone else's `Error`.
@@ -1886,7 +1886,7 @@ const isTemplateResult = (value: object): value is TemplateResult =>
  * `${items.length > 0 && html`…`}` is the ordinary conditional idiom, and when the test is false
  * the whole expression is `false` — which becomes the text `false` on the page. Nothing throws;
  * the value is legitimate; only the intent is wrong. lit-html does the same and this renderer
- * matches it deliberately (anything not nullish renders), so the BEHAVIOUR stays and the mistake
+ * matches it deliberately (anything not nullish renders), so the BEHAVIOR stays and the mistake
  * is named where it happens instead of being found by looking at the page.
  *
  * `@verajs/jsx` compiles this case away — in JSX a boolean child becomes nothing, React's rule,
@@ -2459,7 +2459,7 @@ class ChildPart implements Part {
       const previous = this._applier === applyChild ? this._applierState : undefined;
       /**
        * The un-hoisted applier, named. Writing `_$child$` as an object-literal method makes a new
-       * function per render, so the part never recognises it and `previous` is `undefined` forever —
+       * function per render, so the part never recognizes it and `previous` is `undefined` forever —
        * the applier silently restarts on every pass. It is the first rule in the README and it
        * fails without a symptom, so development counts the swaps: a genuine applier change at one
        * part happens once or twice, not on every render.
@@ -2675,7 +2675,7 @@ class ChildPart implements Part {
 
   /**
    * Moving and removing an item read `_element` and `_part`, which are mangled — so they stay here
-   * rather than travelling with the algorithm that calls them. `$m` and `$d` are the price: two
+   * rather than traveling with the algorithm that calls them. `$m` and `$d` are the price: two
    * cold methods, exempt from mangling, two characters each.
    */
   $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
@@ -2687,7 +2687,7 @@ class ChildPart implements Part {
      * ones moved — but the ordinary two-ended diff gets the same saving.
      *
      * The item's LAST node is the one whose `nextSibling` decides this, and reading `_element` /
-     * `_part._end` is why the check lives here rather than travelling with the algorithm.
+     * `_part._end` is why the check lives here rather than traveling with the algorithm.
      */
     const last = item._element ?? item._part!._end!;
     if (last.nextSibling === ref && last.parentNode === parent) return;

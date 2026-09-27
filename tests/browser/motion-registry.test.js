@@ -106,7 +106,7 @@ it('release below the count keeps the rule; the LAST release evicts it', async (
 it('eviction removes the RIGHT rule when several are live', async () => {
   /**
    * The order array is what maps a hash to its index in the shared sheet, and an off-by-one here
-   * deletes a NEIGHBOUR's animation — the failure would land on whichever element activated next
+   * deletes a NEIGHBOR's animation — the failure would land on whichever element activated next
    * to the one torn down, which is as misleading as bugs get.
    */
   const a = '@keyframes vm-a { 0% { opacity: 0.1 } 100% { opacity: 0.1 } }';
@@ -119,7 +119,7 @@ it('eviction removes the RIGHT rule when several are live', async () => {
   release(contentHash(b));
   expect(sheet.cssRules.length).to.equal(2);
   const names = [...sheet.cssRules].map((rule) => rule.name);
-  expect(names, 'the middle one went; its neighbours did not').to.deep.equal(['vm-a', 'vm-c']);
+  expect(names, 'the middle one went; its neighbors did not').to.deep.equal(['vm-a', 'vm-c']);
 
   release(contentHash(a));
   release(contentHash(c));
@@ -241,7 +241,7 @@ it('a rAF ramp on the variable sweeps segments; a TRANSITION on it does not', as
 
 /* ── stage 5 prerequisite: sheet-rule delivery's two cascade claims ──────────────────────────── */
 
-it('the neutraliser tails stay LAST through later inserts, doubled so ties actually lose', async () => {
+it('the neutralizer tails stay LAST through later inserts, doubled so ties actually lose', async () => {
   keyframeRegistry.setTails([
     '@media (prefers-reduced-motion: reduce) { [data-vm-motion][data-vm-motion] { animation: none; } }',
     '@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }',
@@ -269,7 +269,7 @@ it('the doubled-attribute rule beats an author class tie', async () => {
     `[data-vm-motion="${hash}"][data-vm-motion] { animation: vm-spec 1s linear both paused; ` +
     `animation-delay: calc(var(--vm-p, 0) * -1s); }`);
 
-  /** The author's competing single-class rule, added LATER — order would favour it on a tie. */
+  /** The author's competing single-class rule, added LATER — order would favor it on a tie. */
   const author = document.createElement('style');
   author.textContent = '.card { animation: none; }';
   document.head.appendChild(author);

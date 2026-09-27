@@ -115,7 +115,7 @@ it('@scope actually confines light-DOM styles to the component subtree', async f
  * `@scope (${element.localName})` to `@scope (div)` survived it completely. This is where that
  * mutation dies.
  *
- * Two colours rather than one, checked in both directions, because "A is red" and "B is not red" can
+ * Two colors rather than one, checked in both directions, because "A is red" and "B is not red" can
  * both hold while B's rules are missing entirely.
  */
 it('one component\'s light-DOM styles do not reach another component', async function () {
@@ -130,15 +130,15 @@ it('one component\'s light-DOM styles do not reach another component', async fun
     expect(getComputedStyle(blue.querySelector('b')).color, 'the second component lost its own styles').to.equal('rgb(0, 0, 255)');
 
     /** The direction a shared or mis-keyed scope would break: each must reject the other's rule. */
-    expect(getComputedStyle(red.querySelector('b')).color, "the first component picked up the second's colour").to.not.equal('rgb(0, 0, 255)');
-    expect(getComputedStyle(blue.querySelector('b')).color, "the second component picked up the first's colour").to.not.equal('rgb(255, 0, 0)');
+    expect(getComputedStyle(red.querySelector('b')).color, "the first component picked up the second's color").to.not.equal('rgb(0, 0, 255)');
+    expect(getComputedStyle(blue.querySelector('b')).color, "the second component picked up the first's color").to.not.equal('rgb(255, 0, 0)');
 
     /** And a plain `<b>` outside both stays untouched by either. */
     const outsider = document.createElement('b');
     document.body.appendChild(outsider);
-    const outsideColour = getComputedStyle(outsider).color;
-    expect(outsideColour, 'a rule escaped to the page').to.not.equal('rgb(255, 0, 0)');
-    expect(outsideColour, 'a rule escaped to the page').to.not.equal('rgb(0, 0, 255)');
+    const outsideColor = getComputedStyle(outsider).color;
+    expect(outsideColor, 'a rule escaped to the page').to.not.equal('rgb(255, 0, 0)');
+    expect(outsideColor, 'a rule escaped to the page').to.not.equal('rgb(0, 0, 255)');
     outsider.remove();
   } finally {
     red.remove();
@@ -261,7 +261,7 @@ it('repairs a server-rendered copy rather than duplicating it', async () => {
  * wins. Emitting the sheet first inverted it.
  *
  * Nothing structural differs when that happens: same markup shape, same nodes, same properties. The
- * page simply changes colour as it hydrates. So the assertion is on the resolved style, and it is
+ * page simply changes color as it hydrates. So the assertion is on the resolved style, and it is
  * made against the server's real emission order rather than a hand-picked one.
  */
 describe('a mixed styles array cascades the same way on both sides', () => {
@@ -286,6 +286,6 @@ describe('a mixed styles array cascades the same way on both sides', () => {
     document.body.appendChild(host);
     host.attachShadow({ mode: 'open' }).innerHTML = SERVER;
     const probe = host.shadowRoot.querySelector('.probe');
-    expect(getComputedStyle(probe).color, 'the page would change colour as it hydrates').to.equal(RED);
+    expect(getComputedStyle(probe).color, 'the page would change color as it hydrates').to.equal(RED);
   });
 });

@@ -83,7 +83,7 @@ there.
 Scanning is per-component on purpose: the insert scans the element's own tree, not the shadow roots
 of its descendants, so each component that hosts lazily-loaded children carries the attribute.
 
-It is `autoload-dir`, never HTML's global `dir` — `dir="rtl"` on any internationalised page would
+It is `autoload-dir`, never HTML's global `dir` — `dir="rtl"` on any internationalized page would
 otherwise have silently redirected component loading.
 
 **All three are watched, not just read once.** Marking a component `autoloader` after it already has

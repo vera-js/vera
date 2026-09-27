@@ -71,7 +71,7 @@ test('development names the refusal on the template path', { skip: isProduction 
     'the refusal names itself, with the framework prefix');
 });
 
-test('a refused binding does not eat its neighbours values', () => {
+test('a refused binding does not eat its neighbors values', () => {
   const original = console.warn;
   console.warn = () => {};
   try {

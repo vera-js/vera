@@ -65,7 +65,7 @@ describe('a failing component does not take the page with it', () => {
     await frame();
     expect(caught.length, 'the error insert never saw it').to.be.greaterThan(before);
 
-    /** The neighbour must still be live. */
+    /** The neighbor must still be live. */
     good.state.n = 7;
     await frame();
     expect(good.shadowRoot.querySelector('#good').textContent, 'a sibling stopped rendering').to.equal('7');

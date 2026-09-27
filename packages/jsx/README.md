@@ -67,7 +67,7 @@ renderer's WHOLE folder: any `@verajs/renderer/<entry>` — the helpers compiled
 page — and every file it imports: `import { Frame } from './frame.jsx'`, a relative `./util.js`,
 `import('./page.jsx')` (or `` import(`./pages/${name}.jsx`) ``), `import.meta.url`,
 `import.meta.resolve` and a JSON module (`import data from './data.json' with { type: 'json' }`) all
-work as written, and a file behind a redirect resolves its neighbours where it really is. A repeat
+work as written, and a file behind a redirect resolves its neighbors where it really is. A repeat
 visit compiles nothing: each file's output is kept by its URL and the ETag the server sends — or its
 `Last-Modified`, which is all `python3 -m http.server` sends — and the compiler itself
 (`vera-jsx.min.js`, beside the standalone file) is only loaded when something must be compiled. A
@@ -123,7 +123,7 @@ not camel-cased.
 | `ref={r}` | `<p ${r}>` | the element-position ref |
 | `{...rest}` | `spread(rest)` | imports `@verajs/renderer/spread` |
 | `dangerouslySetInnerHTML={{ __html: h }}` | `.innerHTML=${h}` | the shape is checked |
-| `<Comp a={1}>kids</Comp>` | `Comp({ a: 1, children: […] })` | a capitalised tag is a function call |
+| `<Comp a={1}>kids</Comp>` | `Comp({ a: 1, children: […] })` | a capitalized tag is a function call |
 | `<>…</>` | the children, with no wrapper | |
 | `<div />` | `<div></div>` | **the element decides how the tag closes, not the spelling** |
 | `<br></br>` | `<br />` | the same rule, the other way |
@@ -213,7 +213,7 @@ server rendering and the client agree: the server writes the markup as authored 
 parses it in place, the same rule the client now follows. Measured against the parser itself, over
 1 084 sibling groups in five kinds of parent, on Chromium, Firefox and WebKit.
 
-A hand-written template gets the same behaviour once `@verajs/renderer/namespaces` is wired, and
+A hand-written template gets the same behavior once `@verajs/renderer/namespaces` is wired, and
 `svg`/`mathml` tags keep working either way. `namespaces: false` in the plugin options leaves it out.
 
 ### A boolean child renders nothing
@@ -229,7 +229,7 @@ says so in development. **This is the one value semantic on which JSX and a temp
 done by filtering the child in your own module, so the renderer and `@verajs/ssr` never learn a new
 rule: they receive `null`, which they already drop.
 
-That filter is the one thing this compiler adds to your output, so it is worth recognising:
+That filter is the one thing this compiler adds to your output, so it is worth recognizing:
 
 ```js
 const $veraChild = (v) => (typeof v === 'boolean' ? null : v);   // injected, ~60 B, once per module

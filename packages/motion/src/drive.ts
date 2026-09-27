@@ -14,7 +14,7 @@
  * a restarted tween would stutter, τ = inertia/3 so it reads as "settled" on the old transition's
  * schedule. A RAMP is a play's clock: linear over exactly `play` seconds, because the duration is
  * the author's number and the SHAPE belongs to the keyframes' own per-segment easing, which the
- * sweep test proves the ramp honours. A retargeted ramp restarts from the current written value —
+ * sweep test proves the ramp honors. A retargeted ramp restarts from the current written value —
  * reverse-on-exit falls out with no interrupt machinery.
  */
 import type { Driven } from './types.js';
@@ -30,7 +30,7 @@ const write = (driven: Driven, value: number): void => {
    * Four decimals — sub-pixel on any transit under 10,000px, and the full float was pure noise:
    * a 16-digit serialization on every frame costs string length and reads like line static in
    * devtools. `written` keeps the exact value (the chase's own math stays full-precision); only
-   * the CSS-facing string is quantised. Functions receive the exact value too.
+   * the CSS-facing string is quantized. Functions receive the exact value too.
    */
   driven.node.style.setProperty(driven.varName, String(Math.round(value * 1e4) / 1e4));
   /** The function door — same number, same moment as the variable write, contained upstream. */

@@ -14,7 +14,7 @@ export let renderScheduler: RenderScheduler = animationFrame;
 
 /**
  * Bumped whenever the scheduler is replaced, so a pass queued under a scheduler that never ran it can
- * be recognised as stranded and queued again.
+ * be recognized as stranded and queued again.
  *
  * A coalescing flag is raised before the pass is handed over and lowered inside it, so a scheduler
  * that drops the pass leaves the component frozen for the rest of the page. At the moment of

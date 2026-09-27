@@ -1,8 +1,8 @@
 /**
  * **A recovery path is not finished until it reports.**
  *
- * The generalisation from the hydration-fallback pass (`tests/hydrate-mismatch.test.mjs`): correct
- * behaviour that hides a real problem is harder to find than a crash, because there is nothing to
+ * The generalization from the hydration-fallback pass (`tests/hydrate-mismatch.test.mjs`): correct
+ * behavior that hides a real problem is harder to find than a crash, because there is nothing to
  * follow. This file holds the two remaining places the framework recovered in silence.
  *
  * - **A navigation that matches nothing.** `addLinkListener` calls `preventDefault` before it calls
@@ -72,7 +72,7 @@ test('a navigation that matches nothing says so', { skip }, async () => {
   assert.deepEqual(await warnings(() => navigate('/known')), [], 'a path that matches is silent');
 });
 
-test('a guard cancelling a navigation is not a mismatch, and stays quiet', { skip }, async () => {
+test('a guard canceling a navigation is not a mismatch, and stays quiet', { skip }, async () => {
   const { element, view } = app();
   const { addRoutes } = initRouter(element, { view: () => view, handleInitial: false });
   addRoutes([{ path: '/guarded', beforeEnter: () => false, component: () => html`<p>g</p>` }]);
@@ -102,7 +102,7 @@ test('static styles without @scope report that they went global', { skip }, asyn
         document.body.appendChild(document.createElement(tag));
       }
     });
-    assert.equal(n, 2, 'both components initialised');
+    assert.equal(n, 2, 'both components initialized');
     assert.equal(said.length, 1, `one warning per page, not per class — ${JSON.stringify(said)}`);
     assert.match(said[0], /^\[vera\] styles: this engine has no/);
     assert.match(said[0], /unscoped/);

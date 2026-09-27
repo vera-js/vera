@@ -186,7 +186,7 @@ const init: Directive = {
  * its place where the write is NOT yours: a shared link seeding `q` through the query pack, a fetch
  * patching state, another component writing the same key. None of those has a handler to amend.
  *
- * **It does not fire on the first pass**, and that is load-bearing rather than an optimisation. The
+ * **It does not fire on the first pass**, and that is load-bearing rather than an optimization. The
  * first observation establishes the baseline; firing on it would reset `page` to 1 the instant
  * `?q=ber&page=3` loaded, breaking the query pack's guarantee that a shared link reproduces what
  * the sender saw — the feature sabotaging the feature it exists to serve.

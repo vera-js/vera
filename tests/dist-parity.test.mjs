@@ -4,7 +4,7 @@
  * They are different programs. Production mangles properties, folds `__DEV__` to `false` and deletes
  * the branches behind it, drops `console.log`, and inlines workspace dependencies that development
  * keeps external. Every suite in this directory runs against both — but each one asserts *its own*
- * expectations in each build, so a behaviour that differs between them satisfies both halves and
+ * expectations in each build, so a behavior that differs between them satisfies both halves and
  * nothing notices.
  *
  * This renders one fixed corpus in each build and diffs the output: sixty items covering every

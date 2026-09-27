@@ -35,7 +35,7 @@ it('and a boolean assigned to value is its text, on both elements', () => {
  * `<option>` and `<select>` are the other two elements whose `value` the server writes, and they do
  * not share `<input>`'s IDL. `option.value` reflects the attribute with a fallback to the element's
  * text; `select.value` selects an option and is not a reflected attribute at all — writing one into
- * markup for it means nothing. Recorded so the serializer's rule is chosen from behaviour rather
+ * markup for it means nothing. Recorded so the serializer's rule is chosen from behavior rather
  * than from the assumption that four elements named `value` all mean the same thing.
  */
 it('option and select do not share input\'s value IDL', () => {

@@ -132,7 +132,7 @@ const CASES = {
    */
   /**
    * `part` and the braille ARIA pair are absent from this case because **jsdom** lacks them, not
-   * because the shim does — the client side of this harness is the weaker DOM. Their behaviour is
+   * because the shim does — the client side of this harness is the weaker DOM. Their behavior is
    * covered by `tests/ssr-dom-surface.test.mjs`, and their existence in real engines by
    * `tests/browser/dom-surface.test.js`.
    */
@@ -395,8 +395,8 @@ const CASES = {
     /** The server collects the throw and fails the render; the client only reports it. */
     serverThrows: /ignored by this case/,
   },
-  /** cancelAnimationFrame is honoured, not ignored. */
-  'a cancelled frame does not run': {
+  /** cancelAnimationFrame is honored, not ignored. */
+  'a canceled frame does not run': {
     body: `
       init(this, { mode: 'open' });
       const state = createStore({ ran: 'no' });
@@ -628,7 +628,7 @@ process.stdout.write(JSON.stringify(out));
 /* ── client ──────────────────────────────────────────────────────────────────────────────────── */
 /**
  * A frame callback that throws is one of the cases, and reporting it is the *correct* client
- * behaviour — jsdom writes it to the virtual console, which would otherwise look like a failure in
+ * behavior — jsdom writes it to the virtual console, which would otherwise look like a failure in
  * a suite that passes. Forwarded nowhere; the assertion is what the DOM ends up as.
  */
 const virtualConsole = new VirtualConsole();

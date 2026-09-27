@@ -227,7 +227,7 @@ const load = (url: string, importer: string): Promise<string> => {
           compiled = await compile(url, await response.text());
           remember(url, etag, compiled);
         } else compiled = { js: kept.js ?? (await response.text()), sites: kept.sites };
-        /** Resolved against where the file really is: a redirected file's neighbours are THERE. */
+        /** Resolved against where the file really is: a redirected file's neighbors are THERE. */
         return link(response.url || url, url, compiled);
       })())
     );

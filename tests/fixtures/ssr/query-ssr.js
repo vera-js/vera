@@ -1,7 +1,7 @@
 /**
  * SSR fixture for the query pack: a filtered, paginated list rendered from the REQUEST URL.
  * The point is that a shared `?q=…&page=…` link arrives already filtered — the premise the pack
- * is built on, which it did not honour until the ssr declarations landed.
+ * is built on, which it did not honor until the ssr declarations landed.
  */
 import { init, render, html, wire } from '@verajs/core';
 import { renderer } from '@verajs/renderer';

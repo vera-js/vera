@@ -48,7 +48,7 @@ the thing reconciliation exists for:
 | VeraJS + `@verajs/renderer` + `/keyed` | **<!--size:list.bytes-->7 874 B<!--/size:list.bytes-->** |
 | Lit + `directives/repeat` | <!--size:list.lit.bytes-->6 826 B<!--/size:list.lit.bytes--> |
 
-<!--size:list.vs-lit.bytes-->-1 048 B<!--/size:list.vs-lit.bytes--> in our favour, against Lit's lead on the counter. Both numbers are real and both are
+<!--size:list.vs-lit.bytes-->-1 048 B<!--/size:list.vs-lit.bytes--> in our favor, against Lit's lead on the counter. Both numbers are real and both are
 published: which one is representative depends entirely on whether the app renders a list.
 
 Sizes are gzipped with `zlib.gzipSync`, and **KB means 1024 bytes**. The `gzip` command-line tool is
@@ -130,10 +130,10 @@ describing the bytes honestly.)*
 | `@verajs/store` | 673 B | the standalone store — subscriptions without components |
 | `@verajs/jsx` | 5 559 B | the JSX transform + Vite plugin — build-time, never shipped to a page |
 | `@verajs/jsx/standalone` | 1 916 B | JSX in the browser with no build — the CodePen path |
-| `@verajs/store/computed` | 238 B | memoised derived values |
+| `@verajs/store/computed` | 238 B | memoized derived values |
 | `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
-| `@verajs/renderer/slots` | 3 909 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/slots` | 3 774 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/namespaces` | 718 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/hydrate` | 6 489 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
 | `@verajs/inserts` | 357 B | the extension point |
@@ -142,7 +142,7 @@ describing the bytes honestly.)*
 | `@verajs/directives/expressions` | 2 361 B | the expression tier — arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | 3 942 B | the interaction pack — events, reflections, state |
 | `@verajs/directives/query` | 3 202 B | the query pack — route, query, list |
-| `@verajs/directives/sensors` | 3 167 B | the sensors pack — environment to state |
+| `@verajs/directives/sensors` | 3 165 B | the sensors pack — environment to state |
 | `@verajs/directives/remote` | 3 888 B | the remote pack — server-driven interactions |
 | `@verajs/directives/motion` | 26 564 B | the motion pack — presets, easings, paint, path, sequence, split |
 | `@verajs/motion/core` | 12 621 B | the motion engine — compiler + writer, no directives engine, no packs |

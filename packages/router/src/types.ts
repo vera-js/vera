@@ -94,7 +94,7 @@ export type RouteEvent = 'before-leave' | 'before-route' | 'after-route';
  * There is one of these because there is one URL: several routers can render different views of
  * the same location, and matching, scrolling and fragment handling have to agree. `initRouter`
  * writes a field here only when that call actually supplied it — an unconditional write meant the
- * last router to initialise silently clobbered what the others had set.
+ * last router to initialize silently clobbered what the others had set.
  */
 export type RouterSettings = {
   hashChangeFunction?: HashChangeFunction;
@@ -286,7 +286,7 @@ export type AddRoutes = <const Paths extends readonly (string | (() => string))[
  *
  * `currentRoute` is a live getter rather than a value, so reading it always gives where the router
  * is now; it is `undefined` until the first routing pass completes. `deleteRouter` detaches the
- * link handler and drops the element's state, which is what makes re-initialising the same element
+ * link handler and drops the element's state, which is what makes re-initializing the same element
  * safe.
  */
 export type RouterMethods = {

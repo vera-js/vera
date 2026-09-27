@@ -226,7 +226,7 @@ export const styleView = (element) => {
         return read().get(cssName(String(key)))?.value ?? '';
       },
       set: (_, key, value) => {
-        /** Round-tripped rather than stored verbatim, so `cssText = 'color: red'` normalises the way a browser does. */
+        /** Round-tripped rather than stored verbatim, so `cssText = 'color: red'` normalizes the way a browser does. */
         if (key === 'cssText') {
           element.setAttribute('style', String(value));
           write(read());

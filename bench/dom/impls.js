@@ -13,7 +13,7 @@
 /* ── Shared data ────────────────────────────────────────────────────────────── */
 
 const ADJECTIVES = ['pretty','large','big','small','tall','short','long','handsome','plain','quaint','clean','elegant','easy','angry','crazy','helpful','mushy','odd','unsightly','adorable','important','inexpensive','cheap','expensive','fancy'];
-const COLOURS = ['red','yellow','blue','green','pink','brown','purple','white','black','orange'];
+const COLORS = ['red','yellow','blue','green','pink','brown','purple','white','black','orange'];
 const NOUNS = ['table','chair','house','bbq','desk','car','pony','cookie','sandwich','burger','pizza','mouse','keyboard'];
 
 /** Deterministic PRNG (mulberry32) so every framework gets identical data. */
@@ -31,7 +31,7 @@ export const buildData = (count, seed = 1) => {
   const rnd = makeRandom(seed);
   const data = new Array(count);
   for (let i = 0; i < count; i++) {
-    const label = `${ADJECTIVES[(rnd() * ADJECTIVES.length) | 0]} ${COLOURS[(rnd() * COLOURS.length) | 0]} ${NOUNS[(rnd() * NOUNS.length) | 0]}`;
+    const label = `${ADJECTIVES[(rnd() * ADJECTIVES.length) | 0]} ${COLORS[(rnd() * COLORS.length) | 0]} ${NOUNS[(rnd() * NOUNS.length) | 0]}`;
     data[i] = { id: nextId++, label };
   }
   return data;
@@ -73,7 +73,7 @@ const veraImpl = (mount) => {
    * and in all three the row objects are plain data. `shallowRef` is the exact equivalent.
    *
    * An earlier version used `createStore({ rows })`, which proxies all 1 000 rows. That is the
-   * analogue of wrapping the whole dataset in Vue's `reactive()`, which no other implementation
+   * analog of wrapping the whole dataset in Vue's `reactive()`, which no other implementation
    * here does, and it cost 2.6 ms per render pass against 0.03 ms.
    */
   const rows = shallowRef([]);

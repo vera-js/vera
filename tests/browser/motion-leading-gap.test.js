@@ -4,7 +4,7 @@
  * Per CSS Animations, a list with no `0%` frame has that frame constructed from the element's
  * underlying computed value. That is not an edge case here — it is the mechanism the **lone-value
  * shorthand** is built on: `opacity: '0.2'` compiles to a single `100%` frame and animates TO 0.2
- * from wherever the element already is. Anything that synthesises the missing end instead turns
+ * from wherever the element already is. Anything that synthesizes the missing end instead turns
  * that shorthand into a constant.
  *
  * This file used to assert the opposite. A padding step gave every emitted list explicit `0%` and
@@ -46,7 +46,7 @@ const opacityAt = (name, p, underlying = 'opacity(1)') => {
   return read;
 };
 
-/** `opacity(0)` serialises differently across engines; compare the NUMBER. */
+/** `opacity(0)` serializes differently across engines; compare the NUMBER. */
 const amount = (filter) => {
   const m = /opacity\(([\d.]+)\)/.exec(filter);
   return m ? Number(m[1]) : Number.NaN;
@@ -54,7 +54,7 @@ const amount = (filter) => {
 
 it('THE LONE VALUE MOVES — a single 100% frame animates from the element, not from itself', () => {
   /** The regression this file exists to catch: with a synthesized `0%` both reads are 0.2 and the
-   *  element is a constant. The spread between them is the whole behaviour. */
+   *  element is a constant. The spread between them is the whole behavior. */
   expect(amount(opacityAt('lone-value', 0)), 'p=0 is the element’s own value').to.be.closeTo(1, 0.02);
   expect(amount(opacityAt('lone-value', 0.5)), 'p=.5 is halfway to 0.2').to.be.closeTo(0.6, 0.05);
   expect(amount(opacityAt('lone-value', 1)), 'p=1 is the authored value').to.be.closeTo(0.2, 0.02);

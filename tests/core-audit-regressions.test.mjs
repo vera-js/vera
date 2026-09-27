@@ -67,7 +67,7 @@ test('a hook with a non-finite priority is refused', () => {
 
 /**
  * `Reflect.set` with the proxy as receiver re-enters `defineProperty`, so that one re-entry must be
- * ignored or every write notifies twice. Recognising it by a *depth counter* meant any write in
+ * ignored or every write notifies twice. Recognizing it by a *depth counter* meant any write in
  * flight suppressed every definition anywhere: a setter that defined a property — a different key,
  * or a key on an entirely different store — notified nobody, and nothing connected the two.
  */

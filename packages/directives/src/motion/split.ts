@@ -53,7 +53,7 @@ const isSplitMode = (value: string): value is SplitMode =>
 /**
  * How many pieces one element may be broken into. Every piece becomes a span
  * *and* a registered animated element, so this is a promise that one
- * paragraph cannot enrol ten thousand elements in the scroll loop.
+ * paragraph cannot enroll ten thousand elements in the scroll loop.
  */
 const MAX_PIECES = 500;
 
@@ -107,7 +107,7 @@ const piece = (text: string, value: string): HTMLElement => {
  * back as plain text nodes — wrapping and justification then behave as they
  * did before the split.
  */
-const tokenise = (text: string): string[] => text.split(/(\s+)/).filter((part) => part !== '');
+const tokenize = (text: string): string[] => text.split(/(\s+)/).filter((part) => part !== '');
 
 /**
  * Characters as a reader sees them, not as the string stores them.
@@ -190,7 +190,7 @@ export const splitDirective: Directive = {
      * (measured in all three engines). A run *matching* the base direction
      * is safe, which is why this asks about opposition rather than scripts.
      * The LTR-strong test is deliberately the conservative subset (Latin):
-     * a missed refusal degrades to today's behaviour, a false one blocks a
+     * a missed refusal degrades to today's behavior, a false one blocks a
      * clean split.
      */
     const rtlBase = getComputedStyle(node).direction === 'rtl';
@@ -208,7 +208,7 @@ export const splitDirective: Directive = {
     const count =
       mode === 'chars'
         ? characters(original.replace(/\s+/g, '')).length
-        : tokenise(original).filter((part) => !isSpace(part)).length;
+        : tokenize(original).filter((part) => !isSpace(part)).length;
     if (count > MAX_PIECES) {
       reject('split-too-many', [mode, String(count), String(MAX_PIECES)]);
       return;
@@ -241,7 +241,7 @@ export const splitDirective: Directive = {
       if (ownCopy) node.append(hiddenCopy());
 
       if (mode !== 'lines') {
-        for (const part of tokenise(original)) {
+        for (const part of tokenize(original)) {
           if (isSpace(part)) node.append(part);
           else if (mode === 'words') node.append(piece(part, value));
           else for (const character of characters(part)) node.append(piece(character, value));
@@ -251,7 +251,7 @@ export const splitDirective: Directive = {
 
       /** Lay the words out plainly first, measure where they landed, then wrap. */
       const measured: HTMLElement[] = [];
-      for (const part of tokenise(original)) {
+      for (const part of tokenize(original)) {
         if (isSpace(part)) {
           node.append(part);
           continue;
@@ -304,7 +304,7 @@ export const splitDirective: Directive = {
       observer.observe(node);
       /**
        * A font swap re-wraps the text, which regroups the lines.
-       * `document.fonts.ready` cannot be cancelled, so the callback checks
+       * `document.fonts.ready` cannot be canceled, so the callback checks
        * whether it still has a job — without that, a split torn down while
        * fonts were loading was rebuilt afterwards, wiping the text the
        * teardown had just put back.

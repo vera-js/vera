@@ -170,7 +170,7 @@ test('a scheduler that throws does not freeze the component permanently', async 
  * The harder half, which was nearly left unfixed on the reasoning that a dropped pass cannot be told
  * apart from a deferred one. That is true *at the moment of scheduling* and it is not the only
  * moment: once the scheduler has been **replaced**, whatever the old one was holding is provably
- * never going to run, because nothing will ever call it again. So the guard stops honouring a flag
+ * never going to run, because nothing will ever call it again. So the guard stops honoring a flag
  * raised under a scheduler that no longer exists.
  *
  * A component that never renders again is not something to leave standing behind an argument about

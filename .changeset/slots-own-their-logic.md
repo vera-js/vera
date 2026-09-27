@@ -17,8 +17,8 @@ and WebKit.
 
 **What it weighs, against 0.2.2, gzipped.** The renderer is 4 653 B, down from 4 679 even with the
 `'template'` hook that `@verajs/renderer/namespaces` plugs into; an app that does not use slots is
-7 135 B, down from 7 141. The slots module is 3 909 B, up from 3 424, and a slotted light component
-bundled with both is **10 520 B, up from 10 028 — about 490 B more** for the apps that use slots:
+7 135 B, down from 7 141. The slots module is 3 774 B, up from 3 424, and a slotted light component
+bundled with both is **10 396 B, up from 10 028 — about 370 B more** for the apps that use slots:
 the contract now crosses a bundle boundary, and those apps carry it.
 
 - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
@@ -32,7 +32,8 @@ the contract now crosses a bundle boundary, and those apps carry it.
 - Development warns when the slots module and the renderer come from different versions of the
   package: they are one contract across a bundle boundary. An older slots module beside this
   renderer is treated as unwired in both builds — its fallback shows and nothing is lost.
-- A second module that sets an instance hook on a template is composed with slots', not replaced.
+- `slotDiscovery` sets its instance hook first (`'template'` priority 10), so a module wired after
+  it finds slots' hook and wraps it; one wired before it is replaced, and development says so.
 
 **Fixed — also in 0.2.2: with slots wired, a light component's own top-level `${…}` lost its
 content on update.** `${busy ? spinner() : list()}` as a component's whole template rendered the

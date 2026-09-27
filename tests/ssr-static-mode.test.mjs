@@ -123,7 +123,7 @@ test('the option is checked like the others', async () => {
  * The first version of this raced the two renders by starting them together, and it proved nothing:
  * removing `takeTurn` entirely left it passing, because the synchronous render happened to finish
  * before the async one set the flag. The dynamic render has to be started **after** the static one is
- * already suspended, which is what the tick below is for — and with that, removing the serialisation
+ * already suspended, which is what the tick below is for — and with that, removing the serialization
  * does fail it.
  */
 test('a render started during an async static render is not made inert by it', async () => {

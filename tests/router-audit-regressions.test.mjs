@@ -53,7 +53,7 @@ test('the query reaches routes on initial load, not only on link clicks', async 
 /**
  * A routed link has always been checked against the page's origin before the router hijacks it —
  * `methods.ts` compares origins and lets the browser have anything else. The programmatic call had
- * no such check, and `navigate(params.get('next'))` is the ordinary way an app honours a `?next=`
+ * no such check, and `navigate(params.get('next'))` is the ordinary way an app honors a `?next=`
  * redirect, so an open-redirect payload reached `pushState` and the browser refused it with a
  * `SecurityError` that nothing caught: the payload took the page down instead of being declined.
  */

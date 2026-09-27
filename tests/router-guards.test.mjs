@@ -1,9 +1,9 @@
 /**
- * Route guards and focus management — the router behaviour the 2026-08-22 audit found untested.
+ * Route guards and focus management — the router behavior the 2026-08-22 audit found untested.
  *
  * The router sat at 78% functions, and the uncovered ranges mapped to two real features: a handler
  * returning `false` cancels a navigation, and `focusView` moves focus into the newly routed view.
- * The second is accessibility behaviour, on by default, with no coverage at all.
+ * The second is accessibility behavior, on by default, with no coverage at all.
  *
  * Tests the BUILT artifacts, development AND production (see ./dist.mjs).
  */
@@ -209,13 +209,13 @@ const makeApp = (routes) => {
  *
  * `redirect` is handled inside the navigation, so the promise `navigate()` returns covers it. A guard
  * calling `navigate()` starts a *separate* navigation that promise knows nothing about — awaiting it
- * reports only that the guarded route was cancelled.
+ * reports only that the guarded route was canceled.
  *
  * That distinction is load-bearing because the README makes awaiting the supported way to handle an
  * outcome: *"`navigate()` rejects, so a caller that awaits it can handle the failure itself."* A
  * caller who awaits gets a different answer depending on which form the route's author picked.
  *
- * Asserted as behaviour, with the wording checked separately below — a message is only worth pinning
+ * Asserted as behavior, with the wording checked separately below — a message is only worth pinning
  * once what it describes is pinned.
  */
 {

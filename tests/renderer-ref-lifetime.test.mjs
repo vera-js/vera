@@ -11,7 +11,7 @@
  * The asymmetry is a decision. A disconnect here is not a destruction: moving a node between parents
  * fires one, and the component renders again on reconnect — so releasing would blank every ref for
  * the frame a move takes to finish, and `_release` sets `_committed = UNSET`, so the re-apply could
- * only land on the following pass. The current behaviour costs a stale value that `isConnected`
+ * only land on the following pass. The current behavior costs a stale value that `isConnected`
  * already answers; the alternative costs a transient `null` on an operation people do on purpose.
  *
  * Asserted in both directions so that if it ever changes, someone changed it.

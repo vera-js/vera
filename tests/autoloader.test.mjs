@@ -136,7 +136,7 @@ clearHosts();
   const autoload = autoloader(rootDir, 'components');
   check('url() builds the fetch URL', autoload.url('any-widget').endsWith('/components/any-widget.js'),
     autoload.url('any-widget'));
-  check('url() honours a resolve option',
+  check('url() honors a resolve option',
     autoloader(rootDir, 'c', { resolve: (t, d) => `${d}/${t}/${t}.js` }).url('x-y').endsWith('/c/x-y/x-y.js'));
 
   errs.length = 0;

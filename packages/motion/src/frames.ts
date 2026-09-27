@@ -63,7 +63,7 @@ export type SequenceOptions = {
 /**
  * A live scrubber over one canvas — the handle `createSequence` returns.
  *
- * `draw` is safe to call on every frame because it quantises and returns early when the picture
+ * `draw` is safe to call on every frame because it quantizes and returns early when the picture
  * would not change, so a caller never has to rate-limit it; it also takes a fractional index, and
  * the window fetching and eviction happen as a side effect of drawing rather than on a schedule
  * of their own.
@@ -125,7 +125,7 @@ export const createSequence = (
    *
    * `onerror` cleared the slot and moved on, so nothing remembered — and
    * `request` rebuilds the queue from "not loaded and not in flight" on every
-   * quantised movement. A wrong base url, which is the failure this module is
+   * quantized movement. A wrong base url, which is the failure this module is
    * most likely to produce, therefore re-requested the whole window every time
    * the frame index changed: measured at **1,170 requests for 54 distinct urls
    * across 30 draws** of a 300-frame sequence, growing with every pixel
@@ -195,13 +195,13 @@ export const createSequence = (
   };
 
   /**
-   * Queue the window around `centre`, nearest first, so the frame the user is
-   * actually looking at arrives before its neighbours.
+   * Queue the window around `center`, nearest first, so the frame the user is
+   * actually looking at arrives before its neighbors.
    */
-  const request = (centre: number): void => {
+  const request = (center: number): void => {
     queue.length = 0;
     for (let offset = 0; offset <= windowSize; offset++) {
-      for (const index of offset === 0 ? [centre] : [centre - offset, centre + offset]) {
+      for (const index of offset === 0 ? [center] : [center - offset, center + offset]) {
         if (index < 0 || index >= frames) continue;
         if (loaded[index] || pending.has(index) || failed.has(index)) continue;
         queue.push(index);
@@ -244,20 +244,20 @@ export const createSequence = (
    * for a long time while nothing did it — `src` was only ever assigned, never
    * cleared.
    */
-  const evict = (centre: number): void => {
+  const evict = (center: number): void => {
     const keep = windowSize * 2;
     for (const i of held) {
-      if (Math.abs(i - centre) <= keep) continue;
+      if (Math.abs(i - center) <= keep) continue;
       loaded[i] = undefined;
       held.delete(i);
     }
     let freed = false;
     for (const i of [...inProgress.keys()]) {
-      if (Math.abs(i - centre) <= keep) continue;
+      if (Math.abs(i - center) <= keep) continue;
       abandon(i);
       freed = true;
     }
-    /** Those slots are free now, and the queue is already centred on `centre`. */
+    /** Those slots are free now, and the queue is already centered on `center`. */
     if (freed) pump();
   };
 
@@ -312,7 +312,7 @@ export const createSequence = (
 
       const index = tween ? Math.floor(clamped) : Math.round(clamped);
       /**
-       * Quantised, so a movement too small to see does not cost two
+       * Quantized, so a movement too small to see does not cost two
        * `drawImage` calls. The guard is the reason a stationary scroll is free
        * in both modes — without it, tweening would redraw on every frame the
        * position moved by any amount at all.
@@ -323,7 +323,7 @@ export const createSequence = (
       lastAlpha = alpha;
 
       /**
-       * A fallback frame is drawn alone. Blending the neighbour of a frame we
+       * A fallback frame is drawn alone. Blending the neighbor of a frame we
        * are not showing would cross-fade between two wrong images.
        */
       const target = loaded[index] ? index : nearestLoaded(index);

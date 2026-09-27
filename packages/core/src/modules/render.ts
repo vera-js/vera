@@ -18,7 +18,7 @@ import { commit, setupTarget } from './mount.js';
  *
  * The template is **required**. It used to be optional, and omitting it was how a side-effect-only
  * component committed its setup: a bare `render()` that rendered nothing, which is a contradiction
- * the docs had to keep apologising for and which nobody guessed was legal. `mount()` says the same
+ * the docs had to keep apologizing for and which nobody guessed was legal. `mount()` says the same
  * thing in a way that can be found. Passing `undefined` explicitly still commits — refusing would
  * turn a spelling preference into effects that silently never run — but it warns in development.
  *

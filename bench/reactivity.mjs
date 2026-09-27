@@ -10,7 +10,7 @@
  *   node bench/reactivity.mjs --compare f     # compare against a previous run
  *
  * Runs under jsdom on V8. Proxy, allocation and Map costs are representative of a browser;
- * layout and paint are not modelled.
+ * layout and paint are not modeled.
  *
  * The tracked/untracked split matters: `addCallback` returns early when no hook is on the
  * queue, so reads outside a hook skip dependency registration entirely. Only the tracked

@@ -3,12 +3,12 @@
  *
  * Tests the BUILT artifacts, development and production (see `./dist.mjs`).
  *
- * Two behaviours carry most of the weight here, because they are the two that a naive
+ * Two behaviors carry most of the weight here, because they are the two that a naive
  * implementation gets wrong and that nothing else in the suite would catch:
  *
  *   - **Ownership.** State is keyed by the renderer's element-position *part*, not by the element.
  *     Keyed by element, `<div ${spread(a)} ${spread(b)}>` shares one map and whichever applies
- *     second releases the other's keys. That was measured, not hypothesised — the first spread's
+ *     second releases the other's keys. That was measured, not hypothesized — the first spread's
  *     attributes silently vanished.
  *   - **Release.** A key that disappears restores what the element held *before* the binding, rather
  *     than guessing at a value that means "absent". For a property there is no such value:
@@ -263,7 +263,7 @@ test('an empty props object is valid and releases everything', () => {
  * a key that worked here and vanished server-side would be worse than one that works nowhere. Both
  * sides apply the same rule and skip.
  */
-test('an unusable key is skipped rather than thrown, and its neighbours still apply', () => {
+test('an unusable key is skipped rather than thrown, and its neighbors still apply', () => {
   /** A fresh container per case: the renderer keeps its parts keyed by the one it rendered into. */
   const into = () => {
     const container = document.createElement('div');
@@ -295,7 +295,7 @@ test('an unusable key is skipped rather than thrown, and its neighbours still ap
  * lives in `tests/browser/spread-names.test.js` instead. **jsdom rejects those names and every real
  * engine accepts them**: measured across Chromium, Firefox and WebKit, `setAttribute` refuses only
  * whitespace, `>`, `=` and `/`, while jsdom enforces the strict XML Name production. Asserting the
- * browsers' behaviour here would test jsdom's parser and fail.
+ * browsers' behavior here would test jsdom's parser and fail.
  *
  * The server side of the same names — where interpolating one into a `RegExp` made `a|title` an
  * alternation that removed an attribute it never named — is covered in
@@ -393,14 +393,14 @@ test('a real props bag is still quiet', { skip: isProduction && 'the guard is __
 });
 
 /**
- * **A guard that changes behaviour has to exist in both builds.**
+ * **A guard that changes behavior has to exist in both builds.**
  *
  * The refusal and its warning were both inside `if (__DEV__)`, so a bad props bag applied nothing in
  * development and was iterated by character index in production — `spread('text')` giving an element
  * attributes named `0`, `1`, `2` and `3`. The divergence ran in the direction that hides the bug: the
  * app under test looked fine and only the shipped one was wrong.
  *
- * This suite runs against both artifacts (`tests/dist.mjs`), so asserting the *behaviour* here is
+ * This suite runs against both artifacts (`tests/dist.mjs`), so asserting the *behavior* here is
  * what pins it — the warning is still development-only and is asserted separately.
  */
 test('a props bag that is not a plain object applies nothing, in either build', () => {

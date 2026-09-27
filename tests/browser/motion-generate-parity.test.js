@@ -227,7 +227,7 @@ it('a per-property ease is its own animation — two entries, one variable, diff
   expect(filterOpacity(el), 'the eased entry follows ITS curve').to.be.below(0.4);
   expect(filterOpacity(el)).to.be.above(0.2);
   const m42 = numbers(getComputedStyle(el).transform)[5];
-  expect(m42, 'the linear entry is untouched by its neighbour’s ease').to.be.closeTo(40, 0.5);
+  expect(m42, 'the linear entry is untouched by its neighbor’s ease').to.be.closeTo(40, 0.5);
   done();
 });
 

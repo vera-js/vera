@@ -570,7 +570,7 @@ export const SURFACES = {
    * interface this shim implements must be exposed so `instanceof` answers, and the remaining seven
    * hundred are interfaces a server has no instances of. One reason beats seven hundred entries.
    *
-   * What is left is the window's actual behaviour, and it is the same order as `document`.
+   * What is left is the window's actual behavior, and it is the same order as `document`.
    */
   "window": [
     "Atomics",

@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "description": "Store and reactivity primitives VeraJS core does not ship: memoised derived values, reactive collections, and more to come. Each reachable on its own subpath so a buildless page loads only what it uses.",
+  "description": "Store and reactivity primitives VeraJS core does not ship: memoized derived values, reactive collections, and more to come. Each reachable on its own subpath so a buildless page loads only what it uses.",
   "license": "MIT",
   "engines": {
     "node": ">=20"

@@ -203,9 +203,9 @@ The smallest correct change. Complexity must earn its place.
 - **Reuse before you build.** Extend what exists rather than rewriting it.
 - **No back-compat shims for code you are removing**, and no speculative machinery for cases that do
   not exist yet — extensibility is designed-in cheaply (#6), not pre-built.
-- **Experiments are labelled and contained.** Exploratory work lives in a clearly named directory
+- **Experiments are labeled and contained.** Exploratory work lives in a clearly named directory
   (for example `src/experimental/`) with a note saying what it was trying and why it stopped. What it
-  must never do is sit unlabelled next to production code — that is precisely how this repo ended up
+  must never do is sit unlabeled next to production code — that is precisely how this repo ended up
   with three parallel SSR strategies indistinguishable from one another.
 - Delete dead code the moment it is *actually* dead — but confirm it is dead first. In this repo,
   files that looked abandoned turned out to be the most advanced version (a 220-line component whose
@@ -345,7 +345,7 @@ trap for users.
 
 ---
 
-## 10. Documentation has exact parity with behaviour
+## 10. Documentation has exact parity with behavior
 
 **A document that describes the code is part of the code.** Every change carries its documentation
 with it, in the same pass — not as a follow-up, not as a task for later, not "when things settle".
@@ -500,4 +500,4 @@ the start of a session, nobody in the middle of one). A rule that is not mechani
   raised with why/where/how — the developer decides whether to act now, defer, or accept.
 - **Given this project's history, one extra rule:** when you find something that looks like a mistake,
   establish what it was *for* before judging it. Much of this tree is experimentation that was never
-  labelled. Audit first, then recommend.
+  labeled. Audit first, then recommend.

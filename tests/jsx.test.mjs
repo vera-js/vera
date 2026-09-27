@@ -489,7 +489,7 @@ console.log('parser edges ok');
     'lowercase-namespace member component becomes a call');
   assert.ok(T('const v = <styled.button>go</styled.button>;').includes('styled.button({'),
     'and another');
-  assert.ok(T('const v = <Foo.Bar a={1} />;').includes('Foo.Bar({'), 'capitalised member still a call');
+  assert.ok(T('const v = <Foo.Bar a={1} />;').includes('Foo.Bar({'), 'capitalized member still a call');
   assert.ok(T('const v = <Deep.Namespace.Comp />;').includes('Deep.Namespace.Comp({'), 'deep member too');
   // host elements and hyphenated custom elements are NOT calls — they stay literal tags
   const host = T('const v = <div>plain</div>;');

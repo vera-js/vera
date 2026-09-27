@@ -25,7 +25,7 @@
  *
  * `CLAUDE.md` says jsdom is the regression net and never the oracle for anything the *platform*
  * decides. This is the spec's tree arithmetic — the same reasoning `ssr-tree-operations` gives — not
- * an engine's judgement call, and every case here is one the spec states outright.
+ * an engine's judgment call, and every case here is one the spec states outright.
  *
  * ## Two properties of the harness that matter
  *

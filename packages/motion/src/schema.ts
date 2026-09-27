@@ -15,7 +15,7 @@ import type { Band, InsertMap, PositionUnit, PropertyDef, Range, RawKeyframe, Re
  * moved from attribute values to object values, byte for byte. `wireMotion`
  * is gone: vocabulary modules are engine CONNECTORS now, and they register
  * through `registerVocabulary` below, which keeps wireMotion's exact
- * flattening, factory, clash and shape-refusal behaviour.
+ * flattening, factory, clash and shape-refusal behavior.
  *
  * Key grammar, inside `data-vd-motion="{ … }"`:
  *
@@ -314,7 +314,7 @@ export const SETTINGS = [
    * element and measurable for three hundred — so a page that does not read it does not pay for it.
    *
    * The point of it is reach rather than convenience: the animatable-property table is a closed
-   * list, and a progress value in CSS is not. Gradients, `box-shadow`, `clip-path`, a colour mix,
+   * list, and a progress value in CSS is not. Gradients, `box-shadow`, `clip-path`, a color mix,
    * anything `calc()` can touch — all of it becomes reachable without this package growing a
    * vocabulary entry for each. It is also the seam pointing TOWARD the platform: a page can move its
    * visual layer into CSS while keeping the range naming, `anchor`, gating and regions from here.
@@ -357,7 +357,7 @@ export const SETTINGS = [
    *
    * It used to REPLACE the scroll driver, jumping the element end-to-end on a match. That was one
    * key answering two independent questions — *under what condition is this active* and *what drives
-   * the progress* — and one key cannot express two orthogonal choices. The old behaviour is still
+   * the progress* — and one key cannot express two orthogonal choices. The old behavior is still
    * expressible and now says so out loud: `when: '.open', play: 0.6`.
    */
   { key: 'when', type: 'selector', parse: (raw) => parseSelector(raw, true) },
@@ -366,7 +366,7 @@ export const SETTINGS = [
    * of cards arrives one after another instead of in unison. It goes on the
    * **parent**, which is the only place it can: the whole point is the
    * relationship between siblings. `%` by default, and any position unit is
-   * accepted — the offset is normalised against geometry exactly as a
+   * accepted — the offset is normalized against geometry exactly as a
    * keyframe position is.
    */
   { key: 'stagger', type: 'offset' },
@@ -668,7 +668,7 @@ export const parseAlignment = (raw: string): string | null => {
  * `scroll`'s value: one or two alignments, comma-separated.
  *
  * Returned as the two halves joined by `,` so the runtime splits once and hands each to the same
- * resolver `start`/`end` used — the storage is a normalised string because a setting's value is
+ * resolver `start`/`end` used — the storage is a normalized string because a setting's value is
  * `string | number | boolean` and a pair has nowhere else to live.
  *
  * **A comma is required between the halves, and a space is not a second spelling of it** — because

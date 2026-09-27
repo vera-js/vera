@@ -32,7 +32,7 @@ const scrollTo = async (y) => {
  * COMPUTED style, not inline — re-instrumented at the write-path flip. The old readings parsed
  * `el.style.filter`/`el.style.transform`, which was reading the MECHANISM: generated elements own
  * no inline values (CSS computes them from the variable), so those instruments read NaN off a
- * perfectly animating page. The shared spec's contract is observable behaviour, and computed style
+ * perfectly animating page. The shared spec's contract is observable behavior, and computed style
  * is the one place both write paths — and any future one — must agree. Filter carries opacity(),
  * so computed `filter` still parses; transform computes to a matrix, so translateY is matrix `m42`.
  */
@@ -124,7 +124,7 @@ it('when GATES a scrub: closed it rests at the start, open it tracks scroll', as
    * **The whole change, and only a real browser can show it.** `when` used to REPLACE the scroll
    * driver, so a match jumped the element to its authored end (0.8). It gates now: a matching
    * element resumes the ordinary scrub, so at this scroll position it sits BETWEEN the ends. An
-   * assertion of "not 0.2" would have passed under both behaviours.
+   * assertion of "not 0.2" would have passed under both behaviors.
    */
   const live = opacityOf(el);
   expect(live, 'matched: scrubbing with the page').to.be.greaterThan(0.2);
@@ -196,7 +196,7 @@ it('paint blends natively (8c): red→blue reads MIXED mid-scroll, not stepped',
   await settle();
   /** Park mid-viewport, mid-timeline. The retired slot machinery would read pure red or pure
    *  blue anywhere; the native blend reads BOTH channels mid-range. Bounds, not exact numbers —
-   *  engines blend in their own colour space. */
+   *  engines blend in their own color space. */
   await scrollTo(el.offsetTop - window.innerHeight / 2);
   await settle();
   const rgb = (getComputedStyle(el).backgroundColor.match(/[\d.]+/g) ?? []).map(Number);

@@ -24,7 +24,7 @@
  *
  * Saying only "a pseudo-class needs user state, layout or a document" made that sound like a
  * property of servers rather than a limit of this file, and a reader following the rule would predict
- * `:first-child` works. Refusing is still the right behaviour — it is loud, and a wrong answer would
+ * `:first-child` works. Refusing is still the right behavior — it is loud, and a wrong answer would
  * not be — but the reason has to be the true one. Implementing the structural set is a **feature**,
  * not a fix, and is not being done here on the way past.
  *

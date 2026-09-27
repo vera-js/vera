@@ -67,7 +67,7 @@ export default defineConfig(({ mode }) => ({
    *
    * `true` in dev is also the right value on its own terms: an example is where you WANT the
    * diagnostics, and `npm run preview` builds with `mode === 'production'` and gets the folded
-   * behaviour a consumer ships.
+   * behavior a consumer ships.
    */
   define: {
     __DEV__: JSON.stringify(mode !== 'production'),

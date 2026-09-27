@@ -1,6 +1,6 @@
 # The shared motion surface — vera ↔ omni
 
-The unified grammar and observable behaviour of `data-vd-motion` (vera) and `data-omni-motion`
+The unified grammar and observable behavior of `data-vd-motion` (vera) and `data-omni-motion`
 (omni). **The contract is the attribute grammar and what a page observably does — never the
 implementation.** Engines stay free behind it; conformance is pinned by the fixtures beside this
 file, run by both repos.
@@ -36,7 +36,7 @@ Progress runs 0–100 like CSS keyframes. The ±300% extrapolation range lives o
 
 ## Settings
 
-| key | value | behaviour (observable) |
+| key | value | behavior (observable) |
 | --- | --- | --- |
 | `scroll` | `'a'` or `'a, b'` | **where it begins and ends** — one token = leading edge at that screen %; long form `'<edge> <screen %>'`; comma required (a space pair is a single alignment). Scrub spreads progress across the span; play runs at each end |
 | `play` | **bare number, SECONDS** (ratified 2026-09-09; `'600ms'` is refused) | crossing the first `scroll` line runs the keyframes over that time; a second line is the EXIT (reverse); one line reverses crossing back; per-segment easing applies during the run |

@@ -9,7 +9,7 @@
  *
  * Core answers it the way it already answered the same question for `@verajs/styles`: warn once,
  * name the import, and carry none of it into production. That earlier warning had no test at all —
- * it is the precedent this one is modelled on, so it is pinned here too rather than left as the
+ * it is the precedent this one is modeled on, so it is pinned here too rather than left as the
  * only diagnostic in core nothing checks.
  *
  * **The control lives in its own file, and that is not tidiness.** The warning fires once per page

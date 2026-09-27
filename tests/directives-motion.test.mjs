@@ -1,7 +1,7 @@
 /**
  * The motion pack's smoke layer: activation, the dual value forms, refusals,
  * the `when` driver, per-property ease, regions, and the factory dual — all
- * under jsdom, which has no real layout. Geometry-true behaviour (scroll
+ * under jsdom, which has no real layout. Geometry-true behavior (scroll
  * positions, pins, visibility margins) belongs to the browser suite and the
  * parity checks against packages/motion; what jsdom CAN answer honestly is
  * everything above the frame loop: parsing, adoption, style writes at the
@@ -131,7 +131,7 @@ test('geometry-position keyframes GENERATE since 8d — per-geometry-bucket rule
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: '0px 0, 400px 1' } }">x</div>`);
   const el = host.querySelector('div');
-  /** Length positions normalise against the measured scroll window at generation, so the value
+  /** Length positions normalize against the measured scroll window at generation, so the value
    *  rides the generated path — the last shapes still inline are misaligned-stops-under-eased
    *  and third-party discrete holds. */
   assert.ok(animating(el), 'px stops are a generated animation now');

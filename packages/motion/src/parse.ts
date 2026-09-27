@@ -811,7 +811,7 @@ export const parseMotion = (
   }
 
   /**
-   * And the neighbouring pair: `inertia-ease` shapes the **catch-up**, and
+   * And the neighboring pair: `inertia-ease` shapes the **catch-up**, and
    * at an effective `inertia` of 0 there is no catch-up to shape. A
    * per-category override above zero rescues it. The region's `inertia` is
    * consulted when the element writes none — deciding from the element's

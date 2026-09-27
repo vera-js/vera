@@ -4,7 +4,7 @@
  * jsdom has neither `IntersectionObserver` nor `ResizeObserver` and no layout, which is exactly
  * what makes it the right place to pin the DEGRADATION rules: a sensor that cannot sense must
  * still leave the page readable, and "leaves the content visible" is a claim a real browser can
- * never fail loudly enough to catch. The observers themselves are stubbed here where a behaviour
+ * never fail loudly enough to catch. The observers themselves are stubbed here where a behavior
  * needs driving; geometry-true coverage belongs to the browser suite.
  */
 import assert from 'node:assert/strict';
@@ -104,7 +104,7 @@ test('teardown disconnects the observer — a removed element stops sensing', as
   assert.ok(observers.size < live, 'and released with the element');
 });
 
-test('pointer normalises 0→1 over the element, and re-centres on leave', async () => {
+test('pointer normalizes 0→1 over the element, and re-centers on leave', async () => {
   const host = await mount(`
     <div data-vd-state="{ p: {} }">
       <div id="card" data-vd-pointer="p"></div>
@@ -118,7 +118,7 @@ test('pointer normalises 0→1 over the element, and re-centres on leave', async
     { clientX: 200, clientY: 100 }));
   await frame();
   await settled();
-  assert.deepEqual(stateOf(carrier).p, { x: 0.5, y: 0.5, inside: true }, 'centre of the box');
+  assert.deepEqual(stateOf(carrier).p, { x: 0.5, y: 0.5, inside: true }, 'center of the box');
 
   card.dispatchEvent(Object.assign(new dom.window.Event('pointermove', { bubbles: true }),
     { clientX: 300, clientY: 150 }));
@@ -137,7 +137,7 @@ test('pointer normalises 0→1 over the element, and re-centres on leave', async
   await frame();
   await settled();
   assert.deepEqual(stateOf(carrier).p, { x: 0.5, y: 0.5, inside: false },
-    're-centred on leave, so a tilt card returns to rest instead of freezing at the exit angle');
+    're-centered on leave, so a tilt card returns to rest instead of freezing at the exit angle');
   host.remove();
   await settled();
 });

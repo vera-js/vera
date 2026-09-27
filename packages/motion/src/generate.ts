@@ -10,7 +10,7 @@
  * `composeTransform`/`composeFilter`/`format` the runtime writes with, so the generated text cannot
  * drift from what the old path would have painted — that agreement is asserted engine-side by the
  * parity suite. The exception is a ten-line linear `valueAt` instead of `curve.ts`: the curve
- * machinery is per-frame-optimised (arena views, persistent slopes) and slated for deletion, and
+ * machinery is per-frame-optimized (arena views, persistent slopes) and slated for deletion, and
  * threading its arena through a once-per-activation loop would preserve exactly the code this
  * rewrite exists to remove.
  *
@@ -308,7 +308,7 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
     };
 
     /** The synthesized easing: a shaped member's value trajectory as linear() control points —
-     *  normalised (v−v0)/(vN−v0), overshoot legal, ends pinned at 0% and 100%. LONGHAND
+     *  normalized (v−v0)/(vN−v0), overshoot legal, ends pinned at 0% and 100%. LONGHAND
      *  emission only: the shorthand carrying linear() diverges across engines (measured). */
     const linearFor = (m: ElementMotion): string | null => {
       const frames = [...m.keyframes].sort((x, y) => x.position - y.position);
@@ -478,13 +478,13 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
    * pair graduate by each carrying its own ease.
    */
   /**
-   * Geometry normalisation (8d): a length position becomes its timeline fraction against the
+   * Geometry normalization (8d): a length position becomes its timeline fraction against the
    * measured scroll window, clamped into the keyframe range — a stop past the timeline's end is
    * unreachable, and clamping to 100 with its authored value is what the old curve's clamped
-   * evaluation painted there anyway. Sorted after, because normalisation can reorder mixed
+   * evaluation painted there anyway. Sorted after, because normalization can reorder mixed
    * authored units.
    */
-  const percentised = (frames: readonly RawKeyframe[]): readonly RawKeyframe[] => {
+  const percentized = (frames: readonly RawKeyframe[]): readonly RawKeyframe[] => {
     if (!geometry || !frames.some((f) => f.positionUnit !== '%')) return frames;
     return frames
       .map((f) => f.positionUnit === '%' ? f : {
@@ -514,7 +514,7 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
       { value: a.property.initial, unit: a.unit, position: 100, positionUnit: '%' },
     ];
     /**
-     * **A missing `0%`/`100%` frame is NOT synthesised here — CSS constructs it from the element's
+     * **A missing `0%`/`100%` frame is NOT synthesized here — CSS constructs it from the element's
      * own computed value, and that is the documented rule.** `opacity: '0.2'` is one frame at 100%
      * and animates TO 0.2 from wherever the element already is; that shorthand IS the lone-value
      * API, and it exists only because the platform fills the missing end.
@@ -526,7 +526,7 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
      * writes it: `'0% 0, 50% 0, 80% 1'`.
      */
     const framesOfN = (a: ElementMotion): readonly RawKeyframe[] => {
-      const list = percentised(raw(a));
+      const list = percentized(raw(a));
       return list.length ? list : resting(a);
     };
     framesOf = framesOfN;
@@ -577,7 +577,7 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
            * TEXT values declare at their AUTHORED stops only — a keyframe that omits a property
            * interpolates across the gap natively, so union-resampling (a numbers-only need)
            * never has to invent a string it cannot compute. The browser blends in its own
-           * colour-space rules.
+           * color-space rules.
            */
           const frame = framesOf(animation).find((f) => f.position === stop);
           if (frame?.text !== undefined) {
@@ -716,7 +716,7 @@ const springToLinear = (spec: string): { fallback: string; resolved: string } | 
  * correct). Two families map, both against the DEFAULT document scroller:
  *
  * - TRANSIT pairs (`edge == 1 - viewport`, the family every plain `scroll: '100%, 0%'`-style
- *   spelling normalises into): position t along the transit is geometry-free, so
+ *   spelling normalizes into): position t along the transit is geometry-free, so
  *   `cover ${'${'}t*100}%`.
  * - VIEWPORT-LINE halves (`0 b` — the one-token form: "leading edge at viewport fraction b"):
  *   the distance from transit start is `(1-b)` viewports exactly, so `cover ${'${'}(1-b)*100}vh`
@@ -851,7 +851,7 @@ export const fromAttribute = (node: Element, raw: string): Generated | null => {
 /**
  * The INLINE assembly — every rule the shared-sheet path would acquire, as one stylesheet text,
  * in the same order (order is load-bearing twice: transition's base-then-active tie-break, and
- * the media switches after the element rule). The page-wide neutraliser tails ride along scoped
+ * the media switches after the element rule). The page-wide neutralizer tails ride along scoped
  * to this hash, because an inline block cannot rely on a shared sheet existing.
  *
  * This is the cache-escape hatch's engine: `motion({ inline: true })` and

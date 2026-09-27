@@ -15,7 +15,7 @@
  * *"routerSettings.match is not a function"* — which is a true sentence about the wrong thing, and
  * arbitrarily far from the call that caused it.
  *
- * The generalisation worth keeping: **a setter is a deferred call**, so its argument is validated
+ * The generalization worth keeping: **a setter is a deferred call**, so its argument is validated
  * arbitrarily late or never, and the stack at that point no longer contains the mistake. Every other
  * entry point in this framework already guards its input — `wire` refuses a non-finite priority,
  * `createHook` refuses a bad element, `autoloader` refuses a bad `rootDir`. These five were the gap.

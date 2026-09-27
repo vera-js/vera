@@ -158,7 +158,7 @@ assert.deepEqual(visible, ['cherry', 'elderberry'],
 assert.match(filtered.html, /<b[^>]*>2<\/b>/, 'and published the count the page renders its results line from');
 assert.match(filtered.html, /<i[^>]*>\/list<\/i>/, '@route reached expressions server-side');
 assert.match(filtered.html, /<em[^>]*class="[^"]*revealed/,
-  'in-view honoured DEGRADED-NEVER-DEAD: a server has no observer, so the content is revealed, ' +
+  'in-view honored DEGRADED-NEVER-DEAD: a server has no observer, so the content is revealed, ' +
   'not hidden from a reader who will never run JavaScript');
 
 /** And the client agrees — the same differential the reflections get, on the pack that needed it most. */

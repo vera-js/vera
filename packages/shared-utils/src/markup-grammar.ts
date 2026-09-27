@@ -38,7 +38,7 @@
  *   `<br>`, so `<br></br>` renders two line breaks where the author wrote one.
  *
  * Inside `<svg>` and `<math>` the parser switches to foreign content, where XML self-closing *is*
- * honoured — so neither rule applies there, and a consumer that checks must know where it is.
+ * honored — so neither rule applies there, and a consumer that checks must know where it is.
  */
 export const VOID_ELEMENTS = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',

@@ -12,7 +12,7 @@
  * **The shaking test** is the tree-shakeability claim measured: the root entry re-exports
  * everything, and naming only what you use must be what you pay for. Verified under Rollup —
  * which is the claim the docs are allowed to make, no wider. Both directions are asserted,
- * because a probe that measures nothing reports perfect behaviour: the marker must be ABSENT
+ * because a probe that measures nothing reports perfect behavior: the marker must be ABSENT
  * from the lean bundle and PRESENT in the full one, or the marker itself has drifted.
  */
 import assert from 'node:assert/strict';

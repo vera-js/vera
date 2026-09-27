@@ -87,7 +87,7 @@ check('two copies are two registries', A.inserts !== B.inserts && !B.inserts.get
     }
     check(`every non-finite priority is refused (${threw}/${bad.length})`, threw === bad.length);
   } else {
-    /** Production keeps the bytes out; the behaviour is undefined there and that is the trade. */
+    /** Production keeps the bytes out; the behavior is undefined there and that is the trade. */
     check('production carries no priority check', true);
   }
 }

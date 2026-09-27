@@ -6,7 +6,7 @@
  * The same user markup is put into a real shadow host and a light host with the same slot template,
  * and what each slot ends up showing is compared. Seeded, so a failure bisects to the same case.
  *
- * Two controls, because a comparison that compares nothing reports perfect behaviour: every case
+ * Two controls, because a comparison that compares nothing reports perfect behavior: every case
  * must actually distribute something (`nonTrivial`), and a deliberately corrupted reading must be
  * caught (`detects a difference`).
  */

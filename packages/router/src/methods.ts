@@ -180,7 +180,7 @@ const insertRoute = (element: HTMLElement, route: Route) => {
  * **A key a route does not have is a mistake, and `meta` is where anything else belongs.**
  *
  * The set is closed on purpose, so this is safe to be strict about. The cases it catches are the
- * spellings the neighbouring routers use — Vue Router's `components`, React Router's `element` and
+ * spellings the neighboring routers use — Vue Router's `components`, React Router's `element` and
  * `loader` — each of which registers a route that matches its path and then renders nothing, which
  * reads as a broken router rather than a wrong key. A typed caller is told by the compiler; the
  * buildless caller this framework treats as first-class was told by nobody.

@@ -8,7 +8,7 @@ import { expect } from '@esm-bundle/chai';
  * `examples/ui-select/` died the same way through a dynamic import the map guard could not yet see;
  * and light-slots' centrepiece counter was frozen by design even once the page loaded. Every one of
  * those shipped, because examples are pages only humans open, and humans had not. The import-map
- * guard now covers the load-time half mechanically; this file is the behavioural half: each page is
+ * guard now covers the load-time half mechanically; this file is the behavioral half: each page is
  * loaded into a same-origin iframe (the runner serves the repo root, so `/examples/...` is simply
  * there, production bundles included) and its HEADLINE claims are exercised — not every caption,
  * but the ones whose failure means the page is lying: does it render, and does its one advertised
@@ -123,7 +123,7 @@ it('directives showcase: routes render, the hello-world taps, motion clamps, the
   await until(() => tapPill() === '1', 'the tap advanced');
 
   /**
-   * Route to Motion: presets ACTIVATE and honour their trigger. Since the shipped presets gained
+   * Route to Motion: presets ACTIVATE and honor their trigger. Since the shipped presets gained
    * `scroll: '85%', play: 0.6`, "the first fade-up sits at its first keyframe" stopped being true —
    * an on-screen instance has crossed the line and PLAYED to 1. So the probe asserts the semantics
    * from whichever side of the fold the page actually puts its instances: below the line → 0,

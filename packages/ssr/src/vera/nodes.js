@@ -50,7 +50,7 @@ const UNUSABLE_IN_A_TAG = /[\0-\x20"'<>/=\x7f]/;
  * client**: `attachShadow` reuses a declarative root and ignores the options it is handed, so a
  * component asking for `delegatesFocus: true` over server-rendered markup that omitted it keeps
  * `delegatesFocus === false` for the life of the page. Measured in Chromium. Focus delegation is an
- * accessibility behaviour, so losing it silently under SSR is the kind of difference that never gets
+ * accessibility behavior, so losing it silently under SSR is the kind of difference that never gets
  * reported — it just works worse.
  *
  * `slotAssignment` has no declarative form at all; a component that needs it cannot be faithfully
@@ -84,7 +84,7 @@ const SHADOW_ATTRIBUTES = [
  * ancestor chain to walk, so an event reaches its own element's listeners and stops.
  */
 /**
- * One entry's markup. A retained node serialises itself **at output time**, which is the entire
+ * One entry's markup. A retained node serializes itself **at output time**, which is the entire
  * point of keeping it: a mutation made after `appendChild` is still on the node when this runs.
  * The expression is the one `appendChild` used to inline, unchanged, so the bytes are identical.
  */
@@ -233,7 +233,7 @@ const equalNodes = (a, b) => {
 };
 
 /**
- * **Walks the tree**, as `textContent` is defined to. It used to strip tags out of the serialised
+ * **Walks the tree**, as `textContent` is defined to. It used to strip tags out of the serialized
  * markup with a regular expression and undo the numeric escapes, which answered `a &amp; b` for an
  * element holding the text `a & b` — the entity spellings this package does not itself emit came
  * back raw. A comment contributes nothing, which is what the platform says.
@@ -266,8 +266,8 @@ const warnedAboutMarkup = /* @__PURE__ */ new WeakSet();
 /**
  * **Parse the markup chunks, but only keep the result if it reproduces them exactly.**
  *
- * The parse is discarded unless re-serialising it is byte-identical to the string it came from, so
- * reading `children` can never change what the page renders — the worst case is the behaviour that
+ * The parse is discarded unless re-serializing it is byte-identical to the string it came from, so
+ * reading `children` can never change what the page renders — the worst case is the behavior that
  * was there before, plus a warning. That check is also what makes a parser defect cheap: a wrong
  * tree that does not round-trip is thrown away rather than served.
  */
@@ -374,7 +374,7 @@ const nodesOf = (container) => {
      * string is not parsed on the server", which was true before `parse.js` and is now false for
      * almost everything: nested elements, attributes, void elements, comments, an unclosed tag, a
      * table fragment and raw text all parse. What reaches this line is the narrow case the parser
-     * *declined* — markup it cannot re-serialise byte-identically, so it keeps the string rather than
+     * *declined* — markup it cannot re-serialize byte-identically, so it keeps the string rather than
      * hand back a tree the client would not build.
      *
      * The distinction changes the advice. "Not parsed" tells the author to rewrite working code with
@@ -400,7 +400,7 @@ const nodesOf = (container) => {
  * no identity, no parent and no `nodeType`, and appending one inlined its markup and lost the node.
  * `childNodes` therefore reported `1` for `text <b>bold</b> tail`, where every browser says `3`.
  *
- * Like an element, a parsed one keeps **the exact bytes it came from** so re-serialising reproduces
+ * Like an element, a parsed one keeps **the exact bytes it came from** so re-serializing reproduces
  * the input — `&amp;` stays `&amp;` rather than becoming this package's `&#38;` — and falls back to
  * escaping its data the moment somebody writes to it.
  */
@@ -568,8 +568,8 @@ export class ContainerShim extends EventTarget {
     super();
     /**
      * **Children are entries, not one string.** Each entry is either a retained node or a chunk of
-     * raw markup. Serialisation happens when `innerHTML` is *read*, not when a child is appended —
-     * appending used to serialise immediately and drop the node, so `appendChild(kid)` followed by
+     * raw markup. Serialization happens when `innerHTML` is *read*, not when a child is appended —
+     * appending used to serialize immediately and drop the node, so `appendChild(kid)` followed by
      * `kid.textContent = 'x'` rendered `<b></b>` and lost the text with no diagnostic.
      */
     this._entries = [];
@@ -651,7 +651,7 @@ export class ContainerShim extends EventTarget {
       );
     /**
      * A node with no tag of its own — a fragment — contributes its markup exactly as it did before.
-     * Moving a fragment's children into this parent is the platform's behaviour and is deliberately
+     * Moving a fragment's children into this parent is the platform's behavior and is deliberately
      * *not* step 1: it changes what `appendChild(fragment)` leaves behind.
      */
     /**
@@ -1624,7 +1624,7 @@ export class ElementShim extends ContainerShim {
   }
   /**
    * **`mode: 'closed'` means `element.shadowRoot` is `null`** — that is the entire difference between
-   * the two modes, and it was not honoured: a closed root was handed straight back, so a component
+   * the two modes, and it was not honored: a closed root was handed straight back, so a component
    * guarding on `this.shadowRoot` took the branch the browser will not, and anything holding the
    * element could reach inside a root the platform hides. The root is kept on `_shadowRoot`, because
    * it still has to be serialized — declarative shadow DOM expresses `closed` perfectly well
@@ -2145,7 +2145,7 @@ export class ElementShim extends ContainerShim {
     /**
      * **The bytes it was parsed from**, until something writes to it. That is what lets a parsed
      * tree reproduce its own markup exactly — quoting style, entity spelling, attribute order and
-     * interior whitespace included — instead of normalising the page as a side effect of somebody
+     * interior whitespace included — instead of normalizing the page as a side effect of somebody
      * reading `children`.
      */
     if (this._sourceOpenTag) return this._sourceOpenTag;
@@ -2191,7 +2191,7 @@ export class ElementShim extends ContainerShim {
  * `document.createElement('my-comp')` builds **the component**, not a blank element.
  *
  * A browser upgrades a known tag as it creates it, so the class's constructor runs and its field
- * initialisers are in place before anyone touches the element. This returned a bare `ElementShim`,
+ * initializers are in place before anyone touches the element. This returned a bare `ElementShim`,
  * so a component created imperatively had none of its own state, and `instanceof` said no.
  */
 /**

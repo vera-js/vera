@@ -258,7 +258,7 @@ it('retry takes the element the error handed you, and tries it again', async () 
   await settle();
   console.error = original;
 
-  /** Without retry the tag stays memoised as failed on the first autoloader. */
+  /** Without retry the tag stays memoized as failed on the first autoloader. */
   failing.retry(reported.element);
   await until(() => customElements.get('flaky-widget'));
   expect(customElements.get('flaky-widget'), 'reachable after retry').to.be.a('function');
@@ -291,13 +291,13 @@ it('watches a shadow root it is handed, without an autoloader attribute', async 
 
 /* ── a document is a document before it has a body ───────────────────────────────────────────── */
 /**
- * `autoload()` means "sweep the page for `[data-autoload]` hosts". A document used to be recognised by
+ * `autoload()` means "sweep the page for `[data-autoload]` hosts". A document used to be recognized by
  * having a `body`, which is null until the parser reaches it — so the same call from a classic or
  * `async` module script in `<head>` fell through to the branch that watches a *root*, and quietly
  * put a `subtree: true` observer on `document` itself. That is the whole-document shape this module
  * is built to avoid, it survived for the life of the page, and nothing reported it.
  *
- * Asserted through the observer rather than through behaviour, because the wrong branch still
+ * Asserted through the observer rather than through behavior, because the wrong branch still
  * *works* — it loads more, faster, at a cost spread across every mutation in the app. Only the
  * target it observed tells the two apart.
  */
@@ -316,7 +316,7 @@ it('sweeps for marked hosts rather than observing the whole document', async () 
     const autoload = autoloader(entry, 'components');
     /**
      * The condition the branch got wrong — a document that exists but whose body has not been
-     * parsed yet, which is what an `async` module script in `<head>` sees. Modelled rather than
+     * parsed yet, which is what an `async` module script in `<head>` sees. Modeled rather than
      * staged, because a test file cannot un-parse the page it is running in.
      */
     Object.defineProperty(document, 'body', { get: () => null, configurable: true });

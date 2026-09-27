@@ -2,7 +2,7 @@
  * **What a real engine decides about light-DOM slots**, and the promise that matters most: a
  * re-render must not disturb the user's own nodes. Focus, an edited input value, scroll position
  * and selection are state the DOM holds and no framework can restore — so the only acceptable
- * behaviour is not to touch the nodes at all.
+ * behavior is not to touch the nodes at all.
  *
  * jsdom cannot settle any of this (no layout, focus is a stub), which is why it is here: the jsdom
  * suites are the regression net, browser suites are the release gate.

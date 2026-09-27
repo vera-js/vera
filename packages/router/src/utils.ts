@@ -46,8 +46,8 @@ export const emitEvent = async (
    * leak; dispatching does not retain a target, and `detail` carries route snapshots rather than
    * the element, so there was nothing to leak.
    */
-  const uncancelled = element.dispatchEvent(event);
-  return (await emit(element, type, to, from)) && uncancelled;
+  const uncanceled = element.dispatchEvent(event);
+  return (await emit(element, type, to, from)) && uncanceled;
 };
 
 /**

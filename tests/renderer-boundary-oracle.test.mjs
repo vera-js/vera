@@ -19,7 +19,7 @@
  *     representation that assumes tail-ness for items misorders exactly here.
  *   - A template whose instance has NO nodes at all (`html``` in a branch) — a range with no
  *     content and no way to derive a position from it.
- *   - Content identity across a sibling's churn — the neighbour must never be touched, which is
+ *   - Content identity across a sibling's churn — the neighbor must never be touched, which is
  *     the property the whole boundary system exists to buy.
  *
  * Comment-count assertions live in `tests/renderer-marker-census.test.mjs` (written with the
@@ -85,7 +85,7 @@ test('three adjacent parts: the middle one empties and returns to the middle', (
   assert.equal(visible(host.querySelector('p')), '<i>a</i><s>c</s>');
   renderInto(draw('a', 'B', 'c'), host);
   assert.equal(visible(host.querySelector('p')), '<i>a</i><u>B</u><s>c</s>', 'the middle came back in the middle');
-  /** And with its neighbours gone, so no live sibling content can be its reference. */
+  /** And with its neighbors gone, so no live sibling content can be its reference. */
   renderInto(draw(null, null, null), host);
   renderInto(draw(null, 'B2', null), host);
   assert.equal(visible(host.querySelector('p')), '<u>B2</u>');
@@ -115,7 +115,7 @@ test('a tail part refills after foreign nodes a user appended to its parent', ()
    * content returns exactly where it was — BEFORE the foreign node — the way lit's markers answer
    * it, and not by appending to the parent the way React's `getHostSibling` does. Any future
    * boundary representation must preserve this, which is exactly the assertion that retired the
-   * "elide the end marker for provably-last parts" optimisation: it saved one comment by trading
+   * "elide the end marker for provably-last parts" optimization: it saved one comment by trading
    * this line away.
    *
    * The ROOT part is the one deliberate exception and is pinned in the pre-existing-content test
@@ -167,7 +167,7 @@ test('a template instance with no nodes at all still holds its position', () => 
   assert.equal(visible(host.querySelector('p')), '<b>y</b><u>anchor</u>', 'content returned BEFORE the sibling');
 });
 
-test('a neighbour is never touched by a sibling churning through every mode', () => {
+test('a neighbor is never touched by a sibling churning through every mode', () => {
   const host = fresh();
   const stable = () => html`<u>KEEP</u>`;
   const churnT = (v) => html`<i>${v}</i>`;

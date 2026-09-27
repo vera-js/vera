@@ -73,7 +73,7 @@ const childHelperSource = (name: string) => `const ${name} = (v) => (typeof v ==
 const SIGILS = new Set(['.', '?', '@', '&']);
 
 /**
- * Whether a tag names a COMPONENT — capitalised, or dotted like `motion.path`. `isComponentTag`
+ * Whether a tag names a COMPONENT — capitalized, or dotted like `motion.path`. `isComponentTag`
  * below asks the same question of a node.
  *
  * **A dash-named tag is NOT one.** `<order-row>` is a custom ELEMENT: it renders as markup and its
@@ -516,7 +516,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
    * real import statement is — a module holding its own source in a template literal otherwise
    * registers a fake one and the injection is suppressed — but it blanks the specifier along with
    * every other string, so `import { svg } from '@verajs/core'` came back as coming from nowhere
-   * and stopped being recognised as the tag's own. `blankLiterals` replaces characters one for one,
+   * and stopped being recognized as the tag's own. `blankLiterals` replaces characters one for one,
    * so the offsets line up and the specifier can simply be sliced out of `js`.
    */
   for (const match of source.matchAll(/(?:^|\n)\s*import\s+([^'"]*?)\s*from\s*['"]([^'"]*)['"]/g)) {
@@ -569,7 +569,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       .join('');
     /**
      * A whole-WORD match, not a substring: `options.html` may name `h`, and a bare `includes('h')`
-     * is true of almost any source — `export`, `the`, a hex colour.
+     * is true of almost any source — `export`, `the`, a hex color.
      *
      * One test, over text the three misleading spellings have already left. A narrower DECLARATION
      * pattern guarded this while string contents were still visible (`'text/html'` read as a
@@ -656,7 +656,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
 
   /** One JSX root -> one `html\`…\`` (or a component call), optionally wrapped in `keyed()`. */
   /**
-   * A JSX tag is a COMPONENT (a function call) rather than a host element when it is capitalised
+   * A JSX tag is a COMPONENT (a function call) rather than a host element when it is capitalized
    * OR a member expression. A host HTML tag name is always a bare lowercase identifier and can
    * never contain a dot, so `.` cleanly marks both the member components React writes as
    * `<Foo.Bar/>` and the lowercase-namespace ones the ecosystem writes as `<motion.div/>` /
@@ -739,7 +739,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * the DOM simply had a shape the source never described. Emitting by element instead makes both
      * spellings mean what every JSX toolchain already means by them.
      *
-     * Foreign content needs no special case. Self-closing IS honoured inside `<svg>`/`<math>`, but
+     * Foreign content needs no special case. Self-closing IS honored inside `<svg>`/`<math>`, but
      * `<circle></circle>` is equally valid there, and no SVG or MathML element shares a name with
      * an HTML void element — so the rewrite is correct in both content modes without tracking which
      * one we are in. The lookup lowercases because a host tag keeps the author's case (`<bR/>`),
@@ -747,7 +747,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      */
     if (VOID_ELEMENTS.has(node.tag.toLowerCase())) {
       /**
-       * A void element cannot hold anything, so children are not a shape to normalise — there is no
+       * A void element cannot hold anything, so children are not a shape to normalize — there is no
        * markup that means what was written. `<input>{label}</input>` put a BINDING after the input
        * as a text node; refusing at compile time is the only channel that reaches the author.
        */
@@ -898,7 +898,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
       }
       tpl.static(` ?${name}=`);
       /**
-       * `hidden=""` is TRUE. The empty string is what the platform itself SERIALISES a set boolean
+       * `hidden=""` is TRUE. The empty string is what the platform itself SERIALIZES a set boolean
        * to — `el.toggleAttribute('hidden', true)` then `outerHTML` gives exactly that — so reading it
        * as false inverted every attribute on markup round-tripped through the DOM, silently.
        * `tests/hydrate-parity.test.mjs` already recorded `<b hidden="">` as `?hidden=${true}` on the
@@ -1013,7 +1013,7 @@ export const transformJsx = (code: string, fileName = 'module.jsx', options: Ver
      * since JSX cannot write `svg\`…\``. Wired here rather than left to the author: a module's
      * imports and top-level statements run before any template it builds, so no JSX template can be
      * built before the resolver exists — the ordering hazard a hand-placed import at the app's entry
-     * leaves open for lazily loaded chunks. Wiring the same descriptor again is recognised by core
+     * leaves open for lazily loaded chunks. Wiring the same descriptor again is recognized by core
      * and costs nothing. `namespaces: false` opts out, for an app that wires it itself or does not
      * want its bytes.
      */

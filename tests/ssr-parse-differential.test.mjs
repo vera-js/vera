@@ -10,7 +10,7 @@
  * was served. Where it returns a tree, that tree must match parse5's element structure exactly.
  *
  * The second assertion is the one that protects the page: a parse is only *kept* by `nodes.js` if
- * re-serialising it reproduces the input byte for byte, so every accepted input here is also checked
+ * re-serializing it reproduces the input byte for byte, so every accepted input here is also checked
  * for that here.
  */
 import { test } from 'node:test';
@@ -106,7 +106,7 @@ const CORPUS = [
   '<p>a &amp; b</p>',
   '<p title="a &#38; b">t</p>',
 
-  /* Foreign content: the element is modelled, its interior is kept whole. */
+  /* Foreign content: the element is modeled, its interior is kept whole. */
   '<svg viewBox="0 0 8 8"><circle cx="4" /></svg>',
   '<div class="card"><svg viewBox="0 0 8 8"><circle cx="4"/></svg><h2>T</h2></div>',
   '<p>before</p><svg><g><path d="M0 0"/></g></svg><p>after</p>',
@@ -193,7 +193,7 @@ test('never disagrees with parse5 — it matches or it declines', () => {
  * It said "markup assigned as a string is not parsed on the server", which was true before this
  * parser and is now false for almost everything — nested elements, attributes, void elements,
  * comments, an unclosed tag, a table fragment and raw text all parse. Only markup the parser cannot
- * re-serialise byte-identically is declined.
+ * re-serialize byte-identically is declined.
  *
  * The distinction changes what the reader does next. "Not parsed" sends them to rewrite working code
  * with `createElement`; the truth is that one piece of markup was refused and making it well-formed

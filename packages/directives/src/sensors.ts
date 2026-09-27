@@ -3,7 +3,7 @@
  *
  * Reflections write state to the DOM (`show`, `class`, `text`). Events write state from the user
  * (`on-*`). Nothing wrote state from the ENVIRONMENT — whether an element is on screen, how big
- * it is, where the pointer is over it, how far it has travelled through the viewport — and none of
+ * it is, where the pointer is over it, how far it has traveled through the viewport — and none of
  * those are reachable any other way: CSS has no `--mouse-x`, container queries can style by a size
  * but cannot hand it to logic, and the expression tier is deliberately PURE so it can never read
  * an event. Without these, a tilt card, a spotlight, a "have they seen it" flag and a gesture are
@@ -396,7 +396,7 @@ const pointer: Directive = {
   value: 'literal',
   priority: 60,
   docs: {
-    summary: 'Writes the pointer position over this element as { x, y, inside }, normalised 0→1.',
+    summary: 'Writes the pointer position over this element as { x, y, inside }, normalized 0→1.',
     example: 'data-vd-pointer="p"',
   },
   setup(el, ctx) {
@@ -427,7 +427,7 @@ const pointer: Directive = {
       write.run();
     };
     /**
-     * Leaving RE-CENTRES rather than freezing: a tilt card returns to rest instead of holding the
+     * Leaving RE-CENTERS rather than freezing: a tilt card returns to rest instead of holding the
      * angle it happened to exit at, which reads as a bug on every page that has one.
      */
     const moveTarget: EventTarget = viewport ? window : el;
@@ -570,7 +570,7 @@ const scrollProgress: Directive = {
         const span = window.innerHeight + rect.height;
         /**
          * 0 is the moment the element begins entering the viewport and 1 the moment it has
-         * completely left — the same quantity `data-vd-motion` normalises against, so a page can
+         * completely left — the same quantity `data-vd-motion` normalizes against, so a page can
          * mix a motion animation and a progress read and have them agree.
          */
         value = span === 0 ? 0 : (window.innerHeight - rect.top) / span;
@@ -652,7 +652,7 @@ const swipe: Directive = {
     let tracking = false;
     /**
      * The per-direction programs, held in the CLOSURE rather than stashed back onto the element:
-     * `apply` already receives them parsed, and re-serialising an object just so a handler could
+     * `apply` already receives them parsed, and re-serializing an object just so a handler could
      * re-read it as text would be inventing work the engine has already done.
      */
     let programs: Record<string, unknown> = {};

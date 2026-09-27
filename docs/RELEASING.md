@@ -130,7 +130,7 @@ mean to publish before it has ever shipped.
   both the website and `npm trust github`. So a new package's first version is published manually
   and CI takes over from the second. See *Adding a package* below.
 - **Never bump a version by hand.** `changeset version` also updates the internal dependency ranges
-  between packages; editing a version field alone silently desynchronises them.
+  between packages; editing a version field alone silently desynchronizes them.
 - **`shared-types` and `shared-utils` are `private: true`** and inlined into every build. They must
   never be published.
 

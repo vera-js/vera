@@ -271,7 +271,7 @@ const define = (setup) => {
  * the time a collector could have prevented it. Measured, before the fix: +1, +2, +3 effects per
  * write across zero, one and two reconnects.
  *
- * Deliberately asserted without forcing a collection — `--expose-gc` made the old behaviour look
+ * Deliberately asserted without forcing a collection — `--expose-gc` made the old behavior look
  * correct, which is exactly why it survived.
  */
 {

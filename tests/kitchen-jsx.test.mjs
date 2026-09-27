@@ -10,7 +10,7 @@
  * define the same custom-element names and a registry refuses a second definition — which is
  * correct, and means they cannot share one.
  *
- * Whitespace between elements is normalised. JSX drops whitespace-only lines and a template literal
+ * Whitespace between elements is normalized. JSX drops whitespace-only lines and a template literal
  * keeps them, so the two authoring styles legitimately differ in indentation text nodes; everything
  * that reaches a reader is compared exactly.
  */

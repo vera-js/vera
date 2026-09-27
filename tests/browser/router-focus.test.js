@@ -4,7 +4,7 @@ import { initRouter, setRouterRenderer } from '../../packages/router/dist/develo
 /**
  * `focusView` — focus moves into the newly routed view on user navigation.
  *
- * `tests/router-guards.test.mjs` covers the same behaviour under jsdom, and does so correctly —
+ * `tests/router-guards.test.mjs` covers the same behavior under jsdom, and does so correctly —
  * an earlier version of this comment claimed jsdom could not run it, which was wrong. The failure
  * was a missing `route` attribute on the test's links, not an environment limit.
  *
@@ -34,7 +34,7 @@ const clickTo = async (app, href) => {
   link.href = href;
   link.textContent = href;
   /** Opt-in marker: the click handler ignores any link without it, so the browser keeps its
-      default behaviour for ordinary links. Without this the page really navigates. */
+      default behavior for ordinary links. Without this the page really navigates. */
   link.setAttribute('route', '');
   app.el.appendChild(link);
   link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));

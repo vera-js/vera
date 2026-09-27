@@ -153,8 +153,8 @@ test('an attribute disagreement is repaired, not reported — adoption re-sets t
  * used", which is a page-wide claim about a per-container event — it sends the reader looking for a
  * page-wide cause when the message has already named the element.
  *
- * Asserted as behaviour first (the neighbours keep their server nodes) and wording second, because
- * the wording is only worth pinning if the behaviour it describes is what happens.
+ * Asserted as behavior first (the neighbors keep their server nodes) and wording second, because
+ * the wording is only worth pinning if the behavior it describes is what happens.
  */
 test('a mismatch in one container does not cost the others their server markup', { skip }, () => {
   const said = [];

@@ -64,7 +64,7 @@ test('these are handed back exactly as they went in', () => {
 });
 
 /**
- * The consequence, stated as a behaviour rather than an implementation note: mutating one of these
+ * The consequence, stated as a behavior rather than an implementation note: mutating one of these
  * in place changes it and renders nothing, and replacing it renders.
  */
 test('mutating a Date in place does not notify; replacing it does', async () => {

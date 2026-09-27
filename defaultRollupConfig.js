@@ -167,7 +167,7 @@ export const defaultRollupConfig = (fileName, dependencies, manglePropsRegex, op
              * `bench/size.mjs`, which measures the way a consumer bundles) can tree-shake a
              * module-scope call the mark declares side-effect-free — core's `svg`/`mathml` tags
              * are built by calls, and without the mark every app carried both whether it used
-             * them or not. Terser itself already honours the marks; this keeps them for the next
+             * them or not. Terser itself already honors the marks; this keeps them for the next
              * tool in the chain.
              */
             preserve_annotations: true,

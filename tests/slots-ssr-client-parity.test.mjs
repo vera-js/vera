@@ -9,9 +9,9 @@
  * somewhere else.
  *
  * So this asks the question directly and in bulk: render a shape server-side, render the same shape
- * client-side, and compare the DOM. What differs legitimately is normalised away and nothing else:
+ * client-side, and compare the DOM. What differs legitimately is normalized away and nothing else:
  * the server's hydration markers (which the hydrator strips) and the client's anchor comments
- * (created at instance time and never serialised).
+ * (created at instance time and never serialized).
  *
  * Components are generated into a temp directory, the way `ssr-raw-text` does, because SSR renders
  * a module from a URL and a shape has to be a real file.
@@ -47,20 +47,20 @@ const SHAPES = {
 };
 
 /**
- * Three things differ legitimately and are normalised away — nothing else is.
+ * Three things differ legitimately and are normalized away — nothing else is.
  *
  * The server's `data-vm-slotted` markers are the hydration handoff and the hydrator strips them.
- * The client's anchors are comments it never serialises. And the unassigned CARRIER is the server's
- * serialisation of state the client holds in memory: a server render has no holding fragment, so
+ * The client's anchors are comments it never serializes. And the unassigned CARRIER is the server's
+ * serialization of state the client holds in memory: a server render has no holding fragment, so
  * content no slot claimed has to persist in the HTML for hydration to recover it, and it goes in an
  * inert `<template>` which no browser renders.
  *
- * That last one is only fair to normalise if the retained content itself is compared, which
+ * That last one is only fair to normalize if the retained content itself is compared, which
  * `retained()` below does — otherwise this would be hiding exactly the kind of difference the file
  * exists to find.
  */
 const CARRIER = /<template data-vm-unassigned="?"?>([\s\S]*?)<\/template>/g;
-const normalise = (markup) =>
+const normalize = (markup) =>
   markup
     .replace(CARRIER, '')
     .replace(/ data-vm-slotted="[^"]*"/g, '')
@@ -126,12 +126,12 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     await settle();
     const fromClient = host.innerHTML;
 
-    assert.equal(normalise(fromClient), normalise(fromServer),
-      `the two renders disagree.\n  server: ${normalise(fromServer)}\n  client: ${normalise(fromClient)}`);
+    assert.equal(normalize(fromClient), normalize(fromServer),
+      `the two renders disagree.\n  server: ${normalize(fromServer)}\n  client: ${normalize(fromClient)}`);
 
     /**
      * And whatever the server parked, the client must be HOLDING — the same content, retained the
-     * same way, one in markup and one in memory. Without this the carrier could be normalised away
+     * same way, one in markup and one in memory. Without this the carrier could be normalized away
      * while the two sides genuinely disagreed about what survived.
      */
     const parkedText = parked(fromServer);
@@ -161,7 +161,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
  * The two comparisons above hold the server to the client. This holds the HYDRATED result to it —
  * which is the corner that produced this feature's worst defects, because a mismatch there does not
  * merely render differently, it discards the server's DOM and once destroyed the user's content
- * outright. A shape can serialise correctly and still adopt wrongly.
+ * outright. A shape can serialize correctly and still adopt wrongly.
  *
  * The hydrate entry carries its own renderer, so it needs its own wiring; the seam is resolved from
  * the registry `connect()` hands it, exactly as the base entry's is.
@@ -180,7 +180,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     dom.window.document.body.append(fresh);
     renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, fresh);
     await settle();
-    const clientOnly = normalise(fresh.innerHTML);
+    const clientOnly = normalize(fresh.innerHTML);
 
     /** The server's markup, adopted. */
     const hydrated = dom.window.document.createElement('div');
@@ -197,9 +197,9 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     }
 
     assert.deepEqual(warnings.filter((w) => w.includes('fell back to a client render')), [],
-      `adoption bailed, so the server's work was thrown away.\n  server: ${normalise(fromServer)}`);
-    assert.equal(normalise(hydrated.innerHTML), clientOnly,
-      `hydrated and client-only disagree.\n  hydrated: ${normalise(hydrated.innerHTML)}\n  client:   ${clientOnly}`);
+      `adoption bailed, so the server's work was thrown away.\n  server: ${normalize(fromServer)}`);
+    assert.equal(normalize(hydrated.innerHTML), clientOnly,
+      `hydrated and client-only disagree.\n  hydrated: ${normalize(hydrated.innerHTML)}\n  client:   ${clientOnly}`);
     fresh.remove();
     hydrated.remove();
   });
@@ -213,7 +213,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
  * asynchronous one buried it in the unassigned carrier. Nothing about a slots app's own tests could
  * see it, because the component that broke was the one NOT using the feature.
  *
- * A shadow component's serialisation is its declarative shadow template followed by its own light
+ * A shadow component's serialization is its declarative shadow template followed by its own light
  * DOM, and the light DOM is the part that went missing — so it is the part compared here. The
  * platform slots it; nothing in this module may touch it.
  */
@@ -233,7 +233,7 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     const shadowTemplate = [...parsed.children].find((node) => node.hasAttribute('shadowrootmode'));
     assert.ok(shadowTemplate, 'CONTROL: the server emitted a declarative shadow template');
     shadowTemplate.remove();
-    const serverLight = normalise(parsed.innerHTML);
+    const serverLight = normalize(parsed.innerHTML);
 
     const host = dom.window.document.createElement('div');
     host.innerHTML = children;
@@ -242,9 +242,9 @@ for (const [label, [template, children]] of Object.entries(SHAPES))
     renderInto({ strings: Object.assign([template], { raw: [template] }), values: [] }, root);
     await settle();
 
-    assert.equal(serverLight, normalise(host.innerHTML),
+    assert.equal(serverLight, normalize(host.innerHTML),
       `the server and the client disagree about a shadow host's own light DOM.\n` +
-        `  server: ${serverLight}\n  client: ${normalise(host.innerHTML)}`);
+        `  server: ${serverLight}\n  client: ${normalize(host.innerHTML)}`);
     assert.doesNotMatch(fromServer, /data-vm-slotted|data-vm-unassigned/,
       'and no light-slots marker belongs on a component the platform slots');
     host.remove();

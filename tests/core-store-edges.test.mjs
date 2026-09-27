@@ -226,7 +226,7 @@ const watch = async (read) => {
    * internals the reader never wrote. Development replaces it with one naming the actual rule.
    *
    * Skipped under production, where the explanation is folded away and the engine's own message is
-   * what a user sees. The **behaviour** is identical in both builds: it throws either way, which is
+   * what a user sees. The **behavior** is identical in both builds: it throws either way, which is
    * what keeps this a diagnostic rather than a divergence.
    */
   const refusals = [

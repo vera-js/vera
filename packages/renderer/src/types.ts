@@ -58,7 +58,7 @@ export type Part = {
 export type SlotSeamState = { _$park$?: () => void };
 
 /**
- * **An instance hook: per-template behaviour for every instance, with nothing on the hot path.**
+ * **An instance hook: per-template behavior for every instance, with nothing on the hot path.**
  *
  * A `'template'` hook sets one as the template's `_$inst$` while the template is built — only
  * templates that need it carry one, so every other instance pays one property read. For every

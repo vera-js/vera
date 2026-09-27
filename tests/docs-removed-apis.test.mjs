@@ -72,7 +72,7 @@ const REMOVED = {
  * **A retired RULE, which is the half of drift the name list cannot see.**
  *
  * `REMOVED` catches an identifier that no longer exists, because an identifier is a token you can
- * grep. A retired *behaviour* leaves no token: when light-DOM slots stopped requiring a `slot`
+ * grep. A retired *behavior* leaves no token: when light-DOM slots stopped requiring a `slot`
  * attribute on post-render additions, three documents went on teaching the rule — `llms.txt`, the
  * renderer README's "Late children" section, and a sentence inside `slots.ts` — and every suite
  * stayed green, because nothing had been renamed. A reader following any of them would have added

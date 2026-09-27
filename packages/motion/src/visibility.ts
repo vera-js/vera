@@ -21,8 +21,8 @@ import type { RuntimeElement } from './types.js';
  * 2. **Elements start active and are only ever removed on a positive report.**
  *    The tracker can subtract work, never withhold it. If the observer never
  *    fires — an environment without real layout, a browser quirk — every
- *    element stays in the loop and the result is simply the unoptimised
- *    behaviour, which is correct. An optimisation that can silently stop
+ *    element stays in the loop and the result is simply the unoptimized
+ *    behavior, which is correct. An optimization that can silently stop
  *    animations is not worth having.
  */
 
@@ -74,7 +74,7 @@ type VisibilityTracker = {
  * the taller the element the further a percentage of the viewport falls short.
  *
  * It was a flat percentage, and this comment used to say the under-estimate was
- * a missed optimisation rather than a correctness bug, on the grounds that
+ * a missed optimization rather than a correctness bug, on the grounds that
  * anything outside the margin had already been clamped by its exit update. That
  * is only true when the margin covers the whole animating range. Measured in
  * Chromium with an element three times the viewport and keyframes from -100% to

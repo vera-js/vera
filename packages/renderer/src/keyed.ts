@@ -64,12 +64,12 @@ const reconcileRelocated: ListStrategy = (part, newValues, items, parent, end) =
   /**
    * **One reverse pass that both places and creates**, so an item's successor is already final when
    * it is needed — and it is needed twice. Placing reads it as the reference; CREATING reads the
-   * container it lives in, which is the only way a new item can land among its logical neighbours.
+   * container it lives in, which is the only way a new item can land among its logical neighbors.
    *
    * Creating in the host instead would be simpler and is wrong: the observer distributes it later
    * and appends it, so an insertion in the middle of a list arrives at the end. Creating it in the
    * successor's container puts it where native would — and if it names a DIFFERENT slot than its
-   * neighbour, it is in the host's subtree with a `slot` attribute, which is exactly what the
+   * neighbor, it is in the host's subtree with a `slot` attribute, which is exactly what the
    * observer is watching for, so that case corrects itself.
    *
    * `$m` short-circuits an item already in position, which is what keeps this from re-attaching a
@@ -78,7 +78,7 @@ const reconcileRelocated: ListStrategy = (part, newValues, items, parent, end) =
   const successorIn = new Map<Node, Node>();
   for (let i = count - 1; i >= 0; i--) {
     const item = newItems[i];
-    if (item === undefined) continue; // created below, in forward order, once neighbours are final
+    if (item === undefined) continue; // created below, in forward order, once neighbors are final
     const container = part.$f(item).parentNode;
     if (container === null) continue;
     const successor = successorIn.get(container);
@@ -222,7 +222,7 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
          * the whole render down with a `TypeError` naming the renderer's internals rather than
          * anything the caller wrote.
          *
-         * Duplicate keys are documented as undefined behaviour and stay that way — which of the two
+         * Duplicate keys are documented as undefined behavior and stay that way — which of the two
          * keeps the existing node is not specified. Undefined must still mean *a list*, though, not
          * an exception from three frames inside a private algorithm: the shapes that crash are
          * particular (a duplicate **and** a reorder **and** a new key, found by fuzzing over a
@@ -285,7 +285,7 @@ const reconcile: ListStrategy = (part, newValues, items, parent, end) => {
 
 /**
  * Marks a template result with a stable key so list reconciliation moves it instead of rewriting
- * it. Key all items in a list or none — mixing is undefined behaviour, as are duplicate keys.
+ * it. Key all items in a list or none — mixing is undefined behavior, as are duplicate keys.
  *
  * **Undefined means the list is arbitrary, not that the render fails.** With a repeated key, which
  * item keeps the existing node is unspecified; the render still completes and the DOM still holds

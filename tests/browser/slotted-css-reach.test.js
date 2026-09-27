@@ -13,7 +13,7 @@
  * the top-level assigned node DOES apply, proving the stylesheet is live and adopted; without it a
  * typo in the `<style>` would produce three passing assertions and no styling at all.
  *
- * The light half asserts selector semantics, not framework behaviour: in light DOM the distributed
+ * The light half asserts selector semantics, not framework behavior: in light DOM the distributed
  * node is an ordinary descendant of the host, so an ordinary descendant selector reaches it. That
  * is the whole of the advantage, and it needs no framework to demonstrate.
  */

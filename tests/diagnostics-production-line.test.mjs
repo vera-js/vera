@@ -80,7 +80,7 @@ test('the URL is declared once, and the docs artifact agrees with the bundle', a
   assert.equal(published.url, DOCS,
     'the pages and the bundles must name the same place — a released bundle is immutable, so a ' +
     'second copy of this string is a link nobody can ever fix');
-  assert.match(DOCS, /^https:\/\/[a-z.]+\/e\/$/, 'short and permanent: the path can never be reorganised');
+  assert.match(DOCS, /^https:\/\/[a-z.]+\/e\/$/, 'short and permanent: the path can never be reorganized');
 
   /** Every code the bundle can print has somewhere to land. */
   assert.ok(published.entries.length > 100, `only ${published.entries.length} codes — the artifact is stale`);

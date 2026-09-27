@@ -80,7 +80,7 @@ const stickyAbove = (element: HTMLElement | null): HTMLElement[] | null => {
  * `displacementOf` used to decline entirely under a sticky ancestor instead, which cost it the
  * correction it exists for: the inertia lab's five tracks sit inside a sticky stage **and** carry
  * a per-row transform, so declining left every row's timeline off by its own offset and the
- * tracks stopped lining up. One neutralisation serves both readings and neither has to choose.
+ * tracks stopped lining up. One neutralization serves both readings and neither has to choose.
  *
  * The inline value is saved and restored rather than cleared: it may be the author's, and it may
  * be the `position: sticky` that `pin` wrote.

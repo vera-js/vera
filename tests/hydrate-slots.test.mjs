@@ -402,7 +402,7 @@ test('AUDIT — a non-zero slotted offset rescues the user content, not the comp
 });
 
 /**
- * **Serialisation is where node identity dies, and the mark counts nodes.**
+ * **Serialization is where node identity dies, and the mark counts nodes.**
  *
  * `data-vm-slotted="offset,count"` addresses the user's content by position among the parent's
  * children — as they are ON THE SERVER. The client's parser joins adjacent text into one node, so
@@ -422,7 +422,7 @@ test('AUDIT — a non-zero slotted offset rescues the user content, not the comp
  * bytes for the same reason.
  *
  * All four shapes below produced corrupted hydration before the fix, and each names a different
- * neighbour, which is what makes them worth having as four rather than one.
+ * neighbor, which is what makes them worth having as four rather than one.
  */
 for (const [shape, want] of [
   ['tail', 'BODY TAIL'],
@@ -549,7 +549,7 @@ test('AUDIT — non-server children: named survive, and the warning names the po
   host.remove();
 });
 
-/** The behavioural half of the test above, valid in BOTH builds: a `slot` attribute is proof of
+/** The behavioral half of the test above, valid in BOTH builds: a `slot` attribute is proof of
  *  ownership, so a named node survives the bail even when nothing else can. */
 test('AUDIT — non-server children: the named node survives the bail in any build', async () => {
   const host = dom.window.document.createElement('mm-host-prod');

@@ -75,7 +75,7 @@ const bestRatio = (dear, cheap, reps, rounds = 7) => {
   return { ratio, dear: sample[0], cheap: sample[1] };
 };
 
-/** Accumulated into a global so nothing can be optimised away as unused. */
+/** Accumulated into a global so nothing can be optimized away as unused. */
 globalThis.__perfSink = 0;
 const walk = (list) => {
   let sum = 0;
@@ -96,7 +96,7 @@ test('a deep store is far more expensive to walk than a shallowRef, which is why
 
   /**
    * Measured at ~300x. Asserted at 20x, which is far enough below to survive any machine and far
-   * enough above 1x to fail loudly if `_ignore` ever stops being honoured — which it did once
+   * enough above 1x to fail loudly if `_ignore` ever stops being honored — which it did once
    * before, when only the returned value was checked and never the owner, and `shallowRef` silently
    * did nothing at all.
    */

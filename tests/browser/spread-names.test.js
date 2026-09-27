@@ -22,7 +22,7 @@ const into = () => {
  * name that is also a regular-expression metacharacter has to survive that intact — `a|title`
  * became an alternation and removed an attribute it never named. These bind normally on both sides.
  */
-it('binds a legal name that is a regex metacharacter, and leaves its neighbour alone', () => {
+it('binds a legal name that is a regex metacharacter, and leaves its neighbor alone', () => {
   for (const key of ['a|b', 'a.b', 'a*b', 'a+b', 'a(b)', 'a[b]', 'a{b}', 'a?b', 'a$b', 'a^b']) {
     const container = into();
     renderInto(html`<b title="keep" ${spread({ [key]: '1' })}>x</b>`, container);

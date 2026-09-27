@@ -160,7 +160,7 @@ const step = (label, container, before, next) => {
 /**
  * **A repeated key used to crash the render**, and then — once the crash was fixed — to lose a row.
  *
- * `keyed` documents duplicate keys as undefined behaviour, and they stay that way: which of two
+ * `keyed` documents duplicate keys as undefined behavior, and they stay that way: which of two
  * items keeps the existing node is not specified. Undefined has to mean *a list*, though, and it
  * meant neither of these:
  *
@@ -232,7 +232,7 @@ const step = (label, container, before, next) => {
     console.warn = warn;
   }
 
-  /** Undefined behaviour is worth saying out loud, since it behaves correctly most of the time. */
+  /** Undefined behavior is worth saying out loud, since it behaves correctly most of the time. */
   if (!isProduction) {
     if (said.some((line) => /^\[vera\] keyed: the key /.test(line))) pass++;
     else failures.push('a duplicate key produced no warning in development');

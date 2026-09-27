@@ -268,7 +268,7 @@ const CASES = {
   /**
    * **Attribute names**, where HTML and SVG disagree with each other. HTML lower-cases every
    * attribute name; SVG does not, and `viewBox` written `viewbox` is simply a different attribute
-   * that no renderer honours. A serializer emits text for a parser to read, so it has to leave the
+   * that no renderer honors. A serializer emits text for a parser to read, so it has to leave the
    * author's case alone and let each namespace apply its own rule — the client has no choice but to.
    */
   'an uppercase attribute name in HTML': 'html`<b TITLE=${"v"}>x</b>`',
@@ -304,7 +304,7 @@ const CASES = {
  * A `U+0000` cannot travel through markup: the HTML parser replaces it with `U+FFFD` in an attribute
  * value, and a numeric character reference to it is replaced too, so no encoding round-trips. The
  * client sets the attribute through `setAttribute` and keeps the byte. Nothing a serializer can do
- * changes that, and a renderer that sanitised the author's string to match would be worse.
+ * changes that, and a renderer that sanitized the author's string to match would be worse.
  */
 const KNOWN_DIVERGENCES = {
   /**

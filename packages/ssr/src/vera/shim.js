@@ -102,9 +102,9 @@ const windowEvents = new EventTarget();
 /**
  * Shared by `createTreeWalker` and `createNodeIterator`, which differ in surface rather than in what
  * they visit: a tree walker can also be steered with `parentNode`/`firstChild`/`nextSibling`, while
- * an iterator only goes forwards and backwards. Both honour `whatToShow` and a filter, and both
+ * an iterator only goes forwards and backwards. Both honor `whatToShow` and a filter, and both
  * visit in document order — the root included for an iterator and not for a walker, which is the
- * one behavioural difference between them.
+ * one behavioral difference between them.
  *
  * @param {any} root @param {number} [whatToShow] @param {any} [filter] @param {boolean} [isWalker]
  */
@@ -539,7 +539,7 @@ export const installShims = () => {
   Object.setPrototypeOf(globalThis.document, globalThis.Document.prototype);
 
   /**
-   * Enough `window` for `@verajs/router` to initialise.
+   * Enough `window` for `@verajs/router` to initialize.
    *
    * Without it, a component calling `initRouter` threw `window is not defined` and could not be
    * server-rendered at all — which rules out the app shell of every routed app, the exact thing

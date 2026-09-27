@@ -88,7 +88,7 @@ test('the exclusions are all real entry points, so the list cannot rot', () => {
  * that use it would keep skipping a check that had become available.
  *
  * Agreement between two copies of a rule is not evidence the rule is about anything. This is the
- * generalisation the omni engine's session drew out of its own collapse-list find, applied here.
+ * generalization the omni engine's session drew out of its own collapse-list find, applied here.
  */
 test('every bundle the suites can resolve actually exists, in both builds', () => {
   const missing = [];

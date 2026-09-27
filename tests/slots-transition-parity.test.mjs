@@ -613,7 +613,7 @@ test('renaming a slot between empty names fires no slotchange', async () => {
  * The capture walk excludes comments by node type on its way past them (they become landmarks),
  * and the renderer's own markers carry the ownership stamp — so two layers already protect the
  * framework's nodes. A comment the USER adds after the first render has neither: it arrives
- * through the observer, and the type check inside `slotNameOf` is the whole defence.
+ * through the observer, and the type check inside `slotNameOf` is the whole defense.
  *
  * Found by mutation: making comments slottable passes the entire suite. The reason it hides is
  * that a comment renders nothing, so the visible output is identical either way — the assignment

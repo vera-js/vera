@@ -146,7 +146,7 @@ test('a tag names one element, and nothing else becomes markup', () => {
 });
 
 /**
- * The collision itself, stated as behaviour rather than as a rule about names — so that a future
+ * The collision itself, stated as behavior rather than as a rule about names — so that a future
  * rewrite which widens the grammar cannot pass this by keeping the regex and losing the property.
  */
 test('two tag assignments at one call site cannot reuse each other\'s markup', () => {

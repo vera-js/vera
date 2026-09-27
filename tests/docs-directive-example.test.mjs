@@ -69,7 +69,7 @@ test('the documented until() renders its placeholder and then its value', async 
 
 /**
  * The rule the example exists to demonstrate: continuity lives in the return value. Rendering the
- * same promise again must recognise it and do nothing, rather than committing the placeholder over
+ * same promise again must recognize it and do nothing, rather than committing the placeholder over
  * a value that has already arrived.
  */
 test('rendering the same promise again does not restart it', async () => {
@@ -109,7 +109,7 @@ test('a superseded promise does not overwrite the newer one', async () => {
 
 /**
  * The first of the three traps the README names, asserted as a trap: written as an object-literal
- * method the applier is a new function per call, so the part cannot recognise it and `previous` is
+ * method the applier is a new function per call, so the part cannot recognize it and `previous` is
  * always `undefined`. Kept here because it is the mistake the hoisting rule exists to prevent, and a
  * rule with no demonstration is a rule people talk themselves out of.
  */

@@ -62,7 +62,7 @@ wire([
 test('the seam is resolved per TEMPLATE and cached — one consultation per shape, per instance', () => {
   /**
    * Replaces a placeholder that asserted `true` and measured nothing (the house rule: a probe that
-   * measures nothing reports perfect behaviour). What is actually contracted: the registry is read
+   * measures nothing reports perfect behavior). What is actually contracted: the registry is read
    * at template CONSTRUCTION, so a shape records its slots once and every later instance of that
    * same shape reuses the record — consulting the handler once per slot per instance, never
    * re-reading the registry. This is why wiring must precede the first render (documented in the

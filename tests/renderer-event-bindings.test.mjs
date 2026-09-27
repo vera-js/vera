@@ -53,7 +53,7 @@ const listen = (work) => {
   return said;
 };
 
-test('the platform accepts an object listener, so this is the behaviour to match', () => {
+test('the platform accepts an object listener, so this is the behavior to match', () => {
   let fired = 0;
   const button = dom.window.document.createElement('button');
   button.addEventListener('click', { handleEvent() { fired++; } });

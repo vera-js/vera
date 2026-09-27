@@ -6,12 +6,12 @@
  * `ssr-select-parity` each carry their own version of this check for the limitation they cover.
  *
  * The second sweep found the pattern had been applied unevenly — three limitations written during
- * that session had the *behaviour* tested and nothing tying the prose to it, so the sentence could be
+ * that session had the *behavior* tested and nothing tying the prose to it, so the sentence could be
  * edited away and every suite would stay green. This file is the one place that catches that, for all
  * of them at once, rather than each remembering to do it.
  *
  * A limitation belongs here when it is something a user will hit and cannot deduce: a platform rule
- * the framework steers them into, or a behaviour that differs from what the name promises.
+ * the framework steers them into, or a behavior that differs from what the name promises.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

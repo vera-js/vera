@@ -107,7 +107,7 @@ test('only the FIRST fault is reported, whichever kind comes first', () => {
 
 test('a boolean attribute set to the empty string is TRUE', () => {
   /**
-   * `hidden=""` is what the PLATFORM serialises a set boolean to, so reading it as false inverted
+   * `hidden=""` is what the PLATFORM serializes a set boolean to, so reading it as false inverted
    * every attribute on markup round-tripped through the DOM. `tests/hydrate-parity.test.mjs` already
    * recorded `<b hidden="">` as `?hidden=${true}` on the renderer side, so this half disagreed with
    * the repo's own fixture. `hidden="false"` staying false is the one deliberate divergence.

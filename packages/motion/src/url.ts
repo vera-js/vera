@@ -33,7 +33,7 @@ export const parseUrl = (
   /**
    * Reject anything that could be a scheme we do not want resolving —
    * javascript:, data:, blob:, vbscript: — before URL() gets a chance to
-   * normalise it into something that looks benign.
+   * normalize it into something that looks benign.
    */
   if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^https?:/i.test(value)) {
     return null;
@@ -58,12 +58,12 @@ export const parseUrl = (
    * mutation testing: removing it left the whole suite green, so the first
    * version of this comment — which claimed it was the only thing stopping
    * `java<TAB>script:` — was wrong. `URL()` does strip tabs and newlines, so
-   * that string evades the scheme test above and normalises into a real
+   * that string evades the scheme test above and normalizes into a real
    * `javascript:` URL; but its origin is `"null"`, and the same-origin check
    * below rejects it anyway.
    *
    * The scheme this actually catches is `blob:`. `bl<TAB>ob:https://site.test/x`
-   * evades the scheme test the same way, and then normalises to an origin that
+   * evades the scheme test the same way, and then normalizes to an origin that
    * **equals the page's own** — so the origin check passes it and this line is
    * the only thing left. Verified against the real parser.
    */

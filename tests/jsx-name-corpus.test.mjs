@@ -179,7 +179,7 @@ test('every module the transform can be handed still parses and runs', async () 
     rmSync(dir, { recursive: true, force: true });
   }
 
-  /** A corpus that generated nothing would report perfect behaviour. */
+  /** A corpus that generated nothing would report perfect behavior. */
   assert.ok(built > 900, `the matrix built ${built} modules, which is too few to mean anything`);
   assert.equal(ran, built, `every module must evaluate\n  ${failures.slice(0, 8).join('\n  ')}`);
   assert.deepEqual(failures, [], `modules the transform broke:\n  ${failures.slice(0, 8).join('\n  ')}`);

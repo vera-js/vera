@@ -104,7 +104,7 @@ for (const { name, set, read, fresh } of cases) {
 /**
  * Focus is separated out because it is the one that cannot be read from the parked subtree — a
  * detached element is not `document.activeElement` — so the assertion is that it comes *back*, which
- * is the behaviour a person notices.
+ * is the behavior a person notices.
  */
 it('hold brings focus back to the element that had it', async function () {
   const { host, show } = toggler(hold);
@@ -182,7 +182,7 @@ it('a scroll offset does not survive, because the engine discards it', async fun
   const host = document.createElement('div');
   document.body.appendChild(host);
   try {
-    /** First: the engine's own behaviour, with no framework involved. */
+    /** First: the engine's own behavior, with no framework involved. */
     const box = document.createElement('div');
     box.style.cssText = 'height: 40px; overflow: auto';
     box.innerHTML = '<div style="height: 400px"></div>';

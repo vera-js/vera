@@ -103,7 +103,7 @@ check('no styles at all contributes nothing', results['shape-none'].length === 0
  * renders identically, which is why the escape costs nothing.
  */
 check(
-  'a value that closes the style element is neutralised',
+  'a value that closes the style element is neutralized',
   results['shape-hostile'].join('').includes('<\\/style') && !results['shape-hostile'].join('').includes('</style>'),
   JSON.stringify(results['shape-hostile'])
 );
@@ -149,7 +149,7 @@ test('a stylesheet always holds text, and refuses a symbol as the engines do', (
  * reaches it first sets them, and every later request serves those. That rule is deliberate: it is
  * what stops a per-class sheet being emitted once per instance. What was wrong is that a component
  * whose CSS depends on the request had that variation discarded in silence, so the second visitor
- * got the first visitor's colours with nothing anywhere to explain it.
+ * got the first visitor's colors with nothing anywhere to explain it.
  *
  * Found while building the concurrency gate for the async-render work: a fixture written to make a
  * hoist leak visible could not, *because* this rule had already thrown the difference away.

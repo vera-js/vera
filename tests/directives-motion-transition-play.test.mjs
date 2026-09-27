@@ -90,7 +90,7 @@ test('a shaped single member synthesizes linear() — overshoot points and all',
   const el = host.querySelector('div');
   assert.match(el.getAttribute('data-vm-motion') ?? '', /^[0-9a-z]{14}$/);
   const css = sheetText();
-  /** Normalised (v−v0)/(vN−v0): 24→0 over the run, so the −5 dip lands PAST 1 — overshoot. */
+  /** Normalized (v−v0)/(vN−v0): 24→0 over the run, so the −5 dip lands PAST 1 — overshoot. */
   assert.match(css, /transition-timing-function: linear\(0 0%, 1\.20[0-9]* 70%, 1 100%\)/,
     'the value trajectory IS the timing function, overshoot legal');
   host.remove();
@@ -134,7 +134,7 @@ test('the ramp fallback holds exactly the agreed matrix', async () => {
   }
 });
 
-test('pulse shapes still PLAY on the ramp — the fallback is behaviour, not a refusal', async () => {
+test('pulse shapes still PLAY on the ramp — the fallback is behavior, not a refusal', async () => {
   const host = await mount(
     `<div data-vd-motion="{ keyframes: { opacity: '0% 0, 50% 1, 100% 0' }, when: '.go', play: 0.3 }">x</div>`);
   const el = host.querySelector('div');

@@ -37,7 +37,7 @@ Regenerate with `node bench/size.mjs` and `node bench/reactivity.mjs`.
 Being wrong once in public costs more than every correct claim gains.
 
 - **Not "replaces React".** Nobody migrates off React for bundle size; they stay for the ecosystem
-  and the hiring pool. The claim invites judgement on the one axis you cannot win.
+  and the hiring pool. The claim invites judgment on the one axis you cannot win.
 - **Not "fastest".** Solid compiles to direct DOM updates; VeraJS re-runs templates and diffs. Its
   update ceiling is Vue/React-class. See [performance.md](performance.md).
 - **Not core's standalone size.** Core ships no renderer, so `@verajs/core` on its own cannot put

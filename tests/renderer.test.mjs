@@ -431,7 +431,7 @@ test('onClick-style bindings attach listeners; onclick stays an attribute', () =
 // ── value injection ─────────────────────────────────────────────────────────
 //
 // Interpolated values are DATA, never markup. The renderer writes them with `.data` and
-// `setAttribute` rather than parsing HTML, so this is structural rather than a sanitiser — which
+// `setAttribute` rather than parsing HTML, so this is structural rather than a sanitizer — which
 // is exactly why it deserves assertions. These moved here from `inserts-registry.test.mjs` when
 // core's default renderer (and its escaping) was removed in 0.2.0.
 

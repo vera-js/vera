@@ -113,7 +113,7 @@ test('AN UNKNOWN $var IS REFUSED — once, and with what this event does offer',
   }
 
   /** THE POINT: silence would have written an empty string and read on screen as a filter that
-   *  matches everything — a working page with wrong behaviour. */
+   *  matches everything — a working page with wrong behavior. */
   assert.equal(stateOf(host.querySelector('[data-vd-state]')).q, '', 'nothing was written from a name that does not exist');
   host.remove();
   await settled();

@@ -86,7 +86,7 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
       if (__DEV__) noteWrite();
 
       /**
-       * Coalesced with a flag rather than cancel-and-reschedule. Cancelling meant a `cancel` plus a
+       * Coalesced with a flag rather than cancel-and-reschedule. Canceling meant a `cancel` plus a
        * fresh `schedule` per write; a flag skips both for every write after the first, and works
        * whatever the scheduler is — a microtask has nothing to cancel.
        */
@@ -94,7 +94,7 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
        * **Stranded passes are re-queued rather than waited on forever.** A scheduler that drops the
        * pass leaves `queued` raised and the component never renders again; once that scheduler has
        * been *replaced*, whatever it was holding is provably never going to run, so the guard stops
-       * honouring it. Re-queueing may render twice in the rare case where the old scheduler does fire
+       * honoring it. Re-queueing may render twice in the rare case where the old scheduler does fire
        * after all, which is idempotent and enormously preferable to a component that is simply dead.
        */
       if (queued && queuedUnder === schedulerGeneration) return;

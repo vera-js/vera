@@ -21,7 +21,7 @@ export const MODULES = [
   { pkg: 'store', dist: 'packages/store/dist/vera-store.min.js', what: 'the standalone store — subscriptions without components' },
   { pkg: 'jsx', dist: 'packages/jsx/dist/vera-jsx.min.js', what: 'the JSX transform + Vite plugin — build-time, never shipped to a page' },
   { pkg: 'standalone', dir: 'jsx', dist: 'packages/jsx/dist/vera-jsx-standalone.min.js', what: 'JSX in the browser with no build — the CodePen path' },
-  { pkg: 'computed', dir: 'store', dist: 'packages/store/dist/vera-store-computed.min.js', what: 'memoised derived values' },
+  { pkg: 'computed', dir: 'store', dist: 'packages/store/dist/vera-store-computed.min.js', what: 'memoized derived values' },
   { pkg: 'collections', dir: 'store', dist: 'packages/store/dist/vera-store-collections.min.js', what: 'reactive `Map` and `Set` in a store' },
   { pkg: 'keyed', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-keyed.min.js', what: '`keyed()` — keyed list reconciliation' },
   { pkg: 'slots', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-slots.min.js', what: '`<slot>` distribution in a LIGHT-DOM component, and `slotted()`' },
@@ -29,7 +29,7 @@ export const MODULES = [
   { pkg: 'hydrate', dir: 'renderer', dist: 'packages/renderer/dist/vera-renderer-hydrate.min.js', what: 'INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it' },
   { pkg: 'inserts', dist: 'packages/inserts/dist/vera-inserts.min.js', what: 'the extension point' },
   /**
-   * `@verajs/directives` enrols per ENTRY, not as one number, because one number is the thing that
+   * `@verajs/directives` enrolls per ENTRY, not as one number, because one number is the thing that
    * misleads here: the root bundle re-exports every pack and reads ~31 KB, while an app wiring the
    * engine plus expressions and interaction ships a third of that and one wiring motion pays more
    * than the rest combined. A single figure would be true of a bundle almost nobody builds.

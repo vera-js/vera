@@ -4,11 +4,11 @@
  * They were object literals with an `innerHTML` string: no identity, no parent, no `nodeType`, and
  * appending one inlined its markup and lost the node. `childNodes` therefore reported `1` for
  * `text <b>bold</b> tail` where every browser says `3`, and `textContent` answered `a &amp; b` for
- * an element holding the text `a & b`, because it stripped tags out of the serialised markup with a
+ * an element holding the text `a & b`, because it stripped tags out of the serialized markup with a
  * regular expression instead of walking anything.
  *
  * jsdom is a fair oracle here for the same reason as the tree operations next door: this is the
- * spec's node model, not an engine judgement call.
+ * spec's node model, not an engine judgment call.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -158,6 +158,6 @@ test('every shape still reproduces its own markup', () => {
     const host = document.createElement('div');
     host.innerHTML = markup;
     void host.childNodes;
-    assert.equal(host.innerHTML, markup, `re-serialising changed ${JSON.stringify(markup)}`);
+    assert.equal(host.innerHTML, markup, `re-serializing changed ${JSON.stringify(markup)}`);
   }
 });

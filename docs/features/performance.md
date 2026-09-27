@@ -59,7 +59,7 @@ everywhere except `clear`:
 
 `clear` is **lit-html's cost, not VeraJS's** — Lit itself scores 9.6 on the same test, because
 lit-html removes list nodes one at a time where the others replace the subtree. It was the one
-operation the old table had to apologise for, and switching to `@verajs/renderer` removes it.
+operation the old table had to apologize for, and switching to `@verajs/renderer` removes it.
 
 ## The numbers
 
@@ -95,7 +95,7 @@ This was profiled for the first time in August 2026 and the first pass found fou
 | tracked read, 2 hops | 6 045 ns | ~630 ns |
 | write + propagation | 1 905 ns | ~900 ns |
 
-Plus two correctness bugs that were costing far more than any micro-optimisation:
+Plus two correctness bugs that were costing far more than any micro-optimization:
 
 - **Dependency sets grew without bound.** A new `WeakRef` per hook run meant `Set.add` never deduped,
   so writes degraded **1 810x over 2 000 re-runs** — an app got slower the longer it ran. Now flat
@@ -138,7 +138,7 @@ document stops being evidence, so there is one table now and everything else poi
 ## Caveats
 
 - **The reactivity figures are jsdom on V8**, and only those. Proxy, allocation and `Map` costs are
-  representative of a browser; layout and paint are not modelled, which is exactly why the
+  representative of a browser; layout and paint are not modeled, which is exactly why the
   cross-framework table is measured in a real one instead.
 - **The browser table is one machine.** Absolute milliseconds are machine-specific and the ratios
   are the claim. `node bench/dom/run.mjs 7` reproduces it; fewer sessions than that will not, because

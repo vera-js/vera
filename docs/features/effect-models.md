@@ -61,7 +61,7 @@ what moved across a batch.
 
 ## Why this exists
 
-The coalesced form was not always there, and the old behaviour was worse than either camp. Because
+The coalesced form was not always there, and the old behavior was worse than either camp. Because
 effects were deferred to an animation frame, N writes produced N runs that all executed *after* every
 write — so all of them read the same final value. Measured: `[3,3,3]`.
 

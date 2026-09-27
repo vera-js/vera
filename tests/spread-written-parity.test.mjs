@@ -2,7 +2,7 @@
  * The sigil grammar has two client implementations — AttrPart commits written bindings, spread's
  * Binding commits runtime bags — and they are the drift-prone kind of deliberate duplication: one
  * grammar, two code paths, no shared code (spread exists precisely because template call sites
- * cannot hold runtime names). `tests/spread.test.mjs` pins spread's own behaviour case by case;
+ * cannot hold runtime names). `tests/spread.test.mjs` pins spread's own behavior case by case;
  * nothing compared the two paths on the SAME key and value until this file. The server halves have
  * their twin pinned the same way (`spread-ssr.test.mjs`: "written and spread serialize
  * identically", and the unsafe-name test beside it).
@@ -44,7 +44,7 @@ const VALUES = ['s', '', '0', 0, 5, true, false, null, undefined, { toString: ()
 const EVENTS = ['click', 'custom-thing'];
 
 const mount = () => { const h = doc.createElement('div'); doc.body.append(h); return h; };
-/** A written call site built per case — creation behaviour is what is compared, so per-case
+/** A written call site built per case — creation behavior is what is compared, so per-case
  *  template identity is correct here, not the two-templates trap. */
 const written = (prefix, value, tag = 'i', close = '></i>') => {
   const strings = Object.assign([`<${tag} ${prefix}`, close], { raw: [`<${tag} ${prefix}`, close] });

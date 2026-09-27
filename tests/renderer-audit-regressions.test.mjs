@@ -77,7 +77,7 @@ test('the base renderer names the tag entry for an expression in tag position', 
 
 /**
  * Writing `_$child$` as an object-literal method makes a new function per render, so the part never
- * recognises it, `previous` is `undefined` forever, and the directive silently restarts on every
+ * recognizes it, `previous` is `undefined` forever, and the directive silently restarts on every
  * pass. It is the first rule in the renderer README and it fails without a symptom — which is
  * exactly the kind of trap a framework should say out loud.
  */

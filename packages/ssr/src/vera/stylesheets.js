@@ -132,7 +132,7 @@ export const hoist = (cssText) => {
   if (sheets && !hoistedThisRender.has(renderingTag)) {
     /**
      * **Silence here was the sharp edge.** A component whose CSS depends on the request — a theme,
-     * a colour from a prop — has that variation dropped: whichever render arrived first set this
+     * a color from a prop — has that variation dropped: whichever render arrived first set this
      * tag's sheets for the life of the process, and every later request quietly serves those. The
      * rule is deliberate and stays, because a per-class sheet emitted per instance is what it exists
      * to prevent. What was wrong was that nothing said so.

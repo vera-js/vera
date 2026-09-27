@@ -107,7 +107,7 @@ test('a guard sees ROUTE space — the base never reaches a snapshot', async () 
  * The row that failed when this battery first ran. An unknown name resolved to `''`, the empty
  * string resolved to the current page, and the same-path early return answered `true` — a reported
  * SUCCESS for a typo. `resolve` warns with the name in development; the return value is the
- * behavioural contract and holds in production too.
+ * behavioral contract and holds in production too.
  */
 test('an unknown route name moves nothing and does not claim success', async () => {
   await from('/docs');

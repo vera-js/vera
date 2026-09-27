@@ -146,7 +146,7 @@ test('the comparison notices markup that does not match the template', () => {
  * response and the reason attributes are not worth a mismatch.
  *
  * It is here because it was written into the control above first, where it read as the control
- * failing. A behaviour that looks like a missed detection until you read why is worth an assertion
+ * failing. A behavior that looks like a missed detection until you read why is worth an assertion
  * of its own.
  */
 test('an attribute the server got wrong is repaired rather than thrown away', () => {

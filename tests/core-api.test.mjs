@@ -2,7 +2,7 @@
  * Public API of `@verajs/core` that nothing else exercises.
  *
  * The 2026-08-22 testing audit found fourteen exported functions with zero coverage. These are the
- * core ones. Each test asserts the behaviour the export exists *for*, so deleting the export or
+ * core ones. Each test asserts the behavior the export exists *for*, so deleting the export or
  * gutting it fails here rather than passing quietly.
  *
  * Tests the BUILT artifacts, development AND production (see ./dist.mjs).

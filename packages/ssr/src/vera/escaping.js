@@ -58,7 +58,7 @@ export const escapeHtml = (value) => {
 };
 
 /**
- * Neutralise a `</style>` sequence inside CSS text.
+ * Neutralize a `</style>` sequence inside CSS text.
  *
  * `<style>` is a raw-text element: its content is not HTML, so `escapeHtml` cannot be used here —
  * it would turn every `>` in a selector into `&#62;` and break the stylesheet. The only sequence
@@ -82,7 +82,7 @@ export const escapeHtml = (value) => {
 export const escapeStyleText = (value) => `${value}`.replace(/<\/(style)/gi, '<\\/$1');
 
 /**
- * The same neutralisation, for whichever RAWTEXT element the value landed in.
+ * The same neutralization, for whichever RAWTEXT element the value landed in.
  *
  * `<style>` and `<script>` are the only two: a browser does not decode a character reference inside
  * either, so escaping their content protects nothing and corrupts it. Interpolating `.a > .b` into a

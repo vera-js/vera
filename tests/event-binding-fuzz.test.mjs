@@ -8,7 +8,7 @@
  * 1. **One click runs the live handler exactly once**, however many times the handler has been
  *    swapped, including through `undefined`, `false`, `null` and back.
  * 2. **The live handler is the last one bound**, and no earlier one survives alongside it.
- * 3. **Replacing the element in the template detaches its behaviour** — a click on what is there now
+ * 3. **Replacing the element in the template detaches its behavior** — a click on what is there now
  *    does not reach a handler bound to what was there before.
  *
  * ## The dedup this quietly depends on
@@ -25,7 +25,7 @@
  * notice, which is why it counts *fires* rather than `addEventListener` calls.
  *
  * A first version asserted `addEventListener` was called at most once per element and reported 153
- * failures; the call count is 2 and the behaviour is right. It also asserted that a handler must not
+ * failures; the call count is 2 and the behavior is right. It also asserted that a handler must not
  * fire on an element removed from the template — but dispatching directly on a detached node runs its
  * listeners in any DOM, with or without a framework, so that invariant was about the platform rather
  * than about this code.

@@ -41,8 +41,8 @@ const SETTLE_MS = 250;
 /**
  * **Wait until nothing is animating, and keep checking — do not sample once and hope.**
  *
- * The menu opens and closes on a transition, and axe's colour-contrast rule reads COMPUTED colour,
- * so auditing while a pill is still interpolating measures a half-faded colour and reports a
+ * The menu opens and closes on a transition, and axe's color-contrast rule reads COMPUTED color,
+ * so auditing while a pill is still interpolating measures a half-faded color and reports a
  * violation that exists in neither end state. Green on its own, red inside the full three-browser
  * gate, green again next run — the worst way for a check to behave, because it teaches you to
  * re-run rather than to look.
@@ -62,7 +62,7 @@ const rounds = 8;
  * `document.getAnimations()` does not report animations running inside a SHADOW TREE on WebKit, and
  * this component's menu lives in one — so the wait found nothing to wait for and returned straight
  * into the fade it was meant to outlast, which is the same failure the paragraph above describes
- * with a different cause. It cost a false colour-contrast violation on Linux WebKit while Chromium,
+ * with a different cause. It cost a false color-contrast violation on Linux WebKit while Chromium,
  * Firefox and macOS WebKit stayed green. `ShadowRoot.getAnimations()` reports them, so ask both.
  */
 const settle = async (root) => {
@@ -134,7 +134,7 @@ const audit = async (name, { setup, value, open = false, type } = {}) => {
    * and nothing else, which is the rule's generic help text and identifies neither the element nor
    * the ratio. When exactly that fired on Linux WebKit in CI — while Chromium, Firefox and macOS
    * WebKit all passed — there was no way to tell a real contrast miss from an engine difference in
-   * how the colours resolve, and nothing to reproduce from. A failure that cannot be acted on is a
+   * how the colors resolve, and nothing to reproduce from. A failure that cannot be acted on is a
    * failure that gets muted.
    */
   const summary = results.violations

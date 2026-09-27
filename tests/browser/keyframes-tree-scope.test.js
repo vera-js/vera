@@ -13,7 +13,7 @@
  *   | Firefox  | unresolved (1) — no fallback |
  *   | WebKit   | RESOLVED (0.6) — falls back |
  *
- * So neither behaviour can be relied on. A generated stylesheet emitted once in the head would work
+ * So neither behavior can be relied on. A generated stylesheet emitted once in the head would work
  * in WebKit and silently do nothing in Chromium and Firefox — for a framework whose normal case is
  * shadow DOM, that is a bug a user finds, not us. **The sheet must be emitted into the tree that uses
  * it**, which is forced rather than chosen, and is what the load-bearing test below pins.
@@ -225,7 +225,7 @@ it('ORDER MATTERS: deliver the rule BEFORE the element references it', async () 
    * **A WebKit divergence, and the reason the registry delivers before it marks.** Adding a rule to
    * an already-adopted sheet does NOT re-resolve an animation name the element is already carrying:
    * Chromium and Firefox pick it up, WebKit leaves the element unanimated for ever (measured at
-   * 250ms, so not a timing artefact).
+   * 250ms, so not a timing artifact).
    *
    * Insert first, then set the animation, and all three agree. That is the natural order for the
    * registry anyway — generate, deliver, then mark the element — so the rule costs nothing to

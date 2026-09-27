@@ -95,7 +95,7 @@ position:
 - **`'init'` and `'render'` run inside `init()` and the render, so a throw surfaces there.** And the
   chain **stops** there: an insert is not isolated from the ones beside it, so every insert after
   the failing one is skipped. `'init'` is where per-element setup hooks in, so one throwing module
-  keeps the rest from initialising at all — which is why the practical rule below matters most
+  keeps the rest from initializing at all — which is why the practical rule below matters most
   here.
 - **`'error'` is the one that must not throw.** It is already handling a failure, and a throw from it
   replaces the error being reported with its own.

@@ -131,7 +131,7 @@ test('the consolidation held — no package that CAN import keeps a private copy
 
 /**
  * The content check, as ONE function both tests call. The floor below used to carry its own copy of
- * this loop, so it proved the copy recognised every spelling while the real check could be narrowed
+ * this loop, so it proved the copy recognized every spelling while the real check could be narrowed
  * back to `new Set([` — the exact defect it was written against — and stay green.
  */
 function restatedLists(source) {
@@ -146,11 +146,11 @@ function restatedLists(source) {
 }
 
 /**
- * The floor for the check above: it reads real files, so if the spellings it recognises ever stop
+ * The floor for the check above: it reads real files, so if the spellings it recognizes ever stop
  * appearing there it would pass by matching nothing. These are synthetic sources, so the assertion is
  * about the PATTERN rather than about today's tree.
  */
-test('and that content check recognises every spelling a copy could use', () => {
+test('and that content check recognizes every spelling a copy could use', () => {
   const names = [...RAW_TEXT];
   const detects = (src) => restatedLists(src).restated.includes('RAW_TEXT_ELEMENTS');
   const list = (q) => names.map((n) => `${q}${n}${q}`).join(', ');
@@ -170,7 +170,7 @@ test('and that content check recognises every spelling a copy could use', () => 
 /**
  * The half that a source read cannot do: drive the renderer's OWN copy through its OWN consumer,
  * over every element HTML defines. A regex can agree with the spec name-for-name and still be
- * wrong — a dropped anchor, a stray alternation — and only the behaviour shows it.
+ * wrong — a dropped anchor, a stray alternation — and only the behavior shows it.
  *
  * This is the shape the audit settled on after `tests/jsx-equivalence.test.mjs` was found to have
  * written the defect into both halves of five of its own pairs: a pin has to reach the home where

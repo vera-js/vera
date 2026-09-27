@@ -5,7 +5,7 @@
  * and wrong for a spread: a spread carries *attributes*, and attributes are exactly what server
  * markup is made of. Lit's spread PR flagged SSR as unresolved; this is the half that makes it work.
  *
- * The division of labour is the interesting part. `@verajs/renderer/spread` knows what a key *means* —
+ * The division of labor is the interesting part. `@verajs/renderer/spread` knows what a key *means* —
  * `.value` is a property, `?disabled` a boolean, `onClick` an event — and hands back resolved
  * bindings. `@verajs/ssr` decides what belongs in markup and does every bit of the escaping, so the
  * escape boundary stays in one place per principle #8 and a new binding source cannot introduce a

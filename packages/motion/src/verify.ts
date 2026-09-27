@@ -78,7 +78,7 @@ const expectedNames = (generated: Generated): Set<string> => {
 
 /**
  * Verifies one delivered element, one frame after its mark. Skips — deliberately, each for a
- * reason — reduced-motion contexts (the emitted neutralisers legitimately zero everything),
+ * reason — reduced-motion contexts (the emitted neutralizers legitimately zero everything),
  * function-only elements (nothing was generated to verify), and disconnected nodes (no cascade
  * to ask). Reports once per element per delivery.
  */

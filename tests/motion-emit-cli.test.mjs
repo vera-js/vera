@@ -2,7 +2,7 @@
  * `vera-motion-emit` — the first-frame door for every toolchain that is not vera-SSR and not
  * PHP: static HTML in, markers + the motion sheet out, through the REAL pipeline. The test runs
  * the actual bin as a subprocess on a temp page and asserts the emitted file hydrates-ready:
- * markers present, sheet present, the reduced-motion and scripting neutralisers riding along,
+ * markers present, sheet present, the reduced-motion and scripting neutralizers riding along,
  * and a second run CONVERGING rather than accumulating.
  */
 import assert from 'node:assert/strict';
@@ -34,7 +34,7 @@ test('the CLI emits first-frame CSS into static HTML through the real pipeline',
   assert.match(html, /id="a" data-vd-motion="fade-up" data-vm-motion="[0-9a-z]{14}"/, 'the preset is marked');
   assert.match(html, /style data-vm-sheet/, 'the sheet landed in head');
   assert.match(html, /@property --vm-p/, 'typed and defaulted — frame 0 with no JS');
-  assert.match(html, /prefers-reduced-motion: reduce/, 'the reduced neutraliser rides');
+  assert.match(html, /prefers-reduced-motion: reduce/, 'the reduced neutralizer rides');
   assert.match(html, /scripting: none/, 'and the no-JS guard');
   assert.ok(!html.includes('id="c" data-vd-motion="{ tick') || !/id="c"[^>]*data-vm-motion=/.test(html),
     'the tick element is unmarked — its first frame is JavaScript by definition');

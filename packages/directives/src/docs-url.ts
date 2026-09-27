@@ -7,7 +7,7 @@
  * tether the entire table into every bundle and undo the 1,469 B the table was written to recover.
  *
  * **The value is permanent.** A released bundle is immutable, so every version already published
- * points here for ever: the domain cannot lapse and `/e/` cannot be reorganised without breaking
+ * points here for ever: the domain cannot lapse and `/e/` cannot be reorganized without breaking
  * links in code nobody can edit any more. Every code needs a page, which is what
  * `scripts/sync-diagnostics.mjs` generates `diagnostics.json` for — it imports this constant rather
  * than restating it, so the pages and the bundles can never disagree about where they are.

@@ -82,7 +82,7 @@ create / select / update / swap / remove / clear. If they diverge, the compariso
 ## Caveats
 
 Runs under jsdom on V8. Proxy, allocation and Map costs are representative of a browser; layout and
-paint are not modelled. A browser-based comparison against Lit, Solid and Van.js is still needed
+paint are not modeled. A browser-based comparison against Lit, Solid and Van.js is still needed
 before publishing any performance claim.
 
 

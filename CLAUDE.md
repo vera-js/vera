@@ -57,15 +57,15 @@ code, so they are not re-litigated.
   a `const` and then `WeakRef`'d leave the **last one alive**; the same 30 created inline inside the
   `WeakRef()` call leave **none**. So `for (…) { const el = make(); …; refs.push(new WeakRef(el)) }`
   always reports one survivor — the loop's final binding, not a leak — and it survives arbitrary
-  further churn, which makes it look like a bounded framework hold rather than an artefact. That
+  further churn, which makes it look like a bounded framework hold rather than an artifact. That
   reading cost a bisect across six component shapes before a plain-object control settled it.
   **Moving the loop body into a function is not the cure either** — measured 2026-09-05, an async
-  per-cycle function still leaves the LAST call's objects alive (the artefact rides the await
+  per-cycle function still leaves the LAST call's objects alive (the artifact rides the await
   chain, not just the `const`), and it survives an unrelated later render, which reads exactly like
   a bounded framework hold. Only the no-framework control settles it: the same harness with plain
   `innerHTML` and no vera at all reports the same lone survivor.
   **Tests here deliberately do not force collection** (`tests/core-hook-lifecycle.test.mjs` says
-  `--expose-gc` made the old behaviour look correct); keep gc measurement in `.probe/`.
+  `--expose-gc` made the old behavior look correct); keep gc measurement in `.probe/`.
 - **Re-measure the baseline between size runs, and never trust a single one.** `npm run build` is
   cached, so a probe that patches a source and forgets to rebuild reports the *previous* variant's
   number — this produced a confident "`hold` is worth 368 B" when the real figure is 16 B, because
@@ -82,12 +82,12 @@ code, so they are not re-litigated.
   never fires" findings on separate occasions.
 - **Two template literals are two templates, even with identical text.** Template identity is the
   `strings` array, which the engine interns per *call site* — so writing the same markup twice in a
-  probe produces a rebuild, not an update, and every conclusion drawn about update behaviour is
+  probe produces a rebuild, not an update, and every conclusion drawn about update behavior is
   then wrong in the same direction. Render through **one** `draw()` function called twice. This has
   produced confident false findings about `keyed`, `hold` and `!live` on separate occasions; when a
   result says the DOM was rebuilt or a value was lost, suspect the probe before the renderer.
-- **A probe that measures nothing reports perfect behaviour**, so assert the control produced a
-  non-zero result *before* concluding anything from a silence. This is the generalisation of the
+- **A probe that measures nothing reports perfect behavior**, so assert the control produced a
+  non-zero result *before* concluding anything from a silence. This is the generalization of the
   retention-probe rule above and it has cost four separate passes: hooks registered after `render()`
   are ignored, so a recovery probe read `0` before and `0` after and looked like "nothing recovered"
   when it meant **nothing ran**; plain `<div>`s never fire `disconnectedCallback`, so a teardown probe
@@ -108,7 +108,7 @@ code, so they are not re-litigated.
   `new Date(0)` stringified in Pacific time and CI renders UTC. `tests/dom-surface.mjs` did not list
   `PublicKeyCredential`, which Linux WebKit exposes and macOS WebKit does not. A browser test slept
   150 ms into a 600 ms transition and asserted the value was mid-interpolation, which a loaded machine
-  does not honour. **Before checking a measurement in, ask what about the machine is in it** —
+  does not honor. **Before checking a measurement in, ask what about the machine is in it** —
   timezone, locale, engine build, CPU speed, screen. `bench/size-snapshot.json` is the same shape and
   has not bitten yet. Where the answer is "something", either exclude that value (a `Date` exercises
   nothing an object does not) or wait for the property rather than sampling at a chosen instant.
@@ -149,7 +149,7 @@ code, so they are not re-litigated.
   `@verajs/reactivity` → `@verajs/store`, 2026-09-14: grep found 1–3, the clean-worktree gate caught
   4 and 5, and the audit caught 6 plus two more of 5.
 - **A killed build ORPHANS `wireit`, and the next one deadlocks behind the lock it left.** Killing
-  `npm run build` — a tool timeout, a cancelled command, Ctrl-C at the wrong moment — does not take
+  `npm run build` — a tool timeout, a canceled command, Ctrl-C at the wrong moment — does not take
   its `wireit` and `rollup` children with it. They stay alive holding the build lock, and every
   later build waits on an owner that is gone. **The signature is progress stopping below 100% with
   nothing running** — `98% [43 / 44] [0 running]` — which is indistinguishable from a slow build and
@@ -202,7 +202,7 @@ rest of this file.
   writes `wire([renderer, slots])`. `wire`'s branch is what allows it: a function whose `on` is `undefined` is a
   CONNECTOR and is handed the registry, so a returned function carrying `on` reads as a descriptor.
   **The discriminator differs per registry** — the directives packs test the sigiled `_$seams$`
-  mark because `wireDirectives` passes seams, while a core-level dual would have to recognise the
+  mark because `wireDirectives` passes seams, while a core-level dual would have to recognize the
   registry itself. Copy the pattern, never the check. (`@verajs/router` became that dual on
   2026-09-11 — `router({ animate: true })`, discriminated on the registry itself exactly as this
   rule anticipated, shipped additive so bare `wire([router])` is untouched; `router({ base })`
@@ -248,7 +248,7 @@ The shape of the product:
 
 **History.** Built solo, by hand, before AI agents existed. The tooling came out of one person's head
 rather than from established practice, and is acknowledged as not the best. Much of the tree is
-experimentation that was never labelled as such.
+experimentation that was never labeled as such.
 
 **Goals.**
 

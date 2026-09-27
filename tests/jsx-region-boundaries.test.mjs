@@ -135,7 +135,7 @@ const WITH_JSX = [
    * A COMMENT between the postfix operator and the division. The rule above used to be answered by
    * scanning backwards over whitespace from the `/`, which landed on the closing slash of a block
    * comment and read the comment itself as an operator — so a postfix increment, a block comment and
-   * a division lost every root in the module while its neighbour three rows up passed. It is
+   * a division lost every root in the module while its neighbor three rows up passed. It is
    * answered forwards now, where comments are already invisible.
    */
   ['a postfix increment, comment, divided', 'let i = 1;\nconst r = i++ /* c */ / 2, v = <div class="x" />;'],
@@ -189,7 +189,7 @@ test('and JSX beside the things that look like it still compiles', () => {
     try { output = transformJsx(source, 'probe.jsx'); }
     catch (error) { problems.push(`${name}: threw ${error.message.slice(0, 70)}`); continue; }
 
-    /** Unchanged here means the region was never recognised, which is the other half of the failure. */
+    /** Unchanged here means the region was never recognized, which is the other half of the failure. */
     if (output === source) { problems.push(`${name}: unchanged, so the JSX was not seen`); continue; }
 
     /** And the result still has to be JavaScript, or the transform corrupted the file. */

@@ -511,7 +511,7 @@ const list: Directive = {
      * The counts go back into state, so the page's own markup can say "12 results" and build page
      * controls with nothing but `data-vd-text` and `data-vd-on-click`.
      *
-     * **Written only when they CHANGE**, which is not a micro-optimisation: this apply runs inside
+     * **Written only when they CHANGE**, which is not a micro-optimization: this apply runs inside
      * a hook, a write re-runs every hook that read the key, and an unconditional write of a value
      * that is already there would re-run this one for ever. The engine cannot know that for us —
      * a directive that both reads and writes state owns its own fixed point.

@@ -18,7 +18,7 @@
  * ## Shape of the generation
  *
  * Markup is **mutated from what the server would have produced**, not invented, so the cases sit in
- * the near-miss neighbourhood where a walk is most likely to go wrong rather than being obvious
+ * the near-miss neighborhood where a walk is most likely to go wrong rather than being obvious
  * nonsense. The split is reported: a run that adopted everything, or fell back on everything, would
  * mean the mutators had stopped being interesting.
  *

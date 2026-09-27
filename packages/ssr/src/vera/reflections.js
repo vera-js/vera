@@ -795,9 +795,9 @@ const absent = entry[2];
  *   has not laid out, whatever the attribute says.
  * - `meter.value`, `meter.low`, `meter.high`, `meter.optimum`, `progress.value` — clamped against
  *   each other and against `max`, so the property is not the attribute.
- * - `button.command` — canonicalised to `''` for anything outside its state list, which is not yet
+ * - `button.command` — canonicalized to `''` for anything outside its state list, which is not yet
  *   stable across engines.
- * - Vendor extensions present in one engine only: `a.attributionSourceId` and its two neighbours,
+ * - Vendor extensions present in one engine only: `a.attributionSourceId` and its two neighbors,
  *   `area.hreflang`, `area.type`, `canvas.mozOpaque`, `iframe.csp`, `iframe.credentialless`,
  *   `iframe.allowPaymentRequest`, `input.incremental`, `input.alpha`, `input.colorSpace`,
  *   `input.switch`, `video.playsInline`, `video.autoPictureInPicture`,

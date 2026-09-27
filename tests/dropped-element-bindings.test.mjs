@@ -182,7 +182,7 @@ test('conforming HTML the parser reshapes keeps every binding on its own element
 /**
  * The control that stops the two tests around it passing vacuously. If a corpus entry's markup did
  * not actually reshape — a typo, or a construction the parser leaves alone — it would be testing
- * ordinary nesting under an alarming name, and both neighbours would go green having proved nothing
+ * ordinary nesting under an alarming name, and both neighbors would go green having proved nothing
  * about implied tags at all.
  */
 test('the corpus actually reshapes — implied tags really are being inserted and closed', async () => {

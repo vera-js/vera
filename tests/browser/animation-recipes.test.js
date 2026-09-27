@@ -4,7 +4,7 @@
  * They are documentation, which is the reason to test them: a recipe that quietly stops working in
  * one engine is worse than no recipe, and one of these already does not work everywhere. Measured
  * rather than assumed, because the feature test lies — all three engines report
- * `CSS.supports('transition-behavior', 'allow-discrete')` as true and Firefox does not honour it
+ * `CSS.supports('transition-behavior', 'allow-discrete')` as true and Firefox does not honor it
  * for `display`.
  */
 import { expect } from '@esm-bundle/chai';
@@ -68,7 +68,7 @@ it('the documented ?hidden fade runs in every engine', async () => {
 
 /**
  * The shape the README tells you *not* to use, pinned so the advice is checked rather than
- * remembered. If Firefox starts honouring it, this fails and the README paragraph is stale.
+ * remembered. If Firefox starts honoring it, this fails and the README paragraph is stale.
  */
 it('display + allow-discrete still does not transition in Firefox', async () => {
   await withStyle(
@@ -85,7 +85,7 @@ it('display + allow-discrete still does not transition in Firefox', async () => 
       await settle(150);
       const displayed = getComputedStyle(element).display !== 'none';
       if (engine() === 'firefox') {
-        expect(displayed, 'Firefox began honouring allow-discrete — the README advice is now stale').to.equal(false);
+        expect(displayed, 'Firefox began honoring allow-discrete — the README advice is now stale').to.equal(false);
       } else {
         expect(displayed, `${engine()} transitions display`).to.equal(true);
       }

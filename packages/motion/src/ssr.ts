@@ -10,10 +10,10 @@
  * hash is FNV-1a over the same text, so the client re-derives every name byte for byte and its
  * own delivery simply takes over.
  *
- * **The no-JS guard is a neutraliser, never a gate** (§7, measured reasoning): rules are emitted
+ * **The no-JS guard is a neutralizer, never a gate** (§7, measured reasoning): rules are emitted
  * unguarded and `@media (scripting: none) { [data-vm-motion] { animation: none } }` lands LAST in each
  * emitted sheet, so a no-JS visitor sees the natural state — while an engine predating the
- * `scripting` feature (unknown feature → query false → neutraliser inert) still animates when JS
+ * `scripting` feature (unknown feature → query false → neutralizer inert) still animates when JS
  * runs. Gating on `(scripting: enabled)` would have killed all motion on every older browser WITH
  * JavaScript: a far larger population than the guard protects.
  *
@@ -48,8 +48,8 @@ type Sheet = Map<string, string>;
 
 /** DOUBLED selectors — a single-attribute tail loses on specificity to every element rule
  *  (0-1-0 vs 0-2-0); doubled it ties and wins on order. Reduced motion first, scripting last —
- *  order between them is indifferent (both neutralise), the pair pins after every rule. */
-const NEUTRALISERS =
+ *  order between them is indifferent (both neutralize), the pair pins after every rule. */
+const NEUTRALIZERS =
   '@media (prefers-reduced-motion: reduce) { [data-vm-motion][data-vm-motion] { animation: none; } }\n' +
   '@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }';
 
@@ -185,10 +185,10 @@ const emitDiagnostics = (
  * and one INSIDE each open shadow root holding motion elements, because keyframes resolve per
  * tree scope (measured; the same fact that shapes the client registry). `@property` declarations
  * go in the document sheet only — registration is document-global in every engine — and each
- * sheet ends with the `(scripting: none)` neutraliser, last because its position IS its function.
+ * sheet ends with the `(scripting: none)` neutralizer, last because its position IS its function.
  *
  * Closed shadow roots are invisible here exactly as the platform hides them; their elements keep
- * the client-only behaviour.
+ * the client-only behavior.
  */
 export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): RenderMotionReport => {
   const problems: { code: string; args: readonly string[] }[] = [];
@@ -313,7 +313,7 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
       : [];
     rules += parts.length;
     styleIn(root, doc).textContent =
-      [...declarations, ...parts, NEUTRALISERS].join('\n');
+      [...declarations, ...parts, NEUTRALIZERS].join('\n');
   }
   /** Shadow trees rendered but the document tree did not: the `@property` block still needs a
    *  home in `<head>`, or timed modes degrade to midpoint-flips everywhere. */
@@ -321,7 +321,7 @@ export const renderMotion = (doc: Document, options: RenderMotionOptions = {}): 
     styleIn(doc, doc).textContent =
       [...[...varNames].map((name) =>
         `@property ${name} { syntax: '<number>'; inherits: false; initial-value: 0; }`),
-      NEUTRALISERS].join('\n');
+      NEUTRALIZERS].join('\n');
   }
 
   emitDiagnostics(doc, problems, options);

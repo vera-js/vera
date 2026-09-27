@@ -1,12 +1,12 @@
 /**
  * THE KEYFRAME LIST'S TWO EDGES — what the compiler emits at `0%`/`100%`, and what it does past
  * the stop cap. Both are API (`packages/directives/README.md`, `llms.txt`); neither had a test
- * before 2026-09-14, and both changed behaviour that week without a suite noticing.
+ * before 2026-09-14, and both changed behavior that week without a suite noticing.
  *
  * **Missing ends are the PLATFORM'S to fill.** A list with no `0%` frame has that frame constructed
  * from the element's own computed value, per CSS Animations — and the lone-value shorthand is built
  * on it: `opacity: '0.2'` is one frame at 100%, animated to from wherever the element is. A padding
- * step that synthesised the missing ends shipped briefly and turned exactly that into a constant
+ * step that synthesized the missing ends shipped briefly and turned exactly that into a constant
  * (`0% 0.2, 100% 0.2`). What the ELEMENT then does with these frames is a browser question and is
  * asked in `tests/browser/motion-leading-gap.test.js`; this file pins the EMISSION, which is where
  * the regression actually lived.
@@ -73,7 +73,7 @@ test('THE CONTROL: a two-value bare list still spreads to both ends', () => {
   assert.deepEqual(stops(css), [0, 100], 'the sequence rule puts frames at both ends');
 });
 
-test('a list starting past 0% keeps its authored stops and synthesises neither end', () => {
+test('a list starting past 0% keeps its authored stops and synthesizes neither end', () => {
   const { css } = emit("{ keyframes: { opacity: '50% 0, 80% 1' }, scroll: '100%, 0%' }");
   assert.deepEqual(stops(css), [50, 80],
     'no 0% and no 100% — an author wanting the hold writes `0% 0, 50% 0, 80% 1`');
@@ -83,7 +83,7 @@ test('the author CAN hold the value, by writing the stop the grammar already pro
   /** The documented escape hatch. If this ever stops working, the revert above left authors with
    *  no way to express the held start at all, which is the only thing the padding was good for. */
   const { css } = emit("{ keyframes: { opacity: '0% 0, 50% 0, 80% 1' }, scroll: '100%, 0%' }");
-  assert.deepEqual(stops(css), [0, 50, 80], 'the explicit 0% is honoured');
+  assert.deepEqual(stops(css), [0, 50, 80], 'the explicit 0% is honored');
 });
 
 test('KNOWN ISSUE, pinned so the fix cannot land quietly: a group invents the missing ends', () => {
@@ -99,7 +99,7 @@ test('KNOWN ISSUE, pinned so the fix cannot land quietly: a group invents the mi
    * both compile to `transform`, and a partial `transform` drops the omitted piece to its default
    * rather than to the element's value — so it needs a ruling, and is open in the plan.
    *
-   * **This test asserts the WRONG behaviour on purpose.** When the fix lands it fails, which is the
+   * **This test asserts the WRONG behavior on purpose.** When the fix lands it fails, which is the
    * point: the documented exception in `packages/directives/README.md` and `llms.txt` has to be
    * removed in the same pass, and nothing else would force that.
    */

@@ -7,7 +7,7 @@
  * wrong assumption about adopted DOM shows up.
  *
  * Every case exercises a documented semantic rather than "it navigates": specificity beating
- * declaration order, a guard cancelling, a redirect costing no history entry, an alias keeping its
+ * declaration order, a guard canceling, a redirect costing no history entry, an alias keeping its
  * own URL, a nested child rendering into an outlet its parent drew, `:param` decoding, the query
  * staying out of matching, and active-link marking.
  */

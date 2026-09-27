@@ -72,7 +72,7 @@ const payloads = [
  * The motion vocabulary as DATA — the lockstep artifact omni vendors and pins a test to. Schema-
  * derived like everything else in this file, so it cannot drift from the parser that enforces it;
  * function-valued fields are omitted because a conformance corpus pins grammar and observable
- * behaviour, never implementation.
+ * behavior, never implementation.
  */
 const { PROPERTIES, SETTINGS } = await import('../packages/motion/src/schema.ts');
 const { PRESETS } = await import('../packages/motion/src/presets.ts');

@@ -467,7 +467,7 @@ function attributes(this: { _props: Record<string, unknown> }): [string, string,
  * Branded rather than duck-typed: the element position already means "element ref", and a props bag
  * is indistinguishable from a ref object — `{ value: 5 }` is legitimately either.
  */
-/** The branded, self-applying result — what the renderer's element position recognises. */
+/** The branded, self-applying result — what the renderer's element position recognizes. */
 type SpreadResult = {
   _props: Record<string, unknown>;
   _$apply$: unknown;

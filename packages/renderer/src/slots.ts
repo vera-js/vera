@@ -71,7 +71,7 @@
  * nothing and cost bytes on every capture. **Measured, not assumed** — `tests/browser/
  * slots-realm.test.js` renders a host in a second same-origin document and asserts that live
  * additions, `slot` changes and removals all reach their slots, on Chromium, Firefox and WebKit.
- * Behaviour the platform decides is not settled under jsdom.
+ * Behavior the platform decides is not settled under jsdom.
  */
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the
@@ -162,7 +162,7 @@ type HostState = {
   /** node → its current slot name, for every node ever captured: the identity test that lets
    *  the observer spot USER removals and re-slottings amid the template's own mutations. */
   _names: WeakMap<Node, string>;
-  /** Each kept `<slot>` element back to its binding, so a `name` change is recognised. */
+  /** Each kept `<slot>` element back to its binding, so a `name` change is recognized. */
   _ghosts: WeakMap<Element, Binding>;
   /**
    * **Light-tree order, remembered — because distributing a node destroys it.**
@@ -221,7 +221,7 @@ const HOSTED: PropertyDescriptor = { value: true, enumerable: false, configurabl
 const HOMES = new WeakMap<Node, Comment>();
 /**
  * **The light tree's surviving skeleton, indexed.** Distribution moves the CONTENT out of the
- * host, but the part markers never move — so a comment's neighbours at capture time are exactly
+ * host, but the part markers never move — so a comment's neighbors at capture time are exactly
  * the positional record a late hand-edit needs. Each comment in the initial walk maps to the
  * member captured immediately after it; placement walks forward from an inserted node to the
  * first recorded comment whose member is still in the right bucket, and goes before that member.
@@ -275,7 +275,7 @@ const take = (state: HostState, node: Node, ordered = false, atTail = false): st
    * in a POSITION, and evacuating it to the holding fragment throws that away — it comes back at
    * the end, because the fragment has no idea where it was. A keyed list inserting a row into a
    * light host's children is the case: the row is created under the host, moved among its
-   * neighbours, and captured in the same batch, and the position is the only thing that says where
+   * neighbors, and captured in the same batch, and the position is the only thing that says where
    * it goes.
    *
    * Everything else — a node the user appended, one arriving from the holding fragment — is held
@@ -301,7 +301,7 @@ const take = (state: HostState, node: Node, ordered = false, atTail = false): st
    * the unstamped branch below states in words. It is tracked separately from `at` because `at` is
    * a position in ONE bucket, and a node can land at the end of its own bucket while still
    * preceding every node in every other one. That is exactly the case a prepend into an empty
-   * bucket makes: `at` is 0 and means nothing, and ranking from bucket neighbours put the node
+   * bucket makes: `at` is 0 and means nothing, and ranking from bucket neighbors put the node
    * last when it belonged first.
    */
   let front = false;
@@ -411,7 +411,7 @@ const take = (state: HostState, node: Node, ordered = false, atTail = false): st
    * `at` is this module's best answer to "where does this node belong", worked out from whatever
    * evidence exists — document position, the part that placed it, landmarks, the sentinel. That
    * answer is about ONE bucket, and re-slotting needs the same fact about the light tree, so the
-   * rank is interpolated between the neighbours it landed among rather than invented separately.
+   * rank is interpolated between the neighbors it landed among rather than invented separately.
    * Deriving it here is what makes the two agree by construction; a counter bumped on arrival
    * instead gave a node inserted at the FRONT of the light tree a tail rank, and re-slotting it
    * then sent it to the end — right where it was, wrong where it went.
@@ -502,7 +502,7 @@ const NOTHING: Node[] = [];
  * after the slot's own `AttrPart`s have attached their listeners, whatever order mounting took.
  *
  * `Event` comes from the HOST's realm, not the module's — a component rendered into a popped-out
- * window must dispatch an event that window's code recognises, or a handler's `instanceof` is
+ * window must dispatch an event that window's code recognizes, or a handler's `instanceof` is
  * false and, measured, a strict DOM refuses the foreign object outright.
  *
  * **From the host, and deliberately not from the slot**, which is the trap: a `<template>`'s
@@ -1267,7 +1267,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
   }
   /** Whatever no slot claimed goes into the inert carrier, in its original order per name. */
   /**
-   * **Separators where two text runs would MERGE, because serialisation is where node identity
+   * **Separators where two text runs would MERGE, because serialization is where node identity
    * dies.** The `offset,count` mark counts nodes as they are HERE; the client's parser joins
    * adjacent text into one node, and the mark then addresses a node spanning a boundary it cannot
    * see. Both edges of the user's content are at risk and each corrupts a different reader:
@@ -1277,7 +1277,7 @@ const serverDistribute = (host: Element, source: Node[]) => {
    * - the LEADING edge breaks the offset, which only `rescue` reads — so a hydration bail would
    *   slice the wrong range and keep the component's markup instead of the user's.
    *
-   * Run AFTER the slot loop, because until every slot is unwrapped the neighbour of a boundary is
+   * Run AFTER the slot loop, because until every slot is unwrapped the neighbor of a boundary is
    * still a `<slot>` element and the merge is not yet visible. Emitted by the side that KNOWS: the
    * alternative was to have hydration infer the boundary from the canonical template, which works
    * for the shape in front of you and needs a new case for each thing that can follow a slot

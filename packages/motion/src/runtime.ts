@@ -143,7 +143,7 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
   /**
    * The generated path consumes the offset as its CONSTANT var, re-written here because this is
    * the one place that runs at construction AND on every re-measure — a geometry stagger (px)
-   * renormalises against the new scroll window exactly as the old curve shift did.
+   * renormalizes against the new scroll window exactly as the old curve shift did.
    */
   if (element.generated) {
     if (offset !== 0) element.node.style.setProperty(STAGGER_PROPERTY, String(offset));
@@ -152,7 +152,7 @@ const refreshCurves = (element: RuntimeElement, win: WindowSize): void => {
 
   /**
    * Timeline BOUNDS only — run-once and the unfinishable check read these. The curve refill
-   * that lived here died with the curves: positions normalise straight off the merged
+   * that lived here died with the curves: positions normalize straight off the merged
    * keyframes, and the browser does the rest.
    */
   let lowest = Infinity;
@@ -250,7 +250,7 @@ const deliverGenerated = (node: Element, generatedCss: Generated): Delivered => 
 };
 
 /**
- * Re-measure for a GEOMETRIC generated element (8d): length positions normalised against the new
+ * Re-measure for a GEOMETRIC generated element (8d): length positions normalized against the new
  * scroll window mean new rule text, a new hash, a new identity. Regenerates through the same
  * generator and the same delivery order as construction; an unchanged hash (the common resize —
  * geometry buckets are coarse) costs one generate call and nothing else. Drives and the tick are
@@ -485,7 +485,7 @@ export const createRuntimeElement = (
   /** Stagger generates too since 8a — the offset is a per-element var the seek subtracts, so
    *  the whole-group-one-path rule is satisfied ON the generated path now. */
   /**
-   * Measured BEFORE generation since 8d: geometry-position values normalise against the scroll
+   * Measured BEFORE generation since 8d: geometry-position values normalize against the scroll
    * window, so the generator needs the element's size in hand. Still before any style write —
    * the displacement contract below is unchanged.
    */
@@ -629,7 +629,7 @@ export const createRuntimeElement = (
       } else {
         const delivered = deliverGenerated(node, generatedCss);
         acquiredKeys = delivered.keys;
-        setTails(NEUTRALISERS);
+        setTails(NEUTRALIZERS);
         /**
          * **A REFUSED rule means this element must go unmarked, not merely unstyled.** The marker
          * IS the selector every generated rule matches on, so writing it while a rule was refused
@@ -809,7 +809,7 @@ export const animateElement = (element: RuntimeElement): void => {
  * Recomputes the timeline position from the current scroll window.
  *
  * 0 is where the element first begins entering the scroll window, 1 where it
- * has completely left. The old implementation quantised this to
+ * has completely left. The old implementation quantized this to
  * 1/resolution steps purely so LUT indexing landed on an exact entry; with the
  * LUT gone there is no reason to, and the values are smoother for it.
  */
@@ -838,9 +838,9 @@ const alignmentAt = (
  * `scroll`'s two halves, or `undefined` for each one not given — which is what `alignmentAt` reads as
  * "use the default for this end".
  *
- * Stored as one normalised string because a setting's value is `string | number | boolean`; split
+ * Stored as one normalized string because a setting's value is `string | number | boolean`; split
  * here rather than at parse time so the runtime holds exactly what the author wrote and the two ends
- * keep travelling together.
+ * keep traveling together.
  */
 const scrollHalves = (element: RuntimeElement): [string | undefined, string | undefined] => {
   const raw = element.parsed.settings['scroll'];
@@ -1021,7 +1021,7 @@ export const updateElement = (
    * It used to replace the scroll driver outright, jumping the element end-to-end on a match. That
    * was one key answering two independent questions — under what condition is this active, and what
    * drives the progress — and one key cannot carry two orthogonal choices. `when: '.open', play: 0.6`
-   * says the old behaviour out loud.
+   * says the old behavior out loud.
    */
   if (element.when) {
     /**
@@ -1064,7 +1064,7 @@ export const updateElement = (
          * play lab: the CSS lane glided home on its transition while this path's instant sync
          * teleported the ramp lane). The same proportional ramp that carried it out carries it
          * back; animateElement's sync below defers to the armed clock. Scrub elements keep the
-         * instant rest — a gate closing on a scrub has no play-clock to honour.
+         * instant rest — a gate closing on a scrub has no play-clock to honor.
          */
         if (element.playing && element.generated && !element.generated.transition) {
           for (const d of element.generated.drives) rampTo(d.driven, element.lowestStart, element.generated.play ?? 0);
@@ -1232,7 +1232,7 @@ export const resetElement = (
   /**
    * A keyframe positioned in `vh`, `px` or `rem` resolves against the geometry
    * that just changed, and a width band may have started or stopped applying.
-   * An element with neither is already normalised and is left untouched, which
+   * An element with neither is already normalized and is left untouched, which
    * is every element on the usual page.
    */
   if (element.geometryDependent) {
@@ -1331,14 +1331,14 @@ export const clearElement = (element: RuntimeElement, settings: RuntimeSettings)
 /**
  * The pinned TAILS — LAST in the sheet, and DOUBLED to `[data-vm-motion][data-vm-motion]` because that is
  * what makes them work at all: element rules use the doubled-attribute selector (0-2-0), so a
- * single-attribute neutraliser LOSES ON SPECIFICITY regardless of order — the shipped
+ * single-attribute neutralizer LOSES ON SPECIFICITY regardless of order — the shipped
  * (scripting: none) guard was inert from stage 5 until the reduced-motion build doubled it (no
  * harness can disable scripting to catch it; the selector arithmetic was the only witness).
  * Doubled, they TIE and win on order, which is the design. Reduced motion is the same doctrine:
- * the designed page, journey skipped — seek animations neutralise here; transition-mode plays
+ * the designed page, journey skipped — seek animations neutralize here; transition-mode plays
  * pin their END state per hash instead (their base is the hidden one).
  */
-const NEUTRALISERS: readonly string[] = [
+const NEUTRALIZERS: readonly string[] = [
   '@media (prefers-reduced-motion: reduce) { [data-vm-motion][data-vm-motion] { animation: none; } }',
   '@media (scripting: none) { [data-vm-motion][data-vm-motion] { animation: none; } }',
 ];

@@ -84,7 +84,7 @@ const FLOOR = { test: (text) => Object.values(FLOOR_CLAUSES).some((clause) => cl
  *
  * - **FLOORED** — something fails when the walk finds nothing. Nothing to do.
  * - **NAKED** — nothing does. Add a floor; that is the whole point of this rule.
- * - **SUBJECT IS THE DISCOVERY** — the emptiness IS the behaviour being pinned, as in
+ * - **SUBJECT IS THE DISCOVERY** — the emptiness IS the behavior being pinned, as in
  *   *"listing a directory that does not exist returns `[]`"*. Demanding a floor there would
  *   demand a non-empty result from an assertion whose entire claim is that the result is empty.
  *   This tree holds no such case today (checked), but the category is named so the next person
@@ -219,7 +219,7 @@ test('the detector can tell a floored suite from an unfloored one', () => {
    * first version stayed green while blind to `x.length > 0`. Every row is a spelling that was once
    * a live miss here; a narrowing rewrite now fails naming both the spelling and the clause.
    */
-  const RECOGNISED = [
+  const RECOGNIZED = [
     ['counter', `assert.ok(compared > 20, 'only N fixtures were comparable');`],
     ['comparison', `assert.ok(files.length >= 4, 'expected the ui sources');`],
     ['comparison', `assert.ok(\n  references.length >= 15,\n  'the pattern stopped matching'\n);`],
@@ -236,14 +236,14 @@ test('the detector can tell a floored suite from an unfloored one', () => {
     ['pinned', `assert.equal(rows.length, 7);`],
     ['worded', `assert.ok(ok, 'NON-ZERO CONTROL: the scan is broken, not the list');`],
   ];
-  for (const [clause, spelling] of RECOGNISED)
+  for (const [clause, spelling] of RECOGNIZED)
     assert.ok(
       FLOOR_CLAUSES[clause].test(spelling),
-      `the \`${clause}\` clause stopped recognising a real floor spelling:\n  ${spelling}`
+      `the \`${clause}\` clause stopped recognizing a real floor spelling:\n  ${spelling}`
     );
 
   /**
-   * And the inverse, because "recognises every floor" is otherwise satisfied by a pattern matching
+   * And the inverse, because "recognizes every floor" is otherwise satisfied by a pattern matching
    * all source. Two of these were LIVE false floors before the clauses were tightened — a negated
    * length asserts the set is EMPTY, and a nested call carried a `=== 0` past the truthiness form.
    */

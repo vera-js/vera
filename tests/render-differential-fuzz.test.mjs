@@ -74,12 +74,12 @@ const SHAPES = [
 ];
 
 /**
- * Two differences are known, documented and benign, and the comparison normalises both — otherwise
+ * Two differences are known, documented and benign, and the comparison normalizes both — otherwise
  * it reports the same two findings three hundred times and buries anything real underneath.
  *
  * 1. **Attribute order.** The client appends a bound attribute after the statics; the server emits
  *    source order. Order carries no meaning in HTML, the DOMs are equivalent, and hydration does not
- *    fall back on it — only `innerHTML` serialisation differs.
+ *    fall back on it — only `innerHTML` serialization differs.
  * 2. **Form-state reflection.** `tests/hydrate-parity.test.mjs` holds the list of four cases where a
  *    hydrated DOM is legitimately not byte-identical — `input .value`, `input .checked`,
  *    `option .selected`, `textarea` content — because markup is the only way form state reaches the

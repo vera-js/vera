@@ -236,7 +236,7 @@ const fallbackStyles = new WeakSet<SheetRoot>();
 const fallbackRoots: (WeakRef<SheetRoot>)[] = [];
 
 /**
- * The pinned TAIL — the `(scripting: none)` neutraliser. Its whole design is being LAST in the
+ * The pinned TAIL — the `(scripting: none)` neutralizer. Its whole design is being LAST in the
  * sheet so specificity-tied rules lose to it on order; every later insert would unseat a plain
  * append, so the registry owns the pinning: inserts land BEFORE the tail, and the fallback text
  * appends it after everything.

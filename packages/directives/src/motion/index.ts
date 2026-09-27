@@ -280,7 +280,7 @@ const regionFor = (el: Element, reject: (code: string, args?: readonly string[])
  */
 const said = new WeakMap<Element, Set<string>>();
 /**
- * **Codes, like every other pack.** This funnelled every motion refusal through one
+ * **Codes, like every other pack.** This funneled every motion refusal through one
  * `motion-refused` code carrying a composed sentence, which meant its words shipped to production
  * and neither a docs page nor Studio's inspector could address any of them individually. Each
  * refusal now names itself and its prose lives in `diagnostics.ts`.
@@ -504,7 +504,7 @@ export const motionExtension = (rows: WirableTree): EngineConnector => (seams) =
  * reader's problem for no gain.
  *
  * Declared here rather than in `presets.ts` to keep that module free of an import cycle — building
- * the connector beside the table read `motionExtension` before initialisation and took the bundle
+ * the connector beside the table read `motionExtension` before initialization and took the bundle
  * down at import time.
  */
 let presetsWired = false;

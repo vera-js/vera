@@ -71,7 +71,7 @@ flags both.
 
 `useDefineForClassFields: false` is project-wide, not component-only. It opts **all** your classes
 out of standard ES2022 class-field semantics and back to the assignment semantics TypeScript used
-before. That is well-trodden ground — it was the only behaviour for years, and Lit recommends the
+before. That is well-trodden ground — it was the only behavior for years, and Lit recommends the
 same setting — but it is a real divergence from what the language does, and it applies to code that
 has nothing to do with web components.
 

@@ -65,10 +65,10 @@ export type PositionUnit = '%' | 'vh' | 'vw' | 'px' | 'rem';
  * `transform` and `filter` members compose into one function list each — order is load-bearing
  * there, since CSS transform functions do not commute, hence `propertyOrder` — and can carry
  * their own seek variable when a category smooths at its own inertia. Everything else, `border`
- * included, is a plain declaration; `border` is a name for that group rather than a behaviour.
+ * included, is a plain declaration; `border` is a name for that group rather than a behavior.
  *
  * A wired module may name a category of its own (`paint`, `svgPath`), which is why
- * `PropertyDef.category` widens this to any string: an unrecognised one is simply written as a
+ * `PropertyDef.category` widens this to any string: an unrecognized one is simply written as a
  * plain property. The category is never spelled in an authored key — `translate-y` is always a
  * transform, so it is derived once from the vocabulary instead of repeated on every element.
  */
@@ -76,19 +76,19 @@ export type Category = 'transform' | 'filter' | 'border';
 
 /**
  * One authored stop, parsed and no further. The position is still in the unit it was written in
- * and the value in the property's, because normalising a position needs the element's box and
+ * and the value in the property's, because normalizing a position needs the element's box and
  * the viewport — readings parse has no business taking. The runtime builds the curve from these
  * and rebuilds it whenever the page is measured.
  */
 export type RawKeyframe = {
-  /** In `positionUnit`, NOT yet normalised to a timeline fraction. */
+  /** In `positionUnit`, NOT yet normalized to a timeline fraction. */
   readonly position: number;
   readonly positionUnit: PositionUnit;
   readonly value: number;
   /** The value's own unit, from the property's allowlist. */
   readonly unit: Unit;
   /**
-   * A TEXT-valued keyframe (8c): the validated CSS text of a `parseText` property — a colour, a
+   * A TEXT-valued keyframe (8c): the validated CSS text of a `parseText` property — a color, a
    * gradient, a shadow. Present only for those; `value`/`unit` are 0/'' placeholders then. Text
    * values are declared at their AUTHORED stops only and the browser interpolates between them —
    * which is the entire point: the slot-and-step machinery this replaces existed because numeric
@@ -164,7 +164,7 @@ export type PropertyDef = {
    * Derived for built-ins, and free-form for a module — the union keeps
    * autocomplete for the known values while letting a module name its own
    * group for the GUI to render. Only transform, filter and image change
-   * behaviour; everything else is a plain cssProperty write.
+   * behavior; everything else is a plain cssProperty write.
    */
   readonly category: Category | (string & {});
   /** For transform/filter functions: `translateY`, `blur`. */
@@ -390,7 +390,7 @@ export type ElementMotion = {
   readonly property: PropertyDef;
   readonly unit: Unit;
   /**
-   * Positions are still in their authored units. Normalising them needs the
+   * Positions are still in their authored units. Normalizing them needs the
    * element's size and the viewport, which parse has no business knowing —
    * so the curve is built by the runtime and rebuilt on resize when any
    * position depends on geometry.
@@ -484,7 +484,7 @@ export type ParsedElement = {
   /**
    * How far this element's keyframes shift, from a `stagger` on an ancestor.
    * Left in its authored unit rather than resolved here, for the same reason
-   * keyframe positions are: `40px` of stagger and a `50%` keyframe normalise
+   * keyframe positions are: `40px` of stagger and a `50%` keyframe normalize
    * against different quantities, so they can only be added once both are
    * timeline fractions. The runtime does that.
    */
@@ -520,8 +520,8 @@ export type WindowSize = {
 
 /**
  * The element's measured geometry, for values whose keyframe POSITIONS are lengths (vh/px/rem) —
- * those normalise against the scroll window, so their rules are PER-GEOMETRY-BUCKET: the hash
- * covers the normalised text, identical geometries still share, and a re-measure regenerates.
+ * those normalize against the scroll window, so their rules are PER-GEOMETRY-BUCKET: the hash
+ * covers the normalized text, identical geometries still share, and a re-measure regenerates.
  * Absent (the SSR pass, the test door), geometry-position values answer null and wait for the
  * client's first measure — frame 0 is the natural state there, honestly.
  */
@@ -981,7 +981,7 @@ export type RenderMotionReport = {
   /**
    * Elements left for the client: out-of-scope values (stagger groups and anything else
    * `generateSimple` declines) and tick-only elements, whose first frame is JavaScript by
-   * definition. These keep the pre-stage-7 behaviour — natural state until activation.
+   * definition. These keep the pre-stage-7 behavior — natural state until activation.
    */
   readonly skipped: number;
   /** Distinct CSS rules emitted across every sheet. */

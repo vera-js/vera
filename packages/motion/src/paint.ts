@@ -1,9 +1,9 @@
 import type { PropertyDef, WirableTree } from './types.js';
 /**
- * Paint — colour, gradients and shadows for the motion object.
+ * Paint — color, gradients and shadows for the motion object.
  *
  * A vocabulary module: it carries its own validator and its own write path,
- * so the runtime never learns what a colour is. Nothing here is
+ * so the runtime never learns what a color is. Nothing here is
  * interpolated. Each authored value gets a slot, the ordinary numeric curve
  * steps between slots, and the value is written as a string — **CSS
  * transitions do the animating**, which is what they are for and what this
@@ -23,7 +23,7 @@ import type { PropertyDef, WirableTree } from './types.js';
 /** What a GUI panel tells an author to wire to make these keys work. */
 const FROM = '@verajs/directives/motion';
 
-/** Longer than any real colour, gradient or shadow. */
+/** Longer than any real color, gradient or shadow. */
 const MAX_LENGTH = 400;
 
 const define = (key: string, cssProperty: string): PropertyDef => ({
@@ -48,7 +48,7 @@ const define = (key: string, cssProperty: string): PropertyDef => ({
      * the whole image-sourcing family: `image-set()` (and its `-webkit-`
      * alias, caught by substring), `image()`, `cross-fade()`, `element()`.
      * `paint()` stays allowed: a worklet the page registered is the page's
-     * own code. The vocabulary this module documents — colours, gradients,
+     * own code. The vocabulary this module documents — colors, gradients,
      * shadows — names none of these, so nothing legitimate is refused.
      */
     if (/url\(|image-set\(|image\(|cross-fade\(|element\(/i.test(value)) return null;
@@ -63,7 +63,7 @@ const define = (key: string, cssProperty: string): PropertyDef => ({
      * with its MAX_VALUES cap, its can-never-reclaim lifetime rule and its two diagnostics —
      * existed because numeric curves could not carry a string. Generated keyframes can:
      * `0% { background: red } 100% { background: blue }`, and the browser blends in its own
-     * colour-space rules, which is what an author writing that value meant. Deduplication is
+     * color-space rules, which is what an author writing that value meant. Deduplication is
      * the content hash's job, like every other rule.
      */
     return value;

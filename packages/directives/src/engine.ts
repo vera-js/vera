@@ -352,11 +352,11 @@ let pageEpoch: unknown;
  * On a server it is the life of the process, and `@key` then carries one request's data into the
  * next: a page reading `@route.path` with no `route` directive of its own would render the
  * PREVIOUS visitor's path. `@verajs/ssr` installs a fresh `location` object per render
- * (`applyLocation`) and serialises renders, so that object's identity is the request boundary the
+ * (`applyLocation`) and serializes renders, so that object's identity is the request boundary the
  * engine can see without importing anything from the server.
  *
  * Residual, stated rather than hidden: a render given no `location` shares the ambient one, so two
- * such renders share a page store. That is the pre-existing behaviour and it is the case where
+ * such renders share a page store. That is the pre-existing behavior and it is the case where
  * there is no request to leak between.
  */
 const page = (): Record<string, unknown> => {
@@ -645,7 +645,7 @@ const offers = (event: Event | null): string[] =>
  * everywhere else, and `{ q: $vlaue }` would read on screen as a filter matching everything.
  * Detecting that by WALKING every parsed value cost 235 B and had to run in production too, or the
  * two builds would disagree about what a page does. Throwing reuses the try/catch dispatch already
- * has: identical behaviour in both builds, and only the sentence is development-only.
+ * has: identical behavior in both builds, and only the sentence is development-only.
  *
  * It also carries out of an EXPRESSION, which a walk had to handle as its own case — a throw leaves
  * `$q / 2` exactly as it leaves a bare `$q`, instead of quietly yielding NaN.
@@ -683,7 +683,7 @@ const payloadValue = (name: string, tail: number): unknown => {
   /**
    * **Primitives only** is the charter (design §20.1) and nothing enforced it. A getter returning
    * an object hands attribute text a walkable graph — precisely what extractors exist to prevent —
-   * and it would be a third-party getter, so the engine cannot assume good behaviour. Checked in
+   * and it would be a third-party getter, so the engine cannot assume good behavior. Checked in
    * development, where the author of that getter is standing.
    */
   if (__DEV__ && value !== null && typeof value === 'object') {

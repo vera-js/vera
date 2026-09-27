@@ -38,7 +38,7 @@ in a shadow root.
 
 ## All four corners, and the parity between them
 
-The hard part is not the client. A component has to serialise, hydrate and re-render the same way:
+The hard part is not the client. A component has to serialize, hydrate and re-render the same way:
 
 ```sh
 node --test tests/slots-ssr-client-parity.test.mjs      # 14 shapes x 3 comparisons
@@ -64,7 +64,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->3.82 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->3.69 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>`, marking the render's own output, the
 takeover itself — and the renderer carries only generic hooks it plugs into (an instance hook on
 the template, an insert hook, the capture and relocation calls). An app that never wires slots pays
@@ -115,6 +115,6 @@ production bundles: one component rendered in both modes side by side, fallback 
 `::slotted()` contrast above shown as two cards rather than asserted, `@slotchange` on a live
 re-slot, and `<vera-select light>` with a slotted trigger.
 
-Its neighbour [`examples/ui-select/`](../../examples/ui-select/) is the same component with the
+Its neighbor [`examples/ui-select/`](../../examples/ui-select/) is the same component with the
 module **not** wired, which is a supported configuration and looks exactly as this page's caveats
 describe. Opening both is the fastest way to see what the wiring buys.

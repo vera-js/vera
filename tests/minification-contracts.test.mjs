@@ -7,7 +7,7 @@
  * audit. Manual checks do not survive contact with a busy week.
  *
  * These assertions read the SHIPPED bundles directly rather than importing them, because what is
- * being tested is a property of the artifact, not of its behaviour.
+ * being tested is a property of the artifact, not of its behavior.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -167,7 +167,7 @@ export const tag = (strings: TemplateStringsArray, ...values: unknown[]): Tag =>
   /**
    * **A tag's text must be an element NAME.** Until this, it was an unconstrained string spliced
    * straight into the statics — so `` tag`div onclick=x` `` produced markup rather than a tag, and
-   * the name of this export was a description of intent rather than of behaviour.
+   * the name of this export was a description of intent rather than of behavior.
    *
    * The concrete failure it closes is a cache collision. Spliced statics key on
    * `` `${i}:${text};` `` per tag, joined with separators the text was free to contain, so two

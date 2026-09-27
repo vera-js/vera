@@ -8,7 +8,7 @@ import { SERVER_HTML } from './fixtures/hello-ssr.html.js';
  * cannot run on a page's main thread without destroying the host's own DOM. A worker has none of
  * them to destroy, which is why that is the supported browser environment and the one this holds.
  *
- * Nothing here is a browser-flavoured re-render of what the node suites already cover: the
+ * Nothing here is a browser-flavored re-render of what the node suites already cover: the
  * comparison is against `SERVER_HTML`, which is **real `@verajs/ssr` output generated in Node** by
  * `scripts/build-hydration-fixture.mjs` from the same component this renders, and which
  * `npm run gate` re-checks. So a pass means the two environments agree byte-for-byte rather than

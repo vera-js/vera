@@ -22,7 +22,7 @@ export type SelectOption = {
   description?: string;
   /**
    * The heading this option sits under. Consecutive options sharing a group render inside one
-   * labelled `role="group"` — a real group, never a heading faked as a disabled option, which a
+   * labeled `role="group"` — a real group, never a heading faked as a disabled option, which a
    * screen reader would announce as a selectable choice.
    */
   group?: string;

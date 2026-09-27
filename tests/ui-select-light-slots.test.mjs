@@ -84,7 +84,7 @@ test('the SAME markup in SHADOW mode also works (native slots) — one component
 });
 
 /**
- * **Same behaviour is not the same PLACE.** The test above proves the slotted trigger is wired in
+ * **Same behavior is not the same PLACE.** The test above proves the slotted trigger is wired in
  * both modes — role stamped, click opens the menu — and every one of those assertions would still
  * pass if light mode distributed the node to the wrong position entirely, because none of them
  * looks at where it ended up. A trigger that works but renders in the wrong part of the component

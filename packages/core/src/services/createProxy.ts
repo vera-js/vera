@@ -82,7 +82,7 @@ let proxyHandlers: ProxyHandlerInsert[] | undefined;
  * guessing at it.
  *
  * `__DEV__`-only, which is exactly where a **message** belongs: it throws either way, so the two
- * builds still agree on what the program *does*. The one behavioural difference runs in the safe
+ * builds still agree on what the program *does*. The one behavioral difference runs in the safe
  * direction — in sloppy mode a refused write is silent rather than throwing, and this makes it loud.
  *
  * @param obj The store's source object
@@ -110,7 +110,7 @@ const refusedWrite = (obj: object, prop: PropertyKey, verb: 'changed' | 'deleted
 
 /**
  * The exact property currently being written by the `set` trap, which the `defineProperty` trap
- * reads to recognise its own re-entry.
+ * reads to recognize its own re-entry.
  *
  * `Reflect.set(obj, prop, value, receiver)` does **not** write to `obj` when `receiver` is a
  * different object — and the receiver here is always the proxy. The spec routes the write through
@@ -327,7 +327,7 @@ const createHandler = <T extends object>(
          * from an older machine and with nothing regenerating it.
          *
          * `tests/perf-claims.test.mjs` asserts the ratio at 20x — far below what is measured, and far
-         * enough above 1x to fail loudly if `_ignore` stops being honoured, which is exactly what
+         * enough above 1x to fail loudly if `_ignore` stops being honored, which is exactly what
          * happened the first time.
          */
         if ((obj as StoreProxyKeys)._ignore === true) {

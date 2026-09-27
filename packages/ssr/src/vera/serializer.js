@@ -60,7 +60,7 @@ const openTagName = (out) => {
 /**
  * A sigil binding, however the author quoted it — `"`, `'`, or not at all.
  *
- * Only the double-quoted and unquoted forms were recognised, and the client supports all three
+ * Only the double-quoted and unquoted forms were recognized, and the client supports all three
  * because it hands the markup to the platform's parser. So `<input .value='${v}' />` set a property
  * in the browser and emitted a literal attribute named `.value` on the server; `?hidden='${true}'`
  * hid the element on one side and printed `?hidden='true'` on the other. Visible difference on a
@@ -590,7 +590,7 @@ export const serializeTemplate = (template) => {
           break;
         }
         /**
-         * **Raw text is written raw, and its own end tag is neutralised.**
+         * **Raw text is written raw, and its own end tag is neutralized.**
          *
          * A browser does not decode a character reference inside `<style>` or `<script>`, so
          * escaping there protects nothing and corrupts the content: `<style>${'.a > .b'}</style>`
@@ -974,7 +974,7 @@ const foldSpread = (out, entries, deliverProp) => {
       /**
        * **A string form property and a plain attribute are no longer the same rule**, which is why
        * this branch split. An attribute is removed by either nullish value — the renderer's own
-       * documented behaviour, matching lit, on both sides. A `value` property is not: its IDL carries
+       * documented behavior, matching lit, on both sides. A `value` property is not: its IDL carries
        * `[LegacyNullToEmptyString]` on `<input>` and `<textarea>`, so `null` alone means the empty
        * string, `undefined` is the text `"undefined"`, and `<option>` has neither rule and takes
        * `"null"`. Written and spread must agree about all of it —

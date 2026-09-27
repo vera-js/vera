@@ -5,7 +5,7 @@
  * ordinary thing to write — and `@verajs/renderer` captures `document` at module scope, so importing
  * it on a server throws `ReferenceError: document is not defined` before a line of app code runs.
  *
- * That behaviour is defensible: a DOM renderer needs a DOM, and there is nothing useful it could do
+ * That behavior is defensible: a DOM renderer needs a DOM, and there is nothing useful it could do
  * server-side. What was not defensible was the silence. `@verajs/router` documents this property
  * *for itself*, in both its README and `llms.txt` — "importing the router is side-effect-free… so
  * `import '@verajs/router'` is safe in Node" — and nothing said the renderer is the other way, which

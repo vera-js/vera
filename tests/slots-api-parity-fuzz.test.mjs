@@ -25,7 +25,7 @@
  * case with a nested fallback "fails" while every entry present agrees — a false alarm that cost
  * one debugging pass here before the shapes were read rather than the count.
  *
- * Controls, because a comparison that compares nothing reports perfect behaviour: most cases must
+ * Controls, because a comparison that compares nothing reports perfect behavior: most cases must
  * read something other than empty, and the corruption test below must be caught. Measured against
  * the pre-fix implementation, this reports 290 of 600 cases wrong; against the current one, none.
  */

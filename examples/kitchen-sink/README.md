@@ -36,7 +36,7 @@ Each panel carries three headings, and each answers a different question:
 | Reactive collections | **add a user** / **add a tag** | only the list that changed re-renders; the counts follow |
 | | **change the WeakMap value** | a `WeakMap` is reactive per key and holds nothing |
 | Effects | **bump three times** | `useSyncEffect` goes up by three and `useEffect` by one — the whole difference between them, on screen |
-| static styles | **re-tint** | the colour changes and the sheet is never re-adopted; `var()` re-resolves |
+| static styles | **re-tint** | the color changes and the sheet is never re-adopted; `var()` re-resolves |
 | hold() | **edit**, type, **show the value**, **edit** again | your text is still there — the DOM was kept, not rebuilt |
 | | **change the observed attribute** | `attributeChangedCallback` fires and the log grows |
 | Nav | any link | the outlet fills; `/settings/profile` renders a child into an outlet its parent drew, and `/nope/deep` hits the wildcard |
@@ -67,7 +67,7 @@ those stay in `sink-bindings`, which is why `sink-basics` exists as the exactly-
 | suite | question |
 | --- | --- |
 | `tests/browser/kitchen-parity` | do the server, client and hydrated renderings produce identical DOM |
-| `tests/browser/kitchen-behaviour` | do the two live modes stay identical once someone uses them |
+| `tests/browser/kitchen-behavior` | do the two live modes stay identical once someone uses them |
 | `tests/browser/kitchen-router` | twelve documented routing semantics, in both live modes |
 | `tests/browser/kitchen-extensions` | do the insert chains actually run |
 | `tests/browser/kitchen-modules` | the autoloader, the router's history and teardown, the scheduler |

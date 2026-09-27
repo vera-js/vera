@@ -6,8 +6,8 @@
  * retained. This is the differential that says they behave like the real ones rather than merely
  * existing.
  *
- * jsdom is a fair oracle **here** in a way it is not for platform-decided behaviour (see CLAUDE.md):
- * this is the spec's tree arithmetic, not an engine's judgement call, and jsdom implements all four.
+ * jsdom is a fair oracle **here** in a way it is not for platform-decided behavior (see CLAUDE.md):
+ * this is the spec's tree arithmetic, not an engine's judgment call, and jsdom implements all four.
  * The one exception is noted at `compareDocumentPosition`, where the spec itself leaves part of the
  * answer to the implementation.
  */
@@ -240,7 +240,7 @@ test('normalize merges adjacent text', () => {
  * `getRootNode({composed: true})` crosses the shadow boundary through the host, which is the whole
  * difference between the two forms. jsdom implements shadow roots, so it decides this one too.
  */
-test('getRootNode honours composed', () => {
+test('getRootNode honors composed', () => {
   const check = (label, run) => assert.equal(run(document), run(real.document), label);
   check('inside a shadow root', (d) => {
     const host = d.createElement('div');

@@ -11,7 +11,7 @@
  *
  * This suite runs against both artifacts, so the production run is the one that would fail if the
  * exemption list rots again. Asserted on a live element rather than by grepping the bundle: the
- * contract is that the *behaviour* reaches these names, not that the strings appear somewhere.
+ * contract is that the *behavior* reaches these names, not that the strings appear somewhere.
  */
 import { load } from './dist.mjs';
 import { JSDOM } from 'jsdom';

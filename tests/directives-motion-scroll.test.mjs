@@ -3,7 +3,7 @@
  * playing runs it at each end.**
  *
  * The pass that replaced `start`/`end` with one key, made `play` the driver switch, and turned
- * `when` from a driver into a gate. Each of those is a behaviour claim rather than a rename, and
+ * `when` from a driver into a gate. Each of those is a behavior claim rather than a rename, and
  * this file is where they are held.
  *
  * jsdom has no scrolling, so position is expressed by placing elements at different `offsetTop`s
@@ -121,7 +121,7 @@ test('when GATES a scrub rather than replacing the driver', async () => {
   assert.equal(opacity(closed), '0', 'not matching: resting at the authored start');
 
   /**
-   * **The whole point of the change.** Under the old behaviour a match jumped the element to its
+   * **The whole point of the change.** Under the old behavior a match jumped the element to its
    * END; now it resumes the ordinary scrub, so a matching element at this position sits BETWEEN the
    * ends. An assertion of "not 0" would have passed under both.
    */
@@ -129,7 +129,7 @@ test('when GATES a scrub rather than replacing the driver', async () => {
   assert.ok(live > 0 && live < 1, `matching: scrubbing with the page (${live}), not jumped to the end`);
 });
 
-test('the old behaviour is still expressible, and now says so out loud', async () => {
+test('the old behavior is still expressible, and now says so out loud', async () => {
   /** `when` + `play` is what `when` alone used to mean: gate, then run end-to-end. */
   const el = await at(`{ ${K}, when: '.go', play: 0 }`, 400);
   assert.equal(opacity(el), '0', 'gate closed');

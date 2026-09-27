@@ -474,7 +474,7 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->3.82 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->3.69 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe to import (it imports nothing and touches no DOM until something renders).
 
@@ -559,7 +559,7 @@ Escaping stays in `@verajs/ssr`, in one place, exactly as for written bindings.
 
 **The protocol is public.** A value at element position carrying `_$apply$(element, part)` applies
 itself, and `_$attrs$()` lets it serialize server-side. Spread is the first user; any renderer
-honouring the protocol can accept any implementation.
+honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
@@ -617,7 +617,7 @@ Semantics that differ from lit-html — state these rather than assuming lit's:
 - **Exit animations** need no framework support. Fade on `?hidden` with
   `.fade[hidden] { display: block; opacity: 0 }` — the `display: block` overrides the UA rule, and
   do NOT use `transition-behavior: allow-discrete` on `display`, which Firefox reports as supported
-  and does not honour (measured). For a real removal, wrap the state change:
+  and does not honor (measured). For a real removal, wrap the state change:
   `document.startViewTransition(() => flushSync(() => { state.rows = next }))`, where `flushSync`
   swaps the scheduler — `setRenderScheduler` returns the previous one for exactly this.
 - **A dynamic tag name** needs `@verajs/renderer/tag`: `const H1 = tag\`h1\`` then
@@ -731,7 +731,7 @@ the boolean-attribute table → `?attr=${…}` (a literal `""` is true and `"fal
 `ref={r}` → an element-position ref; `{...rest}` → `spread(rest)`;
 `dangerouslySetInnerHTML={{ __html: h }}` → `.innerHTML=${h}`; `<Comp a={1}>kids</Comp>` →
 `Comp({ a: 1, children: […] })`; `<>…</>` → the children; `<div />` and `<br></br>` are both
-normalised to what the ELEMENT requires. The four renderer sigils pass through untouched in `.jsx`
+normalized to what the ELEMENT requires. The four renderer sigils pass through untouched in `.jsx`
 — but **TSX cannot parse them** (`.date={d}` is TS1003), so in TSX write the bare prop or
 `{...props({ date })}`.
 
@@ -1057,7 +1057,7 @@ PRIMITIVES, never the event: native properties live on prototypes, so reaching f
 attribute text the whole DOM API. Register a base with `wirePayloads({ 'my:event': { n: (e) => e.detail.n } })` — NAME → getter, so a
 base cannot declare a variable it never reads; read the vocabulary with `describePayloads()`. An
 unknown `$var` REFUSES THE WHOLE HANDLER, in both builds — writing `undefined` under the author's
-key is a working page with wrong behaviour — and says what the event does offer.
+key is a working page with wrong behavior — and says what the event does offer.
 
 The class TYPES what `apply` and `ssr` receive: `Directive` is discriminated on `value`, so
 `value: 'object'` gives `apply` a `ParsedObject` of unevaluated entries and using one as a finished
@@ -1105,7 +1105,7 @@ installs it directly, the pack carries it.) —
 `data-vd-motion="{ keyframes: { opacity: '0% 0, 100% 1', translate-y: '0% 40px, 100% 0px' },
 scroll: '70%, 50%', inertia: 0.2 }"`. The split is what makes `%` unambiguous: inside `keyframes` it is
 **progress along the animation**, outside it a **position on the screen** (`0%` top, `100%` bottom,
-like CSS `top:`). Progress is how far the element has travelled UP through its range — `0%` just
+like CSS `top:`). Progress is how far the element has traveled UP through its range — `0%` just
 arriving at the bottom, `100%` just leaving at the top, which is the direction CSS `view()` runs.
 A property written at the top level, or a setting written inside `keyframes`, is refused by name
 with the move spelled out. Keyframes are `'progress value'` pairs; a lone value is the end. **A list
@@ -1178,7 +1178,7 @@ files through the same pipeline; buildless pages either load the script as a BLO
 end of `<body>` (beats first paint on most pages), opt into `data-vd-cloak` (hidden until
 activation), or accept a cosmetic flash — cosmetic because the resting page is complete by
 design. Reduced-motion visitors always get the designed page: emitted `@media
-(prefers-reduced-motion: reduce)` blocks neutralise seek animations and pin transition-mode
+(prefers-reduced-motion: reduce)` blocks neutralize seek animations and pin transition-mode
 plays to their END state — no driver involvement, so it holds with JavaScript off too.
 `data-vd-motion-group` on a container makes a region (own axis, scroller, defaults).
 **Server diagnostics reach the browser, because the author is not at the server's terminal**:
@@ -1461,7 +1461,7 @@ is loaded from beside the mapped renderer; relative imports, `import()` in any f
     renderer names any non-primitive reaching an attribute sink in development.
 11. **A name the mapping does not know is written verbatim**, so spell HTML attributes the way HTML
     does — `xlink:href`, not `xlinkHref`. Only `className`→`class` and `htmlFor`→`for` are renamed.
-12. **Self-closing is JSX's syntax, not HTML's, and the compiler normalises both directions.**
+12. **Self-closing is JSX's syntax, not HTML's, and the compiler normalizes both directions.**
     `<div />` emits `<div></div>` and `<br></br>` emits `<br />`, because in HTML the ELEMENT decides
     how its tag closes. Written through unchanged — as they were before 2026-09 — `<div/><span>x</span>`
     parsed to `<div><span>x</span></div>` (the sibling swallowed) and `<br></br>` rendered two breaks.
@@ -1517,7 +1517,7 @@ Rules an assistant must not guess around:
 - `keyed()`/`hold()` are client-renderer constructs — templates that must also server-render use
   plain `.map`. `document.title` set during the render comes back as `title`.
 - Escaping is at the render boundary, always; `<style>`/`<script>` contents get end-tag
-  neutralisation instead (references are not decoded there). `registry` (tag → class seen by
+  neutralization instead (references are not decoded there). `registry` (tag → class seen by
   `customElements.define`) and `serializeTemplate` (the template flattener) are exported for
   advanced integration.
 - Full semantics, limits and the measured out-of-scope list: `packages/ssr/README.md`.
@@ -1540,7 +1540,7 @@ Say so rather than inventing an API:
     per change rather than once per read, and only when something it actually read moves. It is a
     store, so reading `.value` subscribes and computeds chain. The `'proxy-handler'` recipe in
     `examples/cdn-js/src/inserts/computed.js` remains a good insert example but does **not**
-    memoise — it re-invokes on every read.
+    memoize — it re-invokes on every read.
 
 - **No Suspense, concurrent rendering, server components, or devtools.**
   Error boundaries: a worked example is `examples/cdn-js/src/inserts/error-boundary.js` (the
@@ -1642,7 +1642,7 @@ class default, which is what props mean. That covers the common case completely 
 props need no declaration of any kind.
 
 It cannot cover a property assigned **imperatively**, because the renderer never saw it and class
-fields initialise the instant `super()` returns — before the constructor body or
+fields initialize the instant `super()` returns — before the constructor body or
 `connectedCallback` can look. For an element that never calls `init()`, nothing drains the record
 either, so the clobber stands and `@verajs/renderer` **warns in development** (once per binding);
 production carries neither the check nor the message.

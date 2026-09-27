@@ -5,14 +5,14 @@
  *
  * - **Every framework declares when its DOM work is done.** Each operation returns a promise that
  *   resolves once that framework has written the DOM; only then does the runner wait for paint.
- *   Without this the comparison silently favoured whichever library exposed a completion promise —
+ *   Without this the comparison silently favored whichever library exposed a completion promise —
  *   Lit's `updateComplete` resolved after its microtask had already mutated the DOM, leaving it the
  *   rest of the frame to lay out, while a framework that schedules on an animation frame had its
  *   work land inside the measurement window instead.
  *
  * - **Order is rotated.** The framework that runs first for an operation changes each time, so
  *   position in the sequence — cold caches, garbage left by the previous run — cannot consistently
- *   favour or penalise one of them.
+ *   favor or penalize one of them.
  *
  * - **The minimum is the headline, not the median.** Noise here is one-sided: a garbage collection
  *   or a scheduling hiccup can only ever make a run slower, never faster, so the fastest run is the

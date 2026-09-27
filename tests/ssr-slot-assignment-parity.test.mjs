@@ -56,7 +56,7 @@ test("the SSR shim's assignment matches the platform, comments included", async 
   assert.deepEqual(assigned.map((n) => n.nodeType), [3, 1], 'text and element, in light order');
 });
 
-test('the two vera copies of the rule are byte-identical in behaviour', async () => {
+test('the two vera copies of the rule are byte-identical in behavior', async () => {
   const { readFileSync } = await import('node:fs');
   const shim = readFileSync(new URL('../packages/ssr/src/vera/nodes.js', import.meta.url), 'utf8');
   const client = readFileSync(new URL('../packages/renderer/src/slots.ts', import.meta.url), 'utf8');

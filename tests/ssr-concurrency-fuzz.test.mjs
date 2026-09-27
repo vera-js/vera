@@ -2,7 +2,7 @@
  * SSR under concurrency: firing N renders together must produce what firing them one at a time does.
  *
  * `@verajs/ssr` keeps its per-render bookkeeping — `renderedTags`, `renderErrors`,
- * `pendingInstances`, `instanceCount`, the style-hoisting state — at **module level**, and serialises
+ * `pendingInstances`, `instanceCount`, the style-hoisting state — at **module level**, and serializes
  * every render through a turn queue so no two can see each other's. `index.js` records what happened
  * when that queue covered only the asynchronous entry point: a synchronous render fired inside an
  * async one's suspension window ran to completion on the shared state, and the async render "resumed

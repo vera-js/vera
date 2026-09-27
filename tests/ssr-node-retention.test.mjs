@@ -1,7 +1,7 @@
 /**
- * **Child nodes are retained, and serialised when the markup is read.**
+ * **Child nodes are retained, and serialized when the markup is read.**
  *
- * `appendChild` used to serialise the child into the parent's `innerHTML` string and drop the node.
+ * `appendChild` used to serialize the child into the parent's `innerHTML` string and drop the node.
  * Everything here is a consequence of that: a mutation made after appending was lost, `remove()` was
  * a no-op, `removeChild` did not exist, and an element appended into a second parent stayed in both.
  * None of it produced a diagnostic — the server rendered a page missing content the client would
@@ -109,7 +109,7 @@ test('a node cannot contain itself', () => {
 
 /**
  * **The three that used to round-trip through the string.** `prepend` read `innerHTML`, cleared it
- * and wrote it back — which after this change would serialise every retained node into text and
+ * and wrote it back — which after this change would serialize every retained node into text and
  * store it as one chunk, flattening the tree. Same for `append` with a string and for
  * `insertAdjacentHTML`. Each keeps the nodes now, and this is what says so.
  */
@@ -173,14 +173,14 @@ test('markup it cannot parse stays a string, and warns once', () => {
      * **What it pins changed once already.** The message used to say markup assigned as a string "is
      * not parsed on the server", which was true before `parse.js` and false after it — nested
      * elements, attributes, void elements, comments, `<p>unclosed`, a bare `<td>` and raw text all
-     * parse. Only what this DOM cannot re-serialise exactly is declined, which is the case here.
+     * parse. Only what this DOM cannot re-serialize exactly is declined, which is the case here.
      *
      * So the claim is pinned *positively* (it names parsing and refusal) and the false one is pinned
      * negatively below — a regex quoting a phrase is only as good as the phrase being true, and this
      * one outlived its own subject.
      */
     assert.match(warnings[0], /could not be parsed/, 'and says what is actually wrong');
-    assert.match(warnings[0], /declines the rest/, 'and that refusal is the deliberate behaviour');
+    assert.match(warnings[0], /declines the rest/, 'and that refusal is the deliberate behavior');
     assert.match(warnings[0], /createElement\/appendChild/, 'and what to do about it');
     assert.doesNotMatch(
       warnings[0],
@@ -192,8 +192,8 @@ test('markup it cannot parse stays a string, and warns once', () => {
   }
 });
 
-/** Nesting has to serialise depth-first in order, which is the whole output contract. */
-test('a nested tree serialises in order', () => {
+/** Nesting has to serialize depth-first in order, which is the whole output contract. */
+test('a nested tree serializes in order', () => {
   const host = el();
   const outer = el('section');
   const inner = el('p');
@@ -210,7 +210,7 @@ test('a nested tree serialises in order', () => {
  * client has one. The same content assigned as a markup string was already correct, so the two
  * paths disagreed with each other as well as with the browser.
  */
-test('a void element is serialised without an end tag', () => {
+test('a void element is serialized without an end tag', () => {
   const host = el();
   for (const tag of ['br', 'img', 'input', 'hr', 'meta', 'link', 'wbr']) host.appendChild(el(tag));
   assert.equal(host.innerHTML, '<br><img><input><hr><meta><link><wbr>');

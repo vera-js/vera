@@ -22,7 +22,7 @@ type Described = {
  * literal vocabulary the manifest generator and the docs page read; `satisfies` checks the object
  * against this shape while leaving `tag` as `'vera-select'` and a part's name as `'menu'`. It is
  * also what catches a malformed surface — a mistyped `descriptoin` is a compile error naming the
- * intended key, where before it would have travelled silently into the manifest.
+ * intended key, where before it would have traveled silently into the manifest.
  *
  * This was `typeof selectSurface` until 2026-09-17, which read as a cross-component contract and
  * could not be one: `typeof` on an `as const` object is the type of THAT object, `tag: 'vera-select'`

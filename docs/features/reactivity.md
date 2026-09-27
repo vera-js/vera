@@ -15,7 +15,7 @@ useEffect(() => {
 });
 ```
 
-Against the same behaviour elsewhere:
+Against the same behavior elsewhere:
 
 ```js
 // React — maintain the dependency array by hand, and get it wrong silently

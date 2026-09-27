@@ -39,7 +39,7 @@ export const autoloader = (
   /**
    * An option this autoloader does not have does nothing, and did so in silence — `extensions` or
    * `resolver` reads exactly like the real thing at a glance, and the symptom is the *default*
-   * behaviour, which looks like the option was never needed rather than never seen.
+   * behavior, which looks like the option was never needed rather than never seen.
    *
    * `__DEV__`-only, so a production bundle carries neither the list nor the text.
    */
@@ -380,7 +380,7 @@ export const autoloader = (
      * shape of a function that already exists it costs almost nothing, can be called again whenever
      * new markup lands, and leaves `autoloader` free of side effects.
      *
-     * A document is recognised by `nodeType`, not by having a `body`. `document.body` is null until
+     * A document is recognized by `nodeType`, not by having a `body`. `document.body` is null until
      * the parser reaches it, so an `autoload()` from a classic or `async` module script in `<head>`
      * fell straight through this branch and the document was treated as a root to watch — observing
      * `document` itself, `subtree: true`. That is precisely the shape this module exists to avoid

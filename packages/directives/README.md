@@ -1,6 +1,6 @@
 # @verajs/directives
 
-Attribute-activated behaviour for VeraJS — the adjectives to the component system's nouns.
+Attribute-activated behavior for VeraJS — the adjectives to the component system's nouns.
 
 A directive is a `data-vd-*` attribute that makes ordinary markup do something. There is no build
 step, no compile pass and **no hydration**: handlers are matched by attribute at dispatch time from
@@ -63,7 +63,7 @@ an app using motion pays more than everything else combined.
 | `@verajs/directives/expressions` | <!--size:directives-expressions.gzip.bytes-->2 361 B<!--/size:directives-expressions.gzip.bytes--> | arithmetic, comparisons, calls |
 | `@verajs/directives/interactions` | <!--size:directives-interactions.gzip.bytes-->3 942 B<!--/size:directives-interactions.gzip.bytes--> | events, reflections, state |
 | `@verajs/directives/query` | <!--size:directives-query.gzip.bytes-->3 202 B<!--/size:directives-query.gzip.bytes--> | `route`, `query`, `list` |
-| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 167 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
+| `@verajs/directives/sensors` | <!--size:directives-sensors.gzip.bytes-->3 165 B<!--/size:directives-sensors.gzip.bytes--> | environment → state |
 | `@verajs/directives/remote` | <!--size:directives-remote.gzip.bytes-->3 888 B<!--/size:directives-remote.gzip.bytes--> | server-driven interactions |
 | `@verajs/directives/motion` | <!--size:directives-motion.gzip.bytes-->26 564 B<!--/size:directives-motion.gzip.bytes--> | presets, paint, path, sequence, split |
 

@@ -24,7 +24,7 @@ import { wire } from '@verajs/core';
 
 /**
  * Light-DOM slots are an app-level opt-in, so the server only distributes when they are wired —
- * exactly as a consuming app wires them. Without this the slot fixture below would serialise
+ * exactly as a consuming app wires them. Without this the slot fixture below would serialize
  * literal `<slot>` elements and the browser suite would be adopting markup no slots app emits.
  */
 const { slots } = await import('@verajs/renderer/slots');

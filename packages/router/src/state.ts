@@ -19,7 +19,7 @@ export const handlers = new WeakMap<HTMLElement | Document, Map<string, Set<Rout
  * `pendingParams` while routers run and commits in the same breath as `currentPath`, because the
  * two must never describe different navigations — and because routing precedes the path commit, a
  * clear AT the commit wiped every merge that had just happened, which read as "the fill never
- * works" while every piece looked right alone. A cancelled navigation discards its staging and the
+ * works" while every piece looked right alone. A canceled navigation discards its staging and the
  * committed pair is untouched, exactly as `currentPath` behaves. `resolve()` fills missing tokens
  * from here; `currentRoute()` hands it to components.
  */

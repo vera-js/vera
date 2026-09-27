@@ -4,7 +4,7 @@
  * `addEventListener` takes **two** shapes — a function, and an object with a `handleEvent` method —
  * and which shapes are legal is the platform's decision, not jsdom's. The node suite
  * (`tests/renderer-event-bindings.test.mjs`) is the regression net; this is what makes the claim it
- * rests on true, and it asserts the engine's own behaviour first so a failure says which half moved.
+ * rests on true, and it asserts the engine's own behavior first so a failure says which half moved.
  *
  * The renderer used to call `.call()` unconditionally, so the object form bound without complaint
  * and then threw `this._handler.call is not a function` on every dispatch — invisible until someone
@@ -25,7 +25,7 @@ it('this engine accepts an object listener', () => {
   const button = document.createElement('button');
   button.addEventListener('click', { handleEvent() { fired++; } });
   button.click();
-  expect(fired, 'addEventListener({ handleEvent }) is not honoured by this engine').to.equal(1);
+  expect(fired, 'addEventListener({ handleEvent }) is not honored by this engine').to.equal(1);
 });
 
 it('and so does an @event binding', () => {

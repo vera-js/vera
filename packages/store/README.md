@@ -8,7 +8,7 @@ would otherwise pay for.
 
 | Entry | | |
 | --- | ---: | --- |
-| `@verajs/store/computed` | <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> | memoised derived values |
+| `@verajs/store/computed` | <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> | memoized derived values |
 | `@verajs/store/collections` | <!--size:collections.gzip-->571 B<!--/size:collections.gzip--> | reactive `Map` and `Set` in a store |
 
 Import from the package root and a bundler tree-shakes to what you used; point an import map at a
@@ -26,7 +26,7 @@ or do you call core?*
 npm i @verajs/store
 ```
 
-## `computed` — memoised derived values
+## `computed` — memoized derived values
 
 <!-- recipe -->
 ```js
@@ -93,7 +93,7 @@ does not. Measured: five writes with no reader at all produce six evaluations.
 That is a consequence of how invalidation reaches a component, not an oversight. Reading `.value`
 *subscribes*, so a component re-renders when the computed changes — and knowing it changed means
 having computed it. A lazy computed can only say "I might have changed", which would re-render every
-reader on every dependency write and lose exactly the memoisation this exists for.
+reader on every dependency write and lose exactly the memoization this exists for.
 
 The practical consequence, and the reason it is written down here: **an expensive derivation that
 nothing currently reads still costs on every write.** Reads are free and repeated reads are free —
@@ -117,7 +117,7 @@ component; one at module scope lasts for the page. There is nothing to dispose.
 
 It is built on `createStore` and `createHook` through their public API — `@verajs/core` grew **two
 bytes**, for returning a function it already constructed. That is the module system doing its job:
-you pay <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> if you want memoised derivations and nothing at all if you do not.
+you pay <!--size:computed.gzip-->238 B<!--/size:computed.gzip--> if you want memoized derivations and nothing at all if you do not.
 
 Unlike the other modules, this one keeps `@verajs/core` **external** in every build rather than
 inlining it. It is built *on* core rather than beside it, and a standalone copy would hand a CDN

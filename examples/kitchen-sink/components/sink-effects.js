@@ -65,7 +65,7 @@ export default class SinkEffects extends HTMLElement {
         <p><strong>that press caused: <span id="report">${state.report}</span></strong></p>
         <p class="note">
           Pressing "one write" three times is three separate turns, so all three counters rise by
-          three — which is the same framework behaviour, not a different one.
+          three — which is the same framework behavior, not a different one.
         </p>
         <p>n: <span id="n">${state.n}</span></p>
         <p>useSyncEffect runs: <span id="sync">${counts.sync}</span></p>

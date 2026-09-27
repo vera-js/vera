@@ -357,7 +357,7 @@ export const resolve = (name: string, params: RouteParams = {}) => {
      * component to know or thread the `5` — the page already knows it. Explicit params always win,
      * and `key in params` rather than `??` so that an EXPLICIT `undefined` still means "omit this
      * optional segment" instead of silently refilling it. With no committed navigation (a server
-     * pass, a fresh page) the fill finds nothing and behaviour is exactly what it always was.
+     * pass, a fresh page) the fill finds nothing and behavior is exactly what it always was.
      */
     const value = key in params ? params[key] : state.params[key];
     /** An absent optional param takes its segment with it; an absent required one is left visible. */
@@ -451,7 +451,7 @@ export const attachWindowListeners = () => {
      * like a move away from `/docs#install` to `/docs`, and every anchor click cost a second, full
      * route change: the component ran twice, guards re-ran under a `'popstate'` trigger, and since
      * `popstate` focuses every routed view, clicking an in-page link stole focus. Passing the
-     * whole URL makes `navigate` recognise it as where the page already is, and it returns at once.
+     * whole URL makes `navigate` recognize it as where the page already is, and it returns at once.
      *
      * The same line is what makes traversing back to `/docs#install` restore the fragment rather
      * than dropping it.
@@ -512,7 +512,7 @@ export const navigate = async (
    * which met the same-path early return and came back `true`. So a typo'd name reported a
    * successful navigation to the very code the README tells people to trust: "await navigate() and
    * handle the failure". `resolve` has already said which name is unknown in development; this is
-   * the behavioural half, and it holds in production too.
+   * the behavioral half, and it holds in production too.
    */
   if (typeof target !== 'string' && path === '') return false;
 
@@ -521,7 +521,7 @@ export const navigate = async (
    *
    * Clicking `<a route href="//evil.test/x">` has always been left to the browser, because
    * `methods.ts` compares origins before hijacking it. The programmatic call had no such check, and
-   * `navigate(params.get('next'))` is the ordinary way an app honours a `?next=` redirect — so a
+   * `navigate(params.get('next'))` is the ordinary way an app honors a `?next=` redirect — so a
    * protocol-relative path went straight to `pushState`, which the browser refuses with a
    * `SecurityError` that nothing caught. An open-redirect payload therefore took the page down
    * rather than being declined.
@@ -529,7 +529,7 @@ export const navigate = async (
    * **Every string is resolved, not only the ones that look absolute.** This condition used to be
    * `path.startsWith('//') || /^scheme:/`, which meant `navigate()` and a routed link disagreed about
    * every other shape a URL can take. `methods.ts` resolves a clicked `href` through this same
-   * `new URL(…)` and takes `.pathname`, so a click was always fully normalised while the programmatic
+   * `new URL(…)` and takes `.pathname`, so a click was always fully normalized while the programmatic
    * call was not. Measured from a page at `/shop/items`:
    *
    * | input | as a link | via `navigate()`, before |
@@ -561,8 +561,8 @@ export const navigate = async (
      * Found by the gate rather than by reasoning — `tests/module-api.test.mjs` runs under a jsdom
      * whose document is `about:blank`, and it failed in both builds the moment the condition widened.
      *
-     * Falling back to the raw path restores exactly the old behaviour for the only case that can
-     * reach it: there is no base, so there is nothing to normalise against, and an absolute path is
+     * Falling back to the raw path restores exactly the old behavior for the only case that can
+     * reach it: there is no base, so there is nothing to normalize against, and an absolute path is
      * already the form the matcher wants.
      */
     let resolved;
@@ -655,7 +655,7 @@ export const navigate = async (
   }
   const id = ++navigationId;
   /** A fresh staging area per navigation — routers merge params in as they commit, and the pair
-   *  `currentPath`/`params` flips to it only at the commit below, so a cancelled navigation
+   *  `currentPath`/`params` flips to it only at the commit below, so a canceled navigation
    *  leaves the committed pair exactly as it was. */
   state.pendingParams = {};
 
@@ -781,7 +781,7 @@ export const navigate = async (
   }
   if (id !== navigationId) return false;
   /**
-   * **Nothing matched, and the click is already cancelled.** `addLinkListener` calls
+   * **Nothing matched, and the click is already canceled.** `addLinkListener` calls
    * `preventDefault` before it gets here, so a `route` link pointing at a path no pattern covers
    * swallows the click whole: no navigation, no URL change, no error — the same symptom as a
    * broken listener, and the one thing the page cannot tell you is that it is the *path* that is
@@ -796,7 +796,7 @@ export const navigate = async (
   if (__DEV__ && matches.length === 0)
     console.warn(
       `[vera] router: nothing matched "${matchPath}", so the navigation did nothing. ` +
-        `A link with \`route\` has already had its click cancelled by then — add the route, or a ` +
+        `A link with \`route\` has already had its click canceled by then — add the route, or a ` +
         `catch-all \`/*rest\`, which sorts last however it is declared.`
     );
   if (!routed) return false;
@@ -808,14 +808,14 @@ export const navigate = async (
    * to wherever the URL now points. With this assignment left until the end, that re-entry saw the
    * *old* `currentPath`, decided the page had moved, and ran the whole route a second time under a
    * `'popstate'` trigger — which also focuses every routed view, so an anchor click stole focus.
-   * Setting it first makes the re-entry recognise where it already is and return at once.
+   * Setting it first makes the re-entry recognize where it already is and return at once.
    */
   state.currentPath = path;
   /** The staged params commit in the same breath — the synchronous `popstate` re-entry described
    *  above must see the new path WITH its params, never one navigation's path and another's ids. */
   state.params = state.pendingParams;
   /** This ticket is now the committed one, which is what lets the re-entry's same-path early
-   *  return stay a no-op instead of cancelling the scroll and focus work still to come. */
+   *  return stay a no-op instead of canceling the scroll and focus work still to come. */
   committedId = id;
 
   /**
@@ -859,7 +859,7 @@ const getRoute = (element: HTMLElement, path: string) => {
 
 /**
  * Routes a single router element to a path (no hash fragment, no history writes — `navigate`
- * owns both). Returns false when this router has no matching route or an event handler cancelled;
+ * owns both). Returns false when this router has no matching route or an event handler canceled;
  * true once the route has been applied. `after-route` is emitted for cleanup but cannot cancel —
  * the navigation has already happened.
  *
@@ -926,7 +926,7 @@ const guardPass = async (
      *
      * `redirect` is handled inside this navigation, so the promise `navigate()` returns covers it. A
      * guard calling `navigate()` starts a **separate** navigation that this promise knows nothing
-     * about; awaiting it tells you only that the guarded route was cancelled. That distinction is
+     * about; awaiting it tells you only that the guarded route was canceled. That distinction is
      * load-bearing because the README makes awaiting the supported way to handle an outcome —
      * "`navigate()` rejects, so a caller that awaits it can handle the failure itself".
      */
@@ -1020,7 +1020,7 @@ const routeChange = async (
               `an element — which is one node, so a child cannot inherit it without overwriting its ` +
               `parent. Its view is looked for inside the one its parent rendered into, and no [view] ` +
               `was found there. Give the child a \`view\` name and have the parent's template render ` +
-              `an outlet with it, or initialise the router with a name instead of an element.`
+              `an outlet with it, or initialize the router with a name instead of an element.`
             : `[vera] the route "${link.path}" is nested, so its view is looked for inside the one its ` +
               `parent rendered into — and no [view="${String(processedView)}"] was found there. A ` +
               `parent's template has to render the outlet its children route into.`
