@@ -1670,42 +1670,26 @@ const SLOT_TAG = /<slot[\s/>]/i;
 const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
   if (!SLOT_TAG.test(result.strings.join(''))) return;
   const template = built as { _$inst$?: InstanceHook };
-  const mine = discoverFor();
-  const other = template._$inst$;
-  template._$inst$ = other === undefined ? mine : both(other, mine);
+  /**
+   * **A template carries ONE instance hook, and a consumer that finds one wraps it** — the rule
+   * `InstanceHook` states. This module keeps it at no cost by going FIRST: `slotDiscovery` runs at
+   * priority 10, below the default 50, so it never finds one, and a module wired at the default wraps
+   * this module's. Wrapping here as well was measured at 76–102 B of every slotted app, for a second
+   * consumer that does not exist. One wired even earlier is overwritten, and development says so.
+   */
+  if (__DEV__ && template._$inst$ !== undefined)
+    console.warn(
+      "[vera] slots: a 'template' hook set an instance hook before `slotDiscovery` (priority 10) and is " +
+        'replaced. Wire it at a later priority and wrap the hook it finds, as `InstanceHook` describes.'
+    );
+  template._$inst$ = discoverFor();
 };
-
-/**
- * **A template carries ONE instance hook, so a second consumer wraps the one it finds** — the promise
- * `InstanceHook` makes, and this module keeps it: assigning over a hook another `'template'` hook had
- * set silently switched that module off for every slotted template. Each side keeps its own state and
- * is skipped once it returns `undefined`, exactly as it would be alone. Only templates that two
- * consumers both claim pay for the pair.
- */
-const both = (a: InstanceHook, b: InstanceHook): InstanceHook => ({
-  $c: (fragment, root) => {
-    const x = a.$c(fragment, root);
-    const y = b.$c(fragment, root);
-    return x === undefined && y === undefined ? undefined : [x, y];
-  },
-  $m: (state, root) => {
-    const [x, y] = state as [unknown, unknown];
-    const kx = x === undefined ? undefined : a.$m(x, root);
-    const ky = y === undefined ? undefined : b.$m(y, root);
-    return kx === undefined && ky === undefined ? undefined : [kx, ky];
-  },
-  $q: (kept) => {
-    const [kx, ky] = kept as [unknown, unknown];
-    if (kx !== undefined) a.$q(kx);
-    if (ky !== undefined) b.$q(ky);
-  },
-});
 
 export const slotDiscovery = [
   (registry: Map<string, unknown[]>) => {
     registered = registry;
   },
-  { name: '@verajs/renderer/slot-discovery', on: 'template' as const, fn: markTemplate, priority: 60 },
+  { name: '@verajs/renderer/slot-discovery', on: 'template' as const, fn: markTemplate, priority: 10 },
 ];
 
 /**

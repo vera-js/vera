@@ -11,7 +11,7 @@
  * - `hold()` restores an instance live, so a shape change during the restore resolves where it is.
  * - Under a MathML parent the parser's answer depends on the tag, and the namespaces module asks with it.
  * - With slots wired, a component's own top-level `${…}` is the render's own output, not content.
- * - A second consumer of a template's instance hook is composed with slots', never overwritten.
+ * - Slots sets its instance hook first (priority 10), so a later consumer finds it and wraps it.
  * - An older slots module (no `$o`) beside this renderer is treated as unwired, not given the host.
  * - A self-closed tag in an `html` template used only inside `<svg>` is not warned about.
  * - The namespace cache on a parent element is invisible to `Object.keys`.
@@ -43,18 +43,26 @@ const SVG = 'http://www.w3.org/2000/svg';
 const MATH = 'http://www.w3.org/1998/Math/MathML';
 const XHTML = 'http://www.w3.org/1999/xhtml';
 
-/** A third-party instance hook, wired BEFORE slots so slots meets it on the template. */
+/**
+ * A third-party instance hook after slots, written as `InstanceHook` asks: it WRAPS the
+ * hook it finds — slots', which runs first at priority 10 — carrying both states as a pair.
+ */
 const calls = { c: 0, m: 0, q: 0 };
 const counting = {
   name: 'counting',
   on: 'template',
-  priority: 40,
+  /** Not 50: a taken priority REPLACES its registrant, and namespaces holds 50 on this chain. */
+  priority: 55,
   fn: (built, result) => {
     if (!result.strings.join('').includes('data-counted')) return;
+    const inner = built._$inst$;
     built._$inst$ = {
-      $c: () => (calls.c++, 'state'),
-      $m: () => (calls.m++, 'kept'),
-      $q: () => calls.q++,
+      $c: (fragment, root) => (calls.c++, [inner?.$c(fragment, root), 'state']),
+      $m: ([state], root) => (calls.m++, [state === undefined ? undefined : inner.$m(state, root), 'kept']),
+      $q: ([kept]) => {
+        calls.q++;
+        if (kept !== undefined) inner.$q(kept);
+      },
     };
   },
 };
@@ -179,7 +187,7 @@ test('with slots wired, a light component\'s own top-level ${…} is its output,
   other.remove();
 });
 
-test('a second instance hook on a slotted template runs beside slots\', not instead of it', async () => {
+test('a hook wired after slots finds slots\' instance hook and wraps it: both run', async () => {
   calls.c = calls.m = calls.q = 0;
   const draw = () => html`<section data-counted><slot>fb</slot></section>`;
   const host = doc.createElement('div');
@@ -219,4 +227,25 @@ test('a self-closed tag in an html template used only inside <svg> is not warned
   const leftOpen = said.filter((m) => m.includes('is left OPEN'));
   assert.equal(leftOpen.length, 1, `only the HTML use is warned about: ${JSON.stringify(leftOpen)}`);
   assert.match(leftOpen[0], /^\[vera\] renderer: <span>/);
+});
+
+test('a hook wired BEFORE slots is replaced, and development says so', { skip: isProduction }, async () => {
+  const said = [];
+  const original = console.warn;
+  console.warn = (message) => said.push(String(message));
+  try {
+    wire([{ name: 'too-early', on: 'template', priority: 5, fn: (built, result) => {
+      if (result.strings.join('').includes('data-early')) built._$inst$ = { $c: () => undefined, $m: () => undefined, $q: () => {} };
+    } }]);
+    const host = doc.createElement('div');
+    host.innerHTML = '<b>MINE</b>';
+    doc.body.append(host);
+    renderInto(html`<section data-early><slot>fb</slot></section>`, host);
+    await settle();
+    assert.equal(host.querySelector('section').textContent, 'MINE', 'CONTROL: slots still distributes');
+    host.remove();
+  } finally {
+    console.warn = original;
+  }
+  assert.equal(said.filter((m) => m.includes('before `slotDiscovery`')).length, 1, JSON.stringify(said));
 });
