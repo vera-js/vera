@@ -249,3 +249,41 @@ test('a hook wired BEFORE slots is replaced, and development says so', { skip: i
   }
   assert.equal(said.filter((m) => m.includes('before `slotDiscovery`')).length, 1, JSON.stringify(said));
 });
+
+/**
+ * Round 2: the render's own output is decided by WHERE it is inserted during a render, not by a stamp
+ * on a marker — markers created live, and rows a keyed list batches, never carried one.
+ */
+test("with slots wired, a component's own content stays its own on every live path", async () => {
+  const host = (tag) => {
+    const element = doc.createElement(tag);
+    element.innerHTML = '<b>USER</b>';
+    doc.body.append(element);
+    return element;
+  };
+  const shell = (rest) => html`<main><slot>fb</slot></main>${rest}`;
+  const error = () => html`<p class="error">failed</p>`;
+  const a = host('x-empty');
+  renderInto(shell(''), a);
+  renderInto(shell(error()), a);
+  await settle();
+  assert.ok(a.querySelector(':scope > p.error'), "an empty string's part upgrading to a template shows it");
+  assert.equal(a.querySelector('main').textContent, 'USER', 'CONTROL: the user content is in the slot');
+  const row = (i) => html`<li>${i}</li>`;
+  const { keyed } = await load('renderer/keyed');
+  const rows = (n) => Array.from({ length: n }, (_, i) => keyed(i, row(i)));
+  const b = host('x-keyed');
+  renderInto(shell(rows(1)), b);
+  renderInto(shell(rows(3)), b);
+  await settle();
+  assert.equal(b.querySelectorAll(':scope > li').length, 3, 'a keyed list growing by two keeps its rows');
+  assert.equal(b.querySelector('main').textContent, 'USER', 'and the slot got none of them');
+  const shaped = (i, em) => (em ? html`<em>${i}</em>` : html`<li>${i}</li>`);
+  const c = host('x-shape');
+  renderInto(shell([1, 2].map((i) => shaped(i, false))), c);
+  renderInto(shell([1, 2].map((i) => shaped(i, i === 2))), c);
+  await settle();
+  assert.ok(c.querySelector(':scope > em'), 'a row changing shape stays in place');
+  assert.equal(c.querySelector('main').textContent, 'USER');
+  for (const element of [a, b, c]) element.remove();
+});

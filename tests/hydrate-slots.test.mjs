@@ -715,3 +715,28 @@ test('a node reslotted between slots on an adopted seam is placed, never purged'
   assert.equal(host.querySelector('header').textContent.replace(/\s+/g, ''), 'H0');
   host.remove();
 });
+
+/**
+ * A hydrated light component's OWN top-level `${…}` updates after adoption. Adopted markers never pass
+ * through an insert, so an ownership test keyed on a stamped marker read the component's own new
+ * output as the user's content and captured it: `${busy ? loading() : list()}` emptied on update.
+ */
+test("a hydrated light component's own top-level expression updates after adoption", async () => {
+  const host = hostFromServer(server('<h2 slot="a">MINE</h2>', 'slot-toplevel-ssr'));
+  const mine = host.querySelector('h2');
+  const loading = () => html`<p class="spin">loading</p>`;
+  const list = () => html`<ul><li>one</li><li>two</li></ul>`;
+  const draw = (busy) => html`<article><slot name="a">fb</slot></article>${busy ? loading() : list()}`;
+  renderInto(draw(true), host);
+  await settle();
+  assert.equal(host.querySelector('h2'), mine, 'CONTROL: adopted, node identity kept');
+  assert.ok(host.querySelector('p.spin'), 'CONTROL: the server output is there');
+  renderInto(draw(false), host);
+  await settle();
+  assert.equal(host.querySelectorAll('li').length, 2, 'the update shows the list');
+  assert.equal(host.querySelector('article li'), null, 'and none of it went into the slot');
+  renderInto(draw(true), host);
+  await settle();
+  assert.ok(host.querySelector('p.spin'), 'and back');
+  host.remove();
+});
