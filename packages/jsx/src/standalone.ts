@@ -16,9 +16,10 @@
  * **What it does per file**: fetch it, compile it (JSX files) or take it as is (JS files), rewrite its
  * relative imports to the compiled files they name, and run the result from a blob URL. A relative
  * import of anything else — `./data.json` `with { type: 'json' }`, a CSS module — is pointed at its
- * real address and left to the browser. Every `import(…)` and `import.meta` goes through this loader
- * with the file's real address (after redirects), so a template literal, a computed path, import
- * options and `import.meta.resolve` all work as written. Package names
+ * real address and left to the browser. Every `import(…)` and `import.meta` resolves against the
+ * file's real address (after redirects), so a template literal, a computed path, a full same-site URL,
+ * import options and `import.meta.resolve` all work as written; a package name in them resolves from
+ * the file itself, through the page's import map. Package names
  * are left to the page's import map — except `@verajs/renderer`'s own entries (`keyed`, `spread`
  * and `namespaces`, which compiled JSX imports, and `slots`, `tag` or `hydrate`, which an app
  * imports), which are loaded from beside wherever the map puts `@verajs/renderer`, so the map stays
@@ -28,13 +29,13 @@
  * Chromium, Firefox and WebKit. A Service Worker was measured too and rejected: Firefox charges every
  * request routed through one ~0.7 ms, with no static routing to avoid it.
  *
- * **Repeat visits compile nothing.** Each JSX file's compiled output is kept in `localStorage`, keyed
- * by its URL, validated by the ETag its server sends — or its `Last-Modified`, which is all
- * `python3 -m http.server` sends — and stamped with this package's version; a plain JS file keeps
- * only where its imports are, since its text comes back from the HTTP cache, so vendored libraries
- * cannot fill the storage. The compiler itself (`vera-jsx.min.js`, beside this file) is imported only
- * when something must be compiled. A file with neither header, and an inline block, is compiled every
- * time.
+ * **Repeat visits compile nothing.** Each JSX file's compiled output — and an inline block's — is kept
+ * in `localStorage`, keyed by its URL and this package's version, and valid only for the exact text it
+ * was compiled from: a fingerprint of the file is compared, never a server header, because a header
+ * that does not change when the file does (an npm tarball stamps every file 1985-10-26) replayed old
+ * import positions into new text. A plain JS file keeps only where its imports are, so vendored
+ * libraries cannot fill the storage. The compiler itself (`vera-jsx.min.js`, beside this file) is
+ * imported only when something must be compiled.
  *
  * **Not supported: circular imports.** A blob URL exists only once its content does, so two files
  * cannot name each other; the cycle is reported with its chain. Use the Vite plugin for those.
@@ -49,27 +50,40 @@ type Compiler = {
 };
 /** A file ready to link: its JavaScript and where its imports are in it. */
 type Compiled = { js: string; sites: ImportSite[] };
-/** What the cache keeps: a JS file's text is not kept — the HTTP cache already has it. */
-type Kept = { etag: string; sites: ImportSite[]; js?: string };
+/** What the cache keeps, for the text whose fingerprint is `fp`: a JS file's text is not kept. */
+type Kept = { fp: string; sites: ImportSite[]; js?: string };
 
 const COMPILER = new URL(__DEV__ ? './vera-jsx.js' : './vera-jsx.min.js', import.meta.url).href;
 let compiler: Promise<Compiler> | undefined;
 const loadCompiler = (): Promise<Compiler> => (compiler ??= import(/* @vite-ignore */ COMPILER) as Promise<Compiler>);
 
-const CACHE = `vera-jsx@${__VERSION__}:`;
-const recall = (url: string, etag: string | null): Kept | null => {
-  if (etag === null) return null;
+/** `/2`: the entry format, so an entry an earlier build of this same version wrote is never replayed. */
+const CACHE = `vera-jsx@${__VERSION__}/2:`;
+/**
+ * **The text's fingerprint**: its length and two independent 32-bit hashes (FNV-1a and djb2) in one
+ * pass — a few milliseconds for a multi-megabyte vendored file, and no false match in practice.
+ */
+const fingerprint = (text: string): string => {
+  let a = 0x811c9dc5;
+  let b = 5381;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 16777619);
+    b = (Math.imul(b, 33) + c) | 0;
+  }
+  return `${text.length}.${a >>> 0}.${b >>> 0}`;
+};
+const recall = (url: string, fp: string): Kept | null => {
   try {
     const hit = JSON.parse(localStorage.getItem(CACHE + url) ?? 'null') as Kept | null;
-    return hit !== null && hit.etag === etag ? hit : null;
+    return hit !== null && hit.fp === fp ? hit : null;
   } catch {
     return null;
   }
 };
-const remember = (url: string, etag: string | null, { js, sites }: Compiled): void => {
-  if (etag === null) return;
+const remember = (url: string, fp: string, { js, sites }: Compiled): void => {
   try {
-    localStorage.setItem(CACHE + url, JSON.stringify(isJsx(url) ? { etag, sites, js } : { etag, sites }));
+    localStorage.setItem(CACHE + url, JSON.stringify(isJsx(url) ? { fp, sites, js } : { fp, sites }));
   } catch {
     /** Full or blocked storage only means compiling again next time. */
   }
@@ -117,10 +131,36 @@ const helperUrl = (specifier: string): string | null => {
   helpers.add(url);
   return url;
 };
-/** Every helper file handed out, so a failure can say which of them is missing — see `runBlock`. */
+/** Every helper file handed out, so a failure can say which of them is missing. */
 const helpers = new Set<string>();
+/**
+ * **The browser loads the renderer's helpers itself**, so a missing one fails as an opaque `blob:`
+ * import error that names nothing — on the first load or behind any `import()`. Only on a failure,
+ * each helper handed out is asked for, and a missing one is named once.
+ */
+const named = new Set<string>();
+const nameMissingHelpers = async (): Promise<void> => {
+  for (const url of helpers) {
+    if (named.has(url) || (await fetch(url, { method: 'HEAD' }).then((response) => response.ok, () => false))) continue;
+    named.add(url);
+    console.error(
+      `[vera] jsx: ${url} was not found. The renderer's helpers are loaded from beside ` +
+        `@verajs/renderer — copy its whole dist folder, or map the helper in the import map.`
+    );
+  }
+};
 
 const RELATIVE = /^(?:\.{1,2})?\//;
+/**
+ * A specifier this loader resolves as an ADDRESS: relative, or a full URL on this page's origin —
+ * `import(new URL('./b.jsx', import.meta.url))` names the same file as `import('./b.jsx')`, and left
+ * to the browser it loaded a second copy of a JS module and failed on a JSX one. A cross-origin URL
+ * is the browser's.
+ */
+const addressOf = (specifier: string, base: string): string | null => {
+  if (RELATIVE.test(specifier)) return new URL(specifier, base).href;
+  return /^https?:/i.test(specifier) && new URL(specifier).origin === location.origin ? specifier : null;
+};
 const isJsx = (url: string): boolean => /\.[jt]sx$/.test(new URL(url).pathname);
 /**
  * **Whether this loader loads a file, or the browser does.** Scripts — `.js`, `.mjs`, `.jsx`, `.tsx`,
@@ -171,6 +211,15 @@ const compile = async (url: string, source: string): Promise<Compiled> => {
   const js = isJsx(url) ? transformJsx(source, url) : source;
   return { js, sites: importSites(js) };
 };
+/** A file's text, compiled — from the cache when it was compiled from exactly this text. */
+const compiledFor = async (url: string, source: string): Promise<Compiled> => {
+  const fp = fingerprint(source);
+  const kept = recall(url, fp);
+  if (kept !== null) return { js: kept.js ?? source, sites: kept.sites };
+  const compiled = await compile(url, source);
+  remember(url, fp, compiled);
+  return compiled;
+};
 
 /**
  * One file's JavaScript with its imports pointed at what they name: a relative static import at the
@@ -182,10 +231,17 @@ const link = async (base: string, name: string, { js, sites }: Compiled): Promis
   const at = JSON.stringify(base);
   const edits = await Promise.all(
     sites.map(async (site): Promise<[number, number, string] | null> => {
-      if (site.kind === 'meta') return [site.start, site.end, `globalThis.__veraJsxMeta(${at})`];
-      if (site.kind === 'dynamic') return [site.start, site.end, `globalThis.__veraJsx(${at},`];
-      if (RELATIVE.test(site.specifier)) {
-        const target = new URL(site.specifier, base).href;
+      /**
+       * The file's own `import.meta` and its own `import()` are handed over with the call, so a package
+       * name resolves from THIS module, through the page's map, not from wherever this loader lives —
+       * a map scoped to the loader's folder answered a different `dep`. The two-argument form is
+       * written only where the source had one (see `importSites`).
+       */
+      if (site.kind === 'meta') return [site.start, site.end, `globalThis.__veraJsxMeta(${at}, import.meta)`];
+      if (site.kind === 'dynamic')
+        return [site.start, site.end, `globalThis.__veraJsx(${at}, ${site.pair ? '(s, o) => import(s, o)' : '(s) => import(s)'}, `];
+      const target = addressOf(site.specifier, base);
+      if (target !== null) {
         if (!isScript(target)) return [site.start, site.end, target];
         const loop = loopBack(target, name);
         if (loop !== null)
@@ -220,47 +276,47 @@ const load = (url: string, importer: string): Promise<string> => {
       url,
       (module = (async () => {
         const response = await fetchFile(url, importer);
-        const etag = response.headers.get('etag') ?? response.headers.get('last-modified');
-        const kept = recall(url, etag);
-        let compiled: Compiled;
-        if (kept === null) {
-          compiled = await compile(url, await response.text());
-          remember(url, etag, compiled);
-        } else compiled = { js: kept.js ?? (await response.text()), sites: kept.sites };
         /** Resolved against where the file really is: a redirected file's neighbors are THERE. */
-        return link(response.url || url, url, compiled);
+        return link(response.url || url, url, await compiledFor(url, await response.text()));
       })())
     );
   return module;
 };
 
 /**
- * **What every rewritten `import(` calls**, with the calling file's address: a relative script
- * through this loader, lazily, as written; anything else — a non-script, a renderer helper, a bare
- * name for the import map — through the browser, options and all.
+ * **What every rewritten `import(` calls**, with the calling file's address and its own `import()`:
+ * a script at an address through this loader, lazily, as written; anything else — a non-script, a
+ * renderer helper, a package name — through the calling file's own `import()`, options and all.
  */
-(globalThis as { __veraJsx?: unknown }).__veraJsx = async (base: string, specifier: unknown, options?: ImportCallOptions) => {
+type NativeImport = (specifier: string, options?: unknown) => Promise<unknown>;
+(globalThis as { __veraJsx?: unknown }).__veraJsx = async (base: string, native: NativeImport, specifier: unknown, options?: unknown) => {
   const name = String(specifier);
-  if (!RELATIVE.test(name)) return import(/* @vite-ignore */ helperUrl(name) ?? name, options);
-  const target = new URL(name, base).href;
-  return import(/* @vite-ignore */ isScript(target) ? await load(target, base) : target, options);
+  const target = addressOf(name, base);
+  try {
+    return await native(target === null ? helperUrl(name) ?? name : isScript(target) ? await load(target, base) : target, options);
+  } catch (error) {
+    await nameMissingHelpers();
+    throw error;
+  }
 };
 /**
- * **Each file's `import.meta`**: its real `url`, and a `resolve` that answers as the file itself would —
- * a relative name against that url, a package name through the page's import map.
+ * **Each module's own `import.meta`**, keyed by the real one so two modules — two inline blocks on one
+ * page included — never share one: its real `url`, and a `resolve` that answers as the file would, a
+ * package name through the module's own `import.meta.resolve`. No prototype, like the platform's.
  */
-const metas = new Map<string, { url: string; resolve: (specifier: string) => string }>();
-(globalThis as { __veraJsxMeta?: unknown }).__veraJsxMeta = (base: string) => {
-  let meta = metas.get(base);
-  if (meta === undefined)
-    metas.set(
-      base,
-      (meta = {
-        url: base,
-        resolve: (specifier) =>
-          RELATIVE.test(specifier) ? new URL(specifier, base).href : helperUrl(specifier) ?? import.meta.resolve(specifier),
-      })
-    );
+type Meta = { url: string; resolve: (specifier: string) => string };
+const metas = new WeakMap<object, Meta>();
+(globalThis as { __veraJsxMeta?: unknown }).__veraJsxMeta = (base: string, real: ImportMeta) => {
+  let meta = metas.get(real);
+  if (meta === undefined) {
+    meta = Object.create(null) as Meta;
+    meta.url = base;
+    meta.resolve = (specifier) => {
+      const target = addressOf(specifier, base);
+      return target ?? helperUrl(specifier) ?? real.resolve(specifier);
+    };
+    metas.set(real, meta);
+  }
   return meta;
 };
 
@@ -274,22 +330,10 @@ const runBlock = async (script: HTMLScriptElement): Promise<void> => {
       return;
     }
     const name = new URL(`inline-${++inline}.jsx`, document.baseURI).href;
-    const compiled = await compile(name, script.textContent ?? '');
-    await import(/* @vite-ignore */ await link(document.baseURI, name, compiled));
+    await import(/* @vite-ignore */ await link(document.baseURI, name, await compiledFor(name, script.textContent ?? '')));
   } catch (error) {
     console.error(`[vera] jsx: ${script.src || 'an inline block'}:`, error);
-    /**
-     * **The browser loads the renderer's helpers itself**, so a missing one fails as an opaque
-     * `blob:` import error that names nothing. Only on failure, each helper handed out is asked for.
-     */
-    for (const url of helpers) {
-      const found = await fetch(url, { method: 'HEAD' }).then((response) => response.ok, () => false);
-      if (!found)
-        console.error(
-          `[vera] jsx: ${url} was not found. The renderer's helpers are loaded from beside ` +
-            `@verajs/renderer — copy its whole dist folder, or map the helper in the import map.`
-        );
-    }
+    await nameMissingHelpers();
   }
 };
 

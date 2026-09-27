@@ -164,4 +164,11 @@ export type JsxRoot = {
  * a dynamic `import(` — the keyword and its parenthesis, whatever the argument — or an `import.meta`.
  * `specifier` is empty for the last two: the loader replaces the call and the meta object, not a name.
  */
-export type ImportSite = { start: number; end: number; specifier: string; kind: 'static' | 'dynamic' | 'meta' };
+export type ImportSite = {
+  start: number;
+  end: number;
+  specifier: string;
+  kind: 'static' | 'dynamic' | 'meta';
+  /** A dynamic import given a second argument (import options). */
+  pair?: boolean;
+};

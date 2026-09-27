@@ -40,16 +40,18 @@ the renderer without it pays nothing on its render paths beyond a flag check.
   `src`, run as real ES modules, and a file they import — `.jsx` or `.js`, relatively — is loaded
   the same way, so a self-hosted buildless app is ordinary files beside its page and a three-entry
   import map (`@verajs/core`, `@verajs/renderer`, `@verajs/jsx`). `import()` in any form — a template
-  literal, a computed path, with options — `import.meta.url`, `import.meta.resolve`, a JSON or CSS
-  module and a file behind a redirect all resolve as written. Any `@verajs/renderer/<entry>` —
+  literal, a computed path, a full same-site URL, with options — `import.meta.url`,
+  `import.meta.resolve`, a JSON or CSS module and a file behind a redirect all resolve as written, and
+  a package name in them resolves through the map exactly as from the file itself. Any `@verajs/renderer/<entry>` —
   the helpers compiled JSX imports, and `slots` or `tag` if the app imports them — is found beside
   wherever the map puts `@verajs/renderer`, so copy the renderer's whole `dist` folder. The
-  compiler is loaded only when something must compile, and each file's compiled output is kept in
-  `localStorage`, validated by its ETag or `Last-Modified`, so a repeat visit compiles nothing; a
-  plain `.js` file keeps only where its imports are, never its text. A circular import is reported
+  compiler is loaded only when something must compile, and each file's compiled output — an inline
+  block's too — is kept in `localStorage` and reused only for the exact text it came from (a
+  fingerprint of the file, not a server header), so a repeat visit compiles nothing on any static
+  server; a plain `.js` file keeps only where its imports are, never its text. A circular import is reported
   with its chain, a missing file names the file that imported it, and a renderer helper missing
-  from beside the renderer is named. The entry is 1 916 B gzipped, down from 5 933 in 0.3.2, plus
-  the 5 559 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
+  from beside the renderer is named. The entry is 2 105 B gzipped, down from 5 933 in 0.3.2, plus
+  the 5 608 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
 
 **Fixed in the compiler along the way** — each of these produced a module that died or silently
 lost its JSX:

@@ -364,15 +364,25 @@ export const importSites = (code: string): ImportSite[] => {
     /**
      * A METHOD named `import` — `import(url) { … }` in a class or an object literal, which Vite's own
      * module runner has — reads exactly like a call up to its `)`, and rewriting it is a syntax error.
-     * A call is never followed by `{`; a method always is.
+     * A method's `{` follows on the SAME line; a call followed by a block on the next line
+     * (`await import('./a.js')` then `{ … }`, legal without semicolons) is still a call.
+     *
+     * `pair` notes a second argument (import options) at the call's own depth, so the loader writes the
+     * two-argument form only where the source did: an engine without import attributes cannot even
+     * PARSE `import(s, o)`, and a loader carrying it would fail there for every app.
      */
     let depth = 0;
+    let pair = false;
     let close = m.index! + m[0].length - 1;
-    for (; close < blank.length; close++)
-      if (blank[close] === '(') depth++;
-      else if (blank[close] === ')' && --depth === 0) break;
-    if (/^\s*\{/.test(blank.slice(close + 1, close + 64))) continue;
-    sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'dynamic' });
+    for (; close < blank.length; close++) {
+      const c = blank[close];
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') {
+        if (--depth === 0) break;
+      } else if (c === ',' && depth === 1) pair = true;
+    }
+    if (/^[ \t]*\{/.test(blank.slice(close + 1, close + 64))) continue;
+    sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'dynamic', pair });
   }
   for (const m of blank.matchAll(/(?<![\w$.])import\s*\.\s*meta\b/g))
     sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'meta' });

@@ -9,21 +9,21 @@ No virtual DOM. No framework runtime shipped to the client. No runtime dependenc
 | Module | Standalone | gzipped |
 | --- | ---: | ---: |
 | `@verajs/core` | 7.63 KB | **3.27 KB** |
-| `@verajs/renderer` | 11.80 KB | 4.54 KB |
+| `@verajs/renderer` | 11.85 KB | 4.56 KB |
 | `@verajs/router` | 10.66 KB | 4.45 KB |
 | `@verajs/autoloader` | 3.83 KB | 1.64 KB |
 | `@verajs/styles` | 1.41 KB | 772 B |
 | `@verajs/renderer/spread` | 3.18 KB | 1.58 KB |
 | `@verajs/renderer/tag` | 4.41 KB | 2.19 KB |
 | `@verajs/store` | 1.27 KB | 673 B |
-| `@verajs/jsx` | 14.16 KB | 5.43 KB |
-| `@verajs/jsx/standalone` | 4.06 KB | 1.87 KB |
+| `@verajs/jsx` | 14.24 KB | 5.48 KB |
+| `@verajs/jsx/standalone` | 4.36 KB | 2.06 KB |
 | `@verajs/store/computed` | 293 B | 238 B |
 | `@verajs/store/collections` | 1.06 KB | 571 B |
 | `@verajs/renderer/keyed` | 1.96 KB | 923 B |
 | `@verajs/renderer/slots` | 9.96 KB | 3.69 KB |
-| `@verajs/renderer/namespaces` | 1.25 KB | 718 B |
-| `@verajs/renderer/hydrate` | 17.30 KB | 6.34 KB |
+| `@verajs/renderer/namespaces` | 1.28 KB | 742 B |
+| `@verajs/renderer/hydrate` | 17.35 KB | 6.35 KB |
 | `@verajs/inserts` | 486 B | 357 B |
 | `@verajs/directives` | 15.59 KB | 6.01 KB |
 | `@verajs/directives/directives-standalone` | 19.09 KB | 7.31 KB |

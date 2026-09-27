@@ -563,7 +563,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.54 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.56 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -761,7 +761,7 @@ exactly as written, because `a < b` has to survive.
 
 **Exports.** `veraJsx(options?)` is the bundler plugin; `transformJsx(source, fileName, options?)`
 is the transform itself, for another bundler or a test; `importSites(code)` locates a module's
-import specifiers (what the buildless loader links with); and `@verajs/jsx/standalone` exports
+static import specifiers, `import(` calls and `import.meta` (what the buildless loader links with); and `@verajs/jsx/standalone` exports
 `runBlock(scriptElement)` — on a buildless page, add `"@verajs/jsx/standalone"` to the import map,
 pointing at the same file as `"@verajs/jsx"` — for a `script[type="text/vera-jsx"]` block that arrives **after**
 `DOMContentLoaded` — CMS content, a demo injected later — since blocks present at load run

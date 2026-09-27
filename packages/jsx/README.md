@@ -65,14 +65,17 @@ renderer's WHOLE folder: any `@verajs/renderer/<entry>` — the helpers compiled
 
 `@verajs/jsx/standalone` compiles each `<script type="text/vera-jsx">` block, inline or `src`, in the
 page — and every file it imports: `import { Frame } from './frame.jsx'`, a relative `./util.js`,
-`import('./page.jsx')` (or `` import(`./pages/${name}.jsx`) ``), `import.meta.url`,
-`import.meta.resolve` and a JSON module (`import data from './data.json' with { type: 'json' }`) all
-work as written, and a file behind a redirect resolves its neighbors where it really is. A repeat
-visit compiles nothing: each file's output is kept by its URL and the ETag the server sends — or its
-`Last-Modified`, which is all `python3 -m http.server` sends — and the compiler itself
-(`vera-jsx.min.js`, beside the standalone file) is only loaded when something must be compiled. A
-plain `.js` file keeps only where its imports are, so a vendored library cannot fill the storage.
-If the renderer's helper files are missing from beside it, the error names the file.
+`import('./page.jsx')` (or `` import(`./pages/${name}.jsx`) ``, or a full same-site URL),
+`import.meta.url`, `import.meta.resolve` and a JSON module
+(`import data from './data.json' with { type: 'json' }`) all work as written, a package name in them
+resolves through the page's import map exactly as it would from the file itself, and a file behind a
+redirect resolves its neighbors where it really is. A repeat visit compiles nothing, inline blocks
+included: each file's output is kept by its URL and reused only for the exact text it was compiled
+from — a fingerprint of the file, never a server header, so any static server works and an edit is
+always seen — and the compiler itself (`vera-jsx.min.js`, beside the standalone file) is only loaded
+when something must be compiled. A plain `.js` file keeps only where its imports are, so a vendored
+library cannot fill the storage. If the renderer's helper files are missing from beside it, the
+error names the file, wherever the import that needed it was.
 Measured on a 40-module app, a warm visit is within ~7–12 ms of the same app built ahead of time.
 **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vite plugin
 handles those. Blocks present at `DOMContentLoaded` run in document order; one that arrives later —
@@ -96,8 +99,9 @@ const js = transformJsx(source, 'widget.jsx');                    // imports inj
 const bare = transformJsx(source, 'widget.jsx', { inject: false }); // you provide html/keyed/spread
 ```
 
-`importSites(code)` is what the buildless loader links with: every import specifier and
-`import.meta.url` in a module's text, located on a copy with its strings, comments and template text
+`importSites(code)` is what the buildless loader links with: every static import specifier, every
+`import(` call (the keyword and its parenthesis, with whether it passes import options) and every
+`import.meta` in a module's text, located on a copy with its strings, comments and template text
 blanked, so an `import` written inside a string is never mistaken for one.
 
 ## What JSX means here
