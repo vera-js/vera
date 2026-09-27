@@ -1051,7 +1051,16 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
    */
   if (slot.parentNode === null) return null;
   const nestedStates: SeamState[] = [];
-  const state = capture(host);
+  /**
+   * **Children are never lifted here.** The renderer captures a host at its FIRST client render, so a
+   * host first met at a takeover was not rendered that way: it was HYDRATED (with no `<slot>` then —
+   * one that adopted a slot is captured by `_$adopt$`), or rendered before this module was wired.
+   * Either way its children are the component's own output, and lifting them put that output inside
+   * its own slot — the renderer then inserted a node into its own descendant and threw
+   * `HierarchyRequestError`, leaving the host empty. Content the server could not place still
+   * comes back from its `<template data-vm-unassigned>`, which capture recovers regardless.
+   */
+  const state = capture(host, /* skipChildren */ true);
   const doc = slot.ownerDocument!;
   const parent = slot.parentNode;
   const start = doc.createComment('');

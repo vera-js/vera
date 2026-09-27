@@ -638,6 +638,20 @@ const tryAdopt = (result: TemplateResult, container: Node): ChildPart | null => 
     const cursor: Cursor = { parent: container, node: start.nextSibling, offset: 0 };
     const instance = adoptInstance(at(getTemplate(result), container), result.values, cursor);
     passComments(cursor);
+    /**
+     * The server's carrier for content NO slot claimed — `<template data-vm-unassigned>` after the
+     * render — is not markup the template describes, and failing on it threw away a whole hydration
+     * whenever a component rendered no `<slot>` in its server state. It is inert, and the slots
+     * module recovers it into holding whenever it captures this host. Moved BEFORE the root marker,
+     * out of the render's range: a later render of a different template clears that range, and the
+     * user's content would go with it.
+     */
+    const carrier = cursor.node as Element | null;
+    if (carrier?.localName === 'template' && carrier.hasAttribute('data-vm-unassigned')) {
+      cursor.node = carrier.nextSibling;
+      passComments(cursor);
+      container.insertBefore(carrier, start);
+    }
     if (cursor.node !== null) {
       if (__DEV__) why = `${describe(cursor.node)} follows everything the template describes`;
       throw MISMATCH;

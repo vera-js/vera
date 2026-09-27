@@ -740,3 +740,43 @@ test("a hydrated light component's own top-level expression updates after adopti
   assert.ok(host.querySelector('p.spin'), 'and back');
   host.remove();
 });
+
+/**
+ * A hydrated light component whose `<slot>` only appears in a LATER state. Hydration adopted no slot,
+ * so slots first meets the host at that takeover: lifting its children then put the component's own
+ * output inside its own slot, and the renderer threw `HierarchyRequestError` with the host emptied.
+ * With content no slot claimed on the server, the `data-vm-unassigned` carrier also failed the
+ * adoption outright — the whole hydration was thrown away.
+ */
+test('a hydrated component whose <slot> appears later: no throw, no fallback render, the content arrives', async () => {
+  const opened = () => html`<slot>FB</slot>`;
+  const draw = (open) => html`<header>HEAD</header><div class="body">${open ? opened() : null}</div><footer>FOOT</footer>`;
+  const said = [];
+  const original = console.warn;
+  console.warn = (message) => said.push(String(message));
+  try {
+    const empty = hostFromServer(server('', 'slot-late-ssr'));
+    const header = empty.querySelector('header');
+    renderInto(draw(false), empty);
+    await settle();
+    assert.equal(empty.querySelector('header'), header, 'CONTROL: adopted in place');
+    renderInto(draw(true), empty);
+    await settle();
+    assert.equal(empty.querySelector('.body').textContent, 'FB', 'the late slot shows its fallback');
+    assert.equal(empty.querySelector('header').textContent, 'HEAD', "and the component's output is still its own");
+    empty.remove();
+    const given = hostFromServer(server('<b>MINE</b>', 'slot-late-ssr'));
+    const kept = given.querySelector('header');
+    renderInto(draw(false), given);
+    await settle();
+    assert.equal(given.querySelector('header'), kept, 'adopted, not rebuilt, with the unassigned carrier present');
+    renderInto(html`<p>elsewhere</p>`, given);
+    renderInto(draw(true), given);
+    await settle();
+    assert.equal(given.querySelector('.body b')?.textContent, 'MINE', 'the parked content arrives when its slot does, through a template swap');
+    given.remove();
+  } finally {
+    console.warn = original;
+  }
+  assert.deepEqual(said.filter((m) => m.includes('fell back')), [], 'no hydration fallback');
+});
