@@ -2915,7 +2915,12 @@ export const renderInto = (result: unknown, container: Node) => {
   } finally {
     renderRoot = outerRoot;
     create.scope = outerScope;
-    flushSelects();
+    /**
+     * Only the OUTERMOST render flushes: a nested one — a ref rendering a portal — flushing here
+     * applied the outer render's queued `<select>` value before the outer render had built its
+     * options, and the select showed the first option. The outer flush applies both.
+     */
+    if (outerRoot === null) flushSelects();
   }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };

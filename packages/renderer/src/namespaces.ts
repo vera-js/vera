@@ -117,8 +117,14 @@ export const namespaces = {
     /** The `svg` and `mathml` builds of this template's markup, made the first time one is needed. */
     let svg: Template | undefined;
     let mathml: Template | undefined;
-    /** The template's first tag, which a MathML parent's answer depends on; `x` when it opens with text. */
-    const tag = /^\s*<([a-zA-Z][^\s/>]*)/.exec(result.strings[0])?.[1] ?? 'x';
+    /**
+     * The template's first ELEMENT's tag, which a MathML parent's answer depends on — past any leading
+     * text, comment or expression (read from all the strings, comments removed), `x` when there is
+     * none. Matching only a tag at the very start answered a template opening `<!--c--><svg>`,
+     * `label <svg>` or `${x}<svg>` as if it held no element at all. A template whose roots differ in
+     * kind still gets one answer, its first element's.
+     */
+    const tag = /<([a-zA-Z][^\s/>]*)/.exec(result.strings.join('').replace(/<!--[\s\S]*?-->/g, ''))?.[1] ?? 'x';
     const pick = (ns: string | null): Template =>
       ns === null
         ? template
