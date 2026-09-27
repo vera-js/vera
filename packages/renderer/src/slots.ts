@@ -1567,6 +1567,9 @@ if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
  * app, slots or not.
  */
 let registered: Map<string, unknown[]> | null = null;
+/** The wired strategy, looked up at the first mount and then kept — every slot of every instance
+ *  would otherwise repeat the same registry lookup. Wiring after rendering is unsupported anyway. */
+let strategyOf: Strategy | undefined;
 type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
 
 /**
@@ -1578,8 +1581,10 @@ type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | 
 const slotBehavior: ElementBehavior = {
   mount: (slot, root) => {
     if (root === null) return undefined;
-    const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
-    return strategy?.(slot, root, slot.getAttribute('name') ?? '') ?? undefined;
+    const strategy = (strategyOf ??= registered?.get('slot')?.[0] as Strategy | undefined);
+    if (strategy === undefined) return undefined;
+    const state = strategy(slot, root, slot.getAttribute('name') ?? '');
+    return state === null ? undefined : state;
   },
   unmount: (state) => (state as SeamState)._$park$?.(),
 };

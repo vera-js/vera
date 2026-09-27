@@ -1846,7 +1846,8 @@ class Instance {
         const kept = hooks[i + 2];
         if (kept === undefined || kept === CLAIM_PENDING) continue;
         hooks[i + 2] = undefined;
-        (hooks[i + 1] as ElementBehavior).unmount?.(kept, hooks[i] as Element);
+        const behavior = hooks[i + 1] as ElementBehavior;
+        if (behavior.unmount !== undefined) behavior.unmount(kept, hooks[i] as Element);
       }
   }
 
@@ -1873,8 +1874,8 @@ class Instance {
     const hooks = this._hooks!;
     for (let i = 0; i < hooks.length; i += 3) {
       if (hooks[i + 2] !== CLAIM_PENDING) continue;
-      const mount = (hooks[i + 1] as ElementBehavior).mount;
-      const kept = mount === undefined ? undefined : mount(hooks[i] as Element, renderRoot);
+      const behavior = hooks[i + 1] as ElementBehavior;
+      const kept = behavior.mount === undefined ? undefined : behavior.mount(hooks[i] as Element, renderRoot);
       hooks[i + 2] = kept;
       if (kept !== undefined) notifyOnRemoval = true;
     }
