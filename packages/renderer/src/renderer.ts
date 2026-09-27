@@ -603,6 +603,9 @@ class Template {
    */
   /** Whether any element in this template was claimed by an `'element'` insert — see `CLAIM_PENDING`. */
   declare _hooked?: boolean;
+  /** PROTOTYPE: claims kept OFF the parts list — positions and behaviors, in document order. */
+  declare _claimAt?: number[];
+  declare _claimBy?: ElementBehavior[];
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
@@ -671,7 +674,8 @@ class Template {
           for (let i = 0; i < claims.length; i++) {
             const behavior = claims[i](element);
             if (behavior !== undefined) {
-              parts.push({ _type: HOOK, _index: nodeIndex, _hook: behavior });
+              (this._claimAt ??= []).push(nodeIndex);
+              (this._claimBy ??= []).push(behavior);
               this._hooked = true;
             }
           }
@@ -1772,16 +1776,27 @@ class Instance {
         node = instanceWalker.nextNode();
         nodeIndex++;
       }
-      /** Kept OUT of `_parts`: it takes no value, and `_update`'s `_commit` loop — the hottest call
-       *  site in the renderer, shared by every instance — never sees a fourth part class. */
-      if (templatePart._type === HOOK) {
-        (this._hooks ??= []).push(node, templatePart._hook, CLAIM_PENDING);
-      } else
-        this._parts.push(
-          templatePart._type === CHILD
-            ? new TextPart(node as Text)
-            : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
-        );
+      this._parts.push(
+        templatePart._type === CHILD
+          ? new TextPart(node as Text)
+          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
+      );
+    }
+    /** PROTOTYPE: claimed elements found in their own short walk, so the loop above is unchanged. */
+    const claimAt = template._claimAt;
+    if (claimAt !== undefined) {
+      const claimBy = template._claimBy!;
+      const hooks: unknown[] = (this._hooks = []);
+      instanceWalker.currentNode = this._fragment;
+      let at = -1;
+      let claimed: Node | null = null;
+      for (let k = 0; k < claimAt.length; k++) {
+        while (at < claimAt[k]) {
+          claimed = instanceWalker.nextNode();
+          at++;
+        }
+        hooks.push(claimed, claimBy[k], CLAIM_PENDING);
+      }
     }
     /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
      *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
