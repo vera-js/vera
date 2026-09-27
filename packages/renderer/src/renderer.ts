@@ -2187,6 +2187,13 @@ class ChildPart implements Part {
   _applierState: unknown = undefined;
   /** Which applier that state belongs to, so two of them at one part cannot read each other's. */
   _applier: unknown = undefined;
+  /**
+   * The container whose render attached this part's applier — `declare`d, so only applier parts carry
+   * it. A later `_$commit$` runs as a render of THAT container (see there). Found by walking up from
+   * the part it would be wrong: content an outer template places into a light host sits inside the
+   * host, but belongs to the outer render.
+   */
+  declare _root?: Node | null;
 
   constructor(start: Comment, end: Node | null) {
     this._start = start;
@@ -2357,7 +2364,25 @@ class ChildPart implements Part {
      */
     const applierState = this._applierState;
     const applier = this._applier;
-    this._set(value);
+    /**
+     * **A commit after the render returned — an applier resolving later — runs as a render of the
+     * container that attached it.** With no render root, a `<slot>` it committed found no host to
+     * distribute into and showed its fallback while the user's content sat in holding; and only a
+     * render flushes queued `<select>` values, so one committed here was never applied.
+     */
+    if (renderRoot === null && this._root != null) {
+      /** And its scope is restored however it ends, as `renderInto`'s is: a throw here left it set. */
+      const outerScope = create.scope;
+      renderRoot = this._root;
+      create.scope = null;
+      try {
+        this._set(value);
+      } finally {
+        renderRoot = null;
+        create.scope = outerScope;
+        flushSelects();
+      }
+    } else this._set(value);
     this._applierState = applierState;
     this._applier = applier;
   }
@@ -2498,6 +2523,7 @@ class ChildPart implements Part {
         }
       }
       this._applier = applyChild;
+      this._root = renderRoot;
       if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
       this._applierState = applyChild.call(value, this, previous);
       return;

@@ -62,8 +62,10 @@ export type SlotSeamState = { _$park$?: () => void };
  *
  * A `'template'` hook sets one as the template's `_$inst$` while the template is built — only
  * templates that need it carry one, so every other instance pays one property read. For every
- * instance of that template the renderer calls `$c` BEFORE the first update, with the instance's
- * fresh fragment and the render root (`null` outside a `renderInto`: hydration's adoption path); `$m`
+ * instance of that template the renderer CREATES it calls `$c` BEFORE the first update, with the
+ * instance's fresh fragment and the render root (`null` for a commit outside any `renderInto`, such as
+ * an applier resolving later) — an instance hydration ADOPTS is never created, so it calls neither
+ * `$c` nor `$m`, and slots adopts its `<slot>`s through its own seam instead; `$m`
  * once that first update has committed — so bindings are live, and a `<slot name=${…}>` has its name
  * — with whatever `$c` returned; and `$q` at teardown with whatever `$m` returned. An `undefined` at
  * either step ends the instance's part in it.

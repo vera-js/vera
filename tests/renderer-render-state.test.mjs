@@ -287,3 +287,31 @@ test("with slots wired, a component's own content stays its own on every live pa
   assert.equal(c.querySelector('main').textContent, 'USER');
   for (const element of [a, b, c]) element.remove();
 });
+
+/**
+ * A commit AFTER the render returned — a child applier resolving later, the `until()` pattern — runs
+ * as a render of the container that attached it: a `<slot>` it commits distributes, and a `<select>`
+ * value it commits is applied.
+ */
+test('an applier committing later distributes its slots and applies its select values', async () => {
+  const body = () => html`<section><slot name="h">FALLBACK</slot></section>`;
+  const applyLater = (part) => void Promise.resolve().then(() => part._$commit$(body()));
+  const later = { _$child$: applyLater };
+  const host = doc.createElement('x-later');
+  host.innerHTML = '<b slot="h">MINE</b>';
+  doc.body.append(host);
+  renderInto(html`<article>${later}</article>`, host);
+  await settle();
+  await settle();
+  assert.equal(host.querySelector('section').textContent, 'MINE', 'the late <slot> took the host content');
+  const picker = (v) => html`<select .value=${v}><option>a</option><option>b</option><option>c</option></select>`;
+  const applySelect = (part) => void Promise.resolve().then(() => part._$commit$(picker('c')));
+  const box = doc.createElement('div');
+  doc.body.append(box);
+  renderInto(html`<div>${{ _$child$: applySelect }}</div>`, box);
+  await settle();
+  await settle();
+  assert.equal(box.querySelector('select').value, 'c', 'the late select value was applied');
+  host.remove();
+  box.remove();
+});
