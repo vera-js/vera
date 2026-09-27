@@ -199,13 +199,15 @@ export const SELECT_STYLES = /* css */ `
     visibility: hidden;
     pointer-events: none;
   }
+  /*
+   * The anchor NAME is per instance — a private name built from the element's uid, set inline on
+   * the trigger and the menu by the element. A shared name here is tree-scoped only inside a shadow
+   * root: in the light DOM it is document-wide and the last trigger in tree order wins, so every
+   * light dropdown's menu opened under the last one on the page.
+   */
   @supports (top: anchor(bottom)) {
-    :where([part='trigger']) {
-      anchor-name: --_vera-select-anchor;
-    }
     :where([part='menu'][popover]) {
       position: fixed;
-      position-anchor: --_vera-select-anchor;
       inset: auto;
       padding: 0;
       box-sizing: border-box;

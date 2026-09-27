@@ -233,6 +233,42 @@ const labelOf = (element: VeraSelect): string | null => {
   return label?.textContent?.trim() || null;
 };
 
+/**
+ * **Two icons are the same icon when they are the same template with the same values**, so a JSX
+ * `<Badge id={c.id} />` built again on every render still compares equal while nothing it shows has
+ * changed. The strings are compared by CONTENT, not identity: the dropdown keeps its options in a
+ * store, which hands a stored template's `strings` back through a proxy (measured: identity lost).
+ */
+const sameIcon = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  const x = a as { strings?: readonly string[]; values?: unknown[] } | null;
+  const y = b as { strings?: readonly string[]; values?: unknown[] } | null;
+  if (x?.strings === undefined || y?.strings === undefined || x.values!.length !== y.values!.length) return false;
+  if (x.strings.length !== y.strings.length || x.strings.some((text, i) => text !== y.strings![i])) return false;
+  return x.values!.every((value, i) => sameIcon(value, y.values![i]));
+};
+/**
+ * Field for field, icons by `sameIcon` — what the dropdown would show is identical. The SAME object
+ * never counts as equal: it may have been mutated in place (`opts[0].label = 'x'; el.options = opts`),
+ * and its fields would then compare against themselves. Only distinct objects that match are skipped,
+ * which is exactly a template's freshly built options.
+ */
+const sameOptions = (a: SelectOption[], b: SelectOption[]): boolean =>
+  a.length === b.length &&
+  a.every((option, i) => {
+    const other = b[i];
+    return (
+      option !== other &&
+      option.value === other.value &&
+      option.label === other.label &&
+      option.disabled === other.disabled &&
+      option.description === other.description &&
+      option.group === other.group &&
+      sameIcon(option.iconBefore, other.iconBefore) &&
+      sameIcon(option.iconAfter, other.iconAfter)
+    );
+  });
+
 export class VeraSelect extends HTMLElement {
   static styles = SELECT_STYLES;
   static formAssociated = true;
@@ -265,6 +301,13 @@ export class VeraSelect extends HTMLElement {
     const entry = internal(this);
     entry.htmlSourced = false; // property wins; the markup stops being the source
     const options = Array.isArray(next) ? [...next] : [];
+    /**
+     * **Setting what it already shows does nothing.** A template sets `options` on every render —
+     * the getter hands back a copy, so the renderer's `!==` never matches — and rebuilding the
+     * options each time rewrote the dropdown's state for nothing. (Before core stopped tracking the
+     * commit, that write also re-scheduled the parent: a template re-running every frame.)
+     */
+    if (sameOptions(options, entry.select?.state.options ?? entry.pending.options)) return;
     warnDuplicates(options);
     if (entry.select) entry.select.setOptions(options);
     else entry.pending.options = options;
@@ -290,7 +333,11 @@ export class VeraSelect extends HTMLElement {
      *  same invariant every pick path already maintains. */
     const bounded = this.hasAttribute('multi') ? raw : raw.slice(0, 1);
     if (entry.select) {
-      entry.select.state.value = resolveSelection(bounded, entry.select.state.options, entry.select.state.value);
+      const resolved = resolveSelection(bounded, entry.select.state.options, entry.select.state.value);
+      /** The same selection, in the same order, is no change — see `set options`. */
+      const current = entry.select.state.value;
+      if (resolved.length === current.length && resolved.every((option, i) => option.value === current[i].value)) return;
+      entry.select.state.value = resolved;
       entry.select.sync();
       reflectForm(this, entry.select.state.value);
       syncStates(this);
@@ -402,6 +449,52 @@ export class VeraSelect extends HTMLElement {
   }
   set multi(next: boolean) {
     this.toggleAttribute('multi', next === true);
+  }
+  /**
+   * **Every one-word attribute is also a property**, because that is how JSX delivers it: on a
+   * dash-named tag `@verajs/jsx` sets a bare prop as a PROPERTY, so `<vera-select light creatable
+   * placeholder="Choose">` in TSX landed as three inert expandos — every dropdown took a shadow root
+   * (and an app's Tailwind stopped reaching its icons), no "Create" row appeared, and the default
+   * placeholder showed. Dash-named attributes (`search-placeholder`) cannot be properties and were
+   * never affected. `light` is read when the element connects, so it has to be set before then — a
+   * template's properties are.
+   */
+  get light(): boolean {
+    return this.hasAttribute('light');
+  }
+  set light(next: boolean) {
+    this.toggleAttribute('light', next === true);
+  }
+  get searchable(): boolean {
+    return this.hasAttribute('searchable');
+  }
+  set searchable(next: boolean) {
+    this.toggleAttribute('searchable', next === true);
+  }
+  get creatable(): boolean {
+    return this.hasAttribute('creatable');
+  }
+  set creatable(next: boolean) {
+    this.toggleAttribute('creatable', next === true);
+  }
+  get remote(): boolean {
+    return this.hasAttribute('remote');
+  }
+  set remote(next: boolean) {
+    this.toggleAttribute('remote', next === true);
+  }
+  get loading(): boolean {
+    return this.hasAttribute('loading');
+  }
+  set loading(next: boolean) {
+    this.toggleAttribute('loading', next === true);
+  }
+  get placeholder(): string {
+    return this.getAttribute('placeholder') ?? '';
+  }
+  set placeholder(next: string | null | undefined) {
+    if (next == null) this.removeAttribute('placeholder');
+    else this.setAttribute('placeholder', String(next));
   }
   get labels(): NodeList | undefined {
     return internal(this).internals?.labels;
@@ -768,6 +861,7 @@ export class VeraSelect extends HTMLElement {
             aria-label=${labelOf(this)}
             aria-required=${attrs()['required'] != null ? 'true' : null}
             aria-activedescendant=${state.open ? activeId : null}
+            style=${ANCHOR_TIER ? `anchor-name: --_vera-anchor-${entry.uid}` : null}
             ${spread(select.triggerStamps())}
             @click=${handlers.onTriggerClick}
             @keydown=${handlers.onTriggerKeydown}
@@ -780,6 +874,7 @@ export class VeraSelect extends HTMLElement {
         <div
           part="menu"
           popover=${ANCHOR_TIER && !entry.slottedTrigger ? 'manual' : null}
+          style=${ANCHOR_TIER && !entry.slottedTrigger ? `position-anchor: --_vera-anchor-${entry.uid}` : null}
           data-state=${state.open ? 'open' : 'closed'}
           @keydown=${handlers.onMenuKeydown}
           @input=${handlers.onSearchInput}

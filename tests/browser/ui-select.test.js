@@ -552,3 +552,28 @@ it('form association is real: the select submits like a control and resets with 
   expect(element.value).to.equal('', 'single-mode empty is the empty string');
   form.remove();
 });
+
+it('in the light DOM, each menu opens under its OWN trigger, not the last one on the page', async () => {
+  if (!CSS.supports('top: anchor(bottom)')) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:96px;padding:48px';
+  const one = document.createElement('vera-select');
+  const two = document.createElement('vera-select');
+  for (const element of [one, two]) {
+    element.setAttribute('light', '');
+    element.style.width = '100px';
+    row.appendChild(element);
+  }
+  document.body.appendChild(row);
+  for (const element of [one, two]) element.options = OPTIONS;
+  await frame();
+  one.open();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const trigger = one.querySelector('[part="trigger"]').getBoundingClientRect();
+  const menu = one.querySelector('[part="menu"]').getBoundingClientRect();
+  const other = two.querySelector('[part="trigger"]').getBoundingClientRect();
+  expect(Math.abs(other.left - trigger.left), 'CONTROL: the two triggers are apart').to.be.greaterThan(100);
+  expect(Math.round(menu.left), 'the first menu sits under the first trigger').to.equal(Math.round(trigger.left));
+  one.close();
+  row.remove();
+});

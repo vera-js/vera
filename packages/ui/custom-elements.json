@@ -173,6 +173,54 @@
             },
             {
               "kind": "field",
+              "name": "light",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Reflection of the `light` attribute; setting it toggles the attribute — how JSX delivers a bare `light`. Read at connect, so set it before the element connects."
+            },
+            {
+              "kind": "field",
+              "name": "searchable",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Reflection of the `searchable` attribute; setting it toggles the attribute — how JSX delivers a bare `searchable`."
+            },
+            {
+              "kind": "field",
+              "name": "creatable",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Reflection of the `creatable` attribute; setting it toggles the attribute — how JSX delivers a bare `creatable`."
+            },
+            {
+              "kind": "field",
+              "name": "remote",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Reflection of the `remote` attribute; setting it toggles the attribute — how JSX delivers a bare `remote`."
+            },
+            {
+              "kind": "field",
+              "name": "loading",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Reflection of the `loading` attribute; setting it toggles the attribute — how JSX delivers a bare `loading`."
+            },
+            {
+              "kind": "field",
+              "name": "placeholder",
+              "type": {
+                "text": "string"
+              },
+              "description": "Reflection of the `placeholder` attribute; null or undefined removes it — how JSX delivers `placeholder=\"…\"`."
+            },
+            {
+              "kind": "field",
               "name": "labels",
               "type": {
                 "text": "NodeList | undefined"

@@ -24,7 +24,8 @@ type Expect<T extends true> = T;
  */
 type _refIsNotAUnion = Expect<Equal<ReturnType<typeof ref<number>>, { value: number }>>;
 type _refCarriesItsType = Expect<Equal<ReturnType<typeof ref<string>>['value'], string>>;
-type _shallowRefShape = Expect<Equal<ReturnType<typeof shallowRef<number>>, { value: number; _ignore: boolean }>>;
+/** No `_ignore`: the store's internal shallow mark is not part of what a consumer holds. */
+type _shallowRefShape = Expect<Equal<ReturnType<typeof shallowRef<number>>, { value: number }>>;
 
 /**
  * **An element ref is created empty**, which is how the renderer's README, `llms.txt` and every
@@ -42,7 +43,7 @@ box.value = document.createElement('input');
 box.value = undefined;
 
 const _emptyShallow = shallowRef<string>();
-type _emptyShallowRef = Expect<Equal<typeof _emptyShallow, { value: string | undefined; _ignore: boolean }>>;
+type _emptyShallowRef = Expect<Equal<typeof _emptyShallow, { value: string | undefined }>>;
 
 /** And the valued form keeps its narrow type, which is the whole reason there are two signatures. */
 const _narrow = ref(0);

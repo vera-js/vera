@@ -33,11 +33,15 @@ type Ref = {
 
 export const ref: Ref = <T,>(initialValue?: T) => createProxy({ value: initialValue }) as { value: T };
 
-/** Same shape as {@link ref}, and empty for the same reason. */
+/**
+ * Same shape as {@link ref}, and empty for the same reason. The `_ignore` flag that makes it shallow
+ * is the store's internal mark and stays off the public type: it showed in autocomplete on every
+ * `shallowRef` and read like something to set.
+ */
 type ShallowRef = {
-  <T = undefined>(): { value: T | undefined; _ignore: boolean };
-  <T>(initialValue: T): { value: T; _ignore: boolean };
+  <T = undefined>(): { value: T | undefined };
+  <T>(initialValue: T): { value: T };
 };
 
 export const shallowRef: ShallowRef = <T,>(initialValue?: T) =>
-  createProxy({ value: initialValue, _ignore: true }) as { value: T; _ignore: boolean };
+  createProxy({ value: initialValue, _ignore: true }) as { value: T };

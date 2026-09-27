@@ -1077,3 +1077,50 @@ test('authored options + selected + a slotted trigger do not spin the render loo
   );
   element.remove();
 });
+
+/**
+ * TSX hands a dash-named tag its bare props as PROPERTIES (`.light=${true}`), so every one-word
+ * attribute needs a reflecting accessor or it lands as an inert expando: a Content Flow app's
+ * `<vera-select light creatable placeholder="Choose">` took a shadow root, had no Create row and showed
+ * the default placeholder.
+ */
+test('light, creatable and placeholder arrive as properties the way TSX sends them', async () => {
+  const { transformJsx } = await load('jsx');
+  const compiled = transformJsx('export const v = <vera-select light creatable placeholder="Choose"></vera-select>;', 'v.tsx');
+  assert.match(compiled, /\.light=/, 'CONTROL: the compiler sends light as a property');
+  const element = dom.window.document.createElement('vera-select');
+  element.light = true;
+  element.creatable = true;
+  element.placeholder = 'Choose';
+  dom.window.document.body.append(element);
+  element.options = OPTIONS;
+  await frame();
+  assert.equal(element.shadowRoot, null, 'light: no shadow root');
+  assert.equal(element.hasAttribute('creatable'), true, 'creatable reflects');
+  assert.equal(element.querySelector('[part="value"]').getAttribute('data-placeholder'), 'Choose', 'the placeholder shows');
+  element.light = false;
+  assert.equal(element.hasAttribute('light'), false, 'and a false removes the attribute');
+  element.remove();
+});
+
+/** Setting what it already holds rebuilds nothing — a template sets both on every render. */
+test('options and value equal to what the dropdown holds are no-ops; icons compare by template', async () => {
+  const icon = (id) => ({ strings: ICON_STRINGS, values: [id] });
+  const build = () => [{ value: 'a', label: 'A', iconBefore: icon('a') }, { value: 'b', label: 'B', iconBefore: icon('b') }];
+  const element = await mount((el) => el.setAttribute('multi', ''));
+  element.options = build();
+  element.value = ['a'];
+  await frame();
+  const before = element.options;
+  element.options = build();
+  element.value = ['a'];
+  assert.equal(element.options[0], before[0], 'an equal set kept the same option objects');
+  const shared = element.options;
+  shared[0].label = 'Changed';
+  element.options = shared;
+  assert.equal(element.options[0].label, 'Changed', 'CONTROL: re-assigning mutated objects still applies');
+  element.options = [{ value: 'a', label: 'A2' }, { value: 'b', label: 'B' }];
+  assert.equal(element.options[0].label, 'A2', 'a real change applies');
+  element.remove();
+});
+const ICON_STRINGS = Object.freeze(['<i>', '</i>']);

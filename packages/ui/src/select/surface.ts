@@ -99,6 +99,36 @@ export const selectSurface = {
       description: 'Native-style IDL reflection of the `multi` attribute; setting it toggles the attribute.',
     },
     {
+      name: 'light',
+      type: 'boolean',
+      description: 'Reflection of the `light` attribute; setting it toggles the attribute — how JSX delivers a bare `light`. Read at connect, so set it before the element connects.',
+    },
+    {
+      name: 'searchable',
+      type: 'boolean',
+      description: 'Reflection of the `searchable` attribute; setting it toggles the attribute — how JSX delivers a bare `searchable`.',
+    },
+    {
+      name: 'creatable',
+      type: 'boolean',
+      description: 'Reflection of the `creatable` attribute; setting it toggles the attribute — how JSX delivers a bare `creatable`.',
+    },
+    {
+      name: 'remote',
+      type: 'boolean',
+      description: 'Reflection of the `remote` attribute; setting it toggles the attribute — how JSX delivers a bare `remote`.',
+    },
+    {
+      name: 'loading',
+      type: 'boolean',
+      description: 'Reflection of the `loading` attribute; setting it toggles the attribute — how JSX delivers a bare `loading`.',
+    },
+    {
+      name: 'placeholder',
+      type: 'string',
+      description: 'Reflection of the `placeholder` attribute; null or undefined removes it — how JSX delivers `placeholder="…"`.',
+    },
+    {
       name: 'labels',
       type: 'NodeList | undefined',
       description: 'The <label> elements associated with this control, via ElementInternals — native parity.',
