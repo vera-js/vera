@@ -23,7 +23,7 @@ import {
   TextPart,
   ChildPart,
   AttrPart,
-  HookPart,
+  hookRecord,
   IGNORED_PART,
   IGNORED,
   TEMPLATE,
@@ -44,7 +44,7 @@ import type { Template, Item, KeyedResult } from './renderer.js';
 
 /** Hydration adopts IN PLACE, so a position's parent is always live — no scope needed. */
 const at = (template: Template, parent: Node): Template => template._$at$?.(parent) ?? template;
-import type { Part, TemplateResult } from './types.js';
+import type { HookRecord, Part, TemplateResult } from './types.js';
 
 export { hold } from './renderer.js';
 export type { TemplateResult } from './types.js';
@@ -192,7 +192,7 @@ type AdoptState = {
   _out: Part[];
   /** Element-hook parts adopted in this instance — kept out of `_out`, as the client keeps them out
    *  of `_parts`. */
-  _hooks?: HookPart[];
+  _hooks?: HookRecord[];
 };
 
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in
@@ -264,13 +264,13 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
   const parts = state._template._parts;
   /** The slot strategy's own claim on this `<slot>`: it records the adopted seam below, so teardown
    *  parks it through `unmount` exactly as a mounted one. */
-  let claim: HookPart | undefined;
+  let claim: HookRecord | undefined;
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
     if (templatePart._type === 3) {
-      const hookPart = new HookPart(ghost, templatePart._hook!);
-      (state._hooks ??= []).push(hookPart);
-      claim ??= hookPart;
+      const record = hookRecord(ghost, templatePart._hook!);
+      (state._hooks ??= []).push(record);
+      claim ??= record;
       continue;
     }
     const attrPart = new AttrPart(ghost, templatePart._name!, templatePart._statics!, templatePart._present);
@@ -359,7 +359,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
  * `unmount`. Marked as already mounted, so the post-adoption mount pass leaves it alone. With no
  * claim (a template built before the strategy was wired) there is nothing to park it through.
  */
-const adopted = (claim: HookPart | undefined, seam: unknown) => {
+const adopted = (claim: HookRecord | undefined, seam: unknown) => {
   if (claim === undefined) return;
   claim._pending = false;
   claim._kept = seam;
@@ -408,7 +408,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     const templatePart = parts[state._partIndex++];
     /** An `'element'` claim: its `mount` runs after the whole instance is adopted. */
     if (templatePart._type === 3) {
-      (state._hooks ??= []).push(new HookPart(live as Element, templatePart._hook!));
+      (state._hooks ??= []).push(hookRecord(live as Element, templatePart._hook!));
       continue;
     }
     const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!, templatePart._present);

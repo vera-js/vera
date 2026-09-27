@@ -69,6 +69,15 @@ export type SlotSeamState = { _$park$?: () => void };
  * its own part. Plain method names — only `_`-prefixed properties are mangled — so the contract
  * survives the bundle boundary.
  */
+/** A claimed element's per-instance state — built by `hookRecord` in renderer.ts, a plain object on
+ *  purpose (see there). `_`-prefixed: internal to the renderer bundle, mangled consistently. */
+export type HookRecord = {
+  _element: Element;
+  _behavior: ElementBehavior;
+  _pending: boolean;
+  _kept: unknown;
+};
+
 export type ElementBehavior = {
   /** Once per instance, after its first update; whatever it returns is kept for `unmount`. */
   mount?: (element: Element, root: Node | null) => unknown;

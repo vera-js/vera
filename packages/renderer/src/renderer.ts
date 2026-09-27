@@ -60,7 +60,7 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-import type { ElementBehavior, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
+import type { ElementBehavior, HookRecord, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -186,7 +186,7 @@ const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
-const HOOK = 3; // an 'element' insert claimed this element — no value; see `HookPart`
+const HOOK = 3; // an 'element' insert claimed this element — no value; see `hookRecord`
 
 /**
  * `_tag` is `__DEV__` only and exists for one diagnostic: when the HTML parser DROPS the element a
@@ -601,7 +601,7 @@ class Template {
    * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
-  /** Whether any element in this template was claimed by an `'element'` insert — see `HookPart`. */
+  /** Whether any element in this template was claimed by an `'element'` insert — see `hookRecord`. */
   declare _hooked?: boolean;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
@@ -1707,31 +1707,34 @@ type Item = {
 };
 
 /**
- * **An element an `'element'` insert claimed** — it takes no value; it carries the behavior's per-
- * instance state. `mount` runs once, after the instance's first update (so the element's own
+ * **An element an `'element'` insert claimed, per instance** — it takes no value; it carries the
+ * behavior's state. `mount` runs once, after the instance's first update (so the element's own
  * bindings have committed); whatever it returns is kept, and handed to `unmount` at teardown.
  * Behaviors are shared objects and their methods are plain names — only `_`-prefixed properties
  * are mangled, so the contract survives the bundle boundary.
+ *
+ * **A plain object from one factory, deliberately NOT a class.** One is created per claimed element
+ * per instance, and as a class with field initialisers it cost Firefox +2.8% on slotted-component
+ * creation (~1 µs per component) — SpiderMonkey initialises class fields through a slower path than
+ * an object literal. The same four fields as a literal measured +0.3%, inside noise (2026-09-27,
+ * focused Firefox check; the allocation COUNT is identical, so no counter sees it). Keep it a literal.
  */
-class HookPart {
-  _element: Element;
-  _behavior: ElementBehavior;
-  _pending = true;
-  _kept: unknown = undefined;
-  constructor(element: Element, behavior: ElementBehavior) {
-    this._element = element;
-    this._behavior = behavior;
-  }
-  _mountHook(root: Node | null) {
-    this._pending = false;
-    return (this._kept = this._behavior.mount?.(this._element, root));
-  }
-  _unmount() {
-    const kept = this._kept;
-    this._kept = undefined;
-    this._behavior.unmount?.(kept, this._element);
-  }
-}
+const hookRecord = (element: Element, behavior: ElementBehavior): HookRecord => ({
+  _element: element,
+  _behavior: behavior,
+  _pending: true,
+  _kept: undefined,
+});
+const mountRecord = (record: HookRecord, root: Node | null) => {
+  record._pending = false;
+  const mount = record._behavior.mount;
+  return (record._kept = mount === undefined ? undefined : mount(record._element, root));
+};
+const unmountRecord = (record: HookRecord) => {
+  const kept = record._kept;
+  record._kept = undefined;
+  record._behavior.unmount?.(kept, record._element);
+};
 
 class Instance {
   _parts: Part[] = [];
@@ -1744,9 +1747,9 @@ class Instance {
    * what they did before this feature existed, and the ones with slots take a shape transition
    * once.
    *
-   * `_hooks` — this instance's HookParts, so mounting and teardown touch no other part.
+   * `_hooks` — this instance's claimed elements (`hookRecord`), so mounting and teardown touch no other part.
    */
-  declare _hooks?: HookPart[];
+  declare _hooks?: HookRecord[];
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1783,7 +1786,7 @@ class Instance {
       /** Kept OUT of `_parts`: it takes no value, and `_update`'s `_commit` loop — the hottest call
        *  site in the renderer, shared by every instance — never sees a fourth part class. */
       if (templatePart._type === HOOK) {
-        (this._hooks ??= []).push(new HookPart(node as Element, templatePart._hook!));
+        (this._hooks ??= []).push(hookRecord(node as Element, templatePart._hook!));
       } else
         this._parts.push(
           templatePart._type === CHILD
@@ -1847,10 +1850,10 @@ class Instance {
       (part as TextPart)._upgraded?._detach();
     }
     /** Element behaviors' `unmount` — taken-over slots park the USER'S nodes here. Only this
-     *  instance's own HookParts are visited: no property read on any other part. */
+     *  instance's own claimed elements are visited: no property read on any other part. */
     const hooks = this._hooks;
     if (hooks !== undefined)
-      for (let i = 0; i < hooks.length; i++) if (hooks[i]._kept !== undefined) hooks[i]._unmount();
+      for (let i = 0; i < hooks.length; i++) if (hooks[i]._kept !== undefined) unmountRecord(hooks[i]);
   }
 
   _update(values: unknown[]) {
@@ -1875,7 +1878,7 @@ class Instance {
   _mount() {
     const hooks = this._hooks!;
     for (let i = 0; i < hooks.length; i++)
-      if (hooks[i]._pending === true && hooks[i]._mountHook(renderRoot) !== undefined) notifyOnRemoval = true;
+      if (hooks[i]._pending === true && mountRecord(hooks[i], renderRoot) !== undefined) notifyOnRemoval = true;
   }
 
 }
@@ -2900,7 +2903,7 @@ export {
   toText,
   isTemplateResult,
   instanceWalker,
-  HookPart,
+  hookRecord,
   rootParts,
   slotSeam,
   _setProfileHook,
