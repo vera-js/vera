@@ -63,12 +63,13 @@ declare global {
  * statements while still emitting the calls, for a file that already has them in scope.
  */
 export type VeraJsxOptions = {
-  /** Skip auto-injecting `html`/`keyed`/`spread` imports. */
+  /** Skip auto-injecting `html`/`keyed`/`spread` imports — and the `@verajs/renderer/namespaces` wiring, which is injected with them. */
   inject?: boolean;
   /**
    * Wire `@verajs/renderer/namespaces` from every compiled module (default `true`), so a template is
    * parsed in the namespace of the position it lands in — `<Frame><path/></Frame>` draws when `Frame`
    * renders an `<svg>`. `false` omits it: wire it yourself, or keep SVG out of components' children.
+   * Injected with the other imports, so `inject: false` leaves it to the caller as well.
    */
   namespaces?: boolean;
   /** [importedName, moduleSpecifier] for the template tag. Default ['html', '@verajs/core']. */

@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.51 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.54 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -198,8 +198,9 @@ property is named), for an `<svg>` in any `<annotation-xml>`, where the parser i
 for `<style>`/`<script>`, which never draw — an HTML `<style>` inside an `<svg>` applies its rules
 perfectly well.
 
-**In JSX this cannot happen**: `@verajs/jsx` wires `@verajs/renderer/namespaces` from every file it
-compiles, so `<Frame><path /></Frame>` works. The message is what meets a hand-written template when
+**In JSX this cannot happen** unless it is switched off: `@verajs/jsx` wires
+`@verajs/renderer/namespaces` from every file it compiles (not with `inject: false` or
+`namespaces: false`, which leave it to you), so `<Frame><path /></Frame>` works. The message is what meets a hand-written template when
 the module is not wired, or a template built before it was — the message names that too.
 
 The whole check folds away in production — no code and no strings.
@@ -359,7 +360,9 @@ if (host.querySelector('title').namespaceURI !== 'http://www.w3.org/2000/svg') t
 
 The answer comes from the parser, not from a list: SVG's camelCase names keep their case,
 `<foreignObject>`, `<desc>` and `<title>` hold HTML again, MathML's token elements likewise, and the
-same strings committed into a `<div>` stay HTML. Nothing is guessed from a tag's name.
+same strings committed into a `<div>` stay HTML. Under a MathML parent the parser's answer depends on
+the child as well — `<svg>` inside `<annotation-xml>`, `<mglyph>` inside `<mi>` — so there it is asked
+with the template's own first tag.
 
 - **`@verajs/jsx` wires it for you**, from every file it compiles — JSX cannot write `` svg`…` ``.
 - **Wire it before anything renders.** It applies to a template when the template is first built, so
@@ -636,10 +639,10 @@ found.
 
 Additive like `keyed`/`spread`: it imports no renderer and reaches the one present through the wired
 seam, so it is safe beside any renderer entry on a CDN page. The entry is
-**<!--size:slots.gzip-->3.70 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
-`@verajs/renderer` itself carries just the seam that records where a template's slots are. It is
-also Node-safe — it imports nothing and touches no global document — so a universal app can wire it
-on both sides.
+**<!--size:slots.gzip-->3.82 KB<!--/size:slots.gzip-->** gzipped and only apps importing it pay;
+`@verajs/renderer` itself carries only generic hooks it plugs into. It is also Node-safe to import —
+it imports nothing and touches no DOM until something renders — so a universal app can wire it on
+both sides.
 
 ## `@verajs/renderer/hydrate`
 

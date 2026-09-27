@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->6.9 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->7.0 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -255,7 +255,8 @@ The answer comes from the parser, not a list; `svg`/`mathml` tags keep deciding 
 **JSX wires it in every file it compiles**, because JSX cannot write `` svg`…` ``: so in JSX,
 `<Frame><path d="M0 0h24" /></Frame>` just works — the children land inside `Frame`'s `<svg>` and are
 parsed there, though written outside it, whether passed directly, mapped, conditional, or through a
-fragment. Nothing is guessed from a tag's name: `<Box><text>hi</text></Box>` stays readable text in a
+fragment. Under a MathML parent the parser is asked with the template's first tag (`<svg>` in
+`<annotation-xml>`, `<mglyph>` in `<mi>`), since there the answer depends on it. `<Box><text>hi</text></Box>` stays readable text in a
 `<div>`. A template is resolved when it is first BUILT, so wire the module before anything renders.
 
 `@verajs/renderer` names an element committed into an `<svg>` or `<math>` in a DIFFERENT namespace
@@ -473,9 +474,9 @@ The differences worth knowing, all deliberate:
   as well.
 
 Opt-in and additive: `@verajs/renderer` carries only a small seam, and the module is
-<!--size:slots.gzip-->3.70 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
+<!--size:slots.gzip-->3.82 KB<!--/size:slots.gzip--> gzipped. It works through SSR and hydration —
 the server distributes and the client adopts the result in place, keeping node identity, so focus
-and input values survive. Node-safe (it imports nothing and touches no global document).
+and input values survive. Node-safe to import (it imports nothing and touches no DOM until something renders).
 
 ### Spread (`@verajs/renderer/spread`)
 
@@ -562,7 +563,7 @@ honouring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.51 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.54 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -721,7 +722,7 @@ the known long tail, and the checked path for a component's props is `props<Cale
 `.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed` and `spread` are
 injected as needed (`inject: false` to provide them yourself; each is also individually configurable
 — `html: ['h', 'my-lib']`), and every compiled file wires `@verajs/renderer/namespaces`
-(`namespaces: false` to leave it out).
+(`namespaces: false` to leave it out; `inject: false` leaves it out too, with the other imports).
 
 **What it compiles to.** `onClick={f}` → `@click=${f}`; `className`/`htmlFor` → `class`/`for`;
 `value`/`checked` → `.value`/`.checked` and `defaultValue`/`defaultChecked` → the attributes;
@@ -761,7 +762,8 @@ exactly as written, because `a < b` has to survive.
 **Exports.** `veraJsx(options?)` is the bundler plugin; `transformJsx(source, fileName, options?)`
 is the transform itself, for another bundler or a test; `importSites(code)` locates a module's
 import specifiers (what the buildless loader links with); and `@verajs/jsx/standalone` exports
-`runBlock(scriptElement)` for a `script[type="text/vera-jsx"]` block that arrives **after**
+`runBlock(scriptElement)` — on a buildless page, add `"@verajs/jsx/standalone"` to the import map,
+pointing at the same file as `"@verajs/jsx"` — for a `script[type="text/vera-jsx"]` block that arrives **after**
 `DOMContentLoaded` — CMS content, a demo injected later — since blocks present at load run
 automatically in document order. For no build at all, see **Buildless JSX — the whole recipe** below.
 
@@ -1414,12 +1416,15 @@ For CodePen, a demo, or a self-hosted multi-file app. Copy this shape; it works 
 
 **Why it works.** `standalone.js` finds every `script[type="text/vera-jsx"]` on `DOMContentLoaded`,
 runs the same zero-dependency transform the Vite plugin uses, and imports the result as a module
-blob. Bare specifiers inside resolve through the page's import map.
+blob. Package names resolve through the page's import map, except `@verajs/renderer/<entry>`, which
+is loaded from beside the mapped renderer; relative imports, `import()` in any form and
+`import.meta` resolve against the file's real address.
 
 **Rules that trip up generators, in order of how often they bite:**
 
-1. **Both import-map entries.** `@verajs/core` alone is not enough — any `key={}` emits `keyed()`
-   from `@verajs/renderer/keyed`.
+1. **All three import-map entries, and only those.** `@verajs/core` alone is not enough — every
+   compiled block imports from `@verajs/renderer/…` (`keyed`, `namespaces`), found beside the mapped
+   renderer, so a self-hosted page copies the renderer's whole dist folder.
 2. **One block is one module.** Static imports hoist, so `wire([renderer])` at the top of the
    block runs before any `customElements.define` below it. The "define before wiring" hazard
    only applies across separate files.
@@ -1429,8 +1434,8 @@ blob. Bare specifiers inside resolve through the page's import map.
 4. **`style` must be a string.** `style={{color:'red'}}` is a compile error; use
    `` style={`color:${c}`} ``.
 5. **`{...props}` works on an element and on a component.** On an element it compiles to
-   `${spread(props)}` from `@verajs/renderer/spread`, so that specifier needs an import-map entry
-   too; on a component the props are passed through as an object.
+   `${spread(props)}` from `@verajs/renderer/spread`, found beside the renderer like `keyed`; on a
+   component the props are passed through as an object.
 6. **JS + JSX only.** Nothing strips TypeScript types in the browser; TSX needs the build path.
 7. **Prefer stable shapes over conditional swaps** — see the renderer section. Toggling `hidden`
    keeps template identity and skips the clear/insert churn.

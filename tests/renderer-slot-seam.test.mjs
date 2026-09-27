@@ -1,12 +1,13 @@
 /**
  * The light-slots SEAM in the renderer — the renderer's half of the contract, driven by a FAKE slots
  * module so a regression here is the renderer's and not the real module's. Since 2026-09-24 the
- * slots module owns discovery: it pushes an INSTANCE HOOK onto a template holding `<slot>` through
- * the `'template'` hook (`_$inst$`, a list), and the renderer's whole job is to call each hook for
- * each instance — with the fresh fragment and the render root, before the first update — run the
- * mounts they return AFTER that update (so a bound `name` has committed), keep the cleanups the
- * mounts return, and run them before a branch-away discards the instance's DOM. Every insert is
- * reported to the seam's `$o` with its owner. Slot bindings still consume expression values in order.
+ * slots module owns discovery: it sets ONE instance hook, `{ $c, $m, $q }`, on a template holding
+ * `<slot>` through the `'template'` hook (`_$inst$`), and the renderer's whole job is to call `$c`
+ * for each instance — with the fresh fragment and the render root, before the first update — `$m`
+ * AFTER that update with what `$c` returned (so a bound `name` has committed), keep what `$m`
+ * returns, and hand it to `$q` before a branch-away discards the instance's DOM. Every insert is
+ * reported to the seam's `$o` with its owner — `true` for the root part, a part's start marker
+ * otherwise. Slot bindings still consume expression values in order.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -156,7 +157,7 @@ test('every insert is reported to the seam, with the root part as `true` and any
   renderInto(html`<p>${inner('a')}</p>`, host);
   assert.ok(inserts.length >= 2, `the root commit and the nested template were both reported: ${inserts.length}`);
   assert.equal(inserts[inserts.length - 1].owner, true, "the root part's own output is owned by `true`");
-  assert.ok(inserts.some((entry) => entry.owner !== true && typeof entry.owner === 'object'), 'a nested part reports itself');
+  assert.ok(inserts.some((entry) => entry.owner !== true && typeof entry.owner === 'object'), 'a nested part reports its start marker');
   inserts.length = 0;
 });
 

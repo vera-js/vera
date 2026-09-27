@@ -13,19 +13,33 @@ generic points they plug into: an **instance hook** a `'template'` hook may set 
 (`{ $c, $m, $q }` — called for every instance before its first update, after it, and at teardown,
 with nothing on the hot path for templates that have none), and an optional `$o` insert hook on
 the slot strategy. Slotted creation measures level with the renderer before this change on Chromium, Firefox
-and WebKit. The renderer is 4.62 KB gzipped, down from 4.80; a
-typical app is 7 103 B, down from 7 267. The slots module grows to 3.79 KB from 3.42, so an app
-that uses slots pays about 185 B more than before (renderer and module, each gzipped) — the cost of
-the contract crossing a bundle boundary, carried by the apps that use it.
+and WebKit.
 
-- `wire([renderer, slots])` is unchanged.
+**What it weighs, against 0.2.2, gzipped.** The renderer is 4 653 B, down from 4 679 even with the
+`'template'` hook that `@verajs/renderer/namespaces` plugs into; an app that does not use slots is
+7 135 B, down from 7 141. The slots module is 3 909 B, up from 3 424, and a slotted light component
+bundled with both is **10 520 B, up from 10 028 — about 490 B more** for the apps that use slots:
+the contract now crosses a bundle boundary, and those apps carry it.
+
+- `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
+  later, whose `wire` accepts the nested array `slots` now is. An older core wires nothing from it,
+  silently.
 - A **custom** `'slot'` strategy now wires `slotDiscovery` beside itself —
   `wire([renderer, slotDiscovery, myStrategy])` — since discovery is no longer the renderer's.
   Without it, development names the missing wiring.
 - `slots` is now an array (`[slotDiscovery, strategy]`); code that read `slots.fn` or `slots.on`
   reads the second entry.
 - Development warns when the slots module and the renderer come from different versions of the
-  package: they are one contract across a bundle boundary.
+  package: they are one contract across a bundle boundary. An older slots module beside this
+  renderer is treated as unwired in both builds — its fallback shows and nothing is lost.
+- A second module that sets an instance hook on a template is composed with slots', not replaced.
+
+**Fixed — also in 0.2.2: with slots wired, a light component's own top-level `${…}` lost its
+content on update.** `${busy ? spinner() : list()}` as a component's whole template rendered the
+spinner and then an empty host; a top-level list grew to one row of three. It hit components with
+no `<slot>` at all, because every light host is captured once slots is wired. A nested render during
+a slotted template's first update — a ref that renders a tooltip — no longer loses the slot's content
+either.
 
 **`@verajs/inserts` and `@verajs/core`: `wire` takes nested arrays**, so a module made of several
 descriptors and connectors is itself an array and sits in an app's list like any other module. The

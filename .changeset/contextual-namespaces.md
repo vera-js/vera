@@ -20,9 +20,10 @@ worked.
 in.** Wire it — `wire([renderer, namespaces])` — and an `html` template placed inside an `<svg>` is
 SVG, inside a `<math>` is MathML, and inside a `<foreignObject>` or a `<div>` is HTML, exactly as the
 same markup written inline there would be. Which position means which namespace is asked of the
-browser's own parser, once per parent name, rather than read from a list — so the integration points,
+browser's own parser, once per parent name (and, under a MathML parent, per child tag — `<svg>` in
+`<annotation-xml>`, `<mglyph>` in `<mi>`), rather than read from a list — so the integration points,
 the breakout names and `<annotation-xml encoding>` behave as the parser has them. A hand-written
-`` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 642 B gzipped, and
+`` svg`…` `` or `` mathml`…` `` keeps the namespace it was written with. It is 718 B gzipped, and
 the renderer without it pays nothing on its render paths beyond a flag check.
 
 **`@verajs/jsx` 0.4.0 — breaking.**
@@ -32,20 +33,23 @@ the renderer without it pays nothing on its render paths beyond a flag check.
   module means no JSX template can be built before the resolver exists, whichever chunk loads first;
   wiring the same descriptor again is idempotent. `namespaces: false` opts out, and `inject: false`
   leaves the wiring to the caller along with every other import.
-- **Requires `@verajs/renderer` 0.2.3 or later**, the first with the `./namespaces` entry.
+- **Requires `@verajs/renderer` 0.3.0 or later**, the first with the `./namespaces` entry.
 - **The `svg` and `mathml` options are removed** — the compiler no longer decides a namespace, so
   there is nothing for them to name.
 - **`@verajs/jsx/standalone` is a module loader.** `<script type="text/vera-jsx">` blocks, inline or
   `src`, run as real ES modules, and a file they import — `.jsx` or `.js`, relatively — is loaded
   the same way, so a self-hosted buildless app is ordinary files beside its page and a three-entry
-  import map (`@verajs/core`, `@verajs/renderer`, `@verajs/jsx`). Any `@verajs/renderer/<entry>` —
+  import map (`@verajs/core`, `@verajs/renderer`, `@verajs/jsx`). `import()` in any form — a template
+  literal, a computed path, with options — `import.meta.url`, `import.meta.resolve`, a JSON or CSS
+  module and a file behind a redirect all resolve as written. Any `@verajs/renderer/<entry>` —
   the helpers compiled JSX imports, and `slots` or `tag` if the app imports them — is found beside
   wherever the map puts `@verajs/renderer`, so copy the renderer's whole `dist` folder. The
   compiler is loaded only when something must compile, and each file's compiled output is kept in
-  `localStorage`, validated by its ETag, so a repeat visit compiles nothing. A circular import is
-  reported with its chain, and a missing file names the file that imported it.
-  The entry is 1.6 KB gzipped, down from 6.1 KB, plus the 5.5 KB compiler on a visit that
-  compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
+  `localStorage`, validated by its ETag or `Last-Modified`, so a repeat visit compiles nothing; a
+  plain `.js` file keeps only where its imports are, never its text. A circular import is reported
+  with its chain, a missing file names the file that imported it, and a renderer helper missing
+  from beside the renderer is named. The entry is 1 916 B gzipped, down from 5 933 in 0.3.2, plus
+  the 5 559 B compiler on a visit that compiles. It no longer exports `transformJsx`; import that from `@verajs/jsx`.
 
 **Fixed in the compiler along the way** — each of these produced a module that died or silently
 lost its JSX:

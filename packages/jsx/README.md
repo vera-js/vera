@@ -31,7 +31,7 @@ Files ending `.jsx` or `.tsx` are transformed; everything else is left alone. Im
 
 | Option | Default | Means |
 | --- | --- | --- |
-| `inject` | `true` | Add the imports below. `false` if you import them yourself |
+| `inject` | `true` | Add the imports below. `false` if you import them yourself — and wire `@verajs/renderer/namespaces` yourself too, since that wiring is an injected import like the rest |
 | `html` | `['html', '@verajs/core']` | `[export, module]` to import `html` from |
 | `keyed` | `['keyed', '@verajs/renderer/keyed']` | `[export, module]` to import `keyed` from |
 | `spread` | `['spread', '@verajs/renderer/spread']` | `[export, module]` to import `spread` from, for `{...rest}` on elements |
@@ -65,15 +65,21 @@ renderer's WHOLE folder: any `@verajs/renderer/<entry>` — the helpers compiled
 
 `@verajs/jsx/standalone` compiles each `<script type="text/vera-jsx">` block, inline or `src`, in the
 page — and every file it imports: `import { Frame } from './frame.jsx'`, a relative `./util.js`,
-`import('./page.jsx')` and `import.meta.url` all work as written. A repeat visit compiles nothing:
-each file's output is kept by its URL and the ETag the server sends, and the compiler itself
-(`vera-jsx.min.js`, beside the standalone file) is only loaded when something must be compiled.
+`import('./page.jsx')` (or `` import(`./pages/${name}.jsx`) ``), `import.meta.url`,
+`import.meta.resolve` and a JSON module (`import data from './data.json' with { type: 'json' }`) all
+work as written, and a file behind a redirect resolves its neighbours where it really is. A repeat
+visit compiles nothing: each file's output is kept by its URL and the ETag the server sends — or its
+`Last-Modified`, which is all `python3 -m http.server` sends — and the compiler itself
+(`vera-jsx.min.js`, beside the standalone file) is only loaded when something must be compiled. A
+plain `.js` file keeps only where its imports are, so a vendored library cannot fill the storage.
+If the renderer's helper files are missing from beside it, the error names the file.
 Measured on a 40-module app, a warm visit is within ~7–12 ms of the same app built ahead of time.
 **One thing it cannot do is a circular import** — it is reported, naming the loop; the Vite plugin
 handles those. Blocks present at `DOMContentLoaded` run in document order; one that arrives later —
 CMS content, a demo injected after load — is run by hand with `runBlock`:
 
 ```js
+// Needs its own import-map entry — "@verajs/jsx/standalone" pointing at the same file as "@verajs/jsx".
 import { runBlock } from '@verajs/jsx/standalone';
 
 const script = document.querySelector('script[type="text/vera-jsx"]#late');

@@ -7,8 +7,8 @@
       "gzip": 3348
     },
     "renderer": {
-      "raw": 11996,
-      "gzip": 4619
+      "raw": 12087,
+      "gzip": 4653
     },
     "router": {
       "raw": 10913,
@@ -35,12 +35,12 @@
       "gzip": 673
     },
     "jsx": {
-      "raw": 14381,
-      "gzip": 5515
+      "raw": 14495,
+      "gzip": 5559
     },
     "standalone": {
-      "raw": 3324,
-      "gzip": 1610
+      "raw": 4161,
+      "gzip": 1916
     },
     "computed": {
       "raw": 293,
@@ -55,16 +55,16 @@
       "gzip": 923
     },
     "slots": {
-      "raw": 10221,
-      "gzip": 3793
+      "raw": 10583,
+      "gzip": 3909
     },
     "namespaces": {
-      "raw": 1160,
-      "gzip": 642
+      "raw": 1277,
+      "gzip": 718
     },
     "hydrate": {
-      "raw": 17624,
-      "gzip": 6447
+      "raw": 17715,
+      "gzip": 6489
     },
     "inserts": {
       "raw": 486,
@@ -181,8 +181,8 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer",
-      "raw": 17823,
-      "gzip": 7103,
+      "raw": 17907,
+      "gzip": 7137,
       "deps": 1,
       "depsThirdParty": 0,
       "depsThirdPartyNames": [],
@@ -267,16 +267,16 @@
     {
       "name": "VeraJS + own renderer",
       "note": "core + @verajs/renderer + /keyed",
-      "raw": 19777,
-      "gzip": 7841
+      "raw": 19861,
+      "gzip": 7874
     }
   ],
   "variants": [
     {
       "name": "VeraJS, no reactive state",
       "note": "core + @verajs/renderer, tree-shaken — renders once, updates nothing",
-      "raw": 17827,
-      "gzip": 7106
+      "raw": 17911,
+      "gzip": 7139
     }
   ]
 }

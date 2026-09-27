@@ -2357,10 +2357,11 @@ class ChildPart implements Part {
        * Gated on the value CHANGING, which is the same condition the commit below uses. Called
        * before that check it fired on every render of an unchanged `false` — a channel that
        * repeats is as useless as one that stays silent, and the comment on `warnBooleanChild`
-       * claimed this was already true. `_value` holds whatever was last committed here, so a part
-       * arriving from a template state differs and reports once.
+       * claimed this was already true. A part arriving from any other state reports once more: its
+       * `_value` is not text's — and a template no longer records one at all unless slots is wired,
+       * so the MODE is what says the value arrived, not a stale `_value` from before the template.
        */
-      if (__DEV__ && this._value !== value) warnBooleanChild(value);
+      if (__DEV__ && (this._mode !== TEXT || this._value !== value)) warnBooleanChild(value);
       if (this._mode === TEXT) {
         if (this._value !== value) {
           this._value = value;
