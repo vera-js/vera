@@ -315,3 +315,21 @@ test('an applier committing later distributes its slots and applies its select v
   host.remove();
   box.remove();
 });
+
+test("a node one light host rendered, moved by user code into another, is that host's content", async () => {
+  const card = () => html`<div class="box"><slot>FB</slot></div>`;
+  const first = doc.createElement('x-one');
+  doc.body.append(first);
+  renderInto(html`<canvas>CANVAS</canvas>`, first);
+  const canvas = first.querySelector('canvas');
+  const second = doc.createElement('x-two');
+  doc.body.append(second);
+  renderInto(card(), second);
+  await settle();
+  assert.equal(second.querySelector('.box').textContent, 'FB', 'CONTROL: empty, it shows its fallback');
+  second.append(canvas);
+  await settle();
+  assert.equal(second.querySelector('.box canvas'), canvas, 'the moved node is distributed like any user child');
+  first.remove();
+  second.remove();
+});

@@ -33,9 +33,9 @@
  * childList holds both the user's content and the component's output, and the old rules told them
  * apart by where a node sat — which made bare text unreachable at the tail and a late insertion
  * join its slot out of order. Now everything the renderer emits at a captured host's top level is
- * stamped — the renderer reports every insert to `$o` below, which stamps (a non-enumerable `_$own$` property: `true` for a root part's own output — the
- * structural `_end === null` test, so async commits are covered — and the placing part for
- * content from an outer template). An unstamped top-level addition is therefore knowably the
+ * stamped — the renderer reports every insert to `$o` below, which stamps (a non-enumerable `_$own$` property: the HOST for its own output — an insert
+ * straight into the container being rendered, or by its root part — and the placing part's start
+ * marker for content from an outer template). An unstamped top-level addition is therefore knowably the
  * user's: captured with full native semantics, text included, no `slot` attribute required
  * (`slot=""`/`slot="name"` still route). Ordering reads the same fact — placed content extends
  * its part's own group; an unstamped node before the boundary takes its document position ahead
@@ -294,7 +294,9 @@ const take = (state: HostState, node: Node, ordered = false, atTail = false): st
    * was appended, and appends. The last-member fast path keeps the initial capture walk O(1) per
    * node — each child follows the one before it — instead of O(n²) over a big light list.
    */
-  const own = (node as { _$own$?: unknown })._$own$;
+  /** A group is a part's MARKER; a host stamp — another host's output moved here — is no group. */
+  const stamp = (node as { _$own$?: Node })._$own$;
+  const own = stamp?.nodeType === 8 ? stamp : undefined;
   let at = bucket.length;
   /**
    * Set when this node sits in the light region ahead of everything already distributed — the rule
@@ -861,7 +863,7 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
        */
       if (
         (record.target === host || node.parentNode === host) &&
-        (node as { _$own$?: unknown })._$own$ !== true &&
+        (node as { _$own$?: unknown })._$own$ !== host &&
         !state._names.has(node)
       ) {
         /** `nextSibling === null` in the record means an APPEND at the host's end — the
@@ -869,7 +871,7 @@ const processRecords = (host: Element, state: HostState, records: MutationRecord
          *  sentinel proxy that misfires mid-storm. See the front-detection note there. */
         const name = take(state, node, false, record.nextSibling === null);
         if (name !== null) touched.add(name);
-      } else if (!state._names.has(node) && (node as { _$own$?: unknown })._$own$ !== true) {
+      } else if (!state._names.has(node) && (node as { _$own$?: unknown })._$own$ !== host) {
         /**
          * **A slottable that appeared INSIDE a run, never passing the host's top level.**
          *
@@ -1561,8 +1563,13 @@ const own: OwnHook = (parent, node, owner) => {
    * emptied on update, and a top-level list showed one row of three. Nested parts inherit it, since
    * their markers arrive in a fragment their parent part stamped.
    */
-  /** `true._$own$` is `undefined`, so a root part's `true` falls through to itself. */
-  OWN_DESCRIPTOR.value = (owner as { _$own$?: unknown })._$own$ === true || owner;
+  /**
+   * **The stamp names the HOST, not `true`**, so "the render's own" means "this host's own": a node a
+   * light host rendered and user code then moved into ANOTHER light host was never captured there,
+   * because a bare `true` read as that host's own output too. A marker stamped as this host's own
+   * belongs to one of its own parts, so what that part inserts is the host's own as well.
+   */
+  OWN_DESCRIPTOR.value = owner === true || (owner as { _$own$?: unknown })._$own$ === parent ? parent : owner;
   if (node.nodeType === 11) {
     for (let child = node.firstChild; child !== null; child = child.nextSibling)
       Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
