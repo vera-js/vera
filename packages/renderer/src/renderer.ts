@@ -60,7 +60,7 @@
 
 import { attributeValueComplaint } from './dev-values.js';
 
-import type { ElementBehavior, HookRecord, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
+import type { ElementBehavior, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
 export type { Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -186,7 +186,7 @@ const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 const CHILD = 0;
 const ATTRIBUTE = 1;
 const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
-const HOOK = 3; // an 'element' insert claimed this element — no value; see `hookRecord`
+const HOOK = 3; // an 'element' insert claimed this element — no value; see `CLAIM_PENDING`
 
 /**
  * `_tag` is `__DEV__` only and exists for one diagnostic: when the HTML parser DROPS the element a
@@ -601,7 +601,7 @@ class Template {
    * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
    * update throughput before and after, three runs, the way the slot-mount deferral was.
    */
-  /** Whether any element in this template was claimed by an `'element'` insert — see `hookRecord`. */
+  /** Whether any element in this template was claimed by an `'element'` insert — see `CLAIM_PENDING`. */
   declare _hooked?: boolean;
   /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
@@ -1707,34 +1707,22 @@ type Item = {
 };
 
 /**
- * **An element an `'element'` insert claimed, per instance** — it takes no value; it carries the
- * behavior's state. `mount` runs once, after the instance's first update (so the element's own
- * bindings have committed); whatever it returns is kept, and handed to `unmount` at teardown.
- * Behaviors are shared objects and their methods are plain names — only `_`-prefixed properties
- * are mangled, so the contract survives the bundle boundary.
+ * **The elements an `'element'` insert claimed, per instance — one flat array of `[element, behavior,
+ * kept]` triples.** `mount` runs once, after the instance's first update (so each element's own
+ * bindings have committed); what it returns is kept in the triple and handed to `unmount` at
+ * teardown. `CLAIM_PENDING` in the kept position means "not mounted yet", which is how hydration
+ * records an adopted slot's state in place and the mount pass leaves it alone. Behaviors are shared
+ * objects with plain method names — only `_`-prefixed properties are mangled — so the contract
+ * survives the bundle boundary.
  *
- * **A plain object from one factory, deliberately NOT a class.** One is created per claimed element
- * per instance, and as a class with field initialisers it cost Firefox +2.8% on slotted-component
- * creation (~1 µs per component) — SpiderMonkey initialises class fields through a slower path than
- * an object literal. The same four fields as a literal measured +0.3%, inside noise (2026-09-27,
- * focused Firefox check; the allocation COUNT is identical, so no counter sees it). Keep it a literal.
+ * **Flat, and deliberately no object per claimed element.** One per-element object was the design
+ * first: as a CLASS with field initialisers it cost Firefox +2.8% on slotted-component creation
+ * (~1 µs per component — SpiderMonkey initialises class fields through a slower path than a
+ * literal); as a plain object it passed, and cost hydration two allocations per slotted host more
+ * than a direct list. The flat array passed the focused Firefox check (+0.7%) and is ONE allocation
+ * per claimed instance whatever the claim count (2026-09-27; `internal` audit RENDERER-BYTES).
  */
-const hookRecord = (element: Element, behavior: ElementBehavior): HookRecord => ({
-  _element: element,
-  _behavior: behavior,
-  _pending: true,
-  _kept: undefined,
-});
-const mountRecord = (record: HookRecord, root: Node | null) => {
-  record._pending = false;
-  const mount = record._behavior.mount;
-  return (record._kept = mount === undefined ? undefined : mount(record._element, root));
-};
-const unmountRecord = (record: HookRecord) => {
-  const kept = record._kept;
-  record._kept = undefined;
-  record._behavior.unmount?.(kept, record._element);
-};
+const CLAIM_PENDING = {};
 
 class Instance {
   _parts: Part[] = [];
@@ -1747,9 +1735,10 @@ class Instance {
    * what they did before this feature existed, and the ones with slots take a shape transition
    * once.
    *
-   * `_hooks` — this instance's claimed elements (`hookRecord`), so mounting and teardown touch no other part.
+   * `_hooks` — this instance's claimed elements as `[element, behavior, kept]` triples (see
+   *   `CLAIM_PENDING`), so mounting and teardown touch no other part.
    */
-  declare _hooks?: HookRecord[];
+  declare _hooks?: unknown[];
   constructor(template: Template) {
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1786,7 +1775,7 @@ class Instance {
       /** Kept OUT of `_parts`: it takes no value, and `_update`'s `_commit` loop — the hottest call
        *  site in the renderer, shared by every instance — never sees a fourth part class. */
       if (templatePart._type === HOOK) {
-        (this._hooks ??= []).push(hookRecord(node as Element, templatePart._hook!));
+        (this._hooks ??= []).push(node, templatePart._hook, CLAIM_PENDING);
       } else
         this._parts.push(
           templatePart._type === CHILD
@@ -1853,7 +1842,12 @@ class Instance {
      *  instance's own claimed elements are visited: no property read on any other part. */
     const hooks = this._hooks;
     if (hooks !== undefined)
-      for (let i = 0; i < hooks.length; i++) if (hooks[i]._kept !== undefined) unmountRecord(hooks[i]);
+      for (let i = 0; i < hooks.length; i += 3) {
+        const kept = hooks[i + 2];
+        if (kept === undefined || kept === CLAIM_PENDING) continue;
+        hooks[i + 2] = undefined;
+        (hooks[i + 1] as ElementBehavior).unmount?.(kept, hooks[i] as Element);
+      }
   }
 
   _update(values: unknown[]) {
@@ -1871,14 +1865,19 @@ class Instance {
      * sets `notifyOnRemoval`: for slots it must rescue the USER'S nodes before a bulk `_clear`
      * discards the DOM holding them.
      */
-    if (this._hooks !== undefined && this._hooks[0]._pending === true) this._mount();
+    if (this._hooks !== undefined && this._hooks[2] === CLAIM_PENDING) this._mount();
   }
 
   /** Runs each element behavior's `mount` once — after the first update, or after adoption. */
   _mount() {
     const hooks = this._hooks!;
-    for (let i = 0; i < hooks.length; i++)
-      if (hooks[i]._pending === true && mountRecord(hooks[i], renderRoot) !== undefined) notifyOnRemoval = true;
+    for (let i = 0; i < hooks.length; i += 3) {
+      if (hooks[i + 2] !== CLAIM_PENDING) continue;
+      const mount = (hooks[i + 1] as ElementBehavior).mount;
+      const kept = mount === undefined ? undefined : mount(hooks[i] as Element, renderRoot);
+      hooks[i + 2] = kept;
+      if (kept !== undefined) notifyOnRemoval = true;
+    }
   }
 
 }
@@ -2903,7 +2902,7 @@ export {
   toText,
   isTemplateResult,
   instanceWalker,
-  hookRecord,
+  CLAIM_PENDING,
   rootParts,
   slotSeam,
   _setProfileHook,

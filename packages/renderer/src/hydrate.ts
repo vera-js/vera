@@ -23,7 +23,7 @@ import {
   TextPart,
   ChildPart,
   AttrPart,
-  hookRecord,
+  CLAIM_PENDING,
   IGNORED_PART,
   IGNORED,
   TEMPLATE,
@@ -44,7 +44,7 @@ import type { Template, Item, KeyedResult } from './renderer.js';
 
 /** Hydration adopts IN PLACE, so a position's parent is always live — no scope needed. */
 const at = (template: Template, parent: Node): Template => template._$at$?.(parent) ?? template;
-import type { HookRecord, Part, TemplateResult } from './types.js';
+import type { Part, TemplateResult } from './types.js';
 
 export { hold } from './renderer.js';
 export type { TemplateResult } from './types.js';
@@ -192,7 +192,7 @@ type AdoptState = {
   _out: Part[];
   /** Element-hook parts adopted in this instance — kept out of `_out`, as the client keeps them out
    *  of `_parts`. */
-  _hooks?: HookRecord[];
+  _hooks?: unknown[];
 };
 
 /** The light host being hydrated — every `<slot>` in the render projects it, set once in
@@ -264,13 +264,14 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
   const parts = state._template._parts;
   /** The slot strategy's own claim on this `<slot>`: it records the adopted seam below, so teardown
    *  parks it through `unmount` exactly as a mounted one. */
-  let claim: HookRecord | undefined;
+  /** Where the slot strategy's claim on this `<slot>` sits in `state._hooks` (a triple's first index). */
+  let claim: number | undefined;
   while (state._partIndex < parts.length && parts[state._partIndex]._index === state._nodeIndex) {
     const templatePart = parts[state._partIndex++];
     if (templatePart._type === 3) {
-      const record = hookRecord(ghost, templatePart._hook!);
-      (state._hooks ??= []).push(record);
-      claim ??= record;
+      const hooks = (state._hooks ??= []);
+      claim ??= hooks.length;
+      hooks.push(ghost, templatePart._hook, CLAIM_PENDING);
       continue;
     }
     const attrPart = new AttrPart(ghost, templatePart._name!, templatePart._statics!, templatePart._present);
@@ -332,7 +333,7 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     accountSubtree(canonicalSlot, state);
     const seam = seamAdopt(_adoptHost!, name, assigned, fallback, parent, before, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
-    adopted(claim, seam);
+    adopted(state, claim, seam);
     /** An adopted seam is removal work exactly as a mounted one is — without this, a page whose
      *  only seams were adopted never ran `_teardown`, and branch-away destroyed the user's
      *  server-adopted content instead of parking it. See `declareRemovalWork`. */
@@ -348,21 +349,20 @@ const adoptSlotElement = (canonicalSlot: Element, cursor: Cursor, state: AdoptSt
     for (let n = fallbackStart; n !== null && n !== cursor.node; n = n.nextSibling) fallback.push(n);
     const seam = seamAdopt(_adoptHost!, name, null, fallback, parent, cursor.node, ghost);
     _adoptedSlots.push(seam as unknown as { _$park$: () => void });
-    adopted(claim, seam);
+    adopted(state, claim, seam);
     /** Same as the assigned branch: an unassigned seam still unregisters and re-routes at park. */
     declareRemovalWork();
   }
 };
 
 /**
- * An adopted `<slot>`'s seam, recorded on the slot strategy's claim so teardown parks it through
- * `unmount`. Marked as already mounted, so the post-adoption mount pass leaves it alone. With no
+ * An adopted `<slot>`'s seam, recorded in the slot strategy's claim triple so teardown parks it
+ * through `unmount`. No longer `CLAIM_PENDING`, so the post-adoption mount pass leaves it alone. With no
  * claim (a template built before the strategy was wired) there is nothing to park it through.
  */
-const adopted = (claim: HookRecord | undefined, seam: unknown) => {
+const adopted = (state: AdoptState, claim: number | undefined, seam: unknown) => {
   if (claim === undefined) return;
-  claim._pending = false;
-  claim._kept = seam;
+  state._hooks![claim + 2] = seam;
   declareRemovalWork();
 };
 
@@ -408,7 +408,7 @@ const adoptNode = (canonical: Node, cursor: Cursor, state: AdoptState) => {
     const templatePart = parts[state._partIndex++];
     /** An `'element'` claim: its `mount` runs after the whole instance is adopted. */
     if (templatePart._type === 3) {
-      (state._hooks ??= []).push(hookRecord(live as Element, templatePart._hook!));
+      (state._hooks ??= []).push(live, templatePart._hook, CLAIM_PENDING);
       continue;
     }
     const attrPart = new AttrPart(live as Element, templatePart._name!, templatePart._statics!, templatePart._present);
