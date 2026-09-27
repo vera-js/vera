@@ -18,7 +18,7 @@ const IMPORTS = {
 };
 
 /** Runs one page and resolves with the first message it posts — the app's report, or an error. */
-const page = (block) =>
+const page = (block, { imports = IMPORTS, maps = [] } = {}) =>
   new Promise((resolve, reject) => {
     const frame = document.createElement('iframe');
     const timer = setTimeout(() => reject(new Error('the page never reported — a hang, not an error')), 15000);
@@ -29,7 +29,8 @@ const page = (block) =>
       resolve({ ...event.data, frame });
     });
     frame.srcdoc = `<!doctype html>
-      <script type="importmap">${JSON.stringify({ imports: IMPORTS })}</script>
+      <script type="importmap">${JSON.stringify({ imports })}</script>
+      ${maps.map((extra) => `<script type="importmap">${JSON.stringify({ imports: extra })}</script>`).join('')}
       <script>
         const report = console.error;
         console.error = (...args) => { parent.postMessage({ kind: 'error', text: args.map(String).join(' ') }, '*'); report(...args); };
@@ -91,5 +92,71 @@ it('an inline block compiles and can import files', async () => {
   </script>`);
   expect(result.kind, result.text).to.equal('app');
   expect(result.inline).to.equal('object');
+  result.frame.remove();
+});
+
+it('every import form resolves as written: a template-literal import(), options, JSON modules and import.meta.resolve', async () => {
+  const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/forms/main.jsx"></script>`);
+  expect(result.kind, result.text).to.equal('app');
+  expect(result.templated, 'import(`./${name}.jsx`) went through the loader').to.equal('template-literal import');
+  expect(result.json, "a static JSON import with { type: 'json' } is the browser's").to.equal('json module');
+  expect(result.dynamicJson, 'and a dynamic one, options and all').to.equal('json module');
+  expect(result.resolved, 'import.meta.resolve answers against the file').to.match(/\/fixtures\/buildless\/forms\/late\.jsx$/);
+  expect(result.meta).to.match(/\/fixtures\/buildless\/forms\/main\.jsx$/);
+  result.frame.remove();
+});
+
+it('a plain .js file keeps only where its imports are in the cache, never its text', async () => {
+  localStorage.clear();
+  const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/app/main.jsx"></script>`);
+  expect(result.kind, result.text).to.equal('app');
+  const entry = (suffix) => {
+    const key = Object.keys(localStorage).find((k) => k.endsWith(suffix));
+    return key === undefined ? undefined : JSON.parse(localStorage.getItem(key));
+  };
+  expect(entry('/app/main.jsx')?.js, 'CONTROL: a JSX file keeps its compiled output').to.be.a('string');
+  expect(entry('/app/lib/util.js'), 'the JS file was cached').to.not.equal(undefined);
+  expect(entry('/app/lib/util.js').js, 'without its text').to.equal(undefined);
+  result.frame.remove();
+});
+
+it("a renderer helper missing from beside the renderer is named, not left as a blob error", async () => {
+  const result = await new Promise((resolve) => {
+    const said = [];
+    const frame = document.createElement('iframe');
+    addEventListener('message', function listen(event) {
+      if (event.source !== frame.contentWindow) return;
+      said.push(event.data);
+      if (said.some((m) => m.kind === 'error' && m.text.includes('was not found'))) {
+        removeEventListener('message', listen);
+        resolve({ said, frame });
+      }
+    });
+    frame.srcdoc = `<!doctype html>
+      <script type="importmap">${JSON.stringify({ imports: { ...IMPORTS, '@verajs/renderer': `${FIXTURES}/nohelpers/vera-renderer.min.js` } })}</script>
+      <script>
+        const report = console.error;
+        console.error = (...args) => { parent.postMessage({ kind: 'error', text: args.map(String).join(' ') }, '*'); report(...args); };
+      </script>
+      <script type="module">import '@verajs/jsx';</script>
+      <script type="text/vera-jsx" src="${FIXTURES}/nohelpers/main.jsx"></script>`;
+    document.body.appendChild(frame);
+  });
+  const named = result.said.find((m) => m.text.includes('was not found'));
+  expect(named.text).to.include('nohelpers/vera-renderer-namespaces.min.js');
+  expect(named.text).to.include('whole dist folder');
+  result.frame.remove();
+});
+
+it('a renderer mapped in a SECOND import map still resolves its helpers', async function () {
+  /** Firefox does not allow a second map at all — the platform's refusal, not the loader's. */
+  if (/Firefox/.test(navigator.userAgent)) this.skip();
+  const { '@verajs/renderer': renderer, ...rest } = IMPORTS;
+  const result = await page(`<script type="text/vera-jsx" src="${FIXTURES}/app/main.jsx"></script>`, {
+    imports: rest,
+    maps: [{ '@verajs/renderer': renderer }],
+  });
+  expect(result.kind, result.text).to.equal('app');
+  expect(result.items, 'keyed, found beside a renderer the second map names').to.equal(3);
   result.frame.remove();
 });

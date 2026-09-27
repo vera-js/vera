@@ -159,8 +159,8 @@ export type JsxRoot = {
 };
 
 /**
- * One import in a module's text, located by `importSites`: a static or dynamic specifier (its quotes
- * excluded), or an `import.meta.url` (`specifier` empty). `from` is where a dynamic `import(` begins,
- * so the loader can replace the call and not only its argument.
+ * One import in a module's text, located by `importSites`: a static specifier (its quotes excluded),
+ * a dynamic `import(` — the keyword and its parenthesis, whatever the argument — or an `import.meta`.
+ * `specifier` is empty for the last two: the loader replaces the call and the meta object, not a name.
  */
-export type ImportSite = { start: number; end: number; specifier: string; kind: 'static' | 'dynamic' | 'meta'; from?: number };
+export type ImportSite = { start: number; end: number; specifier: string; kind: 'static' | 'dynamic' | 'meta' };

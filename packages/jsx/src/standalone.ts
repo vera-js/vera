@@ -14,7 +14,11 @@
  *   <script type="text/vera-jsx" src="/app/main.jsx"></script>
  *
  * **What it does per file**: fetch it, compile it (JSX files) or take it as is (JS files), rewrite its
- * relative imports to the compiled files they name, and run the result from a blob URL. Package names
+ * relative imports to the compiled files they name, and run the result from a blob URL. A relative
+ * import of anything else — `./data.json` `with { type: 'json' }`, a CSS module — is pointed at its
+ * real address and left to the browser. Every `import(…)` and `import.meta` goes through this loader
+ * with the file's real address (after redirects), so a template literal, a computed path, import
+ * options and `import.meta.resolve` all work as written. Package names
  * are left to the page's import map — except `@verajs/renderer`'s own entries (`keyed`, `spread`
  * and `namespaces`, which compiled JSX imports, and `slots`, `tag` or `hydrate`, which an app
  * imports), which are loaded from beside wherever the map puts `@verajs/renderer`, so the map stays
@@ -24,10 +28,13 @@
  * Chromium, Firefox and WebKit. A Service Worker was measured too and rejected: Firefox charges every
  * request routed through one ~0.7 ms, with no static routing to avoid it.
  *
- * **Repeat visits compile nothing.** Each file's compiled output is kept in `localStorage`, keyed by
- * its URL, validated by the ETag its server sends, and stamped with this package's version; the
- * compiler itself (`vera-jsx.min.js`, beside this file) is imported only when something must be
- * compiled. A file with no ETag, and an inline block, is compiled every time.
+ * **Repeat visits compile nothing.** Each JSX file's compiled output is kept in `localStorage`, keyed
+ * by its URL, validated by the ETag its server sends — or its `Last-Modified`, which is all
+ * `python3 -m http.server` sends — and stamped with this package's version; a plain JS file keeps
+ * only where its imports are, since its text comes back from the HTTP cache, so vendored libraries
+ * cannot fill the storage. The compiler itself (`vera-jsx.min.js`, beside this file) is imported only
+ * when something must be compiled. A file with neither header, and an inline block, is compiled every
+ * time.
  *
  * **Not supported: circular imports.** A blob URL exists only once its content does, so two files
  * cannot name each other; the cycle is reported with its chain. Use the Vite plugin for those.
@@ -42,25 +49,27 @@ type Compiler = {
 };
 /** A file ready to link: its JavaScript and where its imports are in it. */
 type Compiled = { js: string; sites: ImportSite[] };
+/** What the cache keeps: a JS file's text is not kept — the HTTP cache already has it. */
+type Kept = { etag: string; sites: ImportSite[]; js?: string };
 
 const COMPILER = new URL(__DEV__ ? './vera-jsx.js' : './vera-jsx.min.js', import.meta.url).href;
 let compiler: Promise<Compiler> | undefined;
 const loadCompiler = (): Promise<Compiler> => (compiler ??= import(/* @vite-ignore */ COMPILER) as Promise<Compiler>);
 
 const CACHE = `vera-jsx@${__VERSION__}:`;
-const recall = (url: string, etag: string | null): Compiled | null => {
+const recall = (url: string, etag: string | null): Kept | null => {
   if (etag === null) return null;
   try {
-    const hit = JSON.parse(localStorage.getItem(CACHE + url) ?? 'null') as (Compiled & { etag: string }) | null;
+    const hit = JSON.parse(localStorage.getItem(CACHE + url) ?? 'null') as Kept | null;
     return hit !== null && hit.etag === etag ? hit : null;
   } catch {
     return null;
   }
 };
-const remember = (url: string, etag: string | null, compiled: Compiled): void => {
+const remember = (url: string, etag: string | null, { js, sites }: Compiled): void => {
   if (etag === null) return;
   try {
-    localStorage.setItem(CACHE + url, JSON.stringify({ etag, ...compiled }));
+    localStorage.setItem(CACHE + url, JSON.stringify(isJsx(url) ? { etag, sites, js } : { etag, sites }));
   } catch {
     /** Full or blocked storage only means compiling again next time. */
   }
@@ -91,19 +100,35 @@ const helperUrl = (specifier: string): string | null => {
   const helper = RENDERER_ENTRY.exec(specifier)?.[1];
   if (helper === undefined) return null;
   if (mapped === undefined) {
-    try {
-      mapped = (JSON.parse(document.querySelector('script[type="importmap"]')?.textContent ?? '{}') as { imports?: Record<string, string> }).imports ?? {};
-    } catch {
-      mapped = {};
+    /** EVERY map, merged first-wins as engines that allow several merge them — not the first alone. */
+    mapped = {};
+    for (const map of document.querySelectorAll('script[type="importmap"]')) {
+      try {
+        const imports = (JSON.parse(map.textContent ?? '{}') as { imports?: Record<string, string> }).imports ?? {};
+        for (const name in imports) mapped[name] ??= imports[name];
+      } catch {
+        /** A malformed map is the browser's to report. */
+      }
     }
   }
   if (mapped[specifier] !== undefined || mapped['@verajs/renderer'] === undefined) return null;
   const renderer = new URL(mapped['@verajs/renderer'], document.baseURI);
-  return new URL(`vera-renderer-${helper}${renderer.pathname.endsWith('.min.js') ? '.min' : ''}.js`, renderer).href;
+  const url = new URL(`vera-renderer-${helper}${renderer.pathname.endsWith('.min.js') ? '.min' : ''}.js`, renderer).href;
+  helpers.add(url);
+  return url;
 };
+/** Every helper file handed out, so a failure can say which of them is missing — see `runBlock`. */
+const helpers = new Set<string>();
 
 const RELATIVE = /^(?:\.{1,2})?\//;
 const isJsx = (url: string): boolean => /\.[jt]sx$/.test(new URL(url).pathname);
+/**
+ * **Whether this loader loads a file, or the browser does.** Scripts — `.js`, `.mjs`, `.jsx`, `.tsx`,
+ * and anything with no extension — are loaded here, because any of them may import JSX. Anything else
+ * (`.json`, `.css`, `.wasm`) is the browser's: wrapped as a JavaScript blob, a JSON module failed its
+ * MIME check and named only a `blob:` URL.
+ */
+const isScript = (url: string): boolean => !/\.(?!m?js$|[jt]sx$)[^./]+$/.test(new URL(url).pathname);
 
 /** url → blob URL of its linked module; each file is fetched, compiled and linked once per page. */
 const modules = new Map<string, Promise<string>>();
@@ -149,16 +174,19 @@ const compile = async (url: string, source: string): Promise<Compiled> => {
 
 /**
  * One file's JavaScript with its imports pointed at what they name: a relative static import at the
- * linked module, a relative `import()` at this loader (so it loads lazily, as written), a renderer
- * helper beside the renderer, and `import.meta.url` at the file's real address.
+ * linked module (or, for a non-script, at its real address), a renderer helper beside the renderer,
+ * every `import(` at this loader's resolver and every `import.meta` at the file's own — both given
+ * `base`, the file's real address, so a dynamic import loads lazily and resolves as written.
  */
 const link = async (base: string, name: string, { js, sites }: Compiled): Promise<string> => {
+  const at = JSON.stringify(base);
   const edits = await Promise.all(
     sites.map(async (site): Promise<[number, number, string] | null> => {
-      if (site.kind === 'meta') return [site.start, site.end, JSON.stringify(base)];
+      if (site.kind === 'meta') return [site.start, site.end, `globalThis.__veraJsxMeta(${at})`];
+      if (site.kind === 'dynamic') return [site.start, site.end, `globalThis.__veraJsx(${at},`];
       if (RELATIVE.test(site.specifier)) {
         const target = new URL(site.specifier, base).href;
-        if (site.kind === 'dynamic') return [site.from!, site.end + 1, `globalThis.__veraJsx(${JSON.stringify(target)}`];
+        if (!isScript(target)) return [site.start, site.end, target];
         const loop = loopBack(target, name);
         if (loop !== null)
           throw new Error(
@@ -192,21 +220,49 @@ const load = (url: string, importer: string): Promise<string> => {
       url,
       (module = (async () => {
         const response = await fetchFile(url, importer);
-        const etag = response.headers.get('etag');
-        let compiled = recall(url, etag);
-        if (compiled === null) {
+        const etag = response.headers.get('etag') ?? response.headers.get('last-modified');
+        const kept = recall(url, etag);
+        let compiled: Compiled;
+        if (kept === null) {
           compiled = await compile(url, await response.text());
           remember(url, etag, compiled);
-        }
-        return link(url, url, compiled);
+        } else compiled = { js: kept.js ?? (await response.text()), sites: kept.sites };
+        /** Resolved against where the file really is: a redirected file's neighbours are THERE. */
+        return link(response.url || url, url, compiled);
       })())
     );
   return module;
 };
 
-/** What a rewritten relative `import()` calls: the same loader, reached lazily, as written. */
-(globalThis as { __veraJsx?: (url: string) => Promise<unknown> }).__veraJsx = async (url) =>
-  import(/* @vite-ignore */ await load(url, document.baseURI));
+/**
+ * **What every rewritten `import(` calls**, with the calling file's address: a relative script
+ * through this loader, lazily, as written; anything else — a non-script, a renderer helper, a bare
+ * name for the import map — through the browser, options and all.
+ */
+(globalThis as { __veraJsx?: unknown }).__veraJsx = async (base: string, specifier: unknown, options?: ImportCallOptions) => {
+  const name = String(specifier);
+  if (!RELATIVE.test(name)) return import(/* @vite-ignore */ helperUrl(name) ?? name, options);
+  const target = new URL(name, base).href;
+  return import(/* @vite-ignore */ isScript(target) ? await load(target, base) : target, options);
+};
+/**
+ * **Each file's `import.meta`**: its real `url`, and a `resolve` that answers as the file itself would —
+ * a relative name against that url, a package name through the page's import map.
+ */
+const metas = new Map<string, { url: string; resolve: (specifier: string) => string }>();
+(globalThis as { __veraJsxMeta?: unknown }).__veraJsxMeta = (base: string) => {
+  let meta = metas.get(base);
+  if (meta === undefined)
+    metas.set(
+      base,
+      (meta = {
+        url: base,
+        resolve: (specifier) =>
+          RELATIVE.test(specifier) ? new URL(specifier, base).href : helperUrl(specifier) ?? import.meta.resolve(specifier),
+      })
+    );
+  return meta;
+};
 
 let inline = 0;
 
@@ -222,6 +278,18 @@ const runBlock = async (script: HTMLScriptElement): Promise<void> => {
     await import(/* @vite-ignore */ await link(document.baseURI, name, compiled));
   } catch (error) {
     console.error(`[vera] jsx: ${script.src || 'an inline block'}:`, error);
+    /**
+     * **The browser loads the renderer's helpers itself**, so a missing one fails as an opaque
+     * `blob:` import error that names nothing. Only on failure, each helper handed out is asked for.
+     */
+    for (const url of helpers) {
+      const found = await fetch(url, { method: 'HEAD' }).then((response) => response.ok, () => false);
+      if (!found)
+        console.error(
+          `[vera] jsx: ${url} was not found. The renderer's helpers are loaded from beside ` +
+            `@verajs/renderer — copy its whole dist folder, or map the helper in the import map.`
+        );
+    }
   }
 };
 

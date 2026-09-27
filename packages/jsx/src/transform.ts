@@ -333,10 +333,16 @@ const blankLiterals = (text: string): string => {
 
 /**
  * **Where a module's imports are**, for `@verajs/jsx/standalone`'s loader: every static
- * `import … from`/`export … from`/bare `import '…'` specifier, every string-literal `import('…')`,
- * and every `import.meta.url` — as offsets into `code`, found in `blankLiterals`' copy so an `import`
- * written inside a string, a comment or a template's text is never mistaken for one. The copy keeps
- * every offset, so each specifier is sliced from the ORIGINAL at the positions the blanked text gave.
+ * `import … from`/`export … from`/bare `import '…'` specifier, every `import(` call, and every
+ * `import.meta` — as offsets into `code`, found in `blankLiterals`' copy so an `import` written inside
+ * a string, a comment or a template's text is never mistaken for one. The copy keeps every offset, so
+ * each specifier is sliced from the ORIGINAL at the positions the blanked text gave.
+ *
+ * **A dynamic import is found by its `import(`, not by its argument**, and `import.meta` as a whole
+ * rather than `.url`: the loader replaces the CALL with its own resolver and the meta object with the
+ * file's, so a template literal, a computed path, import options and `import.meta.resolve` all work
+ * as written. Matching a quoted argument and `.url` alone left each of those resolving against the
+ * `blob:` URL the file runs from.
  */
 export const importSites = (code: string): ImportSite[] => {
   const blank = blankLiterals(code);
@@ -354,11 +360,21 @@ export const importSites = (code: string): ImportSite[] => {
     const site = quoted(m.index! + m[0].length - 1);
     if (site) sites.push(site);
   }
-  for (const m of blank.matchAll(/(?<![\w$.])import\s*\(\s*(['"])/g)) {
-    const site = quoted(m.index! + m[0].length - 1);
-    if (site) sites.push({ ...site, kind: 'dynamic', from: m.index! });
+  for (const m of blank.matchAll(/(?<![\w$.])import\s*\(/g)) {
+    /**
+     * A METHOD named `import` — `import(url) { … }` in a class or an object literal, which Vite's own
+     * module runner has — reads exactly like a call up to its `)`, and rewriting it is a syntax error.
+     * A call is never followed by `{`; a method always is.
+     */
+    let depth = 0;
+    let close = m.index! + m[0].length - 1;
+    for (; close < blank.length; close++)
+      if (blank[close] === '(') depth++;
+      else if (blank[close] === ')' && --depth === 0) break;
+    if (/^\s*\{/.test(blank.slice(close + 1, close + 64))) continue;
+    sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'dynamic' });
   }
-  for (const m of blank.matchAll(/(?<![\w$.])import\s*\.\s*meta\s*\.\s*url\b/g))
+  for (const m of blank.matchAll(/(?<![\w$.])import\s*\.\s*meta\b/g))
     sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'meta' });
   return sites.sort((a, b) => a.start - b.start);
 };
