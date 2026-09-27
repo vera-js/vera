@@ -24,11 +24,18 @@ const { renderer } = await load('renderer');
 wire([renderer]);
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
-/** A child whose getter hands back a copy (so `!==` never matches) and whose setter writes its own state. */
+/**
+ * A child whose getter hands back a copy (so `!==` never matches) and whose setter READS its own
+ * state and then writes it — the shape of a widget that reconciles a new value against what it holds
+ * (`<vera-select>`'s `setOptions` reads its matches, then writes). The read is what subscribed the
+ * parent: a setter that only writes did not loop (measured).
+ */
 customElements.define('x-copying', class extends HTMLElement {
   #state = createStore({ items: [] });
   get items() { return [...this.#state.items]; }
-  set items(next) { this.#state.items = [...next]; }
+  set items(next) {
+    if (this.#state.items.length >= 0) this.#state.items = [...next];
+  }
 });
 
 test('a parent setting a property on such a child renders once, not every frame', async () => {
