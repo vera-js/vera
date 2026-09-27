@@ -2064,11 +2064,19 @@ type TemplateHook = (template: Template, result: TemplateResult, read: () => unk
  * capture is gated on `own` — and development names it in the slotless warning.
  */
 let own: OwnHook | null = null;
+/**
+ * **Any slot strategy is wired**, so content may be MOVED out of its part's marker range and a
+ * template's top-level nodes have to be recorded for `_clear` and `hold` to find it. Latched beside
+ * `own` but not the same thing: a custom strategy without `$o` relocates too, and gating the record
+ * on `own` left the README's own `slotsInTree` showing the old template beside the new one after a swap.
+ */
+let relocating = false;
 let skewNamed = false;
 const slotSeam = (): SlotSeam | undefined => {
   const seam = (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
   if (seam !== undefined) {
     own = seam.$o ?? null;
+    relocating = true;
     /**
      * **Development only: the slots module and this renderer are one contract, so one version.**
      * They ship in the same package, so npm cannot mix them; a CDN page pinning two versions of it
@@ -2193,17 +2201,24 @@ class ChildPart implements Part {
   /**
    * **Every insert is reported to the slot strategy's `own` hook, with its OWNER** — `true` for a
    * root part (`_end === null`), whose inserts are by definition the render's own output, and the
-   * part's START MARKER otherwise, which groups what one part placed. The marker rather than the
-   * part because the strategy lives in another bundle and must be able to read it: a marker the
-   * strategy stamped as the render's own output belongs to a TOP-LEVEL part of the host's own
-   * template, and that part's content is the render's own output too — the strategy resolves it,
-   * see `own` in `@verajs/renderer/slots`. The value is structural rather than temporal, so it stays right for an applier committing
+   * part's START MARKER otherwise, which groups what one part placed.
+   *
+   * **Also `true` for an insert straight into the container being rendered** (`renderRoot`): during
+   * a light host's own `renderInto`, anything placed at its top level is its own output — a
+   * top-level `${…}` of its template, a row of a top-level list, a shape change inside one — however
+   * that part's markers came to be there. Content an OUTER template places into the host arrives
+   * while the outer container renders, so it is still told apart. Deciding this from a stamp on the
+   * part's marker missed every marker that never passed through a stamped fragment: one a text part
+   * creates on its first template, a live keyed insert, and every marker hydration adopts — so a
+   * hydrated component's own `${busy ? a : b}` emptied on update. The marker is still passed, and
+   * the strategy still reads a stamped one as the render's own, for commits outside any render (an
+   * applier resolving later). The value is structural rather than temporal, so it stays right for an applier committing
    * from a microtask long after `renderInto` returned. `@verajs/renderer/slots` turns it into the
    * `_$own$` stamp — see `own` there; an app without a strategy pays one comparison.
    */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (own !== null) own(parent, node, this._end === null || this._start);
+    if (own !== null) own(parent, node, this._end === null || parent === renderRoot || this._start);
     /**
      * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
      * parent is foreign, so an ordinary insert allocates nothing even in development.
@@ -2418,7 +2433,7 @@ class ChildPart implements Part {
        * on a path that just built an Instance and cloned a template; same-shape updates never
        * reach here.
        */
-      if (own !== null) this._value = [...instance._fragment.childNodes];
+      if (relocating) this._value = [...instance._fragment.childNodes];
       this._insert(instance._fragment);
       this._instance = instance;
       this._shape = value.strings;
@@ -2540,7 +2555,7 @@ class ChildPart implements Part {
     let instance = held.get(result.strings);
     const restored = instance !== undefined;
     if (instance === undefined) instance = build(result, this._start.parentNode!);
-    if (own !== null) this._value = [...instance._fragment.childNodes];
+    if (relocating) this._value = [...instance._fragment.childNodes];
     this._insert(instance._fragment);
     if (restored) instance._update(result.values);
     this._instance = instance;
@@ -2557,6 +2572,13 @@ class ChildPart implements Part {
      *  structural value — a root list's rows are the render's own output, any other part's rows
      *  are content it places into the host, stamped with the part as the ordering group. */
     const owner = own;
+    /**
+     * Reported against the LIST's parent, not `parent`: a batched row is built in a fragment, and
+     * `@verajs/renderer/keyed` inserts that fragment itself, so reporting against the fragment told
+     * the strategy nothing and a keyed list growing by two rows at a light host's top level had them
+     * captured as the user's content. The row node is what gets stamped; the host is what decides.
+     */
+    const host = this._start.parentNode!;
     if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
@@ -2579,7 +2601,7 @@ class ChildPart implements Part {
       } else instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        if (owner !== null) owner(parent, rootNode, this._end === null || this._start);
+        if (owner !== null) owner(host, rootNode, this._end === null || host === renderRoot || this._start);
         parent.insertBefore(rootNode, ref);
         /**
          * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
@@ -2614,10 +2636,8 @@ class ChildPart implements Part {
       part._instance = instance;
       part._shape = result.strings;
       part._mode = TEMPLATE;
-      if (owner !== null) {
-        part._value = [...instance._fragment.childNodes];
-        owner(parent, instance._fragment, this._end === null || this._start);
-      }
+      if (relocating) part._value = [...instance._fragment.childNodes];
+      if (owner !== null) owner(host, instance._fragment, this._end === null || host === renderRoot || this._start);
       /**
        * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
        * survived minification as a live reference and put the warning's strings in the production
