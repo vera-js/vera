@@ -17,8 +17,8 @@ and WebKit.
 
 **What it weighs, against 0.2.2, gzipped.** The renderer is 4 700 B (0.2.2: 4 679), now carrying the
 `'template'` hook `@verajs/renderer/namespaces` plugs into and the fixes below; an app that does not
-use slots is 7 173 B (7 141). The slots module is 3 788 B (3 424), and a slotted light component
-bundled with both is **10 447 B, up from 10 028 — about 420 B more** for the apps that use slots: the
+use slots is 7 199 B (7 141). The slots module is 3 788 B (3 424), and a slotted light component
+bundled with both is **10 467 B, up from 10 028 — about 440 B more** for the apps that use slots: the
 contract now crosses a bundle boundary, and those apps carry it.
 
 - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
