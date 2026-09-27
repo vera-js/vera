@@ -93,7 +93,9 @@ export type InstanceHook = {
 /**
  * **Told about every node the renderer inserts, once slots is wired**, so the slots module can mark
  * the render's own output in a light host apart from the user's children. `owner` is `true` for the
- * render root's own output and the placing part otherwise — the ordering group.
+ * render root's own output and the placing part's start marker otherwise — the ordering group, and
+ * a node the strategy can read: a marker it stamped as the render's own output means a top-level part
+ * of the host's own template.
  */
 export type OwnHook = (parent: Node, node: Node, owner: true | object) => void;
 

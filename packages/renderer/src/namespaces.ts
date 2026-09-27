@@ -30,8 +30,13 @@ const namespaceOf = (index: -1 | 0 | 1): string | null => {
   return index === -1 ? reference.namespaceURI : (reference.childNodes[index] as Element).namespaceURI;
 };
 
-/** A parent element carrying the namespace its children parse in, once asked. */
-type Cached = Element & { _$vns$?: string | null };
+/**
+ * **The answer cached on a parent element, under a Symbol** — invisible to `Object.keys` and `for…in`
+ * (every other DOM element answers `[]` there), and a plain property store, where `defineProperty`
+ * would add a call for every new parent on the create path. Only this module reads it.
+ */
+const ANSWER = Symbol();
+type Cached = Element & { [ANSWER]?: string | null };
 
 type Template = {
   _$at$?: (parent: Node) => Template;
@@ -40,12 +45,18 @@ type Template = {
 };
 
 /**
- * The namespace a start tag takes as a CHILD of `parent`, or `null` for HTML — **asked of the parser**.
- * A clone of the parent is given one unknown child through `innerHTML`, which runs the fragment
- * parser with that element as its context, so integration points answer as the platform answers.
+ * The namespace `tag` takes as a CHILD of `parent`, or `null` for HTML — **asked of the parser**.
+ * A clone of the parent is given that child through `innerHTML`, which runs the fragment parser with
+ * that element as its context, so integration points answer as the platform answers.
+ *
+ * **The tag matters only under a MathML parent**, and there it decides: `<svg>` inside
+ * `<annotation-xml>` is SVG while any other child is MathML, and `<mglyph>`/`<malignmark>` inside
+ * `<mi>`, `<mo>`, `<mn>`, `<ms>`, `<mtext>` stay MathML while any other child is HTML. So a MathML
+ * parent is asked with the template's own first tag; every other parent with a stand-in, since its
+ * answer is the same for every tag.
  */
-const answers: Record<string, Record<string, string | null>> = {};
-const childOf = (parent: Element): string | null => {
+const answers: Record<string, Record<string, Record<string, string | null>>> = {};
+const childOf = (parent: Element, tag: string): string | null => {
   if (parent.namespaceURI === namespaceOf(-1)) return null;
   /**
    * The one position the probe cannot answer: the engines DISAGREE about `<annotation-xml>` as a
@@ -63,13 +74,13 @@ const childOf = (parent: Element): string | null => {
    * Nested plain objects rather than a joined string key: building the key cost more than the
    * lookup it served, on a path the renderer walks once per instance.
    */
-  const byName = (answers[parent.namespaceURI!] ??= {});
-  let answer = byName[parent.localName];
+  const byTag = ((answers[parent.namespaceURI!] ??= {})[parent.localName] ??= {});
+  let answer = byTag[tag];
   if (answer === undefined) {
     const probe = parent.cloneNode(false) as Element;
-    probe.innerHTML = '<x></x>';
+    probe.innerHTML = `<${tag}></${tag}>`;
     const ns = (probe.firstChild as Element | null)?.namespaceURI ?? null;
-    byName[parent.localName] = answer = ns === namespaceOf(-1) ? null : ns;
+    byTag[tag] = answer = ns === namespaceOf(-1) ? null : ns;
   }
   return answer;
 };
@@ -79,11 +90,11 @@ const childOf = (parent: Element): string | null => {
  * renderer's create-path scope: the template whose instance the fragment is (its own namespace), or
  * `[a list's parent, the scope outside it]` for a row built in a batching fragment.
  */
-const within = (node: Node, scope: unknown): string | null =>
+const within = (node: Node, scope: unknown, tag: string): string | null =>
   node.nodeType === 1
-    ? childOf(node as Element)
+    ? childOf(node as Element, (node as Element).namespaceURI === namespaceOf(1) ? tag : 'x')
     : Array.isArray(scope)
-      ? within(scope[0], scope[1])
+      ? within(scope[0], scope[1], tag)
       : ((scope as Template | null)?._$ns$ ?? null);
 
 
@@ -106,6 +117,8 @@ export const namespaces = {
     /** The `svg` and `mathml` builds of this template's markup, made the first time one is needed. */
     let svg: Template | undefined;
     let mathml: Template | undefined;
+    /** The template's first tag, which a MathML parent's answer depends on; `x` when it opens with text. */
+    const tag = /^\s*<([a-zA-Z][^\s/>]*)/.exec(result.strings[0])?.[1] ?? 'x';
     const pick = (ns: string | null): Template =>
       ns === null
         ? template
@@ -114,9 +127,9 @@ export const namespaces = {
           : (mathml ??= new template.constructor({ _$litType$: 3, strings: result.strings }));
     template._$at$ = (parent) => {
       /** The cache first: it is only ever written on an element, so a hit skips the `nodeType` read. */
-      const cached = (parent as Cached)._$vns$;
+      const cached = (parent as Cached)[ANSWER];
       if (cached !== undefined) return pick(cached);
-      if (parent.nodeType !== 1) return pick(within(parent, read()));
+      if (parent.nodeType !== 1) return pick(within(parent, read(), tag));
       /**
        * **The answer is cached ON the parent element.** Every row of a list shares one parent, and once
        * this module is wired EVERY `html` instance on the page asks — plain HTML lists included — so
@@ -125,9 +138,13 @@ export const namespaces = {
        * a strong reference would keep a removed subtree alive for the life of the cached template.
        * On the element, the answer lives and dies with the thing it describes.
        */
-      const answer = childOf(parent as Element);
-      /** Not for `annotation-xml`: its answer follows an `encoding` a binding can change later. */
-      if ((parent as Element).localName !== 'annotation-xml') (parent as Cached)._$vns$ = answer;
+      /**
+       * Not cached under a MathML parent: its answer depends on the tag, and for `annotation-xml` on
+       * an `encoding` a binding can change later. MathML is rare enough that asking each time is free.
+       */
+      if ((parent as Element).namespaceURI === namespaceOf(1)) return pick(childOf(parent as Element, tag));
+      const answer = childOf(parent as Element, 'x');
+      (parent as Cached)[ANSWER] = answer;
       return pick(answer);
     };
   },

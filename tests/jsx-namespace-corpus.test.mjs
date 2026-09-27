@@ -15,7 +15,7 @@
  */
 import { isProduction, load } from './dist.mjs';
 import { JSDOM } from 'jsdom';
-import { writeFileSync, mkdtempSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
@@ -62,13 +62,15 @@ const breaksOut = (name) => {
 /** An element's tree as `name:namespace`, in document order — the thing both sides must agree on. */
 const shape = (root) => [...root.querySelectorAll('*')].map((e) => `${e.localName}:${e.namespaceURI.split('/').pop()}`).join(' ');
 
-test('every group renders exactly what the parser builds from the same markup written inline', async () => {
+test('every group renders exactly what the parser builds from the same markup written inline', async (t) => {
   const silence = console.warn;
   /** The whole run's warnings: the diagnostic is deduplicated for the life of the module, so a name
    *  an earlier group already spent is silent in every later one — ask the run, never one render. */
   const warnings = [];
   console.warn = (message) => warnings.push(String(message));
   const dir = mkdtempSync(join(process.cwd(), 'node_modules', '.ns-corpus-'));
+  /** ~1 100 compiled modules per run; removed however the test ends, or every run leaves them behind. */
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   let n = 0;
   let compared = 0;
   const bad = [];

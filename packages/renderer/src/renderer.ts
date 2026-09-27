@@ -223,17 +223,31 @@ const IN_BOUND_VALUE = 5; // collecting a bound attribute's statics
  * is an OPEN tag too and swallows what follows it exactly as `<div/>` does, so both the warning and
  * the fix it names are correct for it.
  */
+/**
+ * **Recorded at the scan, said at the first INSTANCE of that build** — because once
+ * `@verajs/renderer/namespaces` is wired, an `html` template placed inside `<svg>` is instantiated
+ * through its SVG build, where `<path />` is exactly right, and its HTML build may never be used at
+ * all. Warning at the scan flagged the README's own `Frame(html\`<path d="…" />\`)` twice while it
+ * drew correctly. Unwired, the HTML build is the one instantiated and the warning comes one step later.
+ */
+let shapeWarnings: string[] | undefined;
+const sayShape = (template: Template) => {
+  if (template._shapeWarnings !== undefined) {
+    for (const message of template._shapeWarnings) console.warn(`[vera] renderer: ${message}`);
+    template._shapeWarnings = undefined;
+  }
+};
 const warnTagShape = (tag: string, closing: boolean, selfClosed: boolean) => {
   if (!closing && selfClosed && !VOID_TAGS.test(tag))
-    console.warn(
-      `[vera] renderer: <${tag}> is left OPEN by this template, so everything after it becomes its ` +
+    (shapeWarnings ??= []).push(
+      `<${tag}> is left OPEN by this template, so everything after it becomes its ` +
         `child rather than its sibling. HTML has no self-closing syntax outside <svg> and <math> — ` +
         `\`<${tag} />\` is an open tag, not an empty element. Write \`<${tag}></${tag}>\`. ` +
         `(@verajs/jsx rewrites this for you; a hand-written template has to say it.)`
     );
   else if (closing && VOID_TAGS.test(tag))
-    console.warn(
-      `[vera] renderer: \`</${tag}>\` is read by the parser as ANOTHER <${tag}>, so this template ` +
+    (shapeWarnings ??= []).push(
+      `\`</${tag}>\` is read by the parser as ANOTHER <${tag}>, so this template ` +
         `renders two where it describes one. A void element has no end tag — write \`<${tag}>\` alone.`
     );
 };
@@ -506,12 +520,21 @@ const warnSlotless = (root: Element) => {
   const tag = root.localName;
   if (warnedSlotless.has(tag)) return;
   warnedSlotless.add(tag);
+  /** Which of three wirings this is: nothing, a strategy without discovery, or an older slots module. */
+  const seam = slotSeam();
   console.warn(
-    `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but no 'slot' insert is wired — ` +
-      `nothing can fill it, so it always shows its fallback, and any content the host is given for ` +
+    `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but ` +
+      (seam === undefined
+        ? `no 'slot' insert is wired`
+        : seam.$o === undefined && seam._$capture$ !== undefined
+          ? `the wired @verajs/renderer/slots is OLDER than this renderer and cannot distribute for it`
+          : `nothing marked this template's \`<slot>\`s for the wired 'slot' strategy — \`slotDiscovery\` is ` +
+            `not wired beside it, or was wired after this template first rendered`) +
+      ` — nothing can fill it, so it always shows its fallback, and any content the host is given for ` +
       `it sits beside the component as stray markup instead. Wire it at the app entry, BEFORE anything renders: ` +
       `\`import { slots } from '@verajs/renderer/slots'; wire([renderer, slots])\` — a custom slot strategy ` +
-      `wires \`slotDiscovery\` from there beside itself. Wiring it later ` +
+      `wires \`slotDiscovery\` from there beside itself — and load the slots module from the same version ` +
+      `of the package as the renderer. Wiring it later ` +
       `does not help a template that has already rendered — a template resolves this once, at ` +
       `construction, and is interned per call site for the life of the page.`
   );
@@ -604,12 +627,18 @@ class Template {
    *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
    *  ES2022 class-field semantics, which is production weight for a development-only check. */
   declare _slotless?: boolean;
+  /** `__DEV__` only: the scan's tag-shape warnings, said at this build's first instance — see `sayShape`. */
+  declare _shapeWarnings?: string[];
   /** Set by a `'template'` hook: which template to build at a position — see `TemplateHook`. */
   declare _$at$?: (parent: Node) => Template;
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
     const { markup, specs } = scan(result.strings, type);
+    if (__DEV__ && shapeWarnings !== undefined) {
+      this._shapeWarnings = shapeWarnings;
+      shapeWarnings = undefined;
+    }
     this._element = doc.createElement('template');
     /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
     this._element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
@@ -1034,9 +1063,12 @@ const build = (result: TemplateResult, parent: Node): Instance => instantiate(re
  * **The last list fill's resolution**, so a fill resolves once rather than once per row. Every row of
  * a batched fill lands in the same fragment, so a row with the same strings as the one before it
  * takes the same template — one identity compare instead of a cache lookup and a resolver call.
- * Only a FRAGMENT is remembered: it is empty once inserted, so holding it keeps nothing alive, while
- * remembering a live parent would pin a removed subtree. A nested list's fill overwrites it, and the
- * outer fill's next row simply resolves again.
+ * Only a BATCHING fragment is remembered: it is empty once inserted, so holding it keeps nothing
+ * alive. It is recognised by being EMPTY when its first row arrives — a list's live parent always
+ * holds the list's own start marker, so it never is. `nodeType === 11` was the test before, and a
+ * SHADOW ROOT passes it: a single-row keyed insert at a shadow root's top level kept the root, its
+ * host and the whole detached component alive. A nested list's fill overwrites it, and the outer
+ * fill's next row simply resolves again.
  */
 let fillParent: Node | null = null;
 let fillStrings: TemplateStringsArray | null = null;
@@ -1708,6 +1740,7 @@ class Instance {
   declare $s?: unknown;
   declare $k?: unknown;
   constructor(template: Template) {
+    if (__DEV__) sayShape(template);
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
      * Template content lives in the inert template document, so `cloneNode` copies stay
@@ -2026,9 +2059,9 @@ type TemplateHook = (template: Template, result: TemplateResult, read: () => unk
  * latched before any insert can reach a light host, because a host only becomes one when its
  * first render calls `_$capture$` — through this accessor.
  *
- * A seam without `$o` is a slots module OLDER than this renderer: it neither marks templates nor
- * takes inserts, so nothing would distribute. Development names it; production treats it as unwired
- * rather than calling `undefined` on every insert.
+ * A seam with `_$capture$` and no `$o` is a slots module OLDER than this renderer: it neither marks
+ * templates nor takes inserts, so nothing would distribute. Both builds treat it as unwired —
+ * capture is gated on `own` — and development names it in the slotless warning.
  */
 let own: OwnHook | null = null;
 let skewNamed = false;
@@ -2160,14 +2193,17 @@ class ChildPart implements Part {
   /**
    * **Every insert is reported to the slot strategy's `own` hook, with its OWNER** — `true` for a
    * root part (`_end === null`), whose inserts are by definition the render's own output, and the
-   * part itself otherwise: content placed INTO a host from outside, grouped by the part that placed
-   * it. The value is structural rather than temporal, so it stays right for an applier committing
+   * part's START MARKER otherwise, which groups what one part placed. The marker rather than the
+   * part because the strategy lives in another bundle and must be able to read it: a marker the
+   * strategy stamped as the render's own output belongs to a TOP-LEVEL part of the host's own
+   * template, and that part's content is the render's own output too — the strategy resolves it,
+   * see `own` in `@verajs/renderer/slots`. The value is structural rather than temporal, so it stays right for an applier committing
    * from a microtask long after `renderInto` returned. `@verajs/renderer/slots` turns it into the
    * `_$own$` stamp — see `own` there; an app without a strategy pays one comparison.
    */
   _insert(node: Node) {
     const parent = this._start.parentNode!;
-    if (own !== null) own(parent, node, this._end === null || this);
+    if (own !== null) own(parent, node, this._end === null || this._start);
     /**
      * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
      * parent is foreign, so an ordinary insert allocates nothing even in development.
@@ -2494,11 +2530,18 @@ class ChildPart implements Part {
     } else if (this._mode !== EMPTY) {
       this._clear();
     }
+    /**
+     * **A restored instance is inserted FIRST and updated after**, as every ordinary update is: its
+     * nodes are live, so a top-level part that changes shape resolves its namespace from where it
+     * really is. Updated while still in its own fragment, a `<rect>` swapped in inside an `<svg>` was
+     * asked of a detached fragment and built as HTML.
+     */
     let instance = held.get(result.strings);
+    const restored = instance !== undefined;
     if (instance === undefined) instance = build(result, this._start.parentNode!);
-    else instance._update(result.values);
     if (own !== null) this._value = [...instance._fragment.childNodes];
     this._insert(instance._fragment);
+    if (restored) instance._update(result.values);
     this._instance = instance;
     this._shape = result.strings;
     this._mode = TEMPLATE;
@@ -2520,7 +2563,7 @@ class ChildPart implements Part {
       if (parent === fillParent && result.strings === fillStrings) template = fillTemplate!;
       else {
         template = resolve(result, this._start.parentNode!);
-        if (parent.nodeType === 11) {
+        if (parent === fillParent || parent.firstChild === null) {
           fillParent = parent;
           fillStrings = result.strings;
           fillTemplate = template;
@@ -2535,7 +2578,7 @@ class ChildPart implements Part {
       } else instance._update(result.values);
       const rootNode = instance._fragment.firstChild;
       if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        if (owner !== null) owner(parent, rootNode, this._end === null || this);
+        if (owner !== null) owner(parent, rootNode, this._end === null || this._start);
         parent.insertBefore(rootNode, ref);
         /**
          * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
@@ -2572,7 +2615,7 @@ class ChildPart implements Part {
       part._mode = TEMPLATE;
       if (owner !== null) {
         part._value = [...instance._fragment.childNodes];
-        owner(parent, instance._fragment, this._end === null || this);
+        owner(parent, instance._fragment, this._end === null || this._start);
       }
       /**
        * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
@@ -2811,7 +2854,14 @@ export const renderInto = (result: unknown, container: Node) => {
      * to find, and a template swap in the host shows the old one forever.
      */
     const seam = slotSeam();
-    if (container.nodeType === 1) seam?._$capture$?.(container as Element, marker);
+    /**
+     * **Captured only by a module that also takes the inserts (`own`).** An OLDER slots module has
+     * `_$capture$` and no `$o`: capturing without stamping lifted the render's own output with the
+     * user's content, and a CDN page pinning the old module beside this renderer showed an empty
+     * host. Gated, the old module is simply unwired — fallback shows, nothing is lost. Production
+     * pays for this because production is where a pinned CDN page runs.
+     */
+    if (own !== null && container.nodeType === 1) seam!._$capture$?.(container as Element, marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
   /**
@@ -2823,12 +2873,27 @@ export const renderInto = (result: unknown, container: Node) => {
    *
    * Flushing on the way out applies it with its own pass, where it belongs, and leaves nothing
    * behind either way. The error still propagates.
+   *
+   * **The render root and the create scope are SAVED and RESTORED here, the one owner of both.** A
+   * `renderInto` can run inside another's commit — a `&ref` that renders a portal, a custom element
+   * that renders its shadow root in its constructor — and resetting the root to `null` on the way
+   * out handed the rest of the outer render no root (slots then crashed on it), while not resetting
+   * the scope built the inner render in the OUTER template's namespace (a shadow root's content as
+   * SVG). And the create paths restore the scope without a `try`, deliberately — they are the hot
+   * path — so a render that throws inside an SVG template's first update left the scope set for the
+   * rest of the page, and every later shadow component built as SVG. Starting each call from a null
+   * scope and restoring the caller's in a `finally` heals that at the next boundary, with nothing
+   * added per instance.
    */
+  const outerRoot = renderRoot;
+  const outerScope = create.scope;
   renderRoot = container;
+  create.scope = null;
   try {
     part._set(result);
   } finally {
-    renderRoot = null;
+    renderRoot = outerRoot;
+    create.scope = outerScope;
     flushSelects();
   }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
@@ -2842,6 +2907,7 @@ export const renderInto = (result: unknown, container: Node) => {
 /** @internal */
 export {
   flushSelects,
+  sayShape,
   getTemplate,
   Template,
   Instance,

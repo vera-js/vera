@@ -35,6 +35,7 @@ import {
   instanceWalker,
   rootParts,
   slotSeam,
+  sayShape,
   renderInto as baseRender,
   renderer as baseRenderer,
   declareRemovalWork,
@@ -578,6 +579,7 @@ const adoptItem = (cursor: Cursor, value: unknown): Item => {
 
 /** Builds an Instance whose parts are bound to LIVE nodes, consuming them from the cursor. */
 const adoptInstance = (template: Template, values: unknown[], cursor: Cursor): Instance => {
+  if (__DEV__) sayShape(template);
   const instance: Instance = Object.create(Instance.prototype);
   instance._parts = [];
   instance._fragment = doc.createDocumentFragment();

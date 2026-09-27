@@ -58,7 +58,7 @@ const capture = async (fn) => {
   } finally {
     console.warn = original;
   }
-  return said.filter((message) => message.includes("no 'slot' insert is wired"));
+  return said.filter((message) => message.includes('renders a `<slot>` into LIGHT DOM'));
 };
 
 /** ONE draw function, used on both sides of the wiring — two literals would be two templates. */
@@ -93,6 +93,8 @@ test('a template that rendered BEFORE the wiring stays slotless — and says so'
     'the same template is still slotless, which is the documented consequence');
   assert.equal(said.length, 1, 'and it is diagnosed rather than left to be discovered');
   assert.match(said[0], /<stale-host>/, 'naming the host it happened in');
+  assert.match(said[0], /wired after this template first rendered/,
+    'and naming the late wiring rather than claiming nothing is wired — slots IS wired here');
 
   /** A fresh call site, built after the wiring, works — which is what makes the stale one so odd. */
   const fresh = host('<b slot="h">FRESH</b>', 'fresh-host');

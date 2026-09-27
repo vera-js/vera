@@ -1543,7 +1543,16 @@ const rescue = (host: Element): Node[] | null => {
 const OWN_DESCRIPTOR: PropertyDescriptor = { value: true, enumerable: false, configurable: true, writable: true };
 const own: OwnHook = (parent, node, owner) => {
   if ((parent as { _$hosted$?: boolean })._$hosted$ !== true) return;
-  OWN_DESCRIPTOR.value = owner;
+  /**
+   * **A part whose marker is the render's own output is the render's own part.** The renderer
+   * reports `true` only for the root part; every other part reports its start marker. A top-level
+   * `${…}` of the host's OWN template has its markers stamped `true` when the template is inserted,
+   * so its content is the render's output as well — reported as the part, it read as content placed
+   * from outside and was captured into a slot: `${busy ? spinner() : list()}` in a light component
+   * emptied on update, and a top-level list showed one row of three. Nested parts inherit it, since
+   * their markers arrive in a fragment their parent part stamped.
+   */
+  OWN_DESCRIPTOR.value = owner !== true && (owner as { _$own$?: unknown })._$own$ === true ? true : owner;
   if (node.nodeType === 11) {
     for (let child = node.firstChild; child !== null; child = child.nextSibling)
       Object.defineProperty(child, '_$own$', OWN_DESCRIPTOR);
@@ -1590,6 +1599,8 @@ type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | 
  * the walker exists by then and instances pay no check for it.
  */
 let slotWalker: TreeWalker | undefined;
+/** Development only: the discovery-without-a-strategy warning, once. */
+let strategyNamed = false;
 const discoverFor = (): InstanceHook => {
   let positions: number[] | undefined;
   return {
@@ -1623,7 +1634,17 @@ const discoverFor = (): InstanceHook => {
     },
     $m: (found, root) => {
       const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
-      if (strategy === undefined) return undefined;
+      if (strategy === undefined) {
+        /** Development only: discovery with nothing to hand its `<slot>`s to is otherwise silent. */
+        if (__DEV__ && !strategyNamed) {
+          strategyNamed = true;
+          console.warn(
+            "[vera] slots: `slotDiscovery` is wired but no 'slot' strategy is — every `<slot>` it finds " +
+              'shows its fallback. Wire `slots` from @verajs/renderer/slots, or a strategy beside `slotDiscovery`.'
+          );
+        }
+        return undefined;
+      }
       const slots = found as Element[];
       let taken: SeamState[] | undefined;
       for (let i = 0; i < slots.length; i++) {
@@ -1647,8 +1668,38 @@ const discoverFor = (): InstanceHook => {
  */
 const SLOT_TAG = /<slot[\s/>]/i;
 const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
-  if (SLOT_TAG.test(result.strings.join(''))) (built as { _$inst$?: InstanceHook })._$inst$ = discoverFor();
+  if (!SLOT_TAG.test(result.strings.join(''))) return;
+  const template = built as { _$inst$?: InstanceHook };
+  const mine = discoverFor();
+  const other = template._$inst$;
+  template._$inst$ = other === undefined ? mine : both(other, mine);
 };
+
+/**
+ * **A template carries ONE instance hook, so a second consumer wraps the one it finds** — the promise
+ * `InstanceHook` makes, and this module keeps it: assigning over a hook another `'template'` hook had
+ * set silently switched that module off for every slotted template. Each side keeps its own state and
+ * is skipped once it returns `undefined`, exactly as it would be alone. Only templates that two
+ * consumers both claim pay for the pair.
+ */
+const both = (a: InstanceHook, b: InstanceHook): InstanceHook => ({
+  $c: (fragment, root) => {
+    const x = a.$c(fragment, root);
+    const y = b.$c(fragment, root);
+    return x === undefined && y === undefined ? undefined : [x, y];
+  },
+  $m: (state, root) => {
+    const [x, y] = state as [unknown, unknown];
+    const kx = x === undefined ? undefined : a.$m(x, root);
+    const ky = y === undefined ? undefined : b.$m(y, root);
+    return kx === undefined && ky === undefined ? undefined : [kx, ky];
+  },
+  $q: (kept) => {
+    const [kx, ky] = kept as [unknown, unknown];
+    if (kx !== undefined) a.$q(kx);
+    if (ky !== undefined) b.$q(ky);
+  },
+});
 
 export const slotDiscovery = [
   (registry: Map<string, unknown[]>) => {
