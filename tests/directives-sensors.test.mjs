@@ -110,7 +110,7 @@ test('pointer normalizes 0→1 over the element, and re-centers on leave', async
       <div id="card" data-vd-pointer="p"></div>
     </div>`);
   const card = host.querySelector('#card');
-  /** jsdom has no layout, so the box is supplied — the maths is what is under test. */
+  /** jsdom has no layout, so the box is supplied — the math is what is under test. */
   card.getBoundingClientRect = () => ({ left: 100, top: 50, width: 200, height: 100 });
   const carrier = host.querySelector('[data-vd-state]');
 

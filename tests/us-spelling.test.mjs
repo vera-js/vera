@@ -23,7 +23,7 @@ const ISE =
   'percentis|canonicalis|internationalis|anonymis|personalis|rationalis|formalis|globalis|idealis|regularis|' +
   'socialis|popularis|polaris|metabolis|miniaturis|dramatis|equalis|homogenis|itemis|legalis|publicis|' +
   'systematis|vaporis|verbalis|mobilis|digitis|atomis|symbolis|theoris|trivialis|vectoris|virtualis|mechanis|' +
-  'modernis|naturalis|analys|paralys';
+  'modernis|naturalis';
 const OUR =
   'behavi|col|fav|hon|lab|neighb|rum|flav|harb|vap|arm|endeav|hum|od|sav|splend|parl|rig|val|vig|clam|tum|ferv|' +
   'cand|ard|demean|savi';
@@ -33,24 +33,30 @@ const DOUBLED =
 const WORDS =
   'centre|centres|centred|defence|offence|licence|judgement|judgements|artefact|artefacts|analogue|enrol|enrols|' +
   'enrolment|whilst|amongst|learnt|spelt|programme|programmes|catalogue|catalogues|practise|practised|fulfil|fulfils|' +
-  'skilful|wilful|sceptical|aluminium|manoeuvre|metre|metres|litre|litres|fibre|theatre';
+  'skilful|wilful|sceptical|aluminium|manoeuvre|metre|metres|litre|litres|fibre|theatre|maths';
 const BRITISH = new RegExp(
   `(?:${ISE})(?:e|es|ed|ing|er|ers|ation|ations|able)\\b|` +
+    /* Not `-es` here: "analyses" is also the American plural of "analysis". */
+    `(?:analys|paralys)(?:e|ed|ing)\\b|` +
     `(?:${OUR})our(?=(?:s|ed|ing|al|ally|able|ite|ites|ful|less|hood|ly)?\\b|[A-Z_])|` +
     `(?:${DOUBLED})l(?:ed|ing|er|ers)\\b|` +
     `\\b(?:${WORDS})\\b`,
   'gi'
 );
 
-const SKIP = /CHANGELOG\.md$|package-lock\.json$|\.(png|jpg|ico|woff2|gz|svg)$|^tests\/us-spelling\.test\.mjs$/;
+/**
+ * Also skipped: the fixtures omni contributes and regenerates (`docs/motion-spec/fixtures/*.json`) —
+ * their text is omni's to spell, and a hand edit here is undone by the next regeneration.
+ */
+const SKIP = /CHANGELOG\.md$|package-lock\.json$|\.(png|jpg|ico|woff2|gz|svg)$|^tests\/us-spelling\.test\.mjs$|^docs\/motion-spec\/fixtures\/.*\.json$/;
 
 test('the pattern catches every family and leaves US English alone', () => {
   const british = ['behaviour', 'Colours', 'neighbourhood', 'normalised', 'serialisation', 'unrecognised',
-    'cancelled', 'labelling', 'centre', 'judgement', 'artefact', 'analyse', 'NEUTRALISERS', 'outsideColour'];
+    'cancelled', 'labelling', 'centre', 'judgement', 'artefact', 'analyse', 'maths', 'NEUTRALISERS', 'outsideColour'];
   for (const word of british) assert.match(word, new RegExp(BRITISH.source, 'i'), `the pattern misses "${word}"`);
   const american = ['behavior', 'color', 'normalized', 'canceled', 'labeled', 'center', 'judgment', 'artifact',
     'promise', 'otherwise', 'exercise', 'advertise', 'hour', 'your', 'four', 'contour', 'cancellation', 'towards',
-    'enrolled', 'analysis', 'gray', 'grey'];
+    'enrolled', 'analysis', 'analyses', 'paralyses', 'gray', 'grey'];
   for (const word of american) assert.doesNotMatch(word, new RegExp(BRITISH.source, 'i'), `the pattern flags "${word}"`);
 });
 
