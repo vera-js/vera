@@ -65,6 +65,7 @@ const CACHE = `vera-jsx@${__VERSION__}/2:`;
  * **The text's fingerprint**: its length and two independent 32-bit hashes (FNV-1a and djb2) in one
  * pass — a few milliseconds for a multi-megabyte vendored file, and no false match in practice.
  */
+/* eslint-disable no-bitwise -- a 32-bit hash is bitwise by definition */
 const fingerprint = (text: string): string => {
   let a = 0x811c9dc5;
   let b = 5381;
@@ -75,6 +76,7 @@ const fingerprint = (text: string): string => {
   }
   return `${text.length}.${a >>> 0}.${b >>> 0}`;
 };
+/* eslint-enable no-bitwise */
 const recall = (url: string, fp: string): Kept | null => {
   try {
     const hit = JSON.parse(localStorage.getItem(CACHE + url) ?? 'null') as Kept | null;
