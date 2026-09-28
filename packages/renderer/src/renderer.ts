@@ -2868,8 +2868,8 @@ const rootParts = new WeakMap<Node, ChildPart>();
 /**
  * Writes a template result into a container. The renderer's imperative draw: no reactivity, no
  * lifecycle, no knowledge of components. Slots into Vera via `wire([renderer])`; core's built-in
- * `html` tag already produces the accepted shape, so no `setHtml` call is required — though
- * lit-html's `html` also works, its results being structurally identical.
+ * `html` tag already produces the accepted shape — and lit-html's `html` also works, its results being
+ * structurally identical.
  *
  * **It owns its own range and nothing else.** The first call appends a marker and anchors a root
  * part there; later calls with the same container reuse that part and walk only the value slots, so

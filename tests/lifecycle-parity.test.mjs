@@ -320,7 +320,7 @@ const CASES = {
     body: `
       init(this, { mode: 'open' });
       const state = createStore({ n: 0 });
-      useEffect(() => { deps(state.n); this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
+      useEffect(() => { void state.n; this.dataset.effects = String((Number(this.dataset.effects) || 0) + 1); });
       render();
     `,
   },
@@ -552,7 +552,7 @@ KNOWN_DIVERGENCES['an endless animation loop is bounded, not hung'] = {
 };
 
 const ALL = { ...CASES, ...KNOWN_DIVERGENCES };
-const IMPORTS = `import { init, render, html, createStore, useEffect, useLayoutEffect, deps } from '@verajs/core';`;
+const IMPORTS = `import { init, render, html, createStore, useEffect, useLayoutEffect } from '@verajs/core';`;
 const source = (name, spec) => `${IMPORTS}
 ${spec.defines ?? ''}
 class C extends HTMLElement {
@@ -682,7 +682,6 @@ for (const [name, spec] of Object.entries(ALL)) {
     'createStore',
     'useEffect',
     'useLayoutEffect',
-    'deps',
     'HTMLElement',
     'customElements',
     'document',
@@ -698,7 +697,6 @@ for (const [name, spec] of Object.entries(ALL)) {
     core.createStore,
     core.useEffect,
     core.useLayoutEffect,
-    core.deps,
     dom.window.HTMLElement,
     dom.window.customElements,
     dom.window.document

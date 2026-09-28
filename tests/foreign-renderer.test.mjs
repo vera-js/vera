@@ -9,8 +9,8 @@
  *
  * lit-html is the honest counterparty: a real renderer, written by other people, with its own
  * template objects, its own part model and its own marker scheme. If core is genuinely not welded
- * to `@verajs/renderer`, `setHtml(litHtml)` plus `wire({ on: 'render', fn: litRender })` is all it
- * should take, and a component should then render, update in place, and keep its host's identity
+ * to `@verajs/renderer`, `wire({ on: 'render', fn: litRender })` is all it should take — a component
+ * writes lit's own `html` — and it should then render, update in place, and keep its host's identity
  * across renders.
  *
  * This replaces a documented recipe that said the same thing in prose. The recipe was hand-run in
@@ -49,12 +49,11 @@ try {
   lit = null;
 }
 
-const { init, createStore, render, setHtml, wire } = await load('core');
+const { init, createStore, render, wire } = await load('core');
 const doc = dom.window.document;
 const frame = () => new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
 test('core drives a FOREIGN renderer through the render insert', { skip: lit === null }, async () => {
-  setHtml(lit.html);
   wire({ name: 'test/lit', on: 'render', fn: lit.render, priority: 50 });
 
   let bump = null;

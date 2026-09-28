@@ -170,8 +170,8 @@ Runnable: [`examples/light-slots/`](examples/light-slots/) — `npm run dev:slot
 <click-counter></click-counter>
 ```
 
-`html` comes from core and needs no `setHtml` — `@verajs/renderer` accepts the shape it produces, so
-those two lines are the whole setup.
+`html` comes from core and `@verajs/renderer` accepts the shape it produces, so those two lines are
+the whole setup.
 
 ### npm + TypeScript
 

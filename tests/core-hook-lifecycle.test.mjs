@@ -286,7 +286,7 @@ const define = (setup) => {
       connectedCallback() {
         core.init(this, { mode: 'open' });
         core.useEffect(() => {
-          core.deps(state.n);
+          void state.n;
           effects++;
         });
         core.render(() => {

@@ -73,10 +73,11 @@ wire([renderer]);
 await import('./components/app.js');   // correct - evaluated after
 ```
 
-(`setHtml` is not part of the setup — core's own `html` produces the shape `@verajs/renderer`
-accepts. It exists for swapping the tag; the seam is asserted by `tests/foreign-renderer.test.mjs`
-rather than offered as a supported mode — see the 2026-09-04 decision that retired the lit-html
-offer from the docs.)
+(Core's own `html` produces the shape `@verajs/renderer` accepts. A different renderer is wired on
+`'render'` and its templates are written with its own tag — the seam is asserted by
+`tests/foreign-renderer.test.mjs` rather than offered as a supported mode; see the 2026-09-04 decision
+that retired the lit-html offer from the docs. `setHtml`, which swapped core's tag, was removed in the
+lean-core rebuild: a component writes the other renderer's tag directly.)
 
 ---
 

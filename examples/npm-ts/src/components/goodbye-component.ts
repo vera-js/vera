@@ -1,6 +1,6 @@
 import { initRouter } from '@verajs/router';
 import { globalState } from '../globalState.js';
-import { css, init, createStore, useEffect, render, deps, useLayoutEffect, ref, html } from '@verajs/core';
+import { css, init, createStore, useEffect, render, useLayoutEffect, ref, html } from '@verajs/core';
 import { discover } from 'https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.16.0/cdn/shoelace-autoloader.js';
 
 const generateLargeObject = (depth: number, breadth: number) => {
@@ -111,7 +111,7 @@ class GoodbyeComponent extends HTMLElement {
 
     useEffect((signal) => {
       // const { hello: hello2 } = hello;
-      deps(state.hello.name.first, state.goodbye, state.color);
+      void [state.hello.name.first, state.goodbye, state.color]; // reading them is what subscribes
       if (componentInit) {
         if (signal?.prop === 'first') console.log('hello.name.first changed', state.hello.name.first);
         if (signal?.prop === 'last')
@@ -121,7 +121,7 @@ class GoodbyeComponent extends HTMLElement {
     });
 
     useEffect(() => {
-      deps(state.bigTest.littleTest);
+      void state.bigTest.littleTest;
       if (componentInit) console.log(state.bigTest.littleTest);
     });
 

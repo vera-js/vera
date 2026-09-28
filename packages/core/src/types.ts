@@ -62,11 +62,11 @@ export type Hooks = Set<HookCallback>[];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RenderTemplate = <V>(signal?: Signal<V>) => any;
 
-/** Which kind of template a result is, numbered as lit numbers them: 1 is html, 2 is svg. */
-export type ResultType = 1 | 2;
+/** Which kind of template a result is, numbered as lit numbers them: 1 html, 2 svg, 3 mathml. */
+export type ResultType = 1 | 2 | 3;
 
 /**
- * The object core's `html` and `svg` tags produce. Structurally compatible with lit-html's
+ * The object core's `html`, `svg` and `mathml` tags produce. Structurally compatible with lit-html's
  * `TemplateResult`, so a lit renderer consumes it directly.
  */
 export type TemplateResult<T extends ResultType = 1> = {

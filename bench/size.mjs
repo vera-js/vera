@@ -102,7 +102,7 @@ const CONTENDERS = [
       import { init, createStore, render, wire, html } from '@verajs/core';
       import { renderer } from '@verajs/renderer';
       wire([renderer]);
-      // no setHtml needed: core's built-in html tag produces the shape the renderer accepts
+      // core's built-in html tag produces the shape the renderer accepts
       customElements.define('x-app', class extends HTMLElement {
         connectedCallback() {
           init(this, { mode: 'open' });

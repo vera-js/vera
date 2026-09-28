@@ -23,7 +23,7 @@ globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame;
 const core = await load('core');
 const {
   init, createStore, render, useEffect, useSyncEffect, useLayoutEffect, useRender,
-  ref, shallowRef, untrack, deps, html, css, setHtml, setCss,
+  ref, shallowRef, untrack, html, css,
   setRenderScheduler, microtask, wire, setStaticStores} = core;
 
 /** A frame plus a macrotask — long enough for any scheduler to have flushed. */
@@ -111,55 +111,6 @@ test('shallowRef does not proxy what it holds, but replacing .value notifies', a
   box.value = { nested: { n: 1 } };
   await settle();
   assert.ok(runs > afterMount, 'replacing the value does notify');
-});
-
-// ── deps ────────────────────────────────────────────────────────────────────
-
-test('deps() subscribes an effect to state it does not otherwise read', async () => {
-  let runs = 0;
-  const state = createStore({ watched: 0, ignored: 0 });
-  mount(() => {
-    useSyncEffect(() => { deps(state.watched); runs++; });
-    render(() => html`<i>x</i>`);
-  });
-  await settle();
-  const baseline = runs;
-
-  state.ignored = 1;
-  await settle();
-  assert.equal(runs, baseline, 'untouched state does not re-run it');
-
-  state.watched = 1;
-  await settle();
-  assert.ok(runs > baseline, 'state passed to deps() does');
-});
-
-// ── setHtml / setCss ────────────────────────────────────────────────────────
-
-test('setHtml swaps the template tag core hands to the renderer', async () => {
-  const seen = [];
-  wire({ on: 'render', fn: (result) => seen.push(result), priority: 50 });
-  const marker = Symbol('custom-tag');
-  setHtml((strings, ...values) => ({ marker, strings, values }));
-  try {
-    mount(() => { render(() => core.html`<p>${1}</p>`); });
-    await settle();
-    assert.equal(seen.at(-1)?.marker, marker, 'the replacement tag produced the result');
-    assert.deepEqual(seen.at(-1)?.values, [1]);
-  } finally {
-    setHtml(html);
-  }
-});
-
-test('setCss swaps the css tag', () => {
-  const original = css;
-  const marker = Symbol('custom-css');
-  setCss((strings, ...values) => ({ marker, strings, values }));
-  try {
-    assert.equal(core.css`a { color: red }`.marker, marker);
-  } finally {
-    setCss(original);
-  }
 });
 
 // ── setRenderScheduler / microtask ──────────────────────────────────────────

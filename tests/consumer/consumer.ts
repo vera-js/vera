@@ -15,7 +15,7 @@
  * It never runs. Everything here exists to be compiled.
  */
 import { init, createStore, render, wire, html, css, ref, shallowRef, useEffect, useLayoutEffect,
-  useSyncEffect, createHook, untrack, deps, microtask, setRenderScheduler, setHtml, setCss,
+  useSyncEffect, createHook, untrack, microtask, setRenderScheduler,
   svg, mathml, inserts, useRender, mount } from '@verajs/core';
 import { renderer, hold, renderInto as domRender } from '@verajs/renderer';
 import { keyed } from '@verajs/renderer/keyed';
@@ -53,7 +53,6 @@ class Demo extends HTMLElement {
     useSyncEffect(() => {});
     createHook({ element: this, priority: 10, callback: () => {} });
     untrack(() => state.n);
-    deps(state.n, state.rows);
 
     render(() => html`
       <input ${box} .value=${String(state.n)} ?disabled=${state.n > 3} @click=${() => state.n++}>
@@ -94,7 +93,7 @@ wire([styles]);
 /** The longhand still compiles — the module is a convenience over it, not a replacement. */
 wire({ on: 'init', fn: adoptStyles, priority: 50 });
 void applyStyles('.a{}', document.createElement('div') as never);
-void inserts; void useRender; void domRender; void setHtml; void setCss;
+void inserts; void useRender; void domRender;
 setRenderScheduler(microtask);
 setMatchFunction(<P extends Record<string, string | string[] | undefined>>(pattern: string) =>
   (path: string) => (path === pattern ? { path, params: {} as P } : false));

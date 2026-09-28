@@ -83,8 +83,8 @@ import { renderer } from '@verajs/renderer';
 wire([renderer]);
 ```
 
-Core's `html` needs no `setHtml` — it already produces the shape `@verajs/renderer` accepts, so the
-one `wire` call above is the whole of the setup.
+Core's `html` already produces the shape `@verajs/renderer` accepts, so the one `wire` call above is the
+whole of the setup.
 
 **Order matters.** A component that defines itself before `wire([renderer])` renders with nothing on
 the `'render'` chain — `render()` warns once in development and draws nothing. Static
@@ -118,7 +118,6 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 | `ref` | `<T>(value: T) => { value: T }` | Deep reactive box for a single value. |
 | `shallowRef` | `<T>(value: T) => { value: T }` | `.value` is tracked; **contents are NOT proxied**. Use for large immutable data such as list rows. |
 | `untrack` | `<T>(fn: () => T) => T` | Read current state without subscribing. |
-| `deps` | `(...values) => void` | Explicitly touch values to register them as dependencies. |
 
 **Use `shallowRef` for lists.** Putting 1 000 row objects in `createStore` proxies all of them and
 reading them back measures 20-30x the cost of a plain array (measured 2026-09-05; an earlier pass
@@ -133,9 +132,8 @@ the right tool.
 | `mount` | `() => void` | The same commit without a template, for a component whose whole job is a side effect. `init()` opens the setup and one of these two closes it: hooks registered between them do not run until it does. Calling `render()` bare still works and warns. |
 | `svg` | tagged template | For content inside `<svg>`. The renderer parses it in the SVG namespace, which `html` cannot do — `document.createElement('circle')` yields an `HTMLUnknownElement` that never renders — unless `@verajs/renderer/namespaces` is wired, which parses an `html` template where it lands. |
 | `mathml` | tagged template | The same, for content inside `<math>`. |
-| `html` | tagged template | What you use. `setHtml` replaces it if you need a different tag. |
+| `html` | tagged template | What you use. |
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
-| `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
 | `setRenderScheduler` | `(scheduler) => previous` | Defaults to the element's own window's `requestAnimationFrame` (a popped-out window or iframe runs on its own frames). A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
@@ -586,8 +584,8 @@ honoring the protocol can accept any implementation.
 ### Renderer (`@verajs/renderer`)
 
 A keyed, template-identity renderer, <!--size:renderer.gzip-->4.78 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
-core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
-needed** (lit-html templates also work, being structurally identical).
+core's built-in `html` tag already produces the shape it accepts (lit-html templates also work,
+being structurally identical).
 
 ```js
 import { init, createStore, render as show, wire, html } from '@verajs/core';
@@ -1593,7 +1591,7 @@ Say so rather than inventing an API:
 
 ## Common mistakes
 
-1. Defining a component before `setHtml` / `wire([renderer])` → with nothing on the `'render'`
+1. Defining a component before `wire([renderer])` → with nothing on the `'render'`
    chain, `render()` warns once in development and draws nothing. (`mount()` is unaffected — it
    commits the setup and never reaches a renderer.)
 2. Static `import` for components in the entry file → hoisted, same failure.

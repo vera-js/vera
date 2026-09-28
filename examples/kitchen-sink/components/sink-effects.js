@@ -4,14 +4,15 @@
  * Counters live in a **plain object**, not the store. An effect that increments reactive state it
  * also reads re-triggers itself forever — the docs warn about it for `useSyncEffect` and it is just
  * as true of the other two. Server-side that is a stack overflow; in a browser it is a hang. So the
- * effects declare their dependency explicitly with `deps(state.n)` and write somewhere untracked,
+ * effects read their one dependency (`void state.n` — a read in a hook is what subscribes) and write
+ * somewhere untracked,
  * which is also the only way the counts are deterministic enough to compare across three modes.
  *
  * Ordering is `useLayoutEffect` (25) → render (50) → `useEffect` (75), so a render triggered by `n`
  * shows the layout count including this pass and the coalesced count from the pass before. That is
  * the contract, and rendering both is how a test sees it.
  */
-import { init, render, html, createStore, useEffect, useLayoutEffect, useSyncEffect, deps } from '@verajs/core';
+import { init, render, html, createStore, useEffect, useLayoutEffect, useSyncEffect } from '@verajs/core';
 
 export default class SinkEffects extends HTMLElement {
   connectedCallback() {
@@ -25,11 +26,11 @@ export default class SinkEffects extends HTMLElement {
     this.counts = counts;
 
     useLayoutEffect(() => {
-      deps(state.n);
+      void state.n;
       counts.layout++;
     });
     useEffect((signal) => {
-      deps(state.n);
+      void state.n;
       counts.coalesced++;
       if (signal?.prop) counts.lastProp = String(signal.prop);
       /**
@@ -44,7 +45,7 @@ export default class SinkEffects extends HTMLElement {
         `useLayoutEffect +${counts.layout - mark.layout}`;
     });
     useSyncEffect(() => {
-      deps(state.n);
+      void state.n;
       counts.sync++;
     });
 

@@ -10,7 +10,7 @@ export { ref, shallowRef } from './modules/ref.js';
 export { untrack } from './modules/untrack.js';
 export { useRender } from './hooks/useRender.js';
 export { setRenderScheduler, microtask } from './modules/setRenderScheduler.js';
-export { html, svg } from './store/store.js';
+export { html, mathml, svg } from './store/store.js';
 export { useEffect } from './hooks/useEffect.js';
 export { useLayoutEffect } from './hooks/useLayoutEffect.js';
 export { useSyncEffect } from './hooks/useSyncEffect.js';

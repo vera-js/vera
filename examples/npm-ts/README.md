@@ -24,8 +24,8 @@ What this example exists to prove, and where:
    properties.
 5. **`src/components/base.ts`** — the router in a component: `initRouter`, routes, an outlet.
 
-**It runs on the default stack** — `wire([renderer, slots, styles])` and core's own `html`, with no
-`setHtml` call, because core's tag already produces the shape the renderer accepts. It used to run
+**It runs on the default stack** — `wire([renderer, slots, styles])` and core's own `html`, which
+already produces the shape the renderer accepts. It used to run
 on lit-html as its renderer, which predated `@verajs/renderer` and was never moved across; that left
 the example for npm + TypeScript exercising a configuration no user has.
 

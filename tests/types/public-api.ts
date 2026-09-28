@@ -8,7 +8,7 @@
  * Written against the `paths` aliases in the root tsconfig, so they check each package's `src` — the
  * source of truth — rather than a possibly stale `dist`.
  */
-import { ref, shallowRef, createStore, untrack, deps } from '@verajs/core';
+import { ref, shallowRef, createStore, untrack } from '@verajs/core';
 import type { ParseRouteParams, RouteParams, RouterMethods } from '@verajs/router';
 
 /** Fails to compile unless A and B are the same type, including union arity. */
@@ -66,10 +66,9 @@ store.nested.count++;
 store.items.add('one');
 
 
-/* ── untrack / deps ──────────────────────────────────────────────────────────────────────────── */
+/* ── untrack ──────────────────────────────────────────────────────────────────────────── */
 type _untrackPreservesReturn = Expect<Equal<ReturnType<typeof untrack<number>>, number>>;
 untrack(() => store.name);
-deps(() => [store.name]);
 
 /** Keeps `noUnusedLocals` quiet without weakening the assertions above. */
 export type {

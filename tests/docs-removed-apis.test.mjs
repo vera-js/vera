@@ -76,6 +76,11 @@ const REMOVED = {
   'signal.changed': 'the signal describes the write that scheduled the run; useSyncEffect sees every one',
   _isSignal: 'nothing — the proxy map recognizes its own proxies',
   '_delete(': 'nothing — subscriptions are weak and go with their elements',
+  /** Held items decided (Brian, 2026-09-28): dropped rather than rehomed. */
+  setHtml: "a different renderer's templates use that renderer's own tag",
+  setCss: "@verajs/styles' css",
+  'deps(': 'a read inside the hook — `void state.x` — is what subscribes',
+  runHooks: 'mount()',
 };
 
 /**

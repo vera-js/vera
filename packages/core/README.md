@@ -113,21 +113,20 @@ worth knowing:
 | `ref(value)` | a deep reactive box for a single value, read and written as `.value` |
 | `shallowRef(value)` | `.value` is tracked; the contents are **not** proxied |
 | `untrack(fn)` | read current state without subscribing to it |
-| `deps(...values)` | touch values explicitly, to register them as dependencies |
 
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
 store, wire that, and mutating methods notify like any other write. Without it core says so the first
 time one is read.
 
 ```js
-import { createStore, ref, shallowRef, untrack, deps } from '@verajs/core';
+import { createStore, ref, shallowRef, untrack } from '@verajs/core';
 
 const state = createStore({ filter: 'all', rows: [] });
 const focus = ref(null);                    // read and written as focus.value, deeply tracked
 const frame = shallowRef(new Float32Array(64)); // .value tracked; the contents deliberately not
 
 const total = () => untrack(() => state.rows.length);  // read without subscribing
-deps(state.filter);                          // subscribe explicitly, without using the value yet
+// Reading a value inside a hook is what subscribes it — `void state.filter;` if you only need the dependency.
 ```
 
 One more, for servers: `setStaticStores(true)` makes every store created from then on a **plain
@@ -266,14 +265,13 @@ per write, so it sees every one.
 | `svg` / `mathml` | for content inside `<svg>` / `<math>` |
 | `css` | for `static styles`, with `@verajs/styles` |
 | `mount()` | commit the setup for a component that draws nothing |
-| `useRender(template, element, ...args)` | the lower-level half of `render`, for driving a render outside the setup window |
+| `useRender(template, element, ...args)` | the lower-level half of `render`: registers a render on the component being set up that draws into `element` — which may be a different element |
 | `wire([renderer])` | choose what writes to the DOM |
 | `setRenderScheduler(fn)` | defaults to the **element's own window's** `requestAnimationFrame` — so a component in a popped-out window or an iframe runs on that window's frames; pass `microtask` for Lit/Vue-style timing. A scheduler receives `(run, element)` |
-| `setHtml` / `setCss` | swap the template tags |
 
 ```js
 import { init, mount, useRender, useEffect, mathml, html,
-         setRenderScheduler, microtask, setHtml, setCss } from '@verajs/core';
+         setRenderScheduler, microtask } from '@verajs/core';
 
 class TickerLogger extends HTMLElement {
   connectedCallback() {
@@ -285,10 +283,9 @@ class TickerLogger extends HTMLElement {
 
 const formula = html`<math>${mathml`<mi>x</mi><mo>=</mo><mn>${x}</mn>`}</math>`;
 
-useRender(() => html`<p>${state.n}</p>`, element);  // re-declare a render OUTSIDE the setup window
+useRender(() => html`<p>${state.n}</p>`, element);  // during setup: draw into another element, on this component's lifecycle
 
 setRenderScheduler(microtask);           // Lit/Vue-style timing instead of requestAnimationFrame
-setHtml(myHtml); setCss(myCss);          // swap the template tags a whole app resolves through
 ```
 
 **`init()` opens a component's setup and one of two calls closes it.** `mount()` commits: it runs the

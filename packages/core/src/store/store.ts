@@ -34,3 +34,5 @@ const tag =
 export const html = tag(1);
 /** The `svg` tagged template — markup parsed as SVG, for a fragment that is not inside an `<svg>` element. */
 export const svg = /* @__PURE__ */ tag(2);
+/** The `mathml` tagged template — markup parsed as MathML, for a fragment that is not inside a `<math>` element. */
+export const mathml = /* @__PURE__ */ tag(3);

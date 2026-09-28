@@ -41,8 +41,6 @@ const { wire } = await load('inserts');
 /** Setter -> the name its message must carry, so the reader is told where to look. */
 const SETTERS = [
   ['setRenderScheduler', core.setRenderScheduler, /microtask|requestAnimationFrame/],
-  ['setHtml', core.setHtml, /tagged template/],
-  ['setCss', core.setCss, /tagged template/],
   ['setRouterRenderer', router.setRouterRenderer, /renderInto/],
   ['setMatchFunction', router.setMatchFunction, /matcher/],
 ];

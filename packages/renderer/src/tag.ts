@@ -46,9 +46,7 @@ const caches = new WeakMap<TemplateStringsArray, Map<string, string[]>>();
  * ordinary template shape and costs one loop.
  *
  * It builds `{ _$litType$: 1, strings, values }` directly rather than calling core's `html`, so this
- * entry keeps the renderer's independence from core. The consequence is that a `setHtml` swap does
- * not reach here — which is right, since a swapped `html` belongs to a different renderer and this
- * is a renderer feature.
+ * entry keeps the renderer's independence from core.
  */
 export const html = (strings: TemplateStringsArray, ...values: unknown[]) => {
   let key = '';
