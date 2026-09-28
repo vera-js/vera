@@ -360,12 +360,30 @@ export const importSites = (code: string): ImportSite[] => {
     const site = quoted(m.index! + m[0].length - 1);
     if (site) sites.push(site);
   }
+  /**
+   * What comes before `import`, past whitespace (the blanked copy has turned comments into spaces too):
+   * a `.` makes it a MEMBER (`loader.\n  import(x)`), never the keyword — the lookbehind alone saw
+   * only the character touching it.
+   */
+  const before = (at: number): string => {
+    let i = at - 1;
+    while (i >= 0 && /\s/.test(blank[i]!)) i--;
+    const end = i + 1;
+    while (i >= 0 && /[\w$]/.test(blank[i]!)) i--;
+    return end - i > 1 ? blank.slice(i + 1, end) : (blank[end - 1] ?? '');
+  };
+  /** Where a class or object body puts a method name: after these, `import(…) {` is a method. */
+  const METHOD_AFTER = /^(?:[{},]|static|async|get|set|\*)$/;
   for (const m of blank.matchAll(/(?<![\w$.])import\s*\(/g)) {
+    const prior = before(m.index!);
+    if (prior === '.') continue;
     /**
      * A METHOD named `import` — `import(url) { … }` in a class or an object literal, which Vite's own
      * module runner has — reads exactly like a call up to its `)`, and rewriting it is a syntax error.
-     * A method's `{` follows on the SAME line; a call followed by a block on the next line
-     * (`await import('./a.js')` then `{ … }`, legal without semicolons) is still a call.
+     * It is a method when a `{` follows its `)` — on the same line, or on a later one when what comes
+     * BEFORE it is where a method name stands (`{`, `}`, `,`, a modifier). So Allman-style methods are
+     * found, and a call followed by a block on the next line (`await import('./a.js')` then `{ … }`,
+     * legal without semicolons) is still a call.
      *
      * `pair` notes a second argument (import options) at the call's own depth, so the loader writes the
      * two-argument form only where the source did: an engine without import attributes cannot even
@@ -381,11 +399,12 @@ export const importSites = (code: string): ImportSite[] => {
         if (--depth === 0) break;
       } else if (c === ',' && depth === 1) pair = true;
     }
-    if (/^[ \t]*\{/.test(blank.slice(close + 1, close + 64))) continue;
+    const after = blank.slice(close + 1, close + 256);
+    if (/^[ \t]*\{/.test(after) || (/^\s*\{/.test(after) && METHOD_AFTER.test(prior))) continue;
     sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'dynamic', pair });
   }
   for (const m of blank.matchAll(/(?<![\w$.])import\s*\.\s*meta\b/g))
-    sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'meta' });
+    if (before(m.index!) !== '.') sites.push({ start: m.index!, end: m.index! + m[0].length, specifier: '', kind: 'meta' });
   return sites.sort((a, b) => a.start - b.start);
 };
 

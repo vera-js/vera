@@ -1651,13 +1651,19 @@ class AttrPart implements Part {
  */
 let pendingSelects: unknown[] | null = null;
 
-const flushSelects = () => {
+/**
+ * Applies the values queued from `from` on — a render flushes only what IT queued. Flushing the whole
+ * queue from a nested render applied the OUTER render's value before the outer render had built its
+ * options; flushing nothing until the outermost render returned left a component rendered inside
+ * another's commit reading its select's first option after its own render.
+ */
+const flushSelects = (from = 0) => {
   const queued = pendingSelects;
-  if (queued === null) return;
-  /** Cleared first: an assignment can run a `change` handler that renders again. */
-  pendingSelects = null;
-  for (let i = 0; i < queued.length; i += 2)
-    (queued[i] as HTMLSelectElement).value = queued[i + 1] as string;
+  if (queued === null || queued.length <= from) return;
+  /** Taken off first: an assignment can run a `change` handler that renders again. */
+  const mine = queued.splice(from);
+  if (queued.length === 0) pendingSelects = null;
+  for (let i = 0; i < mine.length; i += 2) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
 };
 
 const SCRATCH = doc.createDocumentFragment();
@@ -2370,17 +2376,25 @@ class ChildPart implements Part {
      * distribute into and showed its fallback while the user's content sat in holding; and only a
      * render flushes queued `<select>` values, so one committed here was never applied.
      */
-    if (renderRoot === null && this._root != null) {
-      /** And its scope is restored however it ends, as `renderInto`'s is: a throw here left it set. */
+    /**
+     * Whenever the render in progress is not its own — none, or ANOTHER container's (an applier
+     * resolving synchronously inside some other render) — and only while the part is still in the
+     * document: a part its template already discarded has no host to distribute into, and running
+     * it as its old container's render let a `<slot>` in it take that host's content for good.
+     */
+    if (this._root != null && renderRoot !== this._root && this._start.isConnected) {
+      /** And its root and scope are restored however it ends, as `renderInto`'s are. */
+      const outerRoot = renderRoot;
       const outerScope = create.scope;
+      const mark = pendingSelects?.length ?? 0;
       renderRoot = this._root;
       create.scope = null;
       try {
         this._set(value);
       } finally {
-        renderRoot = null;
+        renderRoot = outerRoot;
         create.scope = outerScope;
-        flushSelects();
+        flushSelects(mark);
       }
     } else this._set(value);
     this._applierState = applierState;
@@ -2934,6 +2948,7 @@ export const renderInto = (result: unknown, container: Node) => {
    */
   const outerRoot = renderRoot;
   const outerScope = create.scope;
+  const mark = pendingSelects?.length ?? 0;
   renderRoot = container;
   create.scope = null;
   try {
@@ -2941,12 +2956,7 @@ export const renderInto = (result: unknown, container: Node) => {
   } finally {
     renderRoot = outerRoot;
     create.scope = outerScope;
-    /**
-     * Only the OUTERMOST render flushes: a nested one — a ref rendering a portal — flushing here
-     * applied the outer render's queued `<select>` value before the outer render had built its
-     * options, and the select showed the first option. The outer flush applies both.
-     */
-    if (outerRoot === null) flushSelects();
+    flushSelects(mark);
   }
   if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
 };

@@ -63,7 +63,8 @@ const loadCompiler = (): Promise<Compiler> => (compiler ??= import(/* @vite-igno
 const CACHE = `vera-jsx@${__VERSION__}/2:`;
 /**
  * **The text's fingerprint**: its length and two independent 32-bit hashes (FNV-1a and djb2) in one
- * pass — a few milliseconds for a multi-megabyte vendored file, and no false match in practice.
+ * pass — measured on a 5 MB file, 7–14 ms in Chromium and WebKit and ~33 ms in Firefox, paid on each
+ * warm visit for that file; and no false match in practice.
  */
 /* eslint-disable no-bitwise -- a 32-bit hash is bitwise by definition */
 const fingerprint = (text: string): string => {
@@ -114,11 +115,9 @@ const forgetOtherVersions = (): void => {
  */
 const RENDERER_ENTRY = /^@verajs\/renderer\/([a-z]+)$/;
 let mapped: Record<string, string> | undefined;
-const helperUrl = (specifier: string): string | null => {
-  const helper = RENDERER_ENTRY.exec(specifier)?.[1];
-  if (helper === undefined) return null;
+/** The page's import maps — EVERY one, merged first-wins as engines that allow several merge them. */
+const maps = (): Record<string, string> => {
   if (mapped === undefined) {
-    /** EVERY map, merged first-wins as engines that allow several merge them — not the first alone. */
     mapped = {};
     for (const map of document.querySelectorAll('script[type="importmap"]')) {
       try {
@@ -129,6 +128,23 @@ const helperUrl = (specifier: string): string | null => {
       }
     }
   }
+  return mapped;
+};
+/**
+ * **A file the page already loads by name stays the browser's.** Imported by its path instead —
+ * `import('/vendor/core/vera.min.js')` beside `@verajs/core` mapped to that file — it went through
+ * this loader and became a SECOND module: its own core, its own registry, and an app that wired
+ * through it rendered nothing. A mapped file, or a renderer helper handed out, is one module.
+ */
+let mappedUrls: Set<string> | undefined;
+const nativeFile = (url: string): boolean => {
+  mappedUrls ??= new Set(Object.values(maps()).map((target) => new URL(target, document.baseURI).href));
+  return mappedUrls.has(url) || helpers.has(url);
+};
+const helperUrl = (specifier: string): string | null => {
+  const helper = RENDERER_ENTRY.exec(specifier)?.[1];
+  if (helper === undefined) return null;
+  const mapped = maps();
   if (mapped[specifier] !== undefined || mapped['@verajs/renderer'] === undefined) return null;
   const renderer = new URL(mapped['@verajs/renderer'], document.baseURI);
   const url = new URL(`vera-renderer-${helper}${renderer.pathname.endsWith('.min.js') ? '.min' : ''}.js`, renderer).href;
@@ -242,12 +258,13 @@ const link = async (base: string, name: string, { js, sites }: Compiled): Promis
        * a map scoped to the loader's folder answered a different `dep`. The two-argument form is
        * written only where the source had one (see `importSites`).
        */
-      if (site.kind === 'meta') return [site.start, site.end, `globalThis.__veraJsxMeta(${at}, import.meta)`];
+      /** Bare global names, not `globalThis.…`: a module may declare its own `globalThis`. */
+      if (site.kind === 'meta') return [site.start, site.end, `__veraJsxMeta(${at}, import.meta)`];
       if (site.kind === 'dynamic')
-        return [site.start, site.end, `globalThis.__veraJsx(${at}, ${site.pair ? '(s, o) => import(s, o)' : '(s) => import(s)'}, `];
+        return [site.start, site.end, `__veraJsx(${at}, ${site.pair ? '(s, o) => import(s, o)' : '(s) => import(s)'}, `];
       const target = addressOf(site.specifier, base);
       if (target !== null) {
-        if (!isScript(target)) return [site.start, site.end, target];
+        if (!isScript(target) || nativeFile(target)) return [site.start, site.end, target];
         const loop = loopBack(target, name);
         if (loop !== null)
           throw new Error(
@@ -298,7 +315,10 @@ type NativeImport = (specifier: string, options?: unknown) => Promise<unknown>;
   const name = String(specifier);
   const target = addressOf(name, base);
   try {
-    return await native(target === null ? helperUrl(name) ?? name : isScript(target) ? await load(target, base) : target, options);
+    return await native(
+      target === null ? helperUrl(name) ?? name : isScript(target) && !nativeFile(target) ? await load(target, base) : target,
+      options
+    );
   } catch (error) {
     await nameMissingHelpers();
     throw error;
@@ -334,7 +354,9 @@ const runBlock = async (script: HTMLScriptElement): Promise<void> => {
       await import(/* @vite-ignore */ await load(script.src, document.baseURI));
       return;
     }
-    const name = new URL(`inline-${++inline}.jsx`, document.baseURI).href;
+    /** Named after the PAGE too: two pages in one folder shared `inline-1.jsx` and evicted each other's cache. */
+    const page = location.pathname.split('/').pop() || 'index';
+    const name = new URL(`${page}.inline-${++inline}.jsx`, document.baseURI).href;
     await import(/* @vite-ignore */ await link(document.baseURI, name, await compiledFor(name, script.textContent ?? '')));
   } catch (error) {
     console.error(`[vera] jsx: ${script.src || 'an inline block'}:`, error);

@@ -48,9 +48,11 @@ import { parseLightOptions } from './parse-options.js';
  * carries them and the client has to arrive at the same ones. A counter matches whenever the
  * components are instantiated in the same order, which is what hydrating a server-rendered page
  * does. `<vera-select>` is not server-rendered today, so this is design rather than a fix — but it
- * is the reason not to reach for `randomUUID`.
+ * is the reason not to reach for `randomUUID`. The counter is shared through a global symbol, because
+ * two copies of this library on one page (`vera-ui.min.js` beside an app bundle defining its own tag)
+ * each counting from one gave both a `vs1` — and one menu anchored under the other's trigger.
  */
-let uidSeq = 0;
+const uidSeq: { n: number } = ((globalThis as Record<symbol, unknown>)[Symbol.for('vera.select.uid')] ??= { n: 0 }) as { n: number };
 
 type Internal = {
   select: ReturnType<typeof useSelect> | null;
@@ -59,6 +61,8 @@ type Internal = {
   /** Values assigned after upgrade but before connect wait here for the controller. Value
    *  entries may be strings — resolvable only once options are known, so resolution waits. */
   pending: { options: SelectOption[]; value: (string | SelectOption)[] };
+  /** Light or shadow, decided at the FIRST connect and kept: see `connectedCallback`. */
+  light?: boolean;
   internals: ElementInternals | undefined;
   /**
    * Observed attributes mirrored into a store as real values the template reads. The first cut
@@ -106,7 +110,7 @@ const internal = (element: VeraSelect): Internal => {
     }
     entry = {
       select: null,
-      uid: `vs${++uidSeq}`,
+      uid: `vs${++uidSeq.n}`,
       pending: { options: [], value: [] },
       internals,
       host: createStore({ attrs: {} as Record<string, string | null>, formDisabled: false }),
@@ -179,6 +183,12 @@ const syncStates = (element: VeraSelect) => {
   put('loading', element.hasAttribute('loading'));
 };
 
+/**
+ * Every accessor a template or a script can set before the element upgrades — `light`, read at
+ * connect, most of all: left off this list, a TSX `<vera-select light>` rendered before the definition
+ * loaded kept an inert `light` expando and took a shadow root anyway.
+ */
+const UPGRADED = ['options', 'value', 'name', 'disabled', 'required', 'multi', 'light', 'searchable', 'creatable', 'remote', 'loading', 'placeholder'];
 /** Pre-upgrade property assignments land as own properties that shadow the accessors — re-route. */
 const upgradeProperty = (element: HTMLElement, key: string) => {
   if (Object.hasOwn(element, key)) {
@@ -247,18 +257,12 @@ const sameIcon = (a: unknown, b: unknown): boolean => {
   if (x.strings.length !== y.strings.length || x.strings.some((text, i) => text !== y.strings![i])) return false;
   return x.values!.every((value, i) => sameIcon(value, y.values![i]));
 };
-/**
- * Field for field, icons by `sameIcon` — what the dropdown would show is identical. The SAME object
- * never counts as equal: it may have been mutated in place (`opts[0].label = 'x'; el.options = opts`),
- * and its fields would then compare against themselves. Only distinct objects that match are skipped,
- * which is exactly a template's freshly built options.
- */
+/** Field for field, icons by `sameIcon` — what the dropdown would show is identical. */
 const sameOptions = (a: SelectOption[], b: SelectOption[]): boolean =>
   a.length === b.length &&
   a.every((option, i) => {
     const other = b[i];
     return (
-      option !== other &&
       option.value === other.value &&
       option.label === other.label &&
       option.disabled === other.disabled &&
@@ -300,7 +304,13 @@ export class VeraSelect extends HTMLElement {
   set options(next: SelectOption[]) {
     const entry = internal(this);
     entry.htmlSourced = false; // property wins; the markup stops being the source
-    const options = Array.isArray(next) ? [...next] : [];
+    /**
+     * COPIES of the caller's objects, so what the dropdown holds is its own: a caller mutating an
+     * option in place and assigning the array again (`opts[0].label = 'x'; el.options = opts`) is
+     * then a real difference — held by reference, the store's proxy of that same object showed the
+     * mutation too, compared equal, and the change was skipped.
+     */
+    const options = Array.isArray(next) ? next.map((option) => ({ ...option })) : [];
     /**
      * **Setting what it already shows does nothing.** A template sets `options` on every render —
      * the getter hands back a copy, so the renderer's `!==` never matches — and rebuilding the
@@ -336,7 +346,9 @@ export class VeraSelect extends HTMLElement {
       const resolved = resolveSelection(bounded, entry.select.state.options, entry.select.state.value);
       /** The same selection, in the same order, is no change — see `set options`. */
       const current = entry.select.state.value;
-      if (resolved.length === current.length && resolved.every((option, i) => option.value === current[i].value)) return;
+      /** Labels too: a full option for a value already held carries its label into the cache. */
+      if (resolved.length === current.length && resolved.every((option, i) => option.value === current[i].value && option.label === current[i].label))
+        return;
       entry.select.state.value = resolved;
       entry.select.sync();
       reflectForm(this, entry.select.state.value);
@@ -530,8 +542,15 @@ export class VeraSelect extends HTMLElement {
   }
 
   connectedCallback() {
-    for (const key of ['options', 'value', 'name', 'disabled', 'required', 'multi']) upgradeProperty(this, key);
+    for (const key of UPGRADED) upgradeProperty(this, key);
     const entry0 = internal(this);
+    /**
+     * **The DOM mode is decided once.** `light` is read at connect, and a later connect — the element
+     * moved, or reordered in a keyed list — re-entered with whatever the attribute says now: flipped
+     * to false after the first connect, it attached a shadow root with a second UI beside the light
+     * one still in place.
+     */
+    const light = (entry0.light ??= this.hasAttribute('light'));
     /**
      * HTML seeds, property wins: light-DOM <option>/<optgroup>/<vera-option> children become the
      * option list only when no property has provided one. `selected` seeds both the value and the
@@ -556,10 +575,10 @@ export class VeraSelect extends HTMLElement {
          * slotted trigger worked in shadow mode and silently lost the trigger in light. Measured on
          * identical markup in both modes, which is the comparison that makes it obvious.
          */
-        if (this.hasAttribute('light')) for (const node of parsed.consumed) node.remove();
+        if (light) for (const node of parsed.consumed) node.remove();
       }
     }
-    init(this, this.hasAttribute('light') ? undefined : { mode: 'open' });
+    init(this, light ? undefined : { mode: 'open' });
     const root = (this as { _root?: ShadowRoot })._root ?? this.shadowRoot ?? this;
     const entry = internal(this);
     /**
@@ -673,7 +692,7 @@ export class VeraSelect extends HTMLElement {
      * callback, so a later property assignment retires an existing observer's effect; it is
      * released for real through the _cleanups contract on disconnect.
      */
-    if (entry.htmlSourced && typeof MutationObserver !== 'undefined' && !this.hasAttribute('light')) {
+    if (entry.htmlSourced && typeof MutationObserver !== 'undefined' && !entry.light) {
       const observer = new MutationObserver(() => {
         if (!entry.htmlSourced) return;
         const parsed = parseLightOptions(this);
