@@ -85,3 +85,64 @@ export const attributeValueComplaint = (tag: string, name: string, value: unknow
     `the other, so it will not survive hydration.`
   );
 };
+
+/**
+ * `__DEV__` only: **an event name one or two keystrokes from a real one** — `@clik`, or `onClik` in
+ * JSX, which compiles to it — is almost certainly a typo, and a listener for an event that never
+ * fires is a button that silently does nothing. TypeScript cannot catch it beside a permissive prop
+ * surface (an index signature cannot exclude names), and nothing at runtime ever fails.
+ *
+ * Deliberately narrow, because custom events are legitimate on every element: a name the element
+ * knows (`'on' + name in element`) is never questioned; one that EXTENDS a real event (`changed`,
+ * `loaded`, `closed`) is a custom event by its shape and is left alone; and only a name within two
+ * edits of an event this element really has — transpositions counting as one — is named. Each
+ * `(tag, name)` pair is said once. The message comes back without the `[vera]` prefix; the call site
+ * adds it as a literal, where `tests/diagnostics-convention.test.mjs` can read it.
+ */
+const saidEvents = new Set<string>();
+export const eventNameComplaint = (element: Element, name: string): string | null => {
+  if ('on' + name in element) return null;
+  const said = element.localName + ' ' + name;
+  if (saidEvents.has(said)) return null;
+  let best: string | null = null;
+  let bestDistance = 3;
+  for (const key in element) {
+    if (!key.startsWith('on')) continue;
+    const known = key.slice(2);
+    if (name.startsWith(known)) return null;
+    const distance = editDistance(name, known, bestDistance);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = known;
+    }
+  }
+  if (best === null) return null;
+  saidEvents.add(said);
+  return (
+    `@${name} on <${element.localName}> is not an event <${element.localName}> fires — did you mean ` +
+    `@${best}? (In JSX, on${name[0].toUpperCase()}${name.slice(1)} compiles to @${name}.) A custom event by ` +
+    `this name is fine, and this is said only in development.`
+  );
+};
+
+/** Optimal-string-alignment distance, stopping early once it cannot come in under `limit`. */
+const editDistance = (a: string, b: string, limit: number): number => {
+  if (Math.abs(a.length - b.length) >= limit) return limit;
+  let before: number[] = [];
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    let rowBest = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let value = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) value = Math.min(value, before[j - 2] + 1);
+      current.push(value);
+      if (value < rowBest) rowBest = value;
+    }
+    if (rowBest >= limit) return limit;
+    before = previous;
+    previous = current;
+  }
+  return previous[b.length];
+};

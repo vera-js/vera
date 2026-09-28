@@ -22,10 +22,17 @@ code, so they are not re-litigated.
   `pretendToBeVisual: true`, and await a frame (the scheduler is `requestAnimationFrame`). **Seed
   `Math.random`** if the component uses it — DOM-shape-dependent bugs are otherwise intermittent
   and bisecting them produces contradictory results.
-- **A probe needs `requestAnimationFrame` on `globalThis`, or the scheduler runs synchronously.**
-  `animationFrame` falls back to `run()` when the global is missing, so every write flushes
-  immediately and **coalescing cannot happen** — a probe missing it reports `useEffect` running 100
-  times for 100 writes and looks like a broken batch. The full list a probe needs is
+- **A probe needs `pretendToBeVisual: true`, or the scheduler runs synchronously.** The default
+  scheduler uses the ELEMENT's window's `requestAnimationFrame` (since 2026-09-27, so a component in a
+  popped-out window runs on that window's frames), and jsdom only has one with `pretendToBeVisual`.
+  Without it `animationFrame` falls back to `run()`, so every write flushes immediately and
+  **coalescing cannot happen** — a probe missing it reports `useEffect` running 100 times for 100
+  writes and looks like a broken batch (measured: 1 run with it, 100 without, whether or not
+  `globalThis` has the function; `.probe/raf-realm/`). Copy `requestAnimationFrame` onto `globalThis`
+  too — it is still the fallback for a pass with no element. **A harness that REPLACES the global
+  for fast frames is bypassed** whenever the element's window has its own: replace
+  `dom.window.requestAnimationFrame` as well (`ssr-collections-roundtrip` waited 10 ms on a 16 ms
+  clock after this changed). The full list a probe needs is
   `window document HTMLElement customElements CSSStyleSheet Node Element DocumentFragment
   requestAnimationFrame cancelAnimationFrame`, plus `Event`/`CustomEvent`/`MouseEvent` for anything
   dispatching, and `location`/`history` for the router.
@@ -73,6 +80,15 @@ code, so they are not re-litigated.
   restoring, every time. The same applies to timings: `bench/reactivity.mjs` read 163 ns/op straight
   after the browser suite and 132 on a quiet machine, so take three runs before believing a
   regression.
+- **A timing sample must be tens of milliseconds long, and the machine is not the first suspect.**
+  Firefox and WebKit deliberately coarsen `performance.now()` (toward 1 ms, a fingerprinting
+  defense), so timing ONE ~3 ms render measures mostly rounding: measured 2026-09-27, the A/A control
+  swung ±2.8% on those two engines while Chromium's stayed tight — and that was blamed on "a noisy
+  machine" for three runs. Timing 20 renders per sample (~60 ms) brought A/A to ±1.1% on all three.
+  The machine CAN be the cause, but check it rather than assume: here it was Spotlight
+  (`corespotlightd` at 150% CPU) reindexing the files our own builds had just written — it settles
+  within a minute or two of the last build. Look at `ps -Ao pcpu,comm -r | head` before a race; there
+  is nothing else to close on this machine.
 - **An ad-hoc probe must run with `--conditions development`.** `npm test` passes it; a bare
   `node probe.mjs` does not. Without it, a package that keeps `@verajs/core` external —
   `@verajs/store`, `@verajs/store/collections`, anything built on core's public API — resolves core

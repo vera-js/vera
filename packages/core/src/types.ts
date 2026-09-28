@@ -158,5 +158,10 @@ export type Store<T extends object = object> = T & StoreProxyKeys;
  * A microtask is what Lit and Vue use — the DOM is updated immediately and the browser gets the
  * whole frame to paint. Usually faster for big trees, at the cost of possibly running more than
  * once per frame if writes straddle microtask boundaries.
+ *
+ * `element` is the component the pass belongs to, when there is one, so a scheduler can use the
+ * element's own window: `requestAnimationFrame` ticks per window, and an element moved into a
+ * popped-out window or an iframe must not wait on the opener's clock — which stops when the
+ * opener's tab is hidden. The default does exactly that; a one-argument scheduler ignores it.
  */
-export type RenderScheduler = (run: () => void) => void;
+export type RenderScheduler = (run: () => void, element?: Element) => void;

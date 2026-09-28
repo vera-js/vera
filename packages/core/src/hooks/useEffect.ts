@@ -1,6 +1,7 @@
 import { createHook } from '../modules/createHook.js';
 import { coalesce } from './coalesce.js';
 import { renderScheduler } from '../modules/setRenderScheduler.js';
+import { currentInstance } from '../store/store.js';
 import type { HookCallback, ComponentElement } from '../types.js';
 
 /**
@@ -16,6 +17,11 @@ import type { HookCallback, ComponentElement } from '../types.js';
  * @param element Element to bind to, when not the current instance
  */
 export const useEffect = (callback: HookCallback, element?: ComponentElement) => {
+  /**
+   * Weakly, as the hook itself holds its element: the scheduling closure lives as long as the
+   * store's subscription does, and must not keep a removed component alive through it.
+   */
+  const owner = element ? new WeakRef(element) : currentInstance.element;
   createHook({
     /**
      * The same scheduler renders use, rather than a second hardcoded `requestAnimationFrame`.
@@ -26,7 +32,7 @@ export const useEffect = (callback: HookCallback, element?: ComponentElement) =>
      * the two then ran on different clocks, which is not what an author asks for by swapping one
      * scheduler.
      */
-    callback: coalesce(callback, (run) => renderScheduler(run), 'useEffect'),
+    callback: coalesce(callback, (run) => renderScheduler(run, owner?.deref()), 'useEffect'),
     element,
     priority: 75,
   });

@@ -53,3 +53,23 @@ export const prioritySlot = <T>(list: T[], order: number[], priority: number, cr
   list.splice(slot, 0, created);
   return created;
 };
+
+/**
+ * **Reports an error nothing else handled, the way the platform reports one.** `reportError` fires
+ * the window's `error` event — what `window.onerror`, error trackers and test runners listen for —
+ * without unwinding the caller, so one failing hook or ref never stops its siblings. A bare
+ * `console.error` reached none of those: a component could stop updating while every page-error
+ * listener stayed silent. Off-browser (Node has no `reportError`) the console is all there is.
+ * `sentence` is the framework's own line, printed beside the error in development — WITHOUT the
+ * `[vera]` prefix, which is added here as a literal so no caller can forget it and
+ * `tests/diagnostics-convention.test.mjs` can still read it.
+ *
+ * Shared by core (a hook threw) and the renderer (a ref threw) so the fallback is one rule.
+ */
+export const reportUncaught = (error: unknown, sentence: string) => {
+  if (typeof reportError !== 'function') console.error('[vera] ' + sentence, error);
+  else {
+    if (__DEV__) console.error('[vera] ' + sentence, error);
+    reportError(error);
+  }
+};

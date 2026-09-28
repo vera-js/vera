@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.json",
   // When using rollup composite mode caching, limits cache to only necessary packages
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../shared-utils/src/**/*"]
 }

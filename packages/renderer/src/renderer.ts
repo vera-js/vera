@@ -58,7 +58,8 @@
  * by the DOM itself.
  */
 
-import { attributeValueComplaint } from './dev-values.js';
+import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
+import { reportUncaught } from '@verajs/shared-utils';
 
 import type { InstanceHook, OwnHook, Part, SlotSeamState, TemplateResult } from './types.js';
 
@@ -1046,8 +1047,8 @@ const resolve = (result: TemplateResult, parent: Node): Template => {
   const template = getTemplate(result);
   return template._$at$ !== undefined ? template._$at$(parent) : template;
 };
-const instantiate = (template: Template, values: unknown[]): Instance => {
-  const instance = new Instance(template);
+const instantiate = (template: Template, values: unknown[], owner: Document): Instance => {
+  const instance = new Instance(template, owner);
   /** Kept only once a `'template'` hook exists: an app that wires none pays one boolean, never the scope. */
   if (create.hooked) {
     const outer = create.scope;
@@ -1057,7 +1058,8 @@ const instantiate = (template: Template, values: unknown[]): Instance => {
   } else instance._update(values);
   return instance;
 };
-const build = (result: TemplateResult, parent: Node): Instance => instantiate(resolve(result, parent), result.values);
+const build = (result: TemplateResult, parent: Node, owner: Document): Instance =>
+  instantiate(resolve(result, parent), result.values, owner);
 
 /**
  * **The last list fill's resolution**, so a fill resolves once rather than once per row. Every row of
@@ -1073,6 +1075,13 @@ const build = (result: TemplateResult, parent: Node): Instance => instantiate(re
 let fillParent: Node | null = null;
 let fillStrings: TemplateStringsArray | null = null;
 let fillTemplate: Template | null = null;
+/**
+ * And its document, for the same reason: `ownerDocument` is a DOM getter, and every row of a fill
+ * lives in the list's own document, so one read serves them all rather than one per row
+ * (`.probe/perf-realm/` measured the per-row read at up to ~2.5% of list creation on Firefox and
+ * WebKit, inside that loaded machine's run-to-run noise).
+ */
+let fillOwner: Document | null = null;
 
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
@@ -1284,9 +1293,20 @@ const applyRef = (callback: (el: Element | null) => void, element: Element | nul
   try {
     callback(element);
   } catch (error) {
-    /** The sentence is development's; production keeps the prefix and the error carries the rest. */
-    if (__DEV__) console.error('[vera] an element ref threw; the render continued without it.', error);
-    else console.error('[vera] ref threw', error);
+    /**
+     * **Reported where a hook's error is**: the app's `'error'` chain first, so an error boundary
+     * sees a ref fail exactly as it sees an effect fail — before this, a throwing ref reached only
+     * the console. The element handed over is the COMPONENT being rendered (the render root's
+     * host), as core hands a hook's, since that is what a boundary searches from; `undefined` for a
+     * ref that runs outside a render (a late commit, a teardown). With no handler wired it goes to
+     * `reportError`, as core's does. The sentence is development's; production keeps the prefix.
+     */
+    const handlers = registry?.get('error') as ((error: unknown, element?: Element) => void)[] | undefined;
+    if (handlers?.length) {
+      const root = renderRoot;
+      const host = root === null ? undefined : root.nodeType === 1 ? (root as Element) : (root as ShadowRoot).host;
+      for (const handler of handlers) handler(error, host);
+    } else reportUncaught(error, __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
   }
 };
 
@@ -1609,7 +1629,14 @@ class AttrPart implements Part {
               `Pass a function, or an object with a handleEvent method. A missing handler is ` +
               `\`undefined\` or \`false\`, both of which are fine; this is neither.`
           );
-        if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
+        if (this._handler === null && value != null) {
+          /** Checked once, where the listener is first attached — see `eventNameComplaint`. */
+          if (__DEV__ && value !== false) {
+            const complaint = eventNameComplaint(this._element, this._name);
+            if (complaint !== null) console.warn('[vera] ' + complaint);
+          }
+          this._element.addEventListener(this._name, this);
+        }
         this._handler = (value as EventListener) ?? null;
       } else if (kind === PROP_ADOPT) {
         const next = commitAdopt(this._element, this._name, value);
@@ -1745,7 +1772,14 @@ class Instance {
   declare $h?: InstanceHook;
   declare $s?: unknown;
   declare $k?: unknown;
-  constructor(template: Template) {
+  /**
+   * `owner` is the document the instance will live in — the part's own, read from its start marker.
+   * Importing into it is what makes a component in a popped-out window or an iframe be built by THAT
+   * window's registry: `importNode` upgrades custom elements at clone time, so importing through the
+   * module's `document` built them with the opener's classes, whose `static styles` sheets cannot
+   * be adopted by a document of another realm (CODE-PRINCIPLES §3).
+   */
+  constructor(template: Template, owner: Document) {
     if (__DEV__) sayShape(template);
     /**
      * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
@@ -1763,7 +1797,7 @@ class Instance {
      * `tests/pre-upgrade-property.test.mjs`. Measured cost of losing `cloneNode`: ~2–7% of the
      * raw clone operation across the three engines — nanoseconds per instance.
      */
-    this._fragment = doc.importNode(template._element.content, true);
+    this._fragment = owner.importNode(template._element.content, true);
     const templateParts = template._parts;
     /** Shared walker, ELEMENT | TEXT — child anchors are the primed text nodes themselves. */
     instanceWalker.currentNode = this._fragment;
@@ -2025,7 +2059,7 @@ type ValueHandler = (part: object, value: unknown) => boolean | void;
  * registry and core another, and an app would register into whichever it happened to import — the
  * failure `connectInserts` used to repair.
  */
-let registry: { get(name: 'value' | 'slot' | 'template'): unknown[] | undefined } | null = null;
+let registry: { get(name: 'value' | 'slot' | 'template' | 'error'): unknown[] | undefined } | null = null;
 
 /**
  * **The create-path scope** (held on an object, not in a module-level `let`: WebKit checks a `let`
@@ -2460,7 +2494,7 @@ class ChildPart implements Part {
       if (this._mode !== EMPTY) this._clear();
       let template = getTemplate(value);
       if (template._$at$ !== undefined) template = template._$at$(this._start.parentNode!);
-      const instance = new Instance(template);
+      const instance = new Instance(template, this._start.ownerDocument!);
       if (create.hooked) {
         const outer = create.scope;
         create.scope = template;
@@ -2599,7 +2633,7 @@ class ChildPart implements Part {
      */
     let instance = held.get(result.strings);
     const restored = instance !== undefined;
-    if (instance === undefined) instance = build(result, this._start.parentNode!);
+    if (instance === undefined) instance = build(result, this._start.parentNode!, this._start.ownerDocument!);
     if (relocating) this._value = [...instance._fragment.childNodes];
     this._insert(instance._fragment);
     if (restored) instance._update(result.values);
@@ -2628,16 +2662,21 @@ class ChildPart implements Part {
       const result = value as TemplateResult;
       /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
       let template: Template;
-      if (parent === fillParent && result.strings === fillStrings) template = fillTemplate!;
-      else {
+      let into: Document;
+      if (parent === fillParent && result.strings === fillStrings) {
+        template = fillTemplate!;
+        into = fillOwner!;
+      } else {
         template = resolve(result, this._start.parentNode!);
+        into = this._start.ownerDocument!;
         if (parent === fillParent || parent.firstChild === null) {
           fillParent = parent;
           fillStrings = result.strings;
           fillTemplate = template;
+          fillOwner = into;
         }
       }
-      const instance = new Instance(template);
+      const instance = new Instance(template, into);
       if (create.hooked) {
         const outer = create.scope;
         create.scope = template;

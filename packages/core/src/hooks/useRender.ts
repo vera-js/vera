@@ -118,7 +118,7 @@ export const useRender = (template: unknown, element: ComponentElement, ...args:
         renderScheduler(() => {
           queued = false;
           interiorCallback(props);
-        });
+        }, element);
       } catch (error) {
         queued = false;
         throw error;

@@ -1,7 +1,7 @@
 # @verajs/core
 
 The heart of VeraJS: reactive state, an effect system, template tags, and the lifecycle glue that
-ties them to a custom element. <!--size:core.gzip-->3.27 KB<!--/size:core.gzip--> gzipped, no base
+ties them to a custom element. <!--size:core.gzip-->3.32 KB<!--/size:core.gzip--> gzipped, no base
 class, no build step required, and one dependency — [`@verajs/inserts`](../inserts), the
 extension registry, which the production bundle inlines.
 
@@ -269,7 +269,7 @@ holding its value at the start and at the end.
 | `mount()` | commit the setup for a component that draws nothing |
 | `useRender(template, element, ...args)` | the lower-level half of `render`, for driving a render outside the setup window |
 | `wire([renderer])` | choose what writes to the DOM |
-| `setRenderScheduler(fn)` | defaults to `requestAnimationFrame`; pass `microtask` for Lit/Vue-style timing |
+| `setRenderScheduler(fn)` | defaults to the **element's own window's** `requestAnimationFrame` — so a component in a popped-out window or an iframe runs on that window's frames; pass `microtask` for Lit/Vue-style timing. A scheduler receives `(run, element)` |
 | `setHtml` / `setCss` | swap the template tags |
 
 ```js
@@ -386,7 +386,7 @@ batching are all built this way, outside core, on the same public surface you ha
 | `createHook({ callback, priority, element? })` | build your own hook type |
 
 The points are `'render'`, `'init'`, `'proxy-handler'` (a store read), `'set-handler'` (a store
-write — return `false` to hold the default propagation back), `'error'` (a hook threw),
+write — return `false` to hold the default propagation back), `'error'` (a hook or an element ref threw),
 `'collection'` (a `Map`/`Set` method read in a store — how `@verajs/store/collections`
 attaches) and `'value'` (a child-position value the renderer has no built-in answer for).
 [`@verajs/inserts`](../inserts) documents each one, with signatures.

@@ -1,13 +1,15 @@
 import type { ComponentElement, ComponentHook, Hook, Signal } from '../types.js';
 import { hooksQueue, currentInstance } from '../store/store.js';
-import { prioritySlot } from '@verajs/shared-utils';
-import { ErrorInsert, inserts } from '@verajs/inserts';
+import { prioritySlot, reportUncaught } from '@verajs/shared-utils';
+import { inserts } from '@verajs/inserts';
+import type { ErrorInsert } from '@verajs/inserts';
 
 /** Hoisted for the same reason as its twin in `createProxy` — see the note there. */
 const newSet = () => new Set();
 
 /**
- * Hands a thrown hook error to the `'error'` insert chain, or reports it if nothing is registered.
+ * Hands a thrown hook error to the `'error'` insert chain, or reports it if nothing is registered —
+ * through `reportError`, so `window.onerror` and page-error listeners see it (see `reportUncaught`).
  *
  * Core deliberately does not rethrow. Hooks on one element run in a single loop, so letting an
  * error escape stopped every hook after the failing one — a single bad effect took out its
@@ -16,7 +18,7 @@ const newSet = () => new Set();
 export const reportHookError = (error: unknown, element?: ComponentElement) => {
   const handlers = inserts.get('error');
   if (handlers?.length) handlers.forEach((handler) => (handler as ErrorInsert)?.(error, element));
-  else console.error('[vera] a hook threw:', error);
+  else reportUncaught(error, 'a hook threw:');
 };
 
 /**

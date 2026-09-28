@@ -369,8 +369,13 @@ is an error.
 
 Everything else accepts every prop, so `key={id}` and bare props on a component type-check, and a
 dash-named tag (a custom element) is fully permissive. A typed per-attribute surface is the known
-long tail. Two consequences worth knowing:
+long tail. Three consequences worth knowing:
 
+- **A misspelled handler name compiles.** `onClik` becomes a listener for `clik`, an event that never
+  fires. TypeScript cannot refuse it beside the permissive props, so the renderer names it instead — in
+  development only, once, when the name is a keystroke or two from an event the element really has:
+  *"@clik on <button> is not an event <button> fires — did you mean @click?"*. Custom event names,
+  including ones that extend a real event (`onChanged`), are left alone.
 - **A misspelled prop is not caught by TypeScript here.** For the props you pass a component, the
   checked path is `props<CalendarDay>({ dat })` from `@verajs/renderer/spread`, which *is* checked
   against the element and names the misspelling.

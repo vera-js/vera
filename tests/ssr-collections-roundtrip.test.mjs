@@ -24,7 +24,11 @@ const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
 for (const k of ['window', 'document', 'Node', 'Element', 'HTMLElement', 'Comment', 'Text',
   'DocumentFragment', 'MutationObserver', 'customElements', 'CSSStyleSheet', 'Event', 'CustomEvent',
   'requestAnimationFrame', 'cancelAnimationFrame']) globalThis[k] = dom.window[k];
-globalThis.requestAnimationFrame = (fn) => dom.window.setTimeout(() => fn(0), 0);
+/**
+ * Fast frames, on the clock the scheduler actually reads: the ELEMENT's window's, which jsdom has
+ * under `pretendToBeVisual` — so the window's is replaced too, not only the global fallback.
+ */
+globalThis.requestAnimationFrame = dom.window.requestAnimationFrame = (fn) => dom.window.setTimeout(() => fn(0), 0);
 const frame = () => new Promise((resolve) => dom.window.setTimeout(resolve, 10));
 
 const core = await load('core');

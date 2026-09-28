@@ -31,7 +31,7 @@ all the router takes what it needs directly (`setRouterRenderer`), with no regis
 | `'render'` | every component and route render | renderers, autoloaders |
 | `'proxy-handler'` | every store property **read** | reactive `Map`/`Set`, value wrapping |
 | `'set-handler'` | every property **write**, before propagation | `batch()`, transactions, undo/redo, persistence, time-travel devtools |
-| `'error'` | a hook callback throws | error boundaries, fallback UI, error reporting |
+| `'error'` | a hook callback or an element ref throws | error boundaries, fallback UI, error reporting |
 
 Returning `false` from a `'set-handler'` suppresses core's default propagation, which is how a module
 takes over. That is what makes `batch()` a module rather than core surface:

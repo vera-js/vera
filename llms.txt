@@ -1,6 +1,6 @@
 # VeraJS
 
-> A ~<!--size:app.kb-->7.1 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
+> A ~<!--size:app.kb-->7.2 KB<!--/size:app.kb--> reactive framework built on native web components. No build step required, no base
 > class, no dependency arrays. Components are plain `HTMLElement` subclasses; templates are tagged
 > template literals; state is a proxy that tracks what you read.
 
@@ -138,7 +138,7 @@ the right tool.
 | `css` | tagged template | Returns `{ styleSheet, cssText }` for `static styles`. |
 | `setHtml` / `setCss` | `(fn) => void` | Swap the template tags. |
 | `wire` | `(module \| module[]) => void` | Install modules. From `@verajs/core` (re-exported from inserts). |
-| `setRenderScheduler` | `(scheduler) => void` | Defaults to `requestAnimationFrame`. |
+| `setRenderScheduler` | `(scheduler) => previous` | Defaults to the element's own window's `requestAnimationFrame` (a popped-out window or iframe runs on its own frames). A scheduler receives `(run, element)`. |
 | `microtask` | `RenderScheduler` | Pass to `setRenderScheduler` for Lit/Vue-style microtask scheduling. |
 | `useRender` | `(template, element, ...args) => void` | Lower-level; `render` wraps it. |
 | `setStaticStores` | `(on: boolean) => void` | Server-only; `@verajs/ssr` calls it for `{ static: true }` renders — see the SSR section. In a browser it gives you a framework that does not update. |
@@ -309,7 +309,7 @@ Insert points: `'render'`, `'init'` (an element was set up by `init()` — after
 exists, before its first render; this is how `@verajs/styles` attaches), `'proxy-handler'`
 (property read — **what it returns becomes the value read**, so an observer must return nothing;
 `undefined` and `null` leave the value alone), `'set-handler'` (property write, return `false` to
-suppress default propagation), `'error'` (a hook threw), `'collection'` (a method read off a
+suppress default propagation), `'error'` (a hook or an element ref threw; with none wired, `reportError`), `'collection'` (a method read off a
 `Map`/`Set` in a store — type-keyed, so plain-object reads never reach it; how
 `@verajs/store/collections` attaches), and `'value'` (a child-position value the renderer has
 no built-in answer for — return `true` to claim it; strings, numbers and nullish values never reach
@@ -568,7 +568,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.66 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.76 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -724,7 +724,9 @@ a TSX app imports `@verajs/core` and configures the plugin in `vite.config.js` �
 the DOM library — `onInput={(e) => e.currentTarget.value}` infers `InputEvent` on `HTMLInputElement`
 under `strict`, `onKeyDown` and `onKeydown` both work, and `false`/`null`/`undefined` mean no
 handler; an unknown event name gets a plain `Event`. Every other prop is permissive (every element
-accepts it), so `key` and bare props type-check and a misspelled attribute is not caught; the checked
+accepts it), so `key` and bare props type-check and a misspelled attribute is not caught — nor a misspelled
+handler name, though development names one a keystroke or two from a real event (`onClik` → "did you
+mean @click?"); the checked
 path for a component's props is `props<CalendarDay>({ … })`.
 
 `.jsx` and `.tsx` are transformed, nothing else. Imports for `html`, `keyed` and `spread` are

@@ -2,9 +2,18 @@ import type { RenderScheduler } from '../types.js';
 
 export type { RenderScheduler } from '../types.js';
 
-const animationFrame: RenderScheduler = (run) =>
-  /** `typeof` rather than a bare reference: off-browser the global is undefined, not falsy. */
-  typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : run();
+/**
+ * **On the element's own window**, per CODE-PRINCIPLES §3: `requestAnimationFrame` ticks per window,
+ * so a component moved into a popped-out window or an iframe was redrawn on the opener's clock —
+ * one opener call and none on the iframe, measured — and froze when the opener's tab was hidden.
+ * The global is the fallback, for a pass with no element or an element whose document has no
+ * window. `typeof` rather than a bare reference: off-browser the function is undefined, not falsy.
+ */
+const animationFrame: RenderScheduler = (run, element) => {
+  const view = (element?.ownerDocument.defaultView ?? globalThis) as typeof globalThis;
+  if (typeof view.requestAnimationFrame === 'function') view.requestAnimationFrame(run);
+  else run();
+};
 
 export const microtask: RenderScheduler = (run) => {
   Promise.resolve().then(run);
@@ -54,7 +63,8 @@ export let schedulerGeneration = 0;
  * rather than a `flushSync` export, because the swap is the whole mechanism and hiding it would
  * make the frame boundary harder to reason about, not easier.
  *
- * @param scheduler Receives the render pass and decides when to run it
+ * @param scheduler Receives the render pass — and the component it belongs to, so it can schedule on
+ *   that element's window — and decides when to run it
  * @return The scheduler that was in effect until now
  */
 export const setRenderScheduler = (scheduler: RenderScheduler) => {

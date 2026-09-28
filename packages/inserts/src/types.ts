@@ -60,11 +60,13 @@ export type SetHandlerInsert = <T extends object>(
 ) => boolean | void;
 
 /**
- * Runs when a hook callback throws. Core never lets the error escape — one failing effect must not
- * stop the others on the same element — so this is where a module decides what to do with it:
- * an error boundary, a fallback render, a report to an error tracker.
+ * Runs when a hook callback or an element ref (`&ref`) throws. Neither error escapes — one failing
+ * effect must not stop the others on the same element, and one failing ref must not stop the render
+ * — so this is where a module decides what to do with it: an error boundary, a fallback render, a
+ * report to an error tracker. `element` is the component being rendered, for a ref as for a hook.
  *
- * With nothing registered, core falls back to `console.error` so failures stay visible.
+ * With nothing registered the error goes to `reportError`, which fires the window's `error` event
+ * without unwinding, so page-error listeners and test runners see it; off-browser, to the console.
  */
 export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
 
