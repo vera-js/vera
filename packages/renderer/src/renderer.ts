@@ -437,15 +437,20 @@ const instantiate = (template: Template, result: TemplateResult, owner: Document
   return instance;
 };
 
-/** Commits new values into an instance of the same shape. */
+/**
+ * Commits new values into an instance of the same shape. An unchanged single-value binding — nearly
+ * every binding of nearly every row on a list update — is skipped here, before any call.
+ */
 const update = (instance: Instance, values: unknown[]) => {
   const template = instance._template;
   const kinds = template._kinds;
+  const statics = template._statics;
   const bindings = instance._bindings;
   let valueIndex = 0;
   for (let i = 0; i < kinds.length; i++) {
     const kind = kinds[i];
-    valueIndex = kind === IGNORED ? valueIndex + 1 : commitBinding(template, bindings, i, kind, values, valueIndex);
+    if (kind === IGNORED || (statics[i] === null && values[valueIndex] === bindings[i * 2 + 1])) valueIndex++;
+    else valueIndex = commitBinding(template, bindings, i, kind, values, valueIndex);
   }
 };
 
