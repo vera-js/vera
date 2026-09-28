@@ -1695,21 +1695,22 @@ const flushSelects = (from = 0) => {
  * claim that focuses, measures or observes saw an element in no document. At the end of the render
  * the whole tree is in place — connected, if the container is.
  */
-let pendingMounts: unknown[] | null = null;
+const pendingMounts: unknown[] = [];
 
-/** Mounts what was queued from `from` on — each render mounts only its own, as `flushSelects`. */
+/**
+ * Mounts what was queued from `from` on — each render mounts only its own, as `flushSelects`. An
+ * instance torn down before its render finished has no `$s` left: it never mounts, so it has nothing
+ * to unmount. The array is kept rather than dropped when empty: an app with no instance hooks never
+ * pushes, and one that has them reuses it.
+ */
 const flushMounts = (from: number) => {
-  const queued = pendingMounts;
-  if (queued === null || queued.length <= from) return;
-  const mine = queued.splice(from);
-  if (queued.length === 0) pendingMounts = null;
+  const mine = pendingMounts.splice(from);
   for (let i = 0; i < mine.length; i += 2) {
     const instance = mine[i] as Instance;
     const state = instance.$s;
-    /** Torn down before its render finished: it never mounts, so it has nothing to unmount. */
-    if (state === undefined) continue;
     instance.$s = undefined;
-    if ((instance.$k = instance.$h!.$m(state, mine[i + 1] as Node | null)) !== undefined) notifyOnRemoval = true;
+    if (state !== undefined && (instance.$k = instance.$h!.$m(state, mine[i + 1] as Node | null)) !== undefined)
+      notifyOnRemoval = true;
   }
 };
 
@@ -1853,7 +1854,7 @@ class Instance {
          * `notifyOnRemoval` is armed now rather than at mount, so an instance discarded before its
          * render ends is walked at teardown, which clears `$s` and keeps it from mounting.
          */
-        (pendingMounts ??= []).push(this, renderRoot);
+        pendingMounts.push(this, renderRoot);
         notifyOnRemoval = true;
       }
     }
@@ -2438,7 +2439,7 @@ class ChildPart implements Part {
       const outerRoot = renderRoot;
       const outerScope = create.scope;
       const mark = pendingSelects?.length ?? 0;
-      const mounts = pendingMounts?.length ?? 0;
+      const mounts = pendingMounts.length;
       renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
       create.scope = null;
       try {
@@ -3004,7 +3005,7 @@ export const renderInto = (result: unknown, container: Node) => {
   const outerRoot = renderRoot;
   const outerScope = create.scope;
   const mark = pendingSelects?.length ?? 0;
-  const mounts = pendingMounts?.length ?? 0;
+  const mounts = pendingMounts.length;
   renderRoot = container;
   create.scope = null;
   try {

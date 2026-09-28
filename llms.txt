@@ -483,6 +483,25 @@ Opt-in and additive: `@verajs/renderer` carries only a small seam, and the modul
 the server distributes and the client adopts the result in place, keeping node identity, so focus
 and input values survive. Node-safe to import (it imports nothing and touches no DOM until something renders).
 
+### Element claims (`@verajs/renderer/elements`)
+
+Attach behavior to elements in templates without a directive system. A claimant is an `'element'`
+insert, asked about each element of a template ONCE (static tag and attributes only — bindings are
+not applied yet), returning a shared `{ mount?, unmount? }` or `undefined`:
+
+```js
+import { elements } from '@verajs/renderer/elements';
+const autofocus = { mount: (element) => element.focus() };
+wire([renderer, elements, { on: 'element', fn: (el) => (el.hasAttribute('autofocus') ? autofocus : undefined), priority: 50 }]);
+```
+
+`mount(element, { root, adopted })` runs once the render that created the instance has FINISHED (the
+tree in place, connected if its container is); `unmount(kept, element)` runs at teardown with what
+`mount` returned, only if it returned something. `hold()` is not teardown. Several claimants may claim
+one element, each in wire order. No updates: react to values with a binding, not a claim. Wire it
+before anything renders. The example is a real platform gap: only the first `autofocus` rendered
+after page load takes focus — later forms need the claim.
+
 ### Spread (`@verajs/renderer/spread`)
 
 ⚠️ Spread REFUSES the injection sinks — `.innerHTML`/`!outerHTML`, `srcdoc`, and inline-handler
@@ -568,7 +587,7 @@ honoring the protocol can accept any implementation.
 
 ### Renderer (`@verajs/renderer`)
 
-A keyed, template-identity renderer, <!--size:renderer.gzip-->4.74 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
+A keyed, template-identity renderer, <!--size:renderer.gzip-->4.79 KB<!--/size:renderer.gzip--> gzipped. `wire([renderer])` is the only wiring —
 core's built-in `html` tag already produces the shape it accepts, so **no `setHtml` call is
 needed** (lit-html templates also work, being structurally identical).
 
@@ -898,7 +917,7 @@ Semantics worth stating:
 - **`@verajs/renderer` is NOT Node-safe** — it captures `document` at module scope, so importing it
   where there is no DOM throws `ReferenceError: document is not defined`. Same for
   `@verajs/renderer/hydrate`, `/profiler` and `@verajs/jsx/standalone`. Node-safe: `core`,
-  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`,
+  `inserts`, `store`, `store/collections`, `renderer/keyed`, `renderer/slots`, `renderer/elements`,
   `renderer/spread`, `renderer/tag`, `router`, `styles`, `autoloader`, `jsx`, `ssr`. In a universal app pass the
   renderer in as a parameter rather than importing it from shared code.
 - Routed links must live in the router's own template — links inside a child component's shadow

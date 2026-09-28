@@ -31,6 +31,7 @@ const PACKAGES = {
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/slots': 'renderer/slots',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
+  '@verajs/renderer/elements': 'renderer/elements',
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/hydrate': 'renderer/hydrate',
   '@verajs/renderer/tag': 'renderer/tag',

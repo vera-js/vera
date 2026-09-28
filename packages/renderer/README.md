@@ -1,6 +1,6 @@
 # @verajs/renderer
 
-The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.74 KB<!--/size:renderer.gzip--> gzipped,
+The DOM renderer for VeraJS — <!--size:renderer.gzip-->4.79 KB<!--/size:renderer.gzip--> gzipped,
 no dependencies, no build step required.
 
 Tagged templates parse once and clone; every render after the first walks only the value slots, so
@@ -323,6 +323,7 @@ committed in place against templates that replaced a different template.
 | `@verajs/renderer/tag` | `` tag`h1` `` — an element whose tag name is decided at runtime | yes |
 | `@verajs/renderer/slots` | `slots` (wire it) + `slotted(host, name?)` — light-DOM `<slot>` distribution | yes |
 | `@verajs/renderer/namespaces` | `namespaces` (wire it) — an `html` template parsed in the namespace of where it lands | yes |
+| `@verajs/renderer/elements` | `elements` (wire it) — behavior attached to claimed elements in templates, mounted and unmounted with their instances | yes |
 | `@verajs/renderer/profiler` | a superset that measures template churn | no — development only |
 
 `/hydrate` and `/profiler` each re-export the whole public API, so they are drop-in replacements for
@@ -334,6 +335,64 @@ each bundle their own renderer with its own instrumentation hook, so profiling w
 through `/hydrate` observes an instance nothing renders into: measured, three renders reported zero
 frames while the page updated correctly. `formatReport` says so when it observed nothing, because a
 zero report is otherwise indistinguishable from an app with nothing to optimize.
+
+## `@verajs/renderer/elements` — behavior on elements in templates
+
+Attach behavior to elements *in templates* — "every `[autofocus]`", "every `<slot>`", "every
+`<dialog open>`" — without a directive system and without touching the elements' markup. A
+**claimant** is an ordinary insert on `'element'`: it is asked about each element of a template once,
+when the template is first used, and answers with a shared behavior object or `undefined`. Every
+instance of that template then runs the behavior's `mount` once its render has finished, and
+`unmount` at teardown with whatever `mount` returned.
+
+The example is a real gap. Measured on Chromium, Firefox and WebKit, the first `autofocus` element
+rendered after page load takes focus and **every later one is ignored** — so the second form an app
+shows, an edit dialog or a step two, never gets the focus its markup asks for. Five lines fix it:
+
+<!-- recipe -->
+```js
+import { wire, html } from '@verajs/core';
+import { renderer, renderInto } from '@verajs/renderer';
+import { elements } from '@verajs/renderer/elements';
+
+/** Hoisted and shared: one object for every claimed element of every instance. */
+const autofocus = { mount: (element) => element.focus() };
+
+wire([
+  renderer,
+  elements,
+  { on: 'element', fn: (el) => (el.hasAttribute('autofocus') ? autofocus : undefined), priority: 50 },
+]);
+
+const step = (n) => html`<form><label>Step ${n} <input autofocus name=${'step' + n}></label></form>`;
+const [first, second] = [document.createElement('div'), document.createElement('div')];
+document.body.append(first, second);
+renderInto(step(1), first);
+document.activeElement.blur();
+renderInto(step(2), second); // a second form, later: focused, where the platform alone would not
+if (document.activeElement.name !== 'step2') throw new Error('the second form did not take focus');
+```
+
+What a claimant can rely on:
+
+- **It is asked about the TEMPLATE's element, once.** The element is inert: its tag and its
+  **static** attributes are real, bindings are not applied yet — `autofocus=${x}` cannot be claimed on
+  `x`. Claim the attribute's presence and decide in `mount`. SVG and MathML elements are asked too.
+- **`mount(element, { root, adopted })` runs once the render that created the instance has
+  finished**, so the whole tree is in place and connected if its container is — a nested instance is
+  inserted only when its outer one is, which is why it does not run straight after the instance's own
+  update. `root` is the render's container. An instance discarded before its render ends never mounts.
+- **`unmount(kept, element)` runs once, at teardown** — a template swapped out, a keyed row dropped, a
+  list shrunk, a container cleared — and only when `mount` returned something. **`hold()` is not
+  teardown**: a parked instance keeps its mount and is not mounted again when it returns.
+- **Several claimants may claim one element**; each gets its own `mount`/`unmount`, in wire order.
+- **No updates.** A behavior that must react to values is a binding or an applier (`_$apply$`), not a
+  claim — which is what keeps claims off the hot path. A throwing `mount` propagates, as a throwing
+  `&ref` does.
+- **Wire it before anything renders**, like `slots`: a template asks its claimants when it is first
+  used, and a claimant wired later never hears about templates already built. An app that wires no
+  claimant pays nothing; one that does pays one walk per new template, and one short walk per
+  instance of a template something claimed.
 
 ## `@verajs/renderer/namespaces` — a template parsed where it lands
 

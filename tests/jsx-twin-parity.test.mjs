@@ -42,6 +42,7 @@ const PACKAGES = {
   '@verajs/renderer/keyed': 'renderer/keyed',
   '@verajs/renderer/spread': 'renderer/spread',
   '@verajs/renderer/namespaces': 'renderer/namespaces',
+  '@verajs/renderer/elements': 'renderer/elements',
 };
 const repoint = (code) =>
   code.replace(/from ['"](@verajs\/[a-z/]+)['"]/g, (whole, specifier) => {
