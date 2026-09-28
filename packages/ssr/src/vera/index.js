@@ -122,10 +122,13 @@ const chain = (name) => /** @type {any[]} */ (/** @type {any} */ (inserts).get(n
  * land on it too (values decoded: they were read back out of markup this module escaped).
  */
 const buildInstance = (tag, attrString) => {
-  const attributes = [...(attrString ?? '').matchAll(ATTRIBUTE)].map(([, name, quoted, single, bare]) => [
-    name,
-    decodeEntities(quoted ?? single ?? bare ?? ''),
-  ]);
+  /** `matchAll` copies its regex on every call, so a tag with no attributes — most of them — skips it. */
+  const attributes = attrString
+    ? [...attrString.matchAll(ATTRIBUTE)].map(([, name, quoted, single, bare]) => [
+        name,
+        decodeEntities(quoted ?? single ?? bare ?? ''),
+      ])
+    : [];
   const marker = attributes.find(([name]) => name === INSTANCE_ATTRIBUTE)?.[1];
   const pending = marker === undefined ? undefined : pendingInstances.get(marker);
   const element = pending?.localName === tag ? pending : new (registry.get(tag))();
@@ -356,11 +359,15 @@ const renderModule = async (url, options = {}, isAsync) => {
         'or keep it out of the module the server imports.'
     );
 
-  /** The request's globals, applied inside this turn and restored in one `finally`, on every path. */
+  /**
+   * The request's globals, applied inside this turn and restored in one `finally`, on every path. The
+   * location is saved only when it is replaced: reading every part of it cost more than a small render.
+   */
   const place = globalThis.location;
-  const previous = { title: globalThis.document.title, location: Object.fromEntries(LOCATION_PARTS.map((part) => [part, place?.[part]])) };
-  if (location !== undefined) {
-    const next = new URL(String(location), place?.href ?? 'http://localhost/');
+  const title = globalThis.document.title;
+  const saved = location === undefined ? undefined : LOCATION_PARTS.map((part) => place[part]);
+  if (saved) {
+    const next = new URL(String(location), place.href);
     for (const part of LOCATION_PARTS) place[part] = next[part];
   }
   renderedTags.clear();
@@ -376,8 +383,8 @@ const renderModule = async (url, options = {}, isAsync) => {
     return finishPage(`${open}${inner}</${tag}>`, tag, seen);
   } finally {
     staticRender = false;
-    globalThis.document.title = previous.title;
-    if (location !== undefined) for (const part of LOCATION_PARTS) place[part] = previous.location[part];
+    globalThis.document.title = title;
+    saved?.forEach((value, i) => (place[LOCATION_PARTS[i]] = value));
   }
 };
 
