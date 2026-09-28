@@ -1,4 +1,5 @@
 import { hooksQueue, proxyCallbacks } from '../store/store.js';
+import { getType } from '@verajs/shared-utils';
 import type { Signal } from '../types.js';
 
 /** Records the running hook, if any, as depending on `obj[prop]`. */
@@ -44,6 +45,14 @@ let writingObj: object | null = null;
 let writingProp: PropertyKey | null = null;
 
 /**
+ * What a store wraps: plain objects (class instances included), arrays and the keyed collections.
+ * Everything else with internal slots — a `Date`, `RegExp`, `Promise`, `URL`, typed array, DOM
+ * element — is handed back as it went in, because a proxy in front of it breaks its own methods
+ * (`this is not a Date object`). Such a value changes by being replaced, which a store does see.
+ */
+const PROXYABLE = /^(object|array|(weak)?(map|set))$/;
+
+/**
  * One handler for every store: a read subscribes, and a write that changes something wakes the
  * readers — through every door the language has, not only `=`: `in`, enumeration, `delete` and
  * `Object.defineProperty` each read or change what a template can show.
@@ -59,13 +68,20 @@ const handler: ProxyHandler<object> = {
      * `createStore(Object.freeze(config))` threw. A non-extensible parent is handed back raw without
      * asking further (no allocation on the read path); an extensible one can still carry an explicitly
      * readonly slot, which is caught on the cache miss and remembered as `null` — "never wrap" — so
-     * the descriptor is read once per value, never per read.
+     * the descriptor is read once per value, never per read. A value that is not `PROXYABLE` is
+     * remembered the same way.
      */
     if (value === null || typeof value !== 'object' || !Object.isExtensible(obj)) return value;
     let proxy = proxies.get(value);
     if (proxy === undefined) {
       const own = Reflect.getOwnPropertyDescriptor(obj, prop);
-      proxies.set(value, (proxy = own && !own.writable && !own.configurable ? null : new Proxy(value, handler)));
+      proxies.set(
+        value,
+        (proxy =
+          (own && !own.writable && !own.configurable) || !PROXYABLE.test(getType(value))
+            ? null
+            : new Proxy(value, handler))
+      );
     }
     return proxy ?? value;
   },
