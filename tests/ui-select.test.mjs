@@ -1153,3 +1153,35 @@ test('light set before upgrade, mutated options re-assigned, and a new label for
   assert.equal(early.shadowRoot, null, 'light flipped after connect does not grow a second, shadow UI on reconnect');
   early.remove();
 });
+
+/** Round 4: the dropdown holds the caller's own objects — getters and store-backed options work as given. */
+test('class-instance options, store-backed in-place writes, and a re-assigned value object all apply', async () => {
+  class Country {
+    constructor(code, name) { this.code = code; this.name = name; }
+    get value() { return this.code; }
+    get label() { return this.name; }
+  }
+  const element = await mount();
+  element.options = [new Country('fr', 'France'), new Country('de', 'Germany')];
+  element.value = 'de';
+  await frame();
+  const rowText = () => [...root(element).querySelectorAll('[role="option"]')].map((row) => row.textContent.trim()).join('|');
+  assert.equal(element.selectedOptions[0].label, 'Germany', 'getter-backed options resolve');
+
+  const { createStore } = await load('core');
+  const state = createStore({ opts: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }] });
+  element.options = state.opts;
+  element.value = 'a';
+  await frame();
+  state.opts[0].label = 'A2';
+  await frame();
+  assert.equal(element.selectedOptions[0].label, 'A2', "a store's in-place write reaches the dropdown");
+
+  const pick = { value: 'b', label: 'Beta' };
+  element.value = pick;
+  pick.label = 'Beta 2';
+  element.value = pick;
+  assert.equal(element.selectedOptions[0].label, 'Beta 2', 'the same object re-assigned with a new label applies');
+  void rowText;
+  element.remove();
+});

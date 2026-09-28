@@ -2486,7 +2486,9 @@ class ChildPart implements Part {
     for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
     /** Lists — an array, or any other iterable, spread once into one. */
     if (Array.isArray(value)) return this._commitList(value);
-    if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function') return this._commitList([...(value as Iterable<unknown>)]);
+    /** Not a DOM node that happens to be iterable — a `<select>` or a `<form>` is a node to place, not a list of its children. */
+    if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined)
+      return this._commitList([...(value as Iterable<unknown>)]);
 
     /**
      * **A child-position value that applies itself.** The same idea as `_$apply$` at element

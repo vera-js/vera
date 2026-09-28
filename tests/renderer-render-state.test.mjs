@@ -381,3 +381,12 @@ test('an applier committing inside ANOTHER host\'s render keeps its own host', a
   one.remove();
   two.remove();
 });
+
+test('an iterable DOM node at a child position is placed whole, not spread as a list', () => {
+  const select = doc.createElement('select');
+  select.innerHTML = '<option>a</option><option>b</option>';
+  assert.equal(typeof select[Symbol.iterator], 'function', 'CONTROL: a <select> is iterable');
+  const host = doc.createElement('div');
+  renderInto(html`<p>${select}</p>`, host);
+  assert.equal(host.querySelector('p > select'), select);
+});

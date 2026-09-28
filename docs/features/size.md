@@ -102,7 +102,8 @@ the figures stopped supporting it, which is exactly the drift quoting the measur
 prevent.
 
 It has moved twice: `static styles` leaving core recovered 300 B and put VeraJS under Lit at 0.2.0,
-and the correctness work after it spent 199 B and gave the position back. Both were deliberate.
+and the work since — correctness fixes, contextual namespaces, the slots seam — has put it back above,
+by more than a kilobyte. Each step was deliberate.
 Quote the measured figure rather than a remembered one — this line has been wrong in both
 directions.
 

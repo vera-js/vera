@@ -305,8 +305,7 @@ finishes `connectedCallback` without reaching either call warns and names both.
 back in the page — moved to another container, re-inserted by a keyed list, taken into a portal or
 a popped-out window. Call `init()` and register the hooks there every time, and keep state on the
 element (`this.state ??= createStore(…)`) or in a store, so it survives the trip. Each `init()` starts
-a fresh generation of hooks and the previous one goes inert, so re-attached components show current
-state and have live effects. Guarding setup with `if (this.started) return` — the habit the platform's
+a fresh generation of hooks, so re-attached components show current state and have live effects. Guarding setup with `if (this.started) return` — the habit the platform's
 own guidance on repeated `connectedCallback` suggests — leaves effects torn down as soon as they run
 after a re-attach, and what it shows stays as it was.
 

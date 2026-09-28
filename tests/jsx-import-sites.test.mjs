@@ -35,3 +35,8 @@ test('an Allman-style method is not a call, and neither is a member split across
   assert.deepEqual(kinds("const m = loader.\n  import('./x.js');"), [], 'a member access, not the keyword');
   assert.deepEqual(kinds("await import('./a.js')\n{\n  run();\n}"), ['dynamic:import('], 'CONTROL: a call then a block is still a call');
 });
+
+test('a private #import method is not the keyword, and a spread of import.meta is still import.meta', () => {
+  assert.deepEqual(kinds('class R { #import(u) { return u; } go() { return this.#import(1); } }'), []);
+  assert.deepEqual(kinds('const copy = { ...import.meta };'), ['meta:import.meta']);
+});

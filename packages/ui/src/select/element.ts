@@ -63,6 +63,9 @@ type Internal = {
   pending: { options: SelectOption[]; value: (string | SelectOption)[] };
   /** Light or shadow, decided at the FIRST connect and kept: see `connectedCallback`. */
   light?: boolean;
+  /** What the last `options` / `value` set showed, as plain values — see `shown`. */
+  shownOptions?: Shown[];
+  shownValue?: string[];
   internals: ElementInternals | undefined;
   /**
    * Observed attributes mirrored into a store as real values the template reads. The first cut
@@ -184,11 +187,14 @@ const syncStates = (element: VeraSelect) => {
 };
 
 /**
+ * `multi` first, because `value` is bounded by it: re-routed after `value`, a plural value set before
+ * upgrade had already been cut to its first entry.
+ *
  * Every accessor a template or a script can set before the element upgrades — `light`, read at
  * connect, most of all: left off this list, a TSX `<vera-select light>` rendered before the definition
  * loaded kept an inert `light` expando and took a shadow root anyway.
  */
-const UPGRADED = ['options', 'value', 'name', 'disabled', 'required', 'multi', 'light', 'searchable', 'creatable', 'remote', 'loading', 'placeholder'];
+const UPGRADED = ['multi', 'options', 'value', 'name', 'disabled', 'required', 'light', 'searchable', 'creatable', 'remote', 'loading', 'placeholder'];
 /** Pre-upgrade property assignments land as own properties that shadow the accessors — re-route. */
 const upgradeProperty = (element: HTMLElement, key: string) => {
   if (Object.hasOwn(element, key)) {
@@ -257,21 +263,22 @@ const sameIcon = (a: unknown, b: unknown): boolean => {
   if (x.strings.length !== y.strings.length || x.strings.some((text, i) => text !== y.strings![i])) return false;
   return x.values!.every((value, i) => sameIcon(value, y.values![i]));
 };
-/** Field for field, icons by `sameIcon` — what the dropdown would show is identical. */
-const sameOptions = (a: SelectOption[], b: SelectOption[]): boolean =>
+/**
+ * **What an option shows, as plain values** — read through getters, so an option that is a class
+ * instance compares like a literal. The dropdown holds the caller's own objects (a getter-backed
+ * option, or a store's, keeps working exactly as given); a no-op set is detected against the SNAPSHOT
+ * of the last set, not against those live objects: a caller mutating an option in place and assigning
+ * the array again (`opts[0].label = 'x'; el.options = opts`) then differs from its snapshot and applies,
+ * where comparing with the held object compared it with itself.
+ */
+type Shown = [unknown, unknown, unknown, unknown, unknown, unknown, unknown];
+const shown = (option: SelectOption): Shown => [
+  option.value, option.label, option.disabled, option.description, option.group, option.iconBefore, option.iconAfter,
+];
+const sameShown = (a: Shown[], b: Shown[] | undefined): boolean =>
+  b !== undefined &&
   a.length === b.length &&
-  a.every((option, i) => {
-    const other = b[i];
-    return (
-      option.value === other.value &&
-      option.label === other.label &&
-      option.disabled === other.disabled &&
-      option.description === other.description &&
-      option.group === other.group &&
-      sameIcon(option.iconBefore, other.iconBefore) &&
-      sameIcon(option.iconAfter, other.iconAfter)
-    );
-  });
+  a.every((row, i) => row.every((field, k) => (k < 5 ? field === b[i][k] : sameIcon(field, b[i][k]))));
 
 export class VeraSelect extends HTMLElement {
   static styles = SELECT_STYLES;
@@ -304,20 +311,22 @@ export class VeraSelect extends HTMLElement {
   set options(next: SelectOption[]) {
     const entry = internal(this);
     entry.htmlSourced = false; // property wins; the markup stops being the source
-    /**
-     * COPIES of the caller's objects, so what the dropdown holds is its own: a caller mutating an
-     * option in place and assigning the array again (`opts[0].label = 'x'; el.options = opts`) is
-     * then a real difference — held by reference, the store's proxy of that same object showed the
-     * mutation too, compared equal, and the change was skipped.
-     */
-    const options = Array.isArray(next) ? next.map((option) => ({ ...option })) : [];
+    const options = Array.isArray(next) ? [...next] : [];
+    const snapshot = options.map(shown);
     /**
      * **Setting what it already shows does nothing.** A template sets `options` on every render —
      * the getter hands back a copy, so the renderer's `!==` never matches — and rebuilding the
      * options each time rewrote the dropdown's state for nothing. (Before core stopped tracking the
      * commit, that write also re-scheduled the parent: a template re-running every frame.)
      */
-    if (sameOptions(options, entry.select?.state.options ?? entry.pending.options)) return;
+    /**
+     * Skipped only when it matches BOTH the last set's snapshot (a mutated object re-assigned differs
+     * there) and what the dropdown holds now (an option it created, or markup it re-parsed, differs
+     * there — and a set then resets them, as it always did).
+     */
+    if (sameShown(snapshot, entry.shownOptions) && sameShown(snapshot, (entry.select?.state.options ?? entry.pending.options).map(shown)))
+      return;
+    entry.shownOptions = snapshot;
     warnDuplicates(options);
     if (entry.select) entry.select.setOptions(options);
     else entry.pending.options = options;
@@ -346,9 +355,21 @@ export class VeraSelect extends HTMLElement {
       const resolved = resolveSelection(bounded, entry.select.state.options, entry.select.state.value);
       /** The same selection, in the same order, is no change — see `set options`. */
       const current = entry.select.state.value;
-      /** Labels too: a full option for a value already held carries its label into the cache. */
-      if (resolved.length === current.length && resolved.every((option, i) => option.value === current[i].value && option.label === current[i].label))
+      const labels = resolved.map((option) => `${option.value}\u0000${option.label}`);
+      /**
+       * Labels too — a full option for a value already held carries its label into the cache — and,
+       * as for `options`, against both what it holds now (a controlled re-render reverting a user's
+       * pick must apply) and the last set's snapshot (the same object re-assigned with a new label).
+       */
+      if (
+        resolved.length === current.length &&
+        resolved.every((option, i) => option.value === current[i].value && option.label === current[i].label) &&
+        entry.shownValue !== undefined &&
+        labels.length === entry.shownValue.length &&
+        labels.every((label, i) => label === entry.shownValue![i])
+      )
         return;
+      entry.shownValue = labels;
       entry.select.state.value = resolved;
       entry.select.sync();
       reflectForm(this, entry.select.state.value);

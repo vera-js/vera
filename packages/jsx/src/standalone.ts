@@ -136,10 +136,11 @@ const maps = (): Record<string, string> => {
  * this loader and became a SECOND module: its own core, its own registry, and an app that wired
  * through it rendered nothing. A mapped file, or a renderer helper handed out, is one module.
  */
-let mappedUrls: Set<string> | undefined;
+let mappedUrls: string[] | undefined;
 const nativeFile = (url: string): boolean => {
-  mappedUrls ??= new Set(Object.values(maps()).map((target) => new URL(target, document.baseURI).href));
-  return mappedUrls.has(url) || helpers.has(url);
+  /** Resolved targets; a PREFIX entry (`"lib/": "/vendor/lib/"`) maps everything under it, so it matches by prefix. */
+  mappedUrls ??= Object.entries(maps()).map(([name, target]) => new URL(target, document.baseURI).href + (name.endsWith('/') ? '*' : ''));
+  return helpers.has(url) || mappedUrls.some((target) => (target.endsWith('*') ? url.startsWith(target.slice(0, -1)) : url === target));
 };
 const helperUrl = (specifier: string): string | null => {
   const helper = RENDERER_ENTRY.exec(specifier)?.[1];
