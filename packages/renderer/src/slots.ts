@@ -323,7 +323,7 @@ const place = (state: HostState, node: Node, prev: Node | null, next: Node | nul
     else if (after !== -1) at = after + 1;
   }
   const from = light.indexOf(node);
-  /** A known node whose neighbours are not light children — a whole slot range moved — keeps its place. */
+  /** A known node whose neighbors are not light children — a whole slot range moved — keeps its place. */
   if (at === undefined) {
     if (from !== -1) return;
     at = light.length;
@@ -383,7 +383,7 @@ const authors: (Node | null)[] = [];
 /** How deep dispatch is nested — a host's processing can move nodes into a host nested in it. */
 let depth = 0;
 /**
- * One change, routed to the host it belongs to: a node ADDED (with the neighbours its writer used,
+ * One change, routed to the host it belongs to: a node ADDED (with the neighbors its writer used,
  * and whether it landed at the host's top level), a node REMOVED, or an ATTRIBUTE changed.
  */
 type Change = { _kind: 0 | 1 | 2; _node: Node; _prev: Node | null; _next: Node | null; _top: boolean };
