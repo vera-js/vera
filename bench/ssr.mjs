@@ -135,6 +135,17 @@ try {
   console.log(`\n  (astro row skipped: ${String(error.message).split('\n')[0].slice(0, 80)})`);
 }
 
+/**
+ * **A macrotask every 100 renders, outside the timing** — as a server's requests arrive. An `await` loop
+ * that never yields one is a single job, and the platform keeps every `WeakRef` target alive until the
+ * job ends: measured, a 15 000-render run held 109 MB that one macrotask released. Core's hook
+ * subscriptions are `WeakRef`s, so vera's renders stayed live for the WHOLE benchmark, and every
+ * contender after it was timed against that heap. The yield itself (~13 µs) is not timed: inside the
+ * loop it would add 40% to a 0.3 µs row.
+ */
+const BLOCK = 100;
+const nextTask = () => new Promise((resolve) => setImmediate(resolve));
+
 const results = {};
 for (const size of ['small', 'large']) {
   const iterations = size === 'small' ? SMALL_N : LARGE_N;
@@ -148,9 +159,14 @@ for (const size of ['small', 'large']) {
   for (let round = 0; round < ROUNDS; round++) {
     for (const name of Object.keys(CONTENDERS)) {
       const run = CONTENDERS[name][size];
-      const t0 = performance.now();
-      for (let i = 0; i < iterations; i++) await run();
-      perContender[name].push((performance.now() - t0) / iterations);
+      let elapsed = 0;
+      for (let done = 0; done < iterations; done += BLOCK) {
+        await nextTask();
+        const t0 = performance.now();
+        for (let i = 0; i < Math.min(BLOCK, iterations - done); i++) await run();
+        elapsed += performance.now() - t0;
+      }
+      perContender[name].push(elapsed / iterations);
     }
   }
   results[size] = perContender;
