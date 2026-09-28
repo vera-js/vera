@@ -1533,23 +1533,35 @@ const { html, styles, title } = await renderToString(new URL('./app.js', import.
 | `location` | this request's URL. Pass it — never assign `globalThis.location` yourself; concurrent renders would race |
 | `seen` | a `Set` carried across renders so shared components' styles reach a multi-island page once |
 | `base` | a directory the module URL must resolve inside. Pass it whenever any part of `url` came from a request |
-| `static` | `true` = stores need not be reactive: ~3x faster, identical markup. A store *write* during such a render throws in development |
+| `static` | `true` = a page that will not be interactive: store reads skip tracking, ~3x faster, identical markup. A store *write* during such a render throws (both builds) |
+
+A wrong option type throws a `TypeError` naming the option. Returns `{ html, styles, title }`:
+`styles` is the light-DOM `@scope` CSS for the page's `<style>`, already escaped for that element.
 
 Rules an assistant must not guess around:
 
 - **Import order:** `@verajs/ssr` installs the DOM shims, so import it before any module that
-  imports `@verajs/renderer` (which needs a DOM at import time).
-- **`renderToString` is synchronous end to end** and refuses an `async connectedCallback` (its
-  markup would be empty). **`renderToStringAsync`** (same options) awaits the lifecycle and lets
-  promises settle between frame rounds — use it for async setup and for a routed component to
-  render its route into the first response. Renders take a turn each: both entry points queue, so
-  concurrent calls cannot read each other's in-flight state.
+  imports `@verajs/renderer` (which needs a DOM at import time). It REPLACES any DOM already on
+  `globalThis` — never import it into a jsdom test process.
+- **Two entry points, same options and output.** `renderToString` is synchronous end to end and
+  refuses an `async connectedCallback` (its markup would be empty). **`renderToStringAsync`**
+  awaits the lifecycle and lets promises settle between frame rounds — use it for async setup, and
+  **always for a router**: only the async chain waits for the initial navigation, so it serves the
+  route `location` names; the sync chain serves the shell with an empty `[view]` outlet.
+- Frames (`requestAnimationFrame`) are drained before serializing, bounded at 20 rounds, so
+  re-renders and `useEffect` reach the markup. A `useLayoutEffect`'s state reaches it only through
+  `renderToStringAsync`.
+- Renders take a turn each across both entry points, so concurrent calls cannot see each other's
+  state. Pass `location` per call; never assign `globalThis.location`.
 - **A component that throws rejects the render** — it is never silently empty markup. Catch and
   fall back to a client-rendered shell.
-- `keyed()`/`hold()` are client-renderer constructs — templates that must also server-render use
-  plain `.map`. `document.title` set during the render comes back as `title`.
+- Property bindings on a nested component tag (`<x-row .item=${row}>`, `props({ item })`) are
+  delivered to that instance on the server too. `keyed()`/`hold()` are client-renderer constructs —
+  templates that must also server-render use plain `.map`. `document.title` set during the render
+  comes back as `title`.
 - Escaping is at the render boundary, always; `<style>`/`<script>` contents get end-tag
-  neutralization instead (references are not decoded there). `registry` (tag → class seen by
+  neutralization instead (references are not decoded there). `children` and a string `attributes`
+  are raw markup — never put request data in them. `registry` (tag → class seen by
   `customElements.define`) and `serializeTemplate` (the template flattener) are exported for
   advanced integration.
 - Full semantics, limits and the measured out-of-scope list: `packages/ssr/README.md`.

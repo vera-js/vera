@@ -1,403 +1,341 @@
 # @verajs/ssr
 
-Vera-native server-side rendering. Node-only, plain ESM, **zero dependencies** — no wcc, no lit,
-no acorn, no parse5.
+Server-side rendering for VeraJS components. Node only, plain ESM, **zero dependencies** — no jsdom,
+no parse5, no lit, no acorn. Components render to **declarative shadow DOM** with no framework
+comments, and `@verajs/renderer/hydrate` adopts that markup in the browser without re-creating it.
 
-Nested components are found by walking the emitted markup for tags the registry knows. The walk is
-state-aware, not a regex: it respects quoted attribute values (a `>` is legal inside one), and it
-leaves the contents of comments, `<script>`, `<style>`, `<textarea>` and `<title>` alone, because
-those are text and a scan for elements has no business reading them.
+```js
+import { renderToString } from '@verajs/ssr';   // first — it installs the DOM the renderer needs
 
-    import { renderToString } from '@verajs/ssr';
-    const { html, styles, title } = await renderToString(new URL('./components/app.js', import.meta.url), {
-      attributes: { 'user-id': id },   // an object — values are escaped
-      props: { rows },                 // structured data; an attribute can only carry a string
-      children: '<p>slotted</p>',      // what a <slot> in the component renders
-      location: request.url,           // this request's URL — see below
-      seen,                            // a Set carried across renders — see below
-    });
+const { html, styles, title } = await renderToString(new URL('./components/app.js', import.meta.url), {
+  attributes: { 'user-id': id },   // an object: names checked, values escaped
+  props: { rows },                 // structured data — an attribute can only carry a string
+  location: request.url,           // this request's URL, for anything that reads one
+});
 
-`title` is `document.title` as that render left it — a component setting it is how a shell names its
-page — and it is **returned rather than left on the global**, for the same reason `location` is
-passed rather than assigned: a process global cannot belong to one request. The document's own title
-is restored afterwards, so a concurrent render never sees it.
+response.end(`<!doctype html><title>${escape(title)}</title><style>${styles}</style>${html}`);
+```
 
-For a shell assembled from several islands, carry one `Set` through every call. Each render returns
-the styles of what *it* rendered, so two islands sharing a component would otherwise each carry that
-component's CSS and the page would ship it twice.
+`html` is the component's markup, its shadow root serialized as `<template shadowrootmode>`. `styles`
+is the light-DOM CSS for the page's `<style>` (already escaped for that element — see
+[Styles](#styles)). `title` is `document.title` as the render left it, which is how a shell names its
+page. `examples/ssr-node/server-native.mjs` is a complete server on bare `node:http` serving the whole
+round trip, hydration included.
 
-**Pass `location` rather than assigning to `globalThis.location`.** A component that reads the URL —
-any routed shell does — needs the request's, and `globalThis.location` is process-global while a
-request is not. Assigning to it and then calling `renderToString` is safe only until two requests
-overlap: the call awaits `import()`, and on a module's first import that await yields, so whichever
-request assigned last wins for every render after it. Measured with three concurrent first-time
-imports, **two of three rendered another request's path**. The option applies the URL after every
-await and restores it afterwards, in a stretch that is synchronous end to end and therefore cannot
-interleave. A path or a full URL both work.
+The package publishes its source — there is no build and no `dist` — and is type-checked from its
+JSDoc, with `.d.ts` files generated from the same comments for TypeScript consumers.
 
-**`children`, and the string form of `attributes`, are raw markup.** Both are written through
-untouched — that is what they are for — so neither may carry anything from a request without being
-sanitized first. Everything else is checked at the render boundary: the object form of
-`attributes` cannot escape the tag it describes **and cannot add a second attribute inside it** — a
-name carrying a space, a quote, `/`, `=` or `>` is refused, which is the same set `setAttribute`
-refuses in the browser — and every interpolated value in a template is escaped as it is written. A
-`__proto__` key in `props` is skipped rather than assigned, so handing the option a parsed request
-body cannot replace the component's prototype. Reach for the string form of `attributes` only when you must produce markup an object cannot
-describe.
+## Two entry points
 
-- Node resolves the component's module graph natively (the `.ts`-via-`.js` convention included);
-  execution registers classes through `customElements.define` — no AST walking.
-- **The lifecycle runs the way it does in a browser.** `attributeChangedCallback` fires on upgrade
-  for every present observed attribute and again on every later change; there is no animation frame
-  to wait for — frames are queued and drained once `connectedCallback` returns, and again for
-  whatever those schedule, so a re-render and every `useEffect` land before the markup is
-  serialized, coalesced exactly as a browser coalesces them. An endless animation loop is bounded
-  rather than run forever. `tests/lifecycle-parity.test.mjs` renders each case on both sides and
-  compares the DOM.
-- **A failure during a render rejects — it is never markup.** Core isolates a hook error so one bad
-  effect cannot take out the hooks beside it, which is right in a browser because the next render
-  can recover. There is no next render here, so `renderToString` collects those failures and throws,
-  naming the component. Catch it to fall back to a client-rendered shell, as you would with React or
-  Vue.
-- **`renderToStringAsync` awaits the component's lifecycle.** `renderToString` is synchronous end to
-  end, so an `async connectedCallback` is refused — its markup would be empty, and saying so beats
-  shipping it. `renderToStringAsync` waits: for the callback, and for promises to settle between
-  frame rounds. That is what a component loading data needs, and what puts **a routed component's
-  first view in the first response** rather than only after hydration.
+| | |
+| --- | --- |
+| `renderToString(url, options?)` | synchronous end to end; the fastest path, and the right one for most components |
+| `renderToStringAsync(url, options?)` | **awaits** the lifecycle — an `async connectedCallback`, and work a frame starts — so a component that loads data, or **a routed app's first view**, is in the first response |
 
-  Everything that decides *what* to emit is shared with `renderToString` — the scanner, the
-  serializer, the instance preparation, the page assembly — and
-  `tests/ssr-async-parity.test.mjs` renders every fixture through both and compares. The scan itself
-  stays synchronous in both: a component tag becomes a placeholder and its render a promise, and the
-  placeholders are substituted once everything settles. Awaiting inside the scan would have meant a
-  second copy of the parser, and an async recursion measures 2.45x even when nothing suspends —
-  which the synchronous path is not going to pay for a feature it never uses.
+Both take the same options, return the same `{ html, styles, title }`, and share everything that
+decides what to emit — scanner, serializer, instance preparation, page assembly.
+`tests/ssr-async-parity.test.mjs` renders every fixture through both and compares.
 
-  **Asynchronous renders take a turn each.** The per-render bookkeeping is module-level, and being
-  synchronous end to end is what makes concurrent `renderToString` calls safe; a render that pauses
-  does not have that protection, so two overlapping ones would read each other's. One at a time is
-  the version that cannot be wrong — and the turn covers **both** entry points, because a
-  synchronous render fired inside an asynchronous one's suspension window would run to completion
-  on the shared state and the async render would resume into the wreckage. Every caller already
-  awaits, so the turn is invisible; when nothing is in flight it costs one microtask.
+**Use the async one for a router.** `initRouter` works on the server, and the router's first
+navigation runs on a frame and awaits its route. `renderToString` serializes before that settles, so it
+serves the shell with an empty `[view]` outlet for the client to fill; `renderToStringAsync` waits, and
+serves the route the request's `location` names. `renderToString` **refuses** an `async
+connectedCallback` rather than serve its empty markup.
 
-- **`static: true` renders a page that will not be interactive, about 3x faster.** A server render is
-  one shot — the subscriptions built while it runs are never fired afterwards — so tracking every
-  property read to create them is pure cost. Measured on a component rendering twenty rows, the proxy
-  behind `createStore` is the *entire* reactivity overhead: about 40 µs against a 15 µs baseline,
-  where effects and the scheduler cost nothing detectable. With `static` on, `createStore` hands back
-  a plain object and reads are ordinary property access.
+**Renders take turns** — one at a time, across both entry points. The per-render bookkeeping is
+module-level, so two renders interleaving would read each other's; queueing is the version that
+cannot be wrong, costs one microtask when nothing is in flight, and is invisible because every caller
+already awaits. A render that throws does not stop the queue.
 
-  **The markup is identical** — that is the whole safety of it, and it is not asserted on an example:
-  `tests/ssr-static-mode.test.mjs` renders *every* fixture in the suite both ways and compares markup,
-  styles and title. A mode that cannot drift is why this is a flag rather than a second renderer.
+## Options
 
-  **A store written to during a static render throws**, naming the option, rather than rendering
-  markup that reflects none of the writes. That guard is *not* development-only, unlike most of this
-  framework's diagnostics: a server runs the production build, so folding it away would remove it
-  from the only place it matters.
+| Option | |
+| --- | --- |
+| `tag` | which element to render when the module defines several. Otherwise the module's exported class is matched against the registry — so **export the class**, or pass `tag` |
+| `attributes` | the entry tag's attributes. **An object** — values escaped, names checked. A string is written through untouched (a sink: see [Security](#security)) |
+| `props` | properties assigned to the instance before `connectedCallback`, by identity. A `__proto__` key is skipped, and a read-only property is refused by name |
+| `children` | markup placed inside the entry tag, where a client parser would have put it — what a `<slot>` renders. **Raw markup** |
+| `location` | this request's URL — a path or a full URL — applied for the render and restored after |
+| `seen` | a `Set` carried across renders, so a page of islands ships each component's styles once |
+| `base` | a directory the module URL must resolve inside. Pass it whenever **any part of the URL came from a request** |
+| `static` | `true` for a page that will not be interactive: reactivity is skipped, about 3x faster, identical markup |
 
-- **Events are real, and they propagate** — `EventTarget` semantics on elements, shadow roots,
-  `document` and `window`, including `once`, `handleEvent` objects, `event.target` and a
-  `dispatchEvent` return value that reflects `preventDefault` — plus the capture, target and bubble
-  phases, `stopPropagation`, `stopImmediatePropagation`, `composedPath()`, and a shadow boundary
-  crossed only by a `composed` event. Bubbling used to be absent because this DOM held children as a
-  string and there was no ancestor chain to walk; children are nodes now, so there is. The walk is
-  over the node tree — an event does not continue into `document` or `window`, which are not part of
-  it here.
-- **The properties only *some* elements have are there too, and reach the markup.** `input.disabled`,
-  `a.href`, `td.colSpan`, `option.selected` — 273 of them across 44 tags, measured from Chromium,
-  Firefox and WebKit rather than written from memory (`scripts/measure-element-reflections.mjs`).
-  Each tag gets a prototype carrying exactly its own interface, so `'disabled' in paragraph` stays
-  `false`: an element answering for members it does not have is the same lie as one missing the
-  members it does. Without this layer `button.disabled = true` stored a plain JavaScript property —
-  it read back `true`, wrote no attribute, and **served a button that was not disabled** until the
-  bundle landed. A property is only in the table when all three engines agree on every measured cell
-  *and* reading the attribute back gives what was written, which excludes the ones resolved against a
-  document URL (`form.action`), read out of layout (`input.width`) or clamped (`meter.value`); those
-  are listed with the measurement that produced each. `value`, `checked` and `selected` are the
-  deliberate exception — a browser keeps them off the markup, and on a server the markup is the whole
-  output, so they are mirrored exactly as `serializer.js` already mirrors the same three for template
-  bindings.
-- **A parsed `<template>`'s content is opaque, and `template.content` is `undefined` here.** The
-  element itself is modeled — found by `querySelector`, styled, serialized back byte for byte — and
-  a query on the host correctly does not descend into it, which is what a real DOM does too. What is
-  missing is reaching INTO one: `template.content.querySelector(…)` answers nothing on the server
-  and a fragment in the browser.
-  It used to be far worse. Markup containing a `<template>` was refused outright, so the host had no
-  nodes at all and EVERY query on it answered emptily — one empty `<template>` turned
-  `querySelectorAll('*')` from three elements into none, silently, and cost light-DOM slots their
-  whole server render. Keeping the interior opaque, exactly as `<svg>` already was, fixed that.
-  Implementing `content` is a contained follow-up if anything needs it: the interior is already
-  retained verbatim, so the getter is a lazy `parseFragment` of the string it already holds.
+A wrong type is refused with a `TypeError` naming the option (`children: 5` used to surface as
+`markup.includes is not a function`).
 
-- **The server DOM is complete, and checked twice.** Every member a real element, shadow root,
-  document, `CSSStyleSheet`, `DOMTokenList` **or window** exposes in Chromium, Firefox and WebKit is
-  either implemented or listed as out of scope with a reason — and every member that *is* implemented
-  is then compared against a real DOM, member by member, so one that exists and answers differently
-  fails too. That second check is the one that earns its keep: enumerating presence found a single
-  gap, while comparing behavior found `tabIndex` defaulting to 0, `draggable` defaulting to true,
-  `role` answering `''` where the platform answers `null`, `textContent = null` writing the word
-  "null", and a closed shadow root handed straight back. **That comparison checks a member's *shape*
-  — the type it answers with — not its answer to every input**, so it is a net rather than a proof:
-  an empty array and a full one look the same to it. Three separate classes of defect were found by
-  going around it deliberately — passing values nobody would pass (a symbol, where the platform
-  throws), checking the members jsdom does not implement at all (which it must skip), and asking
-  whether a member that answers *emptily* should have answered at all. The window's ~700 interface constructors are
-  covered by a rule rather than a list: every interface this DOM implements is exposed, so
-  `instanceof` answers for anything it hands you — the list is checked in (`tests/dom-surface.mjs`, no dependency involved) and
-  both halves are enforced, so a gap fails a test instead of a render. That includes the sixty reflected
-  properties (`id`, `className`, `hidden`, `tabIndex`, `role`, the whole `aria*` family), which are
-  views of an attribute and therefore reach the markup, and `attachInternals()`, so a
-  form-associated custom element runs, and the objects those members hand back — `classList`,
-  `style`, `dataset` — are held to the same list rather than assumed complete once the property
-  exists. `attachShadow({ mode: 'closed' })` behaves as it does in a browser: `element.shadowRoot`
-  is `null`, and the root is serialized anyway, because declarative shadow DOM expresses `closed`
-  and the client re-creates it just as hidden. **Where the platform throws, this throws** — an
-  attribute or tag name that cannot be written, a second `attachShadow` or `attachInternals`, an
-  invalid custom-element name, `appendChild` of a non-node. A server that is lenient about an error
-  does not make anything work; it moves the failure to the client and strips the context. The
-  exceptions are deliberate: **a selector this DOM cannot answer honestly throws** rather than
-  answering `null`. It matches type, class, id, every attribute operator, `:not()` and all four
-  combinators — descendant, `>`, `+` and `~`. Everything else raises instead of quietly reporting no
-  match, for **two different reasons**: `:hover`, `:checked`, `:visible` and `:root` need user state,
-  layout or a document a server does not have, while `:first-child`, `:nth-child()`, `:empty`,
-  `:first-of-type`, `:is()` and `:has()` are answerable here and simply are not implemented. That
-  second group used to be covered by the first reason, which made a limit of this matcher read as a
-  property of servers — and predicted, wrongly, that `:first-child` would work;
-  **A collection is a plain array**, not a live `NodeList` or `HTMLCollection` — `childNodes`,
-  `children`, `querySelectorAll` and the `getElementsBy*` family all answer with one. There is nothing
-  to be live *over* while a render is a single pass, and an array is more useful to a caller than a
-  collection they have to spread. `item()` and `namedItem()` are provided anyway, because losing them
-  was a side effect of that choice rather than part of it: `list.item(0)` is ordinary code, and threw.
-  **`checkVisibility()` is always `false`**, since nothing here is laid out and a
-  server cannot know what CSS will do, a constructed sheet holds its CSS as **text** rather
-  than a parsed rule list — so `cssRules` is empty whatever the sheet contains, which is all the
-  markup needs and is why `deleteRule` says so rather than pretending, and `insertAdjacentHTML` with `beforebegin` or
-  `afterend` raises a message explaining that a server-rendered component has no parent, which is
-  more use than the platform's bare `SyntaxError`. A `style` value is stored as it was
-  written rather than re-serialized, so `url("data:…")` keeps its quotes where a browser's CSS
-  serializer drops them — equivalent CSS, and a semicolon inside a value does not split the
-  declaration, which is what matters for an inline `data:` URI. Layout reads as zero because that is what a
-  detached element answers in a browser too. **Names fold the way the platform folds
-  them**: an HTML element lower-cases its tag and its attribute names, so `setAttribute('Data-Flag', …)`
-  and `getAttribute('data-flag')` are one attribute and an `attributes` entry spelled `User-ID`
-  still matches an `observedAttributes` entry spelled `user-id`; an element created through
-  `createElementNS` outside the HTML namespace keeps its case, so an SVG `viewBox` survives.
+**Pass `location`; never assign `globalThis.location` yourself.** The global belongs to the process
+and a request does not: the call awaits `import()`, which yields on a module's first import, so
+whichever request assigned last wins for every render after it. Measured with three concurrent
+first-time imports, two of three rendered another request's path. The option is applied inside the
+render's turn and restored in a `finally`. `title` is returned rather than left on the global for the
+same reason, and the document's own title is restored afterwards.
+
+## What runs, and when
+
+**The lifecycle runs the way it does in a browser.** The class is constructed through the registry,
+the markup's attributes are set, `attributeChangedCallback` fires for each observed one on upgrade and
+again on every later change, and then `connectedCallback` runs. `tests/lifecycle-parity.test.mjs`
+renders each case on both sides and compares the DOM. What a component does to itself there — a
+`setAttribute`, an `aria-*`, a class, a reflected property — reaches the markup.
+
+**Frames are drained before the markup is read.** A server never paints, so `requestAnimationFrame`
+(and `requestIdleCallback`) callbacks are queued and run once `connectedCallback` returns, then again
+for whatever those schedule — so a re-render and every `useEffect` land in the markup, coalesced
+exactly as a browser coalesces them.
+
+- **An endless animation loop is bounded**: 20 rounds, then the render ships. What the loop left
+  queued is dropped, never run inside the next component's render.
+- **The async chain lets promises settle between rounds.** A frame that returns a promise is awaited,
+  whatever it awaits; work a frame starts without returning it is caught if it lands within three idle
+  microtask turns (measured: a chain four microtasks deep).
+- **`useLayoutEffect` runs on a microtask.** Through `renderToStringAsync` its state reaches the
+  markup, as on the client. Through `renderToString` it runs — a side effect inside one *happens* on the
+  server — but after the template was serialized, so state it settles is not in the markup: settle it
+  before `render()`, or use `renderToStringAsync`.
+
+**A failure rejects the render — it is never markup.** In a browser, core isolates a hook's error so
+one bad effect cannot take out its neighbors, because the next render can recover. There is no next
+render here, so every failure — a throwing hook or `connectedCallback`, a `settle` handler that
+throws — rejects the render, naming the component (and how many more failed), with the original
+error as `cause`. Catch it to fall back to a client-rendered shell, as you would with React or Vue.
+
+**`render()` owns its own range and nothing else**, as in a browser: content already in the
+container stays before it, a node the component appends to its own root stays after it, and both
+survive every re-render. So `children` reach a light-DOM component and are still there after it
+renders.
+
+## Nested components
+
+After a component renders, its markup is scanned for tags the registry knows, and each is rendered in
+place. The scan is state-aware, not a regex: it respects quoted attribute values (a `>` is legal inside
+one) and leaves comments, `<script>`, `<style>`, `<textarea>` and `<title>` alone — those are text.
+
 - **A component can build another component.** `document.createElement('my-comp')` constructs the
-  registered class, so its field initializers have run and `instanceof` answers, and appending it
-  renders **that instance** — everything the parent assigned to it, `kid.rows = data` included,
-  survives. The nested-component scan used to re-create the child from its markup, where an
-  attribute is the only thing that can carry a value.
-- **`render()` owns its own range and nothing else**, exactly as it does in a browser. Content
-  already in the container stays before the rendered range, a node the component appends to its own
-  root stays after it, and both survive every re-render — so a component that mixes `render()` with
-  its own `appendChild` produces the same DOM on both sides. It also means `children` reach a
-  light-DOM component and are still there after it renders.
-- **A `<select>`'s value is served as `<option selected>`.** And a value matching no option cannot be served —
-  see the exception below, which has no fix. A `<select>` has no `value` content attribute — assigning the property *selects an
-  option* — so the only thing markup can say is which option is chosen, and that is what the
-  serializer writes (React's server renderer does the same; `@lit-labs/ssr` drops the binding and
-  serves a control showing its first option). Matching follows the platform: the `value` attribute
-  verbatim if an option has one, otherwise the option's text **stripped and collapsed**, first match
-  wins, and a `selected` the author wrote is cleared because a property assignment overrides markup.
-  All of it is asserted against Chromium, Firefox and WebKit in
-  `tests/browser/select-value.test.js`.
+  registered class — field initializers run, `instanceof` answers — and appending it renders **that
+  instance**, so everything the parent assigned (`kid.rows = data`) survives.
+- **A property bound on a component tag is delivered**, not dropped: written (`<props-row .item=${row}>`)
+  or spread (`props({ item })`), the value reaches the instance the scan renders — by identity, before
+  its lifecycle, exactly where the `props` option puts the entry component's. The markup never carries
+  it (a property is not an attribute), so the child renders from the same data its client render will
+  get: that is the hydration contract. An **unregistered** dashed tag passes through untouched.
+- Both ride on a marker attribute that crosses the string boundary and is removed before the page is
+  returned. **It only ever produces the component it was written for**: a copy of it on another tag is
+  ignored, and a copy on a second element of the same tag renders the instance once, not twice.
+- **Nesting is capped at 256 levels, and the client has no such cap.** A component that renders itself
+  recurses without bound, which on a server is a hung request, so the render refuses past 256 and says
+  so. 256 sits *below* where the client breaks (about 340 levels before a `RangeError`, engine-
+  dependent), so the server still fails first, and with a sentence.
 
-  The exception is real and has no fix. When the value matches **no** option the client leaves
-  `selectedIndex` at `-1` with nothing showing, and a parsed `<select>` whose options carry no
-  `selected` takes its **first** — there is no markup for "none of them", and inserting a hidden
-  placeholder would change the control the author wrote.
+## Static pages
 
-- **Component nesting is capped at 256 levels, and the client has no such cap.** A component that
-  renders itself recurses without bound, which on a server is a hung request rather than a hung tab,
-  so `renderToString` refuses past 256 and says so. This is a real divergence, and 256 is chosen to
-  sit *below where the client breaks*: the client managed about 340 levels before `RangeError`
-  (reported through the `'error'` insert), so the server still fails first and fails with a sentence.
-  That ~340 is engine-dependent, which is why the server does not wait for it.
-- **A carriage return survives, as `&#13;` — everywhere except `<style>` and `<script>`.** The HTML
-  input-stream preprocessor collapses CR and CRLF to a single LF *before* tokenization, so a raw
-  `\r` written into markup does not come back — the server would render `a\r\nb` and the client read
-  `a\nb`, which is a silent hydration mismatch on every render of a `<textarea>` value, a CSV cell, or
-  any string from a Windows-authored source. Character references are resolved *after* preprocessing,
-  so the escaped form does survive; verified identical in Chromium, Firefox and WebKit.
+`static: true` renders a page that will not be interactive, **about 3x faster** — 16 µs against
+42–50 µs for a component rendering twenty rows. A server render is one shot: the subscriptions a store
+builds while it runs are never fired afterwards, so tracking every read to create them is the whole of
+the cost. With `static` on, a store's property reads skip tracking.
 
-  **RAWTEXT is the exception, and it is not fixable.** A browser does not decode a character
-  reference inside `<style>` or `<script>` — that is what makes them RAWTEXT — so `&#13;` there is
-  the literal six characters, while the preprocessor still collapses the raw CR. There is no spelling
-  of a carriage return that survives in those two elements. `<title>` and `<textarea>` are RCDATA,
-  which *does* decode references, which is why they round-trip correctly. All three behaviors are
-  asserted against Chromium, Firefox and WebKit in `tests/browser/rawtext-carriage-return.test.js`.
+- **The markup is identical**, and not on a chosen example: `tests/ssr-static-mode.test.mjs` renders
+  *every* fixture in the suite both ways and compares markup, styles and title. A mode that cannot
+  drift is why this is an option rather than a second renderer.
+- **A store written during a static render throws**, naming the option, rather than serving markup
+  that reflects none of the writes. In both builds — a server runs the production build, so a
+  development-only guard would be missing from the only place it matters.
+- It applies to the render, not to the process: a render queued behind a static one, and any store
+  written outside a render, are reactive as ever.
 
-  In practice this reaches an interpolated stylesheet or inline script whose source has Windows line
-  endings — a repository checked out with `core.autocrlf=true` puts CRLF inside every template
-  literal, `css` blocks included. CR and LF are interchangeable whitespace to both CSS and
-  JavaScript, so nothing renders wrongly; the two sides simply hold different strings.
-- **Three things cannot survive a server round trip, and are the only three.** Two are characters and
-  one is a character in a position — see the carriage return above, which round-trips everywhere
-  except inside `<style>` and `<script>`.
-  - **NUL** (`\u0000`) is dropped in text, rewritten to U+FFFD in an attribute **and inside
-    RAWTEXT**, and `&#0;` is a parse error that also yields U+FFFD. No spelling round-trips, so it is left alone rather than
-    silently turned into U+FFFD — that would make the markup lie about what the component rendered
-    without making the two sides agree.
-  - **A lone surrogate** (`\uD800` with no pair) is not encodable in UTF-8, so the *transport*
-    replaces it with U+FFFD — a real HTTP response does exactly what `Buffer.toString('utf8')` does.
-    Nothing server-side can prevent that.
+It is `@verajs/ssr`'s own `'store'` insert — core knows nothing about it.
 
-  Both are covered by `tests/ssr-text-boundary.test.mjs`, alongside astral pairs, combining marks,
-  bidi controls, noncharacters and 20 other cases that *do* round-trip exactly.
-- **What a component does to itself in `connectedCallback` reaches the markup** — a `setAttribute`,
-  an `aria-*`, a class, a reflected property.
-- **`<style>` and `<script>` content is written raw**, and their own end tags are neutralized
-  (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer). A browser does
-  not decode a character reference inside either, so escaping there protects nothing and corrupts
-  the content: an interpolated `.a > .b` used to serve `.a &#62; .b`, a selector matching nothing,
-  while the client rendered it correctly. `<title>` and `<textarea>` are RCDATA rather than RAWTEXT
-  — references *are* decoded there — so those keep ordinary escaping, which is also what the client
-  produces for them.
-- Templates flatten through a sigil-aware serializer with per-template-identity plan caching:
-  `?bool` resolved by truthiness, `.value`/`.checked`/`.selected` mirrored to attributes on form
-  controls, `@event`/`&ref` stripped without residue, every interpolated value escaped at the
-  boundary.
-- **A property bound on a rendered component tag is DELIVERED, not dropped**: written
-  (`<props-row .item=${row}>`) or spread (`props({ item })`), the value reaches the instance the
-  nested-component scan renders — by identity, before its lifecycle, exactly where
-  `renderToString`'s own `props` option puts the entry component's. The markup never changes (a
-  property is not an attribute), so the child's server output comes from the same data its client
-  render will get, which is the hydration contract. An **unregistered** dashed tag passes through
-  untouched — its properties stay the client's to apply. Values that cannot exist server-side
-  (a DOM node, a callback into browser state) are the component's to guard, as in every SSR
-  framework.
-- Output is declarative shadow DOM with **zero framework comments**; light-DOM `@scope` styles are
-  returned separately for the page shell.
-- Client-side, `@verajs/renderer/hydrate` adopts the server DOM markerlessly (swap one import).
-- Measured (`node bench/ssr.mjs`, fastest of 7 rounds), against lit on both comparisons it
-  supports — µs per render, small component / 100-row table:
+## Security
 
-  | | small | table |
-  | --- | --- | --- |
-  | **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` on a template | **0.3** | **35** |
-  | | lit 2.4 | lit 312 |
-  | **whole component** — `renderToString` vs a real `LitElement` | **4.3** | **49** |
-  | | lit 5.7 | lit 414 |
+**Escaping happens at the render boundary, always.** Every interpolated value in a template is
+escaped as it is written; `<style>` and `<script>` content is written raw with its own end tag
+neutralized (`<\/style`, `<\/script` — valid CSS and JavaScript, invisible to the tokenizer), because a
+browser does not decode a character reference inside either: escaping there protects nothing and
+corrupts the content (`.a > .b` used to serve as `.a &#62; .b`, a selector matching nothing).
+`<title>` and `<textarea>` decode references, so they keep ordinary escaping.
 
-  Vue's compiled SSR is 7.9 / 61 µs and React 6.2 / 453 µs, neither of which renders a
-  component. The `lit element` row runs in a separate process because `@lit-labs/ssr` and this
-  package both install DOM globals and cannot share one.
-- **Most of a component render is core's lifecycle, not this package.** Rendering the same component
-  with its `connectedCallback` emptied — which removes core's `init`, store, hooks and re-render and
-  leaves the shim, the serializer and the nested scan — costs **1.0 µs of a 6.4 µs render**, so
-  everything this package does is about a sixth of it and the component's own lifecycle is the rest.
-  (Those two figures come from a plain `await` loop rather than `bench/ssr.mjs`'s batched rounds, so
-  they are higher than the table above and only their *ratio* is comparable.)
+**Two options are raw markup, on purpose: `children`, and the string form of `attributes`.** Both are
+written through untouched — that is what they are for — so neither may carry anything from a request
+unsanitized. Everything else is checked:
 
-`examples/ssr-node/server-native.mjs` is a complete server on bare `node:http`, serving the whole
-round trip — the page it returns ships a client module that imports `@verajs/renderer/hydrate` and
-adopts the markup in place.
+- **The object form of `attributes` cannot leave the tag or add a second attribute.** A name carrying
+  whitespace, a quote, `/`, `=` or `>` is refused — the set `setAttribute` refuses in a browser — and
+  every value is escaped. `false`, `null` and `undefined` omit the attribute; `true` writes it empty (`name=""`).
+- **A `__proto__` key in `props` is skipped**, so handing the option a parsed request body cannot
+  replace the component's prototype.
+- **`base` contains the module URL.** `renderToString` executes the module it is given, and mapping
+  a route to a component file is the obvious way to use a server renderer — so pass `base` whenever
+  any part of the URL came from a request:
 
-**No streaming.** `renderToString` returns a string, where `@lit-labs/ssr` yields a stream. That
-buys time-to-first-byte in proportion to how long a render takes, and a 100-row table here is 47 µs
-— the response is built before a streaming implementation would have flushed its first chunk. It is
-a real difference in shape, and worth revisiting for a page big enough that it stops being one.
+  ```js
+  renderToString(new URL(`${page}.js`, components), { base: components });
+  ```
 
-**Importing `@verajs/ssr` installs a DOM on `globalThis`.** That is what it is for, and it means the
-import is not passive: `document`, `customElements`, `HTMLElement` and the rest are *replaced*, so a
-process that already has a DOM — jsdom in a test, say — loses it the moment this module is loaded,
-however late. A component defined afterwards is never upgraded and nothing says why. **Exercise both
-sides in separate processes**, which is what this repo's own tests do; `tests/lifecycle-parity.test.mjs`
-renders the server half in a subprocess for exactly this reason.
+  Anything resolving outside it is refused. `new URL` applies `../` before `renderToString` sees the
+  string, so without this the traversal has already happened by the time the call is made. It is
+  opt-in because most calls name a constant, and a check that is always trivially satisfied stops
+  being read.
+- **`styles` comes back escaped for a `<style>` element**, since that is where a page shell puts it.
+- **A dynamic attribute *name* is refused.** `<b ${name}="x">` is malformed on both sides — the
+  client's parser does not treat a marker as a name — so rather than write markup no browser would
+  produce, it throws and names `@verajs/renderer/spread`, which exists for names known only at
+  runtime and which this serializer understands.
 
-**And import it first**, before anything that imports `@verajs/renderer`.
+## Styles
 
-The module that actually needs the shims is the renderer, not core: it builds two shared
-`TreeWalker`s at import time, so importing it against a bare Node global object throws before your
-component ever runs. A component reaches it through `keyed` or `hold`, which is why the rule reads
-as "import this first" — measured, core, `@verajs/styles` and `@verajs/router` are all order-
-independent, and only `@verajs/renderer` is not.
+`@verajs/styles` is wired on import, because `static styles` are part of what a browser renders.
 
-**The entry component is found by matching the module's exports against the registry**, so export
-the class (`export default class …`) or pass `{ tag }`. It used to guess by diffing the registry
-around the import, which two concurrent renders could not share: both saw both modules' new
-registrations, and a request could be answered with another component's markup.
+- **Shadow DOM:** markup cannot carry a constructed sheet, so a component's styles are serialized as
+  `<style data-vm-sheet="styles">` inside its template — plain strings first, then sheets, which is the
+  order the browser's cascade applies them in (adopted sheets win over a root's own `<style>`). When
+  every style is a sheet the client can adopt, it removes that copy, so the rules never apply twice.
+- **Light DOM:** a component's `@scope (tag) { … }` block is returned in `styles` for the page shell,
+  **only for the components this render touched**, and — with a shared `seen` — once across a page of
+  islands.
+- **A tag's CSS is established once per process**: whichever render reaches it first sets it. That is
+  what stops a per-class sheet being emitted once per instance; the consequence is that CSS varying
+  per request is dropped, with a warning — once, naming the component. Put what varies in
+  custom properties (see the `@verajs/styles` README).
 
-`renderToString` executes the module you name, so **pass `base` whenever any part of the URL came
-from a request**:
+## The server DOM
 
-    renderToString(new URL(`${page}.js`, components), { base: components });
+Importing `@verajs/ssr` installs a DOM on `globalThis`: `document`, `window`, `customElements`,
+`HTMLElement` and the rest, **replacing** any already there.
 
-Anything resolving outside it is refused. `new URL` applies `../` before `renderToString` sees the
-string, so without this the traversal has already happened by the time the call is made — and
-mapping a route to a component file is the obvious way to use a server renderer. Same containment,
-and the same wording, as `@verajs/autoloader` uses for the URLs it derives.
+- **Import it first**, before anything that imports `@verajs/renderer`, which builds `TreeWalker`s at
+  import time and throws against a bare Node global. Core, `@verajs/styles` and `@verajs/router` are
+  order-independent.
+- **Run any other DOM in another process.** jsdom in a test loses its globals the
+  moment this module loads, however late, and a component defined afterwards is never upgraded — with
+  nothing saying why. This repository's own tests render the server half in a subprocess for exactly
+  this reason.
+- **A client renderer wired after this import is refused** — it would displace the server's and every
+  component would render empty. Guard the client wiring (`if (!globalThis.__veraSsrShimmed)`), or keep it
+  out of the modules the server imports.
 
-It is opt-in because most calls name a constant, and a check that is always trivially satisfied
-stops being read.
+**It is complete, and checked twice.** Every member a real element, shadow root, document,
+`CSSStyleSheet`, `DOMTokenList` or window exposes in Chromium, Firefox and WebKit is either
+implemented or listed as out of scope with a reason — and every implemented member is compared against
+a real DOM, so one that exists and answers differently fails too. That second check found `tabIndex`
+defaulting to 0, `draggable` defaulting to true, `role` answering `''` where the platform answers
+`null`, `textContent = null` writing the word "null", and a closed shadow root handed straight back. It
+compares a member's *shape*, not its answer to every input, so it is a net rather than a proof — three
+classes of defect were found by going around it deliberately. The window's ~700 interface constructors
+are covered by a rule rather than a list (every interface this DOM implements is exposed, so
+`instanceof` answers for anything it hands you); `tests/dom-surface.mjs` holds the list, with no
+dependency involved.
 
-The globals a component reaches for are here too — `matchMedia` (matching nothing, as every server
-renderer answers), `getComputedStyle` (empty, as a detached element gives in a browser),
-`IntersectionObserver`/`ResizeObserver`/`MutationObserver`/`PerformanceObserver` (inert, because
-they observe things a server does not have, but constructing one must not throw), `requestIdleCallback`
-(which joins the frame queue), and the DOM interfaces themselves so `instanceof Node` answers rather
-than throwing.
+- **Element-specific properties reach the markup.** `input.disabled`, `a.href`, `td.colSpan`,
+  `option.selected` — 273 of them across 44 tags, measured from the three engines
+  (`scripts/measure-element-reflections.mjs`), each tag getting exactly its own interface, so
+  `'disabled' in paragraph` stays `false`. Without this, `button.disabled = true` stored a plain
+  property and **served a button that was not disabled** until the bundle landed. A property is in the
+  table only when all three engines agree and reading the attribute back gives what was written, which
+  excludes ones resolved against a document URL (`form.action`), read from layout (`input.width`) or
+  clamped (`meter.value`). `value`, `checked` and `selected` are mirrored to the markup deliberately:
+  a browser keeps them off it, but on a server the markup is the whole output.
+- **Events are real and propagate** — capture, target and bubble phases, `once`, `handleEvent`
+  objects, `stopPropagation`, `stopImmediatePropagation`, `composedPath()`, a `dispatchEvent` return
+  reflecting `preventDefault`, and a shadow boundary crossed only by a `composed` event. The walk is
+  over the node tree, so an event does not continue into `document` or `window`.
+- **Where the platform throws, this throws** — an attribute or tag name that cannot be written, a
+  second `attachShadow` or `attachInternals`, an invalid custom-element name, `appendChild` of a
+  non-node. Lenience on a server does not make anything work; it moves the failure to the client and
+  strips the context.
+- **A selector this DOM cannot answer honestly throws** rather than answering `null`. It matches type,
+  class, id, every attribute operator, `:not()` and all four combinators — descendant, `>`, `+` and
+  `~`. Everything else raises, for **two different reasons**: `:hover`, `:checked`, `:visible` and
+  `:root` need user state, layout or a document a server does not have, while `:first-child`,
+  `:nth-child()`, `:empty`, `:first-of-type`, `:is()` and `:has()` are answerable here and simply are
+  not implemented.
+- **Names fold as the platform folds them**: an HTML element lower-cases its tag and attribute names,
+  so an `attributes` entry spelled `User-ID` matches an `observedAttributes` entry `user-id`; an
+  element from `createElementNS` outside the HTML namespace keeps its case, so an SVG `viewBox`
+  survives.
+- `attachShadow({ mode: 'closed' })` gives `element.shadowRoot === null`, as in a browser, and the root
+  is serialized anyway — declarative shadow DOM expresses `closed`. `attachInternals()` works, so a
+  form-associated custom element runs.
+- The globals a component reaches for exist: `matchMedia` (matching nothing), `getComputedStyle`
+  (empty, as a detached element answers), `IntersectionObserver`, `ResizeObserver`,
+  `MutationObserver` and `PerformanceObserver` (inert, but constructing one does not throw).
+- **`localStorage`, `sessionStorage`, `indexedDB` and `caches` are deliberately absent.** They are one
+  browser's state; a server that invented an empty one would render a logged-out shell the client
+  immediately replaces, with nothing failing anywhere. `typeof localStorage === 'undefined'` is the
+  guard the ecosystem already writes, and it only works if this does not lie.
 
-**`localStorage`, `sessionStorage`, `indexedDB` and `caches` are deliberately absent.** They are one
-browser's state, and a server that invented an empty one would render a logged-out shell that the
-client immediately replaces, with nothing failing anywhere. `typeof localStorage === 'undefined'` is
-the guard the ecosystem already writes, and it only works if this does not lie. The same list is
-enforced in `tests/ssr-dom-surface.test.mjs`, in both directions.
+**Where it deliberately differs:**
 
-Known limits:
+- **A collection is a plain array**, not a live `NodeList` — `childNodes`, `children`,
+  `querySelectorAll`, the `getElementsBy*` family. There is nothing to be live over in a single pass;
+  `item()` and `namedItem()` are provided anyway.
+- **A parsed `<template>`'s content is opaque**, and `template.content` is `undefined`. The element is
+  modeled — queried, styled, serialized byte for byte — and a query on the host correctly does not
+  descend into it; reaching *into* one is what is missing.
+- **A constructed sheet holds its CSS as text**, so `cssRules` is empty and `deleteRule` refuses
+  rather than pretends. `checkVisibility()` is always `false` and layout reads as zero, as for a
+  detached element in a browser. A `style` value is kept as written (`url("data:…")` keeps its quotes).
+- `insertAdjacentHTML` with `beforebegin` or `afterend` raises a message explaining that a
+  server-rendered component has no parent.
 
-- **`connectedCallback` must be synchronous.** Rendering recurses inside `String.replace`, which
-  cannot await, so an `async connectedCallback` is refused with an error rather than rendered empty.
-  Load data before `renderToString` and pass it in as attributes.
-- **`useLayoutEffect` runs, but too late to reach the template it sits beside.** It is coalesced on
-  a microtask, and `renderToString` is asynchronous, so it *does* execute — a `setAttribute` or an
-  API call inside one happens on the server, which is worth knowing before you put one there. What
-  it cannot do is change what the template already rendered: state settled in a layout effect is not
-  in the markup. Settle it before `render()`, or use `useEffect`, whose frame is drained repeatedly
-  and does reach the markup. `tests/lifecycle-parity.test.mjs` pins both halves of that.
-- `keyed`/`hold` are client constructs; use plain `.map` in SSR templates.
-- **A routed component renders its shell, not its route.** `initRouter` works server-side — the
-  shim provides enough `window` for it — so the nav and the `[view]` outlet reach the markup and the
-  client fills the outlet on hydration. The route's own content does not, **for the same reason an
-  `async connectedCallback` is refused**: rendering is synchronous end to end and `navigate` is
-  `async`. The initial navigation is scheduled on a frame, the frame runs, `navigate` is called and
-  returns a promise — and the markup is serialized before that promise settles, so the component
-  behind the route is never called. The outlet itself *is* found, and awaiting `navigate` outside a
-  render works. Render the route yourself and pass it as `children` if it has to be in the first
-  response.
-- **A dynamic attribute *name* is refused.** `<b ${name}="x">` is malformed on both sides: the
-  client hands the template to the platform's parser and a marker is not a name, and this serializer
-  used to emit `<b="x">`, which is not an attribute either. Rather than write markup no browser would
-  produce, it throws and names the alternative — `@verajs/renderer/spread`, which exists for names
-  that are not known until runtime and which this serializer understands.
-- **`slotAssignment` cannot be server-rendered.** Declarative shadow DOM can express `mode`,
-  `delegatesFocus`, `clonable` and `serializable` — all of which are serialized — but has no form
-  for manual slot assignment, and `attachShadow` **ignores the options it is handed** when it reuses
-  a declarative root, so the client cannot repair what the markup left out.
+## What cannot round-trip
+
+- **A `<select>`'s value is served as `<option selected>`** — assigning the property *selects an
+  option*, so that is all markup can say. Matching follows the platform (the `value` attribute
+  verbatim, otherwise the option's text stripped and collapsed; first match wins), asserted against
+  Chromium, Firefox and WebKit in `tests/browser/select-value.test.js`. But a value matching no option cannot be served:
+  the client leaves nothing selected, while a parsed `<select>` with no `selected` option shows its
+  first, and there is no markup for "none of them".
+- **A carriage return survives, as `&#13;`** — the HTML parser collapses a raw CR before tokenizing,
+  so escaping it is what keeps a `<textarea>` value or a CSV cell identical on both sides.
+  **RAWTEXT is the exception, and it is not fixable**: inside `<style>` and `<script>` a reference is
+  not decoded, so there is no spelling of a CR that survives there. CR and LF are interchangeable
+  whitespace to CSS and JavaScript, so nothing renders wrongly — the two sides simply hold different
+  strings. Asserted in `tests/browser/rawtext-carriage-return.test.js`.
+- **Three things cannot survive a server round trip, and are the only three**: that carriage return
+  inside `<style>`/`<script>`, and two characters. **NUL** is dropped in text and becomes U+FFFD in an
+  attribute or RAWTEXT, and no spelling round-trips, so it is left alone rather than silently
+  rewritten. **A lone surrogate** is not encodable in UTF-8, so the *transport* replaces it. Both are
+  covered by `tests/ssr-text-boundary.test.mjs`, alongside twenty-odd cases that do round-trip exactly.
+
+## Known limits
+
+- `keyed()` and `hold()` are client-renderer constructs; templates that must also server-render use
+  plain `.map`.
+- **`slotAssignment: 'manual'` cannot be server-rendered**: declarative shadow DOM has no form for it,
+  and `attachShadow` ignores its options when it reuses a declarative root, so the client cannot
+  repair it. `mode`, `delegatesFocus`, `clonable` and `serializable` are all serialized.
 - A function interpolated at a text position renders as nothing here and as its source on the
   client — put functions in `@event` bindings, where both sides drop them.
+- **No streaming.** `renderToString` returns a string where `@lit-labs/ssr` yields a stream. That buys
+  time-to-first-byte in proportion to how long a render takes, and a 100-row table here is PERF_TABLE µs
+  — the response is built before a stream would flush its first chunk. Worth revisiting for a page big
+  enough that it stops being true.
 
-The pre-native strategies (wcc fork, lit-labs renderer, Astro sketch, Reef-era diff renderer)
-are retired; strategy 4 is the only one shipped.
+## Performance
+
+`node bench/ssr.mjs` (fastest of 7 rotated rounds; run `cd bench && npm install` first), µs per render
+— a small component, and a 100-row table:
+
+| | small | table |
+| --- | --- | --- |
+| **template serialization** — `serializeTemplate` vs `@lit-labs/ssr` | **PERF** | **PERF** |
+| | lit PERF | lit PERF |
+| **whole component** — `renderToString` vs a real `LitElement` | **PERF** | **PERF** |
+| | lit PERF | lit PERF |
+
+Vue's compiled SSR is PERF / PERF µs and React PERF / PERF µs, neither of which renders a component.
+The lit element row runs in a separate process: `@lit-labs/ssr` and this package both install DOM
+globals and cannot share one.
 
 ## Also exported
 
-`registry` is the `Map` of tag → class this process has seen through `customElements.define`, and
-`serializeTemplate` is the sigil-aware template flattener — the two seams an advanced integration
-(a custom scanner, a fixture builder) reaches for. Everything an ordinary server needs is
-`renderToString` / `renderToStringAsync`; these are listed so their presence is a decision rather
-than an accident.
+`registry` — the `Map` of tag → class this process has seen through `customElements.define` — and
+`serializeTemplate`, the sigil-aware template flattener (one template to markup, no component scan),
+are the two seams an advanced integration reaches for: a custom scanner, a fixture builder.
 
 ```js
-import { renderToString, renderToStringAsync, registry, serializeTemplate } from '@verajs/ssr';
-
-const { html: markup } = await renderToString(new URL('./components/app.js', import.meta.url));
-const page = await renderToStringAsync(entry);        // same signature, awaits async lifecycles
-
-registry.has('app-shell');                            // true once the component module has run
-const fragment = serializeTemplate(html`<p>${x}</p>`); // one template to markup, no component scan
+import { registry, serializeTemplate } from '@verajs/ssr';
+registry.has('app-shell');                             // true once the component's module has run
+const fragment = serializeTemplate(html`<p>${x}</p>`); // '<p>…</p>', every value escaped
 ```
 
 ## For AI assistants — and anyone who wants the whole API on one page
