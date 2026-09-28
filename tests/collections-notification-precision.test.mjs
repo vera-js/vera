@@ -4,7 +4,7 @@
  * `collections-differential-fuzz` already carries a notification oracle, and it is the right one for
  * what it asks: a reader that must wake when the collection changes and stay quiet when it does not.
  * That is **whole-collection**. This asks the finer question — `set` notifies both the specific key
- * *and* the `GLOBAL` sentinel, so what any given reader wakes for depends entirely on what it tracked.
+ * *and* the shape channel, so what any given reader wakes for depends entirely on what it tracked.
  *
  * The two failures are asymmetric. **Under-notification is stale UI**: a component showing a value the
  * map no longer holds. **Over-notification is invisible** — every component reading one key re-renders
@@ -20,7 +20,7 @@
  * ## One over-notification, measured and left alone
  *
  * A `size` reader wakes when an existing key is set to a **new value**, which cannot change the size.
- * `set` notifies `GLOBAL` on any change and `size` tracks `GLOBAL`; separating structural from value
+ * `set` notifies the shape channel on any change and `size` tracks it; separating structural from value
  * changes would need a second sentinel. Recorded here rather than asserted away, so the choice is
  * visible if the cost ever matters.
  */

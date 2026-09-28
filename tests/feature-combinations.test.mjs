@@ -341,7 +341,7 @@ test('styles + hold: five park/restore cycles adopt once and hoist once', async 
 
 /**
  * collections + keyed: a keyed list driven straight off a reactive Map. The Map notifies through
- * the 'collection' insert while keyed moves rows by identity, so the cells worth pinning are the
+ * the handler its 'store' insert supplies while keyed moves rows by identity, so the cells worth pinning are the
  * mutations where those two accounts of "what changed" could disagree: a value set updates the
  * row IN PLACE, a delete removes exactly its row, an add appends without touching siblings, and a
  * clear-plus-reinsert in reversed order MOVES the surviving rows (identity held) — with the whole

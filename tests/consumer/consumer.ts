@@ -112,8 +112,7 @@ back(); forward(); go(-1);
  * compiles, so an unexercised one is an unverified claim.
  */
 import { allowRenderLoop, setStaticStores } from '@verajs/core';
-import { revision } from '@verajs/inserts';
-import { GLOBAL, collectionMethod } from '@verajs/store';
+import type { StoreInsert } from '@verajs/inserts';
 import {
   formatReport, getReport, isProfiling, profile, showProfiler, startProfiling, stopProfiling,
 } from '@verajs/renderer/profiler';
@@ -128,9 +127,16 @@ class LateAdditions extends HTMLElement {
 customElements.define('x-late', LateAdditions);
 
 setStaticStores(true);
-void revision;
-void GLOBAL;
-void collectionMethod;
+/** A store module that wraps core's handler — the shape batching and devtools take. */
+const observeWrites: StoreInsert = (value, handler, kit) =>
+  handler?.set && {
+    ...handler,
+    set: (obj, prop, next, receiver) => {
+      kit.trigger(obj, kit.shape, next, undefined);
+      return handler.set!(obj, prop, next, receiver);
+    },
+  };
+void observeWrites;
 
 /** The profiler's own surface, in the order a user meets it. */
 startProfiling();

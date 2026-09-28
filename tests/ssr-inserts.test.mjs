@@ -6,9 +6,10 @@
  * server-side too — a module that silently does nothing there is the failure this framework has
  * already shipped once, in the other direction.
  *
- * The observers below all have **block bodies**, deliberately: a `'proxy-handler'`'s return value
- * *becomes the value read*, so `() => count++` would make every read of every store yield a number.
- * That is the point of the hook and the trap in it, and it is asserted here as well as documented.
+ * The store observer below wraps core's handler and hands every read and write through to it; what
+ * its `get` returns *becomes the value read*, so one that returned its counter would make every read
+ * of every store yield a number. That is the trap in composing a handler, and it is asserted here as
+ * well as documented.
  */
 import { renderToString } from '@verajs/ssr';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -22,8 +23,11 @@ try {
     `${dir}/probe.js`,
     `import { init, render, html, createStore, wire } from '@verajs/core';
 export const observed = { reads: 0, writes: 0, inits: 0, order: [], errors: [] };
-wire({ on: 'proxy-handler', fn: () => { observed.reads++; }, priority: 30 });
-wire({ on: 'set-handler', fn: () => { observed.writes++; }, priority: 30 });
+wire({ on: 'store', priority: 30, fn: (value, handler) => handler?.set && {
+  ...handler,
+  get(obj, prop, receiver) { observed.reads++; return handler.get(obj, prop, receiver); },
+  set(obj, prop, next, receiver) { observed.writes++; return handler.set(obj, prop, next, receiver); },
+} });
 wire({ on: 'init', fn: () => { observed.inits++; observed.order.push('init@30'); }, priority: 30 });
 wire({ on: 'init', fn: () => { observed.order.push('init@70'); }, priority: 70 });
 wire({ on: 'error', fn: (error) => { observed.errors.push(String(error.message)); }, priority: 30 });
@@ -49,17 +53,17 @@ let pass = 0;
 const failures = [];
 const check = (name, condition, extra = '') => (condition ? pass++ : failures.push(`${name} — ${extra}`));
 
-check('a proxy-handler insert sees reads', observed.reads > 0, String(observed.reads));
-check('a set-handler insert sees writes', observed.writes > 0, String(observed.writes));
+check('a store insert wrapping get sees reads', observed.reads > 0, String(observed.reads));
+check('a store insert wrapping set sees writes', observed.writes > 0, String(observed.writes));
 check('an init insert runs', observed.inits > 0, String(observed.inits));
 check('init inserts run in priority order', observed.order.join(',') === 'init@30,init@70', observed.order.join(','));
 
 /**
- * The value written before `render()` is the value rendered. An observing `'proxy-handler'` that
- * returned something would replace it — this is what that failure looks like from the outside, and
- * it is indistinguishable from the store being broken.
+ * The value written before `render()` is the value rendered. An observing `get` that returned
+ * something else would replace it — this is what that failure looks like from the outside, and it is
+ * indistinguishable from the store being broken.
  */
-check('an observing proxy-handler does not replace the value read', /<p>1<\/p>/.test(markup), markup);
+check('an observing store insert does not replace the value read', /<p>1<\/p>/.test(markup), markup);
 
 if (failures.length) {
   console.log(`\n  ${failures.length} insert failure(s):\n`);

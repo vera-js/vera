@@ -11,8 +11,8 @@
  * somewhere, which is the moment to notice you did not mean to export it.
  *
  * Two real leaks were found by running this the first time: `@verajs/store`'s `collectionMethod`
- * and `GLOBAL`, which are the `'collection'` extension point and are the only way to implement one,
- * and `@verajs/renderer/tag`'s `jsxName` and `BOOLEAN_ATTRIBUTES`, which exist so
+ * and `GLOBAL`, which were the old `'collection'` extension point's building blocks (both retired
+ * with it, 2026-09-27), and `@verajs/renderer/tag`'s `jsxName` and `BOOLEAN_ATTRIBUTES`, which exist so
  * `tests/jsx-name-mapping.test.mjs` can hold them against `@verajs/jsx`'s deliberate second copy.
  */
 import { test } from 'node:test';

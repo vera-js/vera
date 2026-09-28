@@ -144,20 +144,3 @@ test('a hook that re-runs thousands of times does not make writes progressively 
   );
 });
 
-test('a tracked read stays cheaper than a write, which is why the read chain is cached and the write chain is not', () => {
-  const store = core.createStore({ a: 1 });
-  const read = best(() => { globalThis.__perfSink += store.a; }, 200000);
-  let n = 0;
-  const write = best(() => { store.a = n++; }, 50000);
-  /**
-   * The `'proxy-handler'` chain is cached for reads and deliberately not for writes, and the comment
-   * justifying that rests on a write costing several times a read. Measured 6.6x when written and
-   * 6.6x now — the absolutes moved, the ratio did not.
-   */
-  assert.ok(
-    write / read > 2,
-    `a write should cost several times a tracked read; measured ${(write / read).toFixed(1)}x ` +
-      `(read ${read.toFixed(0)} ns, write ${write.toFixed(0)} ns). If they converged, the reasoning for ` +
-      `caching the read chain and not the write chain no longer holds.`
-  );
-});

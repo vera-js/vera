@@ -1,6 +1,6 @@
 /**
- * A Map-driven component through the whole pipeline: server-rendered (the 'collection' insert
- * wired in the SERVER process — reading a Map's methods inside a store is exactly what it gates),
+ * A Map-driven component through the whole pipeline: server-rendered (collections' 'store' insert
+ * wired in the SERVER process — a Map in a store is reactive only when something claims it),
  * hydrated by adoption, and LIVE afterwards — a `set` and a `delete` must render, on the adopted
  * nodes, because a component that hydrates and then ignores its Map passes every static read.
  * The lifecycle-parity harness wires collections on neither side, which is why this is a file
