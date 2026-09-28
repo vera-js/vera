@@ -25,7 +25,7 @@ for (const key of ['window', 'document', 'HTMLElement', 'customElements', 'CSSSt
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window);
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window);
 
-const { init, createStore, render, wire, html, useEffect } = await load('core');
+const { init, createStore, createHook, render, wire, html, useEffect } = await load('core');
 const { renderer, renderInto } = await load('renderer');
 wire([renderer]);
 
@@ -176,7 +176,12 @@ test('a `store` insert that throws surfaces at the use that consulted it — and
   assert.throws(() => state.tags, /store-boom/, 'a throwing store insert was swallowed');
   /** Put it back; the store was never decided, so its next use consults the chain afresh. */
   wire({ name: 'store-thrower', on: 'store', fn: () => undefined, priority: 3 });
-  assert.equal(state.tags, 1, 'the failed decision was not kept');
+  /** Reactive, not merely readable: a store stripped of its traps would still read back `1`. */
+  let runs = 0;
+  const hook = createHook({ element: {}, priority: 10, callback: () => { runs++; void state.tags; } });
+  hook(undefined, true);
+  state.tags = 2;
+  assert.equal(runs, 2, 'the failed decision was not kept — the store is still reactive');
 });
 
 test('a `value` insert that throws surfaces at the render that committed the value', () => {
