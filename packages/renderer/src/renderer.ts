@@ -1,282 +1,85 @@
 /**
- * @verajs/renderer — a ground-up, keyed, template-identity renderer.
+ * @verajs/renderer — a template-identity renderer.
  *
- * Replaces the Reef-derived renderer, which flattened every template to an HTML string and
- * re-parsed it on each change — O(whole template) work for a one-row edit, measured at 85 ms for a
- * two-row swap that lit-html does in 3.5 ms.
+ * A tagged template's `strings` array is interned per call site, so it keys a parsed `<template>`.
+ * An instance clones it and binds the expression positions; every later render of the same shape
+ * commits only the values that changed. Lists reconcile by index here, by key through
+ * `@verajs/renderer/keyed`.
  *
- * The architecture here is the one that wins that benchmark:
+ * Contracts the speed pays for:
+ * - The renderer owns its container below the mount point: a part that owns a whole parent clears it
+ *   with one `textContent = ''`.
+ * - Do not `normalize()` rendered content — child anchors are text nodes.
+ * - A string renders as text, never as markup. There is no `innerHTML` sink.
  *
- *   1. A tagged template literal's `strings` array is frozen and IDENTICAL for every call from the
- *      same call site, so it is a cache key for the template's static shape. The shape is parsed
- *      ONCE into a `<template>` element with markers where the expressions go.
- *   2. Rendering clones that template and binds "parts" to the marker positions. Every later render
- *      of the same shape only compares and commits the dynamic values — static content is never
- *      touched again.
- *   3. Arrays reconcile KEYED (see `keyed()`), with head/tail fast paths and map-based moves, so a
- *      reorder moves nodes instead of rebuilding them.
- *
- * Built in, where lit-html requires directive imports: keyed list reconciliation (`keyed`),
- * element refs (element-position expressions), toggled-DOM preservation (`hold`), and a
- * whole-range fast clear — one `textContent = ''` where lit removes thousands of nodes one at a
- * time. Like-for-like (lit-html + repeat + ref + cache: 5 021 B gzip), this file is ~28% smaller.
- *
- * What it deliberately does NOT have, which is why it is smaller than lit-html: no directive
- * protocol, no `noChange`/`nothing` sentinels (in a single-expression attribute, `null`/`undefined`
- * REMOVE the attribute; in a child, they clear it), no sanitizer indirection, no async parts, no
- * dev-mode branches.
- *
- * Known limits, deliberate and shared with lit-html's envelope: no bindings inside comments (the
- * value is consumed and ignored), no dynamic tag names, and nested `<template>` elements' contents
- * are not traversed.
- *
- * CONTRACTS THE SPEED PAYS FOR — these are the trade, documented rather than discovered:
- *
- * - **The renderer owns its container below the mount point.** The whole-range fast clear wipes
- *   everything in a parent the part fully owns, including nodes user code appended there by hand
- *   (lit-html would preserve them). Same contract as mounting Vue or React into a container.
- * - **Do not call `Node.normalize()` on rendered content.** Child anchors are text nodes, and
- *   normalize merges adjacent text — lit-html's comment anchors are immune to this; ours are not.
- * - **A plain string renders as text, never as HTML.** The Reef renderer parsed strings as markup;
- *   this one has no innerHTML sink at all (an XSS class removed). The deliberate escape hatch for
- *   trusted markup is a property binding: `.innerHTML=${trusted}`.
- * - **Hydration is automatic and markerless.** The first render into a container that already has
- *   children adopts them as server output of the same template (statics matched byte-for-byte,
- *   anchors installed by splitting live text at known value positions), falling back to a clean
- *   render on any mismatch. Requires the initial client render to match server state — same
- *   contract as React/Vue hydration.
- * - **No directive protocol.** The template language itself is closed to extension — Vera extends
- *   at the framework layer (inserts) and through element refs, not inside the renderer's value
- *   handling.
- * - Event handlers are invoked with `this` bound to the ELEMENT (lit binds its host).
- *
- * NAMING NOTE: internal class fields and methods are `_`-prefixed because the production build
- * mangles properties matching /^_[a-z]/ (see defaultRollupConfig). That is what lets this file use
- * full descriptive names while still shipping one-letter properties — locals and top-level names
- * are mangled by default anyway, but property names are not. `_$litType$` and `handleEvent`
- * deliberately do not match the pattern: the first is an interop wire format, the second is called
- * by the DOM itself.
+ * Internal members are `_`-prefixed because the production build mangles `/^_[a-z]/`. `$`-named
+ * members cross bundle boundaries (keyed, spread, slots) and survive mangling by not matching it.
  */
 
-import { attributeValueComplaint, eventNameComplaint } from './dev-values.js';
-import { reportUncaught } from '@verajs/shared-utils';
+import type { TemplateResult } from './types.js';
 
-import type { InstanceHook, Part, SlotSeamState, TemplateResult } from './types.js';
+export type { TemplateResult } from './types.js';
 
-export type { Part, SlotSeamState, TemplateResult } from './types.js';
-
-
-/**
- * Preserves the DOM of templates a child position toggles away from, instead of destroying it —
- * form values, scroll positions and media playback survive the round trip (lit-html calls this
- * `cache`). Stashed DOM is parked in its instance's own fragment and re-adopted on return.
- *
- * ```js
- * html`<div>${hold(editing ? editor() : viewer())}</div>`
- * ```
- *
- * **Anything that is not a template passes straight through.** There is nothing to park for a
- * string, a list, `null` or `false`, and the branch that produces one is the ordinary shape of the
- * expression this wraps — `hold(editing && editor())`, `hold(row ?? null)`. Wrapping those handed
- * the renderer a `{ $h }` carrying a non-template, which reached the held-commit path and threw on
- * `result.strings`: a whole render lost, from a value the same expression renders happily one
- * character to the left. Decided here rather than in the renderer so the hot path pays nothing.
- */
-export const hold = <T>(result: T): T | { $h: TemplateResult } =>
-  result != null && typeof result === 'object' && isTemplateResult(result)
-    ? { $h: result as TemplateResult }
-    : result;
-
-/**
- * Unique per module load, so user text can never collide with it. Randomness here cannot break
- * template caching — the marker only ever pairs a scan with its own Template construction.
- */
+/** Unique per module load, so user text can never collide with it. */
 // eslint-disable-next-line no-bitwise -- >>> 0 is the integer truncation, not arithmetic
 const MARKER = '$v' + ((Math.random() * 1e9) >>> 0).toString(36) + '$';
 /** `<?xyz>` parses as a bogus comment whose data is `?xyz`. */
 const MARKER_COMMENT_DATA = '?' + MARKER;
 
 const doc = document;
-const comment = (data = '') => doc.createComment(data);
+const comment = () => doc.createComment('');
+
+/** One walker for every template construction, re-aimed through `currentNode`. ELEMENT | TEXT | COMMENT. */
+const markerWalker = doc.createTreeWalker(doc, 133);
 
 /**
- * One walker for every template construction, re-aimed by assigning `currentNode`. Traversal of a
- * detached fragment cannot escape it — ascent stops at a null parent — and no walk is ever
- * re-entered mid-flight: an inner instantiation only begins after the outer walk has finished
- * collecting its parts. COMMENT finds the child markers; ELEMENT and TEXT are what it numbers.
- */
-const markerWalker = doc.createTreeWalker(doc, 133 /* ELEMENT | TEXT | COMMENT */);
-/**
- * Second shared walker for indexing and instantiation. Templates ship with NO marker comments —
- * every child slot's anchor is its primed text node — so instances index over elements and texts.
- * Marker comments exist only transiently during template construction, and are created lazily at
- * runtime only if a slot upgrades from text to template/array content. Sharing the walker saves a
- * TreeWalker allocation per instance, which is 10 000 allocations in a 10 000-row create.
- */
-/*
- * **Its mask IS the part numbering.** Every `_index` counts elements and texts in this walker's
- * order; the construction walk counts the same nodes by hand (never comments), and hydration's
- * `canonicalNodes` pairs server DOM by the same order. Change one and all three move together.
- */
-const instanceWalker = doc.createTreeWalker(doc, 5 /* ELEMENT | TEXT */);
-
-/**
- * Elements whose children a parser reads as **text**, so a marker written inside one arrives as
- * characters rather than a comment and the binding never becomes a part.
- *
- * `iframe` and `noscript` were missing, and both were measured broken in a browser rather than
- * reasoned about: `html\`<iframe>${v}</iframe>\`` painted the literal marker — `<?$v8hpsho$>` — onto
- * the page in **all three engines** and never updated.
- *
- * **`noscript` is the one worth the comment, because the engines disagree.** A template's contents
- * are parsed with the scripting flag *disabled*, which is what decides whether `noscript` is raw
- * text — and Chromium and WebKit parse it as markup there while Firefox parses it as text. So
- * `html\`<noscript>${v}</noscript>\`` worked in two engines and painted the marker in the third: an
- * app developed in Chrome shipping the framework's internals onto the page for Firefox users.
- *
- * Listing it here is safe in both parses. Where the marker became a comment the raw-text branch does
- * not trigger, because it looks for the marker in `textContent` and finds none.
- *
- * **The rule is deliberately ONE rule, and the scanner and the parse must share it.**
- *
- * Both sites read THIS regex and nothing else — namespace-blind and identical in both builds. The
- * scan writes a TEXT marker inside a raw-text element, because a comment cannot be parsed there;
- * the parsed-tree pass finds the same elements by the same test and turns that text back into real
- * marker comments. Neither consults a namespace.
- *
- * It is wrong in foreign content — `<title>` holds MARKUP inside an `<svg>`, measured in all three
- * engines — and making it namespace-aware was tried, measured, and reverted. The attempt taught the
- * scan to skip raw text while inside an `<svg>`, keyed on the `foreign` depth counter — which is
- * incremented only under `__DEV__`, because it exists to gate `warnTagShape` and nothing else,
- * while the parsed-tree pass went on matching this regex in both builds. The two then disagreed by
- * BUILD: an inline `` svg`<title>${x}` `` scanned one way in development and the other in
- * production, and the shipped bundle rendered the raw marker sentinel into the DOM and shifted
- * every later child binding by one — silently, in the canonical accessible-icon shape.
- *
- * Both halves being wrong together is self-consistent; half-fixing it is not. It is why a
- * hand-written `` svg`<title>${x}` `` behaves exactly as it always has — the binding is text, so it
- * is found and committed, the one shape this rule gets right by being wrong twice.
- *
- * What it cannot survive is an ELEMENT inside a `<title>`. The browser really does parse one there,
- * so `<title>`'s `textContent` — which includes its descendants' — still holds the marker, and the
- * pass clears that `textContent` to rebuild the parts, taking the element with it. Hence a dropped
- * `<tspan>`, a binding's sigil stranded as a dead attribute, and a throwing spread — the same in
- * JSX as in a hand-written template. An EXPRESSION there is safe: it becomes its own template,
- * committed as a child and never scanned as `<title>`'s statics, so `<title>{label}</title>` and
- * `<title>{flag && <b />}</title>` both work.
+ * Elements whose children the parser reads as TEXT, so a marker inside one arrives as characters
+ * rather than a comment. The scan writes a text marker there and construction turns it back into a
+ * marker comment; both sides read this one rule. (`noscript` because Firefox parses it as raw text in
+ * a template and Chromium and WebKit do not — listed, it is safe in both parses.)
  */
 const RAW_TEXT_TAGS = /^(?:script|style|textarea|title|iframe|noscript)$/i;
-
-
-/**
- * The void elements, as a regex rather than the `Set` in `@verajs/shared-utils`, and NOT imported
- * from it — measured: an imported `new Set([...])` survives production because neither rollup nor
- * terser can prove the constructor call is side-effect-free, so it sat at module scope costing
- * **62 B gzipped on the base bundle** for a diagnostic production does not even run. A regex
- * literal read only by `warnTagShape` goes when that dead function goes.
- *
- * So this is a second home for a fact `@verajs/shared-utils` owns, kept deliberately and in a
- * different SHAPE because a hot file's byte budget forbids the shared one. That is only acceptable
- * with an enforcer: `tests/markup-grammar-homes.test.mjs` drives this regex and the canonical set
- * against each other, member by member, in both directions.
- */
-const VOID_TAGS = /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
 const ATTR_NAME_DELIMITER = /[\s"'>=/]/;
 
-/** What an expression position turned out to be. */
-const CHILD = 0;
-const ATTRIBUTE = 1;
-const IGNORED = 2; // value consumed, nothing rendered (bindings inside comments, junk positions)
-
-/**
- * `_tag` is `__DEV__` only and exists for one diagnostic: when the HTML parser DROPS the element a
- * binding was written on, the binding's marker never reaches the parsed tree, and the warning below
- * needs to name the element the author actually wrote rather than only the symptom.
- */
-type Spec = ({ _type: 0 } | { _type: 1; _name: string } | { _type: 2 }) & { _tag?: string };
+/** What the scan found at an expression position. */
+const SPEC_CHILD = 0;
+const SPEC_ATTRIBUTE = 1;
+const SPEC_IGNORED = 2; // consumed, nothing rendered (inside a comment, a junk position)
+type Spec = { _type: 0 | 2 } | { _type: 1; _name: string };
 
 /** Scanner states. */
 const IN_TEXT = 0;
 const IN_TAG = 1;
-const IN_QUOTED_VALUE = 2; // a static quoted attribute value (no binding seen yet)
+const IN_QUOTED_VALUE = 2; // a static quoted attribute value, no binding yet
 const IN_COMMENT = 3;
-const IN_RAW_TEXT = 4; // inside <script>/<style>/<textarea>/<title>
+const IN_RAW_TEXT = 4;
 const IN_BOUND_VALUE = 5; // collecting a bound attribute's statics
 
 /**
- * One pass over the template strings, producing parseable HTML with markers plus an ordered spec
- * list. Runs once per template shape, so clarity beats micro-optimization here.
+ * One pass over the template strings: parseable markup with markers, and the ordered specs. A small
+ * state machine rather than regexes, because `>` inside quoted values and comments must not end a tag
+ * and raw-text elements swallow markup. Runs once per template shape.
  *
- * A small state machine rather than tail regexes, because `>` inside quoted attribute values and
- * inside comments must not terminate a tag, and raw-text elements swallow markup.
+ * A bound attribute becomes ONE marker attribute named `<spec index><MARKER>` whose value carries its
+ * statics joined by the marker — read back from the parsed attribute, entities arrive decoded. The
+ * index in the name makes pairing ADDRESSED: an element the parser drops takes only its own binding
+ * with it, and never shifts a later value onto another element (a security property — see
+ * `tests/dropped-element-bindings.test.mjs`).
  */
-/**
- * `__DEV__` only: the two ways a hand-written template describes a tree the parser will not build.
- *
- * `@verajs/jsx` normalizes both at compile time, so this is the channel for the BUILDLESS path —
- * which is this framework's baseline, not its fallback, and was the surface left broken when the
- * compiler fix landed. It reaches the browser console on the client and during hydration; a
- * server-only render never runs this scanner, so an SSR page that is never hydrated is not covered.
- *
- * The self-close test is `markup` ending in `/`, which is the same approximation the raw-text
- * branch below already makes: an unquoted attribute value ending in a slash (`<div data-x=a/>`)
- * reads the same way. That is not a false positive in any way that matters — measured, such a tag
- * is an OPEN tag too and swallows what follows it exactly as `<div/>` does, so both the warning and
- * the fix it names are correct for it.
- */
-/**
- * **Recorded at the scan, said at the first INSTANCE of that build** — because once
- * `@verajs/renderer/namespaces` is wired, an `html` template placed inside `<svg>` is instantiated
- * through its SVG build, where `<path />` is exactly right, and its HTML build may never be used at
- * all. Warning at the scan flagged the README's own `Frame(html\`<path d="…" />\`)` twice while it
- * drew correctly. Unwired, the HTML build is the one instantiated and the warning comes one step later.
- */
-let shapeWarnings: string[] | undefined;
-const sayShape = (template: Template) => {
-  if (template._shapeWarnings !== undefined) {
-    for (const message of template._shapeWarnings) console.warn(`[vera] renderer: ${message}`);
-    template._shapeWarnings = undefined;
-  }
-};
-const warnTagShape = (tag: string, closing: boolean, selfClosed: boolean) => {
-  if (!closing && selfClosed && !VOID_TAGS.test(tag))
-    (shapeWarnings ??= []).push(
-      `<${tag}> is left OPEN by this template, so everything after it becomes its ` +
-        `child rather than its sibling. HTML has no self-closing syntax outside <svg> and <math> — ` +
-        `\`<${tag} />\` is an open tag, not an empty element. Write \`<${tag}></${tag}>\`. ` +
-        `(@verajs/jsx rewrites this for you; a hand-written template has to say it.)`
-    );
-  else if (closing && VOID_TAGS.test(tag))
-    (shapeWarnings ??= []).push(
-      `\`</${tag}>\` is read by the parser as ANOTHER <${tag}>, so this template ` +
-        `renders two where it describes one. A void element has no end tag — write \`<${tag}>\` alone.`
-    );
-};
-
-const scan = (strings: TemplateStringsArray, type = 1) => {
+const scan = (strings: TemplateStringsArray) => {
   const specs: Spec[] = [];
   let markup = '';
   let state = IN_TEXT;
   let quote = '';
-  let quoteStart = 0; // markup index of the opening quote while IN_QUOTED_VALUE
-  let rawTag = ''; // which raw-text element we are inside
-  let tagNameStart = 0; // markup index where the current tag's name begins
+  let quoteStart = 0;
+  let rawTag = '';
+  let tagNameStart = 0;
   let isClosing = false;
-  /**
-   * `__DEV__` only. Depth of `<svg>`/`<math>` nesting, because foreign content is the one place the
-   * parser DOES honor XML self-closing, so neither warning applies inside it. An `svg`/`mathml`
-   * template is already inside one, hence the seed from `type`.
-   *
-   * `<foreignObject>` re-enters HTML content and is deliberately not tracked: suppressing a warning
-   * there is a missed warning, while tracking it wrongly would be a wrong one, and a diagnostic
-   * that cries wolf is worse than one that stays quiet.
-   */
-  let foreign = type === 1 ? 0 : 1;
   let attrName = '';
   let statics: string[] = [];
-  let pending = ''; // the static chunk currently being collected IN_BOUND_VALUE
+  let pending = '';
 
-  /** Backscan an attribute name that ends at `end` (exclusive); '' when malformed. */
+  /** The attribute name ending at `end` (exclusive); '' when malformed. */
   const attrNameBefore = (end: number) => {
     let at = end;
     while (at > 0 && !ATTR_NAME_DELIMITER.test(markup[at - 1])) at--;
@@ -289,25 +92,13 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
     while (pos < segment.length) {
       const ch = segment[pos];
       if (state === IN_BOUND_VALUE) {
-        if (
-          ch === quote ||
-          (quote === '' && /[ \t\n\r>/]/.test(ch))
-        ) {
-          /**
-           * The bound attribute closes. Emit a marker attribute whose VALUE carries the statics
-           * joined by the marker — reading them back from the parsed attribute means entities
-           * arrive decoded, exactly as a static attribute would.
-           */
+        if (ch === quote || (quote === '' && /[ \t\n\r>/]/.test(ch))) {
           statics.push(pending);
           const quoteChar = quote || '"';
           markup += ` ${specs.length}${MARKER}=${quoteChar}${statics.join(MARKER)}${quoteChar}`;
-          specs.push(
-            __DEV__
-              ? { _type: ATTRIBUTE, _name: attrName, _tag: markup.slice(tagNameStart).match(/^[a-zA-Z][^\s/>]*/)?.[0] }
-              : { _type: ATTRIBUTE, _name: attrName }
-          );
+          specs.push({ _type: SPEC_ATTRIBUTE, _name: attrName });
           state = IN_TAG;
-          if (quote !== '') pos++; // consume the closing quote; unquoted terminators reprocess IN_TAG
+          if (quote !== '') pos++; // consume the closing quote; an unquoted terminator is re-read IN_TAG
           continue;
         }
         pending += ch;
@@ -333,18 +124,10 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
           state = IN_QUOTED_VALUE;
         } else if (ch === '>') {
           const tagName = markup.slice(tagNameStart).match(/^[a-zA-Z][^\s/>]*/)?.[0] ?? '';
-          if (__DEV__) {
-            const lower = tagName.toLowerCase();
-            const selfClosed = markup.endsWith('/');
-            if (lower === 'svg' || lower === 'math') foreign += isClosing ? -1 : selfClosed ? 0 : 1;
-            else if (foreign < 1) warnTagShape(tagName, isClosing, selfClosed);
-          }
           if (!isClosing && RAW_TEXT_TAGS.test(tagName) && !markup.endsWith('/')) {
             rawTag = tagName.toLowerCase();
             state = IN_RAW_TEXT;
-          } else {
-            state = IN_TEXT;
-          }
+          } else state = IN_TEXT;
         }
         markup += ch;
         pos++;
@@ -362,7 +145,7 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
         markup += ch;
         pos++;
       } else {
-        // IN_RAW_TEXT
+        // IN_RAW_TEXT: only this element's own end tag leaves it
         if (
           ch === '<' &&
           segment.slice(pos + 1, pos + 2 + rawTag.length).toLowerCase() === '/' + rawTag &&
@@ -377,33 +160,30 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
       }
     }
 
-    // ── expression boundary ──────────────────────────────────────────────────
+    // ── the expression boundary ──
     if (i === strings.length - 1) break;
     if (state === IN_TEXT) {
       markup += `<?${MARKER}>`;
-      specs.push({ _type: CHILD });
+      specs.push({ _type: SPEC_CHILD });
     } else if (state === IN_RAW_TEXT) {
-      markup += MARKER; // a text marker; comments cannot be parsed inside raw-text elements
-      specs.push({ _type: CHILD });
+      markup += MARKER; // a comment cannot be parsed here — construction turns this back into one
+      specs.push({ _type: SPEC_CHILD });
     } else if (state === IN_COMMENT) {
-      specs.push({ _type: IGNORED }); // binding inside a comment: consumed, ignored
+      specs.push({ _type: SPEC_IGNORED });
     } else if (state === IN_BOUND_VALUE) {
-      statics.push(pending); // this attribute spans another expression
+      statics.push(pending); // the attribute spans another expression
       pending = '';
     } else if (state === IN_QUOTED_VALUE) {
-      // expression inside a quoted attribute value -> becomes a bound attribute
       const name = markup[quoteStart - 1] === '=' ? attrNameBefore(quoteStart - 1) : '';
       if (name) {
         attrName = name;
-        statics = [markup.slice(quoteStart + 1)]; // the static prefix already inside the quotes
+        statics = [markup.slice(quoteStart + 1)];
         pending = '';
         markup = markup.slice(0, quoteStart - 1 - name.length); // cut `name="` back out
         state = IN_BOUND_VALUE;
-      } else {
-        specs.push({ _type: IGNORED });
-      }
+      } else specs.push({ _type: SPEC_IGNORED });
     } else {
-      // IN_TAG: `name=${x}` unquoted, or an element-position expression
+      // IN_TAG: `name=${x}` unquoted, or an element-position expression (marked like an attribute named `&`)
       const name = markup.endsWith('=') ? attrNameBefore(markup.length - 1) : '';
       if (name) {
         attrName = name;
@@ -413,245 +193,54 @@ const scan = (strings: TemplateStringsArray, type = 1) => {
         markup = markup.slice(0, markup.length - 1 - name.length);
         state = IN_BOUND_VALUE;
       } else {
-        /**
-         * Element-position expression — an element REF, not a no-op. Marked exactly like a bound
-         * attribute ('&' cannot begin a real attribute binding), so no new machinery exists for it.
-         */
-        if (__DEV__ && (markup.endsWith('<') || markup.endsWith('</'))) {
-          /**
-           * Except in **tag position**, where it is a mistake with no useful reading. `<${name}>`
-           * lands here because the tag has no name yet, and what the parser then makes of a ref on
-           * a nameless element is escaped punctuation. Naming the entry that does support it is
-           * more use than an element ref nobody asked for.
-           */
-          console.error(
-            `[vera] an expression in tag position (\`<\${…}>\`) is not a dynamic tag name — the ` +
-              `template has no element there and the markup around it is rendered as text.\n` +
-              `Runtime tag names live in @verajs/renderer/tag:\n\n` +
-              `  import { html, tag } from '@verajs/renderer/tag';\n` +
-              `  const heading = tag\`h1\`;\n` +
-              `  html\`<\${heading}>…</\${heading}>\`\n`
-          );
-        }
-        /**
-         * **And in attribute-*name* position, which is the same mistake one step along.**
-         *
-         * `<b ${name}="x">`, `<b data-${name}="1">` and `<b a${name}b="1">` all land here: the
-         * marker is not preceded by `=`, so it reads as an element ref, and the `="x"` after it
-         * stays literal markup. The browser's parser then makes `<b ="x"="">` of it — attributes
-         * nobody wrote, silently.
-         *
-         * **The server already refuses this**, and said so in its README while the client shipped
-         * the garbage. A developer rendering only in a browser saw malformed output with no clue,
-         * and adding SSR later turned it into a throw with no obvious connection.
-         *
-         * Told apart from a real element ref by what follows it: a ref is always followed by
-         * whitespace, `>` or `/`. Anything else means the marker landed inside a name.
-         */
-        const after = strings[i + 1] ?? '';
-        if (__DEV__ && after !== '' && !/^[\s>/]/.test(after)) {
-          console.error(
-            `[vera] an expression in attribute-name position (\`<b \${…}="x">\`) is not a dynamic ` +
-              `attribute name — a marker is not a name, and the parser makes attributes nobody ` +
-              `wrote out of what follows it.\n` +
-              `Runtime-named bindings live in @verajs/renderer/spread:\n\n` +
-              `  import { spread } from '@verajs/renderer/spread';\n` +
-              `  html\`<b \${spread({ [name]: 'x' })}>…</b>\`\n`
-          );
-        }
         markup += ` ${specs.length}${MARKER}="${MARKER}"`;
-        specs.push({ _type: ATTRIBUTE, _name: '&' });
+        specs.push({ _type: SPEC_ATTRIBUTE, _name: '&' });
       }
     }
   }
   return { markup, specs };
 };
 
-/** A part's position and shape inside a Template, resolved to a node index for instantiation. */
-type TemplatePart = {
-  _type: 0 | 1 | 2;
-  _index: number;
-  _name?: string;
-  _statics?: string[];
-  /** Whether the template statically writes an attribute of the same name — see `AttrPart._commit`. */
-  _present?: boolean;
-};
-
 /**
- * THE LIGHT-SLOTS SEAM. `@verajs/renderer/slots` registers one of these through core's `wire` on
- * the `'slot'` insert point; the renderer reads it from the registry `connect` was handed — the
- * app's single registry, so a CDN page loading separate bundles still meets ONE seam (the same
- * architecture the `'value'` point rides). All member names are `$`-sigiled: the mangle regex
- * cannot match them, so the contract survives production across bundle boundaries (the child-
- * applier precedent). An app that never wires it pays one registry lookup per template
- * CONSTRUCTION (once per shape) and nothing per render.
+ * A binding's kind, resolved once per template. `CHILD` is anchored on a primed empty text node the
+ * template carries; `SOLE` is a child position that is its element's only content, so the template
+ * carries nothing and the first commit writes `textContent` (the text node is created with its value
+ * rather than cloned empty and written again).
  */
-/** The registered `'slot'` insert is a plain function per wire's contract: take over one cloned
- *  `<slot>` for the given root, or decline with null/undefined (native slotting proceeds). */
-type SlotSeamFn = (slot: Element, root: Node, name: string) => SlotSeamState | null | undefined;
-/**
- * The seam function plus the members it carries for callers that are not committing a slot —
- * sigil-named, so they survive property mangling across bundle boundaries (the child-applier
- * precedent). `_$capture$` lifts a light host's children on its first render; `_$rescue$` returns
- * them to holding when hydration has to discard the server's markup; `_$server$`/`_$adopt$` belong to
- * SSR and the hydrate entry and are reached off the same object.
- */
-type SlotSeam = SlotSeamFn & {
-  _$capture$?: (host: Element, boundary?: Comment, adopting?: boolean) => void;
-  _$rescue$?: (host: Element) => void;
-  /** Hydration's readers of the server-stated light tree — see `lightOf` in slots. */
-  _$light$?: (host: Element) => Node[] | null;
-  _$assigned$?: (host: Element, name: string) => Node[];
-  /** A part's content in a light host, from its markers — see `_$span$` in slots and `_clear`. */
-  _$span$?: (start: Node, end: Node) => Node[] | undefined;
-  /**
-   * **The render bracket** — called as every render starts (with its root) and ends, so slots can
-   * credit each DOM change to whoever made it: a change inside a light host is the host's own only
-   * when the host's own render made it. See "ownership by authorship" in slots.
-   */
-  _$b$?: (root: Node | null) => void;
-  _$e$?: () => void;
-  /** Development only: the slots module's package version — see `slotSeam`. */
-  $v?: string;
-};
+const IGNORED = 0;
+const CHILD = 1;
+const SOLE = 2;
+const ATTR = 3;
+const PROPERTY = 4;
+const BOOLEAN = 5;
+const EVENT = 6;
 
-/**
- * The container of the `renderInto` call currently committing — handed to instance hooks, which is
- * how the slots module learns its root (a light element or a shadow root). Commits are synchronous
- * per flush, so one module slot suffices (the `currentInstance` pattern); `null` outside a
- * `renderInto`, which is hydration's adoption path.
- */
-let renderRoot: Node | null = null;
-
-/** See the slotless branch in `Instance`. Once per host tag, so a list cannot flood a console. */
-const warnedSlotless = /* @__PURE__ */ new Set<string>();
-const warnSlotless = (root: Element) => {
-  const tag = root.localName;
-  if (warnedSlotless.has(tag)) return;
-  warnedSlotless.add(tag);
-  /** Which of three wirings this is: nothing, a strategy without discovery, or an older slots module. */
-  const seam = slotSeam();
-  console.warn(
-    `[vera] renderer: <${tag}> renders a \`<slot>\` into LIGHT DOM, but ` +
-      (seam === undefined
-        ? `no 'slot' insert is wired`
-        : seam._$b$ === undefined && seam._$capture$ !== undefined
-          ? `the wired @verajs/renderer/slots is OLDER than this renderer and cannot distribute for it`
-          : `nothing marked this template's \`<slot>\`s for the wired 'slot' strategy — \`slotDiscovery\` is ` +
-            `not wired beside it, or was wired after this template first rendered`) +
-      ` — nothing can fill it, so it always shows its fallback, and any content the host is given for ` +
-      `it sits beside the component as stray markup instead. Wire it at the app entry, BEFORE anything renders: ` +
-      `\`import { slots } from '@verajs/renderer/slots'; wire([renderer, slots])\` — a custom slot strategy ` +
-      `wires \`slotDiscovery\` from there beside itself — and load the slots module from the same version ` +
-      `of the package as the renderer. Wiring it later ` +
-      `does not help a template that has already rendered — a template resolves this once, at ` +
-      `construction, and is interned per call site for the life of the page.`
-  );
-};
-
-/**
- * `__DEV__` only: the HTML parser dropped an element a binding was written on.
- *
- * Named where it is discovered rather than after the walk, because the SKIP knows exactly which
- * spec went missing — `specs[from]` is the casualty by construction. A post-hoc count can only
- * report the LAST unclaimed spec, which positional pairing makes the wrong element every time, and
- * pointing an author at a tag that rendered correctly is the precise failure this message exists
- * to cure.
- */
-/**
- * **A child binding directly inside `<table>` renders one shape and PARSES as another.**
- *
- * `<table>${rows}</table>` is conforming HTML — `<tbody>` is omissible — and it is the one place a
- * legal template does not survive a round trip through the platform:
- *
- * - CLIENT RENDER inserts the rows with DOM calls, which apply no parser rules: `table > tr`.
- * - The SAME markup PARSED — a server render the browser re-parses, `innerHTML`, a static file —
- *   gets the implied section: `table > tbody > tr`.
- *
- * Measured, both shapes, same template. So a stylesheet written `table > tr` matches on one path
- * and not the other, and hydration discards the server's markup for that container and rebuilds it
- * (*"expected `<tr>` and found `<tbody>`"*) — silently in production, where this call is folded away.
- *
- * **Why this is a warning and not a repair.** Whatever is emitted, the browser re-parses it, and the
- * parser ALWAYS inserts the section — so the only shape all three paths agree on is one where the
- * section is already in the template. The framework could insert it, but that changes the DOM shape
- * of every existing client-rendered table, across the renderer AND `@verajs/ssr`'s serializer, and
- * rests on the SSR shim agreeing with browsers about implied tags. One word from the author reaches
- * the same fixed point with none of that. Owner's call, recorded rather than assumed.
- *
- * Scoped to `<table>` deliberately: `<tbody>` (from rows) and `<colgroup>` (from `<col>`) are the
- * only implied START tags reachable inside a template fragment, and both are children of `<table>`.
- * The omissible END tags — `</li>`, `</p>`, `</td>`, `</option>` and the rest — insert nothing, so
- * they round-trip correctly and are pinned doing so in `tests/dropped-element-bindings.test.mjs`.
- */
-const warnImplicitSection = (parent: Element | null) => {
-  if (parent?.localName !== 'table') return;
-  console.warn(
-    '[vera] renderer: a binding sits directly inside <table>, where the HTML parser inserts a ' +
-      '<tbody> that a client render does not. The same template then renders as `table > tr` and ' +
-      'parses as `table > tbody > tr`, so `table > tr` selectors match on only one path and ' +
-      'hydration rebuilds this container instead of adopting it. Write the section explicitly — ' +
-      '`<table><tbody>${rows}</tbody></table>` — and every path agrees.'
-  );
-};
-
-const warnDroppedBinding = (specs: Spec[], from: number, count: number) => {
-  const lost = specs[from];
-  const where = lost?._tag
-    ? `\`${lost._type === ATTRIBUTE ? `${lost._name}=` : ''}\` on <${lost._tag}>`
-    : 'a binding';
-  console.warn(
-    `[vera] renderer: ${where} never reached the parsed tree — the HTML parser DROPPED the element ` +
-      `it was written on, because its parent's content model forbids it (\`<select>\` takes only ` +
-      `options, \`<form>\` cannot nest, and so on).\n` +
-      `${count} binding(s) lost. The element is gone from the DOM and its binding does nothing; ` +
-      `the bindings AFTER it are unaffected, because each marker carries its own index. ` +
-      `(Before that they all shifted onto the wrong elements, which is why this kind of mistake ` +
-      `used to surface somewhere you had not edited.)\n` +
-      `Move the element out of its parent, or use one the parent can hold.`
-  );
-};
-
-const templateCache = new WeakMap<TemplateStringsArray, Template>();
+/** A binding slot's value before its first commit — never equal to a user value. */
+const UNSET = {};
+/** The value slot of a child binding that holds a `ChildPart` in its node slot. */
+const UPGRADED = {};
 
 class Template {
-  _element: HTMLTemplateElement;
-  _parts: TemplatePart[] = [];
-  /**
-   * Present only when a 'slot' insert was wired at construction and the markup contains slots.
-   *
-   * `declare`, like the two below: under ES2022 class-field semantics a plain optional field is
-   * DEFINED on every instance whether or not it is ever assigned, so a CONDITIONALLY assigned one
-   * is weight every template pays for a case most of them do not have.
-   *
-   * Deliberately not applied to the fields the constructors always assign (`_element`, `_name`,
-   * `_statics`, `_start`, `_end`, and the rest). Those need to exist, the saving is the same few
-   * bytes, and they sit on the hot classes where changing when a property first appears can move
-   * V8's hidden class — which is a measurement, not a tidy-up. If anyone takes that on, measure
-   * update throughput before and after, three runs, the way the slot-mount deferral was.
-   */
-  /** Set by a `'template'` hook — this template's instance hook; see `InstanceHook`. */
-  declare _$inst$?: InstanceHook;
-  /** `__DEV__` only: this markup has `<slot>` and was built with no seam to hand them to.
-   *  `declare`, so nothing is emitted — a plain optional field is DEFINED on every instance under
-   *  ES2022 class-field semantics, which is production weight for a development-only check. */
-  declare _slotless?: boolean;
-  /** `__DEV__` only: the scan's tag-shape warnings, said at this build's first instance — see `sayShape`. */
-  declare _shapeWarnings?: string[];
-  /** Set by a `'template'` hook: which template to build at a position — see `TemplateHook`. */
-  declare _$at$?: (parent: Node) => Template;
+  /** What an instance clones: the single root element, or the whole content fragment. */
+  _root: Node;
+  /** No element in it can be custom — see `instantiate`. */
+  _plain: boolean;
+  _kinds: number[] = [];
+  _names: string[] = [];
+  /** The statics around a bound attribute's values; `null` for one full-value expression. */
+  _statics: (string[] | null)[] = [];
+  /** Child-index hops from `_root` to each binding's node. */
+  _paths: number[][] = [];
+  /** The template statically writes the attribute too, so a first nullish commit must still remove it. */
+  _present: boolean[] = [];
 
   constructor(result: TemplateResult) {
     const type = result._$litType$ ?? 1;
-    const { markup, specs } = scan(result.strings, type);
-    if (__DEV__ && shapeWarnings !== undefined) {
-      this._shapeWarnings = shapeWarnings;
-      shapeWarnings = undefined;
-    }
-    this._element = doc.createElement('template');
-    /** svg/mathml fragments only parse inside their root; wrap, then unwrap below. */
-    this._element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
-    const content = this._element.content;
+    const { markup, specs } = scan(result.strings);
+    const element = doc.createElement('template');
+    /** svg/mathml fragments only parse inside their root: wrap, then unwrap. */
+    element.innerHTML = type === 2 ? `<svg>${markup}</svg>` : type === 3 ? `<math>${markup}</math>` : markup;
+    const content = element.content;
     if (type !== 1) {
       const wrapper = content.firstChild!;
       while (wrapper.firstChild) content.insertBefore(wrapper.firstChild, wrapper);
@@ -659,1704 +248,347 @@ class Template {
     }
 
     /**
-     * **One walk, two jobs.** It pairs scan specs with parsed nodes in document order (which is
-     * expression order) and swaps every marker comment for a primed empty text node — so the
-     * shipped template contains no comments at all: each clone is three nodes lighter per typical
-     * row, and the primed text doubles as both anchor and first-commit target. And it NUMBERS each
-     * part as it goes, counting elements and texts exactly as `instanceWalker` will (see there).
-     *
-     * These were three walks until 2026-09-24 (the third found `<slot>`s; slots now marks its own
-     * templates through the `'template'` hook); merging them saved 59 B gzipped. Both versions
-     * number the PARSED tree, after the parser has moved or dropped anything, so the numbers are
-     * the same: a differential fuzz of 1 500 templates built from the shapes the parser reshapes
-     * (foster-parenting, `<select>` dropping a `<div>`, implicit `</p>`, raw text, comments, SVG)
-     * rendered, updated and hydrated identically through both — and a planted miscount showed 256
-     * differences, so the silence was measured.
-     *
-     * **Slot support is resolved per TEMPLATE, and templates are cached per call site for the life
-     * of the page** — so a shape first constructed before `wire([slots])` ran never gains it,
-     * silently. That is the ordinary insert contract (wire at the app entry, beside the renderer,
-     * before anything renders); resolving per INSTANCE would put a registry lookup on the hot path
-     * for every app.
+     * Pair specs with the parsed tree in document order: each marker attribute names its spec, and each
+     * marker comment becomes a primed empty text node. A marker that never arrived (its element dropped
+     * by the parser) leaves its spec IGNORED, and nothing after it moves.
      */
-    markerWalker.currentNode = content;
+    const nodes: (Node | null)[] = [];
+    const kinds = this._kinds;
+    const names = this._names;
+    const staticsList = this._statics;
+    const present = this._present;
+    for (let s = 0; s < specs.length; s++) {
+      nodes.push(null);
+      kinds.push(IGNORED);
+      names.push('');
+      staticsList.push(null);
+      present.push(false);
+    }
     let specIndex = 0;
-    let nodeIndex = -1;
-    let node: Node | null;
-    const parts = this._parts;
-    const consumeIgnored = () => {
-      while (specIndex < specs.length && specs[specIndex]._type === IGNORED) {
-        parts.push({ _type: IGNORED, _index: -1 });
-        specIndex++;
-      }
+    const skipIgnored = () => {
+      while (specIndex < specs.length && specs[specIndex]._type === SPEC_IGNORED) specIndex++;
     };
-    consumeIgnored();
+    skipIgnored();
+    markerWalker.currentNode = content;
+    let node: Node | null;
     while (specIndex < specs.length && (node = markerWalker.nextNode()) !== null) {
       if (node.nodeType === 1) {
-        nodeIndex++;
-        const element = node as Element;
-        if (element.hasAttributes()) {
-          for (const attributeName of element.getAttributeNames()) {
-            if (attributeName.endsWith(MARKER)) {
-              /**
-               * **Each marker carries its own spec index in its NAME**, so pairing is addressed
-               * rather than positional — and a marker that never arrived is visible the moment the
-               * next one does. Both halves matter and neither works alone:
-               *
-               * - REPAIR: an element the parser drops takes its marker with it. Paired by walk
-               *   order, that shifted every later binding onto the wrong element, silently —
-               *   `html\`<select><div title=${'${a}'}>x</div></select><b title=${'${b}'}>\`` rendered
-               *   `<b title="a">`. Consuming the gap keeps every surviving binding on its own
-               *   element; only the dropped one is lost.
-               * - REPORT: the repair would otherwise SILENCE the problem, which is a correct
-               *   refusal with nothing to tell the author — so the skip is where the warning lives.
-               */
-              const declared = parseInt(attributeName, 10);
-              if (declared > specIndex) {
-                if (__DEV__) warnDroppedBinding(specs, specIndex, declared - specIndex);
-                do parts.push({ _type: IGNORED, _index: -1 });
-                while (++specIndex < declared);
-              }
-              /**
-               * The marker attribute's value carries the statics; the REAL (case-preserved) name
-               * comes from the spec — the HTML parser lowercases attribute names, which would
-               * corrupt `.someProp`.
-               */
-              const spec = specs[specIndex++] as { _type: 1; _name: string };
-              parts.push({
-                _type: ATTRIBUTE,
-                _index: nodeIndex,
-                _name: spec._name,
-                _statics: element.getAttribute(attributeName)!.split(MARKER),
-                /**
-                 * Computed here — once per template, ever — so the first commit of a nullish
-                 * binding knows whether a fresh clone even carries the attribute. It usually does
-                 * not, and the unconditional removal this feeds cost a real DOM call per element
-                 * per create: 1,000 no-op `removeAttribute`s on the 1,000-row benchmark. The one
-                 * case that must still remove — `<b title="a" title=${null}>`, where the parser
-                 * keeps the first duplicate — is exactly what this reads.
-                 */
-                _present: element.hasAttribute(spec._name),
-              });
-              element.removeAttribute(attributeName);
-              consumeIgnored();
-            }
+        const el = node as Element;
+        if (el.hasAttributes()) {
+          for (const attributeName of el.getAttributeNames()) {
+            if (!attributeName.endsWith(MARKER)) continue;
+            const index = parseInt(attributeName, 10);
+            specIndex = index + 1;
+            const name = (specs[index] as { _name: string })._name;
+            const statics = el.getAttribute(attributeName)!.split(MARKER);
+            el.removeAttribute(attributeName);
+            skipIgnored();
+            const first = name[0];
+            /** `&` (element refs) and `!` (live properties) arrive with their pieces. */
+            if (first === '&' || first === '!') continue;
+            const kind = first === '.' ? PROPERTY : first === '?' ? BOOLEAN : first === '@' ? EVENT : ATTR;
+            nodes[index] = el;
+            kinds[index] = kind;
+            /** The parser lowercases attribute names; the spec keeps the author's case (`.someProp`). */
+            names[index] = kind === ATTR ? name : name.slice(1);
+            staticsList[index] = statics.length === 2 && statics[0] === '' && statics[1] === '' ? null : statics;
+            present[index] = kind === ATTR && el.hasAttribute(name);
           }
         }
-        if (RAW_TEXT_TAGS.test(element.tagName) && element.textContent!.includes(MARKER)) {
-          /**
-           * Comments cannot be PARSED inside raw-text elements, but they are legal DOM once
-           * created — so the scan left text markers, and here they become real marker comments.
-           * The walker visits them next and they pair as ordinary child parts.
-           */
-          const pieces = element.textContent!.split(MARKER);
-          element.textContent = '';
+        if (RAW_TEXT_TAGS.test(el.tagName) && el.textContent!.includes(MARKER)) {
+          /** Comments cannot be PARSED here but are legal DOM: rebuild the text markers as marker comments. */
+          const pieces = el.textContent!.split(MARKER);
+          el.textContent = '';
           for (let p = 0; p < pieces.length - 1; p++) {
-            if (pieces[p]) element.append(pieces[p]);
-            element.append(comment(MARKER_COMMENT_DATA));
+            if (pieces[p]) el.append(pieces[p]);
+            el.append(doc.createComment(MARKER_COMMENT_DATA));
           }
-          if (pieces[pieces.length - 1]) element.append(pieces[pieces.length - 1]);
+          if (pieces[pieces.length - 1]) el.append(pieces[pieces.length - 1]);
         }
-      } else if (node.nodeType === 3) nodeIndex++;
-      else if ((node as Comment).data === MARKER_COMMENT_DATA) {
-        specIndex++;
-        const primedText = doc.createTextNode('');
-        node.parentNode!.insertBefore(primedText, node);
-        /** Re-aim the walker before removing the node it stands on. */
-        markerWalker.currentNode = primedText;
+      } else if (node.nodeType === 8 && (node as Comment).data === MARKER_COMMENT_DATA) {
+        const primed = doc.createTextNode('');
+        node.parentNode!.insertBefore(primed, node);
+        markerWalker.currentNode = primed; // re-aim before removing the node the walker stands on
         (node as Comment).remove();
-        if (__DEV__) warnImplicitSection(primedText.parentNode as Element | null);
-        parts.push({ _type: CHILD, _index: ++nodeIndex });
-        consumeIgnored();
+        nodes[specIndex] = primed;
+        kinds[specIndex++] = CHILD;
+        skipIgnored();
       }
     }
 
     /**
-     * **CONSERVATION OF MARKERS — the walk must claim every spec the scan emitted.**
-     *
-     * The loop above pairs specs with markers in document order. If the HTML parser DROPPED the
-     * element a binding was written on, that marker never exists, the loop runs out of nodes early,
-     * and `specIndex` stops short — and because pairing is POSITIONAL, every binding after the
-     * missing one has already been handed the value of its predecessor. Measured:
-     *
-     *     html`<select><div title=${a}>x</div></select><b title=${b}>after</b>`
-     *
-     * renders `<b title="a">` — the value written for the `<div>`, on an unrelated element, with
-     * no error anywhere. `<form>` inside `<form>` does the same. HTML's parser drops elements its
-     * content model forbids, which is correct of it and invisible to everything else here.
-     *
-     * **This is deliberately not a content-model check.** A table of what may contain what is a
-     * closed vocabulary over an open space: it catches what somebody enumerated, needs maintenance
-     * as HTML evolves, and would cover the compiler only — while this counts what actually
-     * happened, in JSX and hand-written templates alike, for every dropping context including the
-     * ones nobody listed. The cost of knowing is one integer comparison the construction already
-     * had lying around.
-     *
-     * The gap it cannot close, named rather than implied: a dropped element carrying NO bindings
-     * loses nothing to count. That is harmless to the renderer — nothing shifts — and it is the
-     * restructuring class, which `tests/jsx-tree-parity.test.mjs` records instead.
+     * A child binding that is its element's only content needs no anchor in the template — except
+     * inside a raw-text element, whose content is never markup.
      */
-    if (__DEV__ && specIndex < specs.length) {
-      /** A casualty at the very END has no later marker to reveal it, so the tail is checked too. */
-      warnDroppedBinding(specs, specIndex, specs.length - specIndex);
+    for (let i = 0; i < nodes.length; i++) {
+      const primed = nodes[i];
+      if (kinds[i] !== CHILD) continue;
+      const parent = primed!.parentNode!;
+      if (
+        parent.nodeType === 1 &&
+        primed!.previousSibling === null &&
+        primed!.nextSibling === null &&
+        !RAW_TEXT_TAGS.test((parent as Element).tagName)
+      ) {
+        parent.removeChild(primed!);
+        nodes[i] = parent;
+        kinds[i] = SOLE;
+      }
     }
 
-    const hooks = registry?.get('template') as TemplateHook[] | undefined;
-    if (hooks !== undefined) {
-      create.hooked = true;
-      for (let i = 0; i < hooks.length; i++) hooks[i](this, result, readScope);
+    const first = content.firstChild;
+    const root = (this._root = first !== null && first.nodeType === 1 && first.nextSibling === null ? first : content);
+    for (let i = 0; i < nodes.length; i++) {
+      const path: number[] = [];
+      for (let at = nodes[i]; at !== null && at !== root; at = at.parentNode) {
+        let index = 0;
+        for (let sibling = at.previousSibling; sibling !== null; sibling = sibling.previousSibling) index++;
+        path.unshift(index);
+      }
+      this._paths.push(path);
     }
-    /**
-     * **Dev-only: remember that this markup HAS slots even when nothing can distribute them** — no
-     * template hook set an instance hook on it. Without it the ways of getting the wiring wrong
-     * are indistinguishable from a component that simply has no slots — see the warning at the
-     * instance.
-     */
-    if (__DEV__ && markup.includes('<slot') && !(registry?.get('slot')?.length && registry.get('element')?.length))
-      this._slotless = true;
+
+    let plain = content.querySelector('[is]') === null;
+    if (plain) for (const el of content.querySelectorAll('*')) if (el.localName.includes('-')) plain = false;
+    this._plain = plain;
   }
 }
 
-/**
- * **Development only: an HTML element committed into an SVG or MathML parent draws nothing.**
- *
- * `<path>` parsed as HTML is an `HTMLUnknownElement` — right tag name, no geometry, invisible — and
- * the whole failure mode is that nothing complains. An app reported "every header icon vanished"
- * and had to bisect a component tree to find it.
- *
- * With `@verajs/renderer/namespaces` wired — which compiled JSX always does — an `html` template is
- * parsed where it lands, so this fires only for what that cannot reach: a template first built
- * before the module was wired (templates are cached per call site), a hand-written `` svg`…` `` or
- * `` mathml`…` `` committed into the other foreign namespace, and, with the module NOT wired, a
- * hand-written `html` template handed across a function boundary into an `<svg>` —
- * `` Frame(html`<path/>`) `` — where the call site had no way to know, because the destination
- * belongs to the callee. lit-html behaves identically there, so the behavior is not the thing to
- * change; the silence is.
- *
- * **It lives in `_insert` because that is the seam the template and list paths share.** Wired to the
- * template commit alone it could never fire for a component's children, which arrive as an ARRAY and
- * reach the DOM through the list path — the single most likely spelling of the bug it exists for.
- * `@verajs/renderer/keyed` does NOT cross it — it lands its rows through its own `$c` branches,
- * which is why there are three call sites rather than one.
- *
- * Two insertion paths are deliberately NOT covered, and saying so is better than implying they are.
- * Hydration commits through its own cursor. `@verajs/renderer/slots` moves assigned light children
- * into place itself, so an HTML `<path>` distributed into an SVG `<g>` is silent — that entry
- * imports nothing by design, which is exactly what lets it sit beside any renderer entry on a CDN
- * page, so covering it means a second address for this rule rather than a call.
- *
- * Each call site reads the host from the node that knows where the content LANDS, which is not
- * always the part's own parent: a batched fill is assembled in a `DocumentFragment`, which has no
- * namespace to read, so `_insert` prefers `_foreignHost` in exactly that case and `$c` reaches for
- * the list's parent. Resolving the namespace from the off-document fragment is the mistake that
- * sank an earlier attempt at fixing this properly in the renderer, and all three sites capture the
- * answer BEFORE `insertBefore`, because inserting a fragment empties it.
- *
- * Silent where HTML is CORRECT: `<foreignObject>`, `<desc>`, `<title>` and MathML's token elements
- * are integration points, and `<style>`/`<script>` never draw by design — an HTML `<style>` inside
- * an `<svg>` applies its rules perfectly well, so complaining that it "will not render" would be wrong.
- */
-const foreignHost = (parent: Node): string | null => {
-  /**
-   * Namespace FIRST: it settles the ordinary HTML parent every insert takes, and `localName` is
-   * only wanted inside the two foreign branches. Reading both up front cost 16.1 ns against 11.3 on
-   * that path, measured over 2M iterations — for a value nothing on it uses.
-   */
-  const element = parent as Element;
-  const namespace = element.namespaceURI;
-  const svg = namespace === 'http://www.w3.org/2000/svg';
-  if (!svg && namespace !== 'http://www.w3.org/1998/Math/MathML') return null;
-  const name = element.localName;
-  if (svg) return name === 'foreignObject' || name === 'desc' || name === 'title' ? null : name;
-  if (name === 'mi' || name === 'mo' || name === 'mn' || name === 'ms' || name === 'mtext')
-    return null;
-  /**
-   * `<annotation-xml>` is an HTML integration point ONLY for the two HTML encodings; with any
-   * other, its content is still MathML and an HTML element there is as inert as anywhere else.
-   * One attribute read buys the distinction the spec actually draws.
-   */
-  if (name === 'annotation-xml') {
-    /**
-     * The ATTRIBUTE, and only the attribute — it is what the parser reads. This used to accept an
-     * `encoding` PROPERTY too, because `@verajs/jsx` read the dash in `annotation-xml` as a custom
-     * element and compiled the attribute to one; but a property is invisible to the parser, so the
-     * content really was broken — static HTML moved out of the `<math>`, a custom element inside
-     * built MathML and never upgraded — and accepting the property is what kept this warning quiet
-     * about it. The compiler keeps `encoding` an attribute now (the name is reserved, not custom),
-     * so a property here is a hand-written mistake, and it gets named.
-     */
-    const normalized = element.getAttribute('encoding')?.toLowerCase();
-    /**
-     * `image/svg+xml` leaves too. It is MathML's own registered encoding for an SVG annotation — the
-     * one place SVG content inside a `<math>` subtree is the author's intended, spec-sanctioned
-     * spelling — and the renderer builds it correctly there, since it inserts through the DOM API
-     * rather than the HTML parser. Treating it as foreign produced a warning whose every clause was
-     * false: that the namespaces "cannot nest directly" here, and that the fix is to change the
-     * encoding to `text/html`, which is the wrong encoding for SVG. Leaving the host unexamined
-     * gives up naming genuinely HTML content inside an SVG annotation, which is the rarer mistake by
-     * far and the one no one has ever reported.
-     */
-    return normalized === 'text/html' ||
-      normalized === 'application/xhtml+xml' ||
-      normalized === 'image/svg+xml'
-      ? null
-      : name;
-  }
-  return name;
-};
-
-/**
- * Named ONCE per host-namespace, host-name, content-namespace and offending-tag. A diagnostic that repeats is as useless as one that stays
- * silent, and this one sits on an insert, so a toggled or animated subtree produced one
- * `console.warn` per frame before the guard. `warnedSlotless` above is the precedent and the same
- * `Set<string>` shape. `warnBooleanChild` is the other precedent and a DIFFERENT rule: it re-warns
- * whenever the value CHANGES, which is enough there because a boolean child that keeps being
- * committed is the same mistake being re-reported. Measured: 20 renders of `${false}` warn once, and
- * toggling `false` ↔ `'x'` ten times warns ten times. It would not serve here, where the offending
- * element is committed unchanged on every frame of an animated subtree.
- */
-const warnedForeign = /* @__PURE__ */ new Set<string>();
-
-const warnForeignMismatch = (host: string, hostNamespace: string | null, nodes: readonly Node[]): void => {
-  for (const node of nodes) {
-    /**
-     * **Load-bearing, and it was not always.** `namespaceURI` is defined on `Element` alone, so while
-     * the test below asked *"is this XHTML"* a text node fell out of it on its own and this line was
-     * only a fast path — which is what the comment here used to say. Making the rule a namespace
-     * MISMATCH inverted that in the same change: `undefined === hostNamespace` is false for every
-     * foreign host, so without this guard every text node in a CORRECTLY tagged template is reported
-     * as `<undefined> was built as HTML`. A guard whose justification was written against the
-     * previous line beneath it is worth more suspicion than one with no comment at all.
-     */
-    if (node.nodeType !== 1) continue;
-    const element = node as Element;
-    /**
-     * **Content whose namespace DIFFERS from its host's does not render — one rule, both ways.**
-     * Testing for HTML specifically left the mirror case silent: a hand-written `` mathml`…` ``
-     * handed across a boundary into an `<svg>` — the same story as `` Frame(html`<path/>`) ``, one
-     * namespace over — drew nothing and said nothing. An element in its host's own namespace is
-     * correct and is the path every ordinary insert takes, so it leaves first.
-     */
-    if (element.namespaceURI === hostNamespace) continue;
-    const tag = element.localName;
-    /** Neither draws, so "will not render" is the wrong complaint — and `<style>` genuinely applies. */
-    if (tag === 'style' || tag === 'script') continue;
-    /**
-     * An `<svg>` inside `<annotation-xml>` is where the parser itself puts one, WHATEVER the
-     * encoding: a start tag named `svg` there opens SVG content. The same markup written by hand
-     * builds the identical DOM and says nothing, so the insert must not claim the two namespaces
-     * "cannot nest directly" — here they do, by the parser's own rule.
-     */
-    if (host === 'annotation-xml' && tag === 'svg' && element.namespaceURI === 'http://www.w3.org/2000/svg') continue;
-    /**
-     * The remedy has to match the HOST's namespace. `<foreignObject>` does not exist in MathML, so
-     * naming it for an `<mrow>` host sent people to build an SVG element inside `<math>`, which
-     * draws nothing — and "no geometry" was SVG language applied to a MathML parent besides.
-     *
-     * The NAMESPACE decides, never the name: SVG owns `mask`, `marker`, `mpath` and `metadata`, so
-     * a "starts with m" shortcut would hand four SVG hosts the MathML advice.
-     */
-    /**
-     * The namespace it WAS built in. `HTML` is also the answer for an element carrying no namespace
-     * at all — one adopted from an XML document — which is a label rather than a fact, but the
-     * sentence it appears in ("will not render") and both remedies are right either way.
-     */
-    const built =
-      element.namespaceURI === 'http://www.w3.org/1998/Math/MathML'
-        ? 'MathML'
-        : element.namespaceURI === 'http://www.w3.org/2000/svg'
-          ? 'SVG'
-          : 'HTML';
-
-    /**
-     * The island AND the constraint on where it may sit, chosen together by the host's namespace.
-     * Appending the container caveat to both branches from outside put SVG's answer on a MathML
-     * host — *"put `<mtext>` in a container such as `<g>` or `<svg>`"* — which is the round-1 defect
-     * (a `<mrow>` told to use `<foreignObject>`) arriving through the caveat instead of the island.
-     * The constraint is real in both namespaces and different in each: `<foreignObject>` is not a
-     * permitted child of `<text>`, `<tspan>`, `<clipPath>`, a gradient or a filter — those accept
-     * only their own content models and ignore anything else — while `<pattern>` takes `<g>`'s and
-     * does admit one. `<mtext>` is likewise not a child of a MathML token element.
-     *
-     * And the ENCODING follows the content, not the host: `text/html` is the HTML annotation, so
-     * naming it for SVG content sends the author to the one spelling that cannot carry it. That is
-     * the same false advice `foreignHost` above refuses to print for an `image/svg+xml` host,
-     * arriving here through a string shared between two branches.
-     */
-    const island =
-      hostNamespace === 'http://www.w3.org/1998/Math/MathML'
-        ? `<mtext>, or <annotation-xml encoding="${built === 'SVG' ? 'image/svg+xml' : 'text/html'}">, ` +
-          'inside a MathML container such as <mrow> or <math> rather than inside a token element'
-        : 'a <foreignObject>, which has to sit in an element whose content model accepts one — a ' +
-          'container such as <g> or <svg>, not a text, clipping, gradient or filter element'
-    /**
-     * Keyed by the host's NAMESPACE as well as its name, because `<a>` is a real element in both —
-     * the parser leaves `<math><a>` in MathML, since `a` is not on the foreign-content breakout
-     * list. Keyed by name alone, an SVG `<a>` host spent the pair for a MathML one, which then went
-     * silent AND lost its namespace-correct remedy: exactly the misadvice the remedy is chosen by
-     * namespace to prevent, arriving through the dedupe instead. `<style>` and `<script>` are hosts
-     * in both namespaces too — and the CONTENT's namespace is in the key for the same reason, since
-     * `<a>` is a real element in all three: an HTML `<a>` in an `<svg>` and a MathML `<a>` in the
-     * same `<svg>` are two distinct mistakes, and one was silencing the other.
-     */
-    const seen = `${hostNamespace}${host}>${element.namespaceURI}${tag}`;
-    /** `continue`, not `return`: a spent key must skip THIS node, not abandon the whole insert. */
-    if (warnedForeign.has(seen)) continue;
-    warnedForeign.add(seen);
-    /**
-     * **Two different mistakes, and only one of them is about a tag.**
-     *
-     * HTML content in foreign parent is the common one, and it gets BOTH remedies, because which is
-     * right depends on what the element was meant to be. `` svg`…` `` fixes an SVG element compiled
-     * as HTML. It does NOT fix genuine HTML: a `<div>` stays HTML-namespaced whatever the template
-     * is tagged (the parser's foreign-content breakout), so the advice would change nothing and the
-     * warning would fire again — and for a CUSTOM ELEMENT it is actively harmful, silencing this
-     * while leaving the element permanently un-upgraded, since upgrade is spec-gated on the HTML
-     * namespace. `<foreignObject>` is the answer for anything really HTML.
-     *
-     * SVG inside MathML, or MathML inside SVG, is a DIFFERENT mistake and both of those remedies are
-     * wrong for it: the template already carries the right tag — this message says so one clause
-     * earlier — and the content is not HTML, so the island sentence excludes itself. Saying "add the
-     * svg tag" to a template that IS `` svg`…` `` is the round-1 defect wearing another hat. The two
-     * namespaces simply cannot nest directly; an island is the only place one can host the other.
-     *
-     * The loop then simply ends: every distinct offender in one insert is reported, because the
-     * only early exit above is the spent-pair `continue`, which skips ITS node rather than
-     * abandoning the scan. Reporting the first alone made the message order-dependent.
-     */
-    /**
-     * The ADVICE varies; the call does not. `tests/diagnostics-convention.test.mjs` reads the literal
-     * immediately after the `(` to prove every message a user sees carries the `[vera]` prefix, and
-     * a ternary between two whole messages makes the call invisible to it rather than failing —
-     * which is a defect that suite already caught once, and caught here again.
-     */
-    const advice =
-      built === 'HTML'
-        ? `If it is meant to be an SVG or MathML element, the template holding it needs the ` +
-          `svg\`…\` or mathml\`…\` tag at the call site — or wire @verajs/renderer/namespaces, ` +
-          `which parses a template where it lands (compiled JSX wires it itself). A template built ` +
-          `before it was wired keeps the namespace it was first built in. If it is genuinely HTML (a <div>, a custom ` +
-          `element), it belongs in ${island}: tagging it will not help, and a custom element only ` +
-          `upgrades in the HTML namespace.`
-        : `The template's tag is already right — these two namespaces cannot nest directly. Put ` +
-          `the ${built === 'SVG' ? '<svg>' : '<math>'} root inside ${island}.`;
-    console.warn(
-      `[vera] renderer: <${tag}> was built as ${built} and placed inside <${host}>, where it will ` +
-        `not render. ${advice}`
-    );
-  }
-};
-
-/**
- * An instance of `result` built and first-updated for a position whose parent is `parent` — the one
- * create path the template branch, `hold` and list rows share. The `'template'` hook's resolver is
- * asked here and only here, and the scope is set around the first update and nowhere else.
- */
-const resolve = (result: TemplateResult, parent: Node): Template => {
-  const template = getTemplate(result);
-  return template._$at$ !== undefined ? template._$at$(parent) : template;
-};
-const instantiate = (template: Template, values: unknown[], owner: Document): Instance => {
-  const instance = new Instance(template, owner);
-  /** Kept only once a `'template'` hook exists: an app that wires none pays one boolean, never the scope. */
-  if (create.hooked) {
-    const outer = create.scope;
-    create.scope = template;
-    instance._update(values);
-    create.scope = outer;
-  } else instance._update(values);
-  return instance;
-};
-const build = (result: TemplateResult, parent: Node, owner: Document): Instance =>
-  instantiate(resolve(result, parent), result.values, owner);
-
-/**
- * **The last list fill's resolution**, so a fill resolves once rather than once per row. Every row of
- * a batched fill lands in the same fragment, so a row with the same strings as the one before it
- * takes the same template — one identity compare instead of a cache lookup and a resolver call.
- * Only a BATCHING fragment is remembered: it is empty once inserted, so holding it keeps nothing
- * alive. It is recognized by being EMPTY when its first row arrives — a list's live parent always
- * holds the list's own start marker, so it never is. `nodeType === 11` was the test before, and a
- * SHADOW ROOT passes it: a single-row keyed insert at a shadow root's top level kept the root, its
- * host and the whole detached component alive. A nested list's fill overwrites it, and the outer
- * fill's next row simply resolves again.
- */
-let fillParent: Node | null = null;
-let fillStrings: TemplateStringsArray | null = null;
-let fillTemplate: Template | null = null;
-
+const templateCache = new WeakMap<TemplateStringsArray, Template>();
 const getTemplate = (result: TemplateResult) => {
   let template = templateCache.get(result.strings);
   if (template === undefined) templateCache.set(result.strings, (template = new Template(result)));
   return template;
 };
 
-/** Anything bound to a live position: commits values[index..], returns the next value index. */
-const IGNORED_PART: Part = { _commit: (_values, index) => index + 1 };
-
-/** Never equal to any user value, so the first commit always runs. */
-const UNSET = {};
-
-
-/** A fresh markered part: two comments inserted before `ref` in `parent`. */
-const createMarkeredPart = (parent: Node, ref: Node | null) => {
-  const start = comment();
-  const end = comment();
-  parent.insertBefore(start, ref);
-  parent.insertBefore(end, ref);
-  return new ChildPart(start, end);
-};
-
-/**
- * Text for an attribute built from several expressions.
- *
- * `` `${value}` `` rather than `String(value)`, and the difference is exactly one case. Both are
- * ToString with hint `'string'` for everything else; `String` alone special-cases a **symbol** and
- * returns its description instead of throwing. Every single-expression binding assigns straight to
- * the DOM and gets WebIDL's `DOMString` conversion, which throws on one — so `title=${symbol}` threw
- * and `title="a ${symbol} b"` quietly rendered `a Symbol(s) b`. The same sigil on the same attribute,
- * disagreeing with itself depending on whether static text sat beside it.
- */
+/** `${value}` rather than `String(value)`: a symbol throws here as it does at every other sink. */
 const toText = (value: unknown) => (value == null ? '' : `${value}`);
 
-/** Binding kinds, resolved once from the attribute name's first character. */
-const ATTR = 0; // plain attribute
-const PROPERTY = 1; // .name
-const BOOLEAN = 2; // ?name
-/**
- * `!name` — a property written from the *live* DOM rather than from what this binding last wrote.
- *
- * Numbered below `EVENT` deliberately: `kind >= EVENT` is what decides a value is passed raw rather
- * than joined from the statics, and a live binding is a property, so `!title="a${x}b"` has to join
- * like every other one.
- */
-const LIVE = 3;
-const EVENT = 4; // @name
-/** A binding that must never write — see the `__proto__` refusal in the constructor. */
-const REFUSED = -1;
-/** `.name` on a custom element nothing receives yet — records into `_$props$`, then becomes
- *  `PROPERTY`. A distinct kind keeps the steady-state property path free of any adoption check. */
-const PROP_ADOPT = 6;
-
-/**
- * The `PROP_ADOPT` commit, kept OUT of `_commit` so that function's size — and the JIT layout of
- * its hot `PROPERTY`/`ATTR` branches — is unchanged from before this feature. `_commit` carries one
- * dispatch line; all of this lives here, off every part's steady state.
- *
- * One question decides everything: **after the write, does anything receive this property?** An
- * accessor anywhere on the chain — the platform's own (`title`, `hidden`), a component's declared
- * one, or the pair core's `init()` defines — means the write just landed in real hands: no record,
- * and the part rejoins `PROPERTY` for good. The walk is one step when the write created an own data
- * property (nobody consumed it) and stops at the first descriptor either way, and it is what keeps
- * a platform property on a lazy tag out of the record — recording `.title` would end with the drain
- * shadowing `HTMLElement.prototype.title` and breaking it.
- *
- * An unreceived write is recorded under the sigiled expando **`_$props$`**, because two arrival
- * orders both need it: on a LAZY tag the value sits as a plain own property that the class's field
- * initializers will overwrite at upgrade (the clobber the `PROPERTY` branch only *detects*), and on
- * an EAGER one the value survives but is indistinguishable from the component's own fields by the
- * time `init()` runs. The record answers both — core's `init()` drains it, re-applying values
- * unconditionally, which repairs BOTH spellings of the clobber (`item;` and `item = default`): it
- * never asks whether a clobber happened, it asserts a bound value outranks a class default, which
- * is what props mean. Element-carried because `./spread.ts` writes the same properties from a
- * separate bundle with no shared registry — the `_$`-sigiled member is the cross-bundle channel,
- * and the recorder there is this one's deliberate twin.
- *
- * Returns the part's NEXT kind: `PROPERTY` once something receives the property or the element is
- * upgraded (its record is final — `init()` drains it in the same tick) or has no realm; `REFUSED`
- * for a getter with no setter, so the binding goes inert instead of the flipped plain write
- * throwing on the next commit; `0` to stay adopting — a dash-named element that never upgrades and
- * never receives keeps recording, so its record stays current rather than staling. The one
- * retention this leaves: a defined non-vera element with a plain data property keeps its FIRST
- * committed values in `_$props$` for its lifetime — bounded, one generation, and the part itself
- * already retains the current generation in `_committed`.
- */
-const commitAdopt = (element: Element, name: string, value: unknown): number => {
-  const el = element as unknown as Record<string, unknown>;
-  /**
-   * The walk comes BEFORE the write, because what the walk finds decides whether writing is even
-   * legal: a SETTER receives the value (and a setter that throws is the component's own error), a
-   * GETTER with no setter cannot — the old order assigned first, which in strict mode threw a raw
-   * TypeError out of the render for the eager spelling of exactly the case the drain refuses by
-   * name for the lazy one. Same contested state, one rule, both arrival orders — and the server's
-   * `deliverProperty` applies it too. The dev warning defers to `_$adopt$` where it exists: an
-   * initialized component's drain already speaks, and two voices for one binding is noise.
-   */
-  let carrier: object | null = el;
-  while (carrier !== null) {
-    const desc = Object.getOwnPropertyDescriptor(carrier, name);
-    if (desc !== undefined) {
-      if (desc.set !== undefined) {
-        el[name] = value;
-        return PROPERTY;
-      }
-      if (desc.get !== undefined) {
-        /** An initialized component's receiver owns the refusal (and its channel); for anything
-         *  else this is the only door, so it says so itself. Either way the binding goes INERT —
-         *  flipping to `PROPERTY` would make the next commit's plain write throw. */
-        if (el._$adopt$ !== undefined) (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
-        else if (__DEV__)
-          console.warn(
-            `[vera] renderer: <${element.localName}> declares \`${name}\` as a getter with no ` +
-              `setter — the value bound by \`.${name}=\${…}\` cannot be delivered and the binding ` +
-              `is ignored. Add a setter, or stop binding it.`
-          );
-        return REFUSED;
-      }
-      break; // a data property — an own field, or an inherited default: nothing receives it
-    }
-    carrier = Object.getPrototypeOf(carrier);
-  }
-  el[name] = value;
-  /**
-   * An initialized component receives LIVE: `init()` left `_$adopt$` on the element, and a key it
-   * has not adopted yet goes through that door — a record here would never be read again, because
-   * the drain already ran. This is how a hydrated child gets the props its parent commits after
-   * the child settled, and how a spread bag's conditional key arrives reactive on a live element.
-   */
-  if (el._$adopt$ !== undefined) {
-    (el._$adopt$ as (key: string, value: unknown) => void)(name, value);
-    return PROPERTY;
-  }
-  const record = (el._$props$ ??= {}) as Record<string, unknown>;
-  const firstRecording = __DEV__ && !Object.hasOwn(record, name);
-  record[name] = value;
-  /**
-   * Upgrade is read off the PROTOTYPE, never off `el.constructor`: a spread bag's keys are runtime
-   * data, so a bag carrying a key named `constructor` writes an own property that shadows the real
-   * one, and a check that reads it would then misjudge every later commit. No property write can
-   * move an element's prototype — the one assignment that could, `__proto__`, both twins refuse.
-   * The realm comes from the element, as always.
-   */
-  const win = element.ownerDocument.defaultView as unknown as {
-    HTMLElement: { prototype: object };
-    customElements: CustomElementRegistry;
-  } | null;
-  const upgraded = win === null || Object.getPrototypeOf(el) !== win.HTMLElement.prototype;
-  /**
-   * **The clobber detector, for the element the drain will never reach.** A component that calls
-   * `init()` has the record re-applied, so for it the pre-upgrade window is repaired; an element
-   * that never drains — a plain custom element with a class field — still loses the bound value to
-   * the field initializer at upgrade, exactly as before this feature, and still deserves the
-   * warning. Told apart by OWNERSHIP, not by value: after the definition arrives (and, for a
-   * connected element, `connectedCallback` and the drain have run synchronously inside `define()`),
-   * an own accessor means the drain took the property and there is nothing to report. Identity
-   * against the COMMITTED value would lie twice — a drained value reads back through the store's
-   * proxy, and a value superseded by a later pre-upgrade commit differs without anything being
-   * wrong — so the comparison is against the RECORD, which later recordings keep current, and the
-   * subscription is installed once per (element, property), on the first recording. The registry
-   * is the element's own realm's. Development only; production carries no check, no message, no
-   * `whenDefined` subscription.
-   */
-  if (__DEV__ && win !== null && !upgraded && firstRecording) {
-    const tag = element.localName;
-    win.customElements.whenDefined(tag).then(() => {
-      /** Ownership is asked of the whole CHAIN: the drain's own accessor, a class's prototype
-       *  pair the value was handed to, or a get-only surface the drain refused by name — every
-       *  one means the property has an owner and this closure has nothing left to report. */
-      let carrier: object | null = el;
-      let owned = false;
-      while (carrier !== null) {
-        const desc = Object.getOwnPropertyDescriptor(carrier, name);
-        if (desc !== undefined) {
-          owned = desc.get !== undefined || desc.set !== undefined;
-          break;
-        }
-        carrier = Object.getPrototypeOf(carrier);
-      }
-      if (!owned && el[name] !== record[name])
-        console.warn(
-          `[vera] renderer: the value bound by \`.${name}=\${…}\` on <${tag}> was replaced ` +
-            `while the element upgraded. A class field is the usual cause: at ES2022 ` +
-            `\`${name}?: …\` emits \`${name};\`, which runs during upgrade and overwrites ` +
-            `whatever was set beforehand — write it \`declare ${name}?: …\` instead, which ` +
-            `emits nothing. A component that calls init() adopts bound properties automatically ` +
-            `and never sees this; this element did not. Ignore this if the component replaced ` +
-            `the value on purpose.`
-        );
-    });
-  }
-  return upgraded ? PROPERTY : 0;
-};
-/**
- * Calls an element ref, and survives one that throws.
- *
- * A ref runs in the middle of committing a template's parts, so an unguarded throw left the commit
- * half applied and unwound the render that triggered it — the component's shadow root ended up
- * **empty and stayed that way**, and every later update threw at the same line. The error was
- * reported, so the only symptom was a component that had silently stopped existing.
- *
- * The same judgment `handleEvent` makes a few lines up: a mistake in code the template was handed
- * is named, not raised from inside the framework at a point where the value's origin is long gone.
- * The prefix goes on our own sentence and the error is passed alongside, so it stays filterable
- * without misattributing someone else's `Error`.
- */
-const applyRef = (callback: (el: Element | null) => void, element: Element | null) => {
-  try {
-    callback(element);
-  } catch (error) {
-    /**
-     * **Reported where a hook's error is**: the app's `'error'` chain first, so an error boundary
-     * sees a ref fail exactly as it sees an effect fail — before this, a throwing ref reached only
-     * the console. The element handed over is the COMPONENT being rendered (the render root's
-     * host), as core hands a hook's, since that is what a boundary searches from; `undefined` for a
-     * ref that runs outside a render (a late commit, a teardown). With no handler wired it goes to
-     * `reportError`, as core's does. The sentence is development's; production keeps the prefix.
-     */
-    const handlers = registry?.get('error') as ((error: unknown, element?: Element) => void)[] | undefined;
-    if (handlers?.length) {
-      const host = renderRoot?.nodeType === 11 ? (renderRoot as ShadowRoot).host : renderRoot;
-      for (const handler of handlers) handler(error, (host ?? undefined) as Element | undefined);
-    } else reportUncaught(error, __DEV__ ? 'an element ref threw; the render continued without it.' : 'ref threw');
-  }
-};
-
-const REF = 5; // element-position expression
-
-class AttrPart implements Part {
+/** The listener an `@event` binding registers — stable, so swapping handlers never touches the DOM. */
+class Listener {
   _element: Element;
-  _name: string;
-  _statics: string[];
-  _slots: number; // how many expression values this binding consumes
-  _kind: number;
-  _isFullValue: boolean; // exactly one expression with no static text around it
-  _committed: unknown = UNSET;
-  _handler: EventListener | null = null;
-  /** `<select>.value`, which cannot be applied where it is written — see `pendingSelects`. */
-  _select = false;
-  /** The template statically wrote this attribute, so a first nullish commit must still remove. */
-  _present: boolean;
-
-  constructor(element: Element, name: string, statics: string[], present = false) {
-    const first = name[0];
-    let kind =
-      first === '.'
-        ? PROPERTY
-        : first === '?'
-          ? BOOLEAN
-          : first === '@'
-            ? EVENT
-            : first === '&'
-              ? REF
-              : first === '!'
-                ? LIVE
-                : ATTR;
-    let realName = kind ? name.slice(1) : name;
-    /**
-     * **`__proto__` is not a property write, so no property binding may make one.**
-     *
-     * `element.__proto__ = value` hits `Object.prototype`'s `__proto__` ACCESSOR and replaces the
-     * element's prototype, stripping every DOM method it has. `.__proto__=${x}` crashed out of the
-     * commit with an unreadable internal error; `!__proto__=${x}` bricked the element silently and
-     * the wreckage surfaced in a LATER render, naming the renderer rather than the binding. There
-     * is no legitimate use, so unlike `.innerHTML` there is no spelling to point at — the binding
-     * is refused and never writes.
-     *
-     * **The deliberate twin of `refusedSink` in `./spread.ts`**, which refuses the same name for
-     * the same reason. The two entries are independent bundles and neither imports the other, so
-     * the rule is copied on purpose (the repo's standing note: sigil rules live in both AttrPart
-     * and spread, and a fix has to visit every copy). `tests/dangerous-binding-matrix.test.mjs`
-     * fails if one of them starts refusing something the other allows.
-     */
-    if ((kind === PROPERTY || kind === LIVE) && realName === '__proto__') {
-      kind = REFUSED;
-      if (__DEV__)
-        console.warn(
-          `[vera] <${element.localName}> binds \`${name}\`, which would replace the element's own ` +
-            `prototype and destroy it — no property write does this, and no use of it is legitimate. ` +
-            `The binding is ignored.`
-        );
-    }
-    /**
-     * React muscle-memory, buildless: `onClick=${fn}` ≡ `@click=${fn}`. Strictly `on` + a capital —
-     * all-lowercase `onclick` stays a plain attribute (legal inline-handler HTML).
-     *
-     * `@verajs/renderer/spread` repeats these rules rather than importing them. Sharing them through
-     * `@verajs/shared-utils` was tried and reverted: the shared form has to return both the kind and
-     * the name, and the tuple it allocates cost this bundle 10 B. Principle #5 allows deliberate
-     * duplication where two things can legitimately diverge; here #7 decides it — weight is the
-     * product, and core and the renderer are the two packages where that is absolute.
-     */
-    if (kind === ATTR && first === 'o' && name.charCodeAt(1) === 110 && name.charCodeAt(2) > 64 && name.charCodeAt(2) < 91) {
-      kind = EVENT;
-      realName = name.slice(2).toLowerCase();
-    }
-    /**
-     * **A property write to a custom element starts as `PROP_ADOPT`**, a distinct kind so the
-     * steady-state `PROPERTY` commit path stays byte-for-byte unchanged — zero added instruction
-     * for every `.value=` on a built-in. Every dash-named element starts here, defined or not,
-     * because the record has to exist for BOTH arrival orders: an eager component's first commit
-     * lands after upgrade but before `init()` (one commit records, then the part flips), and a
-     * lazy one's land before upgrade (the part records until the definition arrives). `commitAdopt`
-     * decides which per commit and flips the part back to `PROPERTY` the moment something real
-     * receives the property, so the window is one commit for a defined element and the pre-upgrade
-     * stretch for a lazy one.
-     */
-    if (kind === PROPERTY && element.localName.includes('-')) kind = PROP_ADOPT;
-    this._kind = kind;
-    this._name = realName;
+  _handler: unknown = null;
+  constructor(element: Element) {
     this._element = element;
-    this._statics = statics;
-    this._slots = statics.length - 1;
-    this._isFullValue = this._slots === 1 && statics[0] === '' && statics[1] === '';
-    /** Resolved once, here, so the commit path costs one boolean rather than two comparisons. */
-    this._select = kind === PROPERTY && realName === 'value' && element.localName === 'select';
-    this._present = present;
   }
-
-  /**
-   * Releases an element ref, because the element it named is going away.
-   *
-   * A ref was told about attachment and never about detachment, so it kept a detached node alive and
-   * a component reading `myRef.value` after a subtree was replaced got the old element back. Lit
-   * passes `undefined` for the same reason.
-   *
-   * `null` rather than `undefined`, because `.value` is a store property and `null` reads as
-   * "deliberately nothing" where `undefined` reads as "never set".
-   *
-   * **Reached when a subtree is rendered away, and deliberately not when a component is removed
-   * from the document.** The two are the same event to a reader and not to this renderer: a
-   * disconnect here is not a destruction, since moving a node between parents fires one and the
-   * component renders again on reconnect. Releasing there would blank every ref for the frame a
-   * move takes, and `_committed = UNSET` below means the re-apply could only happen on the next
-   * pass. Measured in `tests/renderer-ref-lifetime.test.mjs`, which asserts both halves so the
-   * asymmetry is a decision rather than something nobody looked at.
-   *
-   * A **self-applying** value is
-   * skipped: `_$apply$` receives the part and owns its own lifecycle, so telling it about detachment
-   * here would be a second protocol contradicting the first.
-   */
-  _release() {
-    const value = this._committed;
-    if (typeof value === 'function') applyRef(value as (el: Element | null) => void, null);
-    else if (value !== null && typeof value === 'object' && (value as { _$apply$?: unknown })._$apply$ === undefined)
-      (value as { value: unknown }).value = null;
-    this._committed = UNSET;
-  }
-
-  /**
-   * Stable listener; swapping one function for another never touches the DOM.
-   *
-   * **It is not registered exactly once, and the difference is load-bearing.** A handler set back to
-   * `undefined` or `false` nulls `_handler` *without removing the listener* — inert, because
-   * `handleEvent` finds nothing callable — so the next non-null value sees `_handler === null` and
-   * calls `addEventListener` again. Measured: `function -> undefined -> function` registers twice.
-   *
-   * That is harmless only because the listener passed is **`this`, the part object itself**. The
-   * platform ignores a repeated `(type, listener, capture)` triple, verified with no framework
-   * involved — the same listener object added three times fires once. Pass a fresh closure here
-   * instead and dedup stops applying: every toggle through null adds another live listener, silently,
-   * and only in components that turn a handler off and on again.
-   *
-   * `tests/event-binding-fuzz.test.mjs` holds that as an invariant — it counts *fires*, not
-   * `addEventListener` calls, and making this listener a closure fails it.
-   *
-   * **Two shapes, because `addEventListener` takes two.** A function is called with the element as
-   * `this`; an object with a `handleEvent` method is invoked through it — the platform's own
-   * `EventListenerObject` protocol, which every engine accepts and lit supports. This used to call
-   * `.call()` unconditionally, so passing the platform's own listener shape bound successfully and
-   * then threw `this._handler.call is not a function` on **every** dispatch.
-   *
-   * Anything else is inert rather than throwing. A truthy non-function is a mistake, and
-   * development names it at the binding (see the `EVENT` branch in `_commit`) — where the mistake
-   * still is. Throwing here instead would raise from inside the framework on every user click, at a
-   * point where the value's origin is long gone.
-   */
+  /** A function is called with the element as `this`; an object is invoked through its `handleEvent`. */
   handleEvent(event: Event) {
     const handler = this._handler as EventListener | EventListenerObject | null;
     if (typeof handler === 'function') handler.call(this._element as never, event);
-    else if (typeof (handler as EventListenerObject)?.handleEvent === 'function')
-      (handler as EventListenerObject).handleEvent(event);
-  }
-
-  /**
-   * `adopting` is set only by `@verajs/renderer/hydrate`, and only changes what happens to the
-   * three form-value properties the server can express in markup — see the branch below.
-   */
-  _commit(values: unknown[], index: number, adopting?: boolean): number {
-    const kind = this._kind;
-    /** Refused in the constructor and never writes — it still has to consume its slots. */
-    if (kind === REFUSED) return index + this._slots;
-    let value: unknown;
-    if (this._isFullValue || kind >= EVENT) {
-      value = values[index]; // raw and uncoerced — events and refs receive the actual value
-    } else {
-      const statics = this._statics;
-      let joined = statics[0];
-      for (let i = 0; i < this._slots; i++) joined += toText(values[index + i]) + statics[i + 1];
-      value = joined;
-    }
-    /**
-     * **A live property asks the element, not its own memory.**
-     *
-     * Every other kind skips a write when the value matches what it last wrote. That is what keeps
-     * a field someone has typed into — and it is wrong for a control whose DOM state changes as a
-     * *side effect of interacting with a sibling*. Clicking one radio unchecks the others with no
-     * event on them, so their bindings still say `true`, still match `_committed`, and never write
-     * again: the model and the page diverge and no amount of re-rendering reconciles them. A
-     * `<select>`'s options are the same shape.
-     *
-     * Deliberately narrow. This is not for text inputs — bind those with `.value` and let a
-     * person's typing stand. `?hidden` and plain attributes are not offered either: nothing changes
-     * them behind the renderer's back, so there is nothing to re-read.
-     */
-    if (kind === LIVE) {
-      this._committed = value;
-      /**
-       * **Except while adopting — on a form control.** Hydration reaches a DOM a person may
-       * already have used, and the click that checked a radio happened before any handler existed
-       * to tell the store about it — so re-asserting the server's choice here would throw the
-       * interaction away and nothing would ever put it back. Recorded, not written, exactly as
-       * the other form properties are; the first state-driven render after that applies live
-       * semantics normally.
-       *
-       * **A COMPONENT tag is the exception to the exception**: there is no user-editable carrier
-       * behind `!prop` on a component — it is a property delivery spelled with `!` — and the
-       * server DELIVERED it to the child's render, so yielding here dropped the one copy the
-       * client would ever get and hydration regressed the child's content to its prop-less state.
-       * Found by the hydration fixture on its first run. The write is unconditional and routes
-       * through the element like any component prop: an accessor receives it, an initialized
-       * component adopts it live.
-       */
-      if (__HYDRATING__ && adopting) {
-        /** Routed through `commitAdopt`, not written raw: the child hydrated BEFORE this commit,
-         *  so only the adoption door re-runs its render. The part stays `LIVE` — the return is
-         *  deliberately dropped — so live semantics resume on the next state-driven render. */
-        if (this._element.localName.includes('-')) commitAdopt(this._element, this._name, value);
-      } else {
-        const liveTarget = this._element as unknown as Record<string, unknown>;
-        if (liveTarget[this._name] !== value) liveTarget[this._name] = value;
-      }
-      return index + this._slots;
-    }
-    /**
-     * **A `<select>`'s value cannot be applied where it is written.**
-     *
-     * Assigning it selects an option, and at the moment this part commits the options may not exist:
-     * parts commit in document order, so a nested `${items.map(…)}` has not run, and an `<option
-     * value=${id}>` has not been given its value either. The assignment then matches nothing, and the
-     * select falls back to its first option — silently showing the wrong one. Measured: a nested list
-     * selected index 0 instead of 1, and dynamic option values selected nothing at all.
-     * **lit-html has the same defect, byte for byte** — it was measured there too. React solves it by
-     * special-casing `<select value>` and applying it after children mount, which is what this is.
-     *
-     * Queued rather than dirty-checked, and that is deliberate: the value can be unchanged while the
-     * *options* are replaced, which drops the selection just as thoroughly. Re-asserting once per
-     * render pass is what keeps it right, and a select carries one binding, so it is one push.
-     */
-    if (this._select) {
-      this._committed = value;
-      /** Adoption never re-asserts a form value — the person may have changed it. See below. */
-      if (!(__HYDRATING__ && adopting)) (pendingSelects ??= []).push(this._element as HTMLSelectElement, value);
-      return index + this._slots;
-    }
-    if (value !== this._committed) {
-      if (kind === ATTR) {
-        /**
-         * A nullish value removes the attribute — except on the first commit of a template that
-         * never statically wrote it, where a fresh clone has nothing to remove. That skip used to
-         * be unconditional-removal instead, for the one case that genuinely needs it:
-         * `<b title="a" title=${null}>` parses keeping the first duplicate, so the binding —
-         * written last, and authoritative on the server too — must clear it. `_present` is that
-         * case, read off the parsed template once ever; without it the removal was a real DOM call
-         * per nullish binding per element on create — 1,000 no-ops in the 1,000-row benchmark.
-         */
-        if (value == null) {
-          if (this._present || this._committed !== UNSET) this._element.removeAttribute(this._name);
-        }
-        else {
-          /**
-           * The same question `@verajs/renderer/spread` asks at its own sink, from the same home —
-           * the two are deliberately separate implementations (see spread's header on why), and a
-           * diagnostic that lived in only one of them would be the very defect this audit found.
-           * `setAttribute` performs the DOMString conversion itself; nothing is stringified here.
-           */
-          if (__DEV__) {
-            const complaint = attributeValueComplaint(this._element.localName, this._name, value);
-            if (complaint !== null) console.warn(`[vera] ${complaint}`);
-          }
-          this._element.setAttribute(this._name, value as string);
-        }
-      } else if (kind === PROPERTY) {
-        const target = this._element as unknown as Record<string, unknown>;
-        const name = this._name;
-        /**
-         * **Adopting a form value: record it, do not write it.**
-         *
-         * `value`, `checked` and `selected` are exactly the properties `@verajs/ssr` mirrors into
-         * markup, so the element already holds what this binding says — *unless a person changed
-         * it*, which is the entire reason to server-render: the page is usable before the bundle
-         * lands, and the window between the two is where someone types their name, ticks a box or
-         * picks an option. Writing the binding then threw that away, silently, on every hydrating
-         * page. The part is told it already committed this value, so it stays live and the next
-         * genuine state change still applies.
-         *
-         * Only these three, and only while adopting. A property the server cannot express — any
-         * other `.prop` — is not in the DOM yet and must be written.
-         */
-        if (__HYDRATING__ && adopting && (name === 'value' || name === 'checked' || name === 'selected')) {
-          this._committed = value;
-          return index + this._slots;
-        }
-        /**
-         * No un-upgraded custom element can be behind this write: a dash-named property part is
-         * born `PROP_ADOPT` and only flips here once something receives the property, so the
-         * pre-upgrade window — the clobber, its repair for components, and the `whenDefined`
-         * detector for elements that never drain — lives entirely in `commitAdopt` above. History
-         * worth keeping: an earlier repair was tried HERE and removed as silently partial (it
-         * re-applied on `undefined`, so `item = someDefault` never looked clobbered); the record
-         * the drain re-applies unconditionally is what answered that objection.
-         */
-        target[name] = value;
-      } else if (kind === BOOLEAN) {
-        /** Unconditional for the same reason: `<b hidden ?hidden=${false}>` must end up not hidden. */
-        this._element.toggleAttribute(this._name, !!value);
-      } else if (kind === EVENT) {
-        /**
-         * A listener is the most deferred call a template makes — it is validated when a *user*
-         * clicks, which in development may be never. So it is checked where it is written, the same
-         * rule the setters took on: the stack at dispatch no longer contains the binding.
-         *
-         * `false` is deliberately allowed and silent. `@click=${enabled && onClick}` is the ordinary
-         * way to bind conditionally and produces exactly that, and it already behaves correctly —
-         * `handleEvent` finds nothing callable and does nothing. `true` is not produced by any
-         * idiom, so it is named along with strings, numbers and objects that cannot listen.
-         */
-        if (__DEV__ && value != null && value !== false && typeof value !== 'function' &&
-            typeof (value as EventListenerObject)?.handleEvent !== 'function')
-          console.warn(
-            `[vera] @${this._name} on <${this._element.localName}> was given ${typeof value === 'object' ? 'an object with no handleEvent method' : `a ${typeof value}`}, ` +
-              `which cannot listen — the event will do nothing.\n` +
-              `Pass a function, or an object with a handleEvent method. A missing handler is ` +
-              `\`undefined\` or \`false\`, both of which are fine; this is neither.`
-          );
-        /**
-         * Checked once, where the listener is first attached — see `eventNameComplaint`. Its own
-         * statement, ahead of the line below rather than wrapped around it, so production (where
-         * this folds away) is byte-for-byte the code it was.
-         */
-        if (__DEV__ && this._handler === null && value != null && value !== false) {
-          const complaint = eventNameComplaint(this._element, this._name);
-          if (complaint !== null) console.warn('[vera] ' + complaint);
-        }
-        if (this._handler === null && value != null) this._element.addEventListener(this._name, this);
-        this._handler = (value as EventListener) ?? null;
-      } else if (kind === PROP_ADOPT) {
-        const next = commitAdopt(this._element, this._name, value);
-        if (next !== 0) this._kind = next;
-      } else if (value != null) {
-        /**
-         * Element ref: `<input ${myRef} />`. A function is called with the element; an object gets
-         * the element assigned to `.value` — which makes core's own `ref()` double as an element
-         * ref, reactively. Runs once per distinct value, not once per render.
-         */
-        notifyOnRemoval = true;
-        if (typeof value === 'function') applyRef(value as (el: Element | null) => void, this._element);
-        else if (typeof value === 'object') {
-          /**
-           * A self-applying value: anything that knows what to do with an element applies itself.
-           * `@verajs/renderer/spread` is the first, and the whole protocol is this one property
-           * read — the implementation lives in that entry, so an app that never spreads pays for
-           * the check and nothing else. `_$…$` is exempt from property mangling, like `_$litType$`.
-           *
-           * Deliberately confined to the element position, which is rare. A protocol in the text,
-           * attribute or property commits would sit in the hot path every benchmark measures.
-           */
-          const self = value as { _$apply$?: (el: Element, part: object) => void; value: unknown };
-          /** The part is passed as the ownership key: one element can carry several spreads. */
-          if (self._$apply$) self._$apply$(this._element, this);
-          else self.value = this._element;
-        }
-        // any other value type at element position is consumed and ignored
-      }
-      this._committed = value;
-    }
-    return index + this._slots;
+    else if (typeof handler?.handleEvent === 'function') handler.handleEvent(event);
   }
 }
 
 /**
- * `<select>.value` assignments held until the whole pass has committed — see the note in `_commit`.
- * Flat pairs rather than tuples: one array, no per-entry allocation.
+ * A rendered template. Its bindings live in ONE array of `[node, committed value]` pairs rather than a
+ * part object each — a row allocates the instance and that array, nothing else. The instance is also
+ * its own list item: `$k` is the key a keyed list reads.
  */
-let pendingSelects: unknown[] | null = null;
-
-/**
- * Applies the values queued from `from` on — a render flushes only what IT queued. Flushing the whole
- * queue from a nested render applied the OUTER render's value before the outer render had built its
- * options; flushing nothing until the outermost render returned left a component rendered inside
- * another's commit reading its select's first option after its own render.
- */
-const flushSelects = (from = 0) => {
-  const queued = pendingSelects;
-  if (queued === null || queued.length <= from) return;
-  /** Taken off first: an assignment can run a `change` handler that renders again. */
-  const mine = queued.splice(from);
-  if (queued.length === 0) pendingSelects = null;
-  for (let i = 0; i < mine.length; i += 2) (mine[i] as HTMLSelectElement).value = mine[i + 1] as string;
-};
-
-/**
- * **Instances whose instance hook mounts once the render that created them has finished** — flat
- * pairs of instance and root, queued after each one's first update and run by that render, as
- * `pendingSelects` are. Mounting right after the first update meant mounting a DETACHED instance:
- * the fragment is inserted only afterwards, and a nested instance only when its outer one is, so a
- * claim that focuses, measures or observes saw an element in no document. At the end of the render
- * the whole tree is in place — connected, if the container is.
- */
-const pendingMounts: unknown[] = [];
-
-/**
- * Mounts what was queued from `from` on — each render mounts only its own, as `flushSelects`. An
- * instance torn down before its render finished has no `$s` left: it never mounts, so it has nothing
- * to unmount. The array is kept rather than dropped when empty: an app with no instance hooks never
- * pushes, and one that has them reuses it.
- */
-const flushMounts = (from: number) => {
-  const mine = pendingMounts.splice(from);
-  for (let i = 0; i < mine.length; i += 2) {
-    const instance = mine[i] as Instance;
-    const state = instance.$s;
-    instance.$s = undefined;
-    if (state !== undefined && (instance.$k = instance.$h!.$m(state, mine[i + 1] as Node | null)) !== undefined)
-      notifyOnRemoval = true;
-  }
-};
-
-const SCRATCH = doc.createDocumentFragment();
-
-
-/** A row is either an element-mode instance or a markered part; both can hold appliers. */
-const detachItem = (item: Item) => {
-  item._instance?._teardown();
-  item._part?._detach();
-};
-
-/**
- * **These three stay here rather than in `types.ts`, and the reason is structural.**
- *
- * `ListStrategy` names the `ChildPart` class and `Item` names `Instance`, which puts both
- * downstream of this file in the import graph — a `types.ts` that imported them would stop being
- * the graph's root, which is the single property §1 asks of it. `KeyedResult` composes
- * `ListStrategy` and inherits the same position. Restating those classes structurally in
- * `types.ts` to satisfy the letter of the rule would create the twin §1 forbids, so the rule
- * records the limit instead.
- */
-
-/**
- * A value that names the strategy able to reconcile a list of its kind. `keyed()` in
- * `@verajs/renderer/keyed` is the only producer today; the shape is deliberately open so a
- * virtualizer or an async list can ship as its own module without this file learning about it.
- *
- * `$r` and the three members it calls are exempt from property mangling — they are the only names
- * that cross a bundle boundary, and they are two characters so crossing costs nothing.
- */
-export type ListStrategy = (
-  part: ChildPart,
-  values: unknown[],
-  items: Item[],
-  parent: Node,
-  end: Node | null
-) => Item[];
-
-/**
- * A `TemplateResult` that `keyed()` has marked, so the child part reconciles it as a list instead
- * of replacing the subtree. `$r` is absent on every ordinary template, which is what keeps the
- * unkeyed path free of any list machinery.
- */
-export interface KeyedResult extends TemplateResult {
-  $r?: ListStrategy;
-}
-
-/**
- * A list item is either ELEMENT-MODE — a single-root template instance whose one element IS the
- * item's boundary (`_element`/`_instance`/`_shape` set, `_part` null) — or a general markered
- * ChildPart. Rows are single-root in virtually every real list, and element mode drops both marker
- * comments and both marker inserts per item, which is exactly the per-row overhead a vdom does not
- * pay on create.
- */
-type Item = {
-  $k: unknown;
-  _element: Element | null;
-  _instance: Instance | null;
-  _shape: TemplateStringsArray | null;
-  _part: ChildPart | null;
-};
-
 class Instance {
-  _parts: Part[] = [];
-  _fragment: DocumentFragment;
-  /**
-   * **`declare`, so nothing is emitted and no instance carries these unless it uses them.**
-   * Under ES2022 class-field semantics a plain `_x?: T` is DEFINED on every instance, undefined or
-   * not — measured, two such declarations cost every row of a 200-row list a property apiece and
-   * showed up as a few percent off update throughput. Templates without slots now allocate exactly
-   * what they did before this feature existed, and the ones with slots take a shape transition
-   * once.
-   *
-   * `$h` — the template's instance hook, kept only when this instance takes part (see `InstanceHook`).
-   * `$s` — what its `$c` returned, awaiting this instance's first `_update`.
-   * `$k` — what its `$m` returned, handed to `$q` at teardown.
-   * `$`-named because the hook that reads them lives in another bundle.
-   */
-  declare $h?: InstanceHook;
-  declare $s?: unknown;
-  declare $k?: unknown;
-  /**
-   * `owner` is the document the instance will live in — the part's own, read from its start marker.
-   * Importing into it is what makes a component in a popped-out window or an iframe be built by THAT
-   * window's registry: `importNode` upgrades custom elements at clone time, so importing through the
-   * module's `document` built them with the opener's classes, whose `static styles` sheets cannot
-   * be adopted by a document of another realm (CODE-PRINCIPLES §3). One `ownerDocument` read per
-   * instance: measured within noise on list creation on all three engines (`.probe/perf-realm/`,
-   * 20 renders per sample), so a per-fill cache of it was tried and removed — 19 B for nothing.
-   */
-  constructor(template: Template, owner: Document) {
-    if (__DEV__) sayShape(template);
-    /**
-     * `importNode`, not `cloneNode` — the difference is custom-element upgrade, not the document.
-     * Template content lives in the inert template document, so `cloneNode` copies stay
-     * un-upgraded until insertion; a `.prop` committed in that window lands as an OWN property
-     * that permanently shadows a defined class's setter (the setter never fires — every
-     * accessor-based element, Lit's included, receives a dead value) and a bound value on a
-     * class-field element is clobbered by the field initializer at insert, silently, because the
-     * `whenDefined` detector below only watches definitions that arrive LATE. Hydration commits
-     * onto server-parsed, already-upgraded elements, so the two render paths disagreed about the
-     * same template. `importNode`'s cloning steps upgrade defined elements at clone time — in
-     * every engine and in jsdom — which makes the commit order match hydration and the platform.
-     * Undefined elements are untouched: nothing can upgrade them, and the pre-upgrade posture
-     * (own property, clobber on define, development warning) stands as pinned in
-     * `tests/pre-upgrade-property.test.mjs`. Measured cost of losing `cloneNode`: ~2–7% of the
-     * raw clone operation across the three engines — nanoseconds per instance.
-     */
-    this._fragment = owner.importNode(template._element.content, true);
-    const templateParts = template._parts;
-    /** Shared walker, ELEMENT | TEXT — child anchors are the primed text nodes themselves. */
-    instanceWalker.currentNode = this._fragment;
-    let nodeIndex = -1;
-    let node: Node | null = null;
-    for (let i = 0; i < templateParts.length; i++) {
-      const templatePart = templateParts[i];
-      if (templatePart._type === IGNORED) {
-        this._parts.push(IGNORED_PART);
-        continue;
-      }
-      while (nodeIndex < templatePart._index) {
-        node = instanceWalker.nextNode();
-        nodeIndex++;
-      }
-      this._parts.push(
-        templatePart._type === CHILD
-          ? new TextPart(node as Text)
-          : new AttrPart(node as Element, templatePart._name!, templatePart._statics!, templatePart._present)
-      );
-    }
-    /** The template's instance hook, if any — see `InstanceHook`. Everything else pays one read. */
-    const hook = template._$inst$;
-    if (hook !== undefined) {
-      const state = hook.$c(this._fragment, renderRoot);
-      if (state !== undefined) {
-        this.$h = hook;
-        this.$s = state;
-        /**
-         * Mounted when this render finishes, not after the first update — see `pendingMounts`.
-         * `notifyOnRemoval` is armed now rather than at mount, so an instance discarded before its
-         * render ends is walked at teardown, which clears `$s` and keeps it from mounting.
-         */
-        pendingMounts.push(this, renderRoot);
-        notifyOnRemoval = true;
-      }
-    }
-    /** Standalone rather than an `else` branch: `_slotless` is only ever set when there was no
-     *  seam, so the condition stands alone — and a lone `if (__DEV__ …)` folds away cleanly. */
-    if (__DEV__ && template._slotless === true && renderRoot !== null && renderRoot.nodeType === 1) {
-      /**
-       * **A `<slot>` in a LIGHT render that nothing will distribute.** Both ways of arriving here
-       * are silent otherwise, and both leave the same confusing picture. Measured, for a host given
-       * `<b slot="a">MINE</b>`:
-       *
-       *     <b slot="a">MINE</b><!----><div class="box"><slot name="a">FB</slot></div>
-       *
-       * — the content is not destroyed, it is stranded ahead of the render while the slot shows its
-       * fallback. The message says "any content the host is given" rather than asserting the host
-       * HAS some: a component that consumes its own children before rendering and also declares
-       * slots — `@verajs/ui`'s select is one — warns with nothing stray on the page, and a reader
-       * sent looking for markup that is not there concludes the diagnostic is confused.
-       *
-       * 1. `@verajs/renderer/slots` was never wired at all — or a custom slot strategy was wired
-       *    without `slotDiscovery`, which is what finds the `<slot>`s for it.
-       * 2. It was wired AFTER this template first rendered. Templates are interned per call site
-       *    for the life of the page and are marked once, at construction — so a component
-       *    that rendered before the wiring keeps a slotless template forever, and every later use
-       *    of it fails the same way. Measured: the same `draw()` distributes at a fresh call site
-       *    and not at this one.
-       *
-       * A shadow root never reaches here: the platform slots there, which is why this is gated on
-       * an element root.
-       */
-      warnSlotless(renderRoot as Element);
-    }
+  $k: unknown = undefined;
+  _template: Template;
+  /** The strings this instance was built from — the same-shape identity. */
+  _strings: TemplateStringsArray;
+  /** The cloned root: the element for a single-root template, else the (soon emptied) fragment. */
+  _root: Node;
+  _bindings: unknown[];
+  constructor(template: Template, strings: TemplateStringsArray, root: Node, bindings: unknown[]) {
+    this._template = template;
+    this._strings = strings;
+    this._root = root;
+    this._bindings = bindings;
   }
-
-  /**
-   * One walk, both jobs: release the element refs in this instance and tell any child applier
-   * under it that it is going away.
-   *
-   * They were two walks over the same array — `_release` for refs, `_detach` for appliers — which
-   * is the same tree traversed twice for two answers that arrive at the same moment. Merged, the
-   * per-part cost is one `_kind` compare and one `_upgraded` read.
-   *
-   * Reached only when this instance's template holds a ref, or some applier somewhere declared
-   * teardown. An app with neither never runs it: this is the per-node work the bulk removal exists
-   * to skip, and the gate is what keeps it out of the path.
-   *
-   * Through `_upgraded`, not just `_parts`. A child position is instantiated as a `TextPart` and
-   * **upgrades** to a `ChildPart` the first time it takes an object — so the part holding a
-   * applier is almost never the one in this array, it is the one that array's entry points at.
-   * Walking `_parts` alone found nothing at all.
-   */
-  _teardown() {
-    const parts = this._parts;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if ((part as AttrPart)._kind === REF) (part as AttrPart)._release();
-      (part as TextPart)._upgraded?._detach();
-    }
-    /** Taken-over slots park the USER'S nodes before this instance's DOM is discarded. */
-    this.$s = undefined;
-    if (this.$k !== undefined) this.$h!.$q(this.$k);
-  }
-
-  _update(values: unknown[]) {
-    let valueIndex = 0;
-    const parts = this._parts;
-    for (let i = 0; i < parts.length; i++) valueIndex = parts[i]._commit(values, valueIndex);
-  }
-
 }
 
-/** A single property read — this runs once per list item per render, so it must be minimal. */
+/**
+ * Builds an instance and commits its first values.
+ *
+ * **The clone.** Creating an element in a document WITH a custom-element registry costs a definition
+ * lookup per element; the template's inert document has none. So a template that cannot contain a
+ * custom element (no dash-named element, no `is`) is cloned with `cloneNode` — its nodes adopt into
+ * the page on insertion — and one that can is imported into `owner` with `importNode`, which upgrades
+ * defined elements at clone time in the owner's own registry, so a `.prop` commit reaches the class's
+ * setter rather than shadowing it. A foreign `owner` (a popped-out window, an iframe) always imports.
+ *
+ * **Every node is located before anything commits.** The paths index the pristine clone; a commit
+ * that upgrades a child position inserts markers and content, which would shift the siblings a later
+ * path counts.
+ */
+const instantiate = (template: Template, result: TemplateResult, owner: Document): Instance => {
+  const source = template._root;
+  const root = template._plain && owner === doc ? source.cloneNode(true) : owner.importNode(source, true);
+  const kinds = template._kinds;
+  const paths = template._paths;
+  const bindings = new Array(kinds.length * 2);
+  for (let i = 0; i < kinds.length; i++) {
+    const kind = kinds[i];
+    if (kind === IGNORED) continue;
+    let node = root;
+    const path = paths[i];
+    for (let step = 0; step < path.length; step++) {
+      node = node.firstChild!;
+      for (let hops = path[step]; hops > 0; hops--) node = node.nextSibling!;
+    }
+    bindings[i * 2] = kind === EVENT ? new Listener(node as Element) : node;
+    bindings[i * 2 + 1] = kind === CHILD ? '' : UNSET;
+  }
+  const instance = new Instance(template, result.strings, root, bindings);
+  update(instance, result.values);
+  return instance;
+};
+
+/** Commits new values into an instance of the same shape. */
+const update = (instance: Instance, values: unknown[]) => {
+  const template = instance._template;
+  const kinds = template._kinds;
+  const bindings = instance._bindings;
+  let valueIndex = 0;
+  for (let i = 0; i < kinds.length; i++) {
+    const kind = kinds[i];
+    valueIndex = kind === IGNORED ? valueIndex + 1 : commitBinding(template, bindings, i, kind, values, valueIndex);
+  }
+};
+
+/** Commits one binding; returns the next value index. */
+const commitBinding = (
+  template: Template,
+  bindings: unknown[],
+  i: number,
+  kind: number,
+  values: unknown[],
+  valueIndex: number
+): number => {
+  const slot = i * 2;
+  const committed = bindings[slot + 1];
+  if (kind === CHILD || kind === SOLE) {
+    const value = values[valueIndex];
+    if (committed === UPGRADED) (bindings[slot] as ChildPart)._set(value);
+    else if (value == null || typeof value === 'object') {
+      /** A template, list, node or nothing: the position becomes a full part, anchored where its text was. */
+      let text = bindings[slot] as Text;
+      if (committed === UNSET) {
+        const holder = text as unknown as Element;
+        holder.append('');
+        text = holder.firstChild as Text;
+      }
+      const end = comment();
+      const part = new ChildPart(comment(), end);
+      const parent = text.parentNode!;
+      parent.insertBefore(part._start, text);
+      parent.insertBefore(end, text.nextSibling);
+      part._mode = TEXT;
+      part._text = text;
+      part._value = committed === UNSET ? '' : committed;
+      bindings[slot] = part;
+      bindings[slot + 1] = UPGRADED;
+      part._set(value);
+    } else if (value !== committed) {
+      if (committed === UNSET) {
+        /** SOLE's first text: created holding its value. `''` creates no node, so that one is appended. */
+        const holder = bindings[slot] as Element;
+        if (value === '') holder.append('');
+        else holder.textContent = value as string;
+        bindings[slot] = holder.firstChild;
+      } else (bindings[slot] as Text).data = value as string;
+      bindings[slot + 1] = value;
+    }
+    return valueIndex + 1;
+  }
+  const statics = template._statics[i];
+  let value: unknown;
+  if (statics === null || kind === EVENT) value = values[valueIndex];
+  else {
+    let joined = statics[0];
+    for (let s = 1; s < statics.length; s++) joined += toText(values[valueIndex + s - 1]) + statics[s];
+    value = joined;
+  }
+  const next = valueIndex + (statics === null ? 1 : statics.length - 1);
+  if (value === committed) return next;
+  bindings[slot + 1] = value;
+  const name = template._names[i];
+  if (kind === ATTR) {
+    const element = bindings[slot] as Element;
+    if (value != null) element.setAttribute(name, value as string);
+    /** A fresh clone carries no attribute to remove unless the template itself wrote one. */
+    else if (committed !== UNSET || template._present[i]) element.removeAttribute(name);
+  } else if (kind === PROPERTY) (bindings[slot] as Record<string, unknown>)[name] = value;
+  else if (kind === BOOLEAN) (bindings[slot] as Element).toggleAttribute(name, !!value);
+  else {
+    const listener = bindings[slot] as Listener;
+    /** Registered once, as the listener OBJECT: the platform dedupes it, so toggling through null never stacks. */
+    if (listener._handler === null && value != null) listener._element.addEventListener(name, listener);
+    listener._handler = value ?? null;
+  }
+  return next;
+};
+
+/** A single property read — it runs once per list item per render. */
 const isTemplateResult = (value: object): value is TemplateResult =>
   (value as TemplateResult).strings !== undefined;
 
-/**
- * The common case of a child expression is plain text, and the template primes every child slot
- * with a text node — so the steady state is compare-and-assign on `.data`. This part carries only
- * that, upgrading itself to a full ChildPart the first time it sees null, a template, or an array.
- */
-/**
- * **A boolean in a child position renders the WORD, and almost nobody means that.**
- *
- * `${items.length > 0 && html`…`}` is the ordinary conditional idiom, and when the test is false
- * the whole expression is `false` — which becomes the text `false` on the page. Nothing throws;
- * the value is legitimate; only the intent is wrong. lit-html does the same and this renderer
- * matches it deliberately (anything not nullish renders), so the BEHAVIOR stays and the mistake
- * is named where it happens instead of being found by looking at the page.
- *
- * `@verajs/jsx` compiles this case away — in JSX a boolean child becomes nothing, React's rule,
- * because that is where React expectations live. **That is the one value semantic on which JSX and
- * a hand-written template differ**, which makes this the warning that meets JSX-shaped code pasted
- * into a template.
- *
- * Called from BOTH child sinks, because a text position is a `TextPart` until something upgrades
- * it and a boolean never triggers that upgrade — putting the check in `ChildPart` alone left it
- * silent for exactly the common case. One function, two call sites, per the standing rule that a
- * deliberate duplication is a fix's second address.
- *
- * Both sinks gate this on the value CHANGING — not merely on reaching a commit — so an unchanged
- * `false` is reported once and not once per render. `ChildPart` needed that stated explicitly: its
- * dirty check sits below, and calling this above it spammed every pass.
- */
-const warnBooleanChild = (value: unknown): void => {
-  if (typeof value !== 'boolean') return;
-  console.warn(
-    `[vera] renderer: a child position was given \`${value}\`, which renders as the word ` +
-      `"${value}" — the usual cause is \`\${cond && …}\` with a false \`cond\`.\n` +
-      `Write \`\${cond ? … : null}\`, or \`\${(cond && …) || null}\`; \`null\` and \`undefined\` are ` +
-      `the values that render nothing. If you meant to display the boolean, say so with ` +
-      `\`\${String(value)}\` and this goes quiet.`
-  );
-};
-
-class TextPart implements Part {
-  _text: Text;
-  _value: unknown = '';
-  _upgraded: ChildPart | null = null;
-
-  constructor(text: Text) {
-    this._text = text;
-  }
-
-  _commit(values: unknown[], index: number): number {
-    const value = values[index];
-    if (this._upgraded !== null) {
-      this._upgraded._set(value);
-      return index + 1;
-    }
-    if (value == null || typeof value === 'object') {
-      /**
-       * Upgrade in place: marker comments come into existence only now, anchored around the text
-       * node, and the full part inherits the committed text state and delegates forever.
-       *
-       * BOTH markers are ours. Borrowing `this._text.nextSibling` as the end instead would hand
-       * this part a boundary owned by the NEXT part — and the next part removes that very node
-       * when it upgrades and clears its own text. The stale reference then makes `_clear()` walk
-       * past the end of the child list. Owning both anchors also makes `_end === null` mean
-       * exactly one thing: the root part, which really does own its container.
-       */
-      const start = comment();
-      const end = comment();
-      /** Beside the text node, wherever it is — distributed into a slot included: the markers are then
-       *  in that host's light list, and slots finds the part's content from them (`_$span$`). */
-      const parent = this._text.parentNode!;
-      parent.insertBefore(start, this._text);
-      parent.insertBefore(end, this._text.nextSibling);
-      const part = new ChildPart(start, end);
-      part._mode = TEXT;
-      part._text = this._text;
-      part._value = this._value;
-      this._upgraded = part;
-      part._set(value);
-      return index + 1;
-    }
-    if (value !== this._value) {
-      if (__DEV__) warnBooleanChild(value);
-      this._value = value;
-      this._text.data = value as string;
-    }
-    return index + 1;
-  }
-}
-
-/**
- * A value at a child position that applies itself — see `ChildPart._set`.
- *
- * `previous` is whatever this applier returned at this part on the last render, which is where a
- * applier keeps its continuity. Returning nothing is fine for one that has none.
- */
-type Applier = ((part: { _$commit$(value: unknown): void }, previous: unknown) => unknown) & {
-  /**
-   * Optional teardown, hung on the **applier** rather than on the value.
-   *
-   * The applier is already required to be hoisted — a fresh function per render breaks continuity —
-   * so it is the one stable object in the protocol and the natural place for a second half. It
-   * receives whatever the applier last returned, which is where its state lives.
-   */
-  _$detach$?: (previous: unknown) => void;
-};
-
-/**
- * A value at a child position the renderer has no built-in answer for. Return `true` to claim it.
- *
- * A handler will also be handed the **operations** it needs to do its job — the shape a
- * `'store'` insert gets, where core passes a kit (`track`, `trigger`) rather than exposing them as
- * members. That object is deliberately *not* here yet: an earlier draft guessed nine
- * methods, nothing used them, they cost 90 B of anticipation, and porting the list algorithm then
- * showed it needs closer to fourteen — including item accessors the guess had no idea about. It
- * gets built in the step that has a caller to shape it.
- *
- * This is how a value *kind* becomes a package rather than a branch: lists, an async value, a
- * portal, a virtualizer. The built-ins below register through it too, so a third party's kind is
- * not second-class to one that shipped in the box.
- */
-type ValueHandler = (part: object, value: unknown) => boolean | void;
-
-/**
- * The registry this renderer reads `'value'` handlers from, handed over by {@link renderer}.
- *
- * Not imported. The renderer carries no registry of its own for the same reason the router does
- * not: a production bundle inlines `@verajs/inserts`, so importing it would give this package one
- * registry and core another, and an app would register into whichever it happened to import — the
- * failure `connectInserts` used to repair.
- */
-let registry: { get(name: 'value' | 'slot' | 'template' | 'error' | 'element'): unknown[] | undefined } | null = null;
-
-/**
- * **The create-path scope** (held on an object, not in a module-level `let`: WebKit checks a `let`
- * for its temporal dead zone on every access, and on this path that measured ~1% of creating a small
- * SVG row) — what the fragment being built right now will land in, as far as a
- * `'template'` hook needs to know. Set around an instance's FIRST update and a list row's creation,
- * restored after; the update path never touches it, and no part carries it. A position whose parent
- * is still a detached fragment cannot be asked where it is, and this is the answer it gets instead:
- * the template whose instance that fragment is, or, for a non-template list row, `[its list's
- * parent, the scope outside it]`. Opaque to the renderer, which only keeps it.
- */
-const create = { scope: null as unknown, hooked: false };
-const readScope = () => create.scope;
-
-/**
- * **The `'template'` insert point: `(template, result, readScope) => void`, called once as each
- * template is BUILT** — the cold path, cached for the life of the page, the same place the slot seam
- * is resolved and for the same reason. A hook may set `_$at$` on the template: a resolver the
- * renderer asks, once per instance CREATED, which template to build at a position, given that
- * position's parent node. Nothing is asked on update.
- */
-type TemplateHook = (template: Template, result: TemplateResult, read: () => unknown) => void;
-
-/**
- * The ONE lookup for the `'slot'` insert. Three callers want the same thing in the same shape —
- * template construction (are there slots to record?), the first render into a container (capture
- * the host's children), and hydration's rescue (un-distribute before a mismatch discards) — and
- * the seam carries its cross-bundle members as sigil-named keys, which every caller had to spell
- * out again. One accessor, spelled once.
- */
-/**
- * **Any slot strategy is wired**, so content may be MOVED out of its part's marker range and a
- * template's top-level nodes have to be recorded for `_clear` and `hold` to find it. Latched beside
- * `own` but not the same thing: a custom strategy without `$o` relocates too, and gating the record
- * on `own` left the README's own `slotsInTree` showing the old template beside the new one after a swap.
- */
-let relocating = false;
-let skewNamed = false;
-const slotSeam = (): SlotSeam | undefined => {
-  const seam = (registry?.get('slot') as SlotSeam[] | undefined)?.[0];
-  if (seam !== undefined) {
-    relocating = true;
-    /**
-     * **Development only: the slots module and this renderer are one contract, so one version.**
-     * They ship in the same package, so npm cannot mix them; a CDN page pinning two versions of it
-     * can, and the hooks between them then silently stop meeting. `$v` is set only by the
-     * development build of `@verajs/renderer/slots`; a custom strategy has none and is not checked.
-     */
-    if (__DEV__ && !skewNamed && seam.$v !== undefined && seam.$v !== __VERSION__) {
-      skewNamed = true;
-      console.warn(
-        `[vera] @verajs/renderer/slots ${seam.$v} is wired with @verajs/renderer ${__VERSION__}. ` +
-          'They are one contract — load both from the same version of the package.'
-      );
-    }
-  }
-  return seam;
-};
-const noHandlers: ValueHandler[] = [];
-const valueHandlers = () => (registry?.get('value') as ValueHandler[] | undefined) ?? noHandlers;
-
-/**
- * Whether anything in this process has asked to be told when a subtree is removed — an element ref
- * to release, or a child applier that declared `_$detach$`.
- *
- * **One flag for both, and it is process-wide.** Teardown cannot be discovered from the template the
- * way a ref can — a ref is a `&` part the scan sees, while an applier arrives as a *value* and no
- * template shape predicts it — so the coarser gate is the only one that serves both.
- *
- * The finer, per-template gate for refs was measured and dropped: it saved 34 B less than nothing,
- * because the walk it avoided is not the expensive part. With one unrelated ref on the page, a
- * 1 000-row clear walks 1 000 instances and measures 3.98 ms against 4.03 ms with no ref at all —
- * the DOM removal dominates completely. What matters is that an app asking for neither walks
- * **zero**, and that still holds.
- */
-let notifyOnRemoval = false;
-
-/**
- * The hydrate entry's way to raise the flag. Every CLIENT path that creates removal work sets
- * `notifyOnRemoval` where the work is created (a ref committing, a slot mounting, an applier
- * declaring `_$detach$`) — but hydration ADOPTS its seams through its own walk in `hydrate.ts`,
- * a different module compiled into the same bundle, and a page whose only seams were adopted
- * left the flag down. `_clear` then skipped `_detach` entirely: no `_teardown`, no `_$park$`,
- * and the user's server-adopted slotted content was destroyed on the first branch-away — the
- * exact content-loss class the seam's park exists to prevent, reintroduced one entry over.
- */
-export const declareRemovalWork = (): void => {
-  notifyOnRemoval = true;
-};
-
-/**
- * Dev-only: how many times a part has seen a *different* child applier. See the branch that reads it.
- *
- * `@__PURE__` is load-bearing. Every read sits behind `__DEV__`, but a bare `new WeakMap()` at module
- * scope is a constructor call terser must assume has side effects, so production kept the allocation
- * with its binding dropped — a literal `new WeakMap;` statement building an object nothing could ever
- * reach. The annotation is what lets the dead branch take it along.
- */
-const _applierSwaps = /* @__PURE__ */ new WeakMap<object, number>();
-
-/** What a ChildPart currently contains. */
+/** What a ChildPart holds. */
 const EMPTY = 0;
 const TEXT = 1;
 const TEMPLATE = 2;
 const LIST = 3;
 const NODE = 4;
 
+/** Removal is a move into this fragment, then one clear. */
+const SCRATCH = doc.createDocumentFragment();
+
+export type { ChildPart, Instance };
+
+/** A list item: an instance of a single-root template (its element is its whole range), or a markered part. */
+export type Item = Instance | ChildPart;
+
 /**
- * Development-only profiling hook, armed by `@verajs/renderer/profiler`. Null until something
- * arms it, so an unprofiled development render pays one null check per template commit.
- *
- * Every reference sits behind `__DEV__`, which `defineDev()` folds to `false` before terser runs —
- * so the declaration, the constants and every call site are removed from the production bundle.
- * Verified by byte comparison, not assumed.
+ * A value that names the strategy able to reconcile a list of its kind — `keyed()` is the producer.
+ * It lives here rather than in `types.ts` because it names `ChildPart`, a runtime class of this file.
  */
-const PROFILE_UPDATE = 0; // same template identity — values committed in place
-const PROFILE_CREATE = 1; // first template into an empty part
-const PROFILE_REBUILD = 2; // template identity CHANGED — subtree torn down and rebuilt
-const PROFILE_FRAME_START = 3;
-const PROFILE_FRAME_END = 4;
+export type ListStrategy = (part: ChildPart, values: unknown[], items: Item[], parent: Node, end: Node | null) => Item[];
 
-type ProfileHook = (kind: number, subject: unknown, shape: TemplateStringsArray | null) => void;
-let _profileHook: ProfileHook | null = null;
-/** @internal */
-const _setProfileHook = (fn: ProfileHook | null) => {
-  _profileHook = fn;
-};
+/** A `TemplateResult` that `keyed()` marked with its strategy. */
+export interface KeyedResult extends TemplateResult {
+  $r?: ListStrategy;
+}
 
-class ChildPart implements Part {
+/**
+ * A child position that holds anything but plain text: a template, a list, a node, or nothing — or
+ * text it took over from an upgraded binding. It owns the range between two comment markers
+ * (`_end === null`: to the end of its parent — the root part).
+ */
+class ChildPart {
   _start: Comment;
-  /** Exclusive end of this part's range; null means "to the end of the parent". */
   _end: Node | null;
   _mode = EMPTY;
-  _value: unknown;
+  _value: unknown = undefined;
   _text: Text | null = null;
   _instance: Instance | null = null;
-  /** The committed template's strings identity — the same-template fast path in `_set`. */
-  _shape: TemplateStringsArray | null = null;
   _items: Item[] | null = null;
-  _keyedList = false;
-  /** Held instances by template identity; survives clears so state outlives interim content. */
-  _held: Map<TemplateStringsArray, Instance> | null = null;
-  /**
-   * `__DEV__` only: the real destination for a part built inside a batching fragment, so the
-   * diagnostic resolves against where the row LANDS rather than the fragment it was assembled in.
-   * `declare`, so nothing is emitted and no part carries it.
-   */
-  declare _foreignHost?: Node | null;
-  /** Whatever the last `_$child$` at this part returned — its continuity across renders. */
-  _applierState: unknown = undefined;
-  /** Which applier that state belongs to, so two of them at one part cannot read each other's. */
-  _applier: unknown = undefined;
-  /**
-   * The container whose render attached this part's applier — `declare`d, so only applier parts carry
-   * it. A later `_$commit$` runs as a render of THAT container (see there). Found by walking up from
-   * the part it would be wrong: content an outer template places into a light host sits inside the
-   * host, but belongs to the outer render.
-   */
-  declare _root?: Node | null;
+  /** The key a keyed list reads when this part is one of its items. */
+  $k: unknown = undefined;
 
   constructor(start: Comment, end: Node | null) {
     this._start = start;
     this._end = end;
   }
 
-  _commit(values: unknown[], index: number): number {
-    this._set(values[index]);
-    return index + 1;
-  }
-
   _insert(node: Node) {
-    const parent = this._start.parentNode!;
-    /**
-     * Captured BEFORE the insert, because `insertBefore` empties a fragment — and only when the
-     * parent is foreign, so an ordinary insert allocates nothing even in development.
-     */
-    if (__DEV__) {
-      /**
-       * ONE node answers both questions. Reading the namespace from `parent` while the host came
-       * from `_foreignHost` handed a batched fill the SVG advice for a MathML host, because a
-       * `DocumentFragment` has no namespace at all — the very thing `_foreignHost` exists to skip.
-       *
-       * **`parent` WINS whenever it is a real element, and `_foreignHost` is only the fallback for
-       * a fragment.** Preferring the stored value unconditionally cached a wrong answer for the
-       * life of the page: a list part at the TOP LEVEL of its template — which is what `<>{items}</>`
-       * compiles to — has its markers in that template's own fragment when `$c` records the host,
-       * so it stored a detached `DocumentFragment`, `foreignHost` read no namespace off it, and
-       * every later commit through that row was silent even once the markers sat in a live `<g>`.
-       * That is precisely the cached-fragment failure the changeset records as measured and
-       * rejected for inferring namespace from the DOM parent, reproduced one layer in. By the time
-       * this runs `parent` is authoritative wherever it is an element, so it is consulted first.
-       */
-      const hostNode = parent.nodeType === 11 ? (this._foreignHost ?? parent) : parent;
-      const host = foreignHost(hostNode);
-      const inserted = host === null ? null : node.nodeType === 11 ? [...node.childNodes] : [node];
-      parent.insertBefore(node, this._end);
-      if (inserted !== null) warnForeignMismatch(host!, (hostNode as Element).namespaceURI, inserted);
-    } else {
-      parent.insertBefore(node, this._end);
-    }
-  }
-
-  /**
-   * Tells every child applier under this part that it is going away.
-   *
-   * Reached only when some applier somewhere declared teardown — see `notifyOnRemoval` — because
-   * this is the per-node walk the bulk removal exists to skip. **Every** removal path calls it, not
-   * just `_clear`: a keyed row is dropped by moving its nodes to a scratch fragment and an index-mode
-   * list shrinks by removing nodes directly, so a version that only hooked `_clear` notified a
-   * applier when its container was replaced and stayed silent when its row was deleted — told
-   * sometimes, which is a worse contract than never.
-   */
-  _detach() {
-    if (this._applier !== undefined) (this._applier as Applier)._$detach$?.(this._applierState);
-    this._instance?._teardown();
-    const items = this._items;
-    if (items != null) for (let i = 0; i < items.length; i++) detachItem(items[i]);
+    this._start.parentNode!.insertBefore(node, this._end);
   }
 
   _clear() {
-    /**
-     * One gate, two jobs. A template that holds an element ref must release it; a subtree holding a
-     * applier that declared teardown must be told. Both are found by the same walk, and an app
-     * with neither reads two booleans and walks nothing.
-     */
-    if (notifyOnRemoval) this._detach();
     const parent = this._start.parentNode!;
     const end = this._end;
-    const items = this._items;
-    /**
-     * **Content that is no longer between the markers.** `@verajs/renderer/slots` distributes a
-     * light host's children by MOVING them into the component's tree, so a part rendering those
-     * children keeps its markers in the host while its content lives inside the component.
-     *
-     * Both branches below are wrong for that, and wrong in opposite directions. The walk finds
-     * the markers adjacent and removes nothing — the content stays on screen after being cleared
-     * (a template swap in a light host showed the OLD template forever). The whole-parent fast
-     * path is the dangerous one: it would `textContent = ''` the HOST, component render and all.
-     *
-     * Every mode knows its content by IDENTITY, which is parent-agnostic and split-proof: items
-     * through `$m`, TEXT through `_text`, NODE through `_value`, TEMPLATE through the top-level
-     * node array recorded at commit. The one shape that cannot be found this way is a
-     * DocumentFragment committed at NODE position (its children scatter and it keeps no record);
-     * that falls through to the walk, as before.
-     */
-    /** In a light host, the host's light list is the truth about what lies between the markers —
-     *  adjacent or not, since a nested part's markers stay where its content left. */
-    const span = end !== null && this._mode !== EMPTY ? slotSeam()?._$span$?.(this._start, end) : undefined;
-    if (span !== undefined) {
-      /** Found through the host's light list — everything between the markers, nested parts included. */
-      for (const node of span) (node as ChildNode).remove();
-    } else if (this._start.nextSibling === end && this._mode !== EMPTY) {
-      if (items !== null) {
-        for (const item of items) if (item !== null) this.$m(item, null, SCRATCH);
-        SCRATCH.textContent = '';
-      } else if (this._mode === TEXT) {
-        (this._text as ChildNode | null)?.remove();
-      } else if (this._mode === TEMPLATE) {
-        if (Array.isArray(this._value)) for (const node of this._value as ChildNode[]) node.remove();
-      } else if (this._mode === NODE && typeof (this._value as ChildNode).remove === 'function') {
-        (this._value as ChildNode).remove();
-      }
-    } else /**
-     * When this part owns its parent's entire contents, one `textContent = ''` replaces removing
-     * every node individually. For a 1 000-row table body that is the difference between ~22 ms
-     * (lit-html's per-node teardown) and ~5 ms.
-     *
-     * A part owns the whole parent when nothing precedes its start AND nothing follows its end —
-     * `_end === null` (a root part, which runs to the end by definition) or `_end` is the last
-     * child. The second case is the common one and used to miss this path entirely: every list
-     * written as `<tbody>${rows}</tbody>` sits inside a template, and since 0.1.2 a nested part
-     * always owns an end marker, so `_end === null` alone never held for it.
-     *
-     * Re-appending both anchors in order restores the part's boundary exactly as it was.
-     */
+    /** Owning the parent's whole content, one `textContent = ''` replaces a removal per node. */
     if (this._start.previousSibling === null && (end === null || end.nextSibling === null)) {
       parent.textContent = '';
       parent.appendChild(this._start);
       if (end !== null) parent.appendChild(end);
     } else {
       let node = this._start.nextSibling;
-      /**
-       * `node !== null` is a backstop, not an expected exit. Reaching the end of the child list
-       * without meeting `_end` means something detached this part's boundary; stopping leaves
-       * nodes behind, which beats throwing out of the middle of a render pass.
-       */
-      while (node !== null && node !== this._end) {
+      /** `node !== null` is a backstop: a detached boundary leaves nodes behind rather than throwing mid-render. */
+      while (node !== null && node !== end) {
         const next = node.nextSibling;
         parent.removeChild(node);
         node = next;
@@ -2366,63 +598,6 @@ class ChildPart implements Part {
     this._text = null;
     this._instance = null;
     this._items = null;
-    this._shape = null;
-    this._applierState = undefined;
-    this._applier = undefined;
-  }
-
-  /**
-   * How a child-position applier renders. Named to survive property mangling — `/^_[a-z]/` is the
-   * pattern, and `_$…$` does not match it — because this is the half of the protocol that third
-   * parties call.
-   */
-  _$commit$(value: unknown) {
-    /**
-     * The applier's own state survives its own rendering. Committing different content usually
-     * runs `_clear`, which drops the state so a part that was emptied by *anything else* cannot
-     * hand an applier continuity it no longer has — but an applier rendering its own next value
-     * has not gone away, and losing continuity there made `until()` fall back to its placeholder on
-     * the render after it resolved.
-     */
-    const applierState = this._applierState;
-    const applier = this._applier;
-    /**
-     * **A commit after the render returned — an applier resolving later — runs as a render of the
-     * container that attached it.** With no render root, a `<slot>` it committed found no host to
-     * distribute into and showed its fallback while the user's content sat in holding; and only a
-     * render flushes queued `<select>` values, so one committed here was never applied.
-     */
-    /**
-     * Whenever the render in progress is not its own — none, or ANOTHER container's (an applier
-     * resolving synchronously inside some other render) — the commit is bracketed as a render of the
-     * container that attached it, and only while that container still CONTAINS the part. A part its
-     * template already discarded, or one attached outside any render, commits with no root: running it
-     * against its old container let a `<slot>` in it take that host's content for good, and running it
-     * against the render in progress took THAT host's. Containment, not `isConnected`: a container
-     * rendered off the page still holds its parts, and its late commits distribute and flush like any.
-     */
-    if (renderRoot !== this._root || renderRoot === null) {
-      /** And the root and scope in progress are restored however it ends, as `renderInto`'s are. */
-      const outerRoot = renderRoot;
-      const outerScope = create.scope;
-      const mark = pendingSelects?.length ?? 0;
-      const mounts = pendingMounts.length;
-      renderRoot = this._root != null && this._root.contains(this._start) ? this._root : null;
-      create.scope = null;
-      const seam = slotSeam();
-      seam?._$b$?.(renderRoot);
-      try {
-        this._set(value);
-      } finally {
-        renderRoot = outerRoot;
-        create.scope = outerScope;
-        flushSelects(mark);
-        flushMounts(mounts);
-        seam?._$e$?.();
-      }
-    } else this._set(value);
-    this._applierState = applierState;
-    this._applier = applier;
   }
 
   _set(value: unknown) {
@@ -2431,149 +606,34 @@ class ChildPart implements Part {
       return;
     }
     if (typeof value !== 'object') {
-      /**
-       * Gated on the value CHANGING, which is the same condition the commit below uses. Called
-       * before that check it fired on every render of an unchanged `false` — a channel that
-       * repeats is as useless as one that stays silent, and the comment on `warnBooleanChild`
-       * claimed this was already true. A part arriving from any other state reports once more: its
-       * `_value` is not text's — and a template no longer records one at all unless slots is wired,
-       * so the MODE is what says the value arrived, not a stale `_value` from before the template.
-       */
-      if (__DEV__ && (this._mode !== TEXT || this._value !== value)) warnBooleanChild(value);
       if (this._mode === TEXT) {
-        if (this._value !== value) {
-          this._value = value;
-          this._text!.data = value as string; // the DOM coerces numbers etc.
-        }
+        if (this._value !== value) this._text!.data = value as string;
       } else {
         if (this._mode !== EMPTY) this._clear();
-        this._text = doc.createTextNode(value as string);
-        this._insert(this._text);
-        this._value = value;
+        this._insert((this._text = doc.createTextNode(value as string)));
         this._mode = TEXT;
       }
-      return;
-    }
-    const heldResult = (value as { $h?: TemplateResult }).$h;
-    if (heldResult !== undefined) {
-      this._commitHeld(heldResult);
+      this._value = value;
       return;
     }
     if (isTemplateResult(value)) {
-      /**
-       * Same-shape fast path on `strings` identity alone — no template-cache lookup. This is the
-       * hottest line in a keyed list update: for every row whose shape did not change (all of
-       * them, in practice), commit costs one identity compare before touching the values.
-       */
-      if (this._shape === value.strings) {
-        if (__DEV__ && _profileHook) _profileHook(PROFILE_UPDATE, this, value.strings);
-        this._instance!._update(value.values);
+      /** The hottest line of a list update: same strings, commit the values and nothing else. */
+      if (this._mode === TEMPLATE && this._instance!._strings === value.strings) {
+        update(this._instance!, value.values);
         return;
       }
-      /**
-       * Reaching here with a template already committed means the identity changed, so the
-       * subtree below is about to be destroyed and rebuilt rather than updated. That is what
-       * `?hidden=${…}` over a swapped subtree exists to avoid, and it is otherwise invisible.
-       */
-      if (__DEV__ && _profileHook) {
-        _profileHook(this._mode === TEMPLATE ? PROFILE_REBUILD : PROFILE_CREATE, this, value.strings);
-      }
       if (this._mode !== EMPTY) this._clear();
-      let template = getTemplate(value);
-      if (template._$at$ !== undefined) template = template._$at$(this._start.parentNode!);
-      const instance = new Instance(template, this._start.ownerDocument!);
-      if (create.hooked) {
-        const outer = create.scope;
-        create.scope = template;
-        instance._update(value.values);
-        create.scope = outer;
-      } else instance._update(value.values);
-      /**
-       * The instance's top-level nodes, recorded while they are still in the fragment. `_value`
-       * is unused in TEMPLATE mode, and this is what lets `_clear` and `hold`'s parking find the
-       * content after `@verajs/renderer/slots` has moved it out of the marker range — per node,
-       * parent-agnostic, so even content split across two slots comes back. Costs one small array
-       * on a path that just built an Instance and cloned a template; same-shape updates never
-       * reach here.
-       */
-      if (relocating) this._value = [...instance._fragment.childNodes];
-      this._insert(instance._fragment);
+      const instance = instantiate(getTemplate(value), value, this._start.ownerDocument!);
+      this._insert(instance._root);
       this._instance = instance;
-      this._shape = value.strings;
       this._mode = TEMPLATE;
       return;
     }
-    const handlers = valueHandlers();
-    for (let i = 0; i < handlers.length; i++) if (handlers[i](this, value)) return;
-    /** Lists — an array, or any other iterable, spread once into one. */
     if (Array.isArray(value)) return this._commitList(value);
-    /** Not a DOM node that happens to be iterable — a `<select>` or a `<form>` is a node to place, not a list of its children. */
+    /** Any other iterable is a list — but a node is placed, not iterated (a `<select>`, a `<form>`). */
     if (typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function' && (value as Node).nodeType === undefined)
       return this._commitList([...(value as Iterable<unknown>)]);
-
-    /**
-     * **A child-position value that applies itself.** The same idea as `_$apply$` at element
-     * position — which is how `@verajs/renderer/spread` ships as a separate package the renderer
-     * knows nothing about — at the one other position worth extending.
-     *
-     * `_$child$(part, previous)` is handed the part and whatever it returned last time at this
-     * part, and calls `part._$commit$(value)` to render content. Keeping continuity in the return
-     * value rather than in an applier *instance* is what keeps this a protocol rather than a
-     * framework: there is no base class, no factory and no lifecycle to learn, and an applier is
-     * an object literal.
-     *
-     * Placed **after** the template check on purpose. A template is overwhelmingly the common
-     * object at a child position, and it returns above without ever reading this property — so the
-     * check costs the hot path nothing and only arrays, nodes and appliers pay for it. Measured:
-     * +22 B gzipped, and no runtime difference distinguishable from noise.
-     *
-     * There is deliberately no teardown hook. `_clear` bulk-removes DOM and, when the part owns its
-     * parent, does `parent.textContent = ''` — the thing that makes clearing a 1 000-row table ~5 ms
-     * against lit-html's ~22 ms. Calling teardown on a nested applier would mean walking the part
-     * tree on every removal, which is precisely the per-node work that fast path exists to skip. So
-     * an applier here can render, and cannot yet be told it has gone away.
-     */
-    const applyChild = (value as { _$child$?: Applier })._$child$;
-    if (applyChild !== undefined) {
-      /** `previous` belongs to *this* applier; a different one at the same part starts fresh. */
-      const previous = this._applier === applyChild ? this._applierState : undefined;
-      /**
-       * The un-hoisted applier, named. Writing `_$child$` as an object-literal method makes a new
-       * function per render, so the part never recognizes it and `previous` is `undefined` forever —
-       * the applier silently restarts on every pass. It is the first rule in the README and it
-       * fails without a symptom, so development counts the swaps: a genuine applier change at one
-       * part happens once or twice, not on every render.
-       *
-       * The counter is a module-scope `WeakMap` rather than a field, so production carries neither
-       * it nor a per-part slot to hold it — but only because it is marked `@__PURE__` at its
-       * declaration. Without that it said the same thing and was untrue.
-       */
-      if (__DEV__ && this._applier !== undefined && this._applier !== applyChild) {
-        const swaps = (_applierSwaps.get(this) ?? 0) + 1;
-        _applierSwaps.set(this, swaps);
-        if (swaps === 3) {
-          console.warn(
-            `[vera] a child applier changed identity ${swaps} times at one part, so \`previous\` ` +
-              `is always undefined and it restarts every render.\n` +
-              `Hoist the applier — written as an object-literal method it is a new function per ` +
-              `call:\n\n` +
-              `  function applyThing(part, previous) { … }            // once, at module scope\n` +
-              `  const thing = (x) => ({ _$child$: applyThing, x });  // state on the object\n`
-          );
-        }
-      }
-      this._applier = applyChild;
-      this._root = renderRoot;
-      if (applyChild._$detach$ !== undefined) notifyOnRemoval = true;
-      this._applierState = applyChild.call(value, this, previous);
-      return;
-    }
     if ((value as Node).nodeType !== undefined) {
-      /**
-       * A DOM node renders as itself — a canvas a charting library owns, a `<template>`'s content,
-       * an element built by hand. Placed after the template check and before the list check
-       * because `nodeType` is one property read and nothing else that reaches here has one.
-       */
       if (this._mode !== NODE || this._value !== value) {
         if (this._mode !== EMPTY) this._clear();
         this._insert(value as Node);
@@ -2582,196 +642,64 @@ class ChildPart implements Part {
       }
       return;
     }
-    // any other object: render as text
     this._set(String(value));
   }
 
-  /** Commits a template while stashing whatever it replaces — see the `hold()` export. */
-  _commitHeld(result: TemplateResult) {
-    if (this._mode === TEMPLATE && this._shape === result.strings) {
-      this._instance!._update(result.values);
-      return;
-    }
-    const held = (this._held ??= new Map());
-    if (this._mode === TEMPLATE) {
-      /** Park the live nodes back in their instance's own (empty) fragment. When the range is
-       *  empty but content existed, slots relocated it — the recorded top-level nodes park it
-       *  from wherever it lives, split slots and holding included. */
-      const fragment = this._instance!._fragment;
-      const span = this._end !== null ? slotSeam()?._$span$?.(this._start, this._end) : undefined;
-      if (span !== undefined) for (const node of span) fragment.appendChild(node);
-      else if (this._start.nextSibling === this._end && Array.isArray(this._value)) {
-        for (const node of this._value as Node[]) fragment.appendChild(node);
-      } else {
-        let node = this._start.nextSibling;
-        while (node !== this._end) {
-          const next = node!.nextSibling;
-          fragment.appendChild(node!);
-          node = next;
-        }
-      }
-      held.set(this._shape!, this._instance!);
-    } else if (this._mode !== EMPTY) {
-      this._clear();
-    }
-    /**
-     * **A restored instance is inserted FIRST and updated after**, as every ordinary update is: its
-     * nodes are live, so a top-level part that changes shape resolves its namespace from where it
-     * really is. Updated while still in its own fragment, a `<rect>` swapped in inside an `<svg>` was
-     * asked of a detached fragment and built as HTML.
-     */
-    let instance = held.get(result.strings);
-    const restored = instance !== undefined;
-    if (instance === undefined) instance = build(result, this._start.parentNode!, this._start.ownerDocument!);
-    if (relocating) this._value = [...instance._fragment.childNodes];
-    this._insert(instance._fragment);
-    if (restored) instance._update(result.values);
-    this._instance = instance;
-    this._shape = result.strings;
-    this._mode = TEMPLATE;
-  }
-
-  /**
-   * Creates one list item. A single-root template instance becomes an element-mode item with no
-   * markers at all; anything else gets its own start/end marker pair so moves can never dangle.
-   */
+  /** Creates one list item before `ref`. */
   $c(value: unknown, parent: Node, ref: Node | null): Item {
-    if (value !== null && typeof value === 'object' && (value as TemplateResult).strings !== undefined) {
-      const result = value as TemplateResult;
-      /** The LIST's parent, not the row's: a batched fill builds rows inside a detached fragment. */
-      let template: Template;
-      if (parent === fillParent && result.strings === fillStrings) template = fillTemplate!;
-      else {
-        template = resolve(result, this._start.parentNode!);
-        if (parent === fillParent || parent.firstChild === null) {
-          fillParent = parent;
-          fillStrings = result.strings;
-          fillTemplate = template;
-        }
+    if (value !== null && typeof value === 'object' && isTemplateResult(value)) {
+      const template = getTemplate(value);
+      if (template._root.nodeType === 1) {
+        const instance = instantiate(template, value, this._start.ownerDocument!);
+        parent.insertBefore(instance._root, ref);
+        instance.$k = value.key;
+        return instance;
       }
-      const instance = new Instance(template, this._start.ownerDocument!);
-      if (create.hooked) {
-        const outer = create.scope;
-        create.scope = template;
-        instance._update(result.values);
-        create.scope = outer;
-      } else instance._update(result.values);
-      const rootNode = instance._fragment.firstChild;
-      if (rootNode !== null && rootNode.nodeType === 1 && rootNode.nextSibling === null) {
-        parent.insertBefore(rootNode, ref);
-        /**
-         * A row lands HERE, not through `_insert` — `@verajs/renderer/keyed` inserts each row
-         * itself, into the live parent when it is appending one and into a batching
-         * `DocumentFragment` when it is filling two or more (the next comment is about exactly
-         * that). Wired to `_insert` alone the diagnostic could never see a GROWING icon list, which
-         * is the feature's own headline shape.
-         */
-        if (__DEV__) {
-          /**
-           * The PART's parent when `parent` is a fragment. `@verajs/renderer/keyed` batches a
-           * trailing fill of two or more rows into a `DocumentFragment` and lands it with one
-           * `insertBefore`, so the rows are created against something with no namespace at all —
-           * a growing icon list, which is the shape this diagnostic most exists for. A row's own
-           * namespace is fixed at parse time, so asking the real destination here is sound, and
-           * `keyed.ts` stays importing nothing, which is what keeps its template cache single.
-           */
-          const hostNode = parent.nodeType === 11 ? this._start.parentNode! : parent;
-          const host = foreignHost(hostNode);
-          if (host !== null) warnForeignMismatch(host, (hostNode as Element).namespaceURI, [rootNode]);
-        }
-        return {
-          $k: result.key,
-          _element: rootNode as Element,
-          _instance: instance,
-          _shape: result.strings,
-          _part: null,
-        };
-      }
-      /** Multi-root template: markered part, content already instantiated. */
-      const part = createMarkeredPart(parent, ref);
-      part._instance = instance;
-      part._shape = result.strings;
-      part._mode = TEMPLATE;
-      if (relocating) part._value = [...instance._fragment.childNodes];
-      /**
-       * Branched rather than a ternary, so the whole diagnostic folds away: a `__DEV__` CONDITION
-       * survived minification as a live reference and put the warning's strings in the production
-       * bundle (+436 B, caught by the size gate). Only a statement-level `if (__DEV__)` is removed
-       * outright.
-       */
-      if (__DEV__) {
-        const rowParent = part._start.parentNode!;
-        const rowHostNode = rowParent.nodeType === 11 ? this._start.parentNode! : rowParent;
-        const rowHost = foreignHost(rowHostNode);
-        const rowNodes = rowHost === null ? null : [...instance._fragment.childNodes];
-        rowParent.insertBefore(instance._fragment, part._end);
-        if (rowNodes !== null)
-          warnForeignMismatch(rowHost!, (rowHostNode as Element).namespaceURI, rowNodes);
-      } else {
-        part._start.parentNode!.insertBefore(instance._fragment, part._end);
-      }
-      return { $k: result.key, _element: null, _instance: null, _shape: null, _part: part };
     }
-    const part = createMarkeredPart(parent, ref);
-    /** The row's own destination, so a batched fill resolves like the template branches above. */
-    if (__DEV__ && parent.nodeType === 11) part._foreignHost = this._start.parentNode;
-    if (create.hooked) {
-      const outer = create.scope;
-      create.scope = [this._start.parentNode, outer];
-      part._set(value);
-      create.scope = outer;
-    } else part._set(value);
-    return { $k: (value as TemplateResult)?.key, _element: null, _instance: null, _shape: null, _part: part };
+    const end = comment();
+    const part = new ChildPart(comment(), end);
+    parent.insertBefore(part._start, ref);
+    parent.insertBefore(end, ref);
+    part._set(value);
+    part.$k = (value as TemplateResult | null)?.key;
+    return part;
   }
 
-  /** Commits a new value into an existing item, demoting element mode if the shape changed. */
-  $u(item: Item, value: unknown) {
-    if (item._element !== null) {
-      if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._shape) {
-        item._instance!._update((value as TemplateResult).values);
-        return;
-      }
-      /** Shape changed: swap the bare element for a markered part in its place. */
-      const part = createMarkeredPart(item._element.parentNode!, item._element);
-      item._element.remove();
-      item._element = null;
-      item._instance = null;
-      item._shape = null;
-      (item._part = part)._set(value);
-      return;
+  /** Commits `value` into an item; returns the item now standing there (an instance whose shape changed becomes a part). */
+  $u(item: Item, value: unknown): Item {
+    if (item instanceof ChildPart) {
+      item._set(value);
+      return item;
     }
-    item._part!._set(value);
+    if (value !== null && typeof value === 'object' && (value as TemplateResult).strings === item._strings) {
+      update(item, (value as TemplateResult).values);
+      return item;
+    }
+    const element = item._root as Element;
+    const end = comment();
+    const part = new ChildPart(comment(), end);
+    element.before(part._start, end);
+    element.remove();
+    part.$k = item.$k;
+    part._set(value);
+    return part;
   }
 
-  /** The item's first node — its move/removal handle and the insertion reference before it. */
+  /** The item's first node — its move handle and the insertion reference before it. */
   $f(item: Item): Node {
-    return item._element ?? item._part!._start;
+    return item instanceof ChildPart ? item._start : item._root;
   }
 
-  /**
-   * Moving and removing an item read `_element` and `_part`, which are mangled — so they stay here
-   * rather than traveling with the algorithm that calls them. `$m` and `$d` are the price: two
-   * cold methods, exempt from mangling, two characters each.
-   */
+  /** Moves an item before `ref`. A node already in place is left alone — re-inserting blurs focus and restarts transitions. */
   $m(item: Item, ref: Node | null, parent: Node = this._start.parentNode!) {
-    /**
-     * **Already where it is going.** A reorder asks for many positions that are already correct,
-     * and re-inserting a node that is in place is not free: it detaches and re-attaches, which
-     * blurs focus, restarts a CSS transition and wakes every MutationObserver watching. The
-     * relocated path below leans on this — it re-places every item rather than computing which
-     * ones moved — but the ordinary two-ended diff gets the same saving.
-     *
-     * The item's LAST node is the one whose `nextSibling` decides this, and reading `_element` /
-     * `_part._end` is why the check lives here rather than traveling with the algorithm.
-     */
-    const last = item._element ?? item._part!._end!;
+    const last = item instanceof ChildPart ? item._end! : item._root;
     if (last.nextSibling === ref && last.parentNode === parent) return;
-    if (item._element !== null) {
-      parent.insertBefore(item._element, ref);
+    if (!(item instanceof ChildPart)) {
+      parent.insertBefore(item._root, ref);
       return;
     }
-    let node: Node | null = item._part!._start;
-    const stop = item._part!._end!.nextSibling;
+    let node: Node | null = item._start;
+    const stop = last.nextSibling;
     while (node !== stop) {
       const next: Node | null = node!.nextSibling;
       parent.insertBefore(node!, ref);
@@ -2779,283 +707,63 @@ class ChildPart implements Part {
     }
   }
 
-  /** Removal is a move into a scratch fragment that is immediately emptied. */
+  /** Removes an item. */
   $d(item: Item) {
-    if (notifyOnRemoval) detachItem(item);
     this.$m(item, null, SCRATCH);
     SCRATCH.textContent = '';
   }
 
-  _commitList(newValues: unknown[]) {
+  _commitList(values: unknown[]) {
     if (this._mode !== LIST) {
       if (this._mode !== EMPTY) this._clear();
       this._items = [];
-      this._keyedList = false;
       this._mode = LIST;
     }
-    const count = newValues.length;
+    const items = this._items!;
+    const count = values.length;
     if (count === 0) {
-      if (this._items!.length) {
+      if (items.length) {
         this._clear();
         this._items = [];
         this._mode = LIST;
       }
       return;
     }
-    const isKeyed = newValues[0] != null && (newValues[0] as KeyedResult).$r !== undefined;
-    if (isKeyed !== this._keyedList && this._items!.length) {
-      this._clear();
-      this._items = [];
-      this._mode = LIST;
-    }
-    this._keyedList = isKeyed;
-    const items = this._items!;
     const parent = this._start.parentNode!;
-
-    if (items.length === 0) {
-      /** Initial fill builds off-document and lands in one insert. */
-      const fragment = doc.createDocumentFragment();
-      for (let i = 0; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
-      this._insert(fragment);
-      return;
+    const end = this._end;
+    /** Index mode: update in place, grow at the end, shrink from the end. Rows go straight into the parent. */
+    const shared = items.length < count ? items.length : count;
+    for (let i = 0; i < shared; i++) items[i] = this.$u(items[i], values[i]);
+    for (let i = items.length; i < count; i++) items.push(this.$c(values[i], parent, end));
+    if (count < items.length) {
+      for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
+      SCRATCH.textContent = '';
+      items.length = count;
     }
-
-    if (!isKeyed) {
-      // index mode: update in place, grow at the end, shrink from the end
-      const shared = items.length < count ? items.length : count;
-      for (let i = 0; i < shared; i++) this.$u(items[i], newValues[i]);
-      if (count > items.length) {
-        const fragment = doc.createDocumentFragment();
-        for (let i = items.length; i < count; i++) items.push(this.$c(newValues[i], fragment, null));
-        this._insert(fragment);
-      } else if (count < items.length) {
-        if (notifyOnRemoval) for (let i = count; i < items.length; i++) detachItem(items[i]);
-        /**
-         * **Removed through the items, not by walking the range.** The walk this replaced ran from
-         * the first doomed item to the last one's end and called `parent.removeChild` on each node,
-         * which assumes every one of them is still a child of `parent`. `@verajs/renderer/slots`
-         * moves a light host's children into the component's tree, and the walk then threw
-         * `NotFoundError` out of the middle of a render — a plain `<x-card>${rows}</x-card>` losing
-         * one row was enough, with no keyed list anywhere in it.
-         *
-         * `$m` into the scratch fragment is indifferent to where a node currently lives, and the
-         * batch is dropped by one clear at the end, so the contiguous-run saving the walk was for
-         * is kept.
-         */
-        for (let i = count; i < items.length; i++) this.$m(items[i], null, SCRATCH);
-        SCRATCH.textContent = '';
-        items.length = count;
-      }
-      return;
-    }
-
-    /**
-     * Keyed reconciliation is not here. It lives in `@verajs/renderer/keyed`, and it arrives on
-     * the values themselves — `keyed()` stamps each result with the strategy that understands it,
-     * so importing the marker is what loads the algorithm. Nothing registers, nothing is wired, and
-     * two strategies cannot disagree about a list because the list names its own.
-     *
-     * The protocol is three cold members (`$c`, `$u`, `$f`) plus a returned array. Everything a
-     * strategy would otherwise have to reach for — the mode switch, the empty case, the initial
-     * fill — is already done above and passed in.
-     */
-    this._items = (newValues[0] as KeyedResult).$r!(this, newValues, items, parent, this._end);
   }
 }
 
 const rootParts = new WeakMap<Node, ChildPart>();
 
 /**
- * Writes a template result into a container. The renderer's imperative draw: no reactivity, no
- * lifecycle, no knowledge of components. Slots into Vera via `wire([renderer])`; core's built-in
- * `html` tag already produces the accepted shape — and lit-html's `html` also works, its results being
- * structurally identical.
- *
- * **It owns its own range and nothing else.** The first call appends a marker and anchors a root
- * part there; later calls with the same container reuse that part and walk only the value slots, so
- * nodes are updated in place rather than rebuilt. Content that was already in the container stays.
- *
- * **Named for the relationship, not the act.** It was `render` until 0.2.0, which collided with
- * core's `render` — a different function, with a different arity, that declares a *reactive*
- * template and commits a component's setup. Both were public and both were documented, so a reader
- * who knew one misread the other. `renderElement` and `renderDom` were considered and rejected: this
- * renders *into* a container, and the container is a `Node` — a shadow root and a fragment are both
- * valid, so "element" would be a lie in the type. Argument order is lit-html's on purpose.
- *
- * HYDRATION lives in `@verajs/renderer/hydrate` — a drop-in superset entry whose `renderInto` adopts
- * existing server-rendered children on first render. SSR apps import from there instead of here;
- * this entry carries zero hydration code.
+ * Writes a template result into a container — the renderer's imperative draw: no reactivity, no
+ * lifecycle. The first call appends a marker and anchors a root part there; later calls reuse it and
+ * commit only the values. Content already in the container stays. lit-html's argument order.
  */
 export const renderInto = (result: unknown, container: Node) => {
-  /**
-   * The container is the argument people forget, and forgetting it failed with
-   * `Cannot read properties of undefined (reading 'appendChild')` — a message about the internals of
-   * a function the caller never named. Everything after this line assumes a node.
-   */
-  if (__DEV__ && (!container || typeof (container as Node).appendChild !== 'function'))
-    throw new TypeError(
-      `renderInto: expected a container node as the second argument and received ${String(container)}. ` +
-        `It renders *into* something — \`renderInto(html\`…\`, document.body)\`.`
-    );
-  if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_START, container, null);
   let part = rootParts.get(container);
   if (part === undefined) {
-    /**
-     * FIRST render into this container. If it is a light element host and a 'slot' insert is
-     * wired, capture its children NOW — so slot content provided before its (possibly
-     * conditional) `<slot>` mounts is held rather than left visible in the host, matching native
-     * "unassigned light children do not render". Once per container lifetime; shadow roots
-     * (nodeType 11) and fragments are excluded.
-     */
-    /**
-     * **The marker goes in FIRST, and capture is handed it as the light region's boundary.**
-     *
-     * This part's start marker already delimits where the render's output begins, so the boundary
-     * slots needs is a node the renderer was creating anyway — the sentinel it used to append for
-     * itself landed immediately before this one, two adjacent comments doing the same job. Passing
-     * it removes one comment from every light host and keeps the two in step by construction: they
-     * cannot drift apart if they are the same node.
-     *
-     * Appending before capture is safe and necessary. Safe because a comment is never a slottable,
-     * so the children walk steps over it; necessary because capture LIFTS the host's children, and
-     * a marker appended afterwards would land in the same place either way — this way slots has it.
-     */
     const marker = comment();
     container.appendChild(marker);
-    /**
-     * **Asked for EVERY container's first render, shadow roots included** — only an element is
-     * captured, but the lookup is also what latches `own`, and a part inside a shadow root can
-     * place a template into a light host before that host's own first render. That commit's node
-     * array has to be recorded, or the slots module relocating its content leaves `_clear` nothing
-     * to find, and a template swap in the host shows the old one forever.
-     */
-    const seam = slotSeam();
-    /**
-     * **Captured only by a module that also takes the inserts (`own`).** An OLDER slots module has
-     * `_$capture$` and no `$o`: capturing without stamping lifted the render's own output with the
-     * user's content, and a CDN page pinning the old module beside this renderer showed an empty
-     * host. Gated, the old module is simply unwired — fallback shows, nothing is lost. Production
-     * pays for this because production is where a pinned CDN page runs.
-     */
-    if (seam?._$b$ !== undefined && container.nodeType === 1) seam._$capture$?.(container as Element, marker);
     rootParts.set(container, (part = new ChildPart(marker, null)));
   }
-  /**
-   * **The flush is in a `finally`, and that is not tidiness.** A render that throws after a
-   * `<select>.value` has been queued but before the flush left the queue holding the element — which
-   * retains it in module state, and, worse, hands the stranded value to the *next* `renderInto` call.
-   * An unrelated component's render then silently changed a select it has nothing to do with.
-   * Measured: a failed update left the value to be applied by the following render.
-   *
-   * Flushing on the way out applies it with its own pass, where it belongs, and leaves nothing
-   * behind either way. The error still propagates.
-   *
-   * **The render root and the create scope are SAVED and RESTORED here, the one owner of both.** A
-   * `renderInto` can run inside another's commit — a `&ref` that renders a portal, a custom element
-   * that renders its shadow root in its constructor — and resetting the root to `null` on the way
-   * out handed the rest of the outer render no root (slots then crashed on it), while not resetting
-   * the scope built the inner render in the OUTER template's namespace (a shadow root's content as
-   * SVG). And the create paths restore the scope without a `try`, deliberately — they are the hot
-   * path — so a render that throws inside an SVG template's first update left the scope set for the
-   * rest of the page, and every later shadow component built as SVG. Starting each call from a null
-   * scope and restoring the caller's in a `finally` heals that at the next boundary, with nothing
-   * added per instance.
-   */
-  const outerRoot = renderRoot;
-  const outerScope = create.scope;
-  const mark = pendingSelects?.length ?? 0;
-  const mounts = pendingMounts.length;
-  renderRoot = container;
-  create.scope = null;
-  /** Bracketed for slots' authorship — see `_$b$` on the seam. After the lookup below has latched it. */
-  const seam = slotSeam();
-  seam?._$b$?.(container);
-  try {
-    part._set(result);
-  } finally {
-    renderRoot = outerRoot;
-    create.scope = outerScope;
-    flushSelects(mark);
-    flushMounts(mounts);
-    seam?._$e$?.();
-  }
-  if (__DEV__ && _profileHook) _profileHook(PROFILE_FRAME_END, container, null);
+  part._set(result);
 };
 
-// ── INTERNAL SURFACE — imported by ./hydrate.ts, never re-exported by src/index.ts ─────────────
-// The public d.ts comes from src/index.ts, and the base bundles tree-shake all of this away, so
-// nothing here reaches consumers of the base entry. The hydrate entry compiles against this exact
-// source into its own self-contained bundle, so mangled property names always agree within it.
-
-/** @internal */
-export {
-  flushSelects,
-  flushMounts,
-  sayShape,
-  getTemplate,
-  Template,
-  Instance,
-  TextPart,
-  ChildPart,
-  AttrPart,
-  IGNORED_PART,
-  IGNORED,
-  TEMPLATE,
-  LIST,
-  NODE,
-  comment,
-  doc,
-  toText,
-  isTemplateResult,
-  instanceWalker,
-  rootParts,
-  slotSeam,
-  _setProfileHook,
-  PROFILE_UPDATE,
-  PROFILE_CREATE,
-  PROFILE_REBUILD,
-  PROFILE_FRAME_START,
-  PROFILE_FRAME_END,
-};
-/** @internal */
-export type { Item, TemplatePart };
-
-
-/**
- * Everything this renderer needs, in one entry: `wire([renderer])`.
- *
- * It registers on the `'render'` chain *and* takes the registry, because a package that both
- * provides a capability and reads one should not cost an app two lines. This replaced
- * `setRenderer`, which existed only because there was no general way to say "this app has a
- * renderer" — and which resolved the shadow root at registration, so a renderer wired any other
- * way silently rendered into the light DOM. That resolution lives in core's dispatch now.
- */
-/**
- * A `__DEV__`-only hint for `wire`, so the module and the raw function beside it can share a package
- * without wiring the wrong one being silent.
- *
- * A bare function has no `on`, so `wire` reads it as a connector and hands it the registry. Nothing
- * registers, nothing throws, and the page renders nothing. The marker lets `wire` name the export
- * that was meant. This mattered most when the function was called `render` and the mistake was two
- * characters wide; `renderInto` is harder to confuse, and the guard costs nothing in production.
- *
- * `$module` is deliberately generic — any package exporting a raw function next to a module of a
- * similar name can set it. Production carries neither the property nor the check that reads it.
- */
-if (__DEV__) (renderInto as unknown as { $module?: string }).$module = 'renderer';
-
+/** Everything this renderer needs, in one entry: `wire([renderer])`. */
 export const renderer = {
   name: '@verajs/renderer',
   on: 'render' as const,
   fn: renderInto as never,
   priority: 50,
-  /**
-   * Typed against the registry `wire` actually hands over, not a narrower shape that happens to
-   * describe the one lookup this makes. A structural `{ get(name: 'value'): … }` is **not**
-   * assignable from `Inserts`, so `wire([renderer])` failed to compile in a consumer's project while
-   * this repo's own typecheck — which reads sources, not the shipped `.d.ts` — saw nothing.
-   */
-  connect: (given: { get(name: never): unknown }) => {
-    registry = given as { get(name: 'value' | 'slot'): unknown[] | undefined };
-  },
 };
