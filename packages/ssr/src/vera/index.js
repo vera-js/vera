@@ -277,17 +277,29 @@ const renderInstanceAsync = async (element, tag, depth, props, children) => {
  */
 const isUrl = (value) => typeof value === 'string' || value instanceof URL;
 const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
-/** @type {Array<[string, (value: any) => boolean, string]>} */
+/** @type {Array<{ name: string, valid: (value: any) => boolean, message: string }>} */
 const CHECKS = [
-  ['url', isUrl, 'renderToString needs a module URL — a URL or a string'],
-  ['tag', (v) => v === undefined || typeof v === 'string', '`tag` must be a custom element name'],
-  ['attributes', (v) => typeof v === 'string' || isRecord(v), '`attributes` must be an object of names to values, or a string'],
-  ['props', (v) => v === undefined || isRecord(v), '`props` must be an object of properties to assign'],
-  ['children', (v) => typeof v === 'string', '`children` must be a markup string'],
-  ['seen', (v) => v === undefined || v instanceof Set, '`seen` must be a Set'],
-  ['base', (v) => v === undefined || isUrl(v), '`base` must be a URL or a path string'],
-  ['location', (v) => v === undefined || isUrl(v), '`location` must be a URL or a path string'],
-  ['static', (v) => typeof v === 'boolean', '`static` must be true or false'],
+  { name: 'url', valid: isUrl, message: 'renderToString needs a module URL — a URL or a string' },
+  {
+    name: 'tag',
+    valid: (v) => v === undefined || typeof v === 'string',
+    message: '`tag` must be a custom element name',
+  },
+  {
+    name: 'attributes',
+    valid: (v) => typeof v === 'string' || isRecord(v),
+    message: '`attributes` must be an object of names to values, or a string',
+  },
+  {
+    name: 'props',
+    valid: (v) => v === undefined || isRecord(v),
+    message: '`props` must be an object of properties to assign',
+  },
+  { name: 'children', valid: (v) => typeof v === 'string', message: '`children` must be a markup string' },
+  { name: 'seen', valid: (v) => v === undefined || v instanceof Set, message: '`seen` must be a Set' },
+  { name: 'base', valid: (v) => v === undefined || isUrl(v), message: '`base` must be a URL or a path string' },
+  { name: 'location', valid: (v) => v === undefined || isUrl(v), message: '`location` must be a URL or a path string' },
+  { name: 'static', valid: (v) => typeof v === 'boolean', message: '`static` must be true or false' },
 ];
 
 /**
@@ -335,7 +347,11 @@ const takeTurn = (work) => {
 const renderModule = async (url, options = {}, isAsync) => {
   const { tag: chosen, attributes = '', children = '', props, seen, base, location, static: isStatic = false } = options;
   const given = { url, tag: chosen, attributes, props, children, seen, base, location, static: isStatic };
-  for (const [name, valid, message] of CHECKS) if (!valid(given[name])) throw new TypeError(`ssr: ${message}`);
+  /**
+   * OBJECTS, destructured, never tuples: array destructuring in this loop head cost every render that
+   * followed a different component ~25% (a 20-row render 46 µs against 36) — measured, not understood.
+   */
+  for (const { name, valid, message } of CHECKS) if (!valid(given[name])) throw new TypeError(`ssr: ${message}`);
   const href = url instanceof URL ? url.href : url;
 
   /**
