@@ -12,6 +12,12 @@ export interface ComponentElement extends HTMLElement {
    * under and does nothing when it no longer matches — see `createHook`.
    */
   _gen?: number;
+  /** Effect cleanups awaiting removal, which runs them (see `init`). Read by the renderer's adapters. */
+  _cleanups?: Set<HookCleanup>;
+  /** Set once removal has swept `_cleanups`, so a cleanup registered after it runs at once. */
+  _removed?: boolean;
+  /** Wrapped at `customElements.define` time to run `_cleanups`; an author's own is chained first. */
+  disconnectedCallback?: () => void;
   /**
    * The root this element renders into, kept because `element.shadowRoot` is **null for a closed
    * shadow root** — that is what closed means, and it applies to the framework too. Read across

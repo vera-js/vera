@@ -1,4 +1,5 @@
 import { currentInstance } from '../store/store.js';
+import { runCleanup } from '../hooks/coalesce.js';
 import type { ComponentElement } from '../types.js';
 
 /**
@@ -17,5 +18,34 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   element._gen = (element._gen ?? 0) + 1;
   element._hooks = [];
   element._hookPriorities = [];
+  /** A fresh connection: cleanups registered from here are owed a later removal again. */
+  element._cleanups = new Set();
+  element._removed = false;
   if (shadowProps && !element.shadowRoot && !element._root) element._root = element.attachShadow(shadowProps);
 };
+
+/**
+ * Removal runs every cleanup an element's effects returned. This must live on the **prototype at
+ * definition time**: the custom-elements reaction system snapshots lifecycle callbacks when `define()`
+ * runs, so an instance property assigned later is never invoked. Wrapping `customElements.define` is
+ * therefore the one seam a framework with no base class has. The author's own `disconnectedCallback`
+ * runs first, while subscriptions are still live; an element that never called `init()` pays one
+ * undefined-property read. Guarded for environments with no custom elements (a server importing core).
+ *
+ * `_removed` is set after the sweep, so a cleanup registered from then on — an effect that removed its
+ * own element and has not returned yet — runs at once instead of into a set nothing drains again.
+ */
+if (typeof customElements !== 'undefined') {
+  const nativeDefine = customElements.define.bind(customElements);
+  customElements.define = (name: string, Class: CustomElementConstructor, options?: ElementDefinitionOptions) => {
+    const proto = Class.prototype as ComponentElement;
+    const own = proto.disconnectedCallback;
+    proto.disconnectedCallback = function (this: ComponentElement) {
+      own?.call(this);
+      this._cleanups?.forEach((cleanup) => runCleanup(cleanup, this));
+      this._cleanups?.clear();
+      this._removed = true;
+    };
+    return nativeDefine(name, Class, options);
+  };
+}
