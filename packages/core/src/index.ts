@@ -1,14 +1,17 @@
-import { wire as register } from '@verajs/inserts';
+import { wire as register, inserts } from '@verajs/inserts';
 import { redecideStores } from './services/createProxy.js';
-export { inserts } from '@verajs/inserts';
+export { inserts };
 
 /**
- * Installs modules — `wire([renderer, styles])`. Then every store type is decided again, so a store
- * module wired after stores exist reaches them all; nothing else in core needs to know a module arrived.
+ * Installs modules — `wire([renderer, styles])`. When that changed the `'store'` chain, every store type
+ * is decided again, so a store module wired after stores exist reaches them all; wiring anything else
+ * runs no store module at all.
  */
 export const wire: typeof register = (item) => {
+  const before = inserts.get('store')?.slice() ?? [];
   register(item);
-  redecideStores();
+  const after = inserts.get('store') ?? [];
+  if (after.length !== before.length || after.some((insert, i) => insert !== before[i])) redecideStores();
 };
 export type * from '@verajs/inserts';
 export type * from './types.js';

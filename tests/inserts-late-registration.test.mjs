@@ -132,3 +132,40 @@ test('a module that throws for one type changes no type at all', () => {
   assert.ok(!seen.includes('half-installed'), 'no type took the throwing module');
   core.wire({ on: 'store', priority: 43, fn: (type, handler) => handler });
 });
+
+/**
+ * **A store module runs when its decision can change, and only then** — once per type when the
+ * `'store'` chain changes, never because something unrelated was wired. A module with side effects at
+ * decision time does not repeat them on `wire([renderer])`.
+ */
+test('wiring something that is not a store module runs no store module', () => {
+  let calls = 0;
+  core.wire({ on: 'store', priority: 44, fn: (type, handler) => (calls++, handler) });
+  const afterItsOwnWire = calls;
+  assert.ok(afterItsOwnWire > 0, 'CONTROL: its own wire decided the known types with it');
+  core.wire({ on: 'error', priority: 62, fn: () => {} });
+  core.wire({ on: 'init', priority: 63, fn: () => {} });
+  assert.equal(calls, afterItsOwnWire, 'unrelated wiring ran no store module');
+  core.wire({ on: 'store', priority: 44, fn: (type, handler) => handler });
+});
+
+/**
+ * **A decision about one particular object** is the platform's own mechanism, not an API of ours: an
+ * object with its own `Symbol.toStringTag` is its own type, which a module can claim — and its plain
+ * siblings are untouched.
+ */
+test('one object tagged with Symbol.toStringTag is its own type, claimable alone', () => {
+  const special = Object.defineProperty({ v: 1 }, Symbol.toStringTag, { value: 'Special' });
+  const ordinary = { v: 1 };
+  const reads = [];
+  core.wire({
+    on: 'store',
+    priority: 45,
+    fn: (type, handler) => (type === 'special' ? { get: (obj, prop, r) => (reads.push(String(prop)), Reflect.get(obj, prop, r)) } : handler),
+  });
+  const state = core.createStore({ special, ordinary });
+  void state.special.v;
+  void state.ordinary.v;
+  assert.deepEqual(reads.filter((p) => p === 'v'), ['v'], 'only the tagged object ran the claiming handler');
+  core.wire({ on: 'store', priority: 45, fn: (type, handler) => handler });
+});

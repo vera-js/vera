@@ -189,6 +189,28 @@ test('a `store` insert that throws surfaces from the wire that registered it —
   assert.doesNotThrow(() => wire({ name: 'store-thrower', on: 'store', fn: () => undefined, priority: 3 }));
 });
 
+/**
+ * **One bad store module does not poison the wiring after it.** It is skipped for every type once it
+ * throws, so wiring something unrelated — a renderer, an error reporter — does not rethrow its error,
+ * and a healthy store module wired later still applies.
+ */
+test('after a store module throws, unrelated wiring does not rethrow it, and healthy modules still apply', () => {
+  assert.throws(
+    () => wire({ name: 'store-bad', on: 'store', fn: () => { throw new Error('bad-module'); }, priority: 5 }),
+    /bad-module/
+  );
+  assert.doesNotThrow(() => wire({ name: 'unrelated', on: 'error', fn: () => {}, priority: 61 }), 'an unrelated wire');
+  let reads = 0;
+  assert.doesNotThrow(() =>
+    wire({ name: 'store-good', on: 'store', priority: 6, fn: (type, handler) => handler?.get && { ...handler, get: (...a) => (reads++, handler.get(...a)) } })
+  , 'a healthy store module, wired while the bad one is still registered');
+  const state = createStore({ ok: 1 });
+  void state.ok;
+  assert.ok(reads > 0, 'the healthy module applies');
+  wire({ name: 'store-bad', on: 'store', fn: () => undefined, priority: 5 });
+  wire({ name: 'store-good', on: 'store', fn: () => undefined, priority: 6 });
+});
+
 test('a `value` insert that throws surfaces at the render that committed the value', () => {
   wire({ name: 'value-thrower', on: 'value', fn: () => { throw new Error('value-boom'); }, priority: 3 });
   /** A string never reaches the chain — the renderer takes a fast path — so this uses an object. */

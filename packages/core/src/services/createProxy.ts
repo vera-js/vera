@@ -79,13 +79,30 @@ const types = new Map<string, ProxyHandler<object>>();
 /** The owned handlers some insert or core claimed — an empty one means "not reactive, hand back raw". */
 const claimed = new WeakSet<object>();
 
+/**
+ * Store modules that threw while deciding: skipped for EVERY type until replaced — a module that fails
+ * for one type is not half-installed across the others, and one bad module cannot make every later
+ * `wire` throw. Replacing it (wiring a new function at its priority) is what brings it back.
+ */
+const broken = new WeakSet<StoreInsert>();
+
 /** What the chain chooses for a type (by its tag): core's handler or nothing, then each insert in turn. */
 const decide = (tag: string) => {
   const type = tag.slice(8, -1).toLowerCase();
   let chosen: ProxyHandler<object> | undefined = type === 'object' || type === 'array' ? handler : undefined;
   /** A plain loop: `forEach` allocated a closure per decision — measured, once any module is wired. */
   const chain = inserts.get('store') as StoreInsert[] | undefined;
-  if (chain) for (let i = 0; i < chain.length; i++) chosen = chain[i](type, chosen, kit) ?? chosen;
+  if (chain)
+    for (let i = 0; i < chain.length; i++) {
+      const insert = chain[i];
+      if (broken.has(insert)) continue;
+      try {
+        chosen = insert(type, chosen, kit) ?? chosen;
+      } catch (error) {
+        broken.add(insert);
+        throw error;
+      }
+    }
   return chosen;
 };
 
@@ -97,27 +114,41 @@ const install = (owned: Record<string, unknown>, chosen: ProxyHandler<object> | 
   else claimed.delete(owned);
 };
 
+/**
+ * **Decides `tags`, all of them before any is written** — and once a module throws, every type again
+ * without it, so each handler reflects exactly the healthy modules. The first failure is thrown after:
+ * from the `wire` that brought the module in, or the read that first met a new type — once.
+ */
+const settle = (tags: string[]) => {
+  let threw = false;
+  let failure: unknown;
+  let decided: (ProxyHandler<object> | undefined)[];
+  for (;;) {
+    try {
+      decided = tags.map(decide);
+      break;
+    } catch (error) {
+      if (!threw) (threw = true), (failure = error);
+      tags = [...types.keys()];
+    }
+  }
+  tags.forEach((tag, i) => install(types.get(tag) as Record<string, unknown>, decided[i]));
+  if (threw) throw failure;
+};
+
 /** The owned handler for `value`'s type, deciding the type the first time one is met. */
 const handlerFor = (value: object) => {
   const tag = TAG.call(value);
   let owned = types.get(tag);
   if (owned === undefined) {
-    const chosen = decide(tag);
     types.set(tag, (owned = {}));
-    install(owned as Record<string, unknown>, chosen);
+    settle([tag]);
   }
   return owned;
 };
 
-/**
- * **Every known type decided again, after `wire`** — all of them first, then written, so a module that
- * throws surfaces from the `wire` call that registered it and no handler changes.
- */
-export const redecideStores = () => {
-  const decided = [...types.keys()].map(decide);
-  let i = 0;
-  for (const owned of types.values()) install(owned as Record<string, unknown>, decided[i++]);
-};
+/** Every known type decided again — what `wire` calls when the `'store'` chain changed. */
+export const redecideStores = () => settle([...types.keys()]);
 
 /**
  * One handler for every store: a read subscribes, and a write that changes something wakes the
