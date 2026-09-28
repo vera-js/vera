@@ -28,8 +28,8 @@ node --test tests/slots-native-parity-fuzz.test.mjs     # 1,000 generated cases,
 
 Elements go to the slot their `slot` attribute names, everything else — text and whitespace
 included — to the first unnamed slot, duplicate names give the first in tree order the content and
-leave the rest showing fallback (one exception, below: an earlier duplicate that a re-render removes
-and brings back), fallback appears only while a slot is unassigned and comes back when it empties,
+leave the rest showing fallback — including when an earlier duplicate a re-render removed comes back
+and takes its content again — fallback appears only while a slot is unassigned and comes back when it empties,
 and capture takes the host's direct children only, so components nest.
 
 That fuzz compares assignment. Whole lifecycles are compared too — re-renders, lists keyed and
@@ -42,7 +42,7 @@ counts as a difference:
 npm run test:browser:all                                # includes tests/browser/slots-conformance.test.js
 ```
 
-Every scenario there matches native on Chromium, Firefox and WebKit except the three listed under the
+Every scenario there matches native on Chromium, Firefox and WebKit except the two listed under the
 caveats below, which the file pins as known divergences: each asserts that it still diverges, so one
 cannot be fixed, or regress, without the list changing.
 
@@ -87,12 +87,10 @@ a comparison or a property read at those points and nothing else.
 
 ## The honest caveats
 
-- **Three shapes still differ from native, measured.** From the conformance suite above, identically
-  on three engines: when the earlier of two same-named slots is removed by a re-render and comes
-  back, the content stays in the later one, where native hands it back; a `<slot>` forwarded into a
-  nested component's slot shows the outer fallback instead of the forwarded content; and a `hold()`
-  restore inside content one template places into another light component leaves stale nodes on
-  screen. Hydration is outside that suite and has its own tests.
+- **Two shapes still differ from native, measured.** From the conformance suite above, identically
+  on three engines: a `<slot>` forwarded into a nested component's slot shows the outer fallback
+  instead of the forwarded content; and a `hold()` restore inside content one template places into
+  another light component leaves stale nodes on screen. Hydration is outside that suite and has its own tests.
 - **It is not unique.** Stencil does the same thing in its `scoped` mode. The difference is that
   Stencil is a compiler and this is a wired module you can leave out — but "nobody else has this"
   would be false.

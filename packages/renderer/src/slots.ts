@@ -507,9 +507,17 @@ const fill = (state: HostState, binding: Binding) => {
   }
 };
 
+/**
+ * **Assigns a name afresh across every slot carrying it** — the spec's "assign slottables for a
+ * tree", for one name. The first of them in tree order takes the content and the rest show their
+ * fallback, so the others are filled first: the winner then takes what they released. Any change to
+ * which slots carry a name (a slot mounted, parked or renamed) goes through here, which is what
+ * lets an earlier slot that returns take its content back.
+ */
 const refill = (state: HostState, name: string) => {
-  const binding = activeFor(state, name);
-  if (binding !== undefined) fill(state, binding);
+  const active = activeFor(state, name);
+  for (const binding of state._bindings) if (binding._name === name && binding !== active) fill(state, binding);
+  if (active !== undefined) fill(state, active);
 };
 
 /**
@@ -520,7 +528,22 @@ const refill = (state: HostState, name: string) => {
  * duplicate slot to the assignment — native's next-in-tree-order.
  */
 const bind = (state: HostState, binding: Binding): SeamState => {
-  state._bindings.push(binding);
+  /**
+   * In TREE order, not mount order: the first slot in the tree takes a name. A slot that mounts later
+   * but sits earlier — the one a re-render brings back — goes ahead of those after it. A binding
+   * whose anchors are not in the host's tree (displaced in a fallback) keeps mount order.
+   */
+  const bindings = state._bindings;
+  let at = bindings.length;
+  for (let i = 0; i < bindings.length; i++) {
+    const position = binding._start.compareDocumentPosition(bindings[i]._start);
+    // eslint-disable-next-line no-bitwise -- FOLLOWING and not DISCONNECTED, the platform's flags
+    if ((position & 4) !== 0 && (position & 1) === 0) {
+      at = i;
+      break;
+    }
+  }
+  bindings.splice(at, 0, binding);
   const slot = binding._slot;
   if (slot !== undefined) {
     state._ghosts.set(slot, binding);
@@ -882,7 +905,9 @@ const takeOverSlot = (slot: Element, root: Node, name: string): SeamState | null
     _queued: false,
   };
   const seam = bind(state, binding);
-  fill(state, binding);
+  /** Through the name's reassignment, not a fill of this slot alone: if it sits ahead of a slot
+   *  already showing that name's content, it takes it (see `refill`). */
+  refill(state, binding._name);
   drain(state);
   /** Parking this slot has to park the ones living in its fallback, or a branch-away would strand
    *  their bindings while their nodes go with the discarded DOM. */
