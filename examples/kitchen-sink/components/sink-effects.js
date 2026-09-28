@@ -18,7 +18,7 @@ export default class SinkEffects extends HTMLElement {
     init(this, { mode: 'open' });
     const state = createStore({ n: 0, report: 'press a button' });
     /** Untracked on purpose — see the header. */
-    const counts = { sync: 0, coalesced: 0, layout: 0, lastProp: '', batched: 0 };
+    const counts = { sync: 0, coalesced: 0, layout: 0, lastProp: '' };
     /** Where the counters stood when the last press began, so a press can report its own deltas. */
     let mark = { sync: 0, coalesced: 0, layout: 0 };
     this.state = state;
@@ -32,7 +32,6 @@ export default class SinkEffects extends HTMLElement {
       deps(state.n);
       counts.coalesced++;
       if (signal?.prop) counts.lastProp = String(signal.prop);
-      if (signal?.changed) counts.batched = signal.changed.size;
       /**
        * Published from here because `useEffect` runs **after** the render, so a template reading the
        * counters directly always shows this pass's `useEffect` count one behind. Writing a value the

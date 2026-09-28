@@ -9,8 +9,8 @@ import { dirname, relative, resolve } from 'node:path';
  * and top-level names by default, but NOT property names — so internal class fields survive into
  * the bundle unless a package opts in. A package that does prefixes its internals with `_` and
  * passes /^_[a-z]/; names that must survive (interop wire formats like `_$litType$`, DOM contracts
- * like `handleEvent`, public API like core's `_delete`) simply do not match the pattern.
- * Deliberately opt-in per package: core's `_hooks`/`_isSignal`/`_delete` are cross-boundary
+ * like `handleEvent`, cross-package contracts like core's `_root`) simply do not match the pattern.
+ * Deliberately opt-in per package: core's `_hooks`/`_gen`/`_root`/`_cleanups` are cross-boundary
  * contracts and must never be mangled.
  */
 /**

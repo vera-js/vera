@@ -143,7 +143,7 @@ are a twin waiting to drift.
 5. **Underscore-prefixed expandos are cross-boundary contracts**: the comment states who reads
    them across which boundary and that mangling must never touch them, not just the name.
 6. **Family-grouped, dependencies before dependents**, alphabetical only as a tiebreak — a
-   composed-from type appears just before its composer (`SignalChange` → `Signal`).
+   composed-from type appears just before its composer (`HookCleanup` → `HookCallback`).
 7. **`import type` / `export type` for all type-only flow.** Bare imports of a types module only
    work by the compiler's elision grace, and a types module is real emitted source — erasure is
    guaranteed by the syntax, not hoped for.

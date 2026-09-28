@@ -100,7 +100,7 @@ test('the insert chain priority contract `_p` survives everywhere it is inlined'
 
 test("core's cross-boundary properties survive minification", () => {
   const src = read(PROD.core);
-  for (const contract of ['_hooks', '_isSignal', '_delete']) {
+  for (const contract of ['_hooks', '_gen', '_cleanups', '_root']) {
     assert.ok(src.includes(contract), `${contract} is public API or read across a boundary`);
   }
 });

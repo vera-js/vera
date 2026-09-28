@@ -72,6 +72,10 @@ const REMOVED = {
   "'set-handler'": "a 'store' insert wrapping core's set",
   "'collection'": "a 'store' insert — @verajs/store/collections is one",
   collectionMethod: "@verajs/store/collections' collections descriptor, a 'store' insert",
+  /** Dropped in the same rebuild (Brian: "remove all 4"): unused, or done by something else now. */
+  'signal.changed': 'the signal describes the write that scheduled the run; useSyncEffect sees every one',
+  _isSignal: 'nothing — the proxy map recognizes its own proxies',
+  '_delete(': 'nothing — subscriptions are weak and go with their elements',
 };
 
 /**

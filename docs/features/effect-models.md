@@ -29,9 +29,8 @@ different value, which is a real capability. **VeraJS is the only one that offer
 import { useEffect, useSyncEffect } from '@verajs/core';
 
 // Batched: one run per frame, no matter how many writes landed.
-useEffect((signal) => {
-  save(state.draft);
-  // signal.changed -> Map { 'title' => { prevValue: 'a', value: 'c' } }
+useEffect(() => {
+  save(state.draft);                 // runs once, after all three writes
 });
 
 // Per-change: one run per write, observing every intermediate value.
@@ -39,25 +38,6 @@ useSyncEffect((signal) => {
   history.push(signal.value);        // 1, then 2, then 3
 });
 ```
-
-## `signal.changed`
-
-Coalesced runs receive every property touched during the batch, mapped to its value at the **start**
-of the batch and at the **end**:
-
-```js
-useEffect((signal) => {
-  for (const [prop, { prevValue, value }] of signal.changed) {
-    console.log(prop, prevValue, '->', value);   // a 0 -> 2 ,  b 0 -> 1
-  }
-});
-```
-
-`signal.prop` / `value` / `prevValue` still describe the most recent single change.
-
-**Vue's `watchEffect`, React's `useEffect`, Solid's `createEffect` and Preact's `effect` provide no
-change information at all.** Vue's `watch()` gives new/old for a watched source, but not a set of
-what moved across a batch.
 
 ## Why this exists
 
@@ -75,10 +55,9 @@ explicitly.
   will recurse until the stack gives out. **Solid and Preact carry exactly the same hazard**; it is
   the cost of the model, not a VeraJS flaw. `useEffect` cannot do this to you, which is why it is
   the default.
-- **Coalescing loses the intra-tick transition chain.** `signal.changed` gives the start-to-end
-  delta per property, not every step between. Use `useSyncEffect` when the steps matter.
-- Vue offers `flush: 'sync'` on `watchEffect`, so it is closest to matching this. It still gives no
-  change metadata.
+- **Coalescing keeps one observation per frame.** A coalesced run reads current state, not the steps
+  between. Use `useSyncEffect` when the steps matter.
+- Vue offers `flush: 'sync'` on `watchEffect`, so it is closest to matching this.
 
 ## Reproduce
 

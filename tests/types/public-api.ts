@@ -65,9 +65,6 @@ store.name = 'verajs';
 store.nested.count++;
 store.items.add('one');
 
-/** `_delete` is optional on `Store`, so a consumer must reach it optionally. */
-type _deleteIsOptional = Expect<Equal<typeof store._delete, (() => void) | undefined>>;
-store._delete?.();
 
 /* ── untrack / deps ──────────────────────────────────────────────────────────────────────────── */
 type _untrackPreservesReturn = Expect<Equal<ReturnType<typeof untrack<number>>, number>>;

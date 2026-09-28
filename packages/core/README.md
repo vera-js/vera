@@ -114,7 +114,6 @@ worth knowing:
 | `shallowRef(value)` | `.value` is tracked; the contents are **not** proxied |
 | `untrack(fn)` | read current state without subscribing to it |
 | `deps(...values)` | touch values explicitly, to register them as dependencies |
-| `store._delete()` | sever every subscription for an object store at once |
 
 Reactive `Map`, `Set`, `WeakMap` and `WeakSet` need `@verajs/store/collections`: put one in a
 store, wire that, and mutating methods notify like any other write. Without it core says so the first
@@ -253,9 +252,9 @@ useEffect(() => { state.t = state.t + 1 });
 `allowRenderLoop(element)` silences the warning for that component, and is a no-op in production —
 where none of this exists.
 
-Every callback receives a signal describing the change: `signal.prop`, `signal.value`,
-`signal.prevValue`, and on coalesced runs `signal.changed` — a `Map` of every property in the batch,
-holding its value at the start and at the end.
+Every callback receives a signal describing the change: `signal.prop`, `signal.value` and
+`signal.prevValue`. A coalesced run describes the write that scheduled it; `useSyncEffect` runs once
+per write, so it sees every one.
 
 ## Rendering
 

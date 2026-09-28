@@ -81,18 +81,6 @@ check(
   warns === (isProduction ? 0 : 1)
 );
 
-// ---- _delete real + clean ----
-const raw = { x: 1 };
-const store = core.createStore(raw);
-check('_delete not enumerable on raw', !Object.keys(raw).includes('_delete'));
-let fired = 0;
-core.createHook({ element: app, priority: 60, callback: () => { fired++; store.x; } });
-[...app._hooks[0]][0](undefined, true);
-const f0 = fired;
-store._delete();
-store.x = 99;
-check('_delete severs subscriptions', fired === f0);
-
 // ---- error messages ----
 let msg = '';
 try { core.init(null); } catch (e) { msg = e.message; }

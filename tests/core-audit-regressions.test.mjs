@@ -156,15 +156,21 @@ test('a self-feeding useSyncEffect is stopped and named in development', async (
 
 /**
  * A frozen or sealed object is an ordinary thing to hand a store — a config, a constant table, a
- * payload frozen by whatever produced it. `createStore` defined a `_delete` convenience on the raw
- * target unconditionally, so a frozen one threw `Cannot define property _delete, object is not
- * extensible`: a failure naming a property the author never wrote.
+ * payload frozen by whatever produced it. `createStore` once defined a `_delete` convenience on the raw
+ * target, so a frozen one threw `Cannot define property _delete, object is not extensible`: a failure
+ * naming a property the author never wrote. (`_delete` was removed in the lean-core rebuild.)
  */
 test('a frozen store is accepted and still reads', () => {
   const frozen = core.createStore(Object.freeze({ a: 1, nested: { b: 2 } }));
   assert.equal(frozen.a, 1);
   assert.equal(frozen.nested.b, 2);
-  assert.equal(frozen._delete, undefined, 'no _delete on a store that cannot change');
+});
+
+/** A primitive has nothing for a store to proxy; `ref()` is the box for one value, and the error says so. */
+test('createStore refuses a primitive, naming ref', () => {
+  for (const value of [0, 'text', true, null, undefined]) {
+    assert.throws(() => core.createStore(value), /ref\(/, `createStore(${String(value)}) names ref()`);
+  }
 });
 
 /**

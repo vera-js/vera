@@ -114,11 +114,10 @@ await import('./components/app.js'); // correct — dynamic import is not hoiste
 
 | Export | Signature | Notes |
 | --- | --- | --- |
-| `createStore` | `<T>(obj: T) => Store<T>` | Deep reactive proxy. Nested objects are tracked too. |
+| `createStore` | `<T extends object>(obj: T) => Store<T>` | Deep reactive proxy. Nested objects are tracked too. Throws on a primitive — hold one value with `ref()`. |
 | `ref` | `<T>(value: T) => { value: T }` | Deep reactive box for a single value. |
 | `shallowRef` | `<T>(value: T) => { value: T }` | `.value` is tracked; **contents are NOT proxied**. Use for large immutable data such as list rows. |
 | `untrack` | `<T>(fn: () => T) => T` | Read current state without subscribing. |
-| `store._delete()` | `() => void` | Severs every subscription for an object store instantly. Non-enumerable; absent on primitive (`{value}`) stores. |
 | `deps` | `(...values) => void` | Explicitly touch values to register them as dependencies. |
 
 **Use `shallowRef` for lists.** Putting 1 000 row objects in `createStore` proxies all of them and
@@ -282,15 +281,14 @@ Every effect receives a signal describing what changed:
 
 ```js
 useEffect((signal) => {
-  signal.prop;       // name of the most recent change
+  signal.prop;       // name of the change that scheduled this run
   signal.value;
   signal.prevValue;
-  signal.changed;    // Map<prop, { value, prevValue }> — everything in this batch
 });
 ```
 
-`signal.changed` is only present on coalesced runs, and holds each property's value at the **start**
-and **end** of the batch.
+A coalesced run (`useEffect`, `useLayoutEffect`, a render) describes the write that scheduled it;
+`useSyncEffect` runs once per write, so it sees every one.
 
 ### Extension
 

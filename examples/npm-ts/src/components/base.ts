@@ -111,12 +111,6 @@ class Base extends HTMLElement {
       state.hermione.name.name = (e.target as HTMLInputElement).value;
     };
 
-    const cleanUpEffects = () => {
-      console.log('cleaning up');
-      /** Optional on `Store`, so it is called optionally; a store without it has nothing to tear down. */
-  state._delete?.();
-    };
-
     const toggleButton = () => {
       state.showButton = !state.showButton;
     };
@@ -157,7 +151,6 @@ class Base extends HTMLElement {
             type="text"
             .value="${harry}" />
           <button @mouseover=${toggleButton} @mouseleave=${toggleButton}>Hover Me</button>
-          <button @click=${cleanUpEffects}>clean up effects</button>
           ${showButton
             ? html`<div style="width: 200px; height: 300px; background-color: red;">Hello friend! ${harry}</div>`
             : ''}
