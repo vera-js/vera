@@ -301,6 +301,15 @@ Use `mount()` when a component has no markup of its own. Hooks that are never co
 no error, no render, an effect that simply does not happen — so in development a component that
 finishes `connectedCallback` without reaching either call warns and names both.
 
+**Set up on every connection, not once.** `connectedCallback` runs again each time the element is put
+back in the page — moved to another container, re-inserted by a keyed list, taken into a portal or
+a popped-out window. Call `init()` and register the hooks there every time, and keep state on the
+element (`this.state ??= createStore(…)`) or in a store, so it survives the trip. Each `init()` starts
+a fresh generation of hooks and the previous one goes inert, so re-attached components show current
+state and have live effects. Guarding setup with `if (this.started) return` — the habit the platform's
+own guidance on repeated `connectedCallback` suggests — leaves effects torn down as soon as they run
+after a re-attach, and development says so, naming the element.
+
 **Setup is one synchronous block, which matters for `async connectedCallback()`.** Only one component
 is being set up at a time, so a second component's `init()` takes the slot from the first — and an
 `await` between `init()` and `render()` hands it over. One component alone is fine; two on a page,

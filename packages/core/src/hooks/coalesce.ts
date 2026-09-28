@@ -1,7 +1,7 @@
 import { deferInHookContext, reportHookError } from '../modules/createHook.js';
 import { schedulerGeneration } from '../modules/setRenderScheduler.js';
 import { guardPass, noteWrite } from '../modules/allowRenderLoop.js';
-import { swapCleanup } from '../store/store.js';
+import { swapCleanup, swept } from '../store/store.js';
 import type { HookCallback, HookCleanup, Signal, SignalChange } from '../types.js';
 
 /**
@@ -48,7 +48,8 @@ export const coalesce = (callback: HookCallback, schedule: (run: () => void) => 
      * spends its whole life in.
      */
     try {
-      previous?.();
+      /** Not one the disconnect sweep already ran — see `swept`. */
+      if (previous && !swept.has(previous)) previous();
     } catch (error) {
       reportHookError(error);
     }
