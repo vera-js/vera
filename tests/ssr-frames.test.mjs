@@ -38,10 +38,11 @@ test('a runaway loop\'s leftover frame does not run during the next render', asy
 
 /**
  * Work a frame starts without returning its promise is invisible to the drain except by waiting: the
- * async drain gives the microtask queue several idle turns before it concludes nothing is left, so a
- * chain a couple of hops deep still lands in the markup.
+ * async drain gives the microtask queue three idle turns before it concludes nothing is left. Measured,
+ * that reaches a chain four microtasks deep, where one turn reaches two; the fixture sits at three, so
+ * it passes with a margin either way and still tells the two apart.
  */
-test('async: fire-and-forget work a few microtasks deep reaches the markup', async () => {
+test('async: fire-and-forget work three microtasks deep reaches the markup', async () => {
   const { html } = await renderToStringAsync(fixture('fire-and-forget'));
   assert.match(html, /<p>late<\/p>/);
 });

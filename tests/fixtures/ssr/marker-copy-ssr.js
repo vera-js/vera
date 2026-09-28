@@ -24,7 +24,13 @@ export default class MarkerCopySsr extends HTMLElement {
     const a = this.shadowRoot.querySelector('copy-a');
     const b = document.createElement('copy-b');
     this.shadowRoot.prepend(b);
-    for (const { name, value } of a.attributes) b.setAttribute(name, value);
+    /** And onto a second `copy-a`, after the original: one instance is rendered once, never twice. */
+    const twin = document.createElement('copy-a');
+    this.shadowRoot.append(twin);
+    for (const { name, value } of a.attributes) {
+      b.setAttribute(name, value);
+      twin.setAttribute(name, value);
+    }
   }
 }
 customElements.define('marker-copy-ssr', MarkerCopySsr);

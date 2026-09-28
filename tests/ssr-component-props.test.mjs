@@ -79,3 +79,8 @@ await assert.rejects(
 const copied = (await renderToString(new URL('./fixtures/ssr/marker-copy-ssr.js', import.meta.url))).html;
 assert.match(copied, /<copy-b><template shadowrootmode="open"><i>B<\/i>/, 'the copy renders as itself');
 assert.match(copied, /<copy-a><template shadowrootmode="open"><b>A:7<\/b>/, 'CONTROL: the original got its props');
+assert.equal(
+  copied.match(/<b>A:7<\/b>/g).length,
+  1,
+  'a same-tag copy of the marker does not render the instance a second time'
+);
