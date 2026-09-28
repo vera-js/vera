@@ -93,3 +93,37 @@ test('a store of a type nothing claimed yet takes the module that claims it, onc
   void dates.getTime;
   assert.deepEqual(seen, ['date:getTime'], 'the existing store now runs the claiming handler');
 });
+
+/** Taking a claim back is a re-decision too: the traps it installed leave with it, on existing stores. */
+test('a type a replaced module no longer claims goes back to transparent, on existing stores', () => {
+  const when = core.createStore(new Date(0));
+  core.wire({ on: 'store', priority: 42, fn: (type, handler) => handler });
+  seen.length = 0;
+  void when.getTime;
+  assert.deepEqual(seen, [], 'the claiming handler is gone from the store that had it');
+  assert.equal(typeof when.getTime, 'function', 'and the store is transparent again');
+});
+
+/**
+ * **All decided, then all written.** A module that throws for one type must leave every type as it was
+ * — not the ones decided before the throw rewritten and the rest not.
+ */
+test('a module that throws for one type changes no type at all', () => {
+  const plain = core.createStore({ p: 1 });
+  const list = core.createStore([1]);
+  assert.throws(() =>
+    core.wire({
+      on: 'store',
+      priority: 43,
+      fn: (type, handler) => {
+        if (type === 'array') throw new Error('array-boom');
+        return handler && { ...handler, get: (...args) => (seen.push('half-installed'), handler.get(...args)) };
+      },
+    })
+  , /array-boom/);
+  seen.length = 0;
+  void plain.p;
+  void list[0];
+  assert.ok(!seen.includes('half-installed'), 'no type took the throwing module');
+  core.wire({ on: 'store', priority: 43, fn: (type, handler) => handler });
+});
