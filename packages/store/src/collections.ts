@@ -1,5 +1,5 @@
-import type { StoreProxyKeys } from '@verajs/shared-types';
-import type { CollectionInsert } from '@verajs/inserts';
+import { isSetOrMap } from '@verajs/shared-utils';
+import type { StoreInsert, StoreKit } from '@verajs/inserts';
 
 /**
  * `@verajs/store/collections` — reactive `Map` and `Set` inside VeraJS stores.
@@ -20,37 +20,19 @@ import type { CollectionInsert } from '@verajs/inserts';
  * production. Core's own function writes to the map core reads, in every build.
  *
  * It lives outside core because most stores hold plain objects, and before the split every app
- * carried 367 B gzipped for collections it never created. Nothing is silent if you forget: core
- * raises a `__DEV__` error naming this entry the first time a `Map` or `Set` reaches a store with
- * nothing registered.
+ * carried 367 B gzipped for collections it never created. Without it a `Map` or `Set` in a store is
+ * handed back as it is — it works as a plain collection and nothing re-renders when it changes.
  *
- * **It imports nothing at runtime.** `computed` beside it is built *on* core and imports it; this
- * implements an extension point core defines, so core hands it `addCallback` and `runCallbacks` at
- * dispatch. Which way round a module goes is decided by one question: does core call you, or do you
- * call core?
+ * **It imports nothing from core.** `computed` beside it is built *on* core and imports it; this is a
+ * `'store'` insert, an extension point core defines, so core hands it its reactivity (the
+ * {@link StoreKit}) when it asks. Which way round a module goes is decided by one question: does core
+ * call you, or do you call core?
  */
-
-/**
- * The every-change channel: mutations notify it in addition to their own key, and unkeyed reads
- * (`entries`, `keys`, `values`, `forEach`, `size`) subscribe to it. Also part of the documented
- * surface for `'proxy-handler'` insert authors, so treat the name as public.
- */
-/**
- * The channel a container's **shape** is published on, as distinct from any one key: a Map or Set
- * mutation, and a plain object gaining or losing a key.
- *
- * **This string is a contract with `@verajs/core`, which declares the same literal.** Core tracks
- * it from `ownKeys` and from a `size` read; this package notifies it on every mutation. They are
- * two declarations rather than an import because a production bundle inlines its dependencies —
- * importing it would work in development and, in production, subscribe to one string while
- * notifying another. Change it in one place and `${state.map.size}` silently stops updating.
- */
-export const GLOBAL = '_global';
 
 /**
  * One wrapper per collection per method, cached so repeated reads return the SAME function —
- * `map.get === map.get` holds, and the hot path (this runs inside the proxy `get` trap) does not
- * allocate a closure per read.
+ * `map.get === map.get` holds, and the read path (this runs inside the collection handler's `get`)
+ * does not allocate a closure per read.
  */
 const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
 
@@ -79,13 +61,7 @@ const wrapperCache = new WeakMap<object, Map<PropertyKey, unknown>>();
  * silent. `get`/`has` subscribe per key; `entries`/`keys`/`values`/`forEach`, `for…of` and spread
  * subscribe to every change. Reactivity is per-entry, not deep: values come back raw.
  */
-export const collectionMethod = (
-  obj: object & StoreProxyKeys,
-  prop: PropertyKey,
-  propValue: unknown,
-  addCallback: (obj: never, prop: never) => void,
-  runCallbacks: (obj: never, prop: never, value: never, prevValue: never) => void
-) => {
+const collectionMethod = (obj: object, prop: PropertyKey, propValue: unknown, kit: StoreKit) => {
   let wrappers = wrapperCache.get(obj);
   if (wrappers === undefined) wrapperCache.set(obj, (wrappers = new Map()));
 
@@ -93,10 +69,9 @@ export const collectionMethod = (
   if (wrapper === undefined) {
     const collection = obj as unknown as Map<unknown, unknown> & Set<unknown>;
     const method = propValue as (...args: unknown[]) => unknown;
-    /** The single cast seam between the collection's untyped keys and the callback machinery. */
-    const notify = (key: unknown, value: unknown, prevValue: unknown) =>
-      (runCallbacks as (o: object, k: unknown, v: unknown, p: unknown) => void)(obj, key, value, prevValue);
-    const track = (key: unknown) => (addCallback as (o: object, k: unknown) => void)(obj, key);
+    const notify = (key: unknown, value: unknown, prevValue: unknown) => kit.trigger(obj, key, value, prevValue);
+    const track = (key: unknown) => kit.track(obj, key);
+    const GLOBAL = kit.shape;
 
     /**
      * **A `function`, not an arrow, because the receiver is the return value.**
@@ -200,19 +175,42 @@ export const collectionMethod = (
   return wrapper;
 };
 
+/** One handler per kit (per core), built on first use. */
+const handlers = new WeakMap<StoreKit, ProxyHandler<object>>();
+
 /**
- * The descriptor to hand `wire`. Priority 50 is the convention for a default implementation —
- * register below 50 to run first, or at 50 to replace this entirely.
+ * The handler for a collection in a store. `size` is an accessor on the raw target and subscribes to
+ * the shape channel every mutation notifies; a method comes back as its tracking wrapper
+ * (`collectionMethod`), since a native one called on a proxy throws `called on incompatible receiver`;
+ * anything else is read off the target. Values come back raw — reactivity is per entry, not deep.
+ */
+const collectionHandler = (kit: StoreKit) => {
+  let handler = handlers.get(kit);
+  if (handler === undefined)
+    handlers.set(
+      kit,
+      (handler = {
+        get(obj, prop) {
+          if (prop === 'size') {
+            kit.track(obj, kit.shape);
+            return (obj as Map<unknown, unknown>).size;
+          }
+          const value = Reflect.get(obj, prop, obj);
+          return typeof value === 'function' ? collectionMethod(obj, prop, value, kit) : value;
+        },
+      })
+    );
+  return handler;
+};
+
+/**
+ * The descriptor to hand `wire`: a `'store'` insert claiming `Map`, `Set`, `WeakMap` and `WeakSet`.
+ * Priority 50 is the convention for a default implementation — register below 50 to run first, or at
+ * 50 to replace this entirely.
  */
 export const collections = {
   name: '@verajs/store/collections',
-  on: 'collection' as const,
-  /**
-   * Annotated, not inferred. `collectionMethod` returns `unknown`, and an inferred `unknown` return
-   * makes the descriptor unassignable to `Registerable` — TypeScript tries the union's first member
-   * and reports a failure about `ProxyHandlerInsert`, which has nothing to do with this. Saying
-   * which insert it is turns that into a check rather than a puzzle.
-   */
-  fn: collectionMethod as CollectionInsert,
+  on: 'store' as const,
+  fn: ((value, handler, kit) => (isSetOrMap(value) ? collectionHandler(kit) : handler)) as StoreInsert,
   priority: 50,
 };

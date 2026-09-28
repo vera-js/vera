@@ -128,26 +128,13 @@ const apply = (item: Registerable) => {
 let replacing = '';
 
 /**
- * Bumped by every registration, so a reader can cache a chain and know when the cache is stale.
- *
- * The chains that matter are read on the framework's hottest paths — `'proxy-handler'` on every
- * property read of every store, `'set-handler'` on every write — and a `Map.get` with a string key
- * on each of those measured at **13% of a tracked read**. A registration is a once-per-app event;
- * a read is a once-per-property-access event, so the cost belongs on the registration side.
- *
- * A live binding rather than a getter: an importer sees the current value with no call, and when a
- * production bundle inlines this module it becomes the same variable rather than a copy.
- */
-export let revision = 0;
-
-/**
  * Registers a callback into a named insert chain, ordered by priority (lower runs first).
  * Registering at a priority that is already taken replaces it.
  *
  * Entries are stored in a **dense, priority-sorted array** rather than at `array[priority]`.
  * Indexing by priority left holes — registering the renderer at 50 produced a 51-element array
- * with 50 holes — and every chain is walked on the hot path, so iterating those holes cost
- * roughly 238 ns per store read, more than doubling it.
+ * with 50 holes — and a chain is walked every time its point fires, so the holes were paid on every
+ * render and, while store reads walked a chain, roughly 238 ns on every one of those.
  */
 const register = <K extends keyof InsertFunctionMap>(
   insertName: K,
@@ -215,11 +202,7 @@ const register = <K extends keyof InsertFunctionMap>(
           `replaced the first${replacing ? ` — ${replacing}` : ''}. If both are meant to run, give ` +
           `them different priorities; lower runs first.`
       );
-    /**
-     * In place, so a cached reference to this chain stays correct and `revision` need not move —
-     * the array identity is what a reader caches, and replacement does not change it. Only creating
-     * a chain or changing its length does, and both fall through to the bump below.
-     */
+    /** In place, so a reference to this chain held elsewhere stays correct. */
     chain[existing] = callback;
     if (__DEV__) (chain._n ??= [])[existing] = replacing;
     return;
@@ -230,5 +213,4 @@ const register = <K extends keyof InsertFunctionMap>(
   chain.splice(slot, 0, callback);
   order.splice(slot, 0, priority);
   if (__DEV__) (chain._n ??= []).splice(slot, 0, replacing);
-  revision++;
 };

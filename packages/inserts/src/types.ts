@@ -1,29 +1,42 @@
-import type { ProxyObject, StoreProxyKeys } from '@verajs/shared-types';
+/**
+ * Core's reactivity, handed to a `'store'` insert so a module can build a handler of its own on it.
+ */
+export type StoreKit = {
+  /** Subscribes the running hook, if any, to `obj[key]` — any key, an object included. */
+  track: (obj: object, key: unknown) => void;
+  /** Wakes every hook subscribed to `obj[key]`, handing it the new and previous value. */
+  trigger: (obj: object, key: unknown, value: unknown, prevValue: unknown) => void;
+  /**
+   * The channel a container's shape is published on: enumeration subscribes to it, and adding or
+   * removing a key notifies it. A module tracks and notifies it for its own containers (a `Map`'s
+   * iteration and `size`), through this name rather than a literal of its own.
+   */
+  shape: string;
+};
 
 /**
- * Runs when a store property is **read**, and what it returns becomes the value read.
+ * **Decides how a value in a store is reactive — once, the first time a store meets it.**
  *
- * That is the point — it is how a module transforms values on their way out, which is what the
- * `computed` recipe uses to unwrap a box — but it means a handler written only to *observe* must
- * return nothing. `wire({ on: 'proxy-handler', fn: () => count++, priority: 30 })` registers a callback returning a number, and every read of
- * every store then yields that number instead of the value: silent, total, and indistinguishable
- * from the store being broken.
+ * Handed the value, the handler chosen so far — core's own for a plain object or array, `undefined`
+ * for anything core leaves alone — and core's {@link StoreKit}. Return a handler to use instead, or
+ * nothing to leave the choice as it is. Inserts run in priority order, each seeing the previous
+ * choice, so they compose:
  *
- * `undefined` and `null` both leave the value alone (`?? propValue`), so a block-bodied arrow —
- * `() => { count++; }` — is the safe shape for an observer.
+ * - **claim a type core leaves alone** — `@verajs/store/collections` returns a handler for `Map`,
+ *   `Set`, `WeakMap` and `WeakSet`, built on `kit.track`/`kit.trigger`;
+ * - **wrap core's handler** — `{ ...handler, set(obj, prop, value, receiver) { … } }` — for batching,
+ *   transactions, undo, persistence or devtools; writing through `Reflect.set` on the raw target
+ *   notifies nobody, and `kit.trigger` notifies later, which is how a module holds changes back.
+ *
+ * It is consulted on a store's cache miss only, never per read or write, so a module that wires
+ * nothing costs nothing and one that wires something costs only what its handler does. The decision is
+ * per value and final: a module wired after a value was first wrapped does not reach it.
  */
-export type ProxyHandlerInsert = <T extends object>(
-  obj: T & StoreProxyKeys,
-  prop: Extract<keyof T, string>,
-  propValue: ProxyObject<T>,
-  addCallback: (obj: T & StoreProxyKeys, prop: Extract<keyof T, string>) => void,
-  runCallbacks: <T extends object>(
-    obj: T,
-    prop: Extract<keyof T, string>,
-    value: T[Extract<keyof T, string>],
-    prevValue: T[Extract<keyof T, string>]
-  ) => void
-) => ProxyObject<T>;
+export type StoreInsert = (
+  value: object,
+  handler: ProxyHandler<object> | undefined,
+  kit: StoreKit
+) => ProxyHandler<object> | undefined | void;
 
 /**
  * The renderer chain: what `render()` calls to put a template on screen. Core ships none, so an app
@@ -38,26 +51,6 @@ export type ProxyHandlerInsert = <T extends object>(
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RendererInsert = (template: any, container: HTMLElement, ...args: any[]) => any;
-
-/**
- * Runs when a store property is written, before the default propagation.
- *
- * Returning `false` suppresses that default propagation, which is what lets a module hold changes
- * back and flush them itself — batching, transactions, undo/redo, persistence, time-travel devtools.
- * Any other return value leaves the default behavior alone.
- */
-export type SetHandlerInsert = <T extends object>(
-  obj: T,
-  prop: Extract<keyof T, string>,
-  value: unknown,
-  prevValue: unknown,
-  runCallbacks: <O extends object>(
-    obj: O,
-    prop: Extract<keyof O, string>,
-    value: O[Extract<keyof O, string>],
-    prevValue: O[Extract<keyof O, string>]
-  ) => void
-) => boolean | void;
 
 /**
  * Runs when a hook callback or an element ref (`&ref`) throws. Neither error escapes — one failing
@@ -79,26 +72,6 @@ export type ErrorInsert = (error: unknown, element?: HTMLElement) => void;
  * `Map.get` returning `undefined`, once per element.
  */
 export type InitInsert = (element: HTMLElement) => void;
-
-/**
- * Returns a tracking wrapper for a `Map`/`Set` method read through a store proxy — the extension
- * point `@verajs/store/collections` registers on.
- *
- * **Type-keyed, not per-read.** Core dispatches it only when the target is already known to be a
- * `Map` or a `Set`, so a plain-object read never reaches the lookup. That is the whole difference
- * from `'proxy-handler'`, which runs on every read of every store and is why reactive collections
- * could not affordably live out of core before.
- *
- * With nothing registered, a `Map` in a store is inert — core raises a `__DEV__` error naming the
- * package rather than letting the mutation pass silently.
- */
-export type CollectionInsert = (
-  obj: object,
-  prop: PropertyKey,
-  propValue: unknown,
-  addCallback: (obj: never, prop: never) => void,
-  runCallbacks: (obj: never, prop: never, value: never, prevValue: never) => void
-) => unknown;
 
 /**
  * Claims a value at a **child position** — `<div>${value}</div>` — by inspecting it.
@@ -195,12 +168,10 @@ export type TemplateInsert = (
  * is the whole contract: adding a point means adding a line here, and `wire` will then accept it.
  */
 export type InsertFunctionMap = {
-  'proxy-handler': ProxyHandlerInsert;
+  'store': StoreInsert;
   'render': RendererInsert;
-  'set-handler': SetHandlerInsert;
   'error': ErrorInsert;
   'init': InitInsert;
-  'collection': CollectionInsert;
   'value': ValueInsert;
   'slot': SlotInsert;
   'template': TemplateInsert;
@@ -221,12 +192,10 @@ export type InsertFunctionMap = {
 export type Inserts = Map<
   keyof InsertFunctionMap,
   (
-    | ProxyHandlerInsert
+    | StoreInsert
     | RendererInsert
-    | SetHandlerInsert
     | ErrorInsert
     | InitInsert
-    | CollectionInsert
     | ValueInsert
     | SlotInsert
     | TemplateInsert

@@ -11,10 +11,15 @@ export const currentInstance: { element: ComponentElement | null } = { element: 
 export const hooksQueue: WeakRef<HookCallback>[] = [];
 
 /**
- * Every subscription: target object → property → the hooks that read it. The hooks are held
- * **weakly** — their element holds them strongly — so a removed element's subscriptions go with it.
+ * Every subscription: target object → key → the hooks that read it. The hooks are held **weakly** —
+ * their element holds them strongly — so a removed element's subscriptions go with it.
+ *
+ * A key is anything a store module tracks — a property, or a collection's entry key, an object
+ * included. A weak collection's container is really a `WeakMap` (see `track`); it is declared as a
+ * `Map` because only `get` and `set` are ever called on it, which the two share, and a union would
+ * make every read narrow for a difference that does not exist at these call sites.
  */
-export const proxyCallbacks = new WeakMap<object, Map<PropertyKey, Set<WeakRef<HookCallback>>>>();
+export const proxyCallbacks = new WeakMap<object, Map<unknown, Set<WeakRef<HookCallback>>>>();
 
 /** The `html` tagged template: the strings and values, for a renderer to consume. */
 export const html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult => ({
