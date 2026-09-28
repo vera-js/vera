@@ -79,11 +79,12 @@ export type SlotSeamState = { _$park$?: () => void };
  *   instance keeps plain state and the methods live once per template.
  * - **One hook, not a list.** A list costs every hooked instance a loop and Firefox about 3%, plus
  *   79 B. A second consumer composes — its `'template'` hook wraps the `_$inst$` it finds — so the
- *   list's only advantage is paid for by nobody today. `slotDiscovery` runs at priority 10, before
- *   any default-priority hook, so it is the one wrapped.
+ *   list's only advantage is paid for by nobody today. `@verajs/renderer/elements` runs at priority
+ *   10, before any default-priority hook, so it is the one wrapped — and several consumers share it
+ *   as `'element'` claims instead of each writing a hook.
  *
- * `@verajs/renderer/slots` is the user: it finds the `<slot>`s, hands them to the strategy, and parks
- * the user's nodes at teardown. `$`-sigiled throughout, so it survives property mangling across the
+ * `@verajs/renderer/elements` is the user: it asks its claimants about each element once per
+ * template and mounts and unmounts their behaviors per instance — slots' `<slot>` claim among them. `$`-sigiled throughout, so it survives property mangling across the
  * bundle boundary.
  */
 export type InstanceHook = {

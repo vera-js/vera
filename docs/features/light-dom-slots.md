@@ -79,7 +79,7 @@ npm run test:browser:all                                # includes hydration fro
 
 ## Cost
 
-<!--size:slots.gzip-->3.62 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
+<!--size:slots.gzip-->3.76 KB<!--/size:slots.gzip--> gzipped, and only if you import it. The
 module carries everything slots needs — finding each `<slot>`, marking the render's own output, the
 takeover itself — and the renderer carries only generic hooks it plugs into (an instance hook on
 the template, an insert hook, the capture and relocation calls). An app that never wires slots pays

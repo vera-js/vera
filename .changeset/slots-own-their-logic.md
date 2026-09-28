@@ -15,10 +15,10 @@ with nothing on the hot path for templates that have none), and an optional `$o`
 the slot strategy. Slotted creation measures level with the renderer before this change on Chromium, Firefox
 and WebKit.
 
-**What it weighs, against 0.2.2, gzipped.** The renderer is 4 892 B (0.2.2: 4 679), now carrying the
+**What it weighs, against 0.2.2, gzipped.** The renderer is 4 893 B (0.2.2: 4 679), now carrying the
 `'template'` hook `@verajs/renderer/namespaces` plugs into and the fixes below; an app that does not
-use slots is 7 403 B (7 141). The slots module is 3 710 B (3 424), and a slotted light component
-bundled with both is **10 658 B, up from 10 028 — about 630 B more** for the apps that use slots: the
+use slots is 7 403 B (7 141). The slots module is 3 847 B (3 424), and a slotted light component
+bundled with both is **10 808 B, up from 10 028 — about 780 B more** for the apps that use slots: the
 contract now crosses a bundle boundary, and those apps carry it.
 
 - `wire([renderer, slots])` is unchanged in what you write — but it needs `@verajs/core` 0.3.2 or
@@ -32,8 +32,10 @@ contract now crosses a bundle boundary, and those apps carry it.
 - Development warns when the slots module and the renderer come from different versions of the
   package: they are one contract across a bundle boundary. An older slots module beside this
   renderer is treated as unwired in both builds — its fallback shows and nothing is lost.
-- `slotDiscovery` sets its instance hook first (`'template'` priority 10), so a module wired after
-  it finds slots' hook and wraps it; one wired before it is replaced, and development says so.
+- `slotDiscovery` claims each `<slot>` through `@verajs/renderer/elements` (an `'element'` claimant)
+  and carries `elements` with it; an app wiring `elements` for its own claims as well gets one
+  module, not two. A `'template'` hook that sets an instance hook before `elements` is replaced, and
+  development says so.
 
 **Fixed — also in 0.2.2: with slots wired, a light component's own top-level `${…}` lost its
 content on update.** `${busy ? spinner() : list()}` as a component's whole template rendered the

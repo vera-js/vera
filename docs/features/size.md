@@ -134,7 +134,7 @@ describing the bytes honestly.)*
 | `@verajs/store/computed` | 238 B | memoized derived values |
 | `@verajs/store/collections` | 571 B | reactive `Map` and `Set` in a store |
 | `@verajs/renderer/keyed` | 923 B | `keyed()` — keyed list reconciliation |
-| `@verajs/renderer/slots` | 3 710 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
+| `@verajs/renderer/slots` | 3 847 B | `<slot>` distribution in a LIGHT-DOM component, and `slotted()` |
 | `@verajs/renderer/namespaces` | 742 B | an `html` template parsed in the namespace of the position it lands in — SVG children of components |
 | `@verajs/renderer/elements` | 530 B | behavior attached to claimed elements in templates, mounted and unmounted with their instances |
 | `@verajs/renderer/hydrate` | 6 765 B | INSTEAD OF `@verajs/renderer` on an SSR page — the adopting renderer, not an addition beside it |
