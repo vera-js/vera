@@ -809,7 +809,8 @@ class Template {
      * are indistinguishable from a component that simply has no slots — see the warning at the
      * instance.
      */
-    if (__DEV__ && this._$inst$ === undefined && markup.includes('<slot')) this._slotless = true;
+    if (__DEV__ && markup.includes('<slot') && !(registry?.get('slot')?.length && registry.get('element')?.length))
+      this._slotless = true;
   }
 }
 
@@ -2065,7 +2066,7 @@ type ValueHandler = (part: object, value: unknown) => boolean | void;
  * registry and core another, and an app would register into whichever it happened to import — the
  * failure `connectInserts` used to repair.
  */
-let registry: { get(name: 'value' | 'slot' | 'template' | 'error'): unknown[] | undefined } | null = null;
+let registry: { get(name: 'value' | 'slot' | 'template' | 'error' | 'element'): unknown[] | undefined } | null = null;
 
 /**
  * **The create-path scope** (held on an object, not in a module-level `let`: WebKit checks a `let`

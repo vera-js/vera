@@ -247,7 +247,8 @@ test('a hook wired BEFORE slots is replaced, and development says so', { skip: i
   } finally {
     console.warn = original;
   }
-  assert.equal(said.filter((m) => m.includes('before `slotDiscovery`')).length, 1, JSON.stringify(said));
+  /** Slots rides on `elements` now, which owns the one instance hook — so the warning names it. */
+  assert.equal(said.filter((m) => m.includes('before `elements`')).length, 1, JSON.stringify(said));
 });
 
 /**

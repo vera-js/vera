@@ -16,7 +16,7 @@ import type { InsertDescriptor, Registerable, Wireable } from './types.js';
 
 export type { Connector, InsertDescriptor, Registerable, Wireable } from './types.js';
 
-type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[] };
+type Chain = InsertFunctionMap[keyof InsertFunctionMap][] & { _p?: number[]; _n?: string[] };
 
 
 /**
@@ -203,7 +203,13 @@ const register = <K extends keyof InsertFunctionMap>(
      * A module that builds a fresh closure per call (`autoloader(base, dir)`) still warns, correctly:
      * those are two observers, and only one of them would run.
      */
-    if (__DEV__ && chain[existing] !== callback)
+    /**
+     * **Nor is the same NAMED module arriving from two bundles.** A module another module carries
+     * inside it — `elements` inside `slots` — is a second copy of the same code when the app also
+     * wires it on its own: equivalent, but not identical, so identity alone called it a clash. The
+     * name is the module saying which it is; two different modules claiming one priority still warn.
+     */
+    if (__DEV__ && chain[existing] !== callback && !(replacing !== '' && chain._n?.[existing] === replacing))
       console.warn(
         `[vera] two things were wired to '${insertName}' at priority ${priority}, so the second ` +
           `replaced the first${replacing ? ` — ${replacing}` : ''}. If both are meant to run, give ` +
@@ -215,6 +221,7 @@ const register = <K extends keyof InsertFunctionMap>(
      * a chain or changing its length does, and both fall through to the bump below.
      */
     chain[existing] = callback;
+    if (__DEV__) (chain._n ??= [])[existing] = replacing;
     return;
   }
 
@@ -222,5 +229,6 @@ const register = <K extends keyof InsertFunctionMap>(
   while (slot < order.length && order[slot] < priority) slot++;
   chain.splice(slot, 0, callback);
   order.splice(slot, 0, priority);
+  if (__DEV__) (chain._n ??= []).splice(slot, 0, replacing);
   revision++;
 };

@@ -76,7 +76,8 @@
 
 /** What the seam holds per taken-over slot; `_$park$` rescues the user's nodes before the
  *  instance's DOM is bulk-discarded on a branch-away, and un-registers the binding. */
-import type { InstanceHook } from './types.js';
+import type { ElementBehavior } from './types.js';
+import { elements } from './elements.js';
 
 type SeamState = { _$park$: () => void };
 
@@ -1380,138 +1381,57 @@ const rescue = (host: Element): Node[] | null => {
 if (__DEV__) (takeOverSlot as { $v?: string }).$v = __VERSION__;
 
 /**
- * **Slot discovery — finding the `<slot>`s for whatever slot strategy is wired.** Two pieces: a
- * `'template'` hook that marks a template holding a `<slot>` with an instance hook (see
- * `InstanceHook` in the renderer), and a connector that keeps the registry, so the instance hook
- * hands each `<slot>` to the strategy registered on `'slot'` — this module's, or anyone's.
+ * **Slot discovery — each `<slot>` claimed through `@verajs/renderer/elements` and handed to whatever
+ * slot strategy is wired.** A claimant on the `'element'` insert: every `<slot>` of a template is
+ * claimed, and each instance's slot is handed to the strategy registered on `'slot'` (this module's,
+ * or anyone's) once the render that created it has finished, and parked at teardown. `elements` does
+ * the walking and the per-instance bookkeeping; this is only what a slot needs.
  *
  * Its own export so a custom strategy is one line from working: `wire([renderer, slotDiscovery,
- * myStrategy])`. `slots` includes it. Before 2026-09-24 the renderer did this itself, for every
- * app, slots or not.
+ * myStrategy])`. `slots` includes it, and it carries `elements` — wired again beside it, `elements`
+ * is the same module and `wire` treats it as one.
  */
 let registered: Map<string, unknown[]> | null = null;
 type Strategy = (slot: Element, root: Node, name: string) => SeamState | null | undefined;
-
-/**
- * Each instance of a marked template: find its `<slot>`s now (`$c`), hand them over after its first
- * update (`$m`), park them at teardown (`$q`). Found BEFORE the update because the update and the
- * takeovers both mutate the fragment (a takeover lifts its `<slot>` out and drops in anchors), so
- * they are collected first and acted on after; and like a render, the walk does not reach into a
- * nested `<template>`'s content. Handed over AFTER, because a `<slot>`'s own bindings are part of
- * its meaning: `<slot name=${…}>` has no name until its binding commits.
- *
- * **Positions, not a query per instance.** Every instance of a template starts as a clone of the
- * same markup, so the first instance's walk records where the `<slot>`s are and every later one
- * steps straight to them. A `querySelectorAll` per instance cost WebKit 3–4% on slotted creation
- * (2026-09-26); the walk to known positions measured level on all three engines.
- *
- * A null root is hydration's adoption path, which adopts slots itself.
- */
-/**
- * One walker for every template — ELEMENT|TEXT, the order the positions are counted in. Made at the
- * first slotted instance, never at import: `@verajs/ssr` imports this module in Node, where
- * there is no `document` (`tests/node-import-safety.test.mjs`); each slotted instance pays one check.
- */
-let slotWalker: TreeWalker | undefined;
-/** Development only: the discovery-without-a-strategy warning, once. */
 let strategyNamed = false;
-const discoverFor = (): InstanceHook => {
-  let positions: number[] | undefined;
-  return {
-    $c: (fragment, root) => {
-      if (root === null) return undefined;
-      const walker = (slotWalker ??= document.createTreeWalker(document, 5));
-      walker.currentNode = fragment;
-      const found: Element[] = [];
-      let at = -1;
-      let node: Node | null;
-      /** The first instance walks it all and learns; every later one stops at the last `<slot>`. */
-      if (positions === undefined) {
-        positions = [];
-        while ((node = walker.nextNode()) !== null) {
-          at++;
-          if ((node as Element).localName === 'slot') {
-            positions.push(at);
-            found.push(node as Element);
-          }
-        }
-      } else {
-        for (let k = 0; k < positions.length; ) {
-          node = walker.nextNode();
-          if (++at === positions[k]) found[k++] = node as Element;
-        }
-      }
-      return found.length === 0 ? undefined : found;
-    },
-    $m: (found, root) => {
-      const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
-      if (strategy === undefined) {
-        /** Development only: discovery with nothing to hand its `<slot>`s to is otherwise silent. */
-        if (__DEV__ && !strategyNamed) {
-          strategyNamed = true;
-          console.warn(
-            "[vera] slots: `slotDiscovery` is wired but no 'slot' strategy is — every `<slot>` it finds " +
-              'shows its fallback. Wire `slots` from @verajs/renderer/slots, or a strategy beside `slotDiscovery`.'
-          );
-        }
-        return undefined;
-      }
-      const slots = found as Element[];
-      let taken: SeamState[] | undefined;
-      for (let i = 0; i < slots.length; i++) {
-        const state = strategy(slots[i], root!, slots[i].getAttribute('name') ?? '');
-        if (state != null) (taken ??= []).push(state);
-      }
-      return taken;
-    },
-    $q: (taken) => {
-      for (const state of taken as SeamState[]) state._$park$?.();
-    },
-  };
-};
 
 /**
- * The `'template'` hook: mark a template that holds a `<slot>`. Read off the template's strings,
- * case-insensitively because the parser lowercases tag names. A `<slot` inside an attribute value
- * or a comment marks a template with no slot, which costs its first instance one walk that finds nothing; a real
- * `<slot>` element always has the text, so none is missed. A template `@verajs/renderer/namespaces`
- * builds for another namespace goes through the same hook and is marked too.
+ * Handed over once the creating render has FINISHED, because a `<slot>`'s own bindings are part of
+ * its meaning — `<slot name=${section}>` has no name until its binding commits — and the render
+ * leaves the whole tree in place. A commit outside any render (`root` null) takes no part, as before.
+ * Adopted slots are hydration's own path (`_$adopt$`), not this.
  */
-const SLOT_TAG = /<slot[\s/>]/i;
-const markTemplate = (built: object, result: { strings: TemplateStringsArray }) => {
-  if (!SLOT_TAG.test(result.strings.join(''))) return;
-  const template = built as { _$inst$?: InstanceHook };
-  /**
-   * **A template carries ONE instance hook, and a consumer that finds one wraps it** — the rule
-   * `InstanceHook` states. This module keeps it at no cost by going FIRST: `slotDiscovery` runs at
-   * priority 10, below the default 50, so it never finds one, and a module wired at the default wraps
-   * this module's. Wrapping here as well was measured at 76–102 B of every slotted app, for a second
-   * consumer that does not exist. One wired even earlier is overwritten, and development says so.
-   */
-  if (__DEV__ && template._$inst$ !== undefined)
-    console.warn(
-      "[vera] slots: a 'template' hook set an instance hook before `slotDiscovery` (priority 10) and is " +
-        'replaced. Wire it at a later priority and wrap the hook it finds, as `InstanceHook` describes.'
-    );
-  template._$inst$ = discoverFor();
+const slotBehavior: ElementBehavior = {
+  mount: (slot, { root }) => {
+    if (root === null) return undefined;
+    const strategy = registered?.get('slot')?.[0] as Strategy | undefined;
+    if (strategy === undefined) {
+      if (__DEV__ && !strategyNamed) {
+        strategyNamed = true;
+        console.warn(
+          "[vera] slots: `slotDiscovery` is wired but no 'slot' strategy is — every `<slot>` it finds " +
+            'shows its fallback. Wire `slots` from @verajs/renderer/slots, or a strategy beside `slotDiscovery`.'
+        );
+      }
+      return undefined;
+    }
+    return strategy(slot, root, slot.getAttribute('name') ?? '') ?? undefined;
+  },
+  unmount: (taken) => (taken as SeamState)._$park$?.(),
 };
 
 export const slotDiscovery = [
+  elements,
   (registry: Map<string, unknown[]>) => {
     registered = registry;
   },
-  { name: '@verajs/renderer/slot-discovery', on: 'template' as const, fn: markTemplate, priority: 10 },
+  {
+    name: '@verajs/renderer/slot-discovery',
+    on: 'element' as const,
+    fn: (element: Element) => (element.localName === 'slot' ? slotBehavior : undefined),
+    priority: 10,
+  },
 ];
-
-/**
- * The module — `wire([renderer, slots])` and light-DOM slots exist: discovery, plus this strategy
- * on the `'slot'` insert point.
- *
- * `fn` needs no cast: `'slot'` is a declared insert point, so this is checked against `SlotInsert`
- * rather than asserted past the type system. It used to be `as never`, which is what a missing
- * insert type looks like from the inside — and from the OUTSIDE it looked like
- * `wire([renderer, slots])` failing to compile for every TypeScript consumer.
- */
 export const slots = [
   slotDiscovery,
   { name: '@verajs/renderer/slots', on: 'slot' as const, fn: takeOverSlot, priority: 50 },

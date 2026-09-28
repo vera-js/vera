@@ -104,3 +104,36 @@ test('a template that rendered BEFORE the wiring stays slotless — and says so'
   stale.remove();
   fresh.remove();
 });
+
+/**
+ * **`elements` wired on its own AND inside `slots` is one module, not a clash.** The slots bundle
+ * carries its own copy of `elements` (it claims each `<slot>` through it), so an app that also wires
+ * `elements` for its own claims — autofocus, say — registers two equivalent copies at one priority.
+ * `wire` keys that on the module's NAME, so development stays quiet; two DIFFERENT modules at one
+ * priority still warn, which the control below pins. And both kinds of claim keep working.
+ */
+test('elements wired beside slots stays quiet and both kinds of claim work', async () => {
+  const { elements } = await load('renderer/elements');
+  const said = [];
+  const original = console.warn;
+  console.warn = (...args) => said.push(args.join(' '));
+  const mounted = [];
+  try {
+    wire([renderer, elements, slots, { on: 'element', fn: (el) => (el.hasAttribute('data-claim') ? { mount: (e) => mounted.push(e.localName) } : undefined), priority: 60 }]);
+    const host = doc.createElement('div');
+    host.innerHTML = '<b>MINE</b>';
+    doc.body.append(host);
+    renderInto(html`<section><i data-claim></i><slot>fb</slot></section>`, host);
+    await settle();
+    assert.equal(host.querySelector('section').textContent, 'MINE', 'the slot still distributes');
+    assert.deepEqual(mounted, ['i'], 'and the app\'s own claim still mounts');
+    host.remove();
+    if (!isProduction) {
+      assert.deepEqual(said.filter((m) => m.includes('two things were wired')), [], 'no clash reported for the same module twice');
+      wire({ name: 'someone-else', on: 'template', fn: () => {}, priority: 10 });
+      assert.equal(said.filter((m) => m.includes('two things were wired')).length, 1, 'CONTROL: a different module at that priority still warns');
+    }
+  } finally {
+    console.warn = original;
+  }
+});
