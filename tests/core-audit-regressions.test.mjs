@@ -203,6 +203,21 @@ test('a frozen store is accepted and still reads', () => {
   assert.equal(frozen._delete, undefined, 'no _delete on a store that cannot change');
 });
 
+/**
+ * **One object, reachable both through a normal store and inside a frozen one.** Reading it through the
+ * normal store caches its proxy; reading it again through the frozen parent must still hand back the
+ * raw object, because the frozen property may not be answered with a substitute. A cache keyed by the
+ * value alone would return the cached proxy there and the engine would throw — which is why a
+ * non-extensible parent is checked before the cache, not only on a cache miss (found by the lean
+ * rebuild's mutation controls, 2026-09-27: nothing else failed without that check).
+ */
+test('a shared object is handed back raw through a frozen parent, even once a store has wrapped it', () => {
+  const shared = { x: 1 };
+  const state = core.createStore({ open: shared, locked: Object.freeze({ inner: shared }) });
+  assert.notEqual(state.open, shared, 'CONTROL: through the open slot it is wrapped (and now cached)');
+  assert.equal(state.locked.inner, shared, 'through the frozen parent it is the raw object, not the cached proxy');
+});
+
 test('a sealed store still notifies on a write to an existing key', async () => {
   const el = document.createElement('div');
   document.body.append(el);
