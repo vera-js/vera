@@ -173,17 +173,12 @@ type HostState = {
    * filtered by name (`rebuild`), so order is never inferred afterwards. It replaced six mechanisms
    * that each recovered a piece of it: ranks, front/back counters, landmark comments, ownership
    * stamps grouping placed content, a merge around the run on screen, and a document-order sort.
+   *
+   * An ARRAY on purpose: a doubly linked list (O(1) placing) was built and measured against it — the
+   * same time at 3 000 and at 10 000 placed rows on three engines, where the DOM work dominates, for
+   * 92 B more. The quadratic that did exist was in routing (see `enclosing`).
    */
-  _first: Node | null;
-  _last: Node | null;
-  /**
-   * The list's links, per host — a doubly linked list rather than an array, because every change is
-   * positioned by a NEIGHBOR: with an array each was an `indexOf` and a `splice`, O(n) per node and
-   * quadratic per list (a 3 000-row list placed into a light host took 56–130 ms against ~20 plain,
-   * measured on three engines). Linked, placing, moving and dropping are O(1), and reading a slot's
-   * content or a part's span is one walk. Per host, since a node moving between hosts is briefly in two.
-   */
-  _links: Map<Node, Link>;
+  _light: Node[];
   /** The host window's `Event` — see `signal` for why it cannot be taken from the slot. */
   _event: typeof Event;
   _observer: MutationObserver;
@@ -294,7 +289,8 @@ const enclosing = (prev: Node | null): Binding | undefined => {
     /**
      * A node a slot is SHOWING answers at once — the gap after it is that slot's — so the walk runs
      * on only beside nodes slots did not place. Walking every time made each of a list's rows cost its
-     * index: quadratic per list (a 3 000-row placed list took 56–130 ms against ~20 plain).
+     * index: quadratic per list (a 3 000-row placed list took 56–130 ms against ~20 plain, measured on
+     * three engines; 20–29 ms with this).
      */
     const showing = SHOWN.get(at);
     if (showing !== undefined && showing._start.parentNode === at.parentNode) return showing;
@@ -323,29 +319,6 @@ const take = (state: HostState, node: Node): string | null => {
   return name;
 };
 
-type Link = { _p: Node | null; _n: Node | null };
-/** Takes `node` out of the host's list, if it is in it. */
-const unlink = (state: HostState, node: Node) => {
-  const links = state._links;
-  const link = links.get(node);
-  if (link === undefined) return;
-  if (link._p !== null) links.get(link._p)!._n = link._n;
-  else state._first = link._n;
-  if (link._n !== null) links.get(link._n)!._p = link._p;
-  else state._last = link._p;
-  links.delete(node);
-};
-/** Puts `node` into the host's list before `before` — at the end for `null`. */
-const link = (state: HostState, node: Node, before: Node | null) => {
-  const links = state._links;
-  const prev = before === null ? state._last : links.get(before)!._p;
-  links.set(node, { _p: prev, _n: before });
-  if (prev !== null) links.get(prev)!._n = node;
-  else state._first = node;
-  if (before !== null) links.get(before)!._p = node;
-  else state._last = node;
-};
-
 /**
  * **Puts `node` into the logical list where its writer put it.** At the host's top level, a node that
  * became its FIRST child is first and one that became its LAST is last — what the writer asked for,
@@ -354,27 +327,35 @@ const link = (state: HostState, node: Node, before: Node | null) => {
  * writer re-inserting a node is a reorder, whoever the writer is.
  */
 const place = (state: HostState, node: Node, prev: Node | null, next: Node | null, top: boolean) => {
-  const links = state._links;
+  const light = state._light;
   OWNER.set(node, state);
-  /** What it goes before (`null`: the end); `undefined` when neither reference is a light child. */
-  let before: Node | null | undefined;
-  if (top && prev === null) before = state._first;
-  else if (top && next === null) before = null;
-  else if (next !== null && links.has(next)) before = next;
-  else if (prev !== null && links.has(prev)) before = links.get(prev)!._n;
-  /** A known node whose neighbors are not light children — a whole slot range moved — keeps its place. */
-  if (before === undefined) {
-    if (links.has(node)) return;
-    before = null;
+  /** Where the writer's references put it; `undefined` when neither is a light child. */
+  let at: number | undefined;
+  if (top && prev === null) at = 0;
+  else if (top && next === null) at = light.length;
+  else {
+    const before = next === null ? -1 : light.indexOf(next);
+    const after = prev === null ? -1 : light.indexOf(prev);
+    if (before !== -1) at = before;
+    else if (after !== -1) at = after + 1;
   }
-  if (before === node) return;
-  unlink(state, node);
-  link(state, node, before);
+  const from = light.indexOf(node);
+  /** A known node whose neighbors are not light children — a whole slot range moved — keeps its place. */
+  if (at === undefined) {
+    if (from !== -1) return;
+    at = light.length;
+  }
+  if (from !== -1) {
+    light.splice(from, 1);
+    if (at > from) at--;
+  }
+  light.splice(at, 0, node);
 };
 
 /** Drops a node from the host's care — the list, and its name. Returns the name it had. */
 const forget = (state: HostState, node: Node): string | undefined => {
-  unlink(state, node);
+  const at = state._light.indexOf(node);
+  if (at !== -1) state._light.splice(at, 1);
   if (OWNER.get(node) === state) OWNER.delete(node);
   const name = state._names.get(node);
   state._names.delete(node);
@@ -383,10 +364,7 @@ const forget = (state: HostState, node: Node): string | undefined => {
 
 /** A slot's content: the logical list filtered by name — in light-tree order by construction. */
 const rebuild = (state: HostState, name: string) => {
-  const content: Node[] = [];
-  for (let node = state._first; node !== null; node = state._links.get(node)!._n)
-    if (state._names.get(node) === name) content.push(node);
-  state._map.set(name, content);
+  state._map.set(name, state._light.filter((node) => state._names.get(node) === name));
 };
 
 /**
@@ -878,9 +856,7 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
     _bindings: [],
     _holding: doc.createDocumentFragment(),
     _parks: new WeakSet(),
-    _first: null,
-    _last: null,
-    _links: new Map(),
+    _light: [],
     _names: new WeakMap(),
     _ghosts: new WeakMap(),
     _event: ((doc.defaultView as { Event?: typeof Event } | null)?.Event ?? Event) as typeof Event,
@@ -911,25 +887,28 @@ const capture = (host: Element, skipChildren = false, boundary?: Comment): HostS
    * round trip matches CSR exactly. Done before the children walk so the carrier is never itself
    * mistaken for slot content.
    */
-  const names = new Set<string>();
-  const adopt = (node: Node) => {
-    link(created, node, null);
-    OWNER.set(node, created);
-    const name = take(created, node);
-    if (name !== null) names.add(name);
-  };
   for (const child of [...host.children])
     if (child.localName === 'template' && child.hasAttribute(UNASSIGNED_MARK)) {
-      for (const node of [...(child as HTMLTemplateElement).content.childNodes]) adopt(node);
+      const held = (child as HTMLTemplateElement).content;
+      for (const node of [...held.childNodes]) {
+        created._light.push(node);
+        OWNER.set(node, created);
+        take(created, node);
+      }
       host.removeChild(child);
     }
   /** Hydration already has the children distributed and registers them itself; a fresh CSR
    *  capture lifts them from the host — comments stay where they are, but join the list as the
-   *  anchors later writers position against. The render's own anchors are the host's, not light
-   *  children — only foreign nodes join. */
+   *  anchors later writers position against. */
   if (!skipChildren)
-    for (const node of [...host.childNodes]) if (node !== created._sentinel && node !== boundary) adopt(node);
-  for (const name of names) rebuild(created, name);
+    for (const node of [...host.childNodes]) {
+      /** The render's own anchors are the host's, not light children — only foreign nodes join. */
+      if (node === created._sentinel || node === boundary) continue;
+      created._light.push(node);
+      OWNER.set(node, created);
+      take(created, node);
+    }
+  for (const name of new Set(created._light.map((node) => created._names.get(node)))) if (name !== undefined) rebuild(created, name);
   created._observer.observe(host, WATCHING);
   /**
    * HOLDING IS WATCHED TOO. Unassigned nodes wait in a detached fragment, which is not in the
@@ -1258,12 +1237,10 @@ const serverDistribute = (host: Element, source: Node[]) => {
 (takeOverSlot as { _$span$?: (start: Node, end: Node) => Node[] | undefined })._$span$ = (start, end) => {
   const state = OWNER.get(start);
   if (state === undefined || OWNER.get(end) !== state) return undefined;
-  const links = state._links;
-  if (!links.has(start) || !links.has(end)) return undefined;
-  const span: Node[] = [];
-  let node = links.get(start)!._n;
-  for (; node !== null && node !== end; node = links.get(node)!._n) span.push(node);
-  return node === end ? span : undefined;
+  const light = state._light;
+  const from = light.indexOf(start);
+  const to = light.indexOf(end);
+  return from === -1 || to < from ? undefined : light.slice(from + 1, to);
 };
 /** The server hook — SSR calls this (never the client capture/anchor path). */
 (takeOverSlot as { _$server$?: (host: Element, source: Node[]) => void })._$server$ = serverDistribute;
@@ -1319,7 +1296,7 @@ const adoptSlot = (
        * Into the logical list in visit order: the adoption walk visits slots in document order and
        * the server preserved within-name order, so this reproduces the light tree as it can be known.
        */
-      link(state, node, null);
+      state._light.push(node);
       OWNER.set(node, state);
       state._names.set(node, name);
     }
