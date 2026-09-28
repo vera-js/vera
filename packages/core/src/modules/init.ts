@@ -1,3 +1,5 @@
+import { inserts } from '@verajs/inserts';
+import type { InitInsert } from '@verajs/inserts';
 import { currentInstance } from '../store/store.js';
 import { runCleanup } from '../hooks/coalesce.js';
 import type { ComponentElement } from '../types.js';
@@ -22,6 +24,13 @@ export const init = (element: ComponentElement, shadowProps?: ShadowRootInit) =>
   element._cleanups = new Set();
   element._removed = false;
   if (shadowProps && !element.shadowRoot && !element._root) element._root = element.attachShadow(shadowProps);
+  /**
+   * The `'init'` insert: every element as it comes to life, after its root exists and before its first
+   * render — how `@verajs/styles` adopts `static styles`, and the place for instrumentation or
+   * per-element registration. Core knows nothing about what is registered; with nothing, it is one
+   * `Map.get` per element.
+   */
+  inserts.get('init')?.forEach((callback) => (callback as InitInsert)(element));
 };
 
 /**
